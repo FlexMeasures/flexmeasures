@@ -27,7 +27,7 @@ def chart(month, day):
     try:
         datetime.datetime(year=2016, month=month, day=day)
     except ValueError:
-        # TODO: raise this error to the UI (bla)
+        # TODO: raise this error to the UI
         print("Day %d is out of range for month %d" % (day, month))
         raise
 
