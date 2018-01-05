@@ -1,4 +1,9 @@
 import datetime
+import logging
+
+from logging import FileHandler, Formatter
+from logging.handlers import RotatingFileHandler
+
 
 from flask import Flask, render_template, request, redirect
 import pandas as pd
@@ -9,10 +14,14 @@ from bokeh.resources import CDN
 from bokeh.util.string import encode_utf8
 #from bokeh.models.sources import ColumnDataSource
 
-APP = Flask(__name__)
 
+DEBUG=True
+# global data source, will be replaced by DB connection probably
 PV_DATA = None
 SOLAR_ASSET = "EJJ PV (MW)"
+
+
+APP = Flask(__name__)
 
 
 @APP.route('/')
@@ -28,7 +37,7 @@ def chart(month, day):
         datetime.datetime(year=2015, month=month, day=day)
     except ValueError:
         # TODO: raise this error to the UI
-        print("Day %d is out of range for month %d" % (day, month))
+        APP.logger.error("Day %d is out of range for month %d" % (day, month))
         raise
 
     data = get_data(month, day)
@@ -96,4 +105,20 @@ def create_figure(series, title, x_label, y_label, hover_tool=None,
 
 
 if __name__ == '__main__':
-    APP.run(debug=True)
+    print("Starting A1 VPP application ...")
+
+    # setup logging
+    if DEBUG:
+        print("Initiating FileHandler logger.")
+        file_handler = FileHandler(filename="a1-vpp-errors.log")
+    else:
+        print("Initiating RotatingFileHandler logger.")
+        file_handler = RotatingFileHandler(filename="a1-vpp-errors.log")
+    file_handler.setFormatter(Formatter(
+        '%(asctime)s %(levelname)s: %(message)s '
+        '[in %(pathname)s:%(lineno)d]'
+    ))
+    file_handler.setLevel(logging.WARNING)
+    APP.logger.addHandler(file_handler)
+
+    APP.run(debug=DEBUG)
