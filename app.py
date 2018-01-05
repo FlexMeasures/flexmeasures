@@ -25,7 +25,7 @@ def index():
 @APP.route("/<int:month>/<int:day>/")
 def chart(month, day):
     try:
-        datetime.datetime(year=2016, month=month, day=day)
+        datetime.datetime(year=2015, month=month, day=day)
     except ValueError:
         # TODO: raise this error to the UI
         print("Day %d is out of range for month %d" % (day, month))
@@ -50,12 +50,17 @@ def get_data(month:int, day:int):
     global PV_DATA
     if PV_DATA is None:
         df = pd.read_csv("data/pv.csv")
-        # TODO: We will want a clean datetime index here, where the Time column is a bit difficult to compute
-        #       Maybe it's easiest if we use only it, actually
-        #df['datetime'] = pd.to_datetime('2017-' + df.Month + '-' + df.Day + ' ' + df['Time'])
-        #df = df.set_index('datetime').drop(['Month', 'Day'], axis=1)
+        df['datetime'] = pd.date_range(start="2015-01-01", end="2015-12-31 23:45:00", freq="15T")
+        # TODO: Maybe we actually will want to compute the datetime from the Time column ...
+        #df["Seconds_In_2015"] = df.Time * 4 * 15 * 60
+        #df['datetime'] = pd.to_datetime(df.Seconds_In_2015, origin=datetime.datetime(year=2015, month=1, day=1), unit="s")
+        df = df.set_index('datetime').drop(['Month', 'Day', 'Time'], axis=1)
         PV_DATA = df
-    return PV_DATA.loc[PV_DATA.Month==month][PV_DATA.Day==day][SOLAR_ASSET]
+
+    start = datetime.datetime(year=2015, month=month, day=day)
+    end = start + datetime.timedelta(days=1)
+    date_range_mask = (PV_DATA.index >= start) & (PV_DATA.index < end)
+    return PV_DATA.loc[date_range_mask][SOLAR_ASSET]
 
 
 def create_hover_tool():
