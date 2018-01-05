@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>PV data via Bokeh</title>
+    {{ css_resources|indent(4)|safe }}
+  </head>
+  <body>
+    
+    <h1>Solar radiation for 2016 / {{ month }} / {{ day }}</h1>
+
+    <form action="/">
+        Month: <select name="month">
+            {% for a_month in all_months %}
+                {% if a_month == month %}
+                    <option selected value="{{ a_month }}">{{ a_month }}</option> 
+                {% else %} 
+                    <option value="{{ a_month }}">{{ a_month }}</option> 
+                {% endif %}
+            {% endfor %}
+        </select>
+        Day: <select name="day">
+            {% for a_day in all_days %}
+                {% if a_day == day %}
+                    <option selected value="{{ a_day }}">{{ a_day }}</option> 
+                {% else %} 
+                    <option value="{{ a_day }}">{{ a_day }}</option> 
+                {% endif %}
+            {% endfor %}
+        </select>
+
+        <input type="submit">
+    </form>
+    
+    {{ the_div|safe }}
+    {{ js_resources|indent(4)|safe }}
+    {{ the_script|safe }}
+  
+  </body>
+</html>
