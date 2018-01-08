@@ -2,7 +2,7 @@ import logging
 from logging import FileHandler, Formatter
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, request, redirect
+from flask import Flask
 from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 
 from views import a1_views
@@ -12,13 +12,6 @@ DEBUG=False
 
 APP = Flask(__name__)
 APP.register_blueprint(a1_views)
-
-
-@APP.route('/')
-def index():
-    req_month = request.args.get("month", type=int, default=1)
-    req_day = request.args.get("day", type=int, default=1)
-    return redirect("/%d/%d" % (req_month, req_day))
 
 
 @APP.errorhandler(HTTPException)

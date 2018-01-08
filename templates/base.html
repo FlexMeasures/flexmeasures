@@ -1,0 +1,143 @@
+{% extends "defaults.jinja" %}
+{% block base %}
+
+    <!DOCTYPE html>
+    <html lang="en">
+        <head>
+            {% block head %}
+                <title>{% block title %}{% endblock %} - VPP platform</title>
+            {% endblock head %}
+            <meta charset="windows-1252">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <!-- Leaflet -->
+            <link href="public/css/external/leaflet.css" rel="stylesheet"/>
+            <!-- Bootstrap -->
+            <link href="public/css/external/bootstrap.min.css" rel="stylesheet"/>
+            <link href="public/css/external/daterangepicker.css" rel="stylesheet"/>
+            <!-- Font awesome -->
+            <link href="public/css/external/font-awesome.min.css" rel="stylesheet"/>
+            <!-- Ion range slider -->
+            <link href="public/css/external/ion.rangeSlider.css" rel="stylesheet"/>
+            <link href="public/css/external/ion.rangeSlider.skinCustom.css" rel="stylesheet"/>
+            <!-- Custom CSS -->
+            <link href="public/css/a1-vpp.css" rel="stylesheet"/>
+            {% if contains_plots %}
+            {{ bokeh_css_resources|indent(4)|safe }}
+            {{ bokeh_js_resources|indent(4)|safe }}
+            {% endif %}
+        </head>
+        <body>
+            {% block body %}
+                {% block nav %}
+
+                    <nav class="navbar navbar-default">
+                        <div class="container-fluid">
+                            <div class="navbar-header">
+                                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+                                    <span class="sr-only">Toggle navigation</span>
+                                    <span class="icon-bar"></span>
+                                    <span class="icon-bar"></span>
+                                    <span class="icon-bar"></span>
+                                </button>
+                                <span class="navbar-brand"><span class="navbar-tool-name">VPP</span>Functional overview (mock-up) for Jeju island resource operator <span id="navbar-client-name"></span></span>
+                            </div>
+                            <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
+                                <ul class="nav navbar-nav">	
+                                    {% for href, id, caption, icon in navigation_bar %}
+                                        <li{% if id == active_page %} class="active"{% endif %}>
+                                            <a href="{{ href|e }}"> <span class="fa fa-{{ icon }}" aria-hidden="true"></span> {{ caption|e }}</a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </nav>
+
+                {% endblock nav %}
+                
+                {# Div blocks that child pages can reference #}
+                {% block divs %}
+
+                    {% block datetimepicker %}
+                        
+                        <div class="form-group">
+                            <div class="heading-group">
+                                <label class="icon-left aria-hidden="true"">
+                                    <img src="/public/icons/time.svg" alt="Time">
+                                </label>
+                                <label class="control-label" for="settings-points">Time window</label>
+                            </div>
+                            <div class="btn-group btn-group-justified">
+                                <input type="text" name="daterange" value="01/01/2015 1:30 PM - 01/01/2015 2:00 PM" />
+                            </div>
+                        </div>
+                    
+                    {% endblock datetimepicker %}
+                    
+                    {% block forecastpicker %}
+                        
+                        <div class="form-group">
+                            <div class="heading-group">
+                                <label class="icon-left aria-hidden="true"">
+                                    <img src="/public/icons/binoculars.svg" alt="Forecast">
+                                </label>
+                                <label class="control-label" for="settings-points">Forecast</label>
+                            </div>
+<!--                            <div class="btn-group btn-group-justified" role="group" aria-label="...">
+                                <a role="button" href="#" class="btn btn-default forecast-toggle active" forecast-type="rolling">Rolling</a>
+                                <a role="button" href="#" class="btn btn-default forecast-toggle" forecast-type="static">Static</a>
+                            </div>-->
+<!--                            <div class="btn-group btn-group-justified">
+                                <input type="text" name="forecast" value="01/01/2015 1:45 PM" />
+                            </div>-->
+                            <div>
+                                <select class="form-control" id="settings-preset-dist" name="preset">
+                                    <option value=60 selected>1 hour ahead</option>
+                                    <option value=120>2 hours ahead</option>
+                                    <option value=180>3 hours ahead</option>
+                                    <option value=240>4 hours ahead</option>
+                                    <option value=360>6 hours ahead</option>
+                                    <option value=720>12 hours ahead</option>
+                                    <option value=1440>24 hours ahead</option>
+                                </select>
+                            </div>						
+                        </div>
+                    
+                    {% endblock forecastpicker %}
+                    
+                    {% block attributions %}
+                        <div id="att-text" style="display: none;">
+                            <ul>
+                                <li>Load profile decomposition by Georgios Methenitis.</li>
+                                <li>Plots made with <a href="https://github.com/plotly/plotly.js">plotly.js</a>.</li>
+                                <li>Icons made by <a href="http://freepik.com">Freepik</a>, <a href="https://www.flaticon.com/authors/tomas-knop" title="Tomas Knop">Tomas Knop</a> and <a href="https://www.flaticon.com/authors/those-icons" title="Those Icons">Those Icons</a> from <a href="http://flaticon.com">www.flaticon.com</a>.</li>
+                            </ul>
+                        </div>
+                    {% endblock attributions %}
+
+                {% endblock divs %}
+                
+                <!-- External scripts -->
+                <script src="public/js/external/jquery-3.1.0.min.js"></script>
+                <script src="public/js/external/ion.rangeSlider.min.js"></script>
+                <script src="public/js/external/leaflet.js"></script>
+                <script src="public/js/external/bootstrap.min.js"></script>
+                <script src="public/js/external/moment.min.js"></script>
+
+                <!-- Custom scripts -->
+                <script src="public/js/a1-vpp.js"></script>
+                {% if show_map %}
+                <script src="public/js/map.js"></script>
+                {% endif %}
+
+                <!--<script src="http://www.seita.nl/toolset/plot.js"></script>-->
+
+                <!-- External scripts that should run after custom scripts -->
+                <script src="public/js/external/daterangepicker.js"></script>
+                
+            {% endblock body %}
+
+        </body>
+    </html>
+    
+{% endblock base %}

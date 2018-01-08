@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% set active_page = "analytics" %}
+
+{% block title %} Client analytics {% endblock %}
+
+{% block divs %}
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-3 top-bottom">
+                <h3>About</h3>
+                <div class="justify">
+                    Analytics on resource level. You can adjust views here to check out different things (resources, time frames), but you can't take control actions here.
+                </div>
+                <h3>Controls</h3>
+                {% block datetimepicker %} {{ super() }} {% endblock %}
+                {% block forecastpicker %} {{ super() }} {% endblock %}
+                <form id="parameters-form">
+                    <div class="form-group">
+                        <label class="icon-left">
+                            <img src="public/icons/sun.svg" alt="type" name="preset-icon">
+                        </label>
+                        <label class="control-label" for="settings-preset-dist">Resource</label>	
+                        <div>
+                            <select class="form-control" id="settings-preset-dist" name="preset">
+                                <option value="b">Test block</option>
+                                <option value="ev-h">EV charging on Jeju island</option>
+                                <option value="ev-o" >Solar panel</option>
+                                <option value="ev-p">Wind turbine generation</option>
+                                <option value="ev-s">Stationary battery</option>
+                                <option value="h">Offices on Jeju island</option>
+                                <option value="pv" selected>PV feed-in from Jeju island</option>
+                            </select>
+                        </div>						
+                    </div>
+                </form>
+                <h3>Metrics</h3>
+                <table class="table" style="font-size: 100%;">
+                    <thead>
+                        <tr>
+                            <th><label class="icon-left"><img src="public/icons/calculator.svg" alt="Calculator"></label></th>
+                            <th class="text-right noeva">
+                                Load
+                                <a href="#"
+                                    class="alpha-popover"
+                                    data-container="body"
+                                    data-toggle="popover"
+                                    data-placement="top"
+                                    data-trigger="focus hover"
+                                    data-html="true"
+                                    data-alpha="0.95"
+                                    title="<strong>Electrical load</strong>"
+                                    data-text="In units of MWh."
+                                    style="font-size: 80%;">
+                                    (MWh)
+                                    <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
+                                 </a>
+                            </th>
+                            <th class="text-right noeva">
+                                Price
+                                <a href="#"
+                                    class="alpha-popover"
+                                    data-container="body"
+                                    data-toggle="popover"
+                                    data-placement="top"
+                                    data-trigger="focus hover"
+                                    data-html="true"
+                                    data-alpha="0.95"
+                                    title="<strong>Unit price</strong>"
+                                    data-text="In units of KRW/MWh."
+                                    style="font-size: 80%;">
+                                    (KRW/MWh)
+                                    <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
+                                 </a>
+                            </th>
+                            <th class="text-right noeva">
+                                Profit
+                                <a href="#"
+                                    class="alpha-popover"
+                                    data-container="body"
+                                    data-toggle="popover"
+                                    data-placement="top"
+                                    data-trigger="focus hover"
+                                    data-html="true"
+                                    data-alpha="0.95"
+                                    title="<strong>Profit/Loss</strong>"
+                                    data-text="In units of KRW."
+                                    style="font-size: 80%;">
+                                    (KRW)
+                                    <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
+                                 </a>
+                            </th>
+    <!--                                <th class="text-right noeva">Without <abbr title="Demand response">DR</abbr></th>
+                            <th class="text-right witheva">With <abbr title="Demand response">DR</abbr></th>
+                            <th style="width:1%"></th>-->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                Realised
+                            </td>
+                            <td>11</td>
+                            <td>110</td>
+                            <td>1210</td>
+                        </tr>
+                        <tr>
+                            <td>Expected (3h forecast)</td>
+                            <td>10</td>
+                            <td>100</td>
+                            <td>1000</td>
+    <!--                                <td class="text-right noeva">
+                                <div id="expected-loss"></div>
+                            </td>
+                            <td class="text-right witheva">
+                                <div id="expected-loss-eva"></div>
+                            </td>
+                            <td>&euro;&nbsp;/&nbsp;<span class="time-unit">...</span></td>-->
+                        </tr>
+                        <tr>
+                            <td>
+                                MAPE
+                            </td>
+                            <td>10%</td>
+                            <td>10%</td>
+                            <td>21%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+    <!--                    <div>
+                <a href=../> Download report </a>
+            </div>-->
+            <div class="col-sm-9">
+                <div class="row eq-height">
+                    <div class="col-sm-5 top-bottom">
+                        <h3><span class="loss-text">Load profile</span></h3>
+                        {{ pv_profile_div|safe }}
+                        {{ pv_profile_script|safe }}
+                    </div>
+                    <div class="col-sm-5 top-bottom">
+                        <h3>Weather data</h3>
+                        <div id="prob-durations" class="data-set-plot"> </div>
+                    </div>
+                </div>
+                <div class="row eq-height">
+                    <div class="col-sm-5 top-bottom">
+                        <h3>Prices</h3>
+                        <div id="prob-consumption-rates" class="data-set-plot"> </div>
+                    </div>
+                    <div class="col-sm-5 top-bottom">
+                        <h3>Profit/Loss</h3>
+                        <div id="prob-start-times" class="data-set-plot"> </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}

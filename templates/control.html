@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% set active_page = "control" %}
+
+{% block title %} DR actions {% endblock %}
+
+{% block divs %}
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-3 top-bottom">
+                <h3>About</h3>
+                <div class="justify">
+                    You can take control actions here on resource and on portfolio level.
+                    On portfolio level, control actions are presented as an order book.
+                    <!--For each action the expected value is stated as well as the associated financial risks.-->
+                </div>
+                <h3>Controls</h3>
+                {% block datetimepicker %} {{ super() }} {% endblock %}
+            </div>
+            <div class="col-sm-9">
+                <div class="row eq-height">
+                    <div class="col-sm-12 top-bottom">
+                        <div class="row eq-height">
+                            <div class="col-sm-6">
+                                <h3>Order book for control actions on portfolio level (by AGR for SUP)</h3>
+                                <table class="table" style="font-size: 100%;">
+                                    <thead>
+                                        <tr>
+                                            <th>Order no.</th>
+                                            <th>Aggregator</th>
+                                            <th>Select volume</th>
+                                            <th>Actions</th>
+                                            <th>Expected value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="active">
+                                            <td>#1</td>
+                                            <td>My AGR</td>
+                                            <td>
+                                                <div class="form-group">
+                                                    <div>
+                                                        <input type="hidden" class="form-control" id="settings-processes" name="N" />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    Supply
+                                                    <span class="fa fa-arrow-down" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#orderModal" id="button-order">
+                                                    <span class="fa fa-plus" aria-hidden="true"></span> Order
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    100
+                                                    <span class="fa fa-won" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#expectedValueModal" id="button-expected-value">
+                                                    <span class="fa fa-line-chart" aria-hidden="true"></span> Check
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>#2</td>
+                                            <td>My AGR</td>
+                                            <td>
+                                                <div class="form-group">
+                                                    <div>
+                                                        <input type="hidden" class="form-control" id="settings-processes-2" name="N" />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    Supply
+                                                    <span class="fa fa-arrow-down" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#orderModal" id="button-order-2">
+                                                    <span class="fa fa-plus" aria-hidden="true"></span> Order
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    80
+                                                    <span class="fa fa-won" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#expectedValueModal" id="button-expected-value-2">
+                                                    <span class="fa fa-line-chart" aria-hidden="true"></span> Check
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>#3</td>
+                                            <td>My AGR</td>
+                                            <td>
+                                                <div class="form-group">
+                                                    <div>
+                                                        <input type="hidden" class="form-control" id="settings-processes-3" name="N" />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    Demand
+                                                    <span class="fa fa-arrow-down" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#orderModal" id="button-order-3">
+                                                    <span class="fa fa-plus" aria-hidden="true"></span> Order
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    -10
+                                                    <span class="fa fa-won" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#expectedValueModal" id="button-expected-value-3">
+                                                    <span class="fa fa-line-chart" aria-hidden="true"></span> Check
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>...</td>
+                                            <td>...</td>
+                                            <td>...</td>
+                                            <td>...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="col-sm-6">
+                                <h3>Control actions on resource level (by ESCo for ADS)</h3>
+                                <table class="table" style="font-size: 100%;">
+                                    <thead>
+                                        <tr>
+                                            <th>Resource</th>
+                                            <th>ESCo</th>
+                                            <th>Select volume</th>
+                                            <th>Actions</th>
+                                            <th>Expected value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="active">
+                                            <td>
+                                                <label class="icon-left">
+                                                    <img src="/public/icons/wind.svg" alt="Time">
+                                                </label>
+                                                SD-Onshore
+                                            </td>
+                                            <td>ESCo 1</td>
+                                            <td>
+                                                <div class="form-group">
+                                                    <div>
+                                                        <input type="hidden" class="form-control" id="settings-processes-4" name="N" />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    Curtail load
+                                                    <span class="fa fa-cut" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#orderModal" id="button-order-4">
+                                                    <span class="fa fa-plus" aria-hidden="true"></span> Order
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    50
+                                                    <span class="fa fa-won" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#expectedValueModal" id="button-expected-value-4">
+                                                    <span class="fa fa-line-chart" aria-hidden="true"></span> Check
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <label class="icon-left">
+                                                    <img src="/public/icons/wind.svg" alt="Time">
+                                                </label>
+                                                HW-Onshore
+                                            </td>
+                                            <td>ESCo 1</td>
+                                            <td>
+                                                <div class="form-group">
+                                                    <div>
+                                                        <input type="hidden" class="form-control" id="settings-processes-5" name="N" />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    Curtail load
+                                                    <span class="fa fa-cut" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#orderModal" id="button-order-5">
+                                                    <span class="fa fa-plus" aria-hidden="true"></span> Order
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    40
+                                                    <span class="fa fa-won" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#expectedValueModal" id="button-expected-value-5">
+                                                    <span class="fa fa-line-chart" aria-hidden="true"></span> Check
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <label class="icon-left">
+                                                    <img src="/public/icons/battery.svg" alt="Time">
+                                                </label>
+                                                My BAT
+                                            </td>
+                                            <td>ESCo 2</td>
+                                            <td>
+                                                <div class="form-group">
+                                                    <div>
+                                                        <input type="hidden" class="form-control" id="settings-processes-6" name="N" />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    Shift load
+                                                    <span class="fa fa-arrows-h" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#orderModal" id="button-order-6">
+                                                    <span class="fa fa-plus" aria-hidden="true"></span> Order
+                                                </a>
+                                            </td>
+                                            <td>
+                                                <div>
+                                                    10
+                                                    <span class="fa fa-won" aria-hidden="true"></span>
+                                                </div>
+                                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#expectedValueModal" id="button-expected-value-6">
+                                                    <span class="fa fa-line-chart" aria-hidden="true"></span> Check
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>...</td>
+                                            <td>...</td>
+                                            <td>...</td>
+                                            <td>...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Referenced objects -->
+    <div class="modal fade" id="expectedValueModal" tabindex="-1" role="dialog" aria-labelledby="editClientModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                Here are our calculations!
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="orderModal" tabindex="-1" role="dialog" aria-labelledby="editClientModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                Your order will be processed!
+            </div>
+        </div>
+    </div>
+
+{% endblock %}

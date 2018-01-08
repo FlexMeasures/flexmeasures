@@ -1,0 +1,168 @@
+.icon-column {
+    text-align: right;
+    width: 6.5em;
+}
+
+.icon-column a {
+    margin-left: 10px;
+}
+
+#alerts {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    width: 25%;
+    min-width: 200px;
+}
+
+.icon-column .text-muted {
+    color: #ddd;
+}
+
+.sample-plot {
+    height: 250px;
+}
+
+.data-set-plot {
+    height: 320px;
+}
+
+.legend {
+    width: 40px;
+    border-top: 2px solid black;
+    height: 0px;
+    display: block;
+    margin-top: 0.5em;
+}
+
+.noeva {
+    color: rgb(51, 122, 183);
+}
+
+.witheva {
+    color: rgb(255, 127, 14);
+}
+
+div.margin-top {
+    margin-top: 60px;
+}
+
+.form-horizontal .form-group:last-child, .form-horizontal .form-group.last {
+    margin-bottom: 0;
+}
+
+#demo-page-link {
+    display: none;
+}
+
+.icon-data-set-1:before {
+    content: "\f24e";
+}
+
+.icon-data-set-2:before {
+    content: "\f017";
+}
+
+.icon-data-set-3:before {
+    content: "\f073";
+}
+
+.icon-data-set-4:before {
+    content: "\f0d6";
+}
+
+.icon-data-set-11:before {
+    content: "\f24e";
+}
+
+.icon-data-set-12:before {
+    content: "\f017";
+}
+
+.icon-data-set-21:before {
+    content: "\f056";
+}
+
+.icon-data-set-22:before {
+    content: "\f056";
+}
+
+.icon-data-set-31:before {
+    content: "\f1b9";
+}
+
+.icon-data-set-32:before {
+    content: "\f1b9";
+}
+
+[class|=icon] img {
+    width: 20px;
+}
+
+label.icon-left {
+    margin-right: 10px;
+}
+
+label.icon-right {
+    margin-left: 10px;
+}
+
+div.attribution {
+    text-align: right;
+/*    display: flex;
+    align-content: flex-end;*/
+}
+
+#att-heading {
+    display: flex;
+    justify-content: flex-start;
+}
+
+div.heading-group {
+    display: flex;
+    align-items: center;
+}
+
+label.control-label {
+    /*margin-bottom: 0px;*/
+}
+
+.table td.fit, 
+.table th.fit {
+    white-space: nowrap;
+    width: 1%;
+}
+
+.navbar-tool-name {
+    margin-right: 30px;
+    color: rgb(255, 127, 14);
+}
+
+/*
+ * Row with equal height columns
+ * --------------------------------------------------
+ */
+.eq-height {
+    display: flex;
+}
+
+.top-bottom {
+    display: flex;
+    flex-flow: column wrap;
+    justify-content: space-between;
+}
+
+.spread {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.justify {
+    text-align: justify;
+}
+
+#mapid {
+    width: 100%;
+    height: 400px;
+}

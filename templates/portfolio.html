@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% set active_page = "portfolio" %}
+
+{% block title %} Portfolio overview {% endblock %}
+
+{% block divs %}
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-3 top-bottom">
+                <h3>About</h3>
+                <div class="justify">
+                    Break-down of portfolio and some analytics and KPIs on portfolio level.
+                </div>
+                <h3>Controls</h3>
+                {% block datetimepicker %} {{ super() }} {% endblock %}
+            </div>
+            <div class="col-sm-9">
+                <div class="row eq-height">
+                    <div class="col-sm-8">
+                        <h3>Portfolio status</h3>
+                        <table class="table" style="font-size: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Resource</th>
+                                    <th>Supplier</th>
+                                    <th>Aggregator</th>
+                                    <th>Energy Service Company</th>
+                                    <th>Generation</th>
+                                    <th>Consumption</th>
+                                    <th>Profit/Loss</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="active">
+                                    <td>
+                                        <label class="icon-left">
+                                            <img src="/public/icons/wind.svg" alt="Time">
+                                        </label>
+                                        SD-Onshore
+                                    </td>
+                                    <td>KEPCO</td>
+                                    <td>My AGR</td>
+                                    <td>ESCo 1</td>
+                                    <td><a href="analytics">1000 MWh</a></td>
+                                    <td>-</td>
+                                    <td><a href="analytics">100 KRW</a></td>
+                                    <td><a href="control">Curtail load</a></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label class="icon-left">
+                                            <img src="/public/icons/wind.svg" alt="Time">
+                                        </label>
+                                        SS-Onshore
+                                    </td>
+                                    <td>KEPCO</td>
+                                    <td>My AGR</td>
+                                    <td>ESCo 1</td>
+                                    <td><a href="analytics">1500 MWh</a></td>
+                                    <td>-</td>
+                                    <td><a href="analytics">150 KRW</a></td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label class="icon-left">
+                                            <img src="/public/icons/battery.svg" alt="Time">
+                                        </label>
+                                        My BAT
+                                    </td>
+                                    <td>KEPCO</td>
+                                    <td>My AGR</td>
+                                    <td>ESCo 2</td>
+                                    <td><a href="analytics">100 MWh</a></td>
+                                    <td><a href="analytics">100 MWh</a></td>
+                                    <td><a href="analytics">10 KRW</a></td>
+                                    <td><a href="control">Shift load</a></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label class="icon-left">
+                                            <img src="/public/icons/house.svg" alt="Time">
+                                        </label>
+                                        My BEMS
+                                    </td>
+                                    <td>KEPCO</td>
+                                    <td>My AGR</td>
+                                    <td>ESCo 2</td>
+                                    <td>-</td>
+                                    <td><a href="analytics">2 MWh</a></td>
+                                    <td><a href="analytics">-1 KRW</a></td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>...</td>
+                                    <td>...</td>
+                                    <td>...</td>
+                                    <td>...</td>
+                                    <td>...</td>
+                                    <td>...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <h3>Market status</h3>
+                        <table class="table" style="font-size: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Market</th>
+                                    <th>Product</th>
+                                    <th>Average price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>KPX DAM</td>
+                                    <td>Hourly</td>
+                                    <td>1 KRW/MWh</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-sm-4">
+                        <h3>VPP status</h3>
+                        <div id="mapid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        
+{% endblock %}

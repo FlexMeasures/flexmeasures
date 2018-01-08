@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% set active_page = "dashboard" %}
+
+{% block title %} Dashboard {% endblock %}
+
+{% block divs %}
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-3 top-bottom">
+                <h3>About</h3>
+                <div class="justify">
+                    This is a Virtual Power Plant (VPP) platform for Aggregators and Energy Service Companies operating on Jeju island.
+                    The VPP consists of many resources located on the island, whose electrical load are monitored and forecasted by the platform.
+                    The platform also monitors and forecasts market prices for electricity.
+                    Finally, the platform offers various control options over Active Demand & Supply from flexible resources within the platform.
+                    <!--For each possible control action, the user is informed on its expected value and the associated financial risks.-->
+                </div>
+            </div>
+            <div class="col-sm-9">
+                <div class="row eq-height">
+                    <div class="col-sm-12">
+                        <h3>VPP status</h3>
+                        <div id="mapid"></div>
+                        <table class="table" style="font-size: 100%;">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    <th>Wind turbines</th>
+                                    <th>PV units</th>
+                                    <th>Buildings</th>
+                                    <th>Battery units</th>
+                                    <th>EV charging stations</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>VPP total</td>
+                                    <td>
+                                        <label class="icon-left">
+                                            <img src="/public/icons/wind.svg" alt="Time">
+                                        </label>
+                                        17</td>
+                                    <td>
+                                        <label class="icon-left">
+                                            <img src="/public/icons/sun.svg" alt="Time">
+                                        </label>
+                                        5</td>
+                                    <td>
+                                        <label class="icon-left">
+                                            <img src="/public/icons/house.svg" alt="Time">
+                                        </label>
+                                        100</td>
+                                    <td>
+                                        <label class="icon-left">
+                                            <img src="/public/icons/battery.svg" alt="Time">
+                                        </label>
+                                        1</td>
+                                    <td>
+                                        <label class="icon-left">
+                                            <img src="/public/icons/car.svg" alt="Time">
+                                        </label>
+                                        3</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
