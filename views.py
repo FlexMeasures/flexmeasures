@@ -9,6 +9,7 @@ from bokeh.resources import CDN
 from bokeh.util.string import encode_utf8
 
 import utils
+import plotting
 
 
 SOLAR_ASSET = "EJJ PV (MW)"
@@ -27,9 +28,9 @@ def chart(month, day):
         raise BadRequest(msg)
 
     data = utils.get_solar_data(SOLAR_ASSET, month, day)
-    hover = utils.create_hover_tool()
+    hover = plotting.create_hover_tool()
 
-    fig = utils.create_figure(data, "Solar radiation per day on %s" % SOLAR_ASSET, "15min", "MW", hover)
+    fig = plotting.create_dotted_graph(data, "Solar radiation per day on %s" % SOLAR_ASSET, "15min", "MW", hover)
 
     script, div = components(fig)
     html = render_template("pv.html", month=month, day=day,
