@@ -3,30 +3,17 @@ from logging import FileHandler, Formatter
 from logging.handlers import RotatingFileHandler
 
 from flask import Flask
-from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 
 from views import a1_views
+from error_views import a1_error_views
 
 
-DEBUG=True
+DEBUG=False
 
 APP = Flask(__name__)
 APP.register_blueprint(a1_views)
+APP.register_blueprint(a1_error_views)
 
-
-@APP.errorhandler(HTTPException)
-def handle_http_exception(e):
-    print("Handling http exception")
-    return str(e), 500  # TODO: make nicer error page
-
-@APP.errorhandler(BadRequest)
-def handle_bad_request(e):
-    print("Handling bad request")
-    return str(e), 400  # TODO: make nicer error page
-
-@APP.errorhandler(NotFound)
-def handle_not_found(e):
-    return str(e), 404  # TODO: make nicer error page
 
 
 def get_logfile_handler():
