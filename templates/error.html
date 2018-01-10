@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% set active_page = page %}
+
+{% block title %} An error occured {% endblock %}
+
+{% block divs %}
+
+    <div class="container-fluid">
+
+        <h1>Sorry, something went wrong :( </h1>
+
+        <p>{{ error_description }} The error message says:</p>
+        <p class="error">"{{ error_message }}"</p>
+
+    </div>
+
+{% endblock %}
