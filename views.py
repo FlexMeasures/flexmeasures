@@ -1,7 +1,7 @@
 
 import datetime
 
-from flask import request, render_template, Blueprint, current_app, g as app_global
+from flask import Blueprint, current_app, g as app_global
 from werkzeug.exceptions import BadRequest
 
 from bokeh.embed import components
@@ -22,10 +22,7 @@ a1_views = Blueprint('a1_views', __name__,  static_folder='public', template_fol
 @a1_views.route('/')
 @a1_views.route('/dashboard')
 def dashboard_view():
-    #req_month = request.args.get("month", type=int, default=1)
-    #req_day = request.args.get("day", type=int, default=1)
     return render_a1vpp_template('dashboard.html')
-                           #month=req_month, day=req_day
 
 
 # Portfolio view
