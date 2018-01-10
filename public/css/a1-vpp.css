@@ -138,6 +138,11 @@ label.control-label {
     color: rgb(255, 127, 14);
 }
 
+.datetimepicker input {
+    width: 100%;
+}
+
+
 /*
  * Row with equal height columns
  * --------------------------------------------------

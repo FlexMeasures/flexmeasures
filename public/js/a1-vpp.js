@@ -80,10 +80,14 @@ function ready() {
             'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
         },
         "linkedCalendars": false,
-        "startDate": "2010-01-01 0:00 AM",
-        "endDate": "2020-01-01 0:00 AM"
+        "startDate": timerangeStart,
+        "endDate": timerangeEnd
     }, function(start, end, label) {
-      console.log("New date range selected: ' + start.format('YYYY-MM-DD') + ' to ' + end.format('YYYY-MM-DD') + ' (predefined range: ' + label + ')");
+      console.log('New date range selected: ' + start.format('YYYY-MM-DD HH:mm') + ' to ' + end.format('YYYY-MM-DD HH:mm') + ' (predefined range: ' + label + ')');
+      //$("#datepicker_form").action = "/" + location.pathname;
+      $("#datepicker_form_start_time").val(start.format('YYYY-MM-DD HH:mm') );
+      $("#datepicker_form_end_time").val(end.format('YYYY-MM-DD HH:mm') );
+      $("#datepicker_form").submit(); // reload page with new time range
     });
     
     $('#settings-preset-dist').bind('change', function() {

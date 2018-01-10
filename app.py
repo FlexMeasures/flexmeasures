@@ -8,7 +8,7 @@ from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 from views import a1_views
 
 
-DEBUG=False
+DEBUG=True
 
 APP = Flask(__name__)
 APP.register_blueprint(a1_views)
