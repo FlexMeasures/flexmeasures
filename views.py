@@ -29,13 +29,13 @@ def dashboard_view():
 
 
 # Portfolio view
-@a1_views.route('/portfolio')
+@a1_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
     return render_a1vpp_template("portfolio.html")
 
 
 # Analytics view
-@a1_views.route('/analytics')
+@a1_views.route('/analytics', methods=['GET', 'POST'])
 def analytics_view():
     set_period()
     data = get_solar_data(SOLAR_ASSET, app_global.start_time, app_global.end_time)
@@ -48,7 +48,7 @@ def analytics_view():
 
 
 # Control view
-@a1_views.route('/control')
+@a1_views.route('/control', methods=['GET', 'POST'])
 def control_view():
     return render_a1vpp_template("control.html")
 

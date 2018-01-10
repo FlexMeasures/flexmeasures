@@ -59,8 +59,12 @@
                 {% block divs %}
 
                     {% block datetimepicker %}
-                        
-                        <div class="form-group">
+
+                        <script type="text/javascript">
+                            var timerangeStart = "{{ start_time }}";
+                            var timerangeEnd = "{{ end_time }}";
+                        </script>
+                        <div class="form-group datetimepicker">
                             <div class="heading-group">
                                 <label class="icon-left aria-hidden="true"">
                                     <img src="/public/icons/time.svg" alt="Time">
@@ -71,7 +75,11 @@
                                 <input type="text" name="daterange" value="01/01/2015 1:30 PM - 01/01/2015 2:00 PM" />
                             </div>
                         </div>
-                    
+                        <!-- form to refresh page -->
+                        <form style="display: hidden" action="" method="POST" id="datepicker_form">
+                            <input type="hidden" id="datepicker_form_start_time" name="start_time" value="{{ start_time }}"/>
+                            <input type="hidden" id="datepicker_form_end_time" name="end_time" value="{{ end_time }}"/>
+                        </form>
                     {% endblock datetimepicker %}
                     
                     {% block forecastpicker %}
@@ -108,8 +116,7 @@
                     {% block attributions %}
                         <div id="att-text" style="display: none;">
                             <ul>
-                                <li>Load profile decomposition by Georgios Methenitis.</li>
-                                <li>Plots made with <a href="https://github.com/plotly/plotly.js">plotly.js</a>.</li>
+                                <li>Plots made with <a href="https://bokeh.pydata.org">Bokeh</a>.</li>
                                 <li>Icons made by <a href="http://freepik.com">Freepik</a>, <a href="https://www.flaticon.com/authors/tomas-knop" title="Tomas Knop">Tomas Knop</a> and <a href="https://www.flaticon.com/authors/those-icons" title="Those Icons">Those Icons</a> from <a href="http://flaticon.com">www.flaticon.com</a>.</li>
                             </ul>
                         </div>

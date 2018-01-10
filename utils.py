@@ -3,6 +3,7 @@ import datetime
 from flask import request, render_template, g
 import pandas as pd
 from bokeh.resources import CDN
+import iso8601
 
 
 # global data source, will be replaced by DB connection probably
@@ -26,15 +27,17 @@ def get_solar_data(solar_asset:str, start:datetime, end:datetime):
 
 def set_period():
     """Set period (start_date and end_date) on global g if they are not yet set."""
-    if not "start_time" in request.args:
-        g.start_time = datetime.datetime.now() - datetime.timedelta(days=1)
+    now = datetime.datetime.now()
+    last15minuteTime = now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
+    if not "start_time" in request.values:
+        g.start_time = last15minuteTime - datetime.timedelta(days=1)
     else:
-        g.start_time = request.args.get("start_time")  # TODO: parse date (iso_8601 lib?)
-    if not "end_time" in request.args:
-        g.end_time = datetime.datetime.now()
+        g.start_time = iso8601.parse_date(request.values.get("start_time"))
+    if not "end_time" in request.values:
+        g.end_time = last15minuteTime
     else:
-        g.end_time = request.args.get("end_time")  # TODO: parse date (iso_8601 lib?)
-    # We have to work with the data we have, that means 2015
+        g.end_time = iso8601.parse_date(request.values.get("end_time"))
+    # For now, we have to work with the data we have, that means 2015
     g.start_time = g.start_time.replace(year=2015)
     g.end_time = g.end_time.replace(year=2015)
 

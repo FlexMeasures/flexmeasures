@@ -10,7 +10,7 @@ def create_hover_tool():
 
 
 def create_dotted_graph(series, title, x_label, y_label, hover_tool=None,
-                        width=1200, height=300):
+                        width=800, height=500):
     #source = ColumnDataSource(series)
     xdr = Range1d(start=min(series.index), end=max(series.index))
     ydr = Range1d(start=0, end=max(series)*1.5)
@@ -19,10 +19,12 @@ def create_dotted_graph(series, title, x_label, y_label, hover_tool=None,
     if hover_tool:
         tools = [hover_tool,]
 
-    fig = figure(title=title, x_range=xdr, y_range=ydr, plot_width=width,
-                 plot_height=height, h_symmetry=False, v_symmetry=False,
+    fig = figure(title=title, x_range=xdr, y_range=ydr,
                  min_border=0, toolbar_location="above", tools=tools,
-                 sizing_mode='scale_width', outline_line_color="#666666")
+                 #plot_width=width, plot_height=height,
+                 h_symmetry=False, v_symmetry=False,
+                 sizing_mode='scale_width',
+                 outline_line_color="#666666")
 
     fig.circle(series.index, series.values, color="navy", alpha=0.5)
 
