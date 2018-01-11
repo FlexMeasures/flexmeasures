@@ -1,6 +1,7 @@
 import datetime
 
 from flask import request, render_template, g
+from werkzeug.exceptions import BadRequest
 import pandas as pd
 from bokeh.resources import CDN
 import iso8601
@@ -25,32 +26,52 @@ def get_solar_data(solar_asset:str, start:datetime, end:datetime):
     return PV_DATA.loc[date_range_mask][solar_asset]
 
 
+def get_most_recent_quarter():
+    now = datetime.datetime.now()
+    return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
+
+
+def get_default_start_time():
+    return get_most_recent_quarter() - datetime.timedelta(days=1)
+
+
+def get_default_end_time():
+    return get_most_recent_quarter()
+
+
 def set_period():
     """Set period (start_date and end_date) on global g if they are not yet set."""
-    now = datetime.datetime.now()
-    last15minuteTime = now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
     if not "start_time" in request.values:
-        g.start_time = last15minuteTime - datetime.timedelta(days=1)
+        g.start_time = get_default_start_time()
     else:
         g.start_time = iso8601.parse_date(request.values.get("start_time"))
     if not "end_time" in request.values:
-        g.end_time = last15minuteTime
+        g.end_time = get_default_end_time()
     else:
         g.end_time = iso8601.parse_date(request.values.get("end_time"))
     # For now, we have to work with the data we have, that means 2015
     g.start_time = g.start_time.replace(year=2015)
     g.end_time = g.end_time.replace(year=2015)
 
+    if g.start_time >= g.end_time:
+        raise BadRequest("Start time %s is not after end time %s." % (g.start_time, g.end_time))
+
 
 def render_a1vpp_template(html_filename, **variables):
-    """Render template and add all necessary variables plus the ones given as **variables."""
-    set_period()
-    variables["start_time"] = g.start_time
-    variables["end_time"] = g.end_time
+    """Render template and add all expected template variables, plus the ones given as **variables."""
+    if hasattr(g, "start_time"):
+        variables["start_time"] = g.start_time
+    else:
+        variables["start_time"] = get_default_start_time()
+    if hasattr(g, "end_time"):
+        variables["end_time"] = g.end_time
+    else:
+        variables["end_time"] = get_default_end_time()
     variables["page"] = html_filename.replace(".html", "")
-    print(variables)
+    if not "show_datepicker" in variables:
+        variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio", "control")
     if not "show_map" in variables:
-        variables["show_maps"] = variables["page"] == "dashboard"
+        variables["show_map"] = variables["page"] == "dashboard"
     if "pv_profile_div" in variables:
         variables["contains_plots"] = True
         variables["bokeh_css_resources"] = CDN.render_css()

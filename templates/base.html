@@ -1,4 +1,5 @@
 {% extends "defaults.jinja" %}
+
 {% block base %}
 
     <!DOCTYPE html>
@@ -13,7 +14,9 @@
             <link href="public/css/external/leaflet.css" rel="stylesheet"/>
             <!-- Bootstrap -->
             <link href="public/css/external/bootstrap.min.css" rel="stylesheet"/>
+            {% if show_datepicker %}
             <link href="public/css/external/daterangepicker.css" rel="stylesheet"/>
+            {% endif %}
             <!-- Font awesome -->
             <link href="public/css/external/font-awesome.min.css" rel="stylesheet"/>
             <!-- Ion range slider -->
@@ -54,22 +57,24 @@
                     </nav>
 
                 {% endblock nav %}
-                
+
+                <!-- This should always be there, even on error pages  -->
+                <script type="text/javascript">
+                    var timerangeStart = "{{ start_time }}";
+                    var timerangeEnd = "{{ end_time }}";
+                </script>
+
                 {# Div blocks that child pages can reference #}
                 {% block divs %}
 
                     {% block datetimepicker %}
 
-                        <script type="text/javascript">
-                            var timerangeStart = "{{ start_time }}";
-                            var timerangeEnd = "{{ end_time }}";
-                        </script>
                         <div class="form-group datetimepicker">
                             <div class="heading-group">
                                 <label class="icon-left aria-hidden="true"">
                                     <img src="/public/icons/time.svg" alt="Time">
                                 </label>
-                                <label class="control-label" for="settings-points">Time window</label>
+                                <label class="control-label">Time window</label>
                             </div>
                             <div class="btn-group btn-group-justified">
                                 <input type="text" name="daterange" value="01/01/2015 1:30 PM - 01/01/2015 2:00 PM" />
@@ -89,7 +94,7 @@
                                 <label class="icon-left aria-hidden="true"">
                                     <img src="/public/icons/binoculars.svg" alt="Forecast">
                                 </label>
-                                <label class="control-label" for="settings-points">Forecast</label>
+                                <label class="control-label">Forecast</label>
                             </div>
 <!--                            <div class="btn-group btn-group-justified" role="group" aria-label="...">
                                 <a role="button" href="#" class="btn btn-default forecast-toggle active" forecast-type="rolling">Rolling</a>
@@ -133,15 +138,20 @@
 
                 <!-- Custom scripts -->
                 <script src="public/js/a1-vpp.js"></script>
+                {% if show_datepicker %}
+                <script src="public/js/daterangepicker-init.js"></script>
+                {% endif %}
                 {% if show_map %}
-                <script src="public/js/map.js"></script>
+                <script src="public/js/map-init.js"></script>
                 {% endif %}
 
                 <!--<script src="http://www.seita.nl/toolset/plot.js"></script>-->
 
                 <!-- External scripts that should run after custom scripts -->
+                {% if show_datepicker %}
                 <script src="public/js/external/daterangepicker.js"></script>
-                
+                {% endif %}
+
             {% endblock body %}
 
         </body>

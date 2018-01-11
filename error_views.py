@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, g as app_global
+from flask import Blueprint
 from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 
 from utils import render_a1vpp_template
@@ -14,12 +14,14 @@ def handle_error(e):
                                  error_description="We encountered an internal problem.",
                                  error_message=str(e)), 500
 
+
 @a1_error_views.app_errorhandler(HTTPException)
-def handle_http_e0xception(e):
+def handle_http_exception(e):
     print("Handling http exception")
     return render_a1vpp_template("error.html",
                                  error_description="We encountered an Http exception.",
                                  error_message=str(e)), 400
+
 
 @a1_error_views.app_errorhandler(BadRequest)
 def handle_bad_request(e):
@@ -27,6 +29,7 @@ def handle_bad_request(e):
     return render_a1vpp_template("error.html",
                                  error_description="We encountered a bad request.",
                                  error_message=str(e)), 400
+
 
 @a1_error_views.app_errorhandler(NotFound)
 def handle_not_found(e):
