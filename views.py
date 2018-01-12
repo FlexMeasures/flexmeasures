@@ -1,18 +1,11 @@
-
-import datetime
-
-from flask import Blueprint, current_app, g as app_global
-from werkzeug.exceptions import BadRequest
+from flask import Blueprint, request, session
 
 from bokeh.embed import components
-from bokeh.resources import CDN
 from bokeh.util.string import encode_utf8
 
-from utils import set_period, render_a1vpp_template, get_solar_data
+from utils import set_period, render_a1vpp_template, get_assets, get_asset_groups, get_data
 import plotting
 
-
-SOLAR_ASSET = "EJJ PV (MW)"
 
 # The views in this module can as blueprint be registered with the Flask app (see app.py)
 a1_views = Blueprint('a1_views', __name__,  static_folder='public', template_folder='templates')
@@ -35,13 +28,23 @@ def portfolio_view():
 @a1_views.route('/analytics', methods=['GET', 'POST'])
 def analytics_view():
     set_period()
-    data = get_solar_data(SOLAR_ASSET, app_global.start_time, app_global.end_time)
+    if "resource" not in session:
+        session["resource"] = "ejj_pv"  # default
+    if "resource" in request.form:
+        session["resource"] = request.form['resource']
+    data = get_data(session["resource"], session["start_time"], session["end_time"])
 
     hover = plotting.create_hover_tool()
-    fig = plotting.create_dotted_graph(data, "Solar radiation per day on %s" % SOLAR_ASSET, "15min", "MW", hover)
+    fig = plotting.create_dotted_graph(data.actual, "Load on %s" % session["resource"], session["resolution"], "MW",
+                                       hover)
 
     script, div = components(fig)
-    return render_a1vpp_template("analytics.html", pv_profile_div=encode_utf8(div), pv_profile_script=script)
+    return render_a1vpp_template("analytics.html",
+                                 load_profile_div=encode_utf8(div),
+                                 load_profile_script=script,
+                                 assets=get_assets(),
+                                 asset_groups=get_asset_groups(),
+                                 resource=session["resource"])
 
 
 # Control view
@@ -53,8 +56,7 @@ def control_view():
 # Upload view
 @a1_views.route('/upload')
 def upload_view():
-    return render_a1vpp_template("upload")
-
+    return render_a1vpp_template("upload.html")
 
 
 # Test view
@@ -62,28 +64,3 @@ def upload_view():
 def test_view():
     """Used to test UI elements"""
     return render_a1vpp_template("test.html")
-
-
-
-
-@a1_views.route("/<int:month>/<int:day>/")
-def chart(month, day):
-    try:
-        datetime.datetime(year=2015, month=month, day=day)
-    except ValueError:
-        # TODO: raise this error to the UI
-        msg = "Day %d is out of range for month %d" % (day, month)
-        current_app.logger.error(msg)
-        raise BadRequest(msg)
-
-    data = get_solar_data(SOLAR_ASSET, month, day)
-
-    hover = plotting.create_hover_tool()
-    fig = plotting.create_dotted_graph(data, "Solar radiation per day on %s" % SOLAR_ASSET, "15min", "MW", hover)
-
-    script, div = components(fig)
-    html = render_a1vpp_template("pv.html", month=month, day=day,
-                           the_div=div, the_script=script,
-                           js_resources=CDN.render_js(),
-                           css_resources=CDN.render_css())
-    return encode_utf8(html)

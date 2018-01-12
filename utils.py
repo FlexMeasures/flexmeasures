@@ -1,32 +1,94 @@
 import datetime
+import json
 
-from flask import request, render_template, g
+from flask import request, render_template, session, current_app
 from werkzeug.exceptions import BadRequest
 import pandas as pd
 from bokeh.resources import CDN
 import iso8601
 
-
-# global data source, will be replaced by DB connection probably
-PV_DATA = None
+from models import Asset, AssetQuery
 
 
-def get_solar_data(solar_asset:str, start:datetime, end:datetime):
-    global PV_DATA
-    if PV_DATA is None:
-        df = pd.read_csv("data/pv.csv")
-        df['datetime'] = pd.date_range(start="2015-01-01", end="2015-12-31 23:45:00", freq="15T")
-        # TODO: Maybe we actually will want to compute the datetime from the Time column ...
-        #df["Seconds_In_2015"] = df.Time * 4 * 15 * 60
-        #df['datetime'] = pd.to_datetime(df.Seconds_In_2015, origin=datetime.datetime(year=2015, month=1, day=1), unit="s")
-        df = df.set_index('datetime').drop(['Month', 'Day', 'Time'], axis=1)
-        PV_DATA = df
-
-    date_range_mask = (PV_DATA.index >= start) & (PV_DATA.index < end)
-    return PV_DATA.loc[date_range_mask][solar_asset]
+# global, lazily loaded asset description
+ASSETS = []
+# global, lazily loaded data source, will be replaced by DB connection probably
+DATA = {}
 
 
-def get_most_recent_quarter():
+def get_assets() -> list:
+    """Return a list of models.Asset objects"""
+    global ASSETS
+    if len(ASSETS) == 0:
+        with open("data/assets.json", "r") as assets_json:
+            dict_assets = json.loads(assets_json.read())
+        ASSETS = [Asset(**a) for a in dict_assets]
+    return ASSETS
+
+
+def get_asset_groups() -> dict:
+    """We group assets by OR-connected queries"""
+    return dict(
+        solar=(AssetQuery(attr="resource_type", val="solar"),),
+        wind=(AssetQuery(attr="resource_type", val="wind"),),
+        renewables=(AssetQuery(attr="resuorce_type", val="solar"), AssetQuery(attr="resource_type", val="wind")),
+        vehicles=(AssetQuery(attr="resource_type", val="ev"),)
+    )
+
+
+def get_assets_by_resource(resource: str) -> list:
+    """Gather assets which are identified by this resource name."""
+    assets = get_assets()
+    asset_groups = get_asset_groups()
+    if resource not in asset_groups:
+        for asset in assets:
+            if asset.name == resource:
+                return [asset]
+        else:
+            raise BadRequest("No asset named '%s' was found." % resource)
+    resource_assets = set()
+    asset_queries = asset_groups[resource]
+    for query in asset_queries:
+        for asset in assets:
+            if hasattr(asset, query.attr) and getattr(asset, query.attr, None) == query.val:
+                resource_assets.add(asset)
+    if len(resource_assets) == 0:
+        raise BadRequest("No asset or asset group named '%s' was found." % resource)
+    return list(resource_assets)
+
+
+def get_data(resource: str, start: datetime, end: datetime) -> pd.DataFrame:
+    """Get data for one or more assets. Here we also decides on a resolution."""
+    session["resolution"] = decide_resolution(start, end)
+    data = None
+    for asset in get_assets_by_resource(resource):
+        data_label = "%s_res%s" % (asset.name, session["resolution"])
+        global DATA
+        if data_label not in DATA:
+            current_app.logger.info("Loading %s data from disk ..." % data_label)
+            DATA[data_label] = pd.read_pickle("data/pickles/df_%s.pickle" % data_label)
+        date_mask = (DATA[data_label].index >= start) & (DATA[data_label].index < end)
+        if data is None:
+            data = DATA[data_label].loc[date_mask]
+        else:
+            data = data + DATA[data_label].loc[date_mask]
+    return data
+
+
+def decide_resolution(start: datetime, end: datetime) -> str:
+    """Decide on a resolution, given the length of the time period."""
+    resolution = "15T"  # default is 15 minute intervals
+    period_length = end - start
+    if period_length > datetime.timedelta(days=50):
+        resolution = "1w"
+    elif period_length > datetime.timedelta(days=7):
+        resolution = "1d"
+    elif period_length > datetime.timedelta(days=7):
+        resolution = "1h"
+    return resolution
+
+
+def get_most_recent_quarter() -> datetime:
     now = datetime.datetime.now()
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
 
@@ -35,44 +97,44 @@ def get_default_start_time():
     return get_most_recent_quarter() - datetime.timedelta(days=1)
 
 
-def get_default_end_time():
+def get_default_end_time() -> datetime:
     return get_most_recent_quarter()
 
 
 def set_period():
-    """Set period (start_date and end_date) on global g if they are not yet set."""
-    if not "start_time" in request.values:
-        g.start_time = get_default_start_time()
-    else:
-        g.start_time = iso8601.parse_date(request.values.get("start_time"))
-    if not "end_time" in request.values:
-        g.end_time = get_default_end_time()
-    else:
-        g.end_time = iso8601.parse_date(request.values.get("end_time"))
+    """Set period (start_date and end_date) on session if they are not yet set."""
+    if "start_time" in request.values:
+        session["start_time"] = iso8601.parse_date(request.values.get("start_time"))
+    elif "start_time" not in session:
+        session["start_time"] = get_default_start_time()
+    if "end_time" in request.values:
+        session["end_time"] = iso8601.parse_date(request.values.get("end_time"))
+    elif "end_time" not in session:
+        session["end_time"] = get_default_end_time()
     # For now, we have to work with the data we have, that means 2015
-    g.start_time = g.start_time.replace(year=2015)
-    g.end_time = g.end_time.replace(year=2015)
+    session["start_time"] = session["start_time"].replace(year=2015)
+    session["end_time"] = session["end_time"].replace(year=2015)
 
-    if g.start_time >= g.end_time:
-        raise BadRequest("Start time %s is not after end time %s." % (g.start_time, g.end_time))
+    if session["start_time"] >= session["end_time"]:
+        raise BadRequest("Start time %s is not after end time %s." % (session["start_time"], session["end_time"]))
 
 
-def render_a1vpp_template(html_filename, **variables):
+def render_a1vpp_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
-    if hasattr(g, "start_time"):
-        variables["start_time"] = g.start_time
+    if "start_time" in session:
+        variables["start_time"] = session["start_time"]
     else:
         variables["start_time"] = get_default_start_time()
-    if hasattr(g, "end_time"):
-        variables["end_time"] = g.end_time
+    if "end_time" in session:
+        variables["end_time"] = session["end_time"]
     else:
         variables["end_time"] = get_default_end_time()
     variables["page"] = html_filename.replace(".html", "")
-    if not "show_datepicker" in variables:
+    if "show_datepicker" not in variables:
         variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio", "control")
-    if not "show_map" in variables:
+    if "show_map" not in variables:
         variables["show_map"] = variables["page"] == "dashboard"
-    if "pv_profile_div" in variables:
+    if "load_profile_div" in variables:
         variables["contains_plots"] = True
         variables["bokeh_css_resources"] = CDN.render_css()
         variables["bokeh_js_resources"] = CDN.render_js()
