@@ -11,30 +11,34 @@
             <div class="col-sm-3 top-bottom">
                 <h3>About</h3>
                 <div class="justify">
-                    Analytics on resource level. You can adjust views here to check out different things (resources, time frames), but you can't take control actions here.
+                    Analytics on asset level. You can adjust views here to check out different things (assets, time frames), but you can't take control actions here.
                 </div>
                 <h3>Controls</h3>
-                {% block datetimepicker %} {{ super() }} {% endblock %}
-                {% block forecastpicker %} {{ super() }} {% endblock %}
-                <form id="parameters-form">
+                <form id="resource-form" method="post">
                     <div class="form-group">
                         <label class="icon-left">
                             <img src="public/icons/sun.svg" alt="type" name="preset-icon">
                         </label>
-                        <label class="control-label" for="settings-preset-dist">Resource</label>	
+                        <label class="control-label" for="resource">Resource</label>
                         <div>
-                            <select class="form-control" id="settings-preset-dist" name="preset">
-                                <option value="b">Test block</option>
-                                <option value="ev-h">EV charging on Jeju island</option>
-                                <option value="ev-o" >Solar panel</option>
-                                <option value="ev-p">Wind turbine generation</option>
-                                <option value="ev-s">Stationary battery</option>
-                                <option value="h">Offices on Jeju island</option>
-                                <option value="pv" selected>PV feed-in from Jeju island</option>
+                            <select class="form-control" id="resource" name="resource" onchange="this.form.submit()">
+                                {% for asset_group in asset_groups %}
+                                <option value="{{ asset_group }}" {% if resource==asset_group %} selected="selected"{% endif %}>{{ asset_group }}</option>
+                                {% endfor %}
+                                {% for asset in assets %}
+                                <option value="{{ asset['name'] }}" {% if resource==asset["name"] %} selected="selected"{% endif %}>{{ asset["name"] }} ({{ asset["type"] }})</option>
+                                {% endfor %}
+                                <!--option value="ev-h">EV charging on Jeju island</option-->
+                                <!--option value="ev-p">Wind turbine generation</option-->
+                                <!--option value="ev-s">Stationary battery</option-->
+                                <!--option value="h">Offices on Jeju island</option-->
+                                <!--option value="pv" selected>PV feed-in from Jeju island</option-->
                             </select>
-                        </div>						
+                        </div>
                     </div>
                 </form>
+                {% block datetimepicker %} {{ super() }} {% endblock %}
+                {% block forecastpicker %} {{ super() }} {% endblock %}
                 <h3>Metrics</h3>
                 <table class="table" style="font-size: 100%;">
                     <thead>
@@ -128,6 +132,37 @@
                         </tr>
                     </tbody>
                 </table>
+                <div class="todo">
+                    <h3>To do</h3>
+                    <div class="justify">
+                        <table class="table" style="font-size: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Feature</th>
+                                    <th>Expected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="active">
+                                    <td>Update metrics after changing selection (time window, forecast horizon or asset</td>
+                                    <td>M1</td>
+                                </tr>
+                                <tr class="active">
+                                    <td>Show relevant prices for the asset</td>
+                                    <td>M1</td>
+                                </tr>
+                                <tr class="active">
+                                    <td>Show Profit/Loss for the asset</td>
+                                    <td>M1</td>
+                                </tr>
+                                <tr>
+                                    <td>...</td>
+                                    <td>...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
     <!--                    <div>
                 <a href=../> Download report </a>
@@ -136,8 +171,8 @@
                 <div class="row eq-height">
                     <div class="col-sm-5">
                         <h3><span class="loss-text">Load profile</span></h3>
-                        {{ pv_profile_div|safe }}
-                        {{ pv_profile_script|safe }}
+                        {{ load_profile_div|safe }}
+                        {{ load_profile_script|safe }}
                     </div>
                     <div class="col-sm-5">
                         <h3>Weather data</h3>

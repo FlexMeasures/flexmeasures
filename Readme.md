@@ -1,14 +1,15 @@
 # AI VPP
 
-This is Seita's implementaiton of the VPP pilot of A1.
+This is Seita's implementation of the VPP pilot of A1.
 
 ## Getting Started
 
 * Install Anaconda for Python3.6+
 * Make a virtual environment: `conda create --name a1-venv`
 * Activate it: `source activate a1-venv`
-* Install dependencies: `conda install flask bokeh pandas iso8601`
-* Add data/pv.csv (PV consumption data provided by A1 to Seita)
+* Install dependencies: `conda install flask bokeh pandas xlrd iso8601`
+* Add data/20171120_A1-VPP_DesignDataSetR01.xls (Excel sheet provided by A1 to Seita) and create the folder data/pickles
+* Run: `python init_data.py` (you only need to do this once)
 * Run: `python app.py`
 
 
