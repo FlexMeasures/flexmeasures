@@ -11,12 +11,43 @@
             <div class="col-sm-3 top-bottom">
                 <h3>About</h3>
                 <div class="justify">
-                    You can take control actions here on resource and on portfolio level.
+                    You can take control actions here on asset and on portfolio level.
                     On portfolio level, control actions are presented as an order book.
                     <!--For each action the expected value is stated as well as the associated financial risks.-->
                 </div>
                 <h3>Controls</h3>
                 {% block datetimepicker %} {{ super() }} {% endblock %}
+                <div class="todo">
+                    <h3>To do</h3>
+                    <div class="justify">
+                        <table class="table" style="font-size: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Feature</th>
+                                    <th>Expected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Visualisation of control action</td>
+                                    <td>M3</td>
+                                </tr>
+                                <tr>
+                                    <td>Visualisation of control effects</td>
+                                    <td>M3</td>
+                                </tr>
+                                <tr>
+                                    <td>Interfacing control actions</td>
+                                    <td>M3</td>
+                                </tr>
+                                <tr>
+                                    <td>...</td>
+                                    <td>...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             <div class="col-sm-9">
                 <div class="row eq-height">
@@ -132,11 +163,11 @@
                                 </table>
                             </div>
                             <div class="col-sm-6">
-                                <h3>Control actions on resource level (by ESCo for ADS)</h3>
+                                <h3>Control actions on asset level (by ESCo for ADS)</h3>
                                 <table class="table" style="font-size: 100%;">
                                     <thead>
                                         <tr>
-                                            <th>Resource</th>
+                                            <th>Asset</th>
                                             <th>ESCo</th>
                                             <th>Select volume</th>
                                             <th>Actions</th>

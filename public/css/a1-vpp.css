@@ -175,3 +175,7 @@ p.error {
     width: 100%;
     height: 400px;
 }
+
+.todo {
+    border:3px solid orange;
+}

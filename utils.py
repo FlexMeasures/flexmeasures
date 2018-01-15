@@ -31,7 +31,7 @@ def get_asset_groups() -> dict:
     return dict(
         solar=(AssetQuery(attr="resource_type", val="solar"),),
         wind=(AssetQuery(attr="resource_type", val="wind"),),
-        renewables=(AssetQuery(attr="resuorce_type", val="solar"), AssetQuery(attr="resource_type", val="wind")),
+        renewables=(AssetQuery(attr="resource_type", val="solar"), AssetQuery(attr="resource_type", val="wind")),
         vehicles=(AssetQuery(attr="resource_type", val="ev"),)
     )
 
@@ -79,12 +79,12 @@ def decide_resolution(start: datetime, end: datetime) -> str:
     """Decide on a resolution, given the length of the time period."""
     resolution = "15T"  # default is 15 minute intervals
     period_length = end - start
-    if period_length > datetime.timedelta(days=50):
-        resolution = "1w"
-    elif period_length > datetime.timedelta(days=7):
-        resolution = "1d"
-    elif period_length > datetime.timedelta(days=7):
-        resolution = "1h"
+    if period_length > datetime.timedelta(weeks=16):
+        resolution = "1w"                                   # So upon switching from days to weeks, you get at least 16 data points
+    elif period_length > datetime.timedelta(days=14):
+        resolution = "1d"                                   # So upon switching from hours to days, you get at least 14 data points
+    elif period_length > datetime.timedelta(hours=48):
+        resolution = "1h"                                   # So upon switching from 15min to hours, you get at least 48 data points
     return resolution
 
 

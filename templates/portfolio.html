@@ -15,6 +15,41 @@
                 </div>
                 <h3>Controls</h3>
                 {% block datetimepicker %} {{ super() }} {% endblock %}
+                <div class="todo">
+                    <h3>To do</h3>
+                    <div class="justify">
+                        <table class="table" style="font-size: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Feature</th>
+                                    <th>Expected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="active">
+                                    <td>Asset list updated from database</td>
+                                    <td>M1</td>
+                                </tr>
+                                <tr class="active">
+                                    <td>Summary analytics updated after selecting time window </td>
+                                    <td>M1</td>
+                                </tr>
+                                <tr class="active">
+                                    <td>VPP status showing aggregated values</td>
+                                    <td>M1</td>
+                                </tr>
+                                <tr>
+                                    <td>Portfolio editing</td>
+                                    <td>M2</td>
+                                </tr>
+                                <tr>
+                                    <td>...</td>
+                                    <td>...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             <div class="col-sm-9">
                 <div class="row eq-height">
@@ -23,7 +58,7 @@
                         <table class="table" style="font-size: 100%;">
                             <thead>
                                 <tr>
-                                    <th>Resource</th>
+                                    <th>Asset</th>
                                     <th>Supplier</th>
                                     <th>Aggregator</th>
                                     <th>Energy Service Company</th>

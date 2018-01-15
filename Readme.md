@@ -8,7 +8,7 @@ This is Seita's implementation of the VPP pilot of A1.
 * Make a virtual environment: `conda create --name a1-venv`
 * Activate it: `source activate a1-venv`
 * Install dependencies: `conda install flask bokeh pandas xlrd iso8601`
-* Add data/20171120_A1-VPP_DesignDataSetR01.xls (Excel sheet provided by A1 to Seita)
+* Add data/20171120_A1-VPP_DesignDataSetR01.xls (Excel sheet provided by A1 to Seita) and create the folder data/pickles
 * Run: `python init_data.py` (you only need to do this once)
 * Run: `python app.py`
 

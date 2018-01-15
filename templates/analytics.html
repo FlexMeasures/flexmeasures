@@ -11,11 +11,9 @@
             <div class="col-sm-3 top-bottom">
                 <h3>About</h3>
                 <div class="justify">
-                    Analytics on resource level. You can adjust views here to check out different things (resources, time frames), but you can't take control actions here.
+                    Analytics on asset level. You can adjust views here to check out different things (assets, time frames), but you can't take control actions here.
                 </div>
                 <h3>Controls</h3>
-                {% block datetimepicker %} {{ super() }} {% endblock %}
-                {% block forecastpicker %} {{ super() }} {% endblock %}
                 <form id="resource-form" method="post">
                     <div class="form-group">
                         <label class="icon-left">
@@ -39,6 +37,8 @@
                         </div>
                     </div>
                 </form>
+                {% block datetimepicker %} {{ super() }} {% endblock %}
+                {% block forecastpicker %} {{ super() }} {% endblock %}
                 <h3>Metrics</h3>
                 <table class="table" style="font-size: 100%;">
                     <thead>
@@ -132,6 +132,37 @@
                         </tr>
                     </tbody>
                 </table>
+                <div class="todo">
+                    <h3>To do</h3>
+                    <div class="justify">
+                        <table class="table" style="font-size: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Feature</th>
+                                    <th>Expected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="active">
+                                    <td>Update metrics after changing selection (time window, forecast horizon or asset</td>
+                                    <td>M1</td>
+                                </tr>
+                                <tr class="active">
+                                    <td>Show relevant prices for the asset</td>
+                                    <td>M1</td>
+                                </tr>
+                                <tr class="active">
+                                    <td>Show Profit/Loss for the asset</td>
+                                    <td>M1</td>
+                                </tr>
+                                <tr>
+                                    <td>...</td>
+                                    <td>...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
     <!--                    <div>
                 <a href=../> Download report </a>
