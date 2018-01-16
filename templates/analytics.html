@@ -26,7 +26,7 @@
                                 <option value="{{ asset_group }}" {% if resource==asset_group %} selected="selected"{% endif %}>{{ asset_group }}</option>
                                 {% endfor %}
                                 {% for asset in assets %}
-                                <option value="{{ asset['name'] }}" {% if resource==asset["name"] %} selected="selected"{% endif %}>{{ asset["name"] }} ({{ asset["type"] }})</option>
+                                <option value="{{ asset['name'] }}" {% if resource==asset["name"] %} selected="selected"{% endif %}>{{ asset["name"] }} ({{ asset["asset_type_name"] }})</option>
                                 {% endfor %}
                                 <!--option value="ev-h">EV charging on Jeju island</option-->
                                 <!--option value="ev-p">Wind turbine generation</option-->

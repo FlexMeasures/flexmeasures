@@ -6,25 +6,21 @@ When we move to a database, this will change.
 """
 import collections
 import json
-
 import pandas as pd
 
-from models import Asset
-
+from models import Asset, resolutions
+from forecasting import make_rolling_forecast
+import models
 
 excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
 
-resolutions = ["15T", "1h", "1d", "1w"]
-confidences = ["95", "50", "5"]
 
-Sheet = collections.namedtuple('Sheet', 'name type')
+Sheet = collections.namedtuple('Sheet', 'name asset_type')
 sheets = [
-    Sheet(name="1_PV_CS6X-295P", type="solar"),
-    Sheet(name="2_WT_Enercon E40 600-46", type="wind"),
-    # Sheet(name="4_Load", type="ev"),
+    Sheet(name="1_PV_CS6X-295P", asset_type=models.asset_types["solar"]),
+    Sheet(name="2_WT_Enercon E40 600-46", asset_type=models.asset_types["wind"]),
+    # Sheet(name="4_Load", asset_type=models.asset_types["ev"]),
 ]
-
-assets = []
 
 
 def make_datetime_index(a1df):
@@ -37,23 +33,29 @@ def make_datetime_index(a1df):
 
 
 if __name__ == "__main__":
+    assets = []
     for sheet in sheets:
         # read in excel sheet
-        print("Processing sheet %s for %s assets ..." % (sheet.name, sheet.type))
+        print("Processing sheet %s (%d/%d) for %s assets ..." %
+              (sheet.name, sheets.index(sheet) + 1, len(sheets), sheet.asset_type.name))
         df = pd.read_excel(excel_filename, sheet.name)
         df = df[:-1]  # we got one row too many (of 2016)
         df = make_datetime_index(df)
-        for asset_col_name in df:
-            asset = Asset(name=asset_col_name, resource_type=sheet.type, area_code=0)
-            print("Processing asset %s ..." % asset.name)
-            for res in resolutions:
-                asset_df = pd.DataFrame(index=df.index, columns=["actual"] + confidences)
-                asset_df.actual = df[asset_col_name]
-                # TODO: make or collect predictions
-                asset_df.fillna(0., inplace=True)  # this is slow
-                # if we forecast on the actual resolution, we'll need to start the df already resampled.
-                asset_df = asset_df.resample(res).mean()
+        for res in resolutions:
+            res_df = df.resample(res).mean()
+            asset_count = 0
+            for asset_col_name in df:
+                asset_count += 1
+                asset = Asset(name=asset_col_name, asset_type_name=sheet.asset_type.name, area_code=0)
+                print("Processing asset %s (%d/%d) for resolution %s (%d/%d) ..."
+                      % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
+                asset_df = pd.DataFrame(index=res_df.index, columns=["actual", "yhat", "yhat_upper", "yhat_lower"])
+                asset_df.actual = res_df[asset_col_name]
+                predictions = make_rolling_forecast(asset_df.actual, sheet.asset_type)
+                for conf in ["yhat", "yhat_upper", "yhat_lower"]:
+                    asset_df[conf] = predictions[conf]
                 asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
-            assets.append(asset)
-        with open("data/assets.json", "w") as af:
-            af.write(json.dumps([asset.to_dict() for asset in assets]))
+                if res == resolutions[0]:
+                    assets.append(asset)
+    with open("data/assets.json", "w") as af:
+        af.write(json.dumps([asset.to_dict() for asset in assets]))

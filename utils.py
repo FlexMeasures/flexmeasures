@@ -1,5 +1,6 @@
 import datetime
 import json
+from typing import List
 
 from flask import request, render_template, session, current_app
 from werkzeug.exceptions import BadRequest
@@ -7,7 +8,7 @@ import pandas as pd
 from bokeh.resources import CDN
 import iso8601
 
-from models import Asset, AssetQuery
+from models import Asset, asset_groups
 
 
 # global, lazily loaded asset description
@@ -16,8 +17,8 @@ ASSETS = []
 DATA = {}
 
 
-def get_assets() -> list:
-    """Return a list of models.Asset objects"""
+def get_assets() -> List[Asset]:
+    """Return a list of all models.Asset objects. Assets are loaded lazily from file."""
     global ASSETS
     if len(ASSETS) == 0:
         with open("data/assets.json", "r") as assets_json:
@@ -26,20 +27,9 @@ def get_assets() -> list:
     return ASSETS
 
 
-def get_asset_groups() -> dict:
-    """We group assets by OR-connected queries"""
-    return dict(
-        solar=(AssetQuery(attr="resource_type", val="solar"),),
-        wind=(AssetQuery(attr="resource_type", val="wind"),),
-        renewables=(AssetQuery(attr="resource_type", val="solar"), AssetQuery(attr="resource_type", val="wind")),
-        vehicles=(AssetQuery(attr="resource_type", val="ev"),)
-    )
-
-
-def get_assets_by_resource(resource: str) -> list:
+def get_assets_by_resource(resource: str) -> List[Asset]:
     """Gather assets which are identified by this resource name."""
     assets = get_assets()
-    asset_groups = get_asset_groups()
     if resource not in asset_groups:
         for asset in assets:
             if asset.name == resource:
@@ -58,7 +48,7 @@ def get_assets_by_resource(resource: str) -> list:
 
 
 def get_data(resource: str, start: datetime, end: datetime) -> pd.DataFrame:
-    """Get data for one or more assets. Here we also decides on a resolution."""
+    """Get data for one or more assets. Here we also decide on a resolution."""
     session["resolution"] = decide_resolution(start, end)
     data = None
     for asset in get_assets_by_resource(resource):
@@ -80,11 +70,11 @@ def decide_resolution(start: datetime, end: datetime) -> str:
     resolution = "15T"  # default is 15 minute intervals
     period_length = end - start
     if period_length > datetime.timedelta(weeks=16):
-        resolution = "1w"                                   # So upon switching from days to weeks, you get at least 16 data points
+        resolution = "1w"  # So upon switching from days to weeks, you get at least 16 data points
     elif period_length > datetime.timedelta(days=14):
-        resolution = "1d"                                   # So upon switching from hours to days, you get at least 14 data points
+        resolution = "1d"  # So upon switching from hours to days, you get at least 14 data points
     elif period_length > datetime.timedelta(hours=48):
-        resolution = "1h"                                   # So upon switching from 15min to hours, you get at least 48 data points
+        resolution = "1h"  # So upon switching from 15min to hours, you get at least 48 data points
     return resolution
 
 
@@ -93,7 +83,7 @@ def get_most_recent_quarter() -> datetime:
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
 
 
-def get_default_start_time():
+def get_default_start_time() -> datetime:
     return get_most_recent_quarter() - datetime.timedelta(days=1)
 
 

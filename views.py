@@ -3,8 +3,9 @@ from flask import Blueprint, request, session
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 
-from utils import set_period, render_a1vpp_template, get_assets, get_asset_groups, get_data
+from utils import set_period, render_a1vpp_template, get_assets, get_data
 import plotting
+import models
 
 
 # The views in this module can as blueprint be registered with the Flask app (see app.py)
@@ -35,15 +36,17 @@ def analytics_view():
     data = get_data(session["resource"], session["start_time"], session["end_time"])
 
     hover = plotting.create_hover_tool()
-    fig = plotting.create_dotted_graph(data.actual, "Load on %s" % session["resource"], session["resolution"], "MW",
-                                       hover)
+    fig = plotting.create_asset_graph(data.actual, forecasts=data[["yhat", "yhat_upper", "yhat_lower"]],
+                                      title="Load on %s" % session["resource"],
+                                      x_label=session["resolution"], y_label="MW",
+                                      hover_tool=hover)
 
     script, div = components(fig)
     return render_a1vpp_template("analytics.html",
                                  load_profile_div=encode_utf8(div),
                                  load_profile_script=script,
                                  assets=get_assets(),
-                                 asset_groups=get_asset_groups(),
+                                 asset_groups=models.asset_groups,
                                  resource=session["resource"])
 
 
