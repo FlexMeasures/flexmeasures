@@ -36,7 +36,7 @@ def analytics_view():
     data = get_data(session["resource"], session["start_time"], session["end_time"])
 
     hover = plotting.create_hover_tool()
-    fig = plotting.create_asset_graph(data.actual, forecasts=data[["yhat", "yhat_upper", "yhat_lower"]],
+    fig = plotting.create_asset_graph(data.y, forecasts=data[["yhat", "yhat_upper", "yhat_lower"]],
                                       title="Load on %s" % session["resource"],
                                       x_label=session["resolution"], y_label="MW",
                                       hover_tool=hover)
