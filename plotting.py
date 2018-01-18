@@ -2,19 +2,23 @@ from typing import Optional
 
 from bokeh.models import Range1d
 from bokeh.plotting import figure
+from bokeh.models import HoverTool
 import pandas as pd
 import numpy as np
 
 
-def create_hover_tool() -> Optional[str]:
-    """we can return html for hover tooltips"""
-    # return HoverTool(tooltips=hover_html)
-    return None
+def create_hover_tool(x_label:str, x_unit: str, y_label: str, y_unit: str) -> Optional[HoverTool]:
+    """Describe behaviour of default tooltips
+    (we could also return html for custom tooltips)"""
+    return HoverTool(tooltips=[
+        (x_label, "$x"),  # %s" % x_unit),
+        (y_label, "$y %s" % y_unit),
+    ], formatters={"Time": "datetime", })  # TODO: might need us to use ColumnDataStore to work
 
 
-def create_asset_graph(series: pd.Series, forecasts: pd.DataFrame = None,
-                       title: str="A1 plot", x_label: str="X", y_label: str="Y",
-                       hover_tool: str=None):
+def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
+                 title: str="A1 plot", x_label: str="X", y_label: str="Y",
+                 hover_tool: str=None):
     xdr = Range1d(start=min(series.index), end=max(series.index))
     ydr = Range1d(start=0, end=max(series)*1.5)
 

@@ -35,18 +35,40 @@ def analytics_view():
         session["resource"] = request.form['resource']
     data = get_data(session["resource"], session["start_time"], session["end_time"])
 
-    hover = plotting.create_hover_tool()
-    fig = plotting.create_asset_graph(data.actual, forecasts=data[["yhat", "yhat_upper", "yhat_lower"]],
-                                      title="Load on %s" % session["resource"],
-                                      x_label="Time (sampled by %s)  "
-                                              % freq_label_to_human_readable_label(session["resolution"]),
-                                      y_label="Load (by MW)",
-                                      hover_tool=hover)
+    load_hover = plotting.create_hover_tool("Time", "", "Load", "MW")
+    load_fig = plotting.create_graph(data.actual, forecasts=data[["yhat", "yhat_upper", "yhat_lower"]],
+                                     title="Load on %s" % session["resource"],
+                                     x_label="Time (sampled by %s)  "
+                                     % freq_label_to_human_readable_label(session["resolution"]),
+                                     y_label="Load (by MW)",
+                                     hover_tool=load_hover)
+    load_script, load_div = components(load_fig)
 
-    script, div = components(fig)
+    prices_hover = plotting.create_hover_tool("Time", "", "Price", "EUR")
+    prices_fig = plotting.create_graph(data.actual / 2., forecasts=data[["yhat", "yhat_upper", "yhat_lower"]] / 2.,
+                                       title="(Day-ahead) Market Prices",
+                                       x_label="Time (sampled by %s)  "
+                                       % freq_label_to_human_readable_label(session["resolution"]),
+                                       y_label="Prices (in EUR)",
+                                       hover_tool=prices_hover)
+    prices_script, prices_div = components(prices_fig)
+
+    revenues_hover = plotting.create_hover_tool("Time", "", "Revenue", "EUR")
+    revenues_fig = plotting.create_graph(data.actual / 4., forecasts=None,
+                                         title="Revenue made by %s" % session["resource"],
+                                         x_label="Time (sampled by %s)  "
+                                         % freq_label_to_human_readable_label(session["resolution"]),
+                                         y_label="Revenues (in EUR)",
+                                         hover_tool=revenues_hover)
+    revenues_script, revenues_div = components(revenues_fig)
+
     return render_a1vpp_template("analytics.html",
-                                 load_profile_div=encode_utf8(div),
-                                 load_profile_script=script,
+                                 load_profile_div=encode_utf8(load_div),
+                                 load_profile_script=load_script,
+                                 prices_series_div=encode_utf8(prices_div),
+                                 prices_series_script=prices_script,
+                                 revenues_series_div=encode_utf8(revenues_div),
+                                 revenues_series_script=revenues_script,
                                  assets=get_assets(),
                                  asset_groups=models.asset_groups,
                                  resource=session["resource"])

@@ -187,18 +187,19 @@
                         {{ load_profile_script|safe }}
                     </div>
                     <div class="col-sm-5">
-                        <h3>Weather data</h3>
-                        <div id="prob-durations" class="data-set-plot"> </div>
+                        <h3><span class="loss-text">Weather data</span></h3>
                     </div>
                 </div>
                 <div class="row eq-height">
                     <div class="col-sm-5">
-                        <h3>Prices</h3>
-                        <div id="prob-consumption-rates" class="data-set-plot"> </div>
+                        <h3><span class="loss-text">Prices</span></h3>
+                        {{ prices_series_div|safe }}
+                        {{ prices_series_script|safe }}
                     </div>
                     <div class="col-sm-5">
-                        <h3>Profit/Loss</h3>
-                        <div id="prob-start-times" class="data-set-plot"> </div>
+                        <h3><span class="loss-text">Revenues</span></h3>
+                        {{ revenues_series_div|safe }}
+                        {{ revenues_series_script|safe }}
                     </div>
                 </div>
             </div>
