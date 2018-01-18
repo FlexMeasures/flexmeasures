@@ -11,9 +11,10 @@ import pandas as pd
 from models import Asset, Market, resolutions
 from forecasting import make_rolling_forecast
 import models
-from pandas.tseries.frequencies import to_offset
 
-excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
+
+asset_excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
+prices_filename = 'data/German day-ahead prices 20140101-20160630.csv'
 
 
 Sheet = collections.namedtuple('Sheet', 'name asset_type')
@@ -33,22 +34,22 @@ def make_datetime_index(a1df):
     return a1df.set_index('datetime').drop(['Month', 'Day', 'Hour', 'Time'], axis=1)
 
 
-def timeseries_resample(df: pd.DataFrame, res: str) -> pd.DataFrame:
+def timeseries_resample(the_df: pd.DataFrame, the_res: str) -> pd.DataFrame:
     """Sample time series for given resolution, using the mean for downsampling and a forward fill for upsampling"""
 
     # Both of these preferred methods (choose one) are not correctly supported yet in pandas 0:22:0
     # res_df = df.resample(res, how='mean', fill_method='pad')
     # res_df = df.resample(res).mean().pad()
 
-    tmp_df = pd.date_range(df.index[0], periods=2, freq=res)
-    old_res = df.index[1] - df.index[0]
+    tmp_df = pd.date_range(the_df.index[0], periods=2, freq=the_res)
+    old_res = the_df.index[1] - the_df.index[0]
     new_res = tmp_df[1] - tmp_df[0]
     if new_res > old_res:  # Downsampling
-        return df.resample(res).mean()
+        return the_df.resample(the_res).mean()
     elif new_res < old_res:  # Upsampling
-        return df.resample(res).pad()
+        return the_df.resample(the_res).pad()
     else:
-        return df
+        return the_df
 
 
 if __name__ == "__main__":
@@ -56,7 +57,7 @@ if __name__ == "__main__":
     # Initialise market data
     markets = []
     print("Processing EPEX market data")
-    df = pd.read_csv('data/German day-ahead prices 20140101-20160630.csv', index_col=0, parse_dates = True, names = {'y'})
+    df = pd.read_csv(prices_filename, index_col=0, parse_dates=True, names={'y'})
 
     # Construct a new datetime index from the starting date and length of the data, and apply it
     ix = pd.DatetimeIndex(start=df.index[0], periods=len(df.index), freq='1H')
@@ -82,9 +83,8 @@ if __name__ == "__main__":
     with open("data/markets.json", "w") as af:
         af.write(json.dumps([market.to_dict() for market in markets]))
 
-
     # Todo: Initialise EV asset data
-    input()
+    # input()
 
     # Initialise A1 asset data
     assets = []
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         # read in excel sheet
         print("Processing sheet %s (%d/%d) for %s assets ..." %
               (sheet.name, sheets.index(sheet) + 1, len(sheets), sheet.asset_type.name))
-        df = pd.read_excel(excel_filename, sheet.name)
+        df = pd.read_excel(asset_excel_filename, sheet.name)
         df = df[:-1]  # we got one row too many (of 2016)
         df = make_datetime_index(df)
         for res in resolutions:
