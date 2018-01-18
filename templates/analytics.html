@@ -54,7 +54,7 @@
                                     data-trigger="focus hover"
                                     data-html="true"
                                     data-alpha="0.95"
-                                    title="<strong>Electrical load</strong>"
+                                    title="Electrical load"
                                     data-text="In units of MWh."
                                     style="font-size: 80%;">
                                     (MWh)
@@ -71,15 +71,15 @@
                                     data-trigger="focus hover"
                                     data-html="true"
                                     data-alpha="0.95"
-                                    title="<strong>Unit price</strong>"
+                                    title="Unit price"
                                     data-text="In units of KRW/MWh."
                                     style="font-size: 80%;">
-                                    (KRW/MWh)
+                                    (EUR/MWh)
                                     <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
                                  </a>
                             </th>
                             <th class="text-right noeva">
-                                Profit
+                                Revenue
                                 <a href="#"
                                     class="alpha-popover"
                                     data-container="body"
@@ -88,14 +88,14 @@
                                     data-trigger="focus hover"
                                     data-html="true"
                                     data-alpha="0.95"
-                                    title="<strong>Profit/Loss</strong>"
+                                    title="Revenue"
                                     data-text="In units of KRW."
                                     style="font-size: 80%;">
-                                    (KRW)
+                                    (EUR)
                                     <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
                                  </a>
                             </th>
-    <!--                                <th class="text-right noeva">Without <abbr title="Demand response">DR</abbr></th>
+    <!--                    <th class="text-right noeva">Without <abbr title="Demand response">DR</abbr></th>
                             <th class="text-right witheva">With <abbr title="Demand response">DR</abbr></th>
                             <th style="width:1%"></th>-->
                         </tr>
@@ -105,16 +105,18 @@
                             <td>
                                 Realised
                             </td>
-                            <td>11 </td>
-                            <td>110</td>
-                            <td>1210</td>
+                            <td>{{ realised_load_per_mwh | round }}</td>
+                            <td>{{ realised_unit_price | round(2) }}</td>
+                            <td>{{ realised_revenue | round(2) }}</td>
                         </tr>
                         <tr>
-                            <td>Expected (forecast per {{ resolution_human }})</td>
-                            <td>10</td>
-                            <td>100</td>
+                            <td>
+                                Expected (forecast per {{ resolution_human }})
+                            </td>
+                            <td>{{ expected_load_per_mwh | round }}</td>
+                            <td>{{ expected_unit_price | round(2) }}</td>
                             <td> -- </td>
-    <!--                                <td class="text-right noeva">
+    <!--                        <td class="text-right noeva">
                                 <div id="expected-loss"></div>
                             </td>
                             <td class="text-right witheva">

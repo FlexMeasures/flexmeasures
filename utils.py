@@ -102,6 +102,18 @@ def decide_resolution(start: datetime, end: datetime) -> str:
     return resolution
 
 
+def resolution_to_hour_factor(resolution: str):
+    """Return the factor with which a value needs to be multiplied in order to get the value per hour,
+    e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step"""
+    switch = {
+        "15T": 0.25,
+        "1h": 1,
+        "1d": 24,
+        "1w": 24 * 7
+    }
+    return switch.get(resolution, 1)
+
+
 def get_most_recent_quarter() -> datetime:
     now = datetime.datetime.now()
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
