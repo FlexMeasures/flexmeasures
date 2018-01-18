@@ -5,6 +5,7 @@ from typing import List, Optional
 from flask import request, render_template, session, current_app
 from werkzeug.exceptions import BadRequest
 import pandas as pd
+import numpy as np
 from bokeh.resources import CDN
 import iso8601
 
@@ -154,6 +155,11 @@ def freq_label_to_human_readable_label(freq_label: str) -> str:
         "1w": "week"
     }
     return f2h_map.get(freq_label, freq_label)
+
+
+def mean_absolute_percentage_error(y_true, y_forecast):
+    y_true, y_forecast = np.array(y_true), np.array(y_forecast)
+    return np.mean(np.abs((y_true - y_forecast) / y_true)) * 100
 
 
 def render_a1vpp_template(html_filename: str, **variables):

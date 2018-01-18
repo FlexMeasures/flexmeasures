@@ -4,7 +4,7 @@ from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 
 from utils import (set_period, render_a1vpp_template, get_assets, get_data, freq_label_to_human_readable_label,
-                   resolution_to_hour_factor)
+                   resolution_to_hour_factor, mean_absolute_percentage_error)
 import plotting
 import models
 
@@ -71,6 +71,13 @@ def analytics_view():
                                          hover_tool=revenues_hover)
     revenues_script, revenues_div = components(revenues_fig)
 
+    realised_load_per_mwh = pd.Series(load_data.y * load_hour_factor).values.sum()
+    expected_load_per_mwh = pd.Series(load_data.yhat * load_hour_factor).values.sum()
+    realised_unit_price = prices_data.y.mean()
+    expected_unit_price = prices_data.yhat.mean()
+    mape_load_per_mwh = mean_absolute_percentage_error(realised_load_per_mwh, expected_load_per_mwh)
+    mape_unit_price = mean_absolute_percentage_error(realised_unit_price, expected_unit_price)
+
     return render_a1vpp_template("analytics.html",
                                  load_profile_div=encode_utf8(load_div),
                                  load_profile_script=load_script,
@@ -78,11 +85,13 @@ def analytics_view():
                                  prices_series_script=prices_script,
                                  revenues_series_div=encode_utf8(revenues_div),
                                  revenues_series_script=revenues_script,
-                                 realised_load_per_mwh=pd.Series(load_data.y * load_hour_factor).values.sum(),
-                                 realised_unit_price=prices_data.y.mean(),
+                                 realised_load_per_mwh=realised_load_per_mwh,
+                                 realised_unit_price=realised_unit_price,
                                  realised_revenue=revenues_data.values.sum(),
-                                 expected_load_per_mwh=pd.Series(load_data.yhat * load_hour_factor).values.sum(),
-                                 expected_unit_price=prices_data.yhat.mean(),
+                                 expected_load_per_mwh=expected_load_per_mwh,
+                                 expected_unit_price=expected_unit_price,
+                                 mape_load_per_mwh=mape_load_per_mwh,
+                                 mape_unit_price=mape_unit_price,
                                  assets=get_assets(),
                                  asset_groups=models.asset_groups,
                                  resource=session["resource"])
