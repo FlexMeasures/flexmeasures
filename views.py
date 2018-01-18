@@ -1,5 +1,5 @@
 from flask import Blueprint, request, session
-
+import pandas as pd
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 
@@ -33,10 +33,11 @@ def analytics_view():
         session["resource"] = "ejj_pv"  # default
     if "resource" in request.form:
         session["resource"] = request.form['resource']
-    data = get_data(session["resource"], session["start_time"], session["end_time"])
 
+    # loads
+    load_data = get_data(session["resource"], session["start_time"], session["end_time"])
     load_hover = plotting.create_hover_tool("Time", "", "Load", "MW")
-    load_fig = plotting.create_graph(data.actual, forecasts=data[["yhat", "yhat_upper", "yhat_lower"]],
+    load_fig = plotting.create_graph(load_data.y, forecasts=load_data[["yhat", "yhat_upper", "yhat_lower"]],
                                      title="Load on %s" % session["resource"],
                                      x_label="Time (sampled by %s)  "
                                      % freq_label_to_human_readable_label(session["resolution"]),
@@ -44,8 +45,11 @@ def analytics_view():
                                      hover_tool=load_hover)
     load_script, load_div = components(load_fig)
 
+    # prices
+    prices_data = get_data("epex_da", session["start_time"], session["end_time"])
     prices_hover = plotting.create_hover_tool("Time", "", "Price", "EUR")
-    prices_fig = plotting.create_graph(data.actual / 2., forecasts=data[["yhat", "yhat_upper", "yhat_lower"]] / 2.,
+    prices_fig = plotting.create_graph(prices_data.y,
+                                       forecasts=prices_data[["yhat", "yhat_upper", "yhat_lower"]] / 2.,
                                        title="(Day-ahead) Market Prices",
                                        x_label="Time (sampled by %s)  "
                                        % freq_label_to_human_readable_label(session["resolution"]),
@@ -53,9 +57,11 @@ def analytics_view():
                                        hover_tool=prices_hover)
     prices_script, prices_div = components(prices_fig)
 
+    # revenues
+    revenues_data = pd.Series(load_data.y * prices_data.y, index=load_data.index)
     revenues_hover = plotting.create_hover_tool("Time", "", "Revenue", "EUR")
-    revenues_fig = plotting.create_graph(data.actual / 4., forecasts=None,
-                                         title="Revenue made by %s" % session["resource"],
+    revenues_fig = plotting.create_graph(revenues_data, forecasts=None,
+                                         title="Revenue made by %s if sold on DA market" % session["resource"],
                                          x_label="Time (sampled by %s)  "
                                          % freq_label_to_human_readable_label(session["resolution"]),
                                          y_label="Revenues (in EUR)",

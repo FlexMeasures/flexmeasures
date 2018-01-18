@@ -141,6 +141,7 @@ class MarketType:
 
 market_types = dict(
     fixed_tariff=MarketType("fixed_tariff"),
-    dynamic_tariff=MarketType("dynamic_tariff", daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True),
+    dynamic_tariff=MarketType("dynamic_tariff", daily_seasonality=True, weekly_seasonality=True,
+                              yearly_seasonality=True),
     day_ahead=MarketType("day_ahead", daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True)
 )
