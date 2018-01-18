@@ -64,19 +64,17 @@ def analytics_view():
     revenues_data = pd.Series(load_data.y * prices_data.y * load_hour_factor, index=load_data.index)
     revenues_hover = plotting.create_hover_tool("Time", "", "Revenue", "EUR")
     revenues_fig = plotting.create_graph(revenues_data, forecasts=None,
-                                         title="By %s if sold on DA market" % session["resource"],
+                                         title="By %s, if sold on DA market" % session["resource"],
                                          x_label="Time (sampled by %s)  "
                                          % freq_label_to_human_readable_label(session["resolution"]),
                                          y_label="Revenues (in EUR)",
                                          hover_tool=revenues_hover)
     revenues_script, revenues_div = components(revenues_fig)
 
-    realised_load_per_mwh = pd.Series(load_data.y * load_hour_factor).values.sum()
-    expected_load_per_mwh = pd.Series(load_data.yhat * load_hour_factor).values.sum()
-    realised_unit_price = prices_data.y.mean()
-    expected_unit_price = prices_data.yhat.mean()
-    mape_load_per_mwh = mean_absolute_percentage_error(realised_load_per_mwh, expected_load_per_mwh)
-    mape_unit_price = mean_absolute_percentage_error(realised_unit_price, expected_unit_price)
+    realised_loads_in_mwh = pd.Series(load_data.y * load_hour_factor).values
+    expected_loads_in_mwh = pd.Series(load_data.yhat * load_hour_factor).values
+    mape_load_per_mwh = mean_absolute_percentage_error(realised_loads_in_mwh, expected_loads_in_mwh)
+    mape_unit_price = mean_absolute_percentage_error(prices_data.y, prices_data.yhat)
 
     return render_a1vpp_template("analytics.html",
                                  load_profile_div=encode_utf8(load_div),
@@ -85,11 +83,11 @@ def analytics_view():
                                  prices_series_script=prices_script,
                                  revenues_series_div=encode_utf8(revenues_div),
                                  revenues_series_script=revenues_script,
-                                 realised_load_per_mwh=realised_load_per_mwh,
-                                 realised_unit_price=realised_unit_price,
+                                 realised_load_per_mwh=realised_loads_in_mwh.sum(),
+                                 realised_unit_price=prices_data.y.mean(),
                                  realised_revenue=revenues_data.values.sum(),
-                                 expected_load_per_mwh=expected_load_per_mwh,
-                                 expected_unit_price=expected_unit_price,
+                                 expected_load_per_mwh=expected_loads_in_mwh.sum(),
+                                 expected_unit_price=prices_data.yhat.mean(),
                                  mape_load_per_mwh=mape_load_per_mwh,
                                  mape_unit_price=mape_unit_price,
                                  assets=get_assets(),
