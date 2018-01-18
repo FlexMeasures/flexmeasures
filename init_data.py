@@ -52,9 +52,8 @@ def timeseries_resample(the_df: pd.DataFrame, the_res: str) -> pd.DataFrame:
         return the_df
 
 
-if __name__ == "__main__":
-
-    # Initialise market data
+def initialise_market_data():
+    """Initialise market data"""
     markets = []
     print("Processing EPEX market data")
     df = pd.read_csv(prices_filename, index_col=0, parse_dates=True, names={'y'})
@@ -82,11 +81,16 @@ if __name__ == "__main__":
                 markets.append(market)
     with open("data/markets.json", "w") as af:
         af.write(json.dumps([market.to_dict() for market in markets]))
+    return
 
+
+def initialise_ev_data():
     # Todo: Initialise EV asset data
-    # input()
+    return
 
-    # Initialise A1 asset data
+
+def initialise_a1_data():
+    """Initialise A1 asset data"""
     assets = []
     for sheet in sheets:
         # read in excel sheet
@@ -96,7 +100,7 @@ if __name__ == "__main__":
         df = df[:-1]  # we got one row too many (of 2016)
         df = make_datetime_index(df)
         for res in resolutions:
-            res_df = timeseries_resample(df, res)   # Sample time series for given resolution
+            res_df = df.resample(res).mean()  # Sample time series for given resolution
             asset_count = 0
             for asset_col_name in df:
                 asset_count += 1
@@ -113,3 +117,11 @@ if __name__ == "__main__":
                     assets.append(asset)
     with open("data/assets.json", "w") as af:
         af.write(json.dumps([asset.to_dict() for asset in assets]))
+    return
+
+
+if __name__ == "__main__":
+
+    # initialise_market_data()
+    initialise_ev_data()
+    # initialise_a1_data()
