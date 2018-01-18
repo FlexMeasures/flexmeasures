@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
 
     # Todo: Initialise EV asset data
-    input()
+    # input()
 
     # Initialise A1 asset data
     assets = []
