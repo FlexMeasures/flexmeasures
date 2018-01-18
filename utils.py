@@ -109,6 +109,17 @@ def set_period():
         raise BadRequest("Start time %s is not after end time %s." % (session["start_time"], session["end_time"]))
 
 
+def freq_label_to_human_readable_label(freq_label: str) -> str:
+    """Translate pandas frequency labels to human-readable labels."""
+    f2h_map = {
+        "15T": "15 minutes",
+        "1h": "hour",
+        "1d": "day",
+        "1w": "week"
+    }
+    return f2h_map.get(freq_label, freq_label)
+
+
 def render_a1vpp_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
     if "start_time" in session:
@@ -130,4 +141,6 @@ def render_a1vpp_template(html_filename: str, **variables):
         variables["bokeh_js_resources"] = CDN.render_js()
     else:
         variables["contains_plots"] = False
+    variables["resolution"] = session.get("resolution", "")
+    variables["resolution_human"] = freq_label_to_human_readable_label(session.get("resolution", ""))
     return render_template(html_filename, **variables)

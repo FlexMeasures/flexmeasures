@@ -3,7 +3,7 @@ from flask import Blueprint, request, session
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 
-from utils import set_period, render_a1vpp_template, get_assets, get_data
+from utils import set_period, render_a1vpp_template, get_assets, get_data, freq_label_to_human_readable_label
 import plotting
 import models
 
@@ -38,7 +38,9 @@ def analytics_view():
     hover = plotting.create_hover_tool()
     fig = plotting.create_asset_graph(data.actual, forecasts=data[["yhat", "yhat_upper", "yhat_lower"]],
                                       title="Load on %s" % session["resource"],
-                                      x_label=session["resolution"], y_label="MW",
+                                      x_label="Time (sampled by %s)  "
+                                              % freq_label_to_human_readable_label(session["resolution"]),
+                                      y_label="Load (by MW)",
                                       hover_tool=hover)
 
     script, div = components(fig)

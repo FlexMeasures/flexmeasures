@@ -71,7 +71,7 @@
 
                         <div class="form-group datetimepicker">
                             <div class="heading-group">
-                                <label class="icon-left aria-hidden="true"">
+                                <label class="icon-left" aria-hidden="true">
                                     <img src="/public/icons/time.svg" alt="Time">
                                 </label>
                                 <label class="control-label">Time window</label>
@@ -91,10 +91,10 @@
                         
                         <div class="form-group">
                             <div class="heading-group">
-                                <label class="icon-left aria-hidden="true"">
+                                <label class="icon-left" aria-hidden="true">
                                     <img src="/public/icons/binoculars.svg" alt="Forecast">
                                 </label>
-                                <label class="control-label">Forecast</label>
+                                <label class="control-label">Forecast (rolling)</label>
                             </div>
 <!--                            <div class="btn-group btn-group-justified" role="group" aria-label="...">
                                 <a role="button" href="#" class="btn btn-default forecast-toggle active" forecast-type="rolling">Rolling</a>
@@ -104,14 +104,8 @@
                                 <input type="text" name="forecast" value="01/01/2015 1:45 PM" />
                             </div>-->
                             <div>
-                                <select class="form-control" id="settings-preset-dist" name="preset">
-                                    <option value=60 selected>1 hour ahead</option>
-                                    <option value=120>2 hours ahead</option>
-                                    <option value=180>3 hours ahead</option>
-                                    <option value=240>4 hours ahead</option>
-                                    <option value=360>6 hours ahead</option>
-                                    <option value=720>12 hours ahead</option>
-                                    <option value=1440>24 hours ahead</option>
+                                <select class="form-control" id="settings-preset-dist" name="preset" disabled="disabled">
+                                    <option value="{{ resolution }}" selected="selected">per {{ resolution_human }}</option>
                                 </select>
                             </div>						
                         </div>
