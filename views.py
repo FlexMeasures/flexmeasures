@@ -40,7 +40,7 @@ def analytics_view():
                                      title="Load on %s" % session["resource"],
                                      x_label="Time (sampled by %s)  "
                                      % freq_label_to_human_readable_label(session["resolution"]),
-                                     y_label="Load (by MW)",
+                                     y_label="Load (in MW)",
                                      hover_tool=load_hover)
     load_script, load_div = components(load_fig)
 
