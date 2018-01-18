@@ -122,6 +122,6 @@ def initialise_a1_data():
 
 if __name__ == "__main__":
 
-    # initialise_market_data()
+    initialise_market_data()
     initialise_ev_data()
-    # initialise_a1_data()
+    initialise_a1_data()
