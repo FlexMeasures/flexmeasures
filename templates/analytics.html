@@ -54,7 +54,7 @@
                                     data-trigger="focus hover"
                                     data-html="true"
                                     data-alpha="0.95"
-                                    title="<strong>Electrical load</strong>"
+                                    title="Electrical load"
                                     data-text="In units of MWh."
                                     style="font-size: 80%;">
                                     (MWh)
@@ -71,15 +71,15 @@
                                     data-trigger="focus hover"
                                     data-html="true"
                                     data-alpha="0.95"
-                                    title="<strong>Unit price</strong>"
+                                    title="Unit price"
                                     data-text="In units of KRW/MWh."
                                     style="font-size: 80%;">
-                                    (KRW/MWh)
+                                    (EUR/MWh)
                                     <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
                                  </a>
                             </th>
                             <th class="text-right noeva">
-                                Profit
+                                Rev./Costs
                                 <a href="#"
                                     class="alpha-popover"
                                     data-container="body"
@@ -88,14 +88,14 @@
                                     data-trigger="focus hover"
                                     data-html="true"
                                     data-alpha="0.95"
-                                    title="<strong>Profit/Loss</strong>"
+                                    title="Revenue"
                                     data-text="In units of KRW."
                                     style="font-size: 80%;">
-                                    (KRW)
+                                    (EUR)
                                     <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
                                  </a>
                             </th>
-    <!--                                <th class="text-right noeva">Without <abbr title="Demand response">DR</abbr></th>
+    <!--                    <th class="text-right noeva">Without <abbr title="Demand response">DR</abbr></th>
                             <th class="text-right witheva">With <abbr title="Demand response">DR</abbr></th>
                             <th style="width:1%"></th>-->
                         </tr>
@@ -105,16 +105,18 @@
                             <td>
                                 Realised
                             </td>
-                            <td>11</td>
-                            <td>110</td>
-                            <td>1210</td>
+                            <td>{{ realised_load_in_mwh | round }}</td>
+                            <td>{{ realised_unit_price | round(2) }}</td>
+                            <td>{{ realised_revenues_costs | round(2) }}</td>
                         </tr>
                         <tr>
-                            <td>Expected (3h forecast)</td>
-                            <td>10</td>
-                            <td>100</td>
-                            <td>1000</td>
-    <!--                                <td class="text-right noeva">
+                            <td>
+                                Expected (forecast per {{ resolution_human }})
+                            </td>
+                            <td>{{ expected_load_in_mwh | round }}</td>
+                            <td>{{ expected_unit_price | round(2) }}</td>
+                            <td> -- </td>
+    <!--                        <td class="text-right noeva">
                                 <div id="expected-loss"></div>
                             </td>
                             <td class="text-right witheva">
@@ -124,11 +126,19 @@
                         </tr>
                         <tr>
                             <td>
-                                MAPE
+                                MAE (per {{ resolution_human }})
                             </td>
-                            <td>10%</td>
-                            <td>10%</td>
-                            <td>21%</td>
+                            <td>{{ mae_load_in_mwh | round(2) }}</td>
+                            <td>{{ mae_unit_price | round(2) }}</td>
+                            <td> -- </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                WAPE
+                            </td>
+                            <td>{{ wape_load | round(2) }}%</td>
+                            <td>{{ wape_unit_price | round(2) }}%</td>
+                            <td> -- </td>
                         </tr>
                     </tbody>
                 </table>
@@ -143,18 +153,6 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr class="active">
-                                    <td>Update metrics after changing selection (time window, forecast horizon or asset)</td>
-                                    <td>M1</td>
-                                </tr>
-                                <tr class="active">
-                                    <td>Show relevant prices for the asset</td>
-                                    <td>M1</td>
-                                </tr>
-                                <tr class="active">
-                                    <td>Show Profit/Loss for the asset</td>
-                                    <td>M1</td>
-                                </tr>
                                 <tr class="active">
                                     <td>Show relevant weather data</td>
                                     <td>M2</td>
@@ -187,18 +185,19 @@
                         {{ load_profile_script|safe }}
                     </div>
                     <div class="col-sm-5">
-                        <h3>Weather data</h3>
-                        <div id="prob-durations" class="data-set-plot"> </div>
+                        <h3><span class="loss-text">Weather data</span></h3>
                     </div>
                 </div>
                 <div class="row eq-height">
                     <div class="col-sm-5">
-                        <h3>Prices</h3>
-                        <div id="prob-consumption-rates" class="data-set-plot"> </div>
+                        <h3><span class="loss-text">Prices</span></h3>
+                        {{ prices_series_div|safe }}
+                        {{ prices_series_script|safe }}
                     </div>
                     <div class="col-sm-5">
-                        <h3>Profit/Loss</h3>
-                        <div id="prob-start-times" class="data-set-plot"> </div>
+                        <h3><span class="loss-text">Revenues/Costs</span></h3>
+                        {{ revenues_costs_series_div|safe }}
+                        {{ revenues_costs_series_script|safe }}
                     </div>
                 </div>
             </div>

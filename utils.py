@@ -1,18 +1,21 @@
 import datetime
 import json
-from typing import List
+from typing import List, Optional
 
 from flask import request, render_template, session, current_app
 from werkzeug.exceptions import BadRequest
 import pandas as pd
+import numpy as np
 from bokeh.resources import CDN
 import iso8601
 
-from models import Asset, asset_groups
+from models import Asset, asset_groups, Market
 
 
 # global, lazily loaded asset description
 ASSETS = []
+# global, lazily loaded market description
+MARKETS = []
 # global, lazily loaded data source, will be replaced by DB connection probably
 DATA = {}
 
@@ -30,38 +33,63 @@ def get_assets() -> List[Asset]:
 def get_assets_by_resource(resource: str) -> List[Asset]:
     """Gather assets which are identified by this resource name."""
     assets = get_assets()
-    if resource not in asset_groups:
-        for asset in assets:
-            if asset.name == resource:
-                return [asset]
-        else:
-            raise BadRequest("No asset named '%s' was found." % resource)
-    resource_assets = set()
-    asset_queries = asset_groups[resource]
-    for query in asset_queries:
-        for asset in assets:
-            if hasattr(asset, query.attr) and getattr(asset, query.attr, None) == query.val:
-                resource_assets.add(asset)
-    if len(resource_assets) == 0:
-        raise BadRequest("No asset or asset group named '%s' was found." % resource)
-    return list(resource_assets)
+    if resource in asset_groups:
+        resource_assets = set()
+        asset_queries = asset_groups[resource]
+        for query in asset_queries:
+            for asset in assets:
+                if hasattr(asset, query.attr) and getattr(asset, query.attr, None) == query.val:
+                    resource_assets.add(asset)
+        if len(resource_assets) > 0:
+            return list(resource_assets)
+    for asset in assets:
+        if asset.name == resource:
+            return [asset]
+    return []
+
+
+def get_markets() -> List[Market]:
+    """Return markets. Markets are loaded lazily from file."""
+    global MARKETS
+    if len(MARKETS) == 0:
+        with open("data/markets.json", "r") as markets_json:
+            dict_markets = json.loads(markets_json.read())
+        MARKETS = [Market(**a) for a in dict_markets]
+    return MARKETS
+
+
+def get_market_by_resource(resource: str) -> Optional[Market]:
+    """Find a market. TODO: support market grouping (see models.market_groups)."""
+    markets = get_markets()
+    for market in markets:
+        if market.name == resource:
+            return market
 
 
 def get_data(resource: str, start: datetime, end: datetime) -> pd.DataFrame:
-    """Get data for one or more assets. Here we also decide on a resolution."""
+    """Get data for one or more assets or markets. Here we also decide on a resolution."""
     session["resolution"] = decide_resolution(start, end)
     data = None
+    data_keys = []
     for asset in get_assets_by_resource(resource):
-        data_label = "%s_res%s" % (asset.name, session["resolution"])
+        data_keys.append(asset.name)
+    market = get_market_by_resource(resource)
+    if market is not None:
+        data_keys.append(market.name)
+    for data_key in data_keys:
+        data_label = "%s_res%s" % (data_key, session["resolution"])
         global DATA
         if data_label not in DATA:
             current_app.logger.info("Loading %s data from disk ..." % data_label)
-            DATA[data_label] = pd.read_pickle("data/pickles/df_%s.pickle" % data_label)
-        date_mask = (DATA[data_label].index >= start) & (DATA[data_label].index < end)
+            try:
+                DATA[data_label] = pd.read_pickle("data/pickles/df_%s.pickle" % data_label)
+            except FileNotFoundError as fnfe:
+                raise BadRequest("Sorry, we cannot find any data for the resource \"%s\" ..." % data_key)
+        date_mask = (DATA[data_label].index >= start) & (DATA[data_label].index <= end)
         if data is None:
             data = DATA[data_label].loc[date_mask]
         else:
-            data = data + DATA[data_label].loc[date_mask]
+            data = data + DATA[data_label].loc[date_mask]  # assuming grouping means adding up, might differ for markets
     return data
 
 
@@ -76,6 +104,18 @@ def decide_resolution(start: datetime, end: datetime) -> str:
     elif period_length > datetime.timedelta(hours=48):
         resolution = "1h"  # So upon switching from 15min to hours, you get at least 48 data points
     return resolution
+
+
+def resolution_to_hour_factor(resolution: str):
+    """Return the factor with which a value needs to be multiplied in order to get the value per hour,
+    e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step"""
+    switch = {
+        "15T": 0.25,
+        "1h": 1,
+        "1d": 24,
+        "1w": 24 * 7
+    }
+    return switch.get(resolution, 1)
 
 
 def get_most_recent_quarter() -> datetime:
@@ -118,6 +158,21 @@ def freq_label_to_human_readable_label(freq_label: str) -> str:
         "1w": "week"
     }
     return f2h_map.get(freq_label, freq_label)
+
+
+def mean_absolute_error(y_true, y_forecast):
+    y_true, y_forecast = np.array(y_true), np.array(y_forecast)
+    return np.mean(np.abs((y_true - y_forecast)))
+
+
+def mean_absolute_percentage_error(y_true, y_forecast):
+    y_true, y_forecast = np.array(y_true), np.array(y_forecast)
+    return np.mean(np.abs((y_true - y_forecast) / y_true)) * 100
+
+
+def weighted_absolute_percentage_error(y_true, y_forecast):
+    y_true, y_forecast = np.array(y_true), np.array(y_forecast)
+    return np.sum(np.abs((y_true - y_forecast))) / np.sum(y_true) * 100
 
 
 def render_a1vpp_template(html_filename: str, **variables):
