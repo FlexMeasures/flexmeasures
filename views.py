@@ -1,4 +1,5 @@
 from flask import Blueprint, request, session
+from werkzeug.exceptions import BadRequest
 import pandas as pd
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
@@ -32,12 +33,15 @@ def portfolio_view():
 def analytics_view():
     set_period()
     if "resource" not in session:
-        session["resource"] = "ejj_pv"  # default
+        session["resource"] = "solar"  # default
     if "resource" in request.form:
         session["resource"] = request.form['resource']
 
     # loads
     load_data = get_data(session["resource"], session["start_time"], session["end_time"])
+    if  load_data is None or load_data.size == 0:
+        raise BadRequest("Not enough data available for resource \"%s\" in the time range %s to %s"
+                         % (session["resource"], session["start_time"], session["end_time"]))
     load_hover = plotting.create_hover_tool("Time", "", "Load", "MW")
     load_fig = plotting.create_graph(load_data.y, forecasts=load_data[["yhat", "yhat_upper", "yhat_lower"]],
                                      title="Electricity load on %s" % session["resource"],
@@ -61,16 +65,19 @@ def analytics_view():
                                        hover_tool=prices_hover)
     prices_script, prices_div = components(prices_fig)
 
-    # revenues
-    revenues_data = pd.Series(load_data.y * prices_data.y * load_hour_factor, index=load_data.index)
-    revenues_hover = plotting.create_hover_tool("Time", "", "Revenue", "EUR")
-    revenues_fig = plotting.create_graph(revenues_data, forecasts=None,
-                                         title="By %s, if sold on DA market" % session["resource"],
+    # revenues/costs
+    rev_cost_data = pd.Series(load_data.y * prices_data.y * load_hour_factor, index=load_data.index)
+    rev_cost_str = "Revenues"  # TODO: https://trello.com/c/I9DGQ6Vg/50-model-consumption-vs-production
+    if session["resource"].endswith("_pv") or session["resource"] == "vehicles":
+        rev_cost_str = "Costs"
+    rev_cost_hover = plotting.create_hover_tool("Time", "", rev_cost_str, "EUR")
+    rev_cost_fig = plotting.create_graph(rev_cost_data, forecasts=None,
+                                         title="For %s, if priced on DA market" % session["resource"],
                                          x_label="Time (sampled by %s)  "
                                          % freq_label_to_human_readable_label(session["resolution"]),
-                                         y_label="Revenues (in EUR)",
-                                         hover_tool=revenues_hover)
-    revenues_script, revenues_div = components(revenues_fig)
+                                         y_label="%ss (in EUR)" % rev_cost_str,
+                                         hover_tool=rev_cost_hover)
+    rev_cost_script, rev_cost_div = components(rev_cost_fig)
 
     realised_load_in_mwh = pd.Series(load_data.y * load_hour_factor).values
     expected_load_in_mwh = pd.Series(load_data.yhat * load_hour_factor).values
@@ -86,11 +93,11 @@ def analytics_view():
                                  load_profile_script=load_script,
                                  prices_series_div=encode_utf8(prices_div),
                                  prices_series_script=prices_script,
-                                 revenues_series_div=encode_utf8(revenues_div),
-                                 revenues_series_script=revenues_script,
+                                 revenues_costs_series_div=encode_utf8(rev_cost_div),
+                                 revenues_costs_series_script=rev_cost_script,
                                  realised_load_in_mwh=realised_load_in_mwh.sum(),
                                  realised_unit_price=prices_data.y.mean(),
-                                 realised_revenue=revenues_data.values.sum(),
+                                 realised_revenues=rev_cost_data.values.sum(),
                                  expected_load_in_mwh=expected_load_in_mwh.sum(),
                                  expected_unit_price=prices_data.yhat.mean(),
                                  mae_load_in_mwh=mae_load_in_mwh,

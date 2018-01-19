@@ -81,7 +81,10 @@ def get_data(resource: str, start: datetime, end: datetime) -> pd.DataFrame:
         global DATA
         if data_label not in DATA:
             current_app.logger.info("Loading %s data from disk ..." % data_label)
-            DATA[data_label] = pd.read_pickle("data/pickles/df_%s.pickle" % data_label)
+            try:
+                DATA[data_label] = pd.read_pickle("data/pickles/df_%s.pickle" % data_label)
+            except FileNotFoundError as fnfe:
+                raise BadRequest("Sorry, we cannot find any data for the resource \"%s\" ..." % data_key)
         date_mask = (DATA[data_label].index >= start) & (DATA[data_label].index <= end)
         if data is None:
             data = DATA[data_label].loc[date_mask]

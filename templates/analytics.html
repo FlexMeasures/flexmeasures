@@ -79,7 +79,7 @@
                                  </a>
                             </th>
                             <th class="text-right noeva">
-                                Revenue
+                                Rev./Costs
                                 <a href="#"
                                     class="alpha-popover"
                                     data-container="body"
@@ -107,7 +107,7 @@
                             </td>
                             <td>{{ realised_load_in_mwh | round }}</td>
                             <td>{{ realised_unit_price | round(2) }}</td>
-                            <td>{{ realised_revenue | round(2) }}</td>
+                            <td>{{ realised_revenues_costs | round(2) }}</td>
                         </tr>
                         <tr>
                             <td>
@@ -196,8 +196,8 @@
                     </div>
                     <div class="col-sm-5">
                         <h3><span class="loss-text">Revenues</span></h3>
-                        {{ revenues_series_div|safe }}
-                        {{ revenues_series_script|safe }}
+                        {{ revenues_costs_series_div|safe }}
+                        {{ revenues_costs_series_script|safe }}
                     </div>
                 </div>
             </div>
