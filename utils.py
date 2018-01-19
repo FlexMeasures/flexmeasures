@@ -82,7 +82,7 @@ def get_data(resource: str, start: datetime, end: datetime) -> pd.DataFrame:
         if data_label not in DATA:
             current_app.logger.info("Loading %s data from disk ..." % data_label)
             DATA[data_label] = pd.read_pickle("data/pickles/df_%s.pickle" % data_label)
-        date_mask = (DATA[data_label].index >= start) & (DATA[data_label].index < end)
+        date_mask = (DATA[data_label].index >= start) & (DATA[data_label].index <= end)
         if data is None:
             data = DATA[data_label].loc[date_mask]
         else:
