@@ -105,7 +105,7 @@
                             <td>
                                 Realised
                             </td>
-                            <td>{{ realised_load_per_mwh | round }}</td>
+                            <td>{{ realised_load_in_mwh | round }}</td>
                             <td>{{ realised_unit_price | round(2) }}</td>
                             <td>{{ realised_revenue | round(2) }}</td>
                         </tr>
@@ -113,7 +113,7 @@
                             <td>
                                 Expected (forecast per {{ resolution_human }})
                             </td>
-                            <td>{{ expected_load_per_mwh | round }}</td>
+                            <td>{{ expected_load_in_mwh | round }}</td>
                             <td>{{ expected_unit_price | round(2) }}</td>
                             <td> -- </td>
     <!--                        <td class="text-right noeva">
@@ -126,9 +126,17 @@
                         </tr>
                         <tr>
                             <td>
+                                MAE (per {{ resolution_human }})
+                            </td>
+                            <td>{{ mae_load_in_mwh | round(2) }}</td>
+                            <td>{{ mae_unit_price | round(2) }}</td>
+                            <td> -- </td>
+                        </tr>
+                        <tr>
+                            <td>
                                 WAPE
                             </td>
-                            <td>{{ wape_load_per_mwh | round(2) }}%</td>
+                            <td>{{ wape_load | round(2) }}%</td>
                             <td>{{ wape_unit_price | round(2) }}%</td>
                             <td> -- </td>
                         </tr>

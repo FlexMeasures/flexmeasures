@@ -4,7 +4,8 @@ from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 
 from utils import (set_period, render_a1vpp_template, get_assets, get_data, freq_label_to_human_readable_label,
-                   resolution_to_hour_factor, mean_absolute_percentage_error, weighted_absolute_percentage_error)
+                   mean_absolute_error, mean_absolute_percentage_error, weighted_absolute_percentage_error,
+                   resolution_to_hour_factor)
 import plotting
 import models
 
@@ -71,11 +72,13 @@ def analytics_view():
                                          hover_tool=revenues_hover)
     revenues_script, revenues_div = components(revenues_fig)
 
-    realised_loads_in_mwh = pd.Series(load_data.y * load_hour_factor).values
-    expected_loads_in_mwh = pd.Series(load_data.yhat * load_hour_factor).values
-    mape_load_per_mwh = mean_absolute_percentage_error(realised_loads_in_mwh, expected_loads_in_mwh)
+    realised_load_in_mwh = pd.Series(load_data.y * load_hour_factor).values
+    expected_load_in_mwh = pd.Series(load_data.yhat * load_hour_factor).values
+    mae_load_in_mwh = mean_absolute_error(realised_load_in_mwh, expected_load_in_mwh)
+    mae_unit_price = mean_absolute_error(prices_data.y, prices_data.yhat)
+    mape_load = mean_absolute_percentage_error(realised_load_in_mwh, expected_load_in_mwh)
     mape_unit_price = mean_absolute_percentage_error(prices_data.y, prices_data.yhat)
-    wape_load_per_mwh = weighted_absolute_percentage_error(realised_loads_in_mwh, expected_loads_in_mwh)
+    wape_load = weighted_absolute_percentage_error(realised_load_in_mwh, expected_load_in_mwh)
     wape_unit_price = weighted_absolute_percentage_error(prices_data.y, prices_data.yhat)
 
     return render_a1vpp_template("analytics.html",
@@ -85,14 +88,16 @@ def analytics_view():
                                  prices_series_script=prices_script,
                                  revenues_series_div=encode_utf8(revenues_div),
                                  revenues_series_script=revenues_script,
-                                 realised_load_per_mwh=realised_loads_in_mwh.sum(),
+                                 realised_load_in_mwh=realised_load_in_mwh.sum(),
                                  realised_unit_price=prices_data.y.mean(),
                                  realised_revenue=revenues_data.values.sum(),
-                                 expected_load_per_mwh=expected_loads_in_mwh.sum(),
+                                 expected_load_in_mwh=expected_load_in_mwh.sum(),
                                  expected_unit_price=prices_data.yhat.mean(),
-                                 mape_load_per_mwh=mape_load_per_mwh,
+                                 mae_load_in_mwh=mae_load_in_mwh,
+                                 mae_unit_price=mae_unit_price,
+                                 mape_load=mape_load,
                                  mape_unit_price=mape_unit_price,
-                                 wape_load_per_mwh=wape_load_per_mwh,
+                                 wape_load=wape_load,
                                  wape_unit_price=wape_unit_price,
                                  assets=get_assets(),
                                  asset_groups=models.asset_groups,

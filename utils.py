@@ -157,6 +157,11 @@ def freq_label_to_human_readable_label(freq_label: str) -> str:
     return f2h_map.get(freq_label, freq_label)
 
 
+def mean_absolute_error(y_true, y_forecast):
+    y_true, y_forecast = np.array(y_true), np.array(y_forecast)
+    return np.mean(np.abs((y_true - y_forecast)))
+
+
 def mean_absolute_percentage_error(y_true, y_forecast):
     y_true, y_forecast = np.array(y_true), np.array(y_forecast)
     return np.mean(np.abs((y_true - y_forecast) / y_true)) * 100
