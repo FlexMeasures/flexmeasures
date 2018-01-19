@@ -15,6 +15,7 @@ import models
 
 asset_excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
 prices_filename = 'data/German day-ahead prices 20140101-20160630.csv'
+evs_filename = 'data/German charging stations 20140101-20140620.csv'
 
 
 Sheet = collections.namedtuple('Sheet', 'name asset_type')
@@ -32,6 +33,16 @@ def make_datetime_index(a1df):
     # df["Seconds_In_2015"] = df.Time * 4 * 15 * 60
     # df['datetime'] = pd.to_datetime(df.Seconds_In_2015, origin=datetime.datetime(year=2015, month=1, day=1), unit="s")
     return a1df.set_index('datetime').drop(['Month', 'Day', 'Hour', 'Time'], axis=1)
+
+
+def set_datetime_index(old_df: pd.DataFrame, freq: str, start=None) -> pd.DataFrame:
+    """Construct a new datetime index from the starting date and length of the data, and apply it"""
+    if start is None:
+        ix = pd.DatetimeIndex(start=old_df.index[0], periods=len(old_df.index), freq=freq)
+    else:
+        ix = pd.DatetimeIndex(start=start, periods=len(old_df.index), freq=freq)
+    new_df = pd.DataFrame(data=old_df.to_dict(orient='records'), index=ix)
+    return new_df
 
 
 def timeseries_resample(the_df: pd.DataFrame, the_res: str) -> pd.DataFrame:
@@ -52,17 +63,14 @@ def timeseries_resample(the_df: pd.DataFrame, the_res: str) -> pd.DataFrame:
         return the_df
 
 
-def initialise_market_data():
+def initialise_market_data(markets):
     """Initialise market data"""
-    markets = []
+
     print("Processing EPEX market data")
-    df = pd.read_csv(prices_filename, index_col=0, parse_dates=True, names={'y'})
-
-    # Construct a new datetime index from the starting date and length of the data, and apply it
-    ix = pd.DatetimeIndex(start=df.index[0], periods=len(df.index), freq='1H')
-    df = pd.DataFrame(data=df.y.values, index=ix, columns={'EPEX_DA'})
-
+    df = pd.read_csv(prices_filename, index_col=0, parse_dates=True, names={'EPEX_DA'})
+    df = set_datetime_index(df, freq='1H')
     market_type = models.market_types['day_ahead']
+
     for res in resolutions:
         res_df = timeseries_resample(df, res)  # Sample time series for given resolution
         market_count = 0
@@ -73,32 +81,60 @@ def initialise_market_data():
                   % (market.name, market_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
             market_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
             market_df.y = res_df[market_col_name]
+
+            # Run forecasts (the heavy computation) and save them
             predictions = make_rolling_forecast(market_df.y, market_type)
             for conf in ["yhat", "yhat_upper", "yhat_lower"]:
                 market_df[conf] = predictions[conf]
             market_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (market.name, res))
+
             if res == resolutions[0]:
                 markets.append(market)
-    with open("data/markets.json", "w") as af:
-        af.write(json.dumps([market.to_dict() for market in markets]))
-    return
+    return markets
 
 
-def initialise_ev_data():
-    # Todo: Initialise EV asset data
-    return
+def initialise_ev_data(assets):
+    """Initialise EV data"""
+
+    print("Processing EV data")
+    df = pd.read_csv(evs_filename, index_col=0, parse_dates=True)
+    df = set_datetime_index(df, freq='15min', start=df.index[0].floor('min'))
+    asset_type = models.asset_types['ev']
+
+    for res in resolutions:
+        res_df = timeseries_resample(df, res)  # Sample time series for given resolution
+        asset_count = 0
+        for asset_col_name in df:
+            asset_count += 1
+            asset = Asset(name=asset_col_name, asset_type_name=asset_type.name)
+            print("Processing EV %s (%d/%d) for resolution %s (%d/%d) ..."
+                  % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
+            asset_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
+            asset_df.y = res_df[asset_col_name]
+
+            # Run forecasts (the heavy computation) and save them
+            predictions = make_rolling_forecast(asset_df.y, asset_type)
+            for conf in ["yhat", "yhat_upper", "yhat_lower"]:
+                asset_df[conf] = predictions[conf]
+            asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
+
+            if res == resolutions[0]:
+                assets.append(asset)
+    return assets
 
 
-def initialise_a1_data():
+def initialise_a1_data(assets):
     """Initialise A1 asset data"""
-    assets = []
+
     for sheet in sheets:
+
         # read in excel sheet
         print("Processing sheet %s (%d/%d) for %s assets ..." %
               (sheet.name, sheets.index(sheet) + 1, len(sheets), sheet.asset_type.name))
         df = pd.read_excel(asset_excel_filename, sheet.name)
         df = df[:-1]  # we got one row too many (of 2016)
         df = make_datetime_index(df)
+
         for res in resolutions:
             res_df = df.resample(res).mean()  # Sample time series for given resolution
             asset_count = 0
@@ -109,19 +145,30 @@ def initialise_a1_data():
                       % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
                 asset_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
                 asset_df.y = res_df[asset_col_name]
+
+                # Run forecasts (the heavy computation) and save them
                 predictions = make_rolling_forecast(asset_df.y, sheet.asset_type)
                 for conf in ["yhat", "yhat_upper", "yhat_lower"]:
                     asset_df[conf] = predictions[conf]
                 asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
+
                 if res == resolutions[0]:
                     assets.append(asset)
-    with open("data/assets.json", "w") as af:
-        af.write(json.dumps([asset.to_dict() for asset in assets]))
-    return
+    return assets
+
 
 
 if __name__ == "__main__":
+    """Initialise markets and assets"""
 
-    initialise_market_data()
-    initialise_ev_data()
-    initialise_a1_data()
+    markets = []
+    markets = initialise_market_data(markets)
+    with open("data/markets.json", "w") as af:
+        af.write(json.dumps([market.to_dict() for market in markets]))
+
+    assets = []
+    assets = initialise_ev_data(assets)
+    assets = initialise_a1_data(assets)
+
+    with open("data/assets.json", "w") as af:
+        af.write(json.dumps([asset.to_dict() for asset in assets]))
