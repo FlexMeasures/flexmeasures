@@ -162,6 +162,11 @@ def mean_absolute_percentage_error(y_true, y_forecast):
     return np.mean(np.abs((y_true - y_forecast) / y_true)) * 100
 
 
+def weighted_absolute_percentage_error(y_true, y_forecast):
+    y_true, y_forecast = np.array(y_true), np.array(y_forecast)
+    return np.sum(np.abs((y_true - y_forecast))) / np.sum(y_true) * 100
+
+
 def render_a1vpp_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
     if "start_time" in session:

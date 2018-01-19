@@ -4,7 +4,7 @@ from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 
 from utils import (set_period, render_a1vpp_template, get_assets, get_data, freq_label_to_human_readable_label,
-                   resolution_to_hour_factor, mean_absolute_percentage_error)
+                   resolution_to_hour_factor, weighted_absolute_percentage_error)
 import plotting
 import models
 
@@ -73,8 +73,8 @@ def analytics_view():
 
     realised_loads_in_mwh = pd.Series(load_data.y * load_hour_factor).values
     expected_loads_in_mwh = pd.Series(load_data.yhat * load_hour_factor).values
-    mape_load_per_mwh = mean_absolute_percentage_error(realised_loads_in_mwh, expected_loads_in_mwh)
-    mape_unit_price = mean_absolute_percentage_error(prices_data.y, prices_data.yhat)
+    mape_load_per_mwh = weighted_absolute_percentage_error(realised_loads_in_mwh, expected_loads_in_mwh)
+    mape_unit_price = weighted_absolute_percentage_error(prices_data.y, prices_data.yhat)
 
     return render_a1vpp_template("analytics.html",
                                  load_profile_div=encode_utf8(load_div),
