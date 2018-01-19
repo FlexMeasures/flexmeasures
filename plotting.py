@@ -26,7 +26,7 @@ def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
     if hover_tool:
         tools = [hover_tool, ]
 
-    fig = figure(title=title, x_range=xdr, y_range=ydr,
+    fig = figure(title=title, x_range=xdr, #y_range=ydr,
                  min_border=0, toolbar_location="above", tools=tools,
                  h_symmetry=False, v_symmetry=False,
                  sizing_mode='scale_width',
