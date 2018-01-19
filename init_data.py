@@ -15,7 +15,7 @@ import models
 
 asset_excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
 prices_filename = 'data/German day-ahead prices 20140101-20160630.csv'
-evs_filename = 'data/German charging stations 20140101-20140620.csv'
+evs_filename = 'data/German charging stations 20150101-20150620.csv'
 
 
 Sheet = collections.namedtuple('Sheet', 'name asset_type')
