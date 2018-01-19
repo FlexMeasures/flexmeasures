@@ -157,7 +157,6 @@ def initialise_a1_data(assets):
     return assets
 
 
-
 if __name__ == "__main__":
     """Initialise markets and assets"""
 
@@ -166,6 +165,8 @@ if __name__ == "__main__":
     with open("data/markets.json", "w") as af:
         af.write(json.dumps([market.to_dict() for market in markets]))
 
+    # Todo (simple): each function should return lists of assets and they should be added rather than passed through as
+    # arguments
     assets = []
     assets = initialise_ev_data(assets)
     assets = initialise_a1_data(assets)

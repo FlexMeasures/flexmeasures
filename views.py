@@ -68,14 +68,15 @@ def analytics_view():
     # revenues/costs
     rev_cost_data = pd.Series(load_data.y * prices_data.y * load_hour_factor, index=load_data.index)
     rev_cost_str = "Revenues"  # TODO: https://trello.com/c/I9DGQ6Vg/50-model-consumption-vs-production
-    if session["resource"].endswith("_pv") or session["resource"] == "vehicles":
+    if session["resource"].endswith("_r") or session["resource"].endswith("_l") or session["resource"].endswith("_2")\
+            or session["resource"] == "vehicles":
         rev_cost_str = "Costs"
     rev_cost_hover = plotting.create_hover_tool("Time", "", rev_cost_str, "EUR")
     rev_cost_fig = plotting.create_graph(rev_cost_data, forecasts=None,
                                          title="For %s, if priced on DA market" % session["resource"],
                                          x_label="Time (sampled by %s)  "
                                          % freq_label_to_human_readable_label(session["resolution"]),
-                                         y_label="%ss (in EUR)" % rev_cost_str,
+                                         y_label="%s (in EUR)" % rev_cost_str,
                                          hover_tool=rev_cost_hover)
     rev_cost_script, rev_cost_div = components(rev_cost_fig)
 
@@ -97,7 +98,7 @@ def analytics_view():
                                  revenues_costs_series_script=rev_cost_script,
                                  realised_load_in_mwh=realised_load_in_mwh.sum(),
                                  realised_unit_price=prices_data.y.mean(),
-                                 realised_revenues=rev_cost_data.values.sum(),
+                                 realised_revenues_costs=rev_cost_data.values.sum(),
                                  expected_load_in_mwh=expected_load_in_mwh.sum(),
                                  expected_unit_price=prices_data.yhat.mean(),
                                  mae_load_in_mwh=mae_load_in_mwh,
