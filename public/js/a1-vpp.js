@@ -2,82 +2,125 @@ $(document).ready(function() {
     ready();
 });
 
+var offshoreOrdered = false;
+
+
+function showMsg(msg){
+    $("#msgModal .modal-content").html(msg);
+    $("#msgModal").modal("show");
+}
+
+function showImage(resource, action, value){
+//    $("#expectedValueModal .modal-dialog .modal-content img").html("public/control-mock-imgs/" + resource + "-action" + action + "-" + value + "MW.png")
+    document.getElementById('expected_value_mock').src = "public/control-mock-imgs/value-" + resource + "-action" + action + "-" + value + "MW.png"
+    document.getElementById('expected_load_mock').src = "public/control-mock-imgs/load-" + resource + "-action" + action + "-" + value + "MW.png"
+    $("#expectedValueModal").modal("show");
+}
+
+
 function ready() {
 
-    $('#settings-processes').ionRangeSlider({
+    console.log("ready...");
+
+
+    // Sliders
+
+    $('#control-action-setting-offshore')
+    .ionRangeSlider({
+        type: "single",
         grid: true,
         grid_snap: true,
-        values: ["1MW", "2MW", "3MW"],
+        min: 0,
+        max: 5,
+        from_min: 2,
+        from_max: 3,
+        from_shadow: true,
+        postfix: "MW",
         force_edges: true,
-        onFinish: function (data) {
-            getData();
+        onChange: function(settingData){
+            value = settingData.from;
+            $("#control-expected-value-offshore").html(numberWithCommas(value * 35000));
+        }
+     });
+
+    $('#control-action-setting-battery').ionRangeSlider({
+        type: "single",
+        grid: true,
+        grid_snap: true,
+        min: 0,
+        max: 5,
+        from_min: 1,
+        from_max: 2,
+        from_shadow: true,
+        postfix: "MW",
+        force_edges: true,
+        onChange: function(settingData){
+            value = settingData.from;
+            $("#control-expected-value-battery").html(numberWithCommas(value * 10000));
         }
     });
 
-    $('#settings-processes-2').ionRangeSlider({
-        grid: true,
-        grid_snap: true,
-        values: ["1MW", "2MW", "3MW"],
-        force_edges: true,
-        onFinish: function (data) {
-            getData();
+
+    // Check button behaviour
+
+    $("#control-check-expected-value-offshore").click(function(data){
+        var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
+        showImage("offshore", 1, value);
+    });
+
+    $("#control-check-expected-value-battery").click(function(data){
+        var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
+        action = 1;
+        if (offshoreOrdered){
+            action = 2;
+        }
+        showImage("battery", action, value);
+    });
+
+
+    // Order button behaviour
+
+    $("#control-order-button-ev").click(function(data){
+        showMsg("This action is not supported in this mockup.");
+    });
+
+    $("#control-order-button-onshore").click(function(data){
+        showMsg("This action is not supported in this mockup.");
+    });
+
+    $("#control-order-button-offshore").click(function(data){
+        if (offshoreOrdered){
+            showMsg("This action is not supported in this mockup.");
+        }
+        var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
+        console.log("Offshore was ordered for " + value + "MW!");
+        if (value == 2){
+            showMsg("Your order of " + value + "MW offshore wind curtailment will be processed!");
+            $("#control-tr-offshore").addClass("active");
+            $("#control-offshore-volume").html("Ordered: <b>2MW</b>");
+            $("#control-order-button-offshore").html('<span class="fa fa-minus" aria-hidden="true"></span> Cancel');
+            $("#control-check-expected-value-offshore").hide();
+            offshoreOrdered = true;
+        }
+        else{
+            showMsg("In this mockup, only ordering 2MW of offshore wind is supported.");
         }
     });
 
-    $('#settings-processes-3').ionRangeSlider({
-        grid: true,
-        grid_snap: true,
-        values: ["1MW", "2MW", "3MW"],
-        force_edges: true,
-        onFinish: function (data) {
-            getData();
-        }
-    });
-    
-    $('#settings-processes-4').ionRangeSlider({
-        grid: true,
-        grid_snap: true,
-        values: ["1MW", "2MW", "3MW"],
-        force_edges: true,
-        onFinish: function (data) {
-            getData();
-        }
-    });
-
-    $('#settings-processes-5').ionRangeSlider({
-        grid: true,
-        grid_snap: true,
-        values: ["1MW", "2MW", "3MW"],
-        force_edges: true,
-        onFinish: function (data) {
-            getData();
-        }
-    });
-    
-    $('#settings-processes-6').ionRangeSlider({
-        grid: true,
-        grid_snap: true,
-        values: ["1MW", "2MW", "3MW"],
-        force_edges: true,
-        onFinish: function (data) {
-            getData();
-        }
-    });
-    
-    $('#settings-preset-dist').bind('change', function() {
-        if ($('#settings-preset-dist').val() == 'h') {
-            $("img[name=preset-icon]").attr("src", "public/icons/sun.svg");
-        } else if ($('#settings-preset-dist').val() == 'b') {
-            $("img[name=preset-icon]").attr("src", "public/icons/test.svg");
-        } else if ($('#settings-preset-dist').val() == 'ev-o') {
-            $("img[name=preset-icon]").attr("src", "public/icons/sun.svg");
-        } else if ($('#settings-preset-dist').val() == 'ev-p') {
-            $("img[name=preset-icon]").attr("src", "public/icons/wind.svg");
-        } else if ($('#settings-preset-dist').val() == 'ev-s') {
-            $("img[name=preset-icon]").attr("src", "public/icons/battery.svg");
+    $("#control-order-button-battery").click(function(data){
+        if (!offshoreOrdered){
+            showMsg("In this mockup, please first order 2MW of offshore wind.");
         } else {
-            $("img[name=preset-icon]").attr("src", "public/icons/car.svg");
+            var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
+            console.log("Battery was ordered for " + value + "MW!");
+            showMsg("Your order of " + value + "MW battery shifting will be processed!");
+            $("#control-check-expected-value-battery").hide();
         }
     });
-    
+}
+
+const numberWithCommas = (x) => {
+  var parts = x.toString().split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
 }

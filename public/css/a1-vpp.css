@@ -179,3 +179,10 @@ p.error {
 .todo {
     border:3px solid orange;
 }
+
+
+/* control mockup - check later*/
+
+table#control-actions tr.active b {
+    color: green;
+}

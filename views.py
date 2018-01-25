@@ -55,13 +55,13 @@ def analytics_view():
 
     # prices
     prices_data = get_data("epex_da", session["start_time"], session["end_time"])
-    prices_hover = plotting.create_hover_tool("Time", "", "Price", "EUR/MWh")
+    prices_hover = plotting.create_hover_tool("Time", "", "Price", "KRW/MWh")
     prices_fig = plotting.create_graph(prices_data.y,
                                        forecasts=prices_data[["yhat", "yhat_upper", "yhat_lower"]],
                                        title="(Day-ahead) Market Prices",
                                        x_label="Time (sampled by %s)  "
                                        % freq_label_to_human_readable_label(session["resolution"]),
-                                       y_label="Prices (in EUR/MWh)",
+                                       y_label="Prices (in KRW/MWh)",
                                        hover_tool=prices_hover)
     prices_script, prices_div = components(prices_fig)
 
@@ -71,12 +71,12 @@ def analytics_view():
     if session["resource"].endswith("_r") or session["resource"].endswith("_l") or session["resource"].endswith("_2")\
             or session["resource"] == "vehicles":
         rev_cost_str = "Costs"
-    rev_cost_hover = plotting.create_hover_tool("Time", "", rev_cost_str, "EUR")
+    rev_cost_hover = plotting.create_hover_tool("Time", "", rev_cost_str, "KRW")
     rev_cost_fig = plotting.create_graph(rev_cost_data, forecasts=None,
                                          title="For %s, if priced on DA market" % session["resource"],
                                          x_label="Time (sampled by %s)  "
                                          % freq_label_to_human_readable_label(session["resolution"]),
-                                         y_label="%s (in EUR)" % rev_cost_str,
+                                         y_label="%s (in KRW)" % rev_cost_str,
                                          hover_tool=rev_cost_hover)
     rev_cost_script, rev_cost_div = components(rev_cost_fig)
 
