@@ -42,7 +42,7 @@ def analytics_view():
     if  load_data is None or load_data.size == 0:
         raise BadRequest("Not enough data available for resource \"%s\" in the time range %s to %s"
                          % (session["resource"], session["start_time"], session["end_time"]))
-    load_hover = plotting.create_hover_tool("Time", "", "Load", "MW")
+    load_hover = plotting.create_hover_tool("MW", session.get("resolution"))
     load_fig = plotting.create_graph(load_data.y, forecasts=load_data[["yhat", "yhat_upper", "yhat_lower"]],
                                      title="Electricity load on %s" % session["resource"],
                                      x_label="Time (sampled by %s)  "
@@ -55,7 +55,7 @@ def analytics_view():
 
     # prices
     prices_data = get_data("epex_da", session["start_time"], session["end_time"])
-    prices_hover = plotting.create_hover_tool("Time", "", "Price", "KRW/MWh")
+    prices_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
     prices_fig = plotting.create_graph(prices_data.y,
                                        forecasts=prices_data[["yhat", "yhat_upper", "yhat_lower"]],
                                        title="(Day-ahead) Market Prices",
@@ -71,7 +71,7 @@ def analytics_view():
     if session["resource"].endswith("_r") or session["resource"].endswith("_l") or session["resource"].endswith("_2")\
             or session["resource"] == "vehicles":
         rev_cost_str = "Costs"
-    rev_cost_hover = plotting.create_hover_tool("Time", "", rev_cost_str, "KRW")
+    rev_cost_hover = plotting.create_hover_tool("KRW", session.get("resolution"))
     rev_cost_fig = plotting.create_graph(rev_cost_data, forecasts=None,
                                          title="For %s, if priced on DA market" % session["resource"],
                                          x_label="Time (sampled by %s)  "

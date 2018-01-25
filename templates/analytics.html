@@ -105,15 +105,15 @@
                             <td>
                                 Realised
                             </td>
-                            <td>{{ realised_load_in_mwh | round }}</td>
+                            <td>{{ "{:,}".format( realised_load_in_mwh | round ) }}</td>
                             <td>{{ realised_unit_price | round(2) }}</td>
-                            <td>{{ realised_revenues_costs | round(2) }}</td>
+                            <td>{{ "{:,.2f}".format( realised_revenues_costs | round(2)) }}</td>
                         </tr>
                         <tr>
                             <td>
                                 Expected (forecast per {{ resolution_human }})
                             </td>
-                            <td>{{ expected_load_in_mwh | round }}</td>
+                            <td>{{ "{:,}".format(expected_load_in_mwh | round ) }}</td>
                             <td>{{ expected_unit_price | round(2) }}</td>
                             <td> -- </td>
     <!--                        <td class="text-right noeva">

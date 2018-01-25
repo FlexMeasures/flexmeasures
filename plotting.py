@@ -2,37 +2,47 @@ from typing import Optional
 
 from bokeh.models import Range1d
 from bokeh.plotting import figure
-from bokeh.models import HoverTool
+from bokeh.models import ColumnDataSource, HoverTool, NumeralTickFormatter
 import pandas as pd
 import numpy as np
 
 
-def create_hover_tool(x_label:str, x_unit: str, y_label: str, y_unit: str) -> Optional[HoverTool]:
+def create_hover_tool(y_unit: str, resolution: str) -> Optional[HoverTool]:
     """Describe behaviour of default tooltips
     (we could also return html for custom tooltips)"""
+    date_format = "@X{%F}"
+    if resolution in ("15T", "1h"):
+        date_format = "@x{%F %H:%M}"
+
     return HoverTool(tooltips=[
-        (x_label, "$x"),  # %s" % x_unit),
-        (y_label, "$y %s" % y_unit),
-    ], formatters={"Time": "datetime", })  # TODO: might need us to use ColumnDataStore to work
+        ('Time', date_format),
+        ('Value', "@y{0.00a} %s" % y_unit),
+    ], formatters={
+        "x": "datetime",
+        "y": "numeral"
+    })
 
 
 def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
                  title: str="A1 plot", x_label: str="X", y_label: str="Y",
-                 hover_tool: str=None):
+                 hover_tool: str=None, show_y_floats=False):
     xdr = Range1d(start=min(series.index), end=max(series.index))
-    ydr = Range1d(start=0, end=max(series)*1.5)
 
-    tools = []
+    tools = ["box_zoom", "reset", "save"]
     if hover_tool:
-        tools = [hover_tool, ]
+        tools = [hover_tool] + tools
 
-    fig = figure(title=title, x_range=xdr, #y_range=ydr,
-                 min_border=0, toolbar_location="above", tools=tools,
+    data_source = ColumnDataSource(dict(x=series.index.values, y=series.values))
+
+    fig = figure(title=title,
+                 x_range=xdr,
+                 min_border=0,
+                 toolbar_location="right", tools=tools,
                  h_symmetry=False, v_symmetry=False,
                  sizing_mode='scale_width',
                  outline_line_color="#666666")
 
-    fig.circle(series.index, series.values, color="#3B0757", alpha=0.5, legend="Actual")
+    fig.circle(x='x', y='y', source=data_source, color="#3B0757", alpha=0.5, legend="Actual")
 
     if forecasts is not None:
         fc_color = "#DDD0B3"
@@ -45,6 +55,9 @@ def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
 
     fig.toolbar.logo = None
     fig.yaxis.axis_label = y_label
+    fig.yaxis.formatter = NumeralTickFormatter(format="0,0")
+    if show_y_floats:
+        fig.yaxis.formatter = NumeralTickFormatter(format="0,0.00")
     fig.ygrid.grid_line_alpha = 0.5
     fig.xaxis.axis_label = x_label
     fig.xgrid.grid_line_alpha = 0.5
