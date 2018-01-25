@@ -18,7 +18,7 @@ var LeafIcon = L.Icon.extend({
 
 var windIcon = new LeafIcon({iconUrl: 'public/icons/wind.png'});
 var houseIcon = new LeafIcon({iconUrl: 'public/icons/house.png'});
-var batIcon = new LeafIcon({iconUrl: 'public/icons/battery.png'});
+var batIcon = new LeafIcon({iconUrl: 'public/icons/battery.svg'});
 
 L.marker([33.4649, 126.3504], {icon: windIcon}).bindPopup('<a href="analytics">SD-Onshore</a>').addTo(mymap).openPopup();
 L.marker([33.4649, 126.7504], {icon: windIcon}).bindPopup('<a href="analytics">HD-Onshore</a>').addTo(mymap);

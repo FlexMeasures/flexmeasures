@@ -7,8 +7,9 @@ from flask import Flask
 from views import a1_views
 from error_views import a1_error_views
 
-
-DEBUG = False
+"""
+Prepare the Flask application object, configure logger and session.
+"""
 
 
 def install_secret_key(app, filename='secret_key'):
@@ -60,15 +61,6 @@ a1vpp_logging_config = {
     }
 }
 
-if DEBUG:
-    print("Initiating FileHandler logger.")
-    a1vpp_logging_config["handlers"]["file"] = {
-        "class": "logging.FileHandler",
-        "formatter": 'default',
-        "level": "WARNING",
-        "filename": "a1-vpp-errors.log"
-    }
-
 
 APP = Flask(__name__)
 
@@ -84,9 +76,3 @@ loggingDictConfig(a1vpp_logging_config)
 
 APP.register_blueprint(a1_views)
 APP.register_blueprint(a1_error_views)
-
-
-if __name__ == '__main__':
-    print("Starting A1 VPP application ...")
-
-    APP.run(debug=DEBUG)
