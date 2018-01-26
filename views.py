@@ -6,7 +6,7 @@ from bokeh.util.string import encode_utf8
 
 from utils import (set_period, render_a1vpp_template, get_assets, get_data, freq_label_to_human_readable_label,
                    mean_absolute_error, mean_absolute_percentage_error, weighted_absolute_percentage_error,
-                   resolution_to_hour_factor)
+                   resolution_to_hour_factor, get_assets_by_resource)
 import plotting
 import models
 
@@ -19,7 +19,11 @@ a1_views = Blueprint('a1_views', __name__,  static_folder='public', template_fol
 @a1_views.route('/')
 @a1_views.route('/dashboard')
 def dashboard_view():
-    return render_a1vpp_template('dashboard.html')
+    msg = ""
+    if "clear-session" in request.values:
+        session.clear()
+        msg = "Your session was cleared."
+    return render_a1vpp_template('dashboard.html', message=msg)
 
 
 # Portfolio view
@@ -32,16 +36,32 @@ def portfolio_view():
 @a1_views.route('/analytics', methods=['GET', 'POST'])
 def analytics_view():
     set_period()
-    if "resource" not in session:
-        session["resource"] = "solar"  # default
-    if "resource" in request.form:
+    groups_with_assets = [group for group in models.asset_groups if len(get_assets_by_resource(group)) > 0]
+
+    if "resource" not in session:  # set some default, if possible
+        if "solar" in groups_with_assets:
+            session["resource"] = "solar"
+        elif "wind" in groups_with_assets:
+            session["resource"] = "wind"
+        elif "vehicles" in groups_with_assets:
+            session["resource"] = "vehicles"
+        elif len(get_assets()) > 0:
+            session["resource"] = get_assets()[0].name
+    if "resource" in request.form:  # set by user
         session["resource"] = request.form['resource']
+
+    showing_pure_consumption_data = False
+    only_or_first_asset = get_assets_by_resource(session["resource"])[0]
+    if only_or_first_asset is not None and models.asset_types[only_or_first_asset.asset_type_name].is_consumer:
+        showing_pure_consumption_data = True
 
     # loads
     load_data = get_data(session["resource"], session["start_time"], session["end_time"])
-    if  load_data is None or load_data.size == 0:
+    if load_data is None or load_data.size == 0:
         raise BadRequest("Not enough data available for resource \"%s\" in the time range %s to %s"
                          % (session["resource"], session["start_time"], session["end_time"]))
+    if showing_pure_consumption_data:
+        load_data *= -1
     load_hover = plotting.create_hover_tool("MW", session.get("resolution"))
     load_fig = plotting.create_graph(load_data.y, forecasts=load_data[["yhat", "yhat_upper", "yhat_lower"]],
                                      title="Electricity load on %s" % session["resource"],
@@ -67,13 +87,12 @@ def analytics_view():
 
     # revenues/costs
     rev_cost_data = pd.Series(load_data.y * prices_data.y * load_hour_factor, index=load_data.index)
-    rev_cost_str = "Revenues"  # TODO: https://trello.com/c/I9DGQ6Vg/50-model-consumption-vs-production
-    if session["resource"].endswith("_r") or session["resource"].endswith("_l") or session["resource"].endswith("_2")\
-            or session["resource"] == "vehicles":
+    rev_cost_str = "Revenues"
+    if showing_pure_consumption_data:
         rev_cost_str = "Costs"
     rev_cost_hover = plotting.create_hover_tool("KRW", session.get("resolution"))
     rev_cost_fig = plotting.create_graph(rev_cost_data, forecasts=None,
-                                         title="For %s, if priced on DA market" % session["resource"],
+                                         title="%s for %s (priced on DA market)" % (rev_cost_str, session["resource"]),
                                          x_label="Time (sampled by %s)  "
                                          % freq_label_to_human_readable_label(session["resolution"]),
                                          y_label="%s (in KRW)" % rev_cost_str,
@@ -108,7 +127,7 @@ def analytics_view():
                                  wape_load=wape_load,
                                  wape_unit_price=wape_unit_price,
                                  assets=get_assets(),
-                                 asset_groups=models.asset_groups,
+                                 asset_groups=groups_with_assets,
                                  resource=session["resource"])
 
 

@@ -63,10 +63,29 @@ def timeseries_resample(the_df: pd.DataFrame, the_res: str) -> pd.DataFrame:
         return the_df
 
 
-def initialise_market_data(markets):
+def write_asset_to_list(new_asset: Asset):
+    """Add a new asset to the list of existing assets on file.
+    This can go wrong if the method is called twice in short order, of course.
+    However, we compute forecasts per asset at length, so we decide it is a non-issue
+    until we get bitten and reactor.
+    The advantage is that assets.json always reflects what is pickled right now - so while
+    pickles are re-made, the app might still function."""
+    asset_dicts = []
+    with open("data/assets.json", "r") as af:
+        assets_str = af.read()
+        if assets_str != "":
+            asset_dicts += json.loads(assets_str)
+    asset_dicts.append(new_asset.to_dict())
+    with open("data/assets.json", "w") as af:
+        af.write(json.dumps(asset_dicts))
+
+
+def initialise_market_data():
     """Initialise market data"""
 
-    print("Processing EPEX market data")
+    print("Processing EPEX market data ...")
+    markets = []
+
     df = pd.read_csv(prices_filename, index_col=0, parse_dates=True, names={'EPEX_DA'})
     df = set_datetime_index(df, freq='1H')
     market_type = models.market_types['day_ahead']
@@ -88,15 +107,17 @@ def initialise_market_data(markets):
                 market_df[conf] = predictions[conf]
             market_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (market.name, res))
 
-            if res == resolutions[0]:
+            if res == resolutions[-1]:
                 markets.append(market)
-    return markets
+    with open("data/markets.json", "w") as af:
+        af.write(json.dumps([market.to_dict() for market in markets]))
 
 
-def initialise_ev_data(assets):
+def initialise_ev_data():
     """Initialise EV data"""
 
-    print("Processing EV data")
+    print("Processing EV data ...")
+
     df = pd.read_csv(evs_filename, index_col=0, parse_dates=True)
     df = set_datetime_index(df, freq='15min', start=df.index[0].floor('min'))
     asset_type = models.asset_types['ev']
@@ -112,22 +133,24 @@ def initialise_ev_data(assets):
             asset_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
             asset_df.y = res_df[asset_col_name]
 
+            asset_df.y /= -1000  # turn positive to negative to match our model, adjust from Wh to MWh
+
+            assert(all(asset_df.y <= 0))
+
             # Run forecasts (the heavy computation) and save them
             predictions = make_rolling_forecast(asset_df.y, asset_type)
             for conf in ["yhat", "yhat_upper", "yhat_lower"]:
                 asset_df[conf] = predictions[conf]
             asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
-            if res == resolutions[0]:
-                assets.append(asset)
-    return assets
+            if res == resolutions[-1]:
+                write_asset_to_list(asset)
 
 
-def initialise_a1_data(assets):
+def initialise_a1_data():
     """Initialise A1 asset data"""
 
     for sheet in sheets:
-
         # read in excel sheet
         print("Processing sheet %s (%d/%d) for %s assets ..." %
               (sheet.name, sheets.index(sheet) + 1, len(sheets), sheet.asset_type.name))
@@ -146,6 +169,11 @@ def initialise_a1_data(assets):
                 asset_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
                 asset_df.y = res_df[asset_col_name]
 
+                if sheet.asset_type.is_producer and not sheet.asset_type.is_consumer:
+                    assert(all(asset_df.y >= 0))
+                if sheet.asset_type.is_consumer and not sheet.asset_type.is_producer:
+                    assert(all(asset_df.y <= 0))
+
                 # Run forecasts (the heavy computation) and save them
                 predictions = make_rolling_forecast(asset_df.y, sheet.asset_type)
                 for conf in ["yhat", "yhat_upper", "yhat_lower"]:
@@ -153,23 +181,13 @@ def initialise_a1_data(assets):
                 asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
                 if res == resolutions[0]:
-                    assets.append(asset)
-    return assets
+                    write_asset_to_list(asset)
 
 
 if __name__ == "__main__":
     """Initialise markets and assets"""
 
-    markets = []
-    markets = initialise_market_data(markets)
-    with open("data/markets.json", "w") as af:
-        af.write(json.dumps([market.to_dict() for market in markets]))
+    # initialise_market_data()
 
-    # Todo (simple): each function should return lists of assets and they should be added rather than passed through as
-    # arguments
-    assets = []
-    assets = initialise_ev_data(assets)
-    assets = initialise_a1_data(assets)
-
-    with open("data/assets.json", "w") as af:
-        af.write(json.dumps([asset.to_dict() for asset in assets]))
+    initialise_ev_data()
+    # initialise_a1_data()

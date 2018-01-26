@@ -176,7 +176,7 @@ p.error {
     height: 400px;
 }
 
-.todo {
+.todo, .info {
     border:3px solid orange;
 }
 

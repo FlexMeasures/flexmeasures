@@ -30,7 +30,10 @@
             {% endif %}
         </head>
         <body>
+
             {% block body %}
+
+
                 {% block nav %}
 
                     <nav class="navbar navbar-default">
@@ -57,6 +60,10 @@
                     </nav>
 
                 {% endblock nav %}
+
+                {% if message and message != "" %}
+                <div class="info">{{ message}} </div>
+                {% endif %}
 
                 <!-- This should always be there, even on error pages  -->
                 <script type="text/javascript">

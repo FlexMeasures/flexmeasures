@@ -56,15 +56,16 @@ asset_groups = dict(
 class AssetType:
     """Describing asset types for our purposes"""
 
-    name: str = None
-
     # Assumptions about the time series data set, such as normality and stationarity
     # For now, this is usable input for Prophet (see init), but it might evolve.
     preconditions = Dict[str, bool]
 
     def __init__(self, name: str,
+                 is_consumer: bool=False, is_producer: bool=False,
                  daily_seasonality: bool=False, weekly_seasonality: bool=False, yearly_seasonality: bool=False):
         self.name = name
+        self.is_consumer = is_consumer
+        self.is_producer = is_producer
 
         self.preconditions = dict(
             daily_seasonality=daily_seasonality,
@@ -74,9 +75,10 @@ class AssetType:
 
 
 asset_types = dict(
-    solar=AssetType("solar", daily_seasonality=True, yearly_seasonality=True),
-    wind=AssetType("wind", daily_seasonality=True, yearly_seasonality=True),
-    ev=AssetType("ev", daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True)    # Todo: add holidays
+    solar=AssetType("solar", is_producer=True, daily_seasonality=True, yearly_seasonality=True),
+    wind=AssetType("wind", is_producer=True, daily_seasonality=True, yearly_seasonality=True),
+    ev=AssetType("ev", is_consumer=True, daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True)
+    # Todo: add holidays?
 )
 
 

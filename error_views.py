@@ -19,21 +19,21 @@ def handle_error(e):
 
 
 @a1_error_views.app_errorhandler(HTTPException)
-def handle_http_exception(e):
+def handle_http_exception(e: HTTPException):
     print("Handling http exception")
     return render_a1vpp_template("error.html",
                                  error_class=e.__class__.__name__,
                                  error_description="We encountered an Http exception.",
-                                 error_message=str(e)), 400
+                                 error_message=e.description), 400
 
 
 @a1_error_views.app_errorhandler(BadRequest)
-def handle_bad_request(e):
+def handle_bad_request(e: BadRequest):
     print("Handling bad request")
     return render_a1vpp_template("error.html",
                                  error_class=e.__class__.__name__,
                                  error_description="We encountered a bad request.",
-                                 error_message=str(e)), 400
+                                 error_message=e.description), 400
 
 
 @a1_error_views.app_errorhandler(TemplateNotFound)
