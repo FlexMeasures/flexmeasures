@@ -75,9 +75,11 @@ def write_asset_to_list(new_asset: Asset):
         assets_str = af.read()
         if assets_str != "":
             asset_dicts += json.loads(assets_str)
-    asset_dicts.append(new_asset.to_dict())
+    # If asset (by name) exists, drop it.
+    asset_dicts_wo_asset = [ad for ad in asset_dicts if ad["name"] != new_asset.name]
+    asset_dicts_wo_asset.append(new_asset.to_dict())
     with open("data/assets.json", "w") as af:
-        af.write(json.dumps(asset_dicts))
+        af.write(json.dumps(asset_dicts_wo_asset))
 
 
 def initialise_market_data():
@@ -122,18 +124,18 @@ def initialise_ev_data():
     df = set_datetime_index(df, freq='15min', start=df.index[0].floor('min'))
     asset_type = models.asset_types['ev']
 
-    for res in resolutions:
-        res_df = timeseries_resample(df, res)  # Sample time series for given resolution
-        asset_count = 0
-        for asset_col_name in df:
-            asset_count += 1
-            asset = Asset(name=asset_col_name, asset_type_name=asset_type.name)
+    asset_count = 0
+    for asset_col_name in df:
+        asset = Asset(name=asset_col_name, asset_type_name=asset_type.name)
+        asset_count += 1
+        for res in resolutions:
             print("Processing EV %s (%d/%d) for resolution %s (%d/%d) ..."
                   % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
+            res_df = timeseries_resample(df, res)  # Sample time series for given resolution
             asset_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
             asset_df.y = res_df[asset_col_name]
 
-            asset_df.y /= -1000  # turn positive to negative to match our model, adjust from Wh to MWh
+            asset_df.y /= -1000000  # turn positive to negative to match our model, adjust from Wh to MWh
 
             assert(all(asset_df.y <= 0))
 
@@ -143,8 +145,7 @@ def initialise_ev_data():
                 asset_df[conf] = predictions[conf]
             asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
-            if res == resolutions[-1]:
-                write_asset_to_list(asset)
+        write_asset_to_list(asset)
 
 
 def initialise_a1_data():
@@ -158,14 +159,14 @@ def initialise_a1_data():
         df = df[:-1]  # we got one row too many (of 2016)
         df = make_datetime_index(df)
 
-        for res in resolutions:
-            res_df = df.resample(res).mean()  # Sample time series for given resolution
-            asset_count = 0
-            for asset_col_name in df:
-                asset_count += 1
-                asset = Asset(name=asset_col_name, asset_type_name=sheet.asset_type.name, area_code=0)
+        asset_count = 0
+        for asset_col_name in df:
+            asset = Asset(name=asset_col_name, asset_type_name=sheet.asset_type.name, area_code=0)
+            asset_count += 1
+            for res in resolutions:
                 print("Processing asset %s (%d/%d) for resolution %s (%d/%d) ..."
                       % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
+                res_df = df.resample(res).mean()  # Sample time series for given resolution
                 asset_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
                 asset_df.y = res_df[asset_col_name]
 
@@ -180,8 +181,7 @@ def initialise_a1_data():
                     asset_df[conf] = predictions[conf]
                 asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
-                if res == resolutions[0]:
-                    write_asset_to_list(asset)
+            write_asset_to_list(asset)
 
 
 if __name__ == "__main__":
