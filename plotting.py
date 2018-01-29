@@ -16,7 +16,7 @@ def create_hover_tool(y_unit: str, resolution: str) -> Optional[HoverTool]:
 
     return HoverTool(tooltips=[
         ('Time', date_format),
-        ('Value', "@y{0.00a} %s" % y_unit),
+        ('Value', "@y{0.000a} %s" % y_unit),
     ], formatters={
         "x": "datetime",
         "y": "numeral"
@@ -31,6 +31,9 @@ def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
     tools = ["box_zoom", "reset", "save"]
     if hover_tool:
         tools = [hover_tool] + tools
+
+    if show_y_floats is False:
+        show_y_floats = max(series.values) < 2
 
     data_source = ColumnDataSource(dict(x=series.index.values, y=series.values))
 

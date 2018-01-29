@@ -50,9 +50,11 @@ def analytics_view():
     if "resource" in request.form:  # set by user
         session["resource"] = request.form['resource']
 
+    # If we show purely consumption assets, we'll want to adapt the sign of the data and labels.
     showing_pure_consumption_data = False
     only_or_first_asset = get_assets_by_resource(session["resource"])[0]
-    if only_or_first_asset is not None and models.asset_types[only_or_first_asset.asset_type_name].is_consumer:
+    if (only_or_first_asset is not None and models.asset_types[only_or_first_asset.asset_type_name].is_consumer
+                                        and not models.asset_types[only_or_first_asset.asset_type_name].is_producer):
         showing_pure_consumption_data = True
 
     # loads
@@ -68,6 +70,7 @@ def analytics_view():
                                      x_label="Time (sampled by %s)  "
                                      % freq_label_to_human_readable_label(session["resolution"]),
                                      y_label="Load (in MW)",
+                                     show_y_floats=True,
                                      hover_tool=load_hover)
     load_script, load_div = components(load_fig)
 
@@ -86,7 +89,7 @@ def analytics_view():
     prices_script, prices_div = components(prices_fig)
 
     # revenues/costs
-    rev_cost_data = pd.Series(load_data.y * prices_data.y * load_hour_factor, index=load_data.index)
+    rev_cost_data = pd.Series(load_data.y * prices_data.y, index=load_data.index)
     rev_cost_str = "Revenues"
     if showing_pure_consumption_data:
         rev_cost_str = "Costs"
