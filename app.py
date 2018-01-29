@@ -35,7 +35,7 @@ a1vpp_logging_config = {
     'version': 1,
     'formatters': {
         'default': {
-            'format': '[%(asctime)s] %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]',
+            'format': '[%(asctime)s] %(levelname)s: %(message)s [log made in %(pathname)s:%(lineno)d]',
         }
     },
     'handlers': {
