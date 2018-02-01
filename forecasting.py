@@ -23,7 +23,6 @@ def make_rolling_forecast(data: pd.Series,
     # Rename the datetime and data column for use in fbprophet
     df = pd.DataFrame({'ds': data.index, 'y': data.values})
 
-
     if resolution in ("15T", "1h"):
         return _make_rough_rolling_forecast(df, asset_type, resolution)
     elif resolution in ("1d", "1w"):  # for now, keep doing the cheap weay for these
@@ -59,7 +58,7 @@ def _make_in_sample_forecast(data: pd.DataFrame, asset_type: models.AssetType, r
     for col in columns:
         confidence_df[col] = forecasts[col.replace("_%s" % horizon, "")].values
 
-    return confidence_df, [horizon,]
+    return confidence_df, [horizon, ]
 
 
 def _make_rough_rolling_forecast(data: pd.DataFrame, asset_type: models.AssetType, resolution: str)\
@@ -76,16 +75,17 @@ def _make_rough_rolling_forecast(data: pd.DataFrame, asset_type: models.AssetTyp
     TODO: make work for resolutions 1d and 1w as well.
     """
     initial_training = timedelta(days=7)
-    modeling_times = pd.date_range(start='2015-01-01 00:00', end="2015-01-11 23:45", freq="6h")
-    forecast_times = pd.date_range(start='2015-01-01 00:00', end="2015-01-11 23:45", freq=resolution)
+    modeling_times = pd.date_range(start="2015-01-01", end="2015-02-06", freq="6h")
+    # not sure how exactly to go to the very end here, probably end minus sliding window /2
+    forecast_times = pd.date_range(start="2015-01-01", end="2015-02-10", freq=resolution)
 
     periods_forward = 0
     sliding_window = []
     if resolution == "1h":
-        periods_forward = 52
+        periods_forward = 55  # 48 hours plus some room for the sliding window
         sliding_window = [timedelta(hours=step) for step in range(-3, 4)]
     elif resolution == "15T":
-        periods_forward = 52 * 4
+        periods_forward = 55 * 4
         sliding_window = [timedelta(minutes=15 * step) for step in range(-12, 13)]
 
     forecast_6h_ago = pd.DataFrame(columns=["ds", "yhat", "yhat_upper", "yhat_lower"])

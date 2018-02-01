@@ -149,7 +149,14 @@ def initialise_ev_data():
 
 
 def initialise_a1_data():
-    """Initialise A1 asset data"""
+    """Initialise A1 asset data
+    TODO: if this method gets passed the sheet name, we'd already have three larger jobs (cars, evs, wind)
+          to distribute. Best would be to create one job per asset here (just collecting asset metadata),
+          and let each asset be processed by an externally callable method.
+          Then we'd read in the same data frame once per asset, but that is not the expensive part here -
+          the forecasting is.
+          See also https://github.com/nhoening/fjd/issues/12
+    """
 
     for sheet in sheets:
         # read in excel sheet
