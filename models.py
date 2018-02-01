@@ -35,6 +35,11 @@ class Asset:
     def name(self, new_name):
         self.name = new_name
 
+
+    @property
+    def asset_type(self):
+        return asset_types.get(self.asset_type_name, None)
+
     def to_dict(self) -> Dict[str, str]:
         return dict(name=self.name, asset_type_name=self.asset_type_name, area_code=self.area_code)
 

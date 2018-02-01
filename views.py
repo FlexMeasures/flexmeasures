@@ -6,7 +6,7 @@ from bokeh.util.string import encode_utf8
 
 from utils import (set_period, render_a1vpp_template, get_assets, get_data, freq_label_to_human_readable_label,
                    mean_absolute_error, mean_absolute_percentage_error, weighted_absolute_percentage_error,
-                   resolution_to_hour_factor, get_assets_by_resource)
+                   resolution_to_hour_factor, get_assets_by_resource, is_pure_consumer)
 import plotting
 import models
 
@@ -23,13 +23,33 @@ def dashboard_view():
     if "clear-session" in request.values:
         session.clear()
         msg = "Your session was cleared."
-    return render_a1vpp_template('dashboard.html', message=msg)
+
+    asset_counts = {}
+    for asset_type in ("solar", "wind", "vehicles", "house"):
+        asset_counts[asset_type] = len(get_assets_by_resource(asset_type))
+    return render_a1vpp_template('dashboard.html', message=msg, asset_counts=asset_counts)
 
 
 # Portfolio view
 @a1_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
-    return render_a1vpp_template("portfolio.html")
+    set_period()
+    assets = get_assets()
+    revenues = dict.fromkeys([a.name for a in assets])
+    generation = dict.fromkeys([a.name for a in assets])
+    consumption = dict.fromkeys([a.name for a in assets])
+    prices_data = get_data("epex_da", session["start_time"], session["end_time"])
+    for asset in assets:
+        load_data = get_data(asset.name, session["start_time"], session["end_time"])
+        revenues[asset.name] = pd.Series(load_data.y * prices_data.y, index=load_data.index).sum()
+        if is_pure_consumer(asset.name):
+            generation[asset.name] = 0
+            consumption[asset.name] = -1 * pd.Series(load_data.y).sum()
+        else:
+            generation[asset.name] = pd.Series(load_data.y).sum()
+            consumption[asset.name] = 0
+    return render_a1vpp_template("portfolio.html", assets=assets,
+                                 revenues=revenues, generation=generation, consumption=consumption)
 
 
 # Analytics view
@@ -51,11 +71,7 @@ def analytics_view():
         session["resource"] = request.form['resource']
 
     # If we show purely consumption assets, we'll want to adapt the sign of the data and labels.
-    showing_pure_consumption_data = False
-    only_or_first_asset = get_assets_by_resource(session["resource"])[0]
-    if (only_or_first_asset is not None and models.asset_types[only_or_first_asset.asset_type_name].is_consumer
-                                        and not models.asset_types[only_or_first_asset.asset_type_name].is_producer):
-        showing_pure_consumption_data = True
+    showing_pure_consumption_data = is_pure_consumer(session["resource"])
 
     # loads
     load_data = get_data(session["resource"], session["start_time"], session["end_time"])

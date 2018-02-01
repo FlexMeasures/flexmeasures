@@ -28,14 +28,6 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr class="active">
-                                    <td>Asset counters updated from database</td>
-                                    <td>M1</td>
-                                </tr>
-                                <tr class="active">
-                                    <td>Asset types updated from database</td>
-                                    <td>M1</td>
-                                </tr>
                                 <tr>
                                     <td>User authentication</td>
                                     <td>M2</td>
@@ -66,41 +58,49 @@
                             <thead>
                                 <tr>
                                     <th></th>
-                                    <th>Wind turbines</th>
-                                    <th>PV units</th>
-                                    <th>Buildings</th>
+                                    {% if asset_counts["wind"] > 0 %}<th>Wind turbines</th>{% endif %}
+                                    {% if asset_counts["solar"] > 0 %}<th>PV units</th>{% endif %}
+                                    {% if asset_counts["house"] > 0 %}<th>Buildings</th>{% endif %}
                                     <th>Battery units</th>
-                                    <th>EV charging stations</th>
+                                    {% if asset_counts["vehicles"] > 0 %}<th>EV charging stations</th>{% endif %}
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
                                     <td>VPP total</td>
+                                    {% if asset_counts["wind"] > 0 %}
                                     <td>
                                         <label class="icon-left">
                                             <img src="/public/icons/wind.svg" alt="Wind">
                                         </label>
-                                        17</td>
+                                        {{ asset_counts["wind"]}}</td>
+                                    {% endif %}
+                                    {% if asset_counts["solar"] > 0 %}
                                     <td>
                                         <label class="icon-left">
                                             <img src="/public/icons/sun.svg" alt="Sun">
                                         </label>
-                                        5</td>
+                                        {{ asset_counts["solar"]}}</td>
+                                    {% endif %}
+                                    {% if asset_counts["house"] > 0 %}
                                     <td>
                                         <label class="icon-left">
                                             <img src="/public/icons/house.svg" alt="House">
                                         </label>
-                                        100</td>
+                                        {{ asset_counts["house"]}}</td>
+                                    {% endif %}
                                     <td>
                                         <label class="icon-left">
                                             <img src="/public/icons/battery.svg" alt="Battery">
                                         </label>
                                         5</td>
+                                    {% if asset_counts["vehicles"] > 0 %}
                                     <td>
                                         <label class="icon-left">
                                             <img src="/public/icons/car.svg" alt="Car">
                                         </label>
-                                        3</td>
+                                        {{ asset_counts["vehicles"]}}</td>
+                                    {% endif %}
                                 </tr>
                             </tbody>
                         </table>

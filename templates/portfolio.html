@@ -27,10 +27,6 @@
                             </thead>
                             <tbody>
                                 <tr class="active">
-                                    <td>Asset list updated from database</td>
-                                    <td>M1</td>
-                                </tr>
-                                <tr class="active">
                                     <td>Summary analytics updated after selecting time window </td>
                                     <td>M1</td>
                                 </tr>
@@ -65,7 +61,7 @@
                                     <th>Asset</th>
                                     <th>Supplier</th>
                                     <th>Aggregator</th>
-                                    <th>Energy Service Company</th>
+                                    <!--th>Energy Service Company</th-->
                                     <th>Generation</th>
                                     <th>Consumption</th>
                                     <th>Profit/Loss</th>
@@ -73,74 +69,37 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                {% for asset in assets %}
                                 <tr class="active">
                                     <td>
                                         <label class="icon-left">
-                                            <img src="/public/icons/wind.svg" alt="Time">
+                                            {% if asset.asset_type_name == "wind" %}
+                                            <img src="/public/icons/wind.svg" alt="Wind">
+                                            {% endif %}
+                                            {% if asset.asset_type_name == "solar" %}
+                                            <img src="/public/icons/sun.svg" alt="Solar">
+                                            {% endif %}
+                                            {% if asset.asset_type_name == "house" %}
+                                            <img src="/public/icons/house.svg" alt="House">
+                                            {% endif %}
+                                            {% if asset.asset_type_name == "ev" %}
+                                            <img src="/public/icons/battery.svg" alt="Vehicle">
+                                            {% endif %}
                                         </label>
-                                        SD-Onshore
+                                        {{ asset.name }}
                                     </td>
                                     <td>KEPCO</td>
                                     <td>My AGR</td>
-                                    <td>ESCo 1</td>
-                                    <td><a href="analytics">1000 MWh</a></td>
-                                    <td>-</td>
-                                    <td><a href="analytics">100 KRW</a></td>
-                                    <td><a href="control">Curtail load</a></td>
-                                </tr>
-                                <tr>
+                                    <!--td>ESCo 1</td-->
+                                    <td>{% if asset.asset_type.is_producer %} <a href="analytics">{{ generation[asset.name] | round(2) }} MWh </a> {% endif %} </td>
+                                    <td>{% if asset.asset_type.is_consumer %} <a href="analytics">{{ consumption[asset.name] | round(2) }} MWh </a> {% endif %} </td>
+                                    <td><a href="analytics">{{ revenues[asset.name] | round(2) }} KRW</a></td>
                                     <td>
-                                        <label class="icon-left">
-                                            <img src="/public/icons/wind.svg" alt="Time">
-                                        </label>
-                                        SS-Onshore
+                                        {% if asset.asset_type_name in ("wind", "house") %}<a href="control">Curtail load</a>{% endif %}
+                                        {% if asset.asset_type_name in ("ev", "house") %}<a href="control">Shift load</a>{% endif %}
                                     </td>
-                                    <td>KEPCO</td>
-                                    <td>My AGR</td>
-                                    <td>ESCo 1</td>
-                                    <td><a href="analytics">1500 MWh</a></td>
-                                    <td>-</td>
-                                    <td><a href="analytics">150 KRW</a></td>
-                                    <td>-</td>
                                 </tr>
-                                <tr>
-                                    <td>
-                                        <label class="icon-left">
-                                            <img src="/public/icons/battery.svg" alt="Time">
-                                        </label>
-                                        My BAT
-                                    </td>
-                                    <td>KEPCO</td>
-                                    <td>My AGR</td>
-                                    <td>ESCo 2</td>
-                                    <td><a href="analytics">100 MWh</a></td>
-                                    <td><a href="analytics">100 MWh</a></td>
-                                    <td><a href="analytics">10 KRW</a></td>
-                                    <td><a href="control">Shift load</a></td>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <label class="icon-left">
-                                            <img src="/public/icons/house.svg" alt="Time">
-                                        </label>
-                                        My BEMS
-                                    </td>
-                                    <td>KEPCO</td>
-                                    <td>My AGR</td>
-                                    <td>ESCo 2</td>
-                                    <td>-</td>
-                                    <td><a href="analytics">2 MWh</a></td>
-                                    <td><a href="analytics">-1 KRW</a></td>
-                                    <td>-</td>
-                                </tr>
-                                <tr>
-                                    <td>...</td>
-                                    <td>...</td>
-                                    <td>...</td>
-                                    <td>...</td>
-                                    <td>...</td>
-                                    <td>...</td>
-                                </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                         <h3>Market status</h3>

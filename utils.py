@@ -9,6 +9,7 @@ import numpy as np
 from bokeh.resources import CDN
 import iso8601
 
+import models
 from models import Asset, asset_groups, Market
 
 
@@ -31,7 +32,8 @@ def get_assets() -> List[Asset]:
 
 
 def get_assets_by_resource(resource: str) -> List[Asset]:
-    """Gather assets which are identified by this resource name."""
+    """Gather assets which are identified by this resource name.
+    The resource name is either the name of an asset group or an individual asset."""
     assets = get_assets()
     if resource in asset_groups:
         resource_assets = set()
@@ -116,6 +118,15 @@ def resolution_to_hour_factor(resolution: str):
         "1w": 24 * 7
     }
     return switch.get(resolution, 1)
+
+
+def is_pure_consumer(resource_name: str):
+    only_or_first_asset = get_assets_by_resource(resource_name)[0]
+    if (only_or_first_asset is not None and models.asset_types[only_or_first_asset.asset_type_name].is_consumer
+                                        and not models.asset_types[only_or_first_asset.asset_type_name].is_producer):
+        return True
+    else:
+        return False
 
 
 def get_most_recent_quarter() -> datetime:
