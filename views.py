@@ -4,11 +4,12 @@ import pandas as pd
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 
-from utils import (set_period, render_a1vpp_template, get_assets, get_data, freq_label_to_human_readable_label,
-                   mean_absolute_error, mean_absolute_percentage_error, weighted_absolute_percentage_error,
-                   resolution_to_hour_factor, get_assets_by_resource)
+from utils import (set_time_range_for_session, render_a1vpp_template, get_assets, get_data,
+                   freq_label_to_human_readable_label, mean_absolute_error, mean_absolute_percentage_error,
+                   weighted_absolute_percentage_error, resolution_to_hour_factor, get_assets_by_resource)
 import plotting
 import models
+from forecasting import forecast_horizons_for
 
 
 # The views in this module can as blueprint be registered with the Flask app (see app.py)
@@ -35,7 +36,7 @@ def portfolio_view():
 # Analytics view
 @a1_views.route('/analytics', methods=['GET', 'POST'])
 def analytics_view():
-    set_period()
+    set_time_range_for_session()
     groups_with_assets = [group for group in models.asset_groups if len(get_assets_by_resource(group)) > 0]
 
     if "resource" not in session:  # set some default, if possible
@@ -56,7 +57,7 @@ def analytics_view():
         showing_pure_consumption_data = True
 
     # loads
-    load_data = get_data(session["resource"], session["start_time"], session["end_time"])
+    load_data = get_data(session["resource"], session["start_time"], session["end_time"], session["resolution"])
     if load_data is None or load_data.size == 0:
         raise BadRequest("Not enough data available for resource \"%s\" in the time range %s to %s"
                          % (session["resource"], session["start_time"], session["end_time"]))
@@ -74,7 +75,7 @@ def analytics_view():
     load_hour_factor = resolution_to_hour_factor(session["resolution"])
 
     # prices
-    prices_data = get_data("epex_da", session["start_time"], session["end_time"])
+    prices_data = get_data("epex_da", session["start_time"], session["end_time"], session["resolution"])
     prices_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
     prices_fig = plotting.create_graph(prices_data.y,
                                        forecasts=prices_data[["yhat", "yhat_upper", "yhat_lower"]],
@@ -128,7 +129,9 @@ def analytics_view():
                                  wape_unit_price=wape_unit_price,
                                  assets=get_assets(),
                                  asset_groups=groups_with_assets,
-                                 resource=session["resource"])
+                                 resource=session["resource"],
+                                 forecast_horizons=forecast_horizons_for(session["resolution"]),
+                                 active_forecast_horizon=session["forecast_horizon"])
 
 
 # Control view

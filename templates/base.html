@@ -107,14 +107,15 @@
                                 <a role="button" href="#" class="btn btn-default forecast-toggle active" forecast-type="rolling">Rolling</a>
                                 <a role="button" href="#" class="btn btn-default forecast-toggle" forecast-type="static">Static</a>
                             </div>-->
-<!--                        <div class="btn-group btn-group-justified">
-                                <input type="text" name="forecast" value="01/01/2015 1:45 PM" />
-                            </div>-->
                             <div>
-                                <select class="form-control" id="settings-preset-dist" name="preset" disabled="disabled">
-                                    <option value="{{ resolution }}" selected="selected">per {{ resolution_human }}</option>
-                                </select>
-                            </div>						
+                                <form action="" method="POST" id="forecast_horizon_form">
+                                    <select class="form-control" id="forecast_horizon" name="forecast_horizon" onchange="this.form.submit()">
+                                        {% for horizon in forecast_horizons %}
+                                        <option value="{{ horizon }}" {% if horizon == active_forecast_horizon %} selected="selected"{% endif %}>per {{ horizon }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </form>
+                            </div>
                         </div>
                     
                     {% endblock forecastpicker %}

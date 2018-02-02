@@ -10,6 +10,7 @@ from bokeh.resources import CDN
 import iso8601
 
 from models import Asset, asset_groups, Market
+from forecasting import forecast_horizons_for
 
 
 # global, lazily loaded asset description
@@ -66,9 +67,8 @@ def get_market_by_resource(resource: str) -> Optional[Market]:
             return market
 
 
-def get_data(resource: str, start: datetime, end: datetime) -> pd.DataFrame:
+def get_data(resource: str, start: datetime, end: datetime, resolution: str) -> pd.DataFrame:
     """Get data for one or more assets or markets. Here we also decide on a resolution."""
-    session["resolution"] = decide_resolution(start, end)
     data = None
     data_keys = []
     for asset in get_assets_by_resource(resource):
@@ -77,7 +77,7 @@ def get_data(resource: str, start: datetime, end: datetime) -> pd.DataFrame:
     if market is not None:
         data_keys.append(market.name)
     for data_key in data_keys:
-        data_label = "%s_res%s" % (data_key, session["resolution"])
+        data_label = "%s_res%s" % (data_key, resolution)
         global DATA
         if data_label not in DATA:
             current_app.logger.info("Loading %s data from disk ..." % data_label)
@@ -131,8 +131,9 @@ def get_default_end_time() -> datetime:
     return get_most_recent_quarter()
 
 
-def set_period():
-    """Set period (start_date and end_date) on session if they are not yet set."""
+def set_time_range_for_session():
+    """Set period (start_date, end_date and resolution) on session if they are not yet set.
+    Also set the forecast horizon, if given."""
     if "start_time" in request.values:
         session["start_time"] = iso8601.parse_date(request.values.get("start_time"))
     elif "start_time" not in session:
@@ -147,6 +148,14 @@ def set_period():
 
     if session["start_time"] >= session["end_time"]:
         raise BadRequest("Start time %s is not after end time %s." % (session["start_time"], session["end_time"]))
+
+    session["resolution"] = decide_resolution(session["start_time"], session["end_time"])
+
+    if "forecast_horizon" in request.values:
+        session["forecast_horizon"] = request.values.get("forecast_horizon")
+    allowed_horizons = forecast_horizons_for(session["resolution"])
+    if session["forecast_horizon"] not in allowed_horizons and len(allowed_horizons) > 0:
+        session["forecast_horizon"] = allowed_horizons[0]
 
 
 def freq_label_to_human_readable_label(freq_label: str) -> str:

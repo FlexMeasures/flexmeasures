@@ -6,9 +6,15 @@ import models
 from fbprophet import Prophet
 
 
-# Maybe we want to make a model separately
-# def make_model_for(data: pd.Series):
-#    return data
+def forecast_horizons_for(resolution: str) -> List[str]:
+    """Return a list of horizons that are supported per resolution."""
+    if resolution in ("15T", "1h"):
+        return ["6h", "48h"]
+    elif resolution == "1d":
+        return ["48h"]
+    elif resolution == "1w":
+        return ["1w"]
+    return []
 
 
 def make_rolling_forecast(data: pd.Series,
