@@ -61,7 +61,7 @@
                                     {% if asset_counts["wind"] > 0 %}<th>Wind turbines</th>{% endif %}
                                     {% if asset_counts["solar"] > 0 %}<th>PV units</th>{% endif %}
                                     {% if asset_counts["house"] > 0 %}<th>Buildings</th>{% endif %}
-                                    <th>Battery units</th>
+                                    {% if asset_counts["battery"] > 0 %}<th>Battery units</th>{% endif %}
                                     {% if asset_counts["vehicles"] > 0 %}<th>EV charging stations</th>{% endif %}
                                 </tr>
                             </thead>
@@ -89,11 +89,13 @@
                                         </label>
                                         {{ asset_counts["house"]}}</td>
                                     {% endif %}
+                                    {% if asset_counts["battery"] > 0 %}
                                     <td>
                                         <label class="icon-left">
-                                            <img src="/public/icons/battery.svg" alt="Battery">
+                                            <img src="/public/icons/battery.svg" alt="Car">
                                         </label>
-                                        5</td>
+                                        {{ asset_counts["battery"]}}</td>
+                                    {% endif %}
                                     {% if asset_counts["vehicles"] > 0 %}
                                     <td>
                                         <label class="icon-left">
