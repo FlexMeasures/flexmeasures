@@ -7,10 +7,9 @@ from bokeh.util.string import encode_utf8
 from utils import (set_time_range_for_session, render_a1vpp_template, get_assets, get_data,
                    freq_label_to_human_readable_label, mean_absolute_error, mean_absolute_percentage_error,
                    weighted_absolute_percentage_error, resolution_to_hour_factor, get_assets_by_resource,
-                   is_pure_consumer)
+                   is_pure_consumer, forecast_horizons_for)
 import plotting
 import models
-from forecasting import forecast_horizons_for
 
 
 # The views in this module can as blueprint be registered with the Flask app (see app.py)
@@ -35,14 +34,14 @@ def dashboard_view():
 # Portfolio view
 @a1_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
-    set_period()
+    set_time_range_for_session()
     assets = get_assets()
     revenues = dict.fromkeys([a.name for a in assets])
     generation = dict.fromkeys([a.name for a in assets])
     consumption = dict.fromkeys([a.name for a in assets])
-    prices_data = get_data("epex_da", session["start_time"], session["end_time"])
+    prices_data = get_data("epex_da", session["start_time"], session["end_time"], session["resolution"])
     for asset in assets:
-        load_data = get_data(asset.name, session["start_time"], session["end_time"])
+        load_data = get_data(asset.name, session["start_time"], session["end_time"], session["resolution"])
         revenues[asset.name] = pd.Series(load_data.y * prices_data.y, index=load_data.index).sum()
         if is_pure_consumer(asset.name):
             generation[asset.name] = 0
