@@ -21,8 +21,7 @@ evs_filename = 'data/German charging stations 20150101-20150620.csv'
 Sheet = collections.namedtuple('Sheet', 'name asset_type')
 sheets = [
     Sheet(name="1_PV_CS6X-295P", asset_type=models.asset_types["solar"]),
-    Sheet(name="2_WT_Enercon E40 600-46", asset_type=models.asset_types["wind"]),
-    # Sheet(name="4_Load", asset_type=models.asset_types["ev"]),
+    Sheet(name="2_WT_Enercon E40 600-46", asset_type=models.asset_types["wind"])
 ]
 
 
@@ -104,9 +103,10 @@ def initialise_market_data():
             market_df.y = res_df[market_col_name]
 
             # Run forecasts (the heavy computation) and save them
-            predictions = make_rolling_forecast(market_df.y, market_type)
-            for conf in ["yhat", "yhat_upper", "yhat_lower"]:
-                market_df[conf] = predictions[conf]
+            forecasts, horizons = make_rolling_forecast(market_df.y, market_type, res)
+            for h in horizons:
+                for forecast_result in ["yhat_%s" % h, "yhat_%s_upper" % h, "yhat_%s_lower" % h]:
+                    market_df[forecast_result] = forecasts[forecast_result]
             market_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (market.name, res))
 
             if res == resolutions[-1]:
@@ -140,16 +140,24 @@ def initialise_ev_data():
             assert(all(asset_df.y <= 0))
 
             # Run forecasts (the heavy computation) and save them
-            predictions = make_rolling_forecast(asset_df.y, asset_type)
-            for conf in ["yhat", "yhat_upper", "yhat_lower"]:
-                asset_df[conf] = predictions[conf]
+            forecast, horizons = make_rolling_forecast(asset_df.y, asset_type, res)
+            for h in horizons:
+                for forecast_result in ["yhat_%s" % h, "yhat_%s_upper" % h, "yhat_%s_lower" % h]:
+                    asset_df[forecast_result] = forecast[forecast_result]
             asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
         write_asset_to_list(asset)
 
 
 def initialise_a1_data():
-    """Initialise A1 asset data"""
+    """Initialise A1 asset data
+    TODO: if this method gets passed the sheet name, we'd already have three larger jobs (cars, evs, wind)
+          to distribute. Best would be to create one job per asset here (just collecting asset metadata),
+          and let each asset be processed by an externally callable method.
+          Then we'd read in the same data frame once per asset, but that is not the expensive part here -
+          the forecasting is.
+          See also https://github.com/nhoening/fjd/issues/12
+    """
 
     for sheet in sheets:
         # read in excel sheet
@@ -176,9 +184,10 @@ def initialise_a1_data():
                     assert(all(asset_df.y <= 0))
 
                 # Run forecasts (the heavy computation) and save them
-                predictions = make_rolling_forecast(asset_df.y, sheet.asset_type)
-                for conf in ["yhat", "yhat_upper", "yhat_lower"]:
-                    asset_df[conf] = predictions[conf]
+                forecast, horizons = make_rolling_forecast(asset_df.y, sheet.asset_type, res)
+                for h in horizons:
+                    for forecast_result in ["yhat_%s" % h, "yhat_%s_upper" % h, "yhat_%s_lower" % h]:
+                        asset_df[forecast_result] = forecast[forecast_result]
                 asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
             write_asset_to_list(asset)
@@ -187,7 +196,7 @@ def initialise_a1_data():
 if __name__ == "__main__":
     """Initialise markets and assets"""
 
-    # initialise_market_data()
+    initialise_market_data()
 
     initialise_ev_data()
-    # initialise_a1_data()
+    initialise_a1_data()
