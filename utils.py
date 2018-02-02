@@ -11,7 +11,6 @@ import iso8601
 
 import models
 from models import Asset, asset_groups, Market
-from forecasting import forecast_horizons_for
 
 
 # global, lazily loaded asset description
@@ -85,7 +84,7 @@ def get_data(resource: str, start: datetime, end: datetime, resolution: str) -> 
             current_app.logger.info("Loading %s data from disk ..." % data_label)
             try:
                 DATA[data_label] = pd.read_pickle("data/pickles/df_%s.pickle" % data_label)
-            except FileNotFoundError as fnfe:
+            except FileNotFoundError:
                 raise BadRequest("Sorry, we cannot find any data for the resource \"%s\" ..." % data_label)
         date_mask = (DATA[data_label].index >= start) & (DATA[data_label].index <= end)
         if data is None:
@@ -122,8 +121,9 @@ def resolution_to_hour_factor(resolution: str):
 
 def is_pure_consumer(resource_name: str):
     only_or_first_asset = get_assets_by_resource(resource_name)[0]
-    if (only_or_first_asset is not None and models.asset_types[only_or_first_asset.asset_type_name].is_consumer
-                                        and not models.asset_types[only_or_first_asset.asset_type_name].is_producer):
+    if (only_or_first_asset is not None
+            and models.asset_types[only_or_first_asset.asset_type_name].is_consumer
+            and not models.asset_types[only_or_first_asset.asset_type_name].is_producer):
         return True
     else:
         return False
@@ -178,6 +178,17 @@ def freq_label_to_human_readable_label(freq_label: str) -> str:
         "1w": "week"
     }
     return f2h_map.get(freq_label, freq_label)
+
+
+def forecast_horizons_for(resolution: str) -> List[str]:
+    """Return a list of horizons that are supported per resolution."""
+    if resolution in ("15T", "1h"):
+        return ["6h", "48h"]
+    elif resolution == "1d":
+        return ["48h"]
+    elif resolution == "1w":
+        return ["1w"]
+    return []
 
 
 def mean_absolute_error(y_true, y_forecast):
