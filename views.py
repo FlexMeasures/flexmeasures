@@ -56,6 +56,8 @@ def analytics_view():
     if only_or_first_asset is not None and models.asset_types[only_or_first_asset.asset_type_name].is_consumer:
         showing_pure_consumption_data = True
 
+    forecast_columns = ["yhat", "yhat_upper", "yhat_lower"]  # TODO: put forecast horizon in here when supported
+
     # loads
     load_data = get_data(session["resource"], session["start_time"], session["end_time"], session["resolution"])
     if load_data is None or load_data.size == 0:
@@ -64,7 +66,8 @@ def analytics_view():
     if showing_pure_consumption_data:
         load_data *= -1
     load_hover = plotting.create_hover_tool("MW", session.get("resolution"))
-    load_fig = plotting.create_graph(load_data.y, forecasts=load_data[["yhat", "yhat_upper", "yhat_lower"]],
+    load_fig = plotting.create_graph(load_data.y,
+                                     forecasts=load_data[forecast_columns],
                                      title="Electricity load on %s" % session["resource"],
                                      x_label="Time (sampled by %s)  "
                                      % freq_label_to_human_readable_label(session["resolution"]),
@@ -78,7 +81,7 @@ def analytics_view():
     prices_data = get_data("epex_da", session["start_time"], session["end_time"], session["resolution"])
     prices_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
     prices_fig = plotting.create_graph(prices_data.y,
-                                       forecasts=prices_data[["yhat", "yhat_upper", "yhat_lower"]],
+                                       forecasts=prices_data[forecast_columns],
                                        title="(Day-ahead) Market Prices",
                                        x_label="Time (sampled by %s)  "
                                        % freq_label_to_human_readable_label(session["resolution"]),
