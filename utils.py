@@ -165,7 +165,7 @@ def set_time_range_for_session():
     if "forecast_horizon" in request.values:
         session["forecast_horizon"] = request.values.get("forecast_horizon")
     allowed_horizons = forecast_horizons_for(session["resolution"])
-    if session["forecast_horizon"] not in allowed_horizons and len(allowed_horizons) > 0:
+    if session.get("forecast_horizon") not in allowed_horizons and len(allowed_horizons) > 0:
         session["forecast_horizon"] = allowed_horizons[0]
 
 
