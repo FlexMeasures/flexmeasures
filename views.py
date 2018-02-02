@@ -28,6 +28,10 @@ def dashboard_view():
     asset_counts = {}
     for asset_type in ("solar", "wind", "vehicles", "house"):
         asset_counts[asset_type] = len(get_assets_by_resource(asset_type))
+
+    # Todo: switch from this mock-up function for asset counts to a proper implementation of battery assets
+    asset_counts["battery"] = asset_counts["solar"]
+
     return render_a1vpp_template('dashboard.html', message=msg, asset_counts=asset_counts)
 
 
