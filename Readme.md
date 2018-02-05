@@ -15,7 +15,7 @@ This is Seita's implementation of the VPP pilot of A1.
 * Activate it: `source activate a1-venv`
 * Install dependencies:
 
-      conda install flask bokeh pandas=0.22.0 iso8601 xlrd 
+      conda install flask bokeh pandas==0.22.0 iso8601 xlrd 
       conda install -c conda-forge fbprophet
 
 ### Dependencies using plain pip:
@@ -23,10 +23,11 @@ This is Seita's implementation of the VPP pilot of A1.
 * Activate it: `source a1-venv/bin/activate`
 * Install dependencies:
 
-      pip install flask bokeh pandas=0.22.0 iso8601 xlrd fbprophet
+      sudo apt-get install python3.6-dev
+      pip install flask bokeh pandas==0.22.0 iso8601 xlrd fbprophet
 
 
-Note: xlrd and fbprophet are used for initialising data only.
+Note: python3.6-dev, xlrd and fbprophet are used for initialising data only.
 
 ### Prepare/load data:
 
