@@ -17,6 +17,23 @@
                 </div>
                 <h3>Controls</h3>
                 {% block datetimepicker %} {{ super() }} {% endblock %}
+                <h3>Placed order summary</h3>
+                <table class="table" style="font-size: 100%;">
+                    <thead>
+                        <tr>
+                            <th><label class="icon-left"><img src="public/icons/calculator.svg" alt="Calculator"></label></th>
+                            <th>Load (MWh)</th>
+                            <th>Expected value (KRW)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Total</td>
+                            <td id="total_load">2.4</td>
+                            <td id="total_value">160,000</td>
+                        </tr>
+                    </tbody>
+                </table>
                 <div class="todo">
                     <h3>To do</h3>
                     <div class="justify">

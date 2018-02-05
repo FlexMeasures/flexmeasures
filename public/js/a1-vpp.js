@@ -156,6 +156,8 @@ function ready() {
             $("#control-offshore-volume").html("Ordered: <b>2MW</b>");
             $("#control-order-button-offshore").html('<span class="fa fa-minus" aria-hidden="true"></span> Cancel');
             $("#control-check-expected-value-offshore").hide();
+            $("#total_load").html("4.4");
+            $("#total_value").html("230,000");
             offshoreOrdered = true;
         }
         else{
