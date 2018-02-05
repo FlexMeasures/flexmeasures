@@ -178,6 +178,8 @@ p.error {
 
 .todo, .info {
     border:3px solid orange;
+    padding: 3px;
+    margin-bottom: 1em;
 }
 
 

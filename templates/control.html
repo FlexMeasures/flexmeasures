@@ -46,6 +46,10 @@
                             </thead>
                             <tbody>
                                 <tr>
+                                    <td>Actions for groups of assets</td>
+                                    <td>M3</td>
+                                </tr>
+                                <tr>
                                     <td>Visualisation of control action</td>
                                     <td>M3</td>
                                 </tr>
@@ -69,7 +73,12 @@
             <div class="col-sm-9">
                 <h3>Control actions on asset level (by AGR for SUP)</h3>
                 <div class="todo">
+                    {% if not prosumer_mock: %}
+                    This is the <b>control view of an aggregator or supplier (A1)</b>.
+                    All assets are listed and an be ordered.
+                    <br/>
                     This is a mockup of intended functionality (expected: M3) and still subject to change.
+                    <br/>
                     You can check the effects of several actions (of both offshore
                     and battery), but only perform the following sequence of actions:
                     <ol>
@@ -77,6 +86,17 @@
                         <li>Then, order 1MW of battery shifting.</li>
                     </ol>
                     Refresh the page to return to the initial conditions.
+                    <br/>
+                    You can also <button onclick="window.location.href='?prosumer_mock=1'">switch to view of a prosumer.</button>
+                    {% endif %}
+                    {% if prosumer_mock: %}
+                    This is the <b>control view of a prosumer</b> (in this case, an owner of two onshore wind farms).
+                    Only the assets owned by this prosumer are listed, and only if the aggregator (A1) placed an order action for them.
+                    <br/>
+                    This is a mockup of intended functionality (expected: M3) and still subject to change.
+                    <br/>
+                    <button onclick="window.location.href='?prosumer_mock=0'">Switch to view of a aggregators/supplier (A1).</button>
+                    {% endif %}
                 </div>
                 <table id="control-actions" class="table" style="font-size: 100%;">
                     <thead>
@@ -89,7 +109,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                    <tr class="active">
+                    {% if not prosumer_mock: %}
+                        <tr class="active">
                             <td>
                                 <label class="icon-left">
                                     <img src="/public/icons/car.svg" alt="Time">
@@ -118,6 +139,7 @@
                                 </div>
                             </td>
                         </tr>
+                    {% endif %}
                         <tr class="active">
                             <td>
                                 <label class="icon-left">
@@ -136,9 +158,11 @@
                                     Curtail load
                                     <span class="fa fa-cut" aria-hidden="true"></span>
                                 </div>
+                                {% if not prosumer_mock: %}
                                 <a class="btn btn-default" role="button" id="control-order-button-onshore">
                                     <span class="fa fa-minus" aria-hidden="true"></span> Cancel
                                 </a>
+                                {% endif %}
                             </td>
                             <td>
                                 <div>
@@ -147,6 +171,7 @@
                                 </div>
                             </td>
                         </tr>
+                    {% if not prosumer_mock: %}
                         <tr id="control-tr-offshore">
                             <td>
                                 <label class="icon-left">
@@ -215,6 +240,7 @@
                                 </a>
                             </td>
                         </tr>
+                    {% endif %}
                         <tr>
                             <td>...</td>
                             <td>...</td>

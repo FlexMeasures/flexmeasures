@@ -1,3 +1,5 @@
+from typing import List
+
 from flask import Blueprint, request, session
 from werkzeug.exceptions import BadRequest
 import pandas as pd
@@ -16,6 +18,23 @@ import models
 a1_views = Blueprint('a1_views', __name__,  static_folder='public', template_folder='templates')
 
 
+# TODO: replace these mock helpers when we have real auth & user groups
+def is_prosumer_mock() -> bool:
+    """Return whether we are showing the mocked version for a onshore wind prosumer.
+    Set this in the session, as well."""
+    if "prosumer_mock" in request.values:
+        if request.values.get("prosumer_mock") == "1":
+            session["prosumer_mock"] = True
+        else:
+            session["prosumer_mock"] = False
+    return session.get("prosumer_mock") is True \
+        or ("prosumer_mock" in request.values and request.values.get("prosumer_mock") == "1")
+
+
+def filter_mock_prosumer_assets(assets: List[models.Asset]) -> List[models.Asset]:
+    return [a for a in assets if a.name in ("ss-onshore", "sd-onshore")]
+
+
 # Dashboard and main landing page
 @a1_views.route('/')
 @a1_views.route('/dashboard')
@@ -26,13 +45,19 @@ def dashboard_view():
         msg = "Your session was cleared."
 
     asset_counts = {}
+    prosumer_mock = is_prosumer_mock()
     for asset_type in ("solar", "wind", "vehicles", "house"):
-        asset_counts[asset_type] = len(get_assets_by_resource(asset_type))
+        assets = get_assets_by_resource(asset_type)
+        if prosumer_mock:
+            assets = filter_mock_prosumer_assets(assets)
+        asset_counts[asset_type] = len(assets)
 
     # Todo: switch from this mock-up function for asset counts to a proper implementation of battery assets
     asset_counts["battery"] = asset_counts["solar"]
 
-    return render_a1vpp_template('dashboard.html', message=msg, asset_counts=asset_counts)
+    return render_a1vpp_template('dashboard.html', show_map=True, message=msg,
+                                 asset_counts=asset_counts,
+                                 prosumer_mock=prosumer_mock)
 
 
 # Portfolio view
@@ -40,6 +65,8 @@ def dashboard_view():
 def portfolio_view():
     set_time_range_for_session()
     assets = get_assets()
+    if is_prosumer_mock():
+        assets = filter_mock_prosumer_assets(assets)
     revenues = dict.fromkeys([a.name for a in assets])
     generation = dict.fromkeys([a.name for a in assets])
     consumption = dict.fromkeys([a.name for a in assets])
@@ -53,7 +80,7 @@ def portfolio_view():
         else:
             generation[asset.name] = pd.Series(load_data.y).sum()
             consumption[asset.name] = 0
-    return render_a1vpp_template("portfolio.html", assets=assets,
+    return render_a1vpp_template("portfolio.html", assets=assets, prosumer_mock=is_prosumer_mock(),
                                  revenues=revenues, generation=generation, consumption=consumption)
 
 
@@ -74,6 +101,13 @@ def analytics_view():
             session["resource"] = get_assets()[0].name
     if "resource" in request.form:  # set by user
         session["resource"] = request.form['resource']
+
+    assets = get_assets()
+    if is_prosumer_mock():
+        groups_with_assets = []
+        assets = filter_mock_prosumer_assets(assets)
+        if len(assets) > 0:
+            session["resource"] = assets[0].name
 
     # If we show purely consumption assets, we'll want to adapt the sign of the data and labels.
     showing_pure_consumption_data = is_pure_consumer(session["resource"])
@@ -153,9 +187,10 @@ def analytics_view():
                                  mape_unit_price=mape_unit_price,
                                  wape_load=wape_load,
                                  wape_unit_price=wape_unit_price,
-                                 assets=get_assets(),
+                                 assets=assets,
                                  asset_groups=groups_with_assets,
                                  resource=session["resource"],
+                                 prosumer_mock=is_prosumer_mock(),
                                  forecast_horizons=forecast_horizons_for(session["resolution"]),
                                  active_forecast_horizon=session["forecast_horizon"])
 
@@ -163,7 +198,7 @@ def analytics_view():
 # Control view
 @a1_views.route('/control', methods=['GET', 'POST'])
 def control_view():
-    return render_a1vpp_template("control.html")
+    return render_a1vpp_template("control.html", prosumer_mock=is_prosumer_mock())
 
 
 # Upload view

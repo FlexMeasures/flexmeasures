@@ -219,8 +219,6 @@ def render_a1vpp_template(html_filename: str, **variables):
     variables["page"] = html_filename.replace(".html", "")
     if "show_datepicker" not in variables:
         variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio", "control")
-    if "show_map" not in variables:
-        variables["show_map"] = variables["page"] == "dashboard"
     if "load_profile_div" in variables:
         variables["contains_plots"] = True
         variables["bokeh_css_resources"] = CDN.render_css()
@@ -230,7 +228,7 @@ def render_a1vpp_template(html_filename: str, **variables):
     variables["resolution"] = session.get("resolution", "")
     variables["resolution_human"] = freq_label_to_human_readable_label(session.get("resolution", ""))
 
-    # For mocking control.html
+    # TODO: remove when we stop mocking control.html
     if variables["page"] == "control":
         variables["start_time"] = session["start_time"].replace(hour=4, minute=0, second=0)
         variables["end_time"] = variables["start_time"] + datetime.timedelta(hours=1)

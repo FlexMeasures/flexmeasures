@@ -52,7 +52,20 @@
             <div class="col-sm-9">
                 <div class="row eq-height">
                     <div class="col-sm-12">
-                        <h3>VPP status</h3>
+                        <h3>{% if not prosumer_mock: %}VPP status:{% else %}Status of my assets:{% endif%}
+                        </h3>
+                            <div class="todo">
+                                {% if not prosumer_mock: %}
+                                This is the <b>dashboard view of an aggregator or supplier (A1)</b>. All assets are listed.
+                                Not all assets are on the map at this point, however.
+                                <button onclick="window.location.href='?prosumer_mock=1'">Switch to view of a prosumer.</button>
+                                {% endif %}
+                                {% if prosumer_mock: %}
+                                This is the <b>dashboard view of a prosumer</b> (in this case, an owner of two onshore wind farms). Only the assets owned by this prosumer are listed.
+                                Not all assets are on the map at this point, however.
+                                <button onclick="window.location.href='?prosumer_mock=0'">Switch to view of a aggregators/supplier (A1).</button>
+                                {% endif %}
+                            </div>
                         <div id="mapid"></div>
                         <table class="table" style="font-size: 100%;">
                             <thead>
@@ -67,7 +80,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>VPP total</td>
+                                    <td>{% if not prosumer_mock: %}VPP total:{% else %}My assets:{% endif%}</td>
                                     {% if asset_counts["wind"] > 0 %}
                                     <td>
                                         <label class="icon-left">

@@ -27,6 +27,10 @@
                             </thead>
                             <tbody>
                                 <tr class="active">
+                                    <td>Show asset groups here, as well (e.g. "wind")</td>
+                                    <td>M2</td>
+                                </tr>
+                                <tr class="active">
                                     <td>VPP status showing aggregated values</td>
                                     <td>M1</td>
                                 </tr>
@@ -51,6 +55,17 @@
                 <div class="row eq-height">
                     <div class="col-sm-8">
                         <h3>Portfolio status</h3>
+                            <div class="todo">
+                                {% if not prosumer_mock: %}
+                                This is the <b>portfolio view of an aggregator or supplier (A1)</b>. All assets are listed.
+                                <button onclick="window.location.href='?prosumer_mock=1'">Switch to view of a prosumer.</button>
+                                {% endif %}
+                                {% if prosumer_mock: %}
+                                This is the mocked <b>portfolio view of a prosumer</b> (in this case, an owner of several onshore wind farms). Only the assets owned by this prosumer are listed.
+                                The prosumer can put contraints for actions in place, for example available capacity.
+                                <button onclick="window.location.href='?prosumer_mock=0'">Switch to view of a aggregators/supplier (A1).</button>
+                                {% endif %}
+                            </div>
                         <table class="table" style="font-size: 100%;">
                             <thead>
                                 <tr>
@@ -62,6 +77,7 @@
                                     <th>Consumption</th>
                                     <th>Profit/Loss</th>
                                     <th>Type of actions</th>
+                                    <th>Available capacity:</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -93,6 +109,24 @@
                                     <td>
                                         {% if asset.asset_type_name in ("wind", "house") %}<a href="control">Curtail load</a>{% endif %}
                                         {% if asset.asset_type_name in ("ev", "house") %}<a href="control">Shift load</a>{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if not prosumer_mock: %}
+                                            {% if "onshore" in asset.name:%}
+                                            60%
+                                            {% else %}
+                                            100%
+                                            {% endif%}
+                                        {% endif %}
+                                        {% if prosumer_mock: %}
+                                        <select>
+                                            <option>100%</option>
+                                            <option>80%</option>
+                                            <option selected="selected">60%</option>
+                                            <option>40%</option>
+                                            <option>20%</option>
+                                        </select>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
