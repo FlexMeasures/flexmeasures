@@ -13,8 +13,18 @@ function showMsg(msg){
 function showImage(resource, action, value){
 //    $("#expectedValueModal .modal-dialog .modal-content img").html("public/control-mock-imgs/" + resource + "-action" + action + "-" + value + "MW.png")
     document.getElementById('expected_value_mock').src = "public/control-mock-imgs/value-" + resource + "-action" + action + "-" + value + "MW.png"
-    document.getElementById('expected_load_mock').src = "public/control-mock-imgs/load-" + resource + "-action" + action + "-" + value + "MW.png"
-    $("#expectedValueModal").modal("show");
+    load_images = document.getElementsByClassName('expected_load_mock')
+    for (var i = 0; i < load_images.length; i++) {
+        load_images[i].src = "public/control-mock-imgs/load-" + resource + "-action" + action + "-" + value + "MW.png"
+    }
+}
+
+
+function defaultImage(action){
+    load_images = document.getElementsByClassName('expected_load_mock reset_default')
+    for (var i = 0; i < load_images.length; i++) {
+        load_images[i].src = "public/control-mock-imgs/load-action" + action + ".png"
+    }
 }
 
 
@@ -38,8 +48,13 @@ function ready() {
         postfix: "MW",
         force_edges: true,
         onChange: function(settingData){
+            action = 1;
+            if (offshoreOrdered){
+                action = 2;
+            }
             value = settingData.from;
             $("#control-expected-value-offshore").html(numberWithCommas(value * 35000));
+            showImage("offshore", action, value);
         }
      });
 
@@ -55,9 +70,48 @@ function ready() {
         postfix: "MW",
         force_edges: true,
         onChange: function(settingData){
+            action = 1;
+            if (offshoreOrdered){
+                action = 2;
+            }
             value = settingData.from;
             $("#control-expected-value-battery").html(numberWithCommas(value * 10000));
+            showImage("battery", action, value);
         }
+    });
+
+
+
+    // Hover behaviour
+
+    $("#control-tr-offshore").mouseenter(function(data){
+        action = 1;
+        if (offshoreOrdered){
+            action = 2;
+        }
+        var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
+        showImage("offshore", action, value);
+    }).mouseleave(function(data){
+        action = 1;
+        if (offshoreOrdered){
+            action = 2;
+        }
+        defaultImage(action);
+    });
+
+    $("#control-tr-battery").mouseenter(function(data){
+        action = 1;
+        if (offshoreOrdered){
+            action = 2;
+        }
+        var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
+        showImage("battery", action, value);
+    }).mouseleave(function(data){
+        action = 1;
+        if (offshoreOrdered){
+            action = 2;
+        }
+        defaultImage(action);
     });
 
 
@@ -66,6 +120,7 @@ function ready() {
     $("#control-check-expected-value-offshore").click(function(data){
         var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
         showImage("offshore", 1, value);
+        $("#expectedValueModal").modal("show");
     });
 
     $("#control-check-expected-value-battery").click(function(data){
@@ -75,6 +130,7 @@ function ready() {
             action = 2;
         }
         showImage("battery", action, value);
+        $("#expectedValueModal").modal("show");
     });
 
 
