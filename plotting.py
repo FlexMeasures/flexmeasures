@@ -25,15 +25,30 @@ def create_hover_tool(y_unit: str, resolution: str) -> Optional[HoverTool]:
 
 def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
                  title: str="A1 plot", x_label: str="X", y_label: str="Y",
-                 hover_tool: str=None, show_y_floats=False):
+                 hover_tool: Optional[HoverTool]=None, show_y_floats: bool=False):
+    """
+    Create a Bokeh graph.
+    :param series: the actual data
+    :param forecasts: forecasts of the data (can go further into the future than the series). Expects column names
+                      "yhat", "yhat_upper" and "yhat_lower".
+    :param title: Title of the graph
+    :param x_label: x axis label
+    :param y_label: y axis label
+    :param hover_tool: Bokeh hover tool, if required
+    :param show_y_floats: if True, y axis will show floating numbers (defaults False, will be True if y values are < 2)
+    :return: a Bokeh Figure
+    """
     xdr = Range1d(start=min(series.index), end=max(series.index))
+    if forecasts is not None:
+        xdr = Range1d(start=min(series.index.append(forecasts.index)),
+                      end=max(series.index.append(forecasts.index)))
 
     tools = ["box_zoom", "reset", "save"]
     if hover_tool:
         tools = [hover_tool] + tools
 
     if show_y_floats is False:
-        show_y_floats = max(series.values) < 2
+        show_y_floats = max(series.values) < 2  # simple heuristic
 
     data_source = ColumnDataSource(dict(x=series.index.values, y=series.values))
 
@@ -49,11 +64,11 @@ def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
 
     if forecasts is not None:
         fc_color = "#DDD0B3"
-        fig.line(series.index, forecasts["yhat"], color=fc_color, legend="Forecast")
+        fig.line(forecasts.index, forecasts["yhat"], color=fc_color, legend="Forecast")
 
         # draw uncertainty range as a two-dimensional patch
-        x_points = np.append(series.index, series.index[::-1])
-        y_points = np.append(forecasts["yhat_lower"], forecasts["yhat_upper"][::-1])
+        x_points = np.append(forecasts.index, forecasts.index[::-1])
+        y_points = np.append(forecasts.yhat_lower, forecasts.yhat_upper[::-1])
         fig.patch(x_points, y_points, color=fc_color, fill_alpha=0.2, line_width=0.01)
 
     fig.toolbar.logo = None

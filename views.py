@@ -9,7 +9,8 @@ from bokeh.util.string import encode_utf8
 from utils import (set_time_range_for_session, render_a1vpp_template, get_assets, get_data,
                    freq_label_to_human_readable_label, mean_absolute_error, mean_absolute_percentage_error,
                    weighted_absolute_percentage_error, resolution_to_hour_factor, get_assets_by_resource,
-                   is_pure_consumer, forecast_horizons_for)
+                   is_pure_consumer, forecast_horizons_for, get_most_recent_quarter,
+                   extract_forecasts)
 import plotting
 import models
 
@@ -46,7 +47,7 @@ def dashboard_view():
 
     asset_counts = {}
     prosumer_mock = is_prosumer_mock()
-    for asset_type in ("solar", "wind", "vehicles", "house"):
+    for asset_type in ("solar", "wind", "vehicles", "buildings"):
         assets = get_assets_by_resource(asset_type)
         if prosumer_mock:
             assets = filter_mock_prosumer_assets(assets)
@@ -112,8 +113,6 @@ def analytics_view():
     # If we show purely consumption assets, we'll want to adapt the sign of the data and labels.
     showing_pure_consumption_data = is_pure_consumer(session["resource"])
 
-    forecast_columns = ["yhat", "yhat_upper", "yhat_lower"]  # TODO: put forecast horizon in here when supported
-
     # loads
     load_data = get_data(session["resource"], session["start_time"], session["end_time"], session["resolution"])
     if load_data is None or load_data.size == 0:
@@ -122,8 +121,10 @@ def analytics_view():
     if showing_pure_consumption_data:
         load_data *= -1
     load_hover = plotting.create_hover_tool("MW", session.get("resolution"))
-    load_fig = plotting.create_graph(load_data.y,
-                                     forecasts=load_data[forecast_columns],
+    load_data_to_show = load_data.loc[load_data.index < get_most_recent_quarter().replace(year=2015)]
+    load_forecast_data = extract_forecasts(load_data)
+    load_fig = plotting.create_graph(load_data_to_show.y,
+                                     forecasts=load_forecast_data,
                                      title="Electricity load on %s" % session["resource"],
                                      x_label="Time (sampled by %s)  "
                                      % freq_label_to_human_readable_label(session["resolution"]),
@@ -137,8 +138,10 @@ def analytics_view():
     # prices
     prices_data = get_data("epex_da", session["start_time"], session["end_time"], session["resolution"])
     prices_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
-    prices_fig = plotting.create_graph(prices_data.y,
-                                       forecasts=prices_data[forecast_columns],
+    prices_data_to_show = prices_data.loc[prices_data.index < get_most_recent_quarter().replace(year=2015)]
+    prices_forecast_data = extract_forecasts(prices_data)
+    prices_fig = plotting.create_graph(prices_data_to_show.y,
+                                       forecasts=prices_forecast_data,
                                        title="(Day-ahead) Market Prices",
                                        x_label="Time (sampled by %s)  "
                                        % freq_label_to_human_readable_label(session["resolution"]),
@@ -146,28 +149,37 @@ def analytics_view():
                                        hover_tool=prices_hover)
     prices_script, prices_div = components(prices_fig)
 
+    # metrics
+    realised_load_in_mwh = pd.Series(load_data.y * load_hour_factor).values
+    expected_load_in_mwh = pd.Series(load_forecast_data.yhat * load_hour_factor).values
+    mae_load_in_mwh = mean_absolute_error(realised_load_in_mwh, expected_load_in_mwh)
+    mae_unit_price = mean_absolute_error(prices_data.y, prices_forecast_data.yhat)
+    mape_load = mean_absolute_percentage_error(realised_load_in_mwh, expected_load_in_mwh)
+    mape_unit_price = mean_absolute_percentage_error(prices_data.y, prices_forecast_data.yhat)
+    wape_load = weighted_absolute_percentage_error(realised_load_in_mwh, expected_load_in_mwh)
+    wape_unit_price = weighted_absolute_percentage_error(prices_data.y, prices_forecast_data.yhat)
+
     # revenues/costs
     rev_cost_data = pd.Series(load_data.y * prices_data.y, index=load_data.index)
+    rev_cost_forecasts = pd.DataFrame(index=load_data.index, columns=["yhat", "yhat_upper", "yhat_lower"])
+    wape_factor_rev_costs = (wape_load / 100. + wape_unit_price / 100.) / 2.  # there might be a better heuristic here
+    rev_cost_forecasts.yhat = load_forecast_data.yhat * prices_forecast_data.yhat
+    wape_span_rev_costs = rev_cost_forecasts.yhat * wape_factor_rev_costs
+    rev_cost_forecasts.yhat_upper = rev_cost_forecasts.yhat + wape_span_rev_costs
+    rev_cost_forecasts.yhat_lower = rev_cost_forecasts.yhat - wape_span_rev_costs
     rev_cost_str = "Revenues"
     if showing_pure_consumption_data:
         rev_cost_str = "Costs"
     rev_cost_hover = plotting.create_hover_tool("KRW", session.get("resolution"))
-    rev_cost_fig = plotting.create_graph(rev_cost_data, forecasts=None,
+    rev_costs_data_to_show = rev_cost_data.loc[rev_cost_data.index < get_most_recent_quarter().replace(year=2015)]
+    rev_cost_fig = plotting.create_graph(rev_costs_data_to_show,
+                                         forecasts=rev_cost_forecasts,
                                          title="%s for %s (priced on DA market)" % (rev_cost_str, session["resource"]),
                                          x_label="Time (sampled by %s)  "
                                          % freq_label_to_human_readable_label(session["resolution"]),
                                          y_label="%s (in KRW)" % rev_cost_str,
                                          hover_tool=rev_cost_hover)
     rev_cost_script, rev_cost_div = components(rev_cost_fig)
-
-    realised_load_in_mwh = pd.Series(load_data.y * load_hour_factor).values
-    expected_load_in_mwh = pd.Series(load_data.yhat * load_hour_factor).values
-    mae_load_in_mwh = mean_absolute_error(realised_load_in_mwh, expected_load_in_mwh)
-    mae_unit_price = mean_absolute_error(prices_data.y, prices_data.yhat)
-    mape_load = mean_absolute_percentage_error(realised_load_in_mwh, expected_load_in_mwh)
-    mape_unit_price = mean_absolute_percentage_error(prices_data.y, prices_data.yhat)
-    wape_load = weighted_absolute_percentage_error(realised_load_in_mwh, expected_load_in_mwh)
-    wape_unit_price = weighted_absolute_percentage_error(prices_data.y, prices_data.yhat)
 
     return render_a1vpp_template("analytics.html",
                                  load_profile_div=encode_utf8(load_div),
@@ -180,7 +192,7 @@ def analytics_view():
                                  realised_unit_price=prices_data.y.mean(),
                                  realised_revenues_costs=rev_cost_data.values.sum(),
                                  expected_load_in_mwh=expected_load_in_mwh.sum(),
-                                 expected_unit_price=prices_data.yhat.mean(),
+                                 expected_unit_price=prices_forecast_data.yhat.mean(),
                                  mae_load_in_mwh=mae_load_in_mwh,
                                  mae_unit_price=mae_unit_price,
                                  mape_load=mape_load,

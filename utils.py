@@ -153,7 +153,8 @@ def set_time_range_for_session():
         session["end_time"] = iso8601.parse_date(request.values.get("end_time"))
     elif "end_time" not in session:
         session["end_time"] = get_default_end_time()
-    # For now, we have to work with the data we have, that means 2015
+
+    # TODO: For now, we have to work with the data we have, that means 2015
     session["start_time"] = session["start_time"].replace(year=2015)
     session["end_time"] = session["end_time"].replace(year=2015)
 
@@ -189,6 +190,16 @@ def forecast_horizons_for(resolution: str) -> List[str]:
     elif resolution == "1w":
         return ["1w"]
     return []
+
+
+def extract_forecasts(df: pd.DataFrame) -> pd.DataFrame:
+    """Extract forecast columns (given the chosen horizon) and give them the standard naming"""
+    forecast_columns = ["yhat", "yhat_upper", "yhat_lower"]  # this is what the plotter expects
+    horizon = session["forecast_horizon"]
+    forecast_renaming = {"yhat_%s" % horizon: "yhat",
+                         "yhat_%s_upper" % horizon: "yhat_upper",
+                         "yhat_%s_lower" % horizon:  "yhat_lower"}
+    return df.rename(forecast_renaming, axis="columns")[forecast_columns]
 
 
 def mean_absolute_error(y_true, y_forecast):

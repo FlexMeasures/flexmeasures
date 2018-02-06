@@ -54,7 +54,8 @@ asset_groups = dict(
         wind=(AssetQuery(attr="asset_type_name", val="wind"),),
         renewables=(AssetQuery(attr="asset_type_name", val="solar"),
                     AssetQuery(attr="asset_type_name", val="wind")),
-        vehicles=(AssetQuery(attr="asset_type_name", val="ev"),)
+        vehicles=(AssetQuery(attr="asset_type_name", val="ev"),),
+        buildings=(AssetQuery(attr="asset_type_name", val="building"),),
     )
 
 
@@ -82,7 +83,8 @@ class AssetType:
 asset_types = dict(
     solar=AssetType("solar", is_producer=True, daily_seasonality=True, yearly_seasonality=True),
     wind=AssetType("wind", is_producer=True, daily_seasonality=True, yearly_seasonality=True),
-    ev=AssetType("ev", is_consumer=True, daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True)
+    ev=AssetType("ev", is_consumer=True, daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True),
+    building=AssetType("building", is_consumer=True, daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True)
     # Todo: add holidays?
 )
 

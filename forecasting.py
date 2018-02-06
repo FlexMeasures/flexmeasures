@@ -1,9 +1,12 @@
 from datetime import timedelta
 from typing import List, Tuple
+import random
 
 import pandas as pd
-import models
 from fbprophet import Prophet
+
+import models
+from utils import forecast_horizons_for
 
 
 def make_rolling_forecast(data: pd.Series,
@@ -18,10 +21,13 @@ def make_rolling_forecast(data: pd.Series,
     # Rename the datetime and data column for use in fbprophet
     df = pd.DataFrame({'ds': data.index, 'y': data.values})
 
-    if resolution in ("15T", "1h"):
-        return _make_rough_rolling_forecast(df, asset_type, resolution)
-    elif resolution in ("1d", "1w"):  # for now, keep doing the cheap weay for these
-        return _make_in_sample_forecast(df, asset_type, resolution)
+    # Still exclusively using the cheap method for now
+    return _make_in_sample_forecast(df, asset_type, resolution)
+
+    # if resolution in ("15T", "1h"):
+    #     return _make_rough_rolling_forecast(df, asset_type, resolution)
+    # elif resolution in ("1d", "1w"):  # for now, keep doing the cheap weay for these
+    #    return _make_in_sample_forecast(df, asset_type, resolution)
 
 
 def _make_in_sample_forecast(data: pd.DataFrame, asset_type: models.AssetType, resolution: str)\
@@ -31,10 +37,12 @@ def _make_in_sample_forecast(data: pd.DataFrame, asset_type: models.AssetType, r
     Forecasts are made for the resolution, we fake the horizon in the name for 1d to be 48h.
     Return the forecasts and a list of horizons.
     """
+    print("Making in-sample forecasts...")
     # Precondition the model to look for certain trends and seasonalities, and fit it
     model = Prophet(interval_width=models.confidence_interval_width, **asset_type.preconditions)
 
     model.fit(data)
+    print("Model was fitted.")
 
     # Select a time window for the forecast
     start_ = model.history_dates.min()
@@ -44,16 +52,32 @@ def _make_in_sample_forecast(data: pd.DataFrame, asset_type: models.AssetType, r
     window = pd.DataFrame({'ds': dates})
 
     forecasts = model.predict(window)
+    print("Forecasts have been made.")
 
-    horizon = resolution
-    if resolution == "1d":
-        horizon = "48h"
-    columns = ["yhat_%s" % horizon, "yhat_%s_upper" % horizon, "yhat_%s_lower" % horizon]
-    confidence_df = pd.DataFrame(index=data.index, columns=columns)
-    for col in columns:
-        confidence_df[col] = forecasts[col.replace("_%s" % horizon, "")].values
+    # For now, we'll mock that we're accurately making actual horizon forecasts here. Might want to stop
+    # pretending that for past data if it's too expensive anyway?
+    # horizon = resolution
+    # if resolution == "1d":
+    #     horizon = "48h"
+    horizons = forecast_horizons_for(resolution)
+    confidence_df = pd.DataFrame(index=data.index)
+    print("Mocking: Renaming columns to fit horizon we need & adapt 6h horizon values to differ from 48h values ...")
+    for horizon in horizons:
+        columns = ["yhat_%s" % horizon, "yhat_%s_upper" % horizon, "yhat_%s_lower" % horizon]
+        for col in columns:
+            confidence_df[col] = forecasts[col.replace("_%s" % horizon, "")].values
+            # Mocking that 6h forecasts are better than 48h and also different by some factor
+            if horizon == "6h":
+                factor = random.randrange(80, 120) / 100.
+                if "upper" in col:
+                    confidence_df[col] = confidence_df[col] * .8 * factor
+                elif "lower" in col:
+                    confidence_df[col] = confidence_df[col] * 1.2 * factor
+                else:
+                    for i in confidence_df.index:
+                        confidence_df.loc[i][col] = confidence_df.loc[i][col] * factor
 
-    return confidence_df, [horizon, ]
+    return confidence_df, horizons
 
 
 def _make_rough_rolling_forecast(data: pd.DataFrame, asset_type: models.AssetType, resolution: str)\
@@ -69,6 +93,7 @@ def _make_rough_rolling_forecast(data: pd.DataFrame, asset_type: models.AssetTyp
 
     TODO: make work for resolutions 1d and 1w as well.
     """
+    print("Make true rolling forecasts ...")
     initial_training = timedelta(days=7)
     modeling_times = pd.date_range(start="2015-01-01", end="2015-02-06", freq="6h")
     # not sure how exactly to go to the very end here, probably end minus sliding window /2

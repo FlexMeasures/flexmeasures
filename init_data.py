@@ -9,13 +9,14 @@ import json
 import pandas as pd
 
 from models import Asset, Market, resolutions
-from forecasting import make_rolling_forecast
+from forecasting import make_rolling_forecast, _make_in_sample_forecast
 import models
 
 
 asset_excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
 prices_filename = 'data/German day-ahead prices 20140101-20160630.csv'
 evs_filename = 'data/German charging stations 20150101-20150620.csv'
+buildings_filename = 'data/neighbourhood.csv'
 
 
 Sheet = collections.namedtuple('Sheet', 'name asset_type')
@@ -42,6 +43,15 @@ def set_datetime_index(old_df: pd.DataFrame, freq: str, start=None) -> pd.DataFr
         ix = pd.DatetimeIndex(start=start, periods=len(old_df.index), freq=freq)
     new_df = pd.DataFrame(data=old_df.to_dict(orient='records'), index=ix)
     return new_df
+
+
+def get_forecasts(df: pd.DataFrame, asset_type: models.AssetType, res: str) -> pd.DataFrame:
+    """ Run forecasts (the heavy computation) and put them in the df"""
+    forecasts, horizons = make_rolling_forecast(df.y, asset_type, res)
+    for h in horizons:
+        for forecast_result in ["yhat_%s" % h, "yhat_%s_upper" % h, "yhat_%s_lower" % h]:
+            df[forecast_result] = forecasts[forecast_result].values
+    return df
 
 
 def timeseries_resample(the_df: pd.DataFrame, the_res: str) -> pd.DataFrame:
@@ -99,20 +109,46 @@ def initialise_market_data():
             market = Market(name=market_col_name, market_type_name=market_type.name)
             print("Processing market %s (%d/%d) for resolution %s (%d/%d) ..."
                   % (market.name, market_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
-            market_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
-            market_df.y = res_df[market_col_name]
+            market_df = pd.DataFrame(index=res_df.index)
+            market_df["y"] = res_df[market_col_name]
 
-            # Run forecasts (the heavy computation) and save them
-            forecasts, horizons = make_rolling_forecast(market_df.y, market_type, res)
-            for h in horizons:
-                for forecast_result in ["yhat_%s" % h, "yhat_%s_upper" % h, "yhat_%s_lower" % h]:
-                    market_df[forecast_result] = forecasts[forecast_result]
+            market_df = get_forecasts(market_df, market_type, res)
             market_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (market.name, res))
 
             if res == resolutions[-1]:
                 markets.append(market)
     with open("data/markets.json", "w") as af:
         af.write(json.dumps([market.to_dict() for market in markets]))
+
+
+def initialise_buildings_data():
+    """Initialise building data"""
+
+    print("Processing building data ...")
+
+    df = pd.read_csv(buildings_filename, index_col=0, parse_dates=True)
+    df = set_datetime_index(df, freq='1H', start=df.index[0])
+    asset_type = models.asset_types['building']
+
+    asset_count = 0
+    for asset_col_name in df:
+        asset = Asset(name=asset_col_name, asset_type_name=asset_type.name)
+        asset_count += 1
+        for res in resolutions:
+            print("Processing building %s (%d/%d) for resolution %s (%d/%d) ..."
+                  % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
+            res_df = timeseries_resample(df, res)  # Sample time series for given resolution
+            asset_df = pd.DataFrame(index=res_df.index)
+            asset_df.y = res_df[asset_col_name]
+
+            asset_df.y /= -1000  # turn positive to negative to match our model, adjust from kWh to MWh
+
+            assert (all(asset_df.y <= 0))
+
+            asset_df = get_forecasts(asset_df, asset_type, res)
+            asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
+
+        write_asset_to_list(asset)
 
 
 def initialise_ev_data():
@@ -132,18 +168,14 @@ def initialise_ev_data():
             print("Processing EV %s (%d/%d) for resolution %s (%d/%d) ..."
                   % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
             res_df = timeseries_resample(df, res)  # Sample time series for given resolution
-            asset_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
-            asset_df.y = res_df[asset_col_name]
+            asset_df = pd.DataFrame(index=res_df.index)
+            asset_df["y"] = res_df[asset_col_name]
 
             asset_df.y /= -1000000  # turn positive to negative to match our model, adjust from Wh to MWh
 
             assert(all(asset_df.y <= 0))
 
-            # Run forecasts (the heavy computation) and save them
-            forecast, horizons = make_rolling_forecast(asset_df.y, asset_type, res)
-            for h in horizons:
-                for forecast_result in ["yhat_%s" % h, "yhat_%s_upper" % h, "yhat_%s_lower" % h]:
-                    asset_df[forecast_result] = forecast[forecast_result]
+            asset_df = get_forecasts(asset_df, asset_type, res)
             asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
         write_asset_to_list(asset)
@@ -175,19 +207,15 @@ def initialise_a1_data():
                 print("Processing asset %s (%d/%d) for resolution %s (%d/%d) ..."
                       % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
                 res_df = df.resample(res).mean()  # Sample time series for given resolution
-                asset_df = pd.DataFrame(index=res_df.index, columns=["y", "yhat", "yhat_upper", "yhat_lower"])
-                asset_df.y = res_df[asset_col_name]
+                asset_df = pd.DataFrame(index=res_df.index)
+                asset_df["y"] = res_df[asset_col_name]
 
                 if sheet.asset_type.is_producer and not sheet.asset_type.is_consumer:
                     assert(all(asset_df.y >= 0))
                 if sheet.asset_type.is_consumer and not sheet.asset_type.is_producer:
                     assert(all(asset_df.y <= 0))
 
-                # Run forecasts (the heavy computation) and save them
-                forecast, horizons = make_rolling_forecast(asset_df.y, sheet.asset_type, res)
-                for h in horizons:
-                    for forecast_result in ["yhat_%s" % h, "yhat_%s_upper" % h, "yhat_%s_lower" % h]:
-                        asset_df[forecast_result] = forecast[forecast_result]
+                asset_df = get_forecasts(asset_df, sheet.asset_type, res)
                 asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
             write_asset_to_list(asset)
@@ -196,7 +224,7 @@ def initialise_a1_data():
 if __name__ == "__main__":
     """Initialise markets and assets"""
 
+    initialise_buildings_data()
     initialise_market_data()
-
     initialise_ev_data()
     initialise_a1_data()
