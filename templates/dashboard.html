@@ -5,6 +5,45 @@
 {% block title %} Dashboard {% endblock %}
 
 {% block divs %}
+    <script type="text/javascript">
+
+    // Helper functions
+
+    function getIconNameByAssetType(assetType){
+        if (assetType == "wind") return "wind";
+        if (assetType == "batteries") return "battery";
+        if (assetType == "buildings") return "house";
+        if (assetType == "solar") return "sun";
+        if (assetType == "charging_stations") return "car";
+        // TODO: more?
+        return "wind";
+    }
+
+    function getIconByAssetType(assetType){
+        if (assetType == "wind") return windIcon;
+        if (assetType == "battery") return batIcon;
+        if (assetType == "building") return houseIcon;
+        if (assetType == "solar") return sunIcon;
+        if (assetType == "charging_station") return carIcon;
+        // TODO: more?
+        return windIcon;
+    }
+
+    function getMockImageByCapacityFactor(capacity_factor_in_percent){
+        var path = "/public/live-mock-imgs/";
+        if (capacity_factor_in_percent < 5) return path + "0.0.png";
+        if (capacity_factor_in_percent < 15) return path + "0.1.png";
+        if (capacity_factor_in_percent < 25) return path + "0.2.png";
+        if (capacity_factor_in_percent < 35) return path + "0.3.png";
+        if (capacity_factor_in_percent < 45) return path + "0.4.png";
+        if (capacity_factor_in_percent < 55) return path + "0.5.png";
+        if (capacity_factor_in_percent < 65) return path + "0.6.png";
+        if (capacity_factor_in_percent < 75) return path + "0.7.png";
+        if (capacity_factor_in_percent < 85) return path + "0.8.png";
+        if (capacity_factor_in_percent < 95) return path + "0.9.png";
+        return path + "1.0.png"
+    }
+    </script>
 
     <div class="container-fluid">
         <div class="row">
@@ -52,70 +91,39 @@
             <div class="col-sm-9">
                 <div class="row eq-height">
                     <div class="col-sm-12">
-                        <h3>{% if not prosumer_mock: %}VPP status:{% else %}Status of my assets:{% endif%}
+                        <h3>{% if not prosumer_mock == "0": %}VPP status:{% else %}Status of my assets:{% endif%}
                         </h3>
-                            <div class="todo">
-                                {% if not prosumer_mock: %}
-                                This is the <b>dashboard view of an aggregator or supplier (A1)</b>. All assets are listed.
-                                Not all assets are on the map at this point, however.
-                                <button onclick="window.location.href='?prosumer_mock=1'">Switch to view of a prosumer.</button>
-                                {% endif %}
-                                {% if prosumer_mock: %}
-                                This is the <b>dashboard view of a prosumer</b> (in this case, an owner of two onshore wind farms). Only the assets owned by this prosumer are listed.
-                                Not all assets are on the map at this point, however.
-                                <button onclick="window.location.href='?prosumer_mock=0'">Switch to view of a aggregators/supplier (A1).</button>
-                                {% endif %}
-                            </div>
+
                         <div id="mapid"></div>
+
                         <table class="table" style="font-size: 100%;">
                             <thead>
                                 <tr>
                                     <th></th>
-                                    {% if asset_counts["wind"] > 0 %}<th>Wind turbines</th>{% endif %}
-                                    {% if asset_counts["solar"] > 0 %}<th>PV units</th>{% endif %}
-                                    {% if asset_counts["buildings"] > 0 %}<th>Buildings</th>{% endif %}
-                                    {% if asset_counts["battery"] > 0 %}<th>Battery units</th>{% endif %}
-                                    {% if asset_counts["vehicles"] > 0 %}<th>EV charging stations</th>{% endif %}
+                                    {% for asset_type in asset_counts_per_pluralised_type: %}
+                                    {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
+                                    <th><a href="analytics?resource={{ asset_type }}">{{ asset_type | capitalize | replace("_", " ") }}</a></th>
+                                    {% endif %}
+                                    {% endfor %}
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
                                     <td>{% if not prosumer_mock: %}VPP total:{% else %}My assets:{% endif%}</td>
-                                    {% if asset_counts["wind"] > 0 %}
+
+                                    {% for asset_type in asset_counts_per_pluralised_type: %}
+                                        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
                                     <td>
                                         <label class="icon-left">
-                                            <img src="/public/icons/wind.svg" alt="Wind">
+                                            <img id="icon-for-{{ asset_type }}" alt="{{ asset_type }}" src="">
+                                            <script type="text/javascript">
+                                            $("#icon-for-{{ asset_type }}").attr("src", "/public/icons/" + getIconNameByAssetType("{{ asset_type }}") + ".svg");
+                                            </script>
                                         </label>
-                                        {{ asset_counts["wind"]}}</td>
-                                    {% endif %}
-                                    {% if asset_counts["solar"] > 0 %}
-                                    <td>
-                                        <label class="icon-left">
-                                            <img src="/public/icons/sun.svg" alt="Sun">
-                                        </label>
-                                        {{ asset_counts["solar"]}}</td>
-                                    {% endif %}
-                                    {% if asset_counts["buildings"] > 0 %}
-                                    <td>
-                                        <label class="icon-left">
-                                            <img src="/public/icons/house.svg" alt="House">
-                                        </label>
-                                        {{ asset_counts["buildings"]}}</td>
-                                    {% endif %}
-                                    {% if asset_counts["battery"] > 0 %}
-                                    <td>
-                                        <label class="icon-left">
-                                            <img src="/public/icons/battery.svg" alt="Car">
-                                        </label>
-                                        {{ asset_counts["battery"]}}</td>
-                                    {% endif %}
-                                    {% if asset_counts["vehicles"] > 0 %}
-                                    <td>
-                                        <label class="icon-left">
-                                            <img src="/public/icons/car.svg" alt="Car">
-                                        </label>
-                                        {{ asset_counts["vehicles"]}}</td>
-                                    {% endif %}
+                                        {{ asset_counts_per_pluralised_type[asset_type] }}
+                                    </td>
+                                        {% endif %}
+                                    {% endfor %}
                                 </tr>
                             </tbody>
                         </table>
@@ -124,5 +132,52 @@
             </div>
         </div>
     </div>
+
+
+    <!-- Initialise the map -->
+    <script src="public/js/external/leaflet.js"></script>
+    <script src="public/js/map-init.js"></script>
+
+    <script type="text/javascript">
+    // create markers, keep them by asset type
+
+    {% for asset_type in asset_counts_per_pluralised_type: %}
+        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
+    var {{ asset_type }}_markers = [];
+        {% endif %}
+    {% endfor %}
+
+    {% for asset in assets: %}
+    {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
+    var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = L.marker([{{ asset.location[0] }}, {{ asset.location[1] }}], {icon: getIconByAssetType("{{ asset.asset_type_name }}")})
+                            .bindPopup('<a href="analytics?resource={{ asset.name | urlencode }}">{{ asset.display_name }}</a>' +
+                                       custom_overlay_fade(getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}),
+                                    'Load',
+                                    'Currently producing at {{ current_load_in_mw }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}% capacity)'));
+                               // .openPopup();
+    {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ asset.name.replace("-", "").replace(".", "") }});
+    {% endfor%}
+
+    // make layer groups
+    var asset_type_layers = [];
+    var overlay_maps = {};
+    {% for asset_type in asset_counts_per_pluralised_type: %}
+        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
+        var {{ asset_type }}_layer = new L.LayerGroup({{ asset_type }}_markers);
+        asset_type_layers.push({{ asset_type }}_layer);
+        overlay_maps["{{ asset_type }}"] = {{ asset_type }}_layer;
+        {% endif %}
+    {% endfor %}
+
+    // create Map with layers
+    var assetMap = L.map('mapid', {center: [33.4049, 126.6504], zoom: 10, layers: asset_type_layers});
+    tileLayer.addTo(assetMap);
+
+    L.control.layers(null, overlay_maps).addTo(assetMap);
+
+
+
+    </script>
+
 
 {% endblock %}

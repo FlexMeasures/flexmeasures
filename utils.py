@@ -1,3 +1,4 @@
+import os
 import datetime
 import json
 from typing import List, Optional
@@ -10,7 +11,7 @@ from bokeh.resources import CDN
 import iso8601
 
 import models
-from models import Asset, asset_groups, Market
+from models import Asset, asset_groups, Market, resolutions
 
 
 # global, lazily loaded asset description
@@ -22,12 +23,21 @@ DATA = {}
 
 
 def get_assets() -> List[Asset]:
-    """Return a list of all models.Asset objects. Assets are loaded lazily from file."""
+    """Return a list of all models.Asset objects that are mentioned in assets.json and have data.
+    The asset list is constructed lazily (only once per app start)."""
     global ASSETS
     if len(ASSETS) == 0:
         with open("data/assets.json", "r") as assets_json:
             dict_assets = json.loads(assets_json.read())
-        ASSETS = [Asset(**a) for a in dict_assets]
+        ASSETS = []
+        for dict_asset in dict_assets:
+            has_data = True
+            for res in resolutions:
+                if not os.path.exists("data/pickles/df_%s_res%s.pickle" % (dict_asset["name"], res)):
+                    has_data = False
+                    break
+            if has_data:
+                ASSETS.append(Asset(**dict_asset))
     return ASSETS
 
 

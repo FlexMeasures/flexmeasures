@@ -10,6 +10,8 @@
             {% endblock head %}
             <meta charset="windows-1252">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="icon" href="favicon.ico" type="image/x-icon" />
+            <link rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
             <!-- Leaflet -->
             <link href="public/css/external/leaflet.css" rel="stylesheet"/>
             <!-- Bootstrap -->
@@ -32,7 +34,6 @@
         <body>
 
             {% block body %}
-
 
                 {% block nav %}
 
@@ -65,6 +66,10 @@
                 <div class="info">{{ message}} </div>
                 {% endif %}
 
+                <!-- loading this earlier so templates can use it -->
+                <script src="public/js/external/jquery-3.1.0.min.js"></script>
+                <script src="public/js/external/jquery.floatThead.min.js"></script>
+
                 <!-- This should always be there, even on error pages  -->
                 <script type="text/javascript">
                     var timerangeStart = "{{ start_time }}";
@@ -73,6 +78,7 @@
 
                 {# Div blocks that child pages can reference #}
                 {% block divs %}
+
 
                     {% block datetimepicker %}
 
@@ -117,7 +123,8 @@
                                 </form>
                             </div>
                         </div>
-                    
+                        <script src="public/js/external/moment.min.js"></script>
+
                     {% endblock forecastpicker %}
                     
                     {% block attributions %}
@@ -132,71 +139,42 @@
                 {% endblock divs %}
                 
                 <!-- External scripts -->
-                <script src="public/js/external/jquery-3.1.0.min.js"></script>
                 <script src="public/js/external/ion.rangeSlider.min.js"></script>
-                <script src="public/js/external/leaflet.js"></script>
                 <script src="public/js/external/bootstrap.min.js"></script>
-                <script src="public/js/external/moment.min.js"></script>
 
                 <!-- Custom scripts -->
                 <script src="public/js/a1-vpp.js"></script>
                 {% if show_datepicker %}
                 <script src="public/js/daterangepicker-init.js"></script>
                 {% endif %}
-                {% if show_map %}
-                <script src="public/js/map-init.js"></script>
-                <!-- TODO: stop mocking, move this code to dashboard.html (new slot necessary?) -->
-                <script type="text/javascript">
-                    {% if prosumer_mock: %}
-            L.marker([33.4649, 126.3504], {icon: windIcon}).bindPopup('<a href="analytics">SD-Onshore</a>' +
-                                                          custom_overlay_fade('/public/live-mock-imgs/0.6.png',
-                                                                      'Load',
-                                                                      'Currently producing at 26 MW (60% capacity)'))
-                                                          .addTo(mymap);
-            L.marker([33.3649, 126.7504], {icon: windIcon}).bindPopup('<a href="analytics">SS-Onshore</a>' +
-                                                          custom_overlay_fade('/public/live-mock-imgs/0.9.png',
-                                                                      'Load',
-                                                                      'Currently consuming at 16 MW (90% capacity)'))
-                                                          .addTo(mymap).openPopup();
-                    {% else: %}
-            L.marker([33.4649, 126.3504], {icon: windIcon}).bindPopup('<a href="analytics">SD-Onshore</a>' +
-                                                          custom_overlay_fade('/public/live-mock-imgs/0.6.png',
-                                                                      'Load',
-                                                                      'Currently producing at 26 MW (60% capacity)'))
-                                                          .addTo(mymap);
-            L.marker([33.4649, 126.7504], {icon: windIcon}).bindPopup('<a href="analytics">HW-Onshore</a>' +
-                                                          custom_overlay_fade('/public/live-mock-imgs/0.7.png',
-                                                                      'Load',
-                                                                      'Currently producing at 7.8 MW (70% capacity)'))
-                                                          .addTo(mymap);
-            L.marker([33.3649, 126.7504], {icon: windIcon}).bindPopup('<a href="analytics">SS-Onshore</a>' +
-                                                          custom_overlay_fade('/public/live-mock-imgs/0.9.png',
-                                                                      'Load',
-                                                                      'Currently consuming at 16 MW (90% capacity)'))
-                                                          .addTo(mymap);
-            L.marker([33.4843866, 126.477859], {icon: houseIcon}).bindPopup('<a href="analytics">Jeju Dream Tower</a>' +
-                                                          custom_overlay_fade('/public/live-mock-imgs/0.1.png',
-                                                                      'Load',
-                                                                      'Currently consuming at 8.3 kW (10% capacity)'))
-                                                          .addTo(mymap).openPopup();
-            L.marker([33.3649, 126.5504], {icon: batIcon}).bindPopup('<a href="analytics">My BAT</a>' +
-                                                          custom_overlay_fade('/public/live-mock-imgs/0.8.png',
-                                                                      'Load',
-                                                                      'Currently consuming at 320 kW (80% capacity)'))
-                                                          .addTo(mymap);
-                    {% endif %}
-                </script>
-                {% endif %}
-
-                <!--<script src="http://www.seita.nl/toolset/plot.js"></script>-->
 
                 <!-- External scripts that should run after custom scripts -->
                 {% if show_datepicker %}
                 <script src="public/js/external/daterangepicker.js"></script>
                 {% endif %}
 
-            {% endblock body %}
+                {% if page != "error" %}
+                <div class="todo">
+                    {% if prosumer_mock == "0": %}
+                        This is the view of <b>an aggregator or supplier (A1)</b>. All assets are listed.
+                    {% else: %}
+                    This is the view of <b>a prosumer who owns "{{prosumer_mock }}" assets</b>. Only the assets owned by this prosumer are listed.
+                        {% if page == "portfolio": %}
+                            The prosumer can put contraints for actions in place, for example available capacity.
+                        {% endif %}
+                    {% endif %}
+                    <br/>
+                    Here are possible (mocked) user perspectives:
+                    <button onclick="window.location.href='?prosumer_mock=0'">Aggregators/supplier (A1)</button>
+                    <button onclick="window.location.href='?prosumer_mock=offshore'">Offshore wind prosumer</button>
+                    <button onclick="window.location.href='?prosumer_mock=onshore'">Onshore wind prosumer</button>
+                    <button onclick="window.location.href='?prosumer_mock=solar'">Solar prosumer</button>
+                    <button onclick="window.location.href='?prosumer_mock=building'">Building prosumer</button>
+                    <button onclick="window.location.href='?prosumer_mock=vehicles'">EV prosumer</button>
+                </div>
+                {% endif %}
 
+            {% endblock body %}
         </body>
     </html>
     

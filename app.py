@@ -3,6 +3,7 @@ import os.path
 from logging.config import dictConfig as loggingDictConfig
 
 from flask import Flask
+from flask import send_from_directory
 
 from views import a1_views
 from error_views import a1_error_views
@@ -61,7 +62,6 @@ a1vpp_logging_config = {
     }
 }
 
-
 APP = Flask(__name__)
 
 install_secret_key(APP)
@@ -73,6 +73,12 @@ APP.config['LOGGER_NAME'] = 'a1-vpp'  # define which logger to use for Flask
 # For some reason, we first need to initialise Flask's logger so our config will take effect:
 assert APP.logger
 loggingDictConfig(a1vpp_logging_config)
+
+
+@APP.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(APP.root_path, 'public'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 APP.register_blueprint(a1_views)
 APP.register_blueprint(a1_error_views)

@@ -38,17 +38,24 @@ def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
     :param show_y_floats: if True, y axis will show floating numbers (defaults False, will be True if y values are < 2)
     :return: a Bokeh Figure
     """
-    xdr = Range1d(start=min(series.index), end=max(series.index))
+    xdr = None
+    if series.size > 0:
+        xdr = Range1d(start=min(series.index), end=max(series.index))
     if forecasts is not None:
         xdr = Range1d(start=min(series.index.append(forecasts.index)),
                       end=max(series.index.append(forecasts.index)))
+    if xdr is None:
+        raise Exception("Not sufficient data to show anything.")
 
     tools = ["box_zoom", "reset", "save"]
     if hover_tool:
         tools = [hover_tool] + tools
 
-    if show_y_floats is False:
-        show_y_floats = max(series.values) < 2  # simple heuristic
+    if show_y_floats is False and series.size > 0:  # apply a simple heuristic
+        if forecasts is None:
+            show_y_floats = max(series.values) < 2
+        else:
+            show_y_floats = max(max(series.values), max(forecasts.yhat)) < 2
 
     data_source = ColumnDataSource(dict(x=series.index.values, y=series.values))
 

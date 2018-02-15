@@ -15,7 +15,7 @@ This is Seita's implementation of the VPP pilot of A1.
 * Activate it: `source activate a1-venv`
 * Install dependencies:
 
-      conda install flask bokeh pandas==0.22.0 iso8601 xlrd 
+      conda install flask bokeh pandas==0.22.0 iso8601 xlrd inflection 
       conda install -c conda-forge fbprophet
 
 ### Dependencies using plain pip:
@@ -24,17 +24,18 @@ This is Seita's implementation of the VPP pilot of A1.
 * Install dependencies:
 
       sudo apt-get install python3.6-dev
-      pip install flask bokeh pandas==0.22.0 iso8601 xlrd fbprophet
+      pip install flask bokeh pandas==0.22.0 iso8601 xlrd inflection fbprophet
 
 
 Note: python3.6-dev, xlrd and fbprophet are used for initialising data only.
 
 ### Prepare/load data:
 
-* Add data/20171120_A1-VPP_DesignDataSetR01.xls (Excel sheet provided by A1 to Seita)
+* Add meta data: data/assets.json and data/markets.json.
+* Add real data: data/20171120_A1-VPP_DesignDataSetR01.xls (Excel sheet provided by A1 to Seita)
   as well as data/German day-ahead prices 20140101-20160630.csv (provided by Seita)
   and data/German charging stations 20150101-20150620.csv (provided by Seita).
-  and create the folder data/pickles.
+  You probably also need to create the folder data/pickles.
 * Run: `python init_data.py` (you only need to do this once)
 
 

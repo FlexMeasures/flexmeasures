@@ -1,5 +1,10 @@
 from collections import namedtuple
-from typing import Dict
+from typing import Dict, Tuple
+from random import random
+
+import pandas as pd
+import inflection
+from inflection import pluralize, titleize
 
 
 # Time resolutions
@@ -8,55 +13,23 @@ resolutions = ["15T", "1h", "1d", "1w"]
 # The confidence interval for forecasting
 confidence_interval_width = .9
 
-
-class Asset:
-    """Each asset is a consuming or producing hardware.
-    This class should only contain simple types, so it is easy to load/dump to Json."""
-
-    # the name of the assorted AssetType
-    asset_type_name: str
-    # not used yet
-    area_code: str
-
-    def __init__(self, name: str, asset_type_name=None, area_code=""):
-        self.orig_name = name
-        self.asset_type_name = asset_type_name
-        self.area_code = area_code
-
-    @property
-    def name(self) -> str:
-        """The name we actually want to use"""
-        repr_name = self.orig_name
-        if self.asset_type_name == "solar":
-            repr_name = repr_name.replace(" (MW)", "")
-        return repr_name.replace(" ", "_").lower()
-
-    @name.setter
-    def name(self, new_name):
-        self.name = new_name
+# Give the inflection module some help for our domain
+inflection.UNCOUNTABLES.add("solar")
+inflection.UNCOUNTABLES.add("wind")
 
 
-    @property
-    def asset_type(self):
-        return asset_types.get(self.asset_type_name, None)
-
-    def to_dict(self) -> Dict[str, str]:
-        return dict(name=self.name, asset_type_name=self.asset_type_name, area_code=self.area_code)
+def random_jeju_island_location() -> Tuple[float, float]:
+    """ Temporary helper for randomizing locations of assets on the island
+    (for which we have no real location). TODO: make obsolete? """
+    return 33.3 + random() * 0.2, 126.25 + random() * .65
 
 
-# queries reference attributes from Asset to enable grouping and querying them
-AssetQuery = namedtuple('AssetQuery', 'attr val')
-
-
-# an asset group is defined by OR-linked asset queries
-asset_groups = dict(
-        solar=(AssetQuery(attr="asset_type_name", val="solar"),),
-        wind=(AssetQuery(attr="asset_type_name", val="wind"),),
-        renewables=(AssetQuery(attr="asset_type_name", val="solar"),
-                    AssetQuery(attr="asset_type_name", val="wind")),
-        vehicles=(AssetQuery(attr="asset_type_name", val="ev"),),
-        buildings=(AssetQuery(attr="asset_type_name", val="building"),),
-    )
+def get_capacity_for(asset_name: str, asset_type_name: str) -> float:
+    """Temporary helper to guess a maximum capacity from the data we have"""
+    if asset_type_name in ("ev", "building"):
+        return -1 * min(pd.read_pickle("data/pickles/df_%s_res15T.pickle" % asset_name).y)
+    else:
+        return max(pd.read_pickle("data/pickles/df_%s_res15T.pickle" % asset_name).y)
 
 
 class AssetType:
@@ -79,14 +52,110 @@ class AssetType:
             yearly_seasonality=yearly_seasonality
         )
 
+    @property
+    def pluralized_name(self):
+        return pluralize(self.name)
+
 
 asset_types = dict(
     solar=AssetType("solar", is_producer=True, daily_seasonality=True, yearly_seasonality=True),
     wind=AssetType("wind", is_producer=True, daily_seasonality=True, yearly_seasonality=True),
-    ev=AssetType("ev", is_consumer=True, daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True),
-    building=AssetType("building", is_consumer=True, daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True)
+    charging_station=AssetType("charging_station", is_consumer=True, daily_seasonality=True, weekly_seasonality=True,
+                               yearly_seasonality=True),
+    battery=AssetType("battery", is_consumer=True, is_producer=True,
+                      daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True),
+    building=AssetType("building", is_consumer=True, daily_seasonality=True, weekly_seasonality=True,
+                       yearly_seasonality=True)
     # Todo: add holidays?
 )
+
+
+class Asset:
+    """Each asset is a consuming or producing hardware.
+    This class should only contain simple types, so it is easy to load/dump to Json."""
+
+    # The name of the assorted AssetType
+    asset_type_name: str
+    # The name we want to see
+    _display_name: str
+    # How many MW at peak usage
+    capacity_in_mw: float
+    # A tuple of latitude (North/South coordinate) and longitude (East/West coordinate)
+    location = Tuple[float, float]
+
+    def __init__(self, name: str, asset_type_name: str, display_name: str="", capacity_in_mw: float=0,
+                 location: Tuple[float, float]=None):
+        self.orig_name = name  # The original name of a data source can be used here and the name will be adapted.
+        self._display_name = display_name
+        self.asset_type_name = asset_type_name
+        self.capacity_in_mw = capacity_in_mw
+        self.location = location
+        if self.location is None:
+            self.location = random_jeju_island_location()
+
+    @property
+    def name(self) -> str:
+        """The name we actually want to use"""
+        repr_name = self.orig_name
+        if self.asset_type_name == "solar":
+            repr_name = repr_name.replace(" (MW)", "")
+        return repr_name.replace(" ", "_").lower()
+
+    @name.setter
+    def name(self, new_name):
+        self.name = new_name
+
+    @property
+    def display_name(self):
+        if self._display_name == "":
+            return titleize(self.name)
+        return self._display_name
+
+    @display_name.setter
+    def display_name(self, new_name):
+        self._display_name = new_name
+
+    @property
+    def asset_type(self) -> AssetType:
+        return asset_types.get(self.asset_type_name, None)
+
+    @property
+    def asset_type_display_name(self) -> str:
+        return titleize(self.asset_type_name)
+
+    def capacity_factor_in_percent_for(self, load_in_mw) -> int:
+        if self.capacity_in_mw == 0:
+            return 0
+        return min(round((load_in_mw / self.capacity_in_mw) * 100, 2), 100)
+
+    def to_dict(self) -> Dict[str, str]:
+        return dict(name=self.name,
+                    display_name=self.display_name,
+                    asset_type_name=self.asset_type_name,
+                    location=self.location,
+                    capacity_in_mw=self.capacity_in_mw)
+
+
+# queries reference attributes from Asset to enable grouping and querying them
+AssetQuery = namedtuple('AssetQuery', 'attr val')
+
+
+# an asset group is defined by OR-linked asset queries
+asset_groups = dict(
+        renewables=(AssetQuery(attr="asset_type_name", val="solar"),
+                    AssetQuery(attr="asset_type_name", val="wind")),
+    )
+# we also include a group per asset type
+for asset_type in asset_types:
+    asset_groups[pluralize(asset_type)] = (AssetQuery(attr="asset_type_name", val=asset_type), )
+
+
+"""
+Notes:
+A resource is an umbrella term.
+* It can be one asset.
+* It can be a group of assets. 
+"""
 
 
 class Market:

@@ -3,13 +3,15 @@
 """
 Script for loading and pickling dataframes from the Excel Spreadsheet we got from A1 with 2015 data.
 When we move to a database, this will change.
+Each pickle encodes in its name the asset name and resolution. Asset name should refer to a name in assets.json of
+course, we might add a check or warning here.
 """
 import collections
 import json
 import pandas as pd
 
 from models import Asset, Market, resolutions
-from forecasting import make_rolling_forecast, _make_in_sample_forecast
+from forecasting import make_rolling_forecast
 import models
 
 
@@ -72,25 +74,6 @@ def timeseries_resample(the_df: pd.DataFrame, the_res: str) -> pd.DataFrame:
         return the_df
 
 
-def write_asset_to_list(new_asset: Asset):
-    """Add a new asset to the list of existing assets on file.
-    This can go wrong if the method is called twice in short order, of course.
-    However, we compute forecasts per asset at length, so we decide it is a non-issue
-    until we get bitten and reactor.
-    The advantage is that assets.json always reflects what is pickled right now - so while
-    pickles are re-made, the app might still function."""
-    asset_dicts = []
-    with open("data/assets.json", "r") as af:
-        assets_str = af.read()
-        if assets_str != "":
-            asset_dicts += json.loads(assets_str)
-    # If asset (by name) exists, drop it.
-    asset_dicts_wo_asset = [ad for ad in asset_dicts if ad["name"] != new_asset.name]
-    asset_dicts_wo_asset.append(new_asset.to_dict())
-    with open("data/assets.json", "w") as af:
-        af.write(json.dumps(asset_dicts_wo_asset))
-
-
 def initialise_market_data():
     """Initialise market data"""
 
@@ -117,8 +100,6 @@ def initialise_market_data():
 
             if res == resolutions[-1]:
                 markets.append(market)
-    with open("data/markets.json", "w") as af:
-        af.write(json.dumps([market.to_dict() for market in markets]))
 
 
 def initialise_buildings_data():
@@ -139,7 +120,7 @@ def initialise_buildings_data():
                   % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
             res_df = timeseries_resample(df, res)  # Sample time series for given resolution
             asset_df = pd.DataFrame(index=res_df.index)
-            asset_df.y = res_df[asset_col_name]
+            asset_df["y"] = res_df[asset_col_name]
 
             asset_df.y /= -1000  # turn positive to negative to match our model, adjust from kWh to MWh
 
@@ -148,17 +129,15 @@ def initialise_buildings_data():
             asset_df = get_forecasts(asset_df, asset_type, res)
             asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
-        write_asset_to_list(asset)
 
-
-def initialise_ev_data():
+def initialise_charging_station_data():
     """Initialise EV data"""
 
     print("Processing EV data ...")
 
     df = pd.read_csv(evs_filename, index_col=0, parse_dates=True)
     df = set_datetime_index(df, freq='15min', start=df.index[0].floor('min'))
-    asset_type = models.asset_types['ev']
+    asset_type = models.asset_types['charging_station']
 
     asset_count = 0
     for asset_col_name in df:
@@ -177,8 +156,6 @@ def initialise_ev_data():
 
             asset_df = get_forecasts(asset_df, asset_type, res)
             asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
-
-        write_asset_to_list(asset)
 
 
 def initialise_a1_data():
@@ -201,7 +178,7 @@ def initialise_a1_data():
 
         asset_count = 0
         for asset_col_name in df:
-            asset = Asset(name=asset_col_name, asset_type_name=sheet.asset_type.name, area_code=0)
+            asset = Asset(name=asset_col_name, asset_type_name=sheet.asset_type.name)
             asset_count += 1
             for res in resolutions:
                 print("Processing asset %s (%d/%d) for resolution %s (%d/%d) ..."
@@ -218,13 +195,11 @@ def initialise_a1_data():
                 asset_df = get_forecasts(asset_df, sheet.asset_type, res)
                 asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
 
-            write_asset_to_list(asset)
-
 
 if __name__ == "__main__":
     """Initialise markets and assets"""
 
     initialise_buildings_data()
     initialise_market_data()
-    initialise_ev_data()
+    initialise_charging_station_data()
     initialise_a1_data()

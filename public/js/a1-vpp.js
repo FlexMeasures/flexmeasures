@@ -115,6 +115,14 @@ function ready() {
     });
 
 
+    // Table behaviour
+
+    $('table').floatThead({
+        position: 'absolute',
+        scrollContainer: true
+    });
+
+
     // Check button behaviour
 
     $("#control-check-expected-value-offshore").click(function(data){

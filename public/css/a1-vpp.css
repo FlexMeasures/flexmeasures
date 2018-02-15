@@ -234,3 +234,21 @@ table#control-actions tr.active b {
     font-size: 12px;
     padding: 8px 8px;
 }
+
+
+/* table scrolling */
+
+.wrapper {
+    overflow: auto;
+    position: relative;
+}
+.wrapper.small-wrapper {
+    height: 400px;
+}
+.floatThead-wrapper thead {
+    background-color: #FFF;
+}
+
+.floatThead-wrapper th {
+    padding-right: 20px;
+}

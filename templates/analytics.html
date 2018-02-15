@@ -22,11 +22,15 @@
                         <label class="control-label" for="resource">Resource</label>
                         <div>
                             <select class="form-control" id="resource" name="resource" onchange="this.form.submit()">
-                                {% for asset_group in asset_groups %}
-                                <option value="{{ asset_group }}" {% if resource==asset_group %} selected="selected"{% endif %}>{{ asset_group }}</option>
+                                {% for asset_group, asset_group_display_name in asset_groups %}
+                                <option value="{{ asset_group }}" {% if resource==asset_group %} selected="selected"{% endif %}>
+                                    {{ asset_group_display_name }}
+                                </option>
                                 {% endfor %}
                                 {% for asset in assets %}
-                                <option value="{{ asset.name }}" {% if resource==asset["name"] %} selected="selected"{% endif %}>{{ asset.name }} ({{ asset.asset_type_name }})</option>
+                                <option value="{{ asset.name }}" {% if resource==asset.name %} selected="selected"{% endif %}>
+                                    {{ asset.display_name }} ({{ asset.asset_type_display_name }})
+                                </option>
                                 {% endfor %}
                                 <!--option value="ev-h">EV charging on Jeju island</option-->
                                 <!--option value="ev-p">Wind turbine generation</option-->
@@ -178,16 +182,7 @@
                 <a href=../> Download report </a>
             </div>-->
             <div class="col-sm-9">
-                    <div class="todo">
-                        {% if not prosumer_mock: %}
-                        This is the <b>analytics view of an aggregator or supplier (A1)</b>. All assets are listed.
-                        <button onclick="window.location.href='?prosumer_mock=1'">Switch to view of a prosumer.</button>
-                        {% endif %}
-                        {% if prosumer_mock: %}
-                        This is the <b>analytics view of a prosumer</b> (in this case, an owner of several onshore wind farms). Only the assets owned by this prosumer are listed.
-                        <button onclick="window.location.href='?prosumer_mock=0'">Switch to view of a aggregators/supplier (A1).</button>
-                        {% endif %}
-                    </div>
+
                 <div class="row eq-height">
                     <div class="col-sm-5">
                         <h3><span class="loss-text">Load profile</span></h3>

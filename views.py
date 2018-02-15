@@ -1,8 +1,10 @@
 from typing import List
+from datetime import timedelta
 
 from flask import Blueprint, request, session
 from werkzeug.exceptions import BadRequest
 import pandas as pd
+from inflection import pluralize, titleize
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 
@@ -20,20 +22,29 @@ a1_views = Blueprint('a1_views', __name__,  static_folder='public', template_fol
 
 
 # TODO: replace these mock helpers when we have real auth & user groups
-def is_prosumer_mock() -> bool:
-    """Return whether we are showing the mocked version for a onshore wind prosumer.
-    Set this in the session, as well."""
+def check_prosumer_mock() -> bool:
+    """Return whether we are showing the mocked version for a prosumer.
+    Sets this in the session, as well."""
     if "prosumer_mock" in request.values:
-        if request.values.get("prosumer_mock") == "1":
-            session["prosumer_mock"] = True
-        else:
-            session["prosumer_mock"] = False
-    return session.get("prosumer_mock") is True \
-        or ("prosumer_mock" in request.values and request.values.get("prosumer_mock") == "1")
+        session["prosumer_mock"] = request.values.get("prosumer_mock")
+    return session.get("prosumer_mock") != "0"
 
 
 def filter_mock_prosumer_assets(assets: List[models.Asset]) -> List[models.Asset]:
-    return [a for a in assets if a.name in ("ss-onshore", "sd-onshore")]
+    """Return a list of assets based on the mock prosumer type in the session."""
+    session_prosumer = session.get("prosumer_mock")
+    if session_prosumer == "vehicles":
+        return [a for a in assets if a.asset_type.name == "charging_station"]
+    if session_prosumer == "building":
+        return [a for a in assets if a.asset_type.name == "building"]
+    if session_prosumer == "solar":
+        return [a for a in assets if a.asset_type.name == "solar"]
+    if session_prosumer == "onshore":
+        return [a for a in assets if "onshore" in a.name]
+    if session_prosumer == "offshore":
+        return [a for a in assets if "offshore" in a.name]
+    else:
+        return assets
 
 
 # Dashboard and main landing page
@@ -45,20 +56,33 @@ def dashboard_view():
         session.clear()
         msg = "Your session was cleared."
 
-    asset_counts = {}
-    prosumer_mock = is_prosumer_mock()
-    for asset_type in ("solar", "wind", "vehicles", "buildings"):
-        assets = get_assets_by_resource(asset_type)
-        if prosumer_mock:
-            assets = filter_mock_prosumer_assets(assets)
-        asset_counts[asset_type] = len(assets)
+    assets = []
+    asset_counts_per_pluralised_type = {}
+    current_asset_loads = {}
+    is_prosumer_mock = check_prosumer_mock()
+    for asset_type in models.asset_types:
+        assets_by_pluralised_type = get_assets_by_resource(pluralize(asset_type))
+        if is_prosumer_mock:
+            assets_by_pluralised_type = filter_mock_prosumer_assets(assets_by_pluralised_type)
+        asset_counts_per_pluralised_type[pluralize(asset_type)] = len(assets_by_pluralised_type)
+        for asset in assets_by_pluralised_type:
+            # TODO: this is temporary
+            current_asset_loads[asset.name] =\
+                get_data(asset.name,
+                         get_most_recent_quarter().replace(year=2015),
+                         get_most_recent_quarter().replace(year=2015) + timedelta(minutes=15),
+                         "15T").y[0]
+            assets.append(asset)
 
     # Todo: switch from this mock-up function for asset counts to a proper implementation of battery assets
-    asset_counts["battery"] = asset_counts["solar"]
+    if not is_prosumer_mock:
+        asset_counts_per_pluralised_type["batteries"] = asset_counts_per_pluralised_type["solar"]
 
     return render_a1vpp_template('dashboard.html', show_map=True, message=msg,
-                                 asset_counts=asset_counts,
-                                 prosumer_mock=prosumer_mock)
+                                 assets=assets,
+                                 asset_counts_per_pluralised_type=asset_counts_per_pluralised_type,
+                                 current_asset_loads=current_asset_loads,
+                                 prosumer_mock=session.get("prosumer_mock", "0"))
 
 
 # Portfolio view
@@ -66,7 +90,7 @@ def dashboard_view():
 def portfolio_view():
     set_time_range_for_session()
     assets = get_assets()
-    if is_prosumer_mock():
+    if check_prosumer_mock():
         assets = filter_mock_prosumer_assets(assets)
     revenues = dict.fromkeys([a.name for a in assets])
     generation = dict.fromkeys([a.name for a in assets])
@@ -81,7 +105,7 @@ def portfolio_view():
         else:
             generation[asset.name] = pd.Series(load_data.y).sum()
             consumption[asset.name] = 0
-    return render_a1vpp_template("portfolio.html", assets=assets, prosumer_mock=is_prosumer_mock(),
+    return render_a1vpp_template("portfolio.html", assets=assets, prosumer_mock=session.get("prosumer_mock", "0"),
                                  revenues=revenues, generation=generation, consumption=consumption)
 
 
@@ -100,15 +124,19 @@ def analytics_view():
             session["resource"] = "vehicles"
         elif len(get_assets()) > 0:
             session["resource"] = get_assets()[0].name
-    if "resource" in request.form:  # set by user
-        session["resource"] = request.form['resource']
+    if "resource" in request.values:  # set by user
+        session["resource"] = request.values['resource']
 
     assets = get_assets()
-    if is_prosumer_mock():
+    if check_prosumer_mock():
         groups_with_assets = []
         assets = filter_mock_prosumer_assets(assets)
         if len(assets) > 0:
-            session["resource"] = assets[0].name
+            if session.get("prosumer_mock", "0") not in ("offshore", "onshore"):
+                groups_with_assets = [session.get("prosumer_mock")]
+            if session.get("resource") not in [a.name for a in assets]\
+                    and session.get("resource") != session.get("prosumer_mock"):
+                session["resource"] = assets[0].name
 
     # If we show purely consumption assets, we'll want to adapt the sign of the data and labels.
     showing_pure_consumption_data = is_pure_consumer(session["resource"])
@@ -125,7 +153,7 @@ def analytics_view():
     load_forecast_data = extract_forecasts(load_data)
     load_fig = plotting.create_graph(load_data_to_show.y,
                                      forecasts=load_forecast_data,
-                                     title="Electricity load on %s" % session["resource"],
+                                     title="Electricity load on %s" % titleize(session["resource"]),
                                      x_label="Time (sampled by %s)  "
                                      % freq_label_to_human_readable_label(session["resolution"]),
                                      y_label="Load (in MW)",
@@ -174,7 +202,8 @@ def analytics_view():
     rev_costs_data_to_show = rev_cost_data.loc[rev_cost_data.index < get_most_recent_quarter().replace(year=2015)]
     rev_cost_fig = plotting.create_graph(rev_costs_data_to_show,
                                          forecasts=rev_cost_forecasts,
-                                         title="%s for %s (priced on DA market)" % (rev_cost_str, session["resource"]),
+                                         title="%s for %s (priced on DA market)"
+                                         % (rev_cost_str, titleize(session["resource"])),
                                          x_label="Time (sampled by %s)  "
                                          % freq_label_to_human_readable_label(session["resolution"]),
                                          y_label="%s (in KRW)" % rev_cost_str,
@@ -200,9 +229,10 @@ def analytics_view():
                                  wape_load=wape_load,
                                  wape_unit_price=wape_unit_price,
                                  assets=assets,
-                                 asset_groups=groups_with_assets,
+                                 asset_groups=list(zip(groups_with_assets,
+                                                       [titleize(gwa) for gwa in groups_with_assets])),
                                  resource=session["resource"],
-                                 prosumer_mock=is_prosumer_mock(),
+                                 prosumer_mock=session.get("prosumer_mock", "0"),
                                  forecast_horizons=forecast_horizons_for(session["resolution"]),
                                  active_forecast_horizon=session["forecast_horizon"])
 
@@ -210,7 +240,9 @@ def analytics_view():
 # Control view
 @a1_views.route('/control', methods=['GET', 'POST'])
 def control_view():
-    return render_a1vpp_template("control.html", prosumer_mock=is_prosumer_mock())
+    check_prosumer_mock()
+    return render_a1vpp_template("control.html",
+                                 prosumer_mock=session.get("prosumer_mock", "0"))
 
 
 # Upload view
