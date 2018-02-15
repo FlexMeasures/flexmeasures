@@ -81,14 +81,14 @@
                                                 {% if asset.asset_type_name == "solar" %}
                                                 <img src="/public/icons/sun.svg" alt="Solar">
                                                 {% endif %}
-                                                {% if asset.asset_type_name == "house" %}
-                                                <img src="/public/icons/house.svg" alt="House">
-                                                {% endif %}
-                                                {% if asset.asset_type_name == "ev" %}
+                                                {% if asset.asset_type_name == "charging_station" %}
                                                 <img src="/public/icons/battery.svg" alt="Vehicle">
                                                 {% endif %}
                                                 {% if asset.asset_type_name == "building" %}
                                                 <img src="/public/icons/house.svg" alt="Building">
+                                                {% endif %}
+                                                {% if asset.asset_type_name == "battery" %}
+                                                <img src="/public/icons/battery.svg" alt="Battery">
                                                 {% endif %}
                                             </label>
                                             {{ asset.display_name }}
