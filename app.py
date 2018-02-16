@@ -80,5 +80,6 @@ def favicon():
     return send_from_directory(os.path.join(APP.root_path, 'public'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
+
 APP.register_blueprint(a1_views)
 APP.register_blueprint(a1_error_views)

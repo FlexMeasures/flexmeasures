@@ -13,8 +13,42 @@
                 <div class="justify">
                     Break-down of portfolio and some analytics and KPIs on portfolio level.
                 </div>
+
                 <h3>Controls</h3>
                 {% block datetimepicker %} {{ super() }} {% endblock %}
+
+                {% if asset_types | length > 0 %}
+                <h3>Summary</h3>
+                <table class="table" style="font-size: 100%;">
+                    <thead>
+                        <tr>
+                            <th><label class="icon-left"><img src="public/icons/calculator.svg" alt="Calculator"></label></th>
+                            <th><span title="All generation by assets of this type.">Generation (MWh)</span></th>
+                            <th><span title="All consumption by assets of this type.">Load (MWh)</span></th>
+                            <th><span title="The profit/loss achieved by assets of this type (calculated by the price data they are connected with).">Profit/Loss (KRW)</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for asset_type_name in asset_types %}
+                        <tr>
+                            <td>{{ asset_type_name }}</td>
+                            <td>{% if asset_types[asset_type_name].is_producer %}{{ "{:,.2f}".format( generation_per_asset_type[asset_type_name]  | round(2)) }} MWh {% endif %}</td>
+                            <td>{% if asset_types[asset_type_name].is_consumer %}{{ "{:,.2f}".format( consumption_per_asset_type[asset_type_name]  | round(2)) }} MWh {% endif %}</td>
+                            <td>{{ "{:,.2f}".format( profit_loss_per_asset_type[asset_type_name] | round(2)) }} KRW</td>
+                        </tr>
+                    {% endfor %}
+                    {% if asset_types | length > 1 %}
+                        <tr style="font-weight: bold;">
+                            <td>Sum</td>
+                            <td>{{ "{:,.2f}".format( sum_generation | round(2)) }} MWh</td>
+                            <td>{{ "{:,.2f}".format( sum_consumption | round(2)) }} MWh</td>
+                            <td>{{ "{:,.2f}".format( sum_profit_loss | round(2)) }} KRW</td>
+                        </tr>
+                    {% endif %}
+                    </tbody>
+                </table>
+                {% endif %}
+
                 <div class="todo">
                     <h3>To do</h3>
                     <div class="justify">
@@ -26,14 +60,6 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr class="active">
-                                    <td>Show asset groups here, as well (e.g. "wind")</td>
-                                    <td>M2</td>
-                                </tr>
-                                <tr class="active">
-                                    <td>VPP status showing aggregated values</td>
-                                    <td>M1</td>
-                                </tr>
                                 <tr>
                                     <td>Portfolio editing: adding/removing assets</td>
                                     <td>M2</td>
@@ -71,7 +97,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for asset in assets %}
+                                    {% for asset in assets: %}
                                     <tr class="active">
                                         <td>
                                             <label class="icon-left">
@@ -99,18 +125,18 @@
                                         <td>
                                             {% if asset.asset_type.is_producer %}
                                             <a href="analytics?resource={{ asset.name | urlencode }}">
-                                                {{ generation[asset.name] | round(2) }} MWh
+                                                {{ generation_per_asset[asset.name] | round(2) }} MWh
                                             </a>
                                             {% endif %}
                                         </td>
                                         <td>
                                             {% if asset.asset_type.is_consumer %}
                                             <a href="analytics?resource={{ asset.name | urlencode }}">
-                                                {{ consumption[asset.name] | round(2) }} MWh
+                                                {{ consumption_per_asset[asset.name] | round(2) }} MWh
                                             </a>
                                             {% endif %}
                                         </td>
-                                        <td><a href="analytics?resource={{ asset.name | urlencode }}">{{ revenues[asset.name] | round(2) }} KRW</a></td>
+                                        <td><a href="analytics?resource={{ asset.name | urlencode }}">{{ profit_loss_per_asset[asset.name] | round(2) }} KRW</a></td>
                                         <td>
                                             {% if asset.asset_type_name in ("wind", "house") %}<a href="control">Curtail load</a>{% endif %}
                                             {% if asset.asset_type_name in ("ev", "house") %}<a href="control">Shift load</a>{% endif %}

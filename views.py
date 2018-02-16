@@ -89,24 +89,55 @@ def dashboard_view():
 @a1_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
     set_time_range_for_session()
+
     assets = get_assets()
     if check_prosumer_mock():
         assets = filter_mock_prosumer_assets(assets)
-    revenues = dict.fromkeys([a.name for a in assets])
-    generation = dict.fromkeys([a.name for a in assets])
-    consumption = dict.fromkeys([a.name for a in assets])
+    generation_per_asset = dict.fromkeys([a.name for a in assets])
+    consumption_per_asset = dict.fromkeys([a.name for a in assets])
+    profit_loss_per_asset = dict.fromkeys([a.name for a in assets])
+
+    asset_types = {}
+    generation_per_asset_type = {}
+    consumption_per_asset_type = {}
+    profit_loss_per_asset_type = {}
+
     prices_data = get_data("epex_da", session["start_time"], session["end_time"], session["resolution"])
+
+    load_hour_factor = resolution_to_hour_factor(session["resolution"])
+
     for asset in assets:
         load_data = get_data(asset.name, session["start_time"], session["end_time"], session["resolution"])
-        revenues[asset.name] = pd.Series(load_data.y * prices_data.y, index=load_data.index).sum()
+        profit_loss_per_asset[asset.name] = pd.Series(load_data.y * load_hour_factor * prices_data.y,
+                                                      index=load_data.index).sum()
         if is_pure_consumer(asset.name):
-            generation[asset.name] = 0
-            consumption[asset.name] = -1 * pd.Series(load_data.y).sum()
+            generation_per_asset[asset.name] = 0
+            consumption_per_asset[asset.name] = -1 * pd.Series(load_data.y).sum() * load_hour_factor
         else:
-            generation[asset.name] = pd.Series(load_data.y).sum()
-            consumption[asset.name] = 0
-    return render_a1vpp_template("portfolio.html", assets=assets, prosumer_mock=session.get("prosumer_mock", "0"),
-                                 revenues=revenues, generation=generation, consumption=consumption)
+            generation_per_asset[asset.name] = pd.Series(load_data.y).sum() * load_hour_factor
+            consumption_per_asset[asset.name] = 0
+        neat_asset_type_name = titleize(asset.asset_type_name)
+        if neat_asset_type_name not in generation_per_asset_type:
+            asset_types[neat_asset_type_name] = asset.asset_type
+            generation_per_asset_type[neat_asset_type_name] = 0.
+            consumption_per_asset_type[neat_asset_type_name] = 0.
+            profit_loss_per_asset_type[neat_asset_type_name] = 0.
+        generation_per_asset_type[neat_asset_type_name] += generation_per_asset[asset.name]
+        consumption_per_asset_type[neat_asset_type_name] += consumption_per_asset[asset.name]
+        profit_loss_per_asset_type[neat_asset_type_name] += profit_loss_per_asset[asset.name]
+
+    return render_a1vpp_template("portfolio.html", prosumer_mock=session.get("prosumer_mock", "0"),
+                                 assets=assets,
+                                 asset_types=asset_types,
+                                 generation_per_asset=generation_per_asset,
+                                 consumption_per_asset=consumption_per_asset,
+                                 profit_loss_per_asset=profit_loss_per_asset,
+                                 generation_per_asset_type=generation_per_asset_type,
+                                 consumption_per_asset_type=consumption_per_asset_type,
+                                 profit_loss_per_asset_type=profit_loss_per_asset_type,
+                                 sum_generation=sum(generation_per_asset_type.values()),
+                                 sum_consumption=sum(consumption_per_asset_type.values()),
+                                 sum_profit_loss=sum(profit_loss_per_asset_type.values()))
 
 
 # Analytics view
@@ -199,6 +230,7 @@ def analytics_view():
     if showing_pure_consumption_data:
         rev_cost_str = "Costs"
     rev_cost_hover = plotting.create_hover_tool("KRW", session.get("resolution"))
+    # TODO: get the 2015 hack out of here when we use live data
     rev_costs_data_to_show = rev_cost_data.loc[rev_cost_data.index < get_most_recent_quarter().replace(year=2015)]
     rev_cost_fig = plotting.create_graph(rev_costs_data_to_show,
                                          forecasts=rev_cost_forecasts,
