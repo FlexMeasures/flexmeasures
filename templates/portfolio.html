@@ -139,7 +139,7 @@
                                         <td><a href="analytics?resource={{ asset.name | urlencode }}">{{ profit_loss_per_asset[asset.name] | round(2) }} KRW</a></td>
                                         <td>
                                             {% if asset.asset_type_name in ("wind", "house") %}<a href="control">Curtail load</a>{% endif %}
-                                            {% if asset.asset_type_name in ("ev", "house") %}<a href="control">Shift load</a>{% endif %}
+                                            {% if asset.asset_type_name in ("charging_station", "building") %}<a href="control">Shift load</a>{% endif %}
                                         </td>
                                         <td>
                                             {% if not prosumer_mock: %}

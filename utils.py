@@ -129,11 +129,25 @@ def resolution_to_hour_factor(resolution: str):
     return switch.get(resolution, 1)
 
 
-def is_pure_consumer(resource_name: str):
+def is_pure_consumer(resource_name: str) -> bool:
+    """Return True if the assets represented by this resource are consuming but not producing.
+    Currently only checks the first asset."""
     only_or_first_asset = get_assets_by_resource(resource_name)[0]
     if (only_or_first_asset is not None
             and models.asset_types[only_or_first_asset.asset_type_name].is_consumer
             and not models.asset_types[only_or_first_asset.asset_type_name].is_producer):
+        return True
+    else:
+        return False
+
+
+def is_pure_producer(resource_name: str) -> bool:
+    """Return True if the assets represented by this resource are producing but not consuming.
+    Currently only checks the first asset."""
+    only_or_first_asset = get_assets_by_resource(resource_name)[0]
+    if (only_or_first_asset is not None
+            and models.asset_types[only_or_first_asset.asset_type_name].is_producer
+            and not models.asset_types[only_or_first_asset.asset_type_name].is_consumer):
         return True
     else:
         return False

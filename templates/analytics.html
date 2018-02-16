@@ -44,13 +44,23 @@
                         <tr>
                             <th><label class="icon-left"><img src="public/icons/calculator.svg" alt="Calculator"></label></th>
                             <th class="text-right noeva">
-                                <span title="Electrical Load">Load (MWh)</span>
+                                <span title="Aggregation of the profile of this resource.">
+                                {% if showing_pure_consumption_data %} Load (MWh)
+                                {% elif showing_pure_generation_data %} Generation (MWh)
+                                {% else %} Gen./Load (MWh) {% endif %}
+                                </span>
                             </th>
                             <th class="text-right noeva">
                                 <span title="The prices which a re applicable to this resource.">Price (KRW/MWh)</span>
                             </th>
                             <th class="text-right noeva">
-                                <span title="The revenues or costs this respource occured/might occur.">Rev./Costs (KRW)</span>
+                                {% if showing_pure_consumption_data %}
+                                <span title="The costs which {{ resource }} occured or might occur."> Costs (KRW)</span>
+                                {% elif showing_pure_generation_data %} Revenues (KRW)
+                                <span title="The revenues which {{ resource }} occured or might occur."> Costs (KRW)</span>
+                                {% else %} Rev./Costs (KRW)
+                                <span title="The revenues or costs which {{ resource }} occured or might occur."> Costs (KRW)</span>
+                                {% endif %}
                             </th>
                         </tr>
                     </thead>
@@ -121,29 +131,35 @@
                     </div>
                 </div>
             </div>
-    <!--                    <div>
-                <a href=../> Download report </a>
-            </div>-->
+
             <div class="col-sm-9">
 
                 <div class="row eq-height">
                     <div class="col-sm-5">
-                        <h3><span class="loss-text">Load profile</span></h3>
+                        <h3>
+                            {% if showing_pure_consumption_data %} Load profile
+                            {% elif showing_pure_generation_data %} Generation profile
+                            {% else %} Generation/Load profile {% endif %}
+                        </h3>
                         {{ load_profile_div|safe }}
                         {{ load_profile_script|safe }}
                     </div>
                     <div class="col-sm-5">
-                        <h3><span class="loss-text">Weather data</span></h3>
+                        <h3>Weather data</h3>
                     </div>
                 </div>
                 <div class="row eq-height">
                     <div class="col-sm-5">
-                        <h3><span class="loss-text">Prices</span></h3>
+                        <h3>Prices</h3>
                         {{ prices_series_div|safe }}
                         {{ prices_series_script|safe }}
                     </div>
                     <div class="col-sm-5">
-                        <h3><span class="loss-text">Revenues/Costs</span></h3>
+                        <h3>
+                            {% if showing_pure_consumption_data %} Costs
+                            {% elif showing_pure_generation_data %} Revenues
+                            {% else %} Revenues/Costs {% endif %}
+                        </h3>
                         {{ revenues_costs_series_div|safe }}
                         {{ revenues_costs_series_script|safe }}
                     </div>

@@ -11,7 +11,7 @@ from bokeh.util.string import encode_utf8
 from utils import (set_time_range_for_session, render_a1vpp_template, get_assets, get_data,
                    freq_label_to_human_readable_label, mean_absolute_error, mean_absolute_percentage_error,
                    weighted_absolute_percentage_error, resolution_to_hour_factor, get_assets_by_resource,
-                   is_pure_consumer, forecast_horizons_for, get_most_recent_quarter,
+                   is_pure_consumer, is_pure_producer, forecast_horizons_for, get_most_recent_quarter,
                    extract_forecasts)
 import plotting
 import models
@@ -169,8 +169,9 @@ def analytics_view():
                     and session.get("resource") != session.get("prosumer_mock"):
                 session["resource"] = assets[0].name
 
-    # If we show purely consumption assets, we'll want to adapt the sign of the data and labels.
+    # This is useful information - we might want to adapt the sign of the data and labels.
     showing_pure_consumption_data = is_pure_consumer(session["resource"])
+    showing_pure_generation_data = is_pure_producer(session["resource"])
 
     # loads
     load_data = get_data(session["resource"], session["start_time"], session["end_time"], session["resolution"])
@@ -264,6 +265,8 @@ def analytics_view():
                                  asset_groups=list(zip(groups_with_assets,
                                                        [titleize(gwa) for gwa in groups_with_assets])),
                                  resource=session["resource"],
+                                 showing_pure_consumption_data=showing_pure_consumption_data,
+                                 showing_pure_generation_data=showing_pure_generation_data,
                                  prosumer_mock=session.get("prosumer_mock", "0"),
                                  forecast_horizons=forecast_horizons_for(session["resolution"]),
                                  active_forecast_horizon=session["forecast_horizon"])
