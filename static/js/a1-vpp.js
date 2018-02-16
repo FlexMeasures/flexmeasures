@@ -11,11 +11,11 @@ function showMsg(msg){
 }
 
 function showImage(resource, action, value){
-//    $("#expectedValueModal .modal-dialog .modal-content img").html("public/control-mock-imgs/" + resource + "-action" + action + "-" + value + "MW.png")
-    document.getElementById('expected_value_mock').src = "public/control-mock-imgs/value-" + resource + "-action" + action + "-" + value + "MW.png"
+//    $("#expectedValueModal .modal-dialog .modal-content img").html("static/control-mock-imgs/" + resource + "-action" + action + "-" + value + "MW.png")
+    document.getElementById('expected_value_mock').src = "static/control-mock-imgs/value-" + resource + "-action" + action + "-" + value + "MW.png"
     load_images = document.getElementsByClassName('expected_load_mock')
     for (var i = 0; i < load_images.length; i++) {
-        load_images[i].src = "public/control-mock-imgs/load-" + resource + "-action" + action + "-" + value + "MW.png"
+        load_images[i].src = "static/control-mock-imgs/load-" + resource + "-action" + action + "-" + value + "MW.png"
     }
 }
 
@@ -23,7 +23,7 @@ function showImage(resource, action, value){
 function defaultImage(action){
     load_images = document.getElementsByClassName('expected_load_mock reset_default')
     for (var i = 0; i < load_images.length; i++) {
-        load_images[i].src = "public/control-mock-imgs/load-action" + action + ".png"
+        load_images[i].src = "static/control-mock-imgs/load-action" + action + ".png"
     }
 }
 

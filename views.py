@@ -18,7 +18,7 @@ import models
 
 
 # The views in this module can as blueprint be registered with the Flask app (see app.py)
-a1_views = Blueprint('a1_views', __name__,  static_folder='public', template_folder='templates')
+a1_views = Blueprint('a1_views', __name__,  static_folder='static', template_folder='templates')
 
 
 # TODO: replace these mock helpers when we have real auth & user groups

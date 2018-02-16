@@ -17,11 +17,11 @@ var LeafIcon = L.Icon.extend({
     }
 });
 
-var windIcon = new LeafIcon({iconUrl: 'public/icons/wind.png'});
-var houseIcon = new LeafIcon({iconUrl: 'public/icons/house.png'});
-var batIcon = new LeafIcon({iconUrl: 'public/icons/battery.svg'});
-var carIcon = new LeafIcon({iconUrl: 'public/icons/car.svg'});
-var sunIcon = new LeafIcon({iconUrl: 'public/icons/sun.svg'});
+var windIcon = new LeafIcon({iconUrl: 'static/icons/wind.png'});
+var houseIcon = new LeafIcon({iconUrl: 'static/icons/house.png'});
+var batIcon = new LeafIcon({iconUrl: 'static/icons/battery.svg'});
+var carIcon = new LeafIcon({iconUrl: 'static/icons/car.svg'});
+var sunIcon = new LeafIcon({iconUrl: 'static/icons/sun.svg'});
 
 
 function custom_overlay_fade(p1, p2, p3) {

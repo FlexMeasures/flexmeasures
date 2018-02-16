@@ -15,13 +15,14 @@
                     For the Supplier, control actions are presented as an order book.
                     <!--For each action the expected value is stated as well as the associated financial risks.-->
                 </div>
+                {% block documentation %} {{ super() }} {% endblock %}
                 <h3>Controls</h3>
                 {% block datetimepicker %} {{ super() }} {% endblock %}
                 <h3>Placed order summary</h3>
                 <table class="table" style="font-size: 100%;">
                     <thead>
                         <tr>
-                            <th><label class="icon-left"><img src="public/icons/calculator.svg" alt="Calculator"></label></th>
+                            <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
                             <th>Load (MWh)</th>
                             <th>Expected value (KRW)</th>
                         </tr>
@@ -103,7 +104,7 @@
                         <tr class="active">
                             <td>
                                 <label class="icon-left">
-                                    <img src="/public/icons/car.svg" alt="Time">
+                                    <img src="/static/icons/car.svg" alt="Time">
                                 </label>
                                 EV-46
                             </td>
@@ -136,7 +137,7 @@
                         <tr class="active">
                             <td>
                                 <label class="icon-left">
-                                    <img src="/public/icons/wind.svg" alt="Time">
+                                    <img src="/static/icons/wind.svg" alt="Time">
                                 </label>
                                 SD-Onshore
                             </td>
@@ -169,7 +170,7 @@
                         <tr id="control-tr-offshore">
                             <td>
                                 <label class="icon-left">
-                                    <img src="/public/icons/wind.svg" alt="Time">
+                                    <img src="/static/icons/wind.svg" alt="Time">
                                 </label>
                                 SW-Offshore
                             </td>
@@ -209,7 +210,7 @@
                         <tr id="control-tr-battery">
                             <td>
                                 <label class="icon-left">
-                                    <img src="/public/icons/battery.svg" alt="Time">
+                                    <img src="/static/icons/battery.svg" alt="Time">
                                 </label>
                                 My BAT
                             </td>
@@ -254,7 +255,7 @@
                     </tbody>
                 </table>
                 {% if prosumer_mock == "0": %}
-                <img class="expected_load_mock reset_default" src="public/control-mock-imgs/load-action1.png" style="max-width:100%;max-height:100%;">
+                <img class="expected_load_mock reset_default" src="static/control-mock-imgs/load-action1.png" style="max-width:100%;max-height:100%;">
                 {% endif %}
             </div>
         </div>
@@ -265,8 +266,8 @@
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 Here are our calculations:
-                <img id=expected_value_mock src="public/control-mock-imgs/placeholder.png" style="max-width:100%;max-height:100%;">
-                <img class=expected_load_mock src="public/control-mock-imgs/placeholder.png" style="max-width:100%;max-height:100%;">
+                <img id=expected_value_mock src="static/control-mock-imgs/placeholder.png" style="max-width:100%;max-height:100%;">
+                <img class=expected_load_mock src="static/control-mock-imgs/placeholder.png" style="max-width:100%;max-height:100%;">
             </div>
         </div>
     </div>

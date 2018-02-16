@@ -30,7 +30,7 @@
     }
 
     function getMockImageByCapacityFactor(capacity_factor_in_percent){
-        var path = "/public/live-mock-imgs/";
+        var path = "/static/live-mock-imgs/";
         if (capacity_factor_in_percent < 5) return path + "0.0.png";
         if (capacity_factor_in_percent < 15) return path + "0.1.png";
         if (capacity_factor_in_percent < 25) return path + "0.2.png";
@@ -56,6 +56,7 @@
                     Finally, the platform offers various control options over Active Demand & Supply from flexible assets within the platform.
                     <!--For each possible control action, the user is informed on its expected value and the associated financial risks.-->
                 </div>
+                {% block documentation %} {{ super() }} {% endblock %}
                 <div class="todo">
                     <h3>To do</h3>
                     <div class="justify">
@@ -117,7 +118,7 @@
                                         <label class="icon-left">
                                             <img id="icon-for-{{ asset_type }}" alt="{{ asset_type }}" src="">
                                             <script type="text/javascript">
-                                            $("#icon-for-{{ asset_type }}").attr("src", "/public/icons/" + getIconNameByAssetType("{{ asset_type }}") + ".svg");
+                                            $("#icon-for-{{ asset_type }}").attr("src", "/static/icons/" + getIconNameByAssetType("{{ asset_type }}") + ".svg");
                                             </script>
                                         </label>
                                         {{ asset_counts_per_pluralised_type[asset_type] }}
@@ -135,8 +136,8 @@
 
 
     <!-- Initialise the map -->
-    <script src="public/js/external/leaflet.js"></script>
-    <script src="public/js/map-init.js"></script>
+    <script src="static/js/external/leaflet.js"></script>
+    <script src="static/js/map-init.js"></script>
 
     <script type="text/javascript">
     // create markers, keep them by asset type

@@ -13,11 +13,12 @@
                 <div class="justify">
                     Analytics on asset level. You can adjust views here to check out different things (assets, time frames), but you can't take control actions here.
                 </div>
+                {% block documentation %} {{ super() }} {% endblock %}
                 <h3>Controls</h3>
                 <form id="resource-form" method="post">
                     <div class="form-group">
                         <label class="icon-left">
-                            <img src="public/icons/sun.svg" alt="type" name="preset-icon">
+                            <img src="static/icons/sun.svg" alt="type" name="preset-icon">
                         </label>
                         <label class="control-label" for="resource">Resource</label>
                         <div>
@@ -47,7 +48,7 @@
                 <table class="table" style="font-size: 100%;">
                     <thead>
                         <tr>
-                            <th><label class="icon-left"><img src="public/icons/calculator.svg" alt="Calculator"></label></th>
+                            <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
                             <th class="text-right noeva">
                                 Load
                                 <a href="#"

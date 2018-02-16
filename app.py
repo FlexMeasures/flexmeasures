@@ -77,7 +77,7 @@ loggingDictConfig(a1vpp_logging_config)
 
 @APP.route('/favicon.ico')
 def favicon():
-    return send_from_directory(os.path.join(APP.root_path, 'public'),
+    return send_from_directory(os.path.join(APP.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 APP.register_blueprint(a1_views)

@@ -229,6 +229,10 @@ def weighted_absolute_percentage_error(y_true, y_forecast):
 
 def render_a1vpp_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
+    if os.path.exists("static/documentation/html/index.html"):
+        variables["documentation_exists"] = True
+    else:
+        variables["documentation_exists"] = False
     if "start_time" in session:
         variables["start_time"] = session["start_time"]
     else:
