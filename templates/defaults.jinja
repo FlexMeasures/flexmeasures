@@ -6,7 +6,9 @@
     ('portfolio', 'portfolio', 'Portfolio overview', 'briefcase'),
     ('control', 'control', 'DR actions', 'wrench'),
     ('analytics', 'analytics', 'Client analytics', 'bar-chart'),
-] -%}
+]
+-%}
+{% do navigation_bar.append(('static/documentation/html/index.html', 'docs', 'Documentation', 'book')) if documentation_exists %}
 {# ('upload', 'upload', 'Upload datasets', 'cloud-upload') #}
 
 {% set active_page = active_page|default('dashboard') -%}

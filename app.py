@@ -82,3 +82,5 @@ def favicon():
 
 APP.register_blueprint(a1_views)
 APP.register_blueprint(a1_error_views)
+
+APP.jinja_env.add_extension('jinja2.ext.do')    # Allow expression statements in templates (e.g. for modifying lists)

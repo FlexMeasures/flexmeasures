@@ -251,6 +251,13 @@ def upload_view():
     return render_a1vpp_template("upload.html")
 
 
+# Docs view
+@a1_views.route('/docs')
+def docs_view():
+    # Todo: render the docs with this nicer url and include the app's navigation menu
+    return
+
+
 # Test view
 @a1_views.route('/test')
 def test_view():
