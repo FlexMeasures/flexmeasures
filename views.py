@@ -145,7 +145,6 @@ def portfolio_view():
 def analytics_view():
     set_time_range_for_session()
     groups_with_assets = [group for group in models.asset_groups if len(get_assets_by_resource(group)) > 0]
-
     if "resource" not in session:  # set some default, if possible
         if "solar" in groups_with_assets:
             session["resource"] = "solar"
@@ -163,7 +162,7 @@ def analytics_view():
         groups_with_assets = []
         assets = filter_mock_prosumer_assets(assets)
         if len(assets) > 0:
-            if session.get("prosumer_mock", "0") not in ("offshore", "onshore"):
+            if session.get("prosumer_mock", "0") not in ("0", "offshore", "onshore"):
                 groups_with_assets = [session.get("prosumer_mock")]
             if session.get("resource") not in [a.name for a in assets]\
                     and session.get("resource") != session.get("prosumer_mock"):
@@ -180,12 +179,15 @@ def analytics_view():
                          % (session["resource"], session["start_time"], session["end_time"]))
     if showing_pure_consumption_data:
         load_data *= -1
+        title = "Electricity consumption of %s" % titleize(session["resource"])
+    else:
+        title = "Electricity production from %s" % titleize(session["resource"])
     load_hover = plotting.create_hover_tool("MW", session.get("resolution"))
     load_data_to_show = load_data.loc[load_data.index < get_most_recent_quarter().replace(year=2015)]
     load_forecast_data = extract_forecasts(load_data)
     load_fig = plotting.create_graph(load_data_to_show.y,
                                      forecasts=load_forecast_data,
-                                     title="Electricity load on %s" % titleize(session["resource"]),
+                                     title=title,
                                      x_label="Time (sampled by %s)  "
                                      % freq_label_to_human_readable_label(session["resolution"]),
                                      y_label="Load (in MW)",
@@ -202,7 +204,7 @@ def analytics_view():
     prices_forecast_data = extract_forecasts(prices_data)
     prices_fig = plotting.create_graph(prices_data_to_show.y,
                                        forecasts=prices_forecast_data,
-                                       title="(Day-ahead) Market Prices",
+                                       title="Market prices (day-ahead)",
                                        x_label="Time (sampled by %s)  "
                                        % freq_label_to_human_readable_label(session["resolution"]),
                                        y_label="Prices (in KRW/MWh)",
@@ -227,22 +229,22 @@ def analytics_view():
     wape_span_rev_costs = rev_cost_forecasts.yhat * wape_factor_rev_costs
     rev_cost_forecasts.yhat_upper = rev_cost_forecasts.yhat + wape_span_rev_costs
     rev_cost_forecasts.yhat_lower = rev_cost_forecasts.yhat - wape_span_rev_costs
-    rev_cost_str = "Revenues"
     if showing_pure_consumption_data:
         rev_cost_str = "Costs"
+    else:
+        rev_cost_str = "Revenues"
     rev_cost_hover = plotting.create_hover_tool("KRW", session.get("resolution"))
     # TODO: get the 2015 hack out of here when we use live data
     rev_costs_data_to_show = rev_cost_data.loc[rev_cost_data.index < get_most_recent_quarter().replace(year=2015)]
     rev_cost_fig = plotting.create_graph(rev_costs_data_to_show,
                                          forecasts=rev_cost_forecasts,
-                                         title="%s for %s (priced on DA market)"
+                                         title="%s for %s (on day-ahead market)"
                                          % (rev_cost_str, titleize(session["resource"])),
                                          x_label="Time (sampled by %s)  "
                                          % freq_label_to_human_readable_label(session["resolution"]),
                                          y_label="%s (in KRW)" % rev_cost_str,
                                          hover_tool=rev_cost_hover)
     rev_cost_script, rev_cost_div = components(rev_cost_fig)
-
     return render_a1vpp_template("analytics.html",
                                  load_profile_div=encode_utf8(load_div),
                                  load_profile_script=load_script,

@@ -51,15 +51,15 @@
                                 </span>
                             </th>
                             <th class="text-right noeva">
-                                <span title="The prices which a re applicable to this resource.">Price (KRW/MWh)</span>
+                                <span title="The prices which are applicable to this resource.">Price (KRW/MWh)</span>
                             </th>
                             <th class="text-right noeva">
                                 {% if showing_pure_consumption_data %}
-                                <span title="The costs which {{ resource }} occured or might occur."> Costs (KRW)</span>
-                                {% elif showing_pure_generation_data %} Revenues (KRW)
-                                <span title="The revenues which {{ resource }} occured or might occur."> Costs (KRW)</span>
+                                <span title="The costs which {{ resource }} occurred or might occur."> Costs (KRW)</span>
+                                {% elif showing_pure_generation_data %}
+                                <span title="The revenues which {{ resource }} occurred or might occur."> Revenues (KRW)</span>
                                 {% else %} Rev./Costs (KRW)
-                                <span title="The revenues or costs which {{ resource }} occured or might occur."> Costs (KRW)</span>
+                                <span title="The revenues or costs which {{ resource }} occurred or might occur."> Costs (KRW)</span>
                                 {% endif %}
                             </th>
                         </tr>
