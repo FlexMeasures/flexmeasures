@@ -16,6 +16,7 @@ import models
 
 
 asset_excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
+weather_excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
 prices_filename = 'data/German day-ahead prices 20140101-20160630.csv'
 evs_filename = 'data/German charging stations 20150101-20150620.csv'
 buildings_filename = 'data/neighbourhood.csv'
@@ -101,6 +102,25 @@ def initialise_market_data():
             if res == resolutions[-1]:
                 markets.append(market)
 
+
+def initialise_weather_data():
+    """Initialise weather data"""
+
+    print("Processing weather data ...")
+
+    df = pd.read_excel(weather_excel_filename, "0_Weather", usecols=[0, 6, 14, 38], header=[0, 1], index_col=0)
+    headers = ["temperature", "total_radiation", "wind_speed"]
+    df = set_datetime_index(df, freq='15min', start=pd.datetime(year=2015, month=1, day=1))
+    df = df[:-1]  # we got one row too many (of 2016)
+
+    for i, weather_col_name in enumerate(df):
+        for res in resolutions:
+            res_df = timeseries_resample(df, res)  # Sample time series for given resolution
+            weather_df = pd.DataFrame(index=res_df.index)
+            weather_df["y"] = res_df[weather_col_name]
+
+            weather_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (headers[i], res))
+    return
 
 def initialise_buildings_data():
     """Initialise building data"""
@@ -199,6 +219,7 @@ def initialise_a1_data():
 if __name__ == "__main__":
     """Initialise markets and assets"""
 
+    initialise_weather_data()
     initialise_buildings_data()
     initialise_market_data()
     initialise_charging_station_data()
