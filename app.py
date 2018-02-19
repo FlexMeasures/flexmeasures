@@ -83,3 +83,5 @@ def favicon():
 
 APP.register_blueprint(a1_views)
 APP.register_blueprint(a1_error_views)
+
+APP.jinja_env.filters['zip'] = zip  # Allow zip function in templates
