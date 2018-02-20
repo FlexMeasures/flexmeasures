@@ -38,7 +38,7 @@ def filter_mock_prosumer_assets(assets: List[models.Asset]) -> List[models.Asset
     session_prosumer = session.get("prosumer_mock")
     if session_prosumer == "vehicles":
         return [a for a in assets if a.asset_type.name == "charging_station"]
-    if session_prosumer == "building":
+    if session_prosumer == "buildings":
         return [a for a in assets if a.asset_type.name == "building"]
     if session_prosumer == "solar":
         return [a for a in assets if a.asset_type.name == "solar"]
@@ -155,7 +155,11 @@ def portfolio_view():
         df_stack = pd.concat([df_bottom, df_top], ignore_index=True)
         return df_stack
 
-    show_stacked = request.values.get("show_stacked", "production")
+    default_stack_side = "production"
+    if session.get("prosumer_mock", "0") in ("buildings", "vehicles"):
+        default_stack_side = "consumption"
+    show_stacked = request.values.get("show_stacked", default_stack_side)
+
     if show_stacked == "production":
         show_summed = "consumption"
         stack_types = [t.name for t in asset_types.values() if t.is_producer is True]
