@@ -41,6 +41,27 @@ def get_assets() -> List[Asset]:
     return ASSETS
 
 
+def is_unique_asset(resource: str) -> bool:
+    """Determines whether the resource represents a unique asset."""
+
+    assets = get_assets_by_resource(resource)  # List of unique assets in resource
+    asset_names = [a.name for a in assets]  # list of unique asset names in resource
+    if asset_names == [resource]:
+        return True
+    else:
+        return False
+
+
+def get_unique_asset_type_names(resource: str) -> List[str]:
+    """List unique asset types for the given resource name
+    The resource name is either the name of an asset group or an individual asset."""
+
+    assets = get_assets_by_resource(resource)  # List of unique assets in resource
+    asset_types = list(set([a.asset_type.name for a in assets]))  # list of unique asset type names in resource
+
+    return asset_types
+
+
 def get_assets_by_resource(resource: str) -> List[Asset]:
     """Gather assets which are identified by this resource name.
     The resource name is either the name of an asset group or an individual asset."""

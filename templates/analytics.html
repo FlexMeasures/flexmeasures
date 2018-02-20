@@ -111,10 +111,6 @@
                             </thead>
                             <tbody>
                                 <tr class="active">
-                                    <td>Show relevant weather data</td>
-                                    <td>M2</td>
-                                </tr>
-                                <tr class="active">
                                     <td>Allow for different rolling forecast lengths</td>
                                     <td>M2</td>
                                 </tr>
@@ -146,6 +142,8 @@
                     </div>
                     <div class="col-sm-5">
                         <h3>Weather data</h3>
+                        {{ weather_profile_div | safe }}
+                        {{ weather_profile_script | safe }}
                     </div>
                 </div>
                 <div class="row eq-height">

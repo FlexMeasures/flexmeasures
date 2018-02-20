@@ -15,7 +15,7 @@ from utils import (set_time_range_for_session, render_a1vpp_template, get_assets
                    mean_absolute_error, mean_absolute_percentage_error,
                    weighted_absolute_percentage_error, resolution_to_hour_factor, get_assets_by_resource,
                    is_pure_consumer, is_pure_producer, forecast_horizons_for, get_most_recent_quarter,
-                   get_most_recent_hour, extract_forecasts)
+                   get_most_recent_hour, extract_forecasts, get_unique_asset_type_names, is_unique_asset)
 import plotting
 import models
 
@@ -38,7 +38,7 @@ def filter_mock_prosumer_assets(assets: List[models.Asset]) -> List[models.Asset
     session_prosumer = session.get("prosumer_mock")
     if session_prosumer == "vehicles":
         return [a for a in assets if a.asset_type.name == "charging_station"]
-    if session_prosumer == "buildings":
+    if session_prosumer == "building":
         return [a for a in assets if a.asset_type.name == "building"]
     if session_prosumer == "solar":
         return [a for a in assets if a.asset_type.name == "solar"]
@@ -134,10 +134,14 @@ def portfolio_view():
     # get data for stacked plot for the selected period
 
     def only_positive(df: pd.DataFrame) -> None:
-        df[df < 0] = 0
+        df[df.fillna(0) < 0] = 0
 
     def only_negative_abs(df: pd.DataFrame) -> None:
+        # If this functions fails, a possible solution may be to stack the dataframe before
+        # checking for negative values (unstacking afterwards).
+        # df = df.stack()
         df[df > 0] = 0
+        # df = df.unstack()
         df[:] = df * -1
 
     def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
@@ -155,11 +159,7 @@ def portfolio_view():
         df_stack = pd.concat([df_bottom, df_top], ignore_index=True)
         return df_stack
 
-    default_stack_side = "production"
-    if session.get("prosumer_mock", "0") in ("buildings", "vehicles"):
-        default_stack_side = "consumption"
-    show_stacked = request.values.get("show_stacked", default_stack_side)
-
+    show_stacked = request.values.get("show_stacked", "production")
     if show_stacked == "production":
         show_summed = "consumption"
         stack_types = [t.name for t in asset_types.values() if t.is_producer is True]
@@ -175,15 +175,18 @@ def portfolio_view():
         stacked_value_mask = only_negative_abs
         summed_value_mask = only_positive
 
-    df_sum = data_or_zeroes(get_data_for_assets(sum_assets))
+    df_sum = get_data_for_assets(sum_assets)
+    if df_sum is not None:
+        df_sum = df_sum.loc[:, ['y']]  # only get the y data
+    df_sum = data_or_zeroes(df_sum)
     summed_value_mask(df_sum)
     hover = plotting.create_hover_tool("MW", session.get("resolution"))
     fig = plotting.create_graph(df_sum.y,
                                 title=plot_label,
-                                x_label="Time (sampled by %s)  "
+                                x_label="Time (sampled by %s)"
                                         % freq_label_to_human_readable_label(session["resolution"]),
                                 y_label="%s (in MW)" % plot_label,
-                                legend=titleize(show_summed),
+                                legend=show_summed,
                                 hover_tool=hover)
     fig.plot_height = 450
     fig.plot_width = 750
@@ -191,7 +194,7 @@ def portfolio_view():
 
     df_stacked_data = pd.DataFrame(index=df_sum.index, columns=stack_types)
     for st in stack_types:
-        df_stacked_data[st] = get_data_by_resource(pluralize(st))
+        df_stacked_data[st] = get_data_by_resource(pluralize(st)).loc[:, ['y']]  # only get the y data
     stacked_value_mask(df_stacked_data)
     df_stacked_data = data_or_zeroes(df_stacked_data)
     df_stacked_areas = stacked(df_stacked_data)
@@ -278,7 +281,7 @@ def analytics_view():
     load_fig = plotting.create_graph(load_data_to_show.y,
                                      forecasts=load_forecast_data,
                                      title=title,
-                                     x_label="Time (sampled by %s)  "
+                                     x_label="Time (sampled by %s)"
                                      % freq_label_to_human_readable_label(session["resolution"]),
                                      y_label="Load (in MW)",
                                      show_y_floats=True,
@@ -295,11 +298,46 @@ def analytics_view():
     prices_fig = plotting.create_graph(prices_data_to_show.y,
                                        forecasts=prices_forecast_data,
                                        title="Market prices (day-ahead)",
-                                       x_label="Time (sampled by %s)  "
+                                       x_label="Time (sampled by %s)"
                                        % freq_label_to_human_readable_label(session["resolution"]),
                                        y_label="Prices (in KRW/MWh)",
                                        hover_tool=prices_hover)
     prices_script, prices_div = components(prices_fig)
+
+    # weather
+    session_asset_types = get_unique_asset_type_names(session["resource"])
+    unique_session_resource = is_unique_asset(session["resource"])
+
+    # Todo: plot average temperature/total_radiation/wind_speed for asset groups, and update title accordingly
+    # Todo: plot multiple weather data types for asset groups, rather than just the first one in the list like below
+    if session_asset_types[0] == "wind":
+        weather_type = "wind_speed"
+        weather_axis = "Wind speed (in m/s)"
+    elif session_asset_types[0] == "solar":
+        weather_type = "total_radiation"
+        weather_axis = "Total radiation (in kW/m²)"
+    else:
+        weather_type = "temperature"
+        weather_axis = "Temperature (in °C)"
+
+    if unique_session_resource:
+        title = "%s at %s" % (titleize(weather_type), titleize(session["resource"]))
+    else:
+        title = "%s" % titleize(weather_type)
+    weather_data = get_data_for_assets([weather_type],
+                                       session["start_time"], session["end_time"], session["resolution"])
+    weather_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
+    weather_data_to_show = weather_data.loc[weather_data.index < get_most_recent_quarter().replace(year=2015)]
+    weather_forecast_data = None
+    weather_fig = plotting.create_graph(weather_data_to_show.y,
+                                       forecasts=weather_forecast_data,
+                                       title=title,
+                                       x_label="Time (sampled by %s)"
+                                               % freq_label_to_human_readable_label(session["resolution"]),
+                                       y_label=weather_axis,
+                                       legend=None,
+                                       hover_tool=weather_hover)
+    weather_script, weather_div = components(weather_fig)
 
     # metrics
     realised_load_in_mwh = pd.Series(load_data.y * load_hour_factor).values
@@ -330,7 +368,7 @@ def analytics_view():
                                          forecasts=rev_cost_forecasts,
                                          title="%s for %s (on day-ahead market)"
                                          % (rev_cost_str, titleize(session["resource"])),
-                                         x_label="Time (sampled by %s)  "
+                                         x_label="Time (sampled by %s)"
                                          % freq_label_to_human_readable_label(session["resolution"]),
                                          y_label="%s (in KRW)" % rev_cost_str,
                                          hover_tool=rev_cost_hover)
@@ -340,6 +378,8 @@ def analytics_view():
                                  load_profile_script=load_script,
                                  prices_series_div=encode_utf8(prices_div),
                                  prices_series_script=prices_script,
+                                 weather_profile_div=encode_utf8(weather_div),
+                                 weather_profile_script=weather_script,
                                  revenues_costs_series_div=encode_utf8(rev_cost_div),
                                  revenues_costs_series_script=rev_cost_script,
                                  realised_load_in_mwh=realised_load_in_mwh.sum(),
@@ -368,9 +408,7 @@ def analytics_view():
 @a1_views.route('/control', methods=['GET', 'POST'])
 def control_view():
     check_prosumer_mock()
-    next24hours = [(get_most_recent_hour() + timedelta(hours=i)).strftime("%I:00 %p") for i in range(1, 26)]
     return render_a1vpp_template("control.html",
-                                 next24hours=next24hours,
                                  prosumer_mock=session.get("prosumer_mock", "0"))
 
 
