@@ -29,8 +29,7 @@ Tutorials
 	:caption: Contents:
 
 	tut/usage
-	tut/sandbox
-	
+
 
 Indices and tables
 ==================
