@@ -4,11 +4,14 @@ from datetime import timedelta
 from flask import Blueprint, request, session
 from werkzeug.exceptions import BadRequest
 import pandas as pd
+import numpy as np
 from inflection import pluralize, titleize
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
+from bokeh.palettes import brewer
 
-from utils import (set_time_range_for_session, render_a1vpp_template, get_assets, get_data,
+from utils import (set_time_range_for_session, render_a1vpp_template, get_assets,
+                   get_data_by_resource, get_data_for_assets, get_data_for_assets_for_session_time_range,
                    freq_label_to_human_readable_label, mean_absolute_error, mean_absolute_percentage_error,
                    weighted_absolute_percentage_error, resolution_to_hour_factor, get_assets_by_resource,
                    is_pure_consumer, is_pure_producer, forecast_horizons_for, get_most_recent_quarter,
@@ -68,10 +71,10 @@ def dashboard_view():
         for asset in assets_by_pluralised_type:
             # TODO: this is temporary
             current_asset_loads[asset.name] =\
-                get_data(asset.name,
-                         get_most_recent_quarter().replace(year=2015),
-                         get_most_recent_quarter().replace(year=2015) + timedelta(minutes=15),
-                         "15T").y[0]
+                get_data_for_assets([asset.name],
+                                    get_most_recent_quarter().replace(year=2015),
+                                    get_most_recent_quarter().replace(year=2015) + timedelta(minutes=15),
+                                    "15T").y[0]
             assets.append(asset)
 
     # Todo: switch from this mock-up function for asset counts to a proper implementation of battery assets
@@ -93,6 +96,8 @@ def portfolio_view():
     assets = get_assets()
     if check_prosumer_mock():
         assets = filter_mock_prosumer_assets(assets)
+
+    # get data for summaries over the selected period
     generation_per_asset = dict.fromkeys([a.name for a in assets])
     consumption_per_asset = dict.fromkeys([a.name for a in assets])
     profit_loss_per_asset = dict.fromkeys([a.name for a in assets])
@@ -102,12 +107,12 @@ def portfolio_view():
     consumption_per_asset_type = {}
     profit_loss_per_asset_type = {}
 
-    prices_data = get_data("epex_da", session["start_time"], session["end_time"], session["resolution"])
+    prices_data = get_data_for_assets(["epex_da"], session["start_time"], session["end_time"], session["resolution"])
 
     load_hour_factor = resolution_to_hour_factor(session["resolution"])
 
     for asset in assets:
-        load_data = get_data(asset.name, session["start_time"], session["end_time"], session["resolution"])
+        load_data = get_data_for_assets([asset.name], session["start_time"], session["end_time"], session["resolution"])
         profit_loss_per_asset[asset.name] = pd.Series(load_data.y * load_hour_factor * prices_data.y,
                                                       index=load_data.index).sum()
         if is_pure_consumer(asset.name):
@@ -126,6 +131,76 @@ def portfolio_view():
         consumption_per_asset_type[neat_asset_type_name] += consumption_per_asset[asset.name]
         profit_loss_per_asset_type[neat_asset_type_name] += profit_loss_per_asset[asset.name]
 
+    # get data for stacked plot for the selected period
+    stack_assets = []
+    sum_assets = []
+
+    def only_positive(df: pd.DataFrame) -> None:
+        df[df < 0] = 0
+
+    def only_negative(df: pd.DataFrame) -> None:
+        df[df > 0] = 0
+
+    def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
+        if df is None:
+            return pd.DataFrame(index=pd.date_range(start=session["start_time"], end=session["end_time"],
+                                                    freq=session["resolution"]),
+                                columns=["y"]).fillna(0)
+        else:
+            return df
+
+    def stacked(df: pd.DataFrame) -> pd.DataFrame:
+        """Stack columns of df cumulatively, include bottom"""
+        df_top = df.cumsum(axis=1)
+        df_bottom = df_top.shift(axis=1).fillna(0)[::-1]
+        df_stack = pd.concat([df_bottom, df_top], ignore_index=True)
+        return df_stack
+
+    show_stacked = request.values.get("show_stacked", "consumption")
+    if show_stacked == "consumption":
+        show_summed = "production"
+        stack_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
+        sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
+        plot_label = "Stacked Consumption vs aggregated Generation"
+        stacked_value_mask = only_negative
+        summed_value_mask = only_positive
+    else:
+        show_summed = "consumption"
+        stack_assets = [a.name for a in assets if a.asset_type.is_producer is True]
+        sum_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
+        plot_label = "Stacked Generation vs aggregated Consumption"
+        stacked_value_mask = only_positive
+        summed_value_mask = only_negative
+    df_sum = data_or_zeroes(get_data_for_assets_for_session_time_range(sum_assets))
+    summed_value_mask(df_sum)
+    hover = plotting.create_hover_tool("MW", session.get("resolution"))
+    fig = plotting.create_graph(df_sum.y,
+                                title=plot_label,
+                                x_label="Time (sampled by %s)  "
+                                        % freq_label_to_human_readable_label(session["resolution"]),
+                                y_label="%s (in MW)" % plot_label,
+                                legend=show_summed,
+                                hover_tool=hover)
+    fig.plot_height = 450
+    fig.plot_width = 750
+    fig.sizing_mode = "fixed"
+
+    df_stacked_data = get_data_for_assets_for_session_time_range(stack_assets)
+    # stacked_value_mask(df_stack)
+    # also zeroes on df_stack
+    # use pd.cumsum method, see for an example:http://bokeh.pydata.org/en/latest/docs/gallery/brewer.html
+    df_stacked_areas = stacked(df_stacked_data)
+
+    colors = brewer['Spectral'][df_stacked_areas.shape[1]]
+    x2 = np.hstack((df_stacked_data.index[::-1], df_stacked_data.index))
+
+    fig.grid.minor_grid_line_color = '#eeeeee'
+
+    fig.patches([x2] * df_stacked_areas.shape[1], [df_stacked_areas[c].values for c in df_stacked_areas],
+                color=colors, alpha=0.8, line_color=None)
+
+    portfolio_plot_script, portfolio_plot_div = components(fig)
+
     return render_a1vpp_template("portfolio.html", prosumer_mock=session.get("prosumer_mock", "0"),
                                  assets=assets,
                                  asset_types=asset_types,
@@ -137,7 +212,9 @@ def portfolio_view():
                                  profit_loss_per_asset_type=profit_loss_per_asset_type,
                                  sum_generation=sum(generation_per_asset_type.values()),
                                  sum_consumption=sum(consumption_per_asset_type.values()),
-                                 sum_profit_loss=sum(profit_loss_per_asset_type.values()))
+                                 sum_profit_loss=sum(profit_loss_per_asset_type.values()),
+                                 portfolio_plot_script=portfolio_plot_script,
+                                 portfolio_plot_div=portfolio_plot_div)
 
 
 # Analytics view
@@ -173,7 +250,8 @@ def analytics_view():
     showing_pure_generation_data = is_pure_producer(session["resource"])
 
     # loads
-    load_data = get_data(session["resource"], session["start_time"], session["end_time"], session["resolution"])
+    load_data = get_data_by_resource(session["resource"],
+                                     session["start_time"], session["end_time"], session["resolution"])
     if load_data is None or load_data.size == 0:
         raise BadRequest("Not enough data available for resource \"%s\" in the time range %s to %s"
                          % (session["resource"], session["start_time"], session["end_time"]))
@@ -198,7 +276,8 @@ def analytics_view():
     load_hour_factor = resolution_to_hour_factor(session["resolution"])
 
     # prices
-    prices_data = get_data("epex_da", session["start_time"], session["end_time"], session["resolution"])
+    prices_data = get_data_for_assets(["epex_da"],
+                                      session["start_time"], session["end_time"], session["resolution"])
     prices_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
     prices_data_to_show = prices_data.loc[prices_data.index < get_most_recent_quarter().replace(year=2015)]
     prices_forecast_data = extract_forecasts(prices_data)

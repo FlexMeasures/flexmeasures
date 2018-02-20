@@ -78,114 +78,118 @@
                 </div>
             </div>
             <div class="col-sm-9">
-                <div class="row eq-height">
-                    <div class="col-sm-8">
-                        <h3>Portfolio status</h3>
-                        <div class="wrapper small-wrapper">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Asset</th>
-                                        <th>Supplier</th>
-                                        <th>Aggregator</th>
-                                        <!--<th>Energy Service Company</th>-->
-                                        <th>Generation</th>
-                                        <th>Consumption</th>
-                                        <th>Profit/Loss</th>
-                                        <th>Type of actions</th>
-                                        <th>Available capacity</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for asset in assets: %}
-                                    <tr class="active">
-                                        <td>
-                                            <label class="icon-left">
-                                                {% if asset.asset_type_name == "wind" %}
-                                                <img src="/public/icons/wind.svg" alt="Wind">
-                                                {% endif %}
-                                                {% if asset.asset_type_name == "solar" %}
-                                                <img src="/public/icons/sun.svg" alt="Solar">
-                                                {% endif %}
-                                                {% if asset.asset_type_name == "charging_station" %}
-                                                <img src="/public/icons/battery.svg" alt="Vehicle">
-                                                {% endif %}
-                                                {% if asset.asset_type_name == "building" %}
-                                                <img src="/public/icons/house.svg" alt="Building">
-                                                {% endif %}
-                                                {% if asset.asset_type_name == "battery" %}
-                                                <img src="/public/icons/battery.svg" alt="Battery">
-                                                {% endif %}
-                                            </label>
-                                            {{ asset.display_name }}
-                                        </td>
-                                        <td>KEPCO</td>
-                                        <td>My AGR</td>
-                                        <!--td>ESCo 1</td-->
-                                        <td>
-                                            {% if asset.asset_type.is_producer %}
-                                            <a href="analytics?resource={{ asset.name | urlencode }}">
-                                                {{ generation_per_asset[asset.name] | round(2) }} MWh
-                                            </a>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if asset.asset_type.is_consumer %}
-                                            <a href="analytics?resource={{ asset.name | urlencode }}">
-                                                {{ consumption_per_asset[asset.name] | round(2) }} MWh
-                                            </a>
-                                            {% endif %}
-                                        </td>
-                                        <td><a href="analytics?resource={{ asset.name | urlencode }}">{{ profit_loss_per_asset[asset.name] | round(2) }} KRW</a></td>
-                                        <td>
-                                            {% if asset.asset_type_name in ("wind", "house") %}<a href="control">Curtail load</a>{% endif %}
-                                            {% if asset.asset_type_name in ("charging_station", "building") %}<a href="control">Shift load</a>{% endif %}
-                                        </td>
-                                        <td>
-                                            {% if not prosumer_mock: %}
-                                                {% if "onshore" in asset.name:%}
-                                                60%
-                                                {% else %}
-                                                100%
-                                                {% endif%}
-                                            {% endif %}
-                                            {% if prosumer_mock: %}
-                                            <select>
-                                                <option>100%</option>
-                                                <option>80%</option>
-                                                <option selected="selected">60%</option>
-                                                <option>40%</option>
-                                                <option>20%</option>
-                                            </select>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        <h3>Market status</h3>
-                        <table class="table" style="font-size: 100%;">
+
+                <div class="row">
+                    <h3>Portfolio status</h3>
+                    {{ portfolio_plot_div | safe }}
+                    {{ portfolio_plot_script | safe }}
+                </div>
+
+                <div class="row">
+                    <h3>Portfolio status</h3>
+                    <div class="wrapper small-wrapper">
+                        <table>
                             <thead>
                                 <tr>
-                                    <th>Market</th>
-                                    <th>Product</th>
-                                    <th>Average price</th>
+                                    <th>Asset</th>
+                                    <th>Supplier</th>
+                                    <th>Aggregator</th>
+                                    <!--<th>Energy Service Company</th>-->
+                                    <th>Generation</th>
+                                    <th>Consumption</th>
+                                    <th>Profit/Loss</th>
+                                    <th>Type of actions</th>
+                                    <th>Available capacity</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td>KPX DAM</td>
-                                    <td>Hourly</td>
-                                    <td>1 KRW/MWh</td>
+                                {% for asset in assets: %}
+                                <tr class="active">
+                                    <td>
+                                        <label class="icon-left">
+                                            {% if asset.asset_type_name == "wind" %}
+                                            <img src="/public/icons/wind.svg" alt="Wind">
+                                            {% endif %}
+                                            {% if asset.asset_type_name == "solar" %}
+                                            <img src="/public/icons/sun.svg" alt="Solar">
+                                            {% endif %}
+                                            {% if asset.asset_type_name == "charging_station" %}
+                                            <img src="/public/icons/battery.svg" alt="Vehicle">
+                                            {% endif %}
+                                            {% if asset.asset_type_name == "building" %}
+                                            <img src="/public/icons/house.svg" alt="Building">
+                                            {% endif %}
+                                            {% if asset.asset_type_name == "battery" %}
+                                            <img src="/public/icons/battery.svg" alt="Battery">
+                                            {% endif %}
+                                        </label>
+                                        {{ asset.display_name }}
+                                    </td>
+                                    <td>KEPCO</td>
+                                    <td>My AGR</td>
+                                    <!--td>ESCo 1</td-->
+                                    <td>
+                                        {% if asset.asset_type.is_producer %}
+                                        <a href="analytics?resource={{ asset.name | urlencode }}">
+                                            {{ generation_per_asset[asset.name] | round(2) }} MWh
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if asset.asset_type.is_consumer %}
+                                        <a href="analytics?resource={{ asset.name | urlencode }}">
+                                            {{ consumption_per_asset[asset.name] | round(2) }} MWh
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                    <td><a href="analytics?resource={{ asset.name | urlencode }}">{{ profit_loss_per_asset[asset.name] | round(2) }} KRW</a></td>
+                                    <td>
+                                        {% if asset.asset_type_name in ("wind", "house") %}<a href="control">Curtail load</a>{% endif %}
+                                        {% if asset.asset_type_name in ("charging_station", "building") %}<a href="control">Shift load</a>{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if not prosumer_mock: %}
+                                            {% if "onshore" in asset.name:%}
+                                            60%
+                                            {% else %}
+                                            100%
+                                            {% endif%}
+                                        {% endif %}
+                                        {% if prosumer_mock: %}
+                                        <select>
+                                            <option>100%</option>
+                                            <option>80%</option>
+                                            <option selected="selected">60%</option>
+                                            <option>40%</option>
+                                            <option>20%</option>
+                                        </select>
+                                        {% endif %}
+                                    </td>
                                 </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>
-                    <div class="col-sm-4">
-                        <h3>VPP status</h3>
-                        <div id="mapid"></div>
-                    </div>
+                </div>
+
+                <div class="row">
+                    <h3>Market status</h3>
+                    <table class="table" style="font-size: 100%;">
+                        <thead>
+                            <tr>
+                                <th>Market</th>
+                                <th>Product</th>
+                                <th>Average price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>KPX DAM</td>
+                                <td>Hourly</td>
+                                <td>1 KRW/MWh</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

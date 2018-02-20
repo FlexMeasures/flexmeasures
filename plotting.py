@@ -1,7 +1,7 @@
 from typing import Optional
 
 from bokeh.models import Range1d
-from bokeh.plotting import figure
+from bokeh.plotting import figure, Figure
 from bokeh.models import ColumnDataSource, HoverTool, NumeralTickFormatter
 import pandas as pd
 import numpy as np
@@ -24,8 +24,8 @@ def create_hover_tool(y_unit: str, resolution: str) -> Optional[HoverTool]:
 
 
 def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
-                 title: str="A1 plot", x_label: str="X", y_label: str="Y",
-                 hover_tool: Optional[HoverTool]=None, show_y_floats: bool=False):
+                 title: str="A1 plot", x_label: str="X", y_label: str="Y", legend="Actual",
+                 hover_tool: Optional[HoverTool]=None, show_y_floats: bool=False) -> Figure:
     """
     Create a Bokeh graph.
     :param series: the actual data
@@ -48,7 +48,7 @@ def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
         raise Exception("Not sufficient data to show anything.")
 
     tools = ["box_zoom", "reset", "save"]
-    if hover_tool:
+    if hover_tool is not None:
         tools = [hover_tool] + tools
 
     if show_y_floats is False and series.size > 0:  # apply a simple heuristic
@@ -67,7 +67,7 @@ def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
                  sizing_mode='scale_width',
                  outline_line_color="#666666")
 
-    fig.circle(x='x', y='y', source=data_source, color="#3B0757", alpha=0.5, legend="Actual")
+    fig.circle(x='x', y='y', source=data_source, color="#3B0757", alpha=0.5, legend=legend)
 
     if forecasts is not None:
         fc_color = "#DDD0B3"

@@ -1,7 +1,7 @@
 import os
 import datetime
 import json
-from typing import List, Optional
+from typing import List, Dict, Optional, Union
 
 from flask import request, render_template, session, current_app
 from werkzeug.exceptions import BadRequest
@@ -78,17 +78,35 @@ def get_market_by_resource(resource: str) -> Optional[Market]:
             return market
 
 
-def get_data(resource: str, start: datetime, end: datetime, resolution: str) -> pd.DataFrame:
-    """Get data for one or more assets or markets. Here we also decide on a resolution."""
-    data = None
-    data_keys = []
+def get_data_by_resource(resource: str, start: datetime, end: datetime, resolution: str)\
+        -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    """Get data for one or more assets or markets."""
+    asset_names = []
     for asset in get_assets_by_resource(resource):
-        data_keys.append(asset.name)
+        asset_names.append(asset.name)
     market = get_market_by_resource(resource)
     if market is not None:
-        data_keys.append(market.name)
-    for data_key in data_keys:
-        data_label = "%s_res%s" % (data_key, resolution)
+        asset_names.append(market.name)
+    return get_data_for_assets(asset_names, start, end, resolution)
+
+
+def get_data_for_assets_for_session_time_range(asset_names: List[str]) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    """Get data for one or more assets (also markets).
+    This method is a shortcut for leaving off time specs - this method will use the information in the session."""
+    return get_data_for_assets(asset_names, session["start_time"], session["end_time"], session["resolution"])
+
+
+def get_data_for_assets(asset_names: List[str], start: datetime, end: datetime, resolution: str,
+                        sum_multiple=True) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    """Get data for one or more assets (also markets).
+    We (lazily) look up by pickle, so we require a list of asset or market names.
+    Response is a 2D data frame with the usual columns (y, yhat, ...).
+    If data from multiple assets is retrieved, the results are being summed.
+    If sum_multiple is False, the response will be a dictionary with asset names as keys and data frames as values.
+    Response might be None if no data exists for these assets in this time range."""
+    data = None
+    for asset_name in asset_names:
+        data_label = "%s_res%s" % (asset_name, resolution)
         global DATA
         if data_label not in DATA:
             current_app.logger.info("Loading %s data from disk ..." % data_label)
@@ -97,10 +115,17 @@ def get_data(resource: str, start: datetime, end: datetime, resolution: str) -> 
             except FileNotFoundError:
                 raise BadRequest("Sorry, we cannot find any data for the resource \"%s\" ..." % data_label)
         date_mask = (DATA[data_label].index >= start) & (DATA[data_label].index <= end)
-        if data is None:
-            data = DATA[data_label].loc[date_mask]
-        else:
-            data = data + DATA[data_label].loc[date_mask]  # assuming grouping means adding up, might differ for markets
+
+        if sum_multiple is True:  # Here we only build one data frame, summed up if necessary.
+            if data is None:
+                data = DATA[data_label].loc[date_mask]
+            else:
+                data = data + DATA[data_label].loc[date_mask]
+        else:                     # Here we build a dict with data frames.
+            if data is None:
+                data = {asset_name: DATA[data_label].loc[date_mask]}
+            else:
+                data[asset_name] = DATA[data_label].loc[date_mask]
     return data
 
 
@@ -259,7 +284,7 @@ def render_a1vpp_template(html_filename: str, **variables):
     variables["page"] = html_filename.replace(".html", "")
     if "show_datepicker" not in variables:
         variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio", "control")
-    if "load_profile_div" in variables:
+    if "load_profile_div" in variables or "portfolio_plot_div" in variables:
         variables["contains_plots"] = True
         variables["bokeh_css_resources"] = CDN.render_css()
         variables["bokeh_js_resources"] = CDN.render_js()
