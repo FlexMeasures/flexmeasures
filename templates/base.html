@@ -98,6 +98,8 @@
                             <input type="hidden" id="datepicker_form_start_time" name="start_time" value="{{ start_time }}"/>
                             <input type="hidden" id="datepicker_form_end_time" name="end_time" value="{{ end_time }}"/>
                         </form>
+
+                        <script src="public/js/external/moment.min.js"></script>
                     {% endblock datetimepicker %}
                     
                     {% block forecastpicker %}
@@ -158,9 +160,9 @@
                     {% if prosumer_mock == "0": %}
                         This is the view of <b>an aggregator or supplier (A1)</b>. All assets are listed.
                     {% else: %}
-                    This is the view of <b>a prosumer who owns "{{prosumer_mock }}" assets</b>. Only the assets owned by this prosumer are listed.
+                    This is the view of <b>a prosumer who owns "{{ prosumer_mock }}" assets</b>. Only the assets owned by this prosumer are listed.
                         {% if page == "portfolio": %}
-                            The prosumer can put contraints for actions in place, for example available capacity.
+                            The prosumer can put constraints for actions in place, for example available capacity.
                         {% endif %}
                     {% endif %}
                     <br/>
@@ -169,7 +171,7 @@
                     <button onclick="window.location.href='?prosumer_mock=offshore'">Offshore wind prosumer</button>
                     <button onclick="window.location.href='?prosumer_mock=onshore'">Onshore wind prosumer</button>
                     <button onclick="window.location.href='?prosumer_mock=solar'">Solar prosumer</button>
-                    <button onclick="window.location.href='?prosumer_mock=building'">Building prosumer</button>
+                    <button onclick="window.location.href='?prosumer_mock=buildings'">Building prosumer</button>
                     <button onclick="window.location.href='?prosumer_mock=vehicles'">EV prosumer</button>
                 </div>
                 {% endif %}

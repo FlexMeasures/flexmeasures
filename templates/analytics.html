@@ -32,11 +32,6 @@
                                     {{ asset.display_name }} ({{ asset.asset_type_display_name }})
                                 </option>
                                 {% endfor %}
-                                <!--option value="ev-h">EV charging on Jeju island</option-->
-                                <!--option value="ev-p">Wind turbine generation</option-->
-                                <!--option value="ev-s">Stationary battery</option-->
-                                <!--option value="h">Offices on Jeju island</option-->
-                                <!--option value="pv" selected>PV feed-in from Jeju island</option-->
                             </select>
                         </div>
                     </div>
@@ -49,59 +44,24 @@
                         <tr>
                             <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
                             <th class="text-right noeva">
-                                Load
-                                <a href="#"
-                                    class="alpha-popover"
-                                    data-container="body"
-                                    data-toggle="popover"
-                                    data-placement="top"
-                                    data-trigger="focus hover"
-                                    data-html="true"
-                                    data-alpha="0.95"
-                                    title="Electrical load"
-                                    data-text="In units of MWh."
-                                    style="font-size: 80%;">
-                                    (MWh)
-                                    <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
-                                 </a>
+                                <span title="Aggregation of the profile of this resource.">
+                                {% if showing_pure_consumption_data %} Load (MWh)
+                                {% elif showing_pure_generation_data %} Generation (MWh)
+                                {% else %} Gen./Load (MWh) {% endif %}
+                                </span>
                             </th>
                             <th class="text-right noeva">
-                                Price
-                                <a href="#"
-                                    class="alpha-popover"
-                                    data-container="body"
-                                    data-toggle="popover"
-                                    data-placement="top"
-                                    data-trigger="focus hover"
-                                    data-html="true"
-                                    data-alpha="0.95"
-                                    title="Unit price"
-                                    data-text="In units of KRW/MWh."
-                                    style="font-size: 80%;">
-                                    (KRW/MWh)
-                                    <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
-                                 </a>
+                                <span title="The prices which are applicable to this resource.">Price (KRW/MWh)</span>
                             </th>
                             <th class="text-right noeva">
-                                Rev./Costs
-                                <a href="#"
-                                    class="alpha-popover"
-                                    data-container="body"
-                                    data-toggle="popover"
-                                    data-placement="top"
-                                    data-trigger="focus hover"
-                                    data-html="true"
-                                    data-alpha="0.95"
-                                    title="Revenue"
-                                    data-text="In units of KRW."
-                                    style="font-size: 80%;">
-                                    (KRW)
-                                    <!--<span class="fa fa-thermometer-empty" aria-hidden="true"></span>-->
-                                 </a>
+                                {% if showing_pure_consumption_data %}
+                                <span title="The costs which {{ resource }} occurred or might occur."> Costs (KRW)</span>
+                                {% elif showing_pure_generation_data %}
+                                <span title="The revenues which {{ resource }} occurred or might occur."> Revenues (KRW)</span>
+                                {% else %} Rev./Costs (KRW)
+                                <span title="The revenues or costs which {{ resource }} occurred or might occur."> Costs (KRW)</span>
+                                {% endif %}
                             </th>
-    <!--                    <th class="text-right noeva">Without <abbr title="Demand response">DR</abbr></th>
-                            <th class="text-right witheva">With <abbr title="Demand response">DR</abbr></th>
-                            <th style="width:1%"></th>-->
                         </tr>
                     </thead>
                     <tbody>
@@ -120,13 +80,6 @@
                             <td>{{ "{:,}".format(expected_load_in_mwh | round ) }}</td>
                             <td>{{ expected_unit_price | round(2) }}</td>
                             <td> -- </td>
-    <!--                        <td class="text-right noeva">
-                                <div id="expected-loss"></div>
-                            </td>
-                            <td class="text-right witheva">
-                                <div id="expected-loss-eva"></div>
-                            </td>
-                            <td>&euro;&nbsp;/&nbsp;<span class="time-unit">...</span></td>-->
                         </tr>
                         <tr>
                             <td>
@@ -158,10 +111,6 @@
                             </thead>
                             <tbody>
                                 <tr class="active">
-                                    <td>Show relevant weather data</td>
-                                    <td>M2</td>
-                                </tr>
-                                <tr class="active">
                                     <td>Allow for different rolling forecast lengths</td>
                                     <td>M2</td>
                                 </tr>
@@ -178,31 +127,39 @@
                     </div>
                 </div>
             </div>
-    <!--                    <div>
-                <a href=../> Download report </a>
-            </div>-->
+
             <div class="col-sm-9">
 
                 <div class="row eq-height">
                     <div class="col-sm-5">
-                        <h3><span class="loss-text">Load profile</span></h3>
-                        {{ load_profile_div|safe }}
-                        {{ load_profile_script|safe }}
+                        <h3>
+                            {% if showing_pure_consumption_data %} Load profile
+                            {% elif showing_pure_generation_data %} Generation profile
+                            {% else %} Generation/Load profile {% endif %}
+                        </h3>
+                        {{ load_profile_div | safe }}
+                        {{ load_profile_script | safe }}
                     </div>
                     <div class="col-sm-5">
-                        <h3><span class="loss-text">Weather data</span></h3>
+                        <h3>Weather data</h3>
+                        {{ weather_profile_div | safe }}
+                        {{ weather_profile_script | safe }}
                     </div>
                 </div>
                 <div class="row eq-height">
                     <div class="col-sm-5">
-                        <h3><span class="loss-text">Prices</span></h3>
-                        {{ prices_series_div|safe }}
-                        {{ prices_series_script|safe }}
+                        <h3>Prices</h3>
+                        {{ prices_series_div | safe }}
+                        {{ prices_series_script | safe }}
                     </div>
                     <div class="col-sm-5">
-                        <h3><span class="loss-text">Revenues/Costs</span></h3>
-                        {{ revenues_costs_series_div|safe }}
-                        {{ revenues_costs_series_script|safe }}
+                        <h3>
+                            {% if showing_pure_consumption_data %} Costs
+                            {% elif showing_pure_generation_data %} Revenues
+                            {% else %} Revenues/Costs {% endif %}
+                        </h3>
+                        {{ revenues_costs_series_div | safe }}
+                        {{ revenues_costs_series_script | safe }}
                     </div>
                 </div>
             </div>

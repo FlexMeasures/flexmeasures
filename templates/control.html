@@ -16,7 +16,22 @@
                     <!--For each action the expected value is stated as well as the associated financial risks.-->
                 </div>
                 <h3>Controls</h3>
-                {% block datetimepicker %} {{ super() }} {% endblock %}
+                <form id="resource-form" method="post">
+                    <div class="form-group">
+                        <label class="icon-left" aria-hidden="true">
+                            <img src="/public/icons/time.svg" alt="Time">
+                        </label>
+                        <label class="control-label">Upcoming hour</label>
+                        <div>
+                            <select class="form-control" id="resource" name="resource" onchange="this.form.submit()">
+                                {% for i, j in next24hours|zip(next24hours[1:]) %}
+                                    <option {% if i=="04:00 AM" %} selected="selected"{% endif %}>Between {{i}} and {{j}}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </form>
+
                 <h3>Placed order summary</h3>
                 <table class="table" style="font-size: 100%;">
                     <thead>
@@ -74,6 +89,7 @@
                 <h3>Control actions on asset level (by AGR for SUP)</h3>
                 <div class="todo">
                     This is a mockup of intended functionality (expected: M3) and still subject to change.
+                    Only the upcoming hour between 04:00 AM and 05:00 AM can be selected.
                     <br/>
                     {% if prosumer_mock == "0": %}
                     As the <b>aggregator (A1)</b>, you can check the effects of several actions (of both offshore

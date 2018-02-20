@@ -32,7 +32,7 @@ Note: python3.6-dev, xlrd and fbprophet are used for initialising data only.
 ### Prepare/load data:
 
 * Add meta data: data/assets.json and data/markets.json.
-* Add real data: data/20171120_A1-VPP_DesignDataSetR01.xls (Excel sheet provided by A1 to Seita)
+* Add real data: data/20171120_A1-VPP_DesignDataSetR01.xls & (Excel sheet provided by A1 to Seita)
   as well as data/German day-ahead prices 20140101-20160630.csv (provided by Seita)
   and data/German charging stations 20150101-20150620.csv (provided by Seita).
   You probably also need to create the folder data/pickles.

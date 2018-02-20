@@ -1,7 +1,7 @@
 import os
 import datetime
 import json
-from typing import List, Optional
+from typing import List, Dict, Optional, Union
 
 from flask import request, render_template, session, current_app
 from werkzeug.exceptions import BadRequest
@@ -41,6 +41,27 @@ def get_assets() -> List[Asset]:
     return ASSETS
 
 
+def is_unique_asset(resource: str) -> bool:
+    """Determines whether the resource represents a unique asset."""
+
+    assets = get_assets_by_resource(resource)  # List of unique assets in resource
+    asset_names = [a.name for a in assets]  # list of unique asset names in resource
+    if asset_names == [resource]:
+        return True
+    else:
+        return False
+
+
+def get_unique_asset_type_names(resource: str) -> List[str]:
+    """List unique asset types for the given resource name
+    The resource name is either the name of an asset group or an individual asset."""
+
+    assets = get_assets_by_resource(resource)  # List of unique assets in resource
+    asset_types = list(set([a.asset_type.name for a in assets]))  # list of unique asset type names in resource
+
+    return asset_types
+
+
 def get_assets_by_resource(resource: str) -> List[Asset]:
     """Gather assets which are identified by this resource name.
     The resource name is either the name of an asset group or an individual asset."""
@@ -78,17 +99,40 @@ def get_market_by_resource(resource: str) -> Optional[Market]:
             return market
 
 
-def get_data(resource: str, start: datetime, end: datetime, resolution: str) -> pd.DataFrame:
-    """Get data for one or more assets or markets. Here we also decide on a resolution."""
-    data = None
-    data_keys = []
+def get_data_by_resource(resource: str, start: datetime=None, end: datetime=None, resolution: str=None,
+                         sum_multiple: bool=True) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    """Get data for one or more assets or markets.
+    If the time range parameters are None, they will be gotten from the session.
+    See get_data_vor_assets for more information."""
+    asset_names = []
     for asset in get_assets_by_resource(resource):
-        data_keys.append(asset.name)
+        asset_names.append(asset.name)
     market = get_market_by_resource(resource)
     if market is not None:
-        data_keys.append(market.name)
-    for data_key in data_keys:
-        data_label = "%s_res%s" % (data_key, resolution)
+        asset_names.append(market.name)
+    return get_data_for_assets(asset_names, start, end, resolution, sum_multiple=sum_multiple)
+
+
+def get_data_for_assets(asset_names: List[str], start: datetime=None, end: datetime=None, resolution: str=None,
+                        sum_multiple=True) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    """Get data for one or more assets (also markets).
+    We (lazily) look up by pickle, so we require a list of asset or market names.
+    If the time range parameters are None, they will be gotten from the session.
+    Response is a 2D data frame with the usual columns (y, yhat, ...).
+    If data from multiple assets is retrieved, the results are being summed.
+    If sum_multiple is False, the response will be a dictionary with asset names as keys and data frames as values.
+    Response might be None if no data exists for these assets in this time range."""
+    data = None
+    if start is None or end is None or resolution is None and "resolution" not in session:
+        set_time_range_for_session()
+    if start is None:
+        start = session["start_time"]
+    if end is None:
+        end = session["end_time"]
+    if resolution is None:
+        resolution = session["resolution"]
+    for asset_name in asset_names:
+        data_label = "%s_res%s" % (asset_name, resolution)
         global DATA
         if data_label not in DATA:
             current_app.logger.info("Loading %s data from disk ..." % data_label)
@@ -97,10 +141,17 @@ def get_data(resource: str, start: datetime, end: datetime, resolution: str) -> 
             except FileNotFoundError:
                 raise BadRequest("Sorry, we cannot find any data for the resource \"%s\" ..." % data_label)
         date_mask = (DATA[data_label].index >= start) & (DATA[data_label].index <= end)
-        if data is None:
-            data = DATA[data_label].loc[date_mask]
-        else:
-            data = data + DATA[data_label].loc[date_mask]  # assuming grouping means adding up, might differ for markets
+
+        if sum_multiple is True:  # Here we only build one data frame, summed up if necessary.
+            if data is None:
+                data = DATA[data_label].loc[date_mask]
+            else:
+                data = data + DATA[data_label].loc[date_mask]
+        else:                     # Here we build a dict with data frames.
+            if data is None:
+                data = {asset_name: DATA[data_label].loc[date_mask]}
+            else:
+                data[asset_name] = DATA[data_label].loc[date_mask]
     return data
 
 
@@ -129,7 +180,9 @@ def resolution_to_hour_factor(resolution: str):
     return switch.get(resolution, 1)
 
 
-def is_pure_consumer(resource_name: str):
+def is_pure_consumer(resource_name: str) -> bool:
+    """Return True if the assets represented by this resource are consuming but not producing.
+    Currently only checks the first asset."""
     only_or_first_asset = get_assets_by_resource(resource_name)[0]
     if (only_or_first_asset is not None
             and models.asset_types[only_or_first_asset.asset_type_name].is_consumer
@@ -139,9 +192,26 @@ def is_pure_consumer(resource_name: str):
         return False
 
 
+def is_pure_producer(resource_name: str) -> bool:
+    """Return True if the assets represented by this resource are producing but not consuming.
+    Currently only checks the first asset."""
+    only_or_first_asset = get_assets_by_resource(resource_name)[0]
+    if (only_or_first_asset is not None
+            and models.asset_types[only_or_first_asset.asset_type_name].is_producer
+            and not models.asset_types[only_or_first_asset.asset_type_name].is_consumer):
+        return True
+    else:
+        return False
+
+
 def get_most_recent_quarter() -> datetime:
     now = datetime.datetime.now()
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
+
+
+def get_most_recent_hour() -> datetime:
+    now = datetime.datetime.now()
+    return now.replace(minute=now.minute - (now.minute % 60), second=0, microsecond=0)
 
 
 def get_default_start_time() -> datetime:
@@ -244,7 +314,7 @@ def render_a1vpp_template(html_filename: str, **variables):
     variables["page"] = html_filename.replace(".html", "")
     if "show_datepicker" not in variables:
         variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio", "control")
-    if "load_profile_div" in variables:
+    if "load_profile_div" in variables or "portfolio_plot_div" in variables:
         variables["contains_plots"] = True
         variables["bokeh_css_resources"] = CDN.render_css()
         variables["bokeh_js_resources"] = CDN.render_js()

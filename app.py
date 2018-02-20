@@ -80,7 +80,9 @@ def favicon():
     return send_from_directory(os.path.join(APP.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
+
 APP.register_blueprint(a1_views)
 APP.register_blueprint(a1_error_views)
 
 APP.jinja_env.add_extension('jinja2.ext.do')    # Allow expression statements in templates (e.g. for modifying lists)
+APP.jinja_env.filters['zip'] = zip  # Allow zip function in templates
