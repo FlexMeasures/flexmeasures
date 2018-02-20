@@ -45,9 +45,10 @@
                             <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
                             <th class="text-right noeva">
                                 <span title="Aggregation of the profile of this resource.">
-                                {% if showing_pure_consumption_data %} Load (MWh)
-                                {% elif showing_pure_generation_data %} Generation (MWh)
-                                {% else %} Gen./Load (MWh) {% endif %}
+                                    {% if showing_pure_consumption_data %} Consumption
+                                    {% elif showing_pure_generation_data %} Production
+                                    {% else %} Production {% endif %} <!-- Todo: check for default mode of mixed asset groups -->
+                                    (MWh)
                                 </span>
                             </th>
                             <th class="text-right noeva">

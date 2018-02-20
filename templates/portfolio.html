@@ -22,10 +22,10 @@
                 <table class="table" style="font-size: 100%;">
                     <thead>
                         <tr>
-                            <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
-                            <th><span title="All generation by assets of this type.">Generation (MWh)</span></th>
-                            <th><span title="All consumption by assets of this type.">Load (MWh)</span></th>
-                            <th><span title="The profit/loss achieved by assets of this type (calculated by the price data they are connected with).">Profit/Loss (KRW)</span></th>
+                            <th><label class="icon-left"><img src="static/icons/money.svg" alt="Money"></label></th>
+                            <th><span title="All production by assets of this type.">Production (MWh)</span></th>
+                            <th><span title="All consumption by assets of this type.">Consumption (MWh)</span></th>
+                            <th><span title="The revenue achieved by assets of this type (on the day-ahead market).">Revenue (KRW)</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -39,7 +39,7 @@
                     {% endfor %}
                     {% if asset_types | length > 1 %}
                         <tr style="font-weight: bold;">
-                            <td>Sum</td>
+                            <td>Total</td>
                             <td>{{ "{:,.2f}".format( sum_generation | round(2)) }} MWh</td>
                             <td>{{ "{:,.2f}".format( sum_consumption | round(2)) }} MWh</td>
                             <td>{{ "{:,.2f}".format( sum_profit_loss | round(2)) }} KRW</td>
@@ -96,7 +96,7 @@
                                     <th>Supplier</th>
                                     <th>Aggregator</th>
                                     <!--<th>Energy Service Company</th>-->
-                                    <th>Generation</th>
+                                    <th>Production</th>
                                     <th>Consumption</th>
                                     <th>Profit/Loss</th>
                                     <th>Type of actions</th>
