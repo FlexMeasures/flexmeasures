@@ -183,7 +183,7 @@ def portfolio_view():
                                 x_label="Time (sampled by %s)  "
                                         % freq_label_to_human_readable_label(session["resolution"]),
                                 y_label="%s (in MW)" % plot_label,
-                                legend=show_summed,
+                                legend=titleize(show_summed),
                                 hover_tool=hover)
     fig.plot_height = 450
     fig.plot_width = 750
