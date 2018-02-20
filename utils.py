@@ -78,33 +78,38 @@ def get_market_by_resource(resource: str) -> Optional[Market]:
             return market
 
 
-def get_data_by_resource(resource: str, start: datetime, end: datetime, resolution: str)\
-        -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
-    """Get data for one or more assets or markets."""
+def get_data_by_resource(resource: str, start: datetime=None, end: datetime=None, resolution: str=None,
+                         sum_multiple: bool=True) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    """Get data for one or more assets or markets.
+    If the time range parameters are None, they will be gotten from the session.
+    See get_data_vor_assets for more information."""
     asset_names = []
     for asset in get_assets_by_resource(resource):
         asset_names.append(asset.name)
     market = get_market_by_resource(resource)
     if market is not None:
         asset_names.append(market.name)
-    return get_data_for_assets(asset_names, start, end, resolution)
+    return get_data_for_assets(asset_names, start, end, resolution, sum_multiple=sum_multiple)
 
 
-def get_data_for_assets_for_session_time_range(asset_names: List[str]) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
-    """Get data for one or more assets (also markets).
-    This method is a shortcut for leaving off time specs - this method will use the information in the session."""
-    return get_data_for_assets(asset_names, session["start_time"], session["end_time"], session["resolution"])
-
-
-def get_data_for_assets(asset_names: List[str], start: datetime, end: datetime, resolution: str,
+def get_data_for_assets(asset_names: List[str], start: datetime=None, end: datetime=None, resolution: str=None,
                         sum_multiple=True) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """Get data for one or more assets (also markets).
     We (lazily) look up by pickle, so we require a list of asset or market names.
+    If the time range parameters are None, they will be gotten from the session.
     Response is a 2D data frame with the usual columns (y, yhat, ...).
     If data from multiple assets is retrieved, the results are being summed.
     If sum_multiple is False, the response will be a dictionary with asset names as keys and data frames as values.
     Response might be None if no data exists for these assets in this time range."""
     data = None
+    if start is None or end is None or resolution is None and "resolution" not in session:
+        set_time_range_for_session()
+    if start is None:
+        start = session["start_time"]
+    if end is None:
+        end = session["end_time"]
+    if resolution is None:
+        resolution = session["resolution"]
     for asset_name in asset_names:
         data_label = "%s_res%s" % (asset_name, resolution)
         global DATA
@@ -294,7 +299,6 @@ def render_a1vpp_template(html_filename: str, **variables):
     variables["resolution_human"] = freq_label_to_human_readable_label(session.get("resolution", ""))
     variables["next24hours"] = [(get_most_recent_hour() + datetime.timedelta(hours=i)).strftime("%I:00 %p")
                                 for i in range(1, 26)]
-
 
     # TODO: remove when we stop mocking control.html
     if variables["page"] == "control":

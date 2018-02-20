@@ -11,8 +11,8 @@ from bokeh.util.string import encode_utf8
 from bokeh.palettes import brewer
 
 from utils import (set_time_range_for_session, render_a1vpp_template, get_assets,
-                   get_data_by_resource, get_data_for_assets, get_data_for_assets_for_session_time_range,
-                   freq_label_to_human_readable_label, mean_absolute_error, mean_absolute_percentage_error,
+                   get_data_by_resource, get_data_for_assets, freq_label_to_human_readable_label,
+                   mean_absolute_error, mean_absolute_percentage_error,
                    weighted_absolute_percentage_error, resolution_to_hour_factor, get_assets_by_resource,
                    is_pure_consumer, is_pure_producer, forecast_horizons_for, get_most_recent_quarter,
                    extract_forecasts)
@@ -107,12 +107,12 @@ def portfolio_view():
     consumption_per_asset_type = {}
     profit_loss_per_asset_type = {}
 
-    prices_data = get_data_for_assets(["epex_da"], session["start_time"], session["end_time"], session["resolution"])
+    prices_data = get_data_for_assets(["epex_da"])
 
     load_hour_factor = resolution_to_hour_factor(session["resolution"])
 
     for asset in assets:
-        load_data = get_data_for_assets([asset.name], session["start_time"], session["end_time"], session["resolution"])
+        load_data = get_data_for_assets([asset.name])
         profit_loss_per_asset[asset.name] = pd.Series(load_data.y * load_hour_factor * prices_data.y,
                                                       index=load_data.index).sum()
         if is_pure_consumer(asset.name):
@@ -132,14 +132,13 @@ def portfolio_view():
         profit_loss_per_asset_type[neat_asset_type_name] += profit_loss_per_asset[asset.name]
 
     # get data for stacked plot for the selected period
-    stack_assets = []
-    sum_assets = []
 
     def only_positive(df: pd.DataFrame) -> None:
         df[df < 0] = 0
 
-    def only_negative(df: pd.DataFrame) -> None:
+    def only_negative_abs(df: pd.DataFrame) -> None:
         df[df > 0] = 0
+        df[:] = df * -1
 
     def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
         if df is None:
@@ -156,22 +155,23 @@ def portfolio_view():
         df_stack = pd.concat([df_bottom, df_top], ignore_index=True)
         return df_stack
 
-    show_stacked = request.values.get("show_stacked", "consumption")
-    if show_stacked == "consumption":
-        show_summed = "production"
-        stack_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
-        sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
-        plot_label = "Stacked Consumption vs aggregated Generation"
-        stacked_value_mask = only_negative
-        summed_value_mask = only_positive
-    else:
+    show_stacked = request.values.get("show_stacked", "production")
+    if show_stacked == "production":
         show_summed = "consumption"
-        stack_assets = [a.name for a in assets if a.asset_type.is_producer is True]
+        stack_types = [t.name for t in asset_types.values() if t.is_producer is True]
         sum_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
         plot_label = "Stacked Generation vs aggregated Consumption"
         stacked_value_mask = only_positive
-        summed_value_mask = only_negative
-    df_sum = data_or_zeroes(get_data_for_assets_for_session_time_range(sum_assets))
+        summed_value_mask = only_negative_abs
+    else:
+        show_summed = "production"
+        stack_types = [t.name for t in asset_types.values() if t.is_consumer is True]
+        sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
+        plot_label = "Stacked Consumption vs aggregated Generation"
+        stacked_value_mask = only_negative_abs
+        summed_value_mask = only_positive
+
+    df_sum = data_or_zeroes(get_data_for_assets(sum_assets))
     summed_value_mask(df_sum)
     hover = plotting.create_hover_tool("MW", session.get("resolution"))
     fig = plotting.create_graph(df_sum.y,
@@ -185,19 +185,27 @@ def portfolio_view():
     fig.plot_width = 750
     fig.sizing_mode = "fixed"
 
-    df_stacked_data = get_data_for_assets_for_session_time_range(stack_assets)
-    # stacked_value_mask(df_stack)
-    # also zeroes on df_stack
-    # use pd.cumsum method, see for an example:http://bokeh.pydata.org/en/latest/docs/gallery/brewer.html
+    df_stacked_data = pd.DataFrame(index=df_sum.index, columns=stack_types)
+    for st in stack_types:
+        df_stacked_data[st] = get_data_by_resource(pluralize(st))
+    stacked_value_mask(df_stacked_data)
+    df_stacked_data = data_or_zeroes(df_stacked_data)
     df_stacked_areas = stacked(df_stacked_data)
 
-    colors = brewer['Spectral'][df_stacked_areas.shape[1]]
-    x2 = np.hstack((df_stacked_data.index[::-1], df_stacked_data.index))
+    num_areas = df_stacked_areas.shape[1]
+    if num_areas <= 2:
+        colors = ['#99d594', '#dddd9d']
+    else:
+        colors = brewer['Spectral'][num_areas]
+    x_points = np.hstack((df_stacked_data.index[::-1], df_stacked_data.index))
 
     fig.grid.minor_grid_line_color = '#eeeeee'
 
-    fig.patches([x2] * df_stacked_areas.shape[1], [df_stacked_areas[c].values for c in df_stacked_areas],
-                color=colors, alpha=0.8, line_color=None)
+    #fig.patches([x2] * df_stacked_areas.shape[1], [df_stacked_areas[c].values for c in df_stacked_areas],
+    #            color=colors, alpha=0.8, line_color=None, legend="stack")
+    for a, area in enumerate(df_stacked_areas):
+        fig.patch(x_points, df_stacked_areas[area].values,
+                  color=colors[a], alpha=0.8, line_color=None, legend=titleize(df_stacked_data.columns[a]))
 
     portfolio_plot_script, portfolio_plot_div = components(fig)
 
@@ -214,7 +222,8 @@ def portfolio_view():
                                  sum_consumption=sum(consumption_per_asset_type.values()),
                                  sum_profit_loss=sum(profit_loss_per_asset_type.values()),
                                  portfolio_plot_script=portfolio_plot_script,
-                                 portfolio_plot_div=portfolio_plot_div)
+                                 portfolio_plot_div=portfolio_plot_div,
+                                 alt_stacking=show_summed)
 
 
 # Analytics view
@@ -250,8 +259,7 @@ def analytics_view():
     showing_pure_generation_data = is_pure_producer(session["resource"])
 
     # loads
-    load_data = get_data_by_resource(session["resource"],
-                                     session["start_time"], session["end_time"], session["resolution"])
+    load_data = get_data_by_resource(session["resource"])
     if load_data is None or load_data.size == 0:
         raise BadRequest("Not enough data available for resource \"%s\" in the time range %s to %s"
                          % (session["resource"], session["start_time"], session["end_time"]))
@@ -276,8 +284,7 @@ def analytics_view():
     load_hour_factor = resolution_to_hour_factor(session["resolution"])
 
     # prices
-    prices_data = get_data_for_assets(["epex_da"],
-                                      session["start_time"], session["end_time"], session["resolution"])
+    prices_data = get_data_for_assets(["epex_da"])
     prices_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
     prices_data_to_show = prices_data.loc[prices_data.index < get_most_recent_quarter().replace(year=2015)]
     prices_forecast_data = extract_forecasts(prices_data)
