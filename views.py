@@ -15,7 +15,7 @@ from utils import (set_time_range_for_session, render_a1vpp_template, get_assets
                    mean_absolute_error, mean_absolute_percentage_error,
                    weighted_absolute_percentage_error, resolution_to_hour_factor, get_assets_by_resource,
                    is_pure_consumer, is_pure_producer, forecast_horizons_for, get_most_recent_quarter,
-                   extract_forecasts)
+                   get_most_recent_hour, extract_forecasts)
 import plotting
 import models
 
@@ -368,7 +368,9 @@ def analytics_view():
 @a1_views.route('/control', methods=['GET', 'POST'])
 def control_view():
     check_prosumer_mock()
+    next24hours = [(get_most_recent_hour() + timedelta(hours=i)).strftime("%I:00 %p") for i in range(1, 26)]
     return render_a1vpp_template("control.html",
+                                 next24hours=next24hours,
                                  prosumer_mock=session.get("prosumer_mock", "0"))
 
 

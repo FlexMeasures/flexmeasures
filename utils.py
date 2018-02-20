@@ -297,8 +297,6 @@ def render_a1vpp_template(html_filename: str, **variables):
         variables["contains_plots"] = False
     variables["resolution"] = session.get("resolution", "")
     variables["resolution_human"] = freq_label_to_human_readable_label(session.get("resolution", ""))
-    variables["next24hours"] = [(get_most_recent_hour() + datetime.timedelta(hours=i)).strftime("%I:00 %p")
-                                for i in range(1, 26)]
 
     # TODO: remove when we stop mocking control.html
     if variables["page"] == "control":
