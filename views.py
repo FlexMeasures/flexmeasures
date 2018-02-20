@@ -38,7 +38,7 @@ def filter_mock_prosumer_assets(assets: List[models.Asset]) -> List[models.Asset
     session_prosumer = session.get("prosumer_mock")
     if session_prosumer == "vehicles":
         return [a for a in assets if a.asset_type.name == "charging_station"]
-    if session_prosumer == "building":
+    if session_prosumer == "buildings":
         return [a for a in assets if a.asset_type.name == "building"]
     if session_prosumer == "solar":
         return [a for a in assets if a.asset_type.name == "solar"]
@@ -134,7 +134,7 @@ def portfolio_view():
     # get data for stacked plot for the selected period
 
     def only_positive(df: pd.DataFrame) -> None:
-        df[df.fillna(0) < 0] = 0
+        df[df < 0] = 0
 
     def only_negative_abs(df: pd.DataFrame) -> None:
         # If this functions fails, a possible solution may be to stack the dataframe before
@@ -159,7 +159,10 @@ def portfolio_view():
         df_stack = pd.concat([df_bottom, df_top], ignore_index=True)
         return df_stack
 
-    show_stacked = request.values.get("show_stacked", "production")
+    default_stack_side = "production"
+    if session.get("prosumer_mock", "0") in ("buildings", "vehicles"):
+        default_stack_side = "consumption"
+    show_stacked = request.values.get("show_stacked", default_stack_side)
     if show_stacked == "production":
         show_summed = "consumption"
         stack_types = [t.name for t in asset_types.values() if t.is_producer is True]
@@ -186,7 +189,7 @@ def portfolio_view():
                                 x_label="Time (sampled by %s)"
                                         % freq_label_to_human_readable_label(session["resolution"]),
                                 y_label="%s (in MW)" % plot_label,
-                                legend=show_summed,
+                                legend=titleize(show_summed),
                                 hover_tool=hover)
     fig.plot_height = 450
     fig.plot_width = 750
@@ -408,7 +411,9 @@ def analytics_view():
 @a1_views.route('/control', methods=['GET', 'POST'])
 def control_view():
     check_prosumer_mock()
+    next24hours = [(get_most_recent_hour() + timedelta(hours=i)).strftime("%I:00 %p") for i in range(1, 26)]
     return render_a1vpp_template("control.html",
+                                 next24hours=next24hours,
                                  prosumer_mock=session.get("prosumer_mock", "0"))
 
 
