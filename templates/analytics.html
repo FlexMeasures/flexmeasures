@@ -43,7 +43,7 @@
                     <thead>
                         <tr>
                             <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
-                            <th class="text-right noeva">
+                            <th>
                                 <span title="Aggregation of the profile of this resource.">
                                     {% if showing_pure_consumption_data %} Consumption
                                     {% elif showing_pure_generation_data %} Production
@@ -51,10 +51,8 @@
                                     (MWh)
                                 </span>
                             </th>
-                            <th class="text-right noeva">
-                                <span title="The prices which are applicable to this resource.">Price (KRW/MWh)</span>
-                            </th>
-                            <th class="text-right noeva">
+                            <th><span title="The prices which are applicable to this resource.">Price (KRW/MWh)</span></th>
+                            <th>
                                 {% if showing_pure_consumption_data %}
                                 <span title="The costs which {{ resource }} occurred or might occur."> Costs (KRW)</span>
                                 {% elif showing_pure_generation_data %}
