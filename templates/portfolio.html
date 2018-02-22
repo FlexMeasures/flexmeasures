@@ -32,7 +32,7 @@
                     {% for asset_type_name in asset_types %}
                         <tr>
                             <td>{{ asset_type_name }}</td>
-                            <td>{% if asset_types[asset_type_name].is_producer %}{{ "{:,.2f}".format( generation_per_asset_type[asset_type_name]  | round(2)) }} {% endif %}</td>
+                            <td>{% if asset_types[asset_type_name].is_producer %}{{ "{:,.2f}".format( production_per_asset_type[asset_type_name]  | round(2)) }} {% endif %}</td>
                             <td>{% if asset_types[asset_type_name].is_consumer %}{{ "{:,.2f}".format( consumption_per_asset_type[asset_type_name]  | round(2)) }} {% endif %}</td>
                             <td>{{ "{:,.2f}".format( profit_loss_per_asset_type[asset_type_name] | round(2)) }}</td>
                         </tr>
@@ -40,7 +40,7 @@
                     {% if asset_types | length > 1 %}
                         <tr style="font-weight: bold;">
                             <td>Total</td>
-                            <td>{{ "{:,.2f}".format( sum_generation | round(2)) }}</td>
+                            <td>{{ "{:,.2f}".format( sum_production | round(2)) }}</td>
                             <td>{{ "{:,.2f}".format( sum_consumption | round(2)) }}</td>
                             <td>{{ "{:,.2f}".format( sum_profit_loss | round(2)) }}</td>
                         </tr>
@@ -132,7 +132,7 @@
                                     <td>
                                         {% if asset.asset_type.is_producer %}
                                         <a href="analytics?resource={{ asset.name | urlencode }}">
-                                            {{ generation_per_asset[asset.name] | round(2) }} MWh
+                                            {{ production_per_asset[asset.name] | round(2) }} MWh
                                         </a>
                                         {% endif %}
                                     </td>

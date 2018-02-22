@@ -98,12 +98,12 @@ def portfolio_view():
         assets = filter_mock_prosumer_assets(assets)
 
     # get data for summaries over the selected period
-    generation_per_asset = dict.fromkeys([a.name for a in assets])
+    production_per_asset = dict.fromkeys([a.name for a in assets])
     consumption_per_asset = dict.fromkeys([a.name for a in assets])
     profit_loss_per_asset = dict.fromkeys([a.name for a in assets])
 
     asset_types = {}
-    generation_per_asset_type = {}
+    production_per_asset_type = {}
     consumption_per_asset_type = {}
     profit_loss_per_asset_type = {}
 
@@ -116,18 +116,18 @@ def portfolio_view():
         profit_loss_per_asset[asset.name] = pd.Series(load_data.y * load_hour_factor * prices_data.y,
                                                       index=load_data.index).sum()
         if is_pure_consumer(asset.name):
-            generation_per_asset[asset.name] = 0
+            production_per_asset[asset.name] = 0
             consumption_per_asset[asset.name] = -1 * pd.Series(load_data.y).sum() * load_hour_factor
         else:
-            generation_per_asset[asset.name] = pd.Series(load_data.y).sum() * load_hour_factor
+            production_per_asset[asset.name] = pd.Series(load_data.y).sum() * load_hour_factor
             consumption_per_asset[asset.name] = 0
         neat_asset_type_name = titleize(asset.asset_type_name)
-        if neat_asset_type_name not in generation_per_asset_type:
+        if neat_asset_type_name not in production_per_asset_type:
             asset_types[neat_asset_type_name] = asset.asset_type
-            generation_per_asset_type[neat_asset_type_name] = 0.
+            production_per_asset_type[neat_asset_type_name] = 0.
             consumption_per_asset_type[neat_asset_type_name] = 0.
             profit_loss_per_asset_type[neat_asset_type_name] = 0.
-        generation_per_asset_type[neat_asset_type_name] += generation_per_asset[asset.name]
+        production_per_asset_type[neat_asset_type_name] += production_per_asset[asset.name]
         consumption_per_asset_type[neat_asset_type_name] += consumption_per_asset[asset.name]
         profit_loss_per_asset_type[neat_asset_type_name] += profit_loss_per_asset[asset.name]
 
@@ -167,14 +167,14 @@ def portfolio_view():
         show_summed = "consumption"
         stack_types = [t.name for t in asset_types.values() if t.is_producer is True]
         sum_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
-        plot_label = "Stacked Generation vs aggregated Consumption"
+        plot_label = "Stacked Production vs aggregated Consumption"
         stacked_value_mask = only_positive
         summed_value_mask = only_negative_abs
     else:
         show_summed = "production"
         stack_types = [t.name for t in asset_types.values() if t.is_consumer is True]
         sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
-        plot_label = "Stacked Consumption vs aggregated Generation"
+        plot_label = "Stacked Consumption vs aggregated Production"
         stacked_value_mask = only_negative_abs
         summed_value_mask = only_positive
 
@@ -222,13 +222,13 @@ def portfolio_view():
     return render_a1vpp_template("portfolio.html", prosumer_mock=session.get("prosumer_mock", "0"),
                                  assets=assets,
                                  asset_types=asset_types,
-                                 generation_per_asset=generation_per_asset,
+                                 production_per_asset=production_per_asset,
                                  consumption_per_asset=consumption_per_asset,
                                  profit_loss_per_asset=profit_loss_per_asset,
-                                 generation_per_asset_type=generation_per_asset_type,
+                                 production_per_asset_type=production_per_asset_type,
                                  consumption_per_asset_type=consumption_per_asset_type,
                                  profit_loss_per_asset_type=profit_loss_per_asset_type,
-                                 sum_generation=sum(generation_per_asset_type.values()),
+                                 sum_production=sum(production_per_asset_type.values()),
                                  sum_consumption=sum(consumption_per_asset_type.values()),
                                  sum_profit_loss=sum(profit_loss_per_asset_type.values()),
                                  portfolio_plot_script=portfolio_plot_script,
