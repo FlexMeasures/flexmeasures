@@ -39,7 +39,7 @@
                 {% block datetimepicker %} {{ super() }} {% endblock %}
                 {% block forecastpicker %} {{ super() }} {% endblock %}
                 <h3>Metrics</h3>
-                <table class="table" style="font-size: 100%;">
+                <table class="table text-right" style="font-size: 100%;">
                     <thead>
                         <tr>
                             <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
@@ -65,36 +65,36 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td>
+                            <td class="text-left">
                                 Realised
                             </td>
-                            <td>{{ "{:,}".format( realised_load_in_mwh | round ) }}</td>
-                            <td>{{ realised_unit_price | round(2) }}</td>
+                            <td>{{ "{:,.3f}".format( realised_load_in_mwh | round(3) ) }}</td>
+                            <td>{{ "{:,.2f}".format( realised_unit_price | round(2)) }}</td>
                             <td>{{ "{:,.2f}".format( realised_revenues_costs | round(2)) }}</td>
                         </tr>
                         <tr>
-                            <td>
+                            <td class="text-left">
                                 Expected (forecast per {{ resolution_human }})
                             </td>
-                            <td>{{ "{:,}".format(expected_load_in_mwh | round ) }}</td>
-                            <td>{{ expected_unit_price | round(2) }}</td>
-                            <td> -- </td>
+                            <td>{{ "{:,.3f}".format(expected_load_in_mwh | round(3) ) }}</td>
+                            <td>{{ "{:,.2f}".format(expected_unit_price | round(2) ) }}</td>
+                            <td>{{ "{:,.2f}".format(expected_revenues_costs | round(2) ) }}</td>
                         </tr>
                         <tr>
-                            <td>
+                            <td class="text-left">
                                 MAE (per {{ resolution_human }})
                             </td>
-                            <td>{{ mae_load_in_mwh | round(2) }}</td>
-                            <td>{{ mae_unit_price | round(2) }}</td>
-                            <td> -- </td>
+                            <td>{{ "{:,.3f}".format( mae_load_in_mwh | round(3)) }}</td>
+                            <td>{{ "{:,.2f}".format( mae_unit_price | round(2)) }}</td>
+                            <td>{{ "{:,.2f}".format( mae_revenues_costs | round(2)) }}</td>
                         </tr>
                         <tr>
-                            <td>
+                            <td class="text-left">
                                 WAPE
                             </td>
-                            <td>{{ wape_load | round(2) }}%</td>
-                            <td>{{ wape_unit_price | round(2) }}%</td>
-                            <td> -- </td>
+                            <td>{{ "{:,.1f}".format( wape_load | round(1)) }}</td>
+                            <td>{{ "{:,.1f}".format( wape_unit_price | round(1)) }}</td>
+                            <td>{{ "{:,.2f}".format( wape_revenues_costs | round(2)) }}</td>
                         </tr>
                     </tbody>
                 </table>

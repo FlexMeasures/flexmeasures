@@ -266,7 +266,7 @@ def analytics_view():
 
     # This is useful information - we might want to adapt the sign of the data and labels.
     showing_pure_consumption_data = is_pure_consumer(session["resource"])
-    showing_pure_generation_data = is_pure_producer(session["resource"])
+    showing_pure_production_data = is_pure_producer(session["resource"])
 
     # loads
     load_data = get_data_by_resource(session["resource"])
@@ -365,6 +365,12 @@ def analytics_view():
     else:
         rev_cost_str = "Revenues"
     rev_cost_hover = plotting.create_hover_tool("KRW", session.get("resolution"))
+
+    # more metrics
+    mae_revenues_costs = mean_absolute_error(rev_cost_data.values, rev_cost_forecasts.yhat)
+    mape_revenues_costs = mean_absolute_percentage_error(rev_cost_data.values, rev_cost_forecasts.yhat)
+    wape_revenues_costs = weighted_absolute_percentage_error(rev_cost_data.values, rev_cost_forecasts.yhat)
+
     # TODO: get the 2015 hack out of here when we use live data
     rev_costs_data_to_show = rev_cost_data.loc[rev_cost_data.index < get_most_recent_quarter().replace(year=2015)]
     rev_cost_fig = plotting.create_graph(rev_costs_data_to_show,
@@ -390,18 +396,22 @@ def analytics_view():
                                  realised_revenues_costs=rev_cost_data.values.sum(),
                                  expected_load_in_mwh=expected_load_in_mwh.sum(),
                                  expected_unit_price=prices_forecast_data.yhat.mean(),
+                                 expected_revenues_costs=rev_cost_forecasts.yhat.sum(),
                                  mae_load_in_mwh=mae_load_in_mwh,
                                  mae_unit_price=mae_unit_price,
+                                 mae_revenues_costs=mae_revenues_costs,
                                  mape_load=mape_load,
                                  mape_unit_price=mape_unit_price,
+                                 mape_revenues_costs=mape_revenues_costs,
                                  wape_load=wape_load,
                                  wape_unit_price=wape_unit_price,
+                                 wape_revenues_costs=wape_revenues_costs,
                                  assets=assets,
                                  asset_groups=list(zip(groups_with_assets,
                                                        [titleize(gwa) for gwa in groups_with_assets])),
                                  resource=session["resource"],
                                  showing_pure_consumption_data=showing_pure_consumption_data,
-                                 showing_pure_generation_data=showing_pure_generation_data,
+                                 showing_pure_production_data=showing_pure_production_data,
                                  prosumer_mock=session.get("prosumer_mock", "0"),
                                  forecast_horizons=forecast_horizons_for(session["resolution"]),
                                  active_forecast_horizon=session["forecast_horizon"])
