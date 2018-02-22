@@ -4,6 +4,7 @@ from logging.config import dictConfig as loggingDictConfig
 
 from flask import Flask
 from flask import send_from_directory
+from flask_sslify import SSLify
 
 from views import a1_views
 from error_views import a1_error_views
@@ -64,6 +65,7 @@ a1vpp_logging_config = {
 
 APP = Flask(__name__)
 
+sslify = SSLify(APP)
 install_secret_key(APP)
 
 APP.config['SESSION_TYPE'] = 'filesystem'

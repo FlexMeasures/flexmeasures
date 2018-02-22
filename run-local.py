@@ -6,7 +6,7 @@ Run the A1 VPP application locally.
 Best to use in a development setup. A professional web server should be handed the APP object to use in a WSGI context.
 """
 
-DEBUG = False
+DEBUG = True  # if False, Flask-Sslify takes over
 
 if __name__ == '__main__':
 
