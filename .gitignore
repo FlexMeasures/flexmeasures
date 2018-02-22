@@ -1,4 +1,5 @@
 data
 instance
+static/documentation
 venv
 notebooks/.ipynb_checkpoints/
