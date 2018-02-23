@@ -6,8 +6,8 @@ from flask import Flask
 from flask import send_from_directory
 from flask_sslify import SSLify
 
-from views import a1_views
-from error_views import a1_error_views
+from views import bvp_views
+from views import bvp_error_views
 
 """
 Prepare the Flask application object, configure logger and session.
@@ -33,7 +33,7 @@ def install_secret_key(app, filename='secret_key'):
         sys.exit(1)
 
 
-a1vpp_logging_config = {
+bvp_logging_config = {
     'version': 1,
     'formatters': {
         'default': {
@@ -50,11 +50,11 @@ a1vpp_logging_config = {
             'class': 'logging.handlers.RotatingFileHandler',
             'level': 'WARNING',
             'formatter': 'default',
-            'filename': 'a1-vpp-errors.log'
+            'filename': 'bvp-errors.log'
         }
     },
     'loggers': {
-        'a1-vpp': {
+        'bvp': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
             'propagate': True
@@ -71,10 +71,10 @@ install_secret_key(APP)
 APP.config['SESSION_TYPE'] = 'filesystem'
 
 APP.config['LOGGER_HANDLER_POLICY'] = 'always'  # 'always' (default), 'never',  'production', 'debug'
-APP.config['LOGGER_NAME'] = 'a1-vpp'  # define which logger to use for Flask
+APP.config['LOGGER_NAME'] = 'bvp'  # define which logger to use for Flask
 # For some reason, we first need to initialise Flask's logger so our config will take effect:
 assert APP.logger
-loggingDictConfig(a1vpp_logging_config)
+loggingDictConfig(bvp_logging_config)
 
 
 @APP.route('/favicon.ico')
@@ -83,8 +83,8 @@ def favicon():
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
-APP.register_blueprint(a1_views)
-APP.register_blueprint(a1_error_views)
+APP.register_blueprint(bvp_views)
+APP.register_blueprint(bvp_error_views)
 
 APP.jinja_env.add_extension('jinja2.ext.do')    # Allow expression statements in templates (e.g. for modifying lists)
 APP.jinja_env.filters['zip'] = zip  # Allow zip function in templates

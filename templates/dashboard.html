@@ -50,11 +50,12 @@
             <div class="col-sm-3 top-bottom">
                 <h3>About</h3>
                 <div class="justify">
-                    This is a Virtual Power Plant (VPP) platform for Aggregators and Energy Service Companies operating on Jeju island.
-                    The VPP consists of many assets (energy resources) located on the island, whose electrical load are monitored and forecasted by the platform.
-                    The platform also monitors and forecasts market prices for electricity.
-                    Finally, the platform offers various control options over Active Demand & Supply from flexible assets within the platform.
-                    <!--For each possible control action, the user is informed on its expected value and the associated financial risks.-->
+                    This is the Balancing Valorisation Plaform (BVP) for Aggregators and Energy Service Companies operating on Jeju island.
+
+                    The BVP is a tool for scheduling balancing actions on behalf of the connected asset owners.
+                    Its purpose is to offer these balancing actions as one aggregated service to energy markets, realising the highest possible value for its users.
+                    It fulfills this purpose with four services: automation, insight, autonomy, and profit sharing.
+
                 </div>
                 <div class="todo">
                     <h3>To do</h3>
@@ -91,7 +92,7 @@
             <div class="col-sm-9">
                 <div class="row eq-height">
                     <div class="col-sm-12">
-                        <h3>{% if not prosumer_mock == "0": %}VPP status:{% else %}Status of my assets:{% endif%}
+                        <h3>{% if not prosumer_mock == "0": %}BVP status:{% else %}Status of my assets:{% endif%}
                         </h3>
 
                         <div id="mapid"></div>
@@ -109,7 +110,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>{% if not prosumer_mock: %}VPP total:{% else %}My assets:{% endif%}</td>
+                                    <td>{% if not prosumer_mock: %}BVP total:{% else %}My assets:{% endif%}</td>
 
                                     {% for asset_type in asset_counts_per_pluralised_type: %}
                                         {% if asset_counts_per_pluralised_type[asset_type] > 0 %}

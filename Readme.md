@@ -1,26 +1,26 @@
-# AI VPP
+# Balancing Valorisation Platform (BVP)
 
-This is Seita's implementation of the VPP pilot of A1.
+This is Seita's implementation of the BVP pilot of A1.
 
 ## Getting Started
 
 ### Make a secret key for sessions:
 
-    mkdir -p /path/to/a1-vpp/instance
-    head -c 24 /dev/urandom > /path/to/a1-vpp/instance/secret_key
+    mkdir -p /path/to/bvp/instance
+    head -c 24 /dev/urandom > /path/to/bvp/instance/secret_key
 
 ### Dependencies using Anaconda:
 * Install Anaconda for Python3.6+
-* Make a virtual environment: `conda create --name a1-venv`
-* Activate it: `source activate a1-venv`
+* Make a virtual environment: `conda create --name bvp-venv`
+* Activate it: `source activate bvp-venv`
 * Install dependencies:
 
       conda install flask bokeh pandas==0.22.0 iso8601 xlrd inflection Flask-SSLify 
       conda install -c conda-forge fbprophet
 
 ### Dependencies using plain pip:
-* Make a virtual environment: `python3.6 -m venv a1-venv` or use a different tool like `mkvirtualenv`.
-* Activate it: `source a1-venv/bin/activate`
+* Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`.
+* Activate it: `source bvp-venv/bin/activate`
 * Install dependencies:
 
       sudo apt-get install python3.6-dev
