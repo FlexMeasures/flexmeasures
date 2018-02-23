@@ -7,8 +7,6 @@ import pandas as pd
 import inflection
 from inflection import pluralize, titleize
 
-from utils import data_access
-
 
 # Time resolutions
 resolutions = ["15T", "1h", "1d", "1w"]
@@ -135,6 +133,16 @@ class Asset:
             return 0
         return min(round((load_in_mw / self.capacity_in_mw) * 100, 2), 100)
 
+    @property
+    def is_pure_consumer(self) -> bool:
+        """Return True if this asset is consuming but not producing."""
+        return self.asset_type.is_consumer and not self.asset_type.is_producer
+
+    @property
+    def is_pure_producer(self) -> bool:
+        """Return True if this asset is producing but not consuming."""
+        return self.asset_type.is_producer and not self.asset_type.is_consumer
+
     def to_dict(self) -> Dict[str, str]:
         return dict(name=self.name,
                     display_name=self.display_name,
@@ -225,95 +233,3 @@ market_types = dict(
     day_ahead=MarketType("day_ahead", daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True)
 )
 
-
-class Resource:
-    """
-    This class represents a resource, which holds not more data than a resource name.
-    A resource is an umbrella term:
-
-    * It can be one asset / market.
-    * It can be a group of assets / markets.
-
-    This class provides helpful functions to get from resource name to assets.
-    TODO: The link to markets still needs some care (best to do that once we have modeled markets better)
-    """
-
-    _ASSETS: List[Asset] = None
-
-    def __init__(self, name):
-        if name is None or name == "":
-            raise ModelException("Empty name passed (%s)" % name)
-        self.name = name
-
-    @property
-    def assets(self) -> List[Asset]:
-        """Gather assets (lazily) which are identified by this resource name.
-        The resource name is either the name of an asset group or an individual asset."""
-        if self._ASSETS is None:
-            self._ASSETS = data_access.get_assets()
-        if self.name in asset_groups:
-            resource_assets = set()
-            asset_queries = asset_groups[self.name]
-            for query in asset_queries:
-                for asset in self._ASSETS:
-                    if hasattr(asset, query.attr) and getattr(asset, query.attr, None) == query.val:
-                        resource_assets.add(asset)
-            if len(resource_assets) > 0:
-                return list(resource_assets)
-        for asset in self._ASSETS:
-            if asset.name == self.name:
-                return [asset]
-        return []
-
-    @property
-    def is_pure_consumer(self) -> bool:
-        """Return True if the assets represented by this resource are consuming but not producing.
-        Currently only checks the first asset."""
-        only_or_first_asset = self.assets[0]
-        if (only_or_first_asset is not None
-                and asset_types[only_or_first_asset.asset_type_name].is_consumer
-                and not asset_types[only_or_first_asset.asset_type_name].is_producer):
-            return True
-        else:
-            return False
-
-    def is_pure_producer(self) -> bool:
-        """Return True if the assets represented by this resource are producing but not consuming.
-        Currently only checks the first asset."""
-        only_or_first_asset = self.assets[0]
-        if (only_or_first_asset is not None
-                and asset_types[only_or_first_asset.asset_type_name].is_producer
-                and not asset_types[only_or_first_asset.asset_type_name].is_consumer):
-            return True
-        else:
-            return False
-
-    @property
-    def is_unique_asset(self) -> bool:
-        """Determines whether the resource represents a unique asset."""
-        return [self.name] == [a.name for a in self.assets]
-
-    @property
-    def unique_asset_type_names(self) -> List[str]:
-        """Return list of unique asset types represented by this resoure."""
-        return list(set([a.asset_type.name for a in self.assets]))  # list of unique asset type names in resource
-
-    def get_market(self) -> Optional[Market]:
-        """Find a market. TODO: support market grouping (see models.market_groups)."""
-        markets = data_access.get_markets()
-        for market in markets:
-            if market.name == self.name:
-                return market
-
-    def get_data(self, start: datetime=None, end: datetime=None, resolution: str=None,
-                 sum_multiple: bool=True) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
-        """Get data for one or more assets or markets.
-        If the time range parameters are None, they will be gotten from the session.
-        See get_data_vor_assets for more information."""
-        asset_names = []
-        for asset in self.assets:
-            asset_names.append(asset.name)
-        market = self.get_market()
-        if market is not None:
-            asset_names.append(market.name)
-        return data_access.get_data_for_assets(asset_names, start, end, resolution, sum_multiple=sum_multiple)

@@ -1,8 +1,10 @@
 """
 Utils for accessing data.
+Assets, markets meta data as well as the actual numbers are lazily loaded in here.
+Also, the Resource class
 """
 
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional
 import json
 import os
 import datetime
@@ -11,7 +13,7 @@ from flask import session, current_app
 from werkzeug.exceptions import BadRequest
 import pandas as pd
 
-from models import Asset, Market, resolutions
+from models import Asset, Market, resolutions, asset_groups
 from utils import time_utils
 
 
@@ -106,3 +108,82 @@ def extract_forecasts(df: pd.DataFrame) -> pd.DataFrame:
                          "yhat_%s_upper" % horizon: "yhat_upper",
                          "yhat_%s_lower" % horizon:  "yhat_lower"}
     return df.rename(forecast_renaming, axis="columns")[forecast_columns]
+
+
+class Resource:
+    """
+    This class represents a resource, which holds not more data than a resource name.
+    A resource is an umbrella term:
+
+    * It can be one asset / market.
+    * It can be a group of assets / markets.
+
+    This class provides helpful functions to get from resource name to assets.
+    TODO: The link to markets still needs some care (best to do that once we have modeled markets better)
+    """
+
+    _ASSETS: List[Asset] = None
+
+    def __init__(self, name):
+        if name is None or name == "":
+            raise Exception("Empty name passed (%s)" % name)
+        self.name = name
+
+    def to_json(self) -> str:
+        return self.__dict__
+
+    def from_json(self, json_str: str):
+        json_obj = json.loads(json_str)
+        if not "name" in json_obj:
+            raise Exception("No name passed.")
+        self.name = json_obj["name"]
+
+    @property
+    def assets(self) -> List[Asset]:
+        """Gather assets (lazily) which are identified by this resource name.
+        The resource name is either the name of an asset group or an individual asset."""
+        if self._ASSETS is None:
+            self._ASSETS = get_assets()
+        if self.name in asset_groups:
+            resource_assets = set()
+            asset_queries = asset_groups[self.name]
+            for query in asset_queries:
+                for asset in self._ASSETS:
+                    if hasattr(asset, query.attr) and getattr(asset, query.attr, None) == query.val:
+                        resource_assets.add(asset)
+            if len(resource_assets) > 0:
+                return list(resource_assets)
+        for asset in self._ASSETS:
+            if asset.name == self.name:
+                return [asset]
+        return []
+
+    @property
+    def is_unique_asset(self) -> bool:
+        """Determines whether the resource represents a unique asset."""
+        return [self.name] == [a.name for a in self.assets]
+
+    @property
+    def unique_asset_type_names(self) -> List[str]:
+        """Return list of unique asset types represented by this resoure."""
+        return list(set([a.asset_type.name for a in self.assets]))  # list of unique asset type names in resource
+
+    def get_market(self) -> Optional[Market]:
+        """Find a market. TODO: support market grouping (see models.market_groups)."""
+        markets = get_markets()
+        for market in markets:
+            if market.name == self.name:
+                return market
+
+    def get_data(self, start: datetime=None, end: datetime=None, resolution: str=None,
+                 sum_multiple: bool=True) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+        """Get data for one or more assets or markets.
+        If the time range parameters are None, they will be gotten from the session.
+        See utils.data_access.get_data_vor_assets for more information."""
+        asset_names = []
+        for asset in self.assets:
+            asset_names.append(asset.name)
+        market = self.get_market()
+        if market is not None:
+            asset_names.append(market.name)
+        return get_data_for_assets(asset_names, start, end, resolution, sum_multiple=sum_multiple)

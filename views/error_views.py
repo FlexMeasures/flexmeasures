@@ -1,14 +1,12 @@
+"""Error views."""
+
 import sys
 import traceback
-from flask import Blueprint, current_app, request
+from flask import current_app, request
 from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 from jinja2.exceptions import TemplateNotFound
 
-from utils import render_a1vpp_template
-
-
-# The views in this module can as blueprint be registered with the Flask app (see app.py)
-a1_error_views = Blueprint('a1_error_views', __name__)
+from views import bvp_error_views, render_bvp_template
 
 
 def log_error(exc: Exception, error_msg: str):
@@ -47,38 +45,38 @@ def get_err_source_info(original_traceback=None) -> dict:
         return dict(module="", linenr=0, method="", src_code="")
 
 
-@a1_error_views.app_errorhandler(500)
+@bvp_error_views.app_errorhandler(500)
 def handle_error(e):
     log_error(e, str(e))
-    return render_a1vpp_template("error.html",
-                                 error_class=e.__class__.__name__,
-                                 error_description="We encountered an internal problem.",
-                                 error_message=str(e)), 500
+    return render_bvp_template("error.html",
+                               error_class=e.__class__.__name__,
+                               error_description="We encountered an internal problem.",
+                               error_message=str(e)), 500
 
 
-@a1_error_views.app_errorhandler(HTTPException)
+@bvp_error_views.app_errorhandler(HTTPException)
 def handle_http_exception(e: HTTPException):
     log_error(e, e.description)
-    return render_a1vpp_template("error.html",
-                                 error_class=e.__class__.__name__,
-                                 error_description="We encountered an Http exception.",
-                                 error_message=e.description), 400
+    return render_bvp_template("error.html",
+                               error_class=e.__class__.__name__,
+                               error_description="We encountered an Http exception.",
+                               error_message=e.description), 400
 
 
-@a1_error_views.app_errorhandler(BadRequest)
+@bvp_error_views.app_errorhandler(BadRequest)
 def handle_bad_request(e: BadRequest):
     log_error(e, e.description)
-    return render_a1vpp_template("error.html",
-                                 error_class=e.__class__.__name__,
-                                 error_description="We encountered a bad request.",
-                                 error_message=e.description), 400
+    return render_bvp_template("error.html",
+                               error_class=e.__class__.__name__,
+                               error_description="We encountered a bad request.",
+                               error_message=e.description), 400
 
 
-@a1_error_views.app_errorhandler(TemplateNotFound)
-@a1_error_views.app_errorhandler(NotFound)
+@bvp_error_views.app_errorhandler(TemplateNotFound)
+@bvp_error_views.app_errorhandler(NotFound)
 def handle_not_found(e):
     log_error(e, str(e))
-    return render_a1vpp_template("error.html",
-                                 error_class=e.__class__.__name__,
-                                 error_description="The page you are looking for cannot be found.",
-                                 error_message=str(e)), 404
+    return render_bvp_template("error.html",
+                               error_class=e.__class__.__name__,
+                               error_description="The page you are looking for cannot be found.",
+                               error_message=str(e)), 404

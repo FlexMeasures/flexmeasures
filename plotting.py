@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 
 
-def create_hover_tool(y_unit: str, resolution: str) -> Optional[HoverTool]:
+def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:
     """Describe behaviour of default tooltips
     (we could also return html for custom tooltips)"""
     date_format = "@X{%F}"
@@ -34,6 +34,7 @@ def create_graph(series: pd.Series, forecasts: pd.DataFrame = None,
     :param title: Title of the graph
     :param x_label: x axis label
     :param y_label: y axis label
+    :param legend: Legend identifier for data series
     :param hover_tool: Bokeh hover tool, if required
     :param show_y_floats: if True, y axis will show floating numbers (defaults False, will be True if y values are < 2)
     :return: a Bokeh Figure
