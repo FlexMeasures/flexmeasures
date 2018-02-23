@@ -31,8 +31,10 @@ def analytics_view():
             session["resource"] = "vehicles"
         elif len(get_assets()) > 0:
             session["resource"] = get_assets()[0].name
-    if "resource" in request.values:  # set by user
-        session["resource"] = request.values['resource']
+    if "resource" in request.args:  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
+        session["resource"] = request.args['resource']
+    if "resource" in request.form:  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
+        session["resource"] = request.form['resource']
 
     assets = get_assets()
     if check_prosumer_mock():
