@@ -10,14 +10,11 @@ from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 from bokeh.palettes import brewer
 
-from utils import (set_time_range_for_session, render_a1vpp_template, get_assets,
-                   get_data_by_resource, get_data_for_assets, freq_label_to_human_readable_label,
-                   mean_absolute_error, mean_absolute_percentage_error,
-                   weighted_absolute_percentage_error, resolution_to_hour_factor, get_assets_by_resource,
-                   is_pure_consumer, is_pure_producer, forecast_horizons_for, get_most_recent_quarter,
-                   get_most_recent_hour, extract_forecasts, get_unique_asset_type_names, is_unique_asset)
+from models import Asset, asset_types, asset_groups, Resource
+from utils import time_utils, calculations
+from utils.data_access import get_assets, get_data_for_assets
 import plotting
-import models
+from views import render_a1vpp_template
 
 
 # The views in this module can as blueprint be registered with the Flask app (see app.py)
@@ -33,7 +30,7 @@ def check_prosumer_mock() -> bool:
     return session.get("prosumer_mock") != "0"
 
 
-def filter_mock_prosumer_assets(assets: List[models.Asset]) -> List[models.Asset]:
+def filter_mock_prosumer_assets(assets: List[Asset]) -> List[Asset]:
     """Return a list of assets based on the mock prosumer type in the session."""
     session_prosumer = session.get("prosumer_mock")
     if session_prosumer == "vehicles":
@@ -63,8 +60,8 @@ def dashboard_view():
     asset_counts_per_pluralised_type = {}
     current_asset_loads = {}
     is_prosumer_mock = check_prosumer_mock()
-    for asset_type in models.asset_types:
-        assets_by_pluralised_type = get_assets_by_resource(pluralize(asset_type))
+    for asset_type in asset_types:
+        assets_by_pluralised_type = Resource(pluralize(asset_type).assets)
         if is_prosumer_mock:
             assets_by_pluralised_type = filter_mock_prosumer_assets(assets_by_pluralised_type)
         asset_counts_per_pluralised_type[pluralize(asset_type)] = len(assets_by_pluralised_type)
@@ -72,8 +69,8 @@ def dashboard_view():
             # TODO: this is temporary
             current_asset_loads[asset.name] =\
                 get_data_for_assets([asset.name],
-                                    get_most_recent_quarter().replace(year=2015),
-                                    get_most_recent_quarter().replace(year=2015) + timedelta(minutes=15),
+                                    time_utils.get_most_recent_quarter().replace(year=2015),
+                                    time_utils.get_most_recent_quarter().replace(year=2015) + timedelta(minutes=15),
                                     "15T").y[0]
             assets.append(asset)
 
@@ -91,7 +88,7 @@ def dashboard_view():
 # Portfolio view
 @a1_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
-    set_time_range_for_session()
+    time_utils.set_time_range_for_session()
 
     assets = get_assets()
     if check_prosumer_mock():
@@ -109,7 +106,7 @@ def portfolio_view():
 
     prices_data = get_data_for_assets(["epex_da"])
 
-    load_hour_factor = resolution_to_hour_factor(session["resolution"])
+    load_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
 
     for asset in assets:
         load_data = get_data_for_assets([asset.name])
@@ -239,19 +236,19 @@ def portfolio_view():
 # Analytics view
 @a1_views.route('/analytics', methods=['GET', 'POST'])
 def analytics_view():
-    set_time_range_for_session()
-    groups_with_assets = [group for group in models.asset_groups if len(get_assets_by_resource(group)) > 0]
+    time_utils.set_time_range_for_session()
+    groups_with_assets = [group for group in asset_groups if len(get_assets_by_resource(group)) > 0]
     if "resource" not in session:  # set some default, if possible
         if "solar" in groups_with_assets:
-            session["resource"] = "solar"
+            session["resource"] = Resource("solar")
         elif "wind" in groups_with_assets:
-            session["resource"] = "wind"
+            session["resource"] = Resource("wind")
         elif "vehicles" in groups_with_assets:
-            session["resource"] = "vehicles"
+            session["resource"] = Resource("vehicles")
         elif len(get_assets()) > 0:
-            session["resource"] = get_assets()[0].name
+            session["resource"] = Resource(get_assets()[0].name)
     if "resource" in request.values:  # set by user
-        session["resource"] = request.values['resource']
+        session["resource"] = Resource(request.values['resource'])
 
     assets = get_assets()
     if check_prosumer_mock():
