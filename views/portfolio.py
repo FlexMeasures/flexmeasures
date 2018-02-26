@@ -92,14 +92,14 @@ def portfolio_view():
         show_summed = "consumption"
         stack_types = [t.name for t in represented_asset_types.values() if t.is_producer is True]
         sum_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
-        plot_label = "Stacked Production vs aggregated Consumption"
+        plot_label = "Stacked production vs aggregated consumption"
         stacked_value_mask = only_positive
         summed_value_mask = only_negative_abs
     else:
         show_summed = "production"
         stack_types = [t.name for t in represented_asset_types.values() if t.is_consumer is True]
         sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
-        plot_label = "Stacked Consumption vs aggregated Production"
+        plot_label = "Stacked consumption vs aggregated production"
         stacked_value_mask = only_negative_abs
         summed_value_mask = only_positive
 

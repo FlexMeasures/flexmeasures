@@ -6,7 +6,7 @@
     <html lang="en">
         <head>
             {% block head %}
-                <title>{% block title %}{% endblock %} - Balancing Valorisation Platform</title>
+                <title>{% block title %}{% endblock %} - {{ app_name }}</title>
             {% endblock head %}
             <meta charset="windows-1252">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -46,7 +46,15 @@
                                     <span class="icon-bar"></span>
                                     <span class="icon-bar"></span>
                                 </button>
-                                <span class="navbar-brand"><span class="navbar-tool-name">BVP</span>{{ self.title() }} for Jeju island resource operator <span id="navbar-client-name"></span></span>
+                                <span class="navbar-brand"><span class="navbar-tool-name">{{ app_name_short }}</span>{{ self.title() }} for
+                                    {% for id, caption, icon in user_list_mock %}
+                                        {% if id == prosumer_mock %}
+                                            {% set active_user = caption %}
+                                        {% endif %}
+                                        {{ active_user }}
+                                    {% endfor %}
+                                    on Jeju island
+                                </span>
                             </div>
                             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
                                 <ul class="nav navbar-nav">	
@@ -157,7 +165,7 @@
                 {% if page != "error" %}
                 <div class="todo">
                     {% if prosumer_mock == "0": %}
-                        This is the view of <b>an aggregator or supplier (A1)</b>. All assets are listed.
+                        This is the view of <b>an aggregator or supplier</b>. All assets are listed.
                     {% else: %}
                     This is the view of <b>a prosumer who owns "{{ prosumer_mock }}" assets</b>. Only the assets owned by this prosumer are listed.
                         {% if page == "portfolio": %}
@@ -166,12 +174,12 @@
                     {% endif %}
                     <br/>
                     Here are possible (mocked) user perspectives:
-                    <button onclick="window.location.href='?prosumer_mock=0'">Aggregators/supplier (A1)</button>
-                    <button onclick="window.location.href='?prosumer_mock=offshore'">Offshore wind prosumer</button>
-                    <button onclick="window.location.href='?prosumer_mock=onshore'">Onshore wind prosumer</button>
-                    <button onclick="window.location.href='?prosumer_mock=solar'">Solar prosumer</button>
-                    <button onclick="window.location.href='?prosumer_mock=buildings'">Building prosumer</button>
-                    <button onclick="window.location.href='?prosumer_mock=vehicles'">EV prosumer</button>
+                    {% for id, caption, icon in user_list_mock %}
+                        <button onclick="window.location.href='?prosumer_mock={{ id }}'">
+                            <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                            {{ caption|e }}
+                        </button>
+                    {% endfor %}
                 </div>
                 {% endif %}
 
