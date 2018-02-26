@@ -50,10 +50,11 @@ class ScreenShot(QWebView):
 
 def initialise_screen_shots(views):
     width = 1500
-    height = 1000
+    height = 1500
     s = ScreenShot()
     for view in views:
-        s.capture('http://127.0.0.1:5000/' + view, view + '.png', width=width, height=height)
+        s.capture('http://127.0.0.1:5000/' + view, 'documentation/img/screenshot_' + view + '.png',
+                  width=width, height=height)
     return
 
 
@@ -69,5 +70,5 @@ def initialise_docs():
 if __name__ == "__main__":
     """Initialise screen shots and documentation"""
 
-    initialise_screen_shots(['dashboard', 'portfolio'])
-    # initialise_docs()
+    initialise_screen_shots(['dashboard', 'portfolio', 'control', 'analytics'])
+    initialise_docs()
