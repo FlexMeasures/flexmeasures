@@ -35,11 +35,6 @@ def render_bvp_template(html_filename: str, **variables):
     variables["resolution"] = session.get("resolution", "")
     variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(session.get("resolution", ""))
 
-    # TODO: remove when we stop mocking control.html
-    if variables["page"] == "control":
-        variables["start_time"] = session["start_time"].replace(hour=4, minute=0, second=0)
-        variables["end_time"] = variables["start_time"] + datetime.timedelta(hours=1)
-
     return render_template(html_filename, **variables)
 
 
