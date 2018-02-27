@@ -13,7 +13,10 @@ from PyQt5.QtGui import *
 from PyQt5.QtWebKitWidgets import QWebView
 from PyQt5.QtWidgets import QApplication
 
-make_docs_filename = 'documentation/make.bat'
+
+make_docs_cmd = 'cd documentation; make html; cd ..'
+if os.name != "posix":
+    make_docs_cmd = os.getcwd() + '/documentation/make.bat html'
 
 
 class ScreenShot(QWebView):
@@ -63,8 +66,7 @@ def initialise_docs():
 
     print("Processing documentation files ...")
 
-    cwd = os.getcwd()
-    call(cwd + "/" + make_docs_filename + " html")
+    call(make_docs_cmd, shell=True)
 
 
 if __name__ == "__main__":
