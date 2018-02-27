@@ -155,6 +155,13 @@ class Resource:
         return [self.name] == [a.name for a in self.assets]
 
     @property
+    def display_name(self) -> str:
+        """Attempt to get a beautiful name to show if possible."""
+        if self.is_unique_asset:
+            return self.assets[0].display_name
+        return self.name
+
+    @property
     def unique_asset_type_names(self) -> List[str]:
         """Return list of unique asset types represented by this resoure."""
         return list(set([a.asset_type.name for a in self.assets]))  # list of unique asset type names in resource

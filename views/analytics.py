@@ -59,9 +59,9 @@ def analytics_view():
                          % (session["resource"], session["start_time"], session["end_time"]))
     if showing_pure_consumption_data:
         power_data *= -1
-        title = "Electricity consumption of %s" % titleize(session["resource"])
+        title = "Electricity consumption of %s" % Resource(session["resource"]).display_name
     else:
-        title = "Electricity production from %s" % titleize(session["resource"])
+        title = "Electricity production from %s" % Resource(session["resource"]).display_name
     power_hover = plotting.create_hover_tool("MW", session.get("resolution"))
     power_data_to_show = power_data.loc[power_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
     power_forecast_data = extract_forecasts(power_data)
@@ -111,7 +111,7 @@ def analytics_view():
         weather_axis = "Temperature (in °C)"
 
     if unique_session_resource:
-        title = "%s at %s" % (titleize(weather_type), titleize(session["resource"]))
+        title = "%s at %s" % (titleize(weather_type), Resource(session["resource"]).display_name)
     else:
         title = "%s" % titleize(weather_type)
     weather_data = get_data_for_assets([weather_type],
@@ -166,7 +166,7 @@ def analytics_view():
                                          legend="Actual",
                                          forecasts=rev_cost_forecasts,
                                          title="%s for %s (on day-ahead market)"
-                                         % (rev_cost_str, titleize(session["resource"])),
+                                         % (rev_cost_str, Resource(session["resource"]).display_name),
                                          x_range=shared_x_range,
                                          x_label="Time (sampled by %s)"
                                          % time_utils.freq_label_to_human_readable_label(session["resolution"]),
