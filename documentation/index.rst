@@ -23,7 +23,7 @@ Tutorials
 *********
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
 
     tut/supplier
     tut/prosumer
@@ -36,13 +36,24 @@ Narrative contents
 ******************
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
 
     qa/users
     qa/assets
     qa/markets
     qa/components
     qa/algorithms
+
+
+******************
+Code documentation
+******************
+
+There is also detailed documentation of all internal modules and functions:
+
+.. toctree::
+
+    code.rst
 
 
 Indices and tables
