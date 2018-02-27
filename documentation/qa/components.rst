@@ -1,7 +1,7 @@
 .. _components:
 
 ****************************************
-What components does the VPP consist of?
+What components does the BVP consist of?
 ****************************************
 
 

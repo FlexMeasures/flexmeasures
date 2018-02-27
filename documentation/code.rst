@@ -64,7 +64,7 @@ views
     :members:
 
 views.utils
-------------------
+-----------
 
 .. automodule:: views.utils
     :members:

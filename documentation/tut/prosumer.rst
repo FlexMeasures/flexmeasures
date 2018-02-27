@@ -4,7 +4,7 @@
 For Prosumers
 *************
 
-- Go to the VPP's Dashboard page
-- Set constraints in the Portfolio page
-- (Optional) Check analyses in the Analytics page
+- Go to the :ref:`dashboard`
+- Set constraints in the :ref:`portfolio` page
+- (Optional) Check analyses in the :ref:`analytics` page
 

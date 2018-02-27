@@ -4,8 +4,8 @@
 For Suppliers
 *************
 
-- Go to the VPP's Dashboard page
-- Check opportunities in the Portfolio page
-- Order flexibility in the DR action page
-- (Optional) Check analyses in the Analytics page
+- Go to the the :ref:`dashboard`
+- Check opportunities in the :ref:`portfolio` page
+- Order flexibility in the :ref:`control` page
+- (Optional) Check analyses in the :ref:`analytics` page
 
