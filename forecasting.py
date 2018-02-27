@@ -6,7 +6,7 @@ import pandas as pd
 from fbprophet import Prophet
 
 import models
-from utils import forecast_horizons_for
+from utils.time_utils import forecast_horizons_for
 
 
 def make_rolling_forecast(data: pd.Series,

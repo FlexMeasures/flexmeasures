@@ -15,6 +15,9 @@
         if (assetType == "buildings") return "house";
         if (assetType == "solar") return "sun";
         if (assetType == "charging_stations") return "car";
+        // Mock
+        if (assetType == "wind_opp") return "wind_opp";
+        if (assetType == "battery_opp") return "battery_opp";
         // TODO: more?
         return "wind";
     }
@@ -25,6 +28,9 @@
         if (assetType == "building") return houseIcon;
         if (assetType == "solar") return sunIcon;
         if (assetType == "charging_station") return carIcon;
+        // Mock
+        if (assetType == "wind_opp") return OpportunityWindIcon;
+        if (assetType == "battery_opp") return OpportunityBatteryIcon;
         // TODO: more?
         return windIcon;
     }
@@ -144,29 +150,45 @@
 
     {% for asset_type in asset_counts_per_pluralised_type: %}
         {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
-    var {{ asset_type }}_markers = [];
+            var {{ asset_type }}_markers = [];
         {% endif %}
     {% endfor %}
 
     {% for asset in assets: %}
-    {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
-    var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = L.marker([{{ asset.location[0] }}, {{ asset.location[1] }}], {icon: getIconByAssetType("{{ asset.asset_type_name }}")})
-                            .bindPopup('<a href="analytics?resource={{ asset.name | urlencode }}">{{ asset.display_name }}</a>' +
-                                       custom_overlay_fade(getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}),
-                                    'Load',
-                                    'Currently producing at {{ current_load_in_mw }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}% capacity)'));
-                               // .openPopup();
-    {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ asset.name.replace("-", "").replace(".", "") }});
+        {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
+        var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = L.marker([{{ asset.location[0] }}, {{ asset.location[1] }}], {icon: getIconByAssetType("{{ asset.asset_type_name }}")})
+                                .bindPopup('<a href="analytics?resource={{ asset.name | urlencode }}">{{ asset.display_name }}</a>' +
+                                           custom_overlay_fade(getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}),
+                                        'Load',
+                                        'Currently producing at {{ current_load_in_mw }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}% capacity)'));
+                                   // .openPopup();
+        {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ asset.name.replace("-", "").replace(".", "") }});
     {% endfor%}
+
+    // add mock icons in layer
+    var marker_for_bat = L.marker([33.3761057, 126.3025723], {icon: opportunityBatteryIcon})
+                            .bindPopup('<a href="analytics?resource={{ "bsu" | urlencode }}">Battery storage unit</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a>.<p>' +
+                                       custom_overlay_fade(getMockImageByCapacityFactor(80),
+                                    'Load',
+                                    'Currently producing at 1 MW (80% capacity)'));
+                               // .openPopup();
+    var marker_for_wind = L.marker([33.428833, 126.166126], {icon: opportunityWindIcon})
+                            .bindPopup('<a href="analytics?resource={{ "sw-offshore" | urlencode }}">Suwon</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a><p>' +
+                                       custom_overlay_fade(getMockImageByCapacityFactor(80),
+                                    'Load',
+                                    'Currently producing at 1 MW (80% capacity)'));
+                               // .openPopup();
+    wind_markers.push(marker_for_wind);
+    charging_stations_markers.push(marker_for_bat); // Battery marker added in the charging station layer
 
     // make layer groups
     var asset_type_layers = [];
     var overlay_maps = {};
     {% for asset_type in asset_counts_per_pluralised_type: %}
         {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
-        var {{ asset_type }}_layer = new L.LayerGroup({{ asset_type }}_markers);
-        asset_type_layers.push({{ asset_type }}_layer);
-        overlay_maps["{{ asset_type }}"] = {{ asset_type }}_layer;
+            var {{ asset_type }}_layer = new L.LayerGroup({{ asset_type }}_markers);
+            asset_type_layers.push({{ asset_type }}_layer);
+            overlay_maps["{{ asset_type }}"] = {{ asset_type }}_layer;
         {% endif %}
     {% endfor %}
 

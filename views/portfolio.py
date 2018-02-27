@@ -18,6 +18,7 @@ from views.utils import render_bvp_template, check_prosumer_mock, filter_mock_pr
 # Portfolio view
 @bvp_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
+    """ Portfolio view. Todo: expand this docstring."""
     # time_utils.set_time_range_for_session()  # we're mocking the next 24 hours for now
     start = time_utils.get_most_recent_hour().replace(year=2015)
     end = start + timedelta(hours=24)

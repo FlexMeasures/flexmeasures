@@ -3,3 +3,4 @@ instance
 static/documentation
 venv
 notebooks/.ipynb_checkpoints/
+documentation/img/screenshot_*

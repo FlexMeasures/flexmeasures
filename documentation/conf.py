@@ -19,7 +19,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'A1 VPP'
+project = 'Balancing Valorisation Platform'
 copyright = '2018, Seita'
 author = ''
 
@@ -134,7 +134,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'A1VPP.tex', 'A1 VPP Documentation',
+    (master_doc, 'A1VPP.tex', 'BVP Documentation',
      'Seita', 'manual'),
 ]
 
@@ -144,7 +144,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'a1vpp', 'A1 VPP Documentation',
+    (master_doc, 'a1vpp', 'BVP Documentation',
      [author], 1)
 ]
 
@@ -155,7 +155,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'A1VPP', 'A1 VPP Documentation',
+    (master_doc, 'A1VPP', 'BVP Documentation',
      author, 'A1VPP', 'One line description of project.',
      'Miscellaneous'),
 ]

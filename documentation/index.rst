@@ -1,8 +1,34 @@
-Welcome to A1 VPP's documentation!
-==================================
+Welcome to the BVP's documentation!
+===================================
 
-A1 VPP is a multi-user web application for a virtual power plant, which can monitor and steer a diverse set of assets. The system allows aggregators and asset owners to monitor power loads and generation as well as relevant price data. In addition, the system uses algorithms for machine learning and control strategies to assist human operators with forecasts and decision-making.
+The Balancing Valorisation Platform (BVP) is a multi-user web application for scheduling balancing actions from a diverse set of assets. The system allows aggregators and asset owners to monitor power consumption and production as well as relevant price data. In addition, the system uses algorithms for machine learning and control strategies to assist human operators with forecasts and decision-making.
 
+
+
+*********
+The pages
+*********
+
+.. toctree::
+    :maxdepth: 1
+
+    views/dashboard
+    views/portfolio
+    views/control
+    views/analytics
+
+
+*********
+Tutorials
+*********
+
+.. toctree::
+    :maxdepth: 1
+
+    tut/supplier
+    tut/prosumer
+    tut/aggregator
+    tut/esco
 
 
 ******************
@@ -10,25 +36,24 @@ Narrative contents
 ******************
 
 .. toctree::
-	:maxdepth: 2
-	:caption: Contents:
+    :maxdepth: 1
 
-	qa/users
-	qa/assets
-	qa/markets
-	qa/components
-	qa/algorithms
+    qa/users
+    qa/assets
+    qa/markets
+    qa/components
+    qa/algorithms
 
 
-***************
-Tutorials
-***************
+******************
+Code documentation
+******************
+
+There is also detailed documentation of all internal modules and functions:
 
 .. toctree::
-	:maxdepth: 2
-	:caption: Contents:
 
-	tut/usage
+    code.rst
 
 
 Indices and tables
