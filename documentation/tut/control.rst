@@ -32,6 +32,7 @@ Shifting
 
 
 .. image:: ../img/screenshot_control.png
+    :target: ../../../../control
     :align: center
 ..    :scale: 40%
 
