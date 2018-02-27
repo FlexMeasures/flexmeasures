@@ -6,18 +6,29 @@ The Balancing Valorisation Platform (BVP) is a multi-user web application for sc
 
 
 *********
+The pages
+*********
+
+.. toctree::
+    :maxdepth: 1
+
+    views/dashboard
+    views/portfolio
+    views/control
+    views/analytics
+
+
+*********
 Tutorials
 *********
 
 .. toctree::
-	:maxdepth: 2
-	:caption: Contents:
+    :maxdepth: 2
 
-	tut/usage
-	tut/dashboard
-	tut/portfolio
-	tut/control
-	tut/analytics
+    tut/supplier
+    tut/prosumer
+    tut/aggregator
+    tut/esco
 
 
 ******************
@@ -25,14 +36,13 @@ Narrative contents
 ******************
 
 .. toctree::
-	:maxdepth: 2
-	:caption: Contents:
+    :maxdepth: 2
 
-	qa/users
-	qa/assets
-	qa/markets
-	qa/components
-	qa/algorithms
+    qa/users
+    qa/assets
+    qa/markets
+    qa/components
+    qa/algorithms
 
 
 Indices and tables
