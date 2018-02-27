@@ -8,15 +8,16 @@ from subprocess import call
 
 import sys
 import time
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from PyQt5.QtCore import QSize, QUrl
+from PyQt5.QtGui import QImage, QPainter
 from PyQt5.QtWebKitWidgets import QWebView
 from PyQt5.QtWidgets import QApplication
 
 
 make_docs_cmd = 'cd documentation; make html; cd ..'
 if os.name != "posix":
-    make_docs_cmd = os.getcwd() + '/documentation/make.bat html'
+    print(hasattr(sys, 'real_prefix'))
+    make_docs_cmd = 'activate a1-venv & cd documentation & make html & cd ..'  # re-activate the virtual environment
 
 
 class ScreenShot(QWebView):
