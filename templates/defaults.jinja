@@ -13,10 +13,10 @@
     ('dashboard', 'dashboard', 'Dashboard', 'dashboard'),
     ('portfolio', 'portfolio', 'Portfolio overview', 'briefcase'),
     ('control', 'control', 'DR actions', 'wrench'),
-    ('analytics', 'analytics', 'Client analytics', 'bar-chart'),
 ]
 -%}
 {% do navigation_bar.append(('static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists %}
+{# ('analytics', 'analytics', 'Client analytics', 'bar-chart') #}
 {# ('upload', 'upload', 'Upload datasets', 'cloud-upload') #}
 {% set active_page = active_page|default('dashboard') -%}
 
