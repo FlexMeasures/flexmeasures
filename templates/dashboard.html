@@ -166,20 +166,24 @@
     {% endfor%}
 
     // add mock icons in layer
-    var marker_for_bat = L.marker([33.3761057, 126.3025723], {icon: opportunityBatteryIcon})
-                            .bindPopup('<a href="analytics?resource={{ "bsu" | urlencode }}">Battery storage unit</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a>.<p>' +
-                                       custom_overlay_fade(getMockImageByCapacityFactor(80),
-                                    'Load',
-                                    'Currently producing at 1 MW (80% capacity)'));
-                               // .openPopup();
-    var marker_for_wind = L.marker([33.428833, 126.166126], {icon: opportunityWindIcon})
-                            .bindPopup('<a href="analytics?resource={{ "sw-offshore" | urlencode }}">Suwon</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a><p>' +
-                                       custom_overlay_fade(getMockImageByCapacityFactor(80),
-                                    'Load',
-                                    'Currently producing at 1 MW (80% capacity)'));
-                               // .openPopup();
-    wind_markers.push(marker_for_wind);
-    charging_stations_markers.push(marker_for_bat); // Battery marker added in the charging station layer
+    {% if prosumer_mock == "0" or prosumer_mock=="offshore" %}
+        var marker_for_wind = L.marker([33.428833, 126.166126], {icon: opportunityWindIcon})
+                                .bindPopup('<a href="analytics?resource={{ "sw-offshore" | urlencode }}">Suwon</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a><p>' +
+                                           custom_overlay_fade(getMockImageByCapacityFactor(80),
+                                        'Load',
+                                        'Currently producing at 1 MW (80% capacity)'));
+                                   // .openPopup();
+        wind_markers.push(marker_for_wind);
+    {% endif%}
+    {% if prosumer_mock == "0" or prosumer_mock=="vehicles" %}
+        var marker_for_bat = L.marker([33.3761057, 126.3025723], {icon: opportunityBatteryIcon})
+                                .bindPopup('<a href="analytics?resource={{ "bsu" | urlencode }}">Battery storage unit</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a>.<p>' +
+                                           custom_overlay_fade(getMockImageByCapacityFactor(80),
+                                        'Load',
+                                        'Currently producing at 1 MW (80% capacity)'));
+                                   // .openPopup();
+        charging_stations_markers.push(marker_for_bat); // Battery marker added in the charging station layer
+    {% endif%}
 
     // make layer groups
     var asset_type_layers = [];
