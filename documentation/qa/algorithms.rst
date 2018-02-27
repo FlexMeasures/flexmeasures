@@ -7,7 +7,36 @@ What algorithms does the VPP platform use?
 Forecasting
 -----------
 
-A forecasting algorithm is used by the Aggregator to assess the likelihood of future loads and prices. Weather forecasting is included in the VPP platform, but is not the result of an internal algorithm (see :ref:`weather` ).
+Forecasting algorithms are used by the Aggregator to assess the likelihood of future consumption/production and prices.
+Weather forecasting is included in the VPP platform, but is not the result of an internal algorithm (see :ref:`weather` ).
+The performance of our algorithms is indicated by the mean absolute error (MAE) and the weighted absolute percentage error (WAPE).
+Power profiles on an asset level often include zero values, such that the mean absolute percentage error (MAPE), a common statistical measure of forecasting accuracy, is undefined.
+For such profiles, it is more useful to report the WAPE, which is also known as the volume weighted MAPE.
+The MAE of a power profile gives an indication of the size of the uncertainty in consumption and production.
+This allows the user to compare an asset's predictability to its flexibility, i.e. to the size of possible balancing actions.
+
+Benchmarks per asset type are listed below for a 6h-ahead rolling horizon forecast:
+
++-------------------------+------------+---------------+----------------+-----------------+
+| Asset                   | CS         | Solar         | Wind (onshore) | Wind (offshore) |
++-------------------------+------------+---------------+----------------+-----------------+
+| Average power per asset | 75 W       | 1.4 MW        | 4.1 MW         | 31.8 MW         |
++=========================+============+===============+================+=================+
+| WAPE (1 asset)          |            |               |                |                 |
++-------------------------+------------+---------------+----------------+-----------------+
+| WAPE (5 assets)         |            | 51 %          |                |                 |
++-------------------------+------------+---------------+----------------+-----------------+
+| WAPE (10 assets)        |            | Not available |                |                 |
++-------------------------+------------+---------------+----------------+-----------------+
+| WAPE (50 assets)        |            | Not available | Not available  | Not available   |
++-------------------------+------------+---------------+----------------+-----------------+
+| WAPE (100 assets)       |            | Not available | Not available  | Not available   |
++-------------------------+------------+---------------+----------------+-----------------+
+| WAPE (200 assets)       | 21 %       | Not available | Not available  | Not available   |
++-------------------------+------------+---------------+----------------+-----------------+
+
+
+
 
 Defaults:
 
