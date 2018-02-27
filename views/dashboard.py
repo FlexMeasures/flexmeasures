@@ -14,6 +14,8 @@ import models
 @bvp_views.route('/')
 @bvp_views.route('/dashboard')
 def dashboard_view():
+    """ Dashboard view. Todo: expand this docstring.
+    """
     msg = ""
     if "clear-session" in request.values:
         session.clear()

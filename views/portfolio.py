@@ -16,6 +16,8 @@ from views.utils import render_bvp_template, check_prosumer_mock, filter_mock_pr
 # Portfolio view
 @bvp_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
+    """ Portfolio view. Todo: expand this docstring.
+    """
     time_utils.set_time_range_for_session()
 
     assets = get_assets()
