@@ -1,11 +1,13 @@
+from datetime import timedelta
+
 from flask import request, session
 import pandas as pd
 import numpy as np
 from inflection import pluralize, titleize
+from bokeh.layouts import gridplot
 from bokeh.embed import components
-from bokeh.palettes import brewer as color_palette  # pycharm cannot see this, ignore the warning (Alt-Enter)
+import bokeh.palettes as palettes
 
-import models
 from utils import time_utils
 from utils.data_access import get_assets, get_data_for_assets, Resource
 import plotting
@@ -16,45 +18,71 @@ from views.utils import render_bvp_template, check_prosumer_mock, filter_mock_pr
 # Portfolio view
 @bvp_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
-    time_utils.set_time_range_for_session()
+    # time_utils.set_time_range_for_session()  # we're mocking the next 24 hours for now
+    start = time_utils.get_most_recent_hour().replace(year=2015)
+    end = start + timedelta(hours=24)
+    resolution = "1h"  # session["resolution"]
 
     assets = get_assets()
     if check_prosumer_mock():
         assets = filter_mock_prosumer_assets(assets)
 
-    # get data for summaries over the selected period
     production_per_asset = dict.fromkeys([a.name for a in assets])
     consumption_per_asset = dict.fromkeys([a.name for a in assets])
-    profit_loss_per_asset = dict.fromkeys([a.name for a in assets])
+    profit_loss_energy_per_asset = dict.fromkeys([a.name for a in assets])
+    curtailment_per_asset = dict.fromkeys([a.name for a in assets])
+    shifting_per_asset = dict.fromkeys([a.name for a in assets])
+    profit_loss_flexibility_per_asset = dict.fromkeys([a.name for a in assets])
 
-    represented_asset_types = {}
     production_per_asset_type = {}
     consumption_per_asset_type = {}
-    profit_loss_per_asset_type = {}
+    profit_loss_energy_per_asset_type = {}
+    curtailment_per_asset_type = {}
+    shifting_per_asset_type = {}
+    profit_loss_flexibility_per_asset_type = {}
 
-    prices_data = get_data_for_assets(["epex_da"])
+    represented_asset_types = {}
 
-    load_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
+    prices_data = get_data_for_assets(["epex_da"], start=start, end=end, resolution=resolution)
+
+    load_hour_factor = time_utils.resolution_to_hour_factor(resolution)
 
     for asset in assets:
-        load_data = get_data_for_assets([asset.name])
-        profit_loss_per_asset[asset.name] = pd.Series(load_data.y * load_hour_factor * prices_data.y,
-                                                      index=load_data.index).sum()
+        power_data = get_data_for_assets([asset.name], start=start, end=end, resolution=resolution)
+        profit_loss_energy_per_asset[asset.name] = pd.Series(power_data.y * load_hour_factor * prices_data.y,
+                                                             index=power_data.index).sum()
         if asset.is_pure_consumer:
             production_per_asset[asset.name] = 0
-            consumption_per_asset[asset.name] = -1 * pd.Series(load_data.y).sum() * load_hour_factor
+            consumption_per_asset[asset.name] = -1 * pd.Series(power_data.y).sum() * load_hour_factor
         else:
-            production_per_asset[asset.name] = pd.Series(load_data.y).sum() * load_hour_factor
+            production_per_asset[asset.name] = pd.Series(power_data.y).sum() * load_hour_factor
             consumption_per_asset[asset.name] = 0
         neat_asset_type_name = titleize(asset.asset_type_name)
         if neat_asset_type_name not in production_per_asset_type:
             represented_asset_types[neat_asset_type_name] = asset.asset_type
             production_per_asset_type[neat_asset_type_name] = 0.
             consumption_per_asset_type[neat_asset_type_name] = 0.
-            profit_loss_per_asset_type[neat_asset_type_name] = 0.
+            profit_loss_energy_per_asset_type[neat_asset_type_name] = 0.
+            curtailment_per_asset_type[neat_asset_type_name] = 0.
+            shifting_per_asset_type[neat_asset_type_name] = 0.
+            profit_loss_flexibility_per_asset_type[neat_asset_type_name] = 0.
         production_per_asset_type[neat_asset_type_name] += production_per_asset[asset.name]
         consumption_per_asset_type[neat_asset_type_name] += consumption_per_asset[asset.name]
-        profit_loss_per_asset_type[neat_asset_type_name] += profit_loss_per_asset[asset.name]
+        profit_loss_energy_per_asset_type[neat_asset_type_name] += profit_loss_energy_per_asset[asset.name]
+
+        # flexibility numbers are mocked for now
+        curtailment_per_asset[asset.name] = 0
+        shifting_per_asset[asset.name] = 0
+        profit_loss_flexibility_per_asset[asset.name] = 0
+        if asset.name == "48_r":
+            shifting_per_asset[asset.name] = 1.1
+            profit_loss_flexibility_per_asset[asset.name] = 76000
+        if asset.name == "hw-onshore":
+            curtailment_per_asset[asset.name] = 1.3
+            profit_loss_flexibility_per_asset[asset.name] = 84000
+        curtailment_per_asset_type[neat_asset_type_name] += curtailment_per_asset[asset.name]
+        shifting_per_asset_type[neat_asset_type_name] += shifting_per_asset[asset.name]
+        profit_loss_flexibility_per_asset_type[neat_asset_type_name] += profit_loss_flexibility_per_asset[asset.name]
 
     # get data for stacked plot for the selected period
 
@@ -71,8 +99,7 @@ def portfolio_view():
 
     def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
         if df is None:
-            return pd.DataFrame(index=pd.date_range(start=session["start_time"], end=session["end_time"],
-                                                    freq=session["resolution"]),
+            return pd.DataFrame(index=pd.date_range(start=start, end=end, freq=resolution),
                                 columns=["y"]).fillna(0)
         else:
             return df
@@ -103,26 +130,34 @@ def portfolio_view():
         stacked_value_mask = only_negative_abs
         summed_value_mask = only_positive
 
-    df_sum = get_data_for_assets(sum_assets)
+    df_sum = get_data_for_assets(sum_assets, start=start, end=end, resolution=resolution)
     if df_sum is not None:
         df_sum = df_sum.loc[:, ['y']]  # only get the y data
     df_sum = data_or_zeroes(df_sum)
     summed_value_mask(df_sum)
-    hover = plotting.create_hover_tool("MW", session.get("resolution"))
-    fig = plotting.create_graph(df_sum.y,
-                                title=plot_label,
-                                x_label="Time (sampled by %s)"
-                                        % time_utils.freq_label_to_human_readable_label(session["resolution"]),
-                                y_label="%s (in MW)" % plot_label,
-                                legend=titleize(show_summed),
-                                hover_tool=hover)
-    fig.plot_height = 450
-    fig.plot_width = 750
-    fig.sizing_mode = "fixed"
+    hover = plotting.create_hover_tool("MW", resolution)
+    this_hour = time_utils.get_most_recent_hour().replace(year=2015)
+    next4pm = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 16][0]
+    x_range = plotting.make_range(df_sum.index)
+    fig_profile = plotting.create_graph(df_sum.y,
+                                        title=plot_label,
+                                        x_range=x_range,
+                                        x_label="Time (sampled by %s)"
+                                            % time_utils.freq_label_to_human_readable_label(resolution),
+                                        y_label="Power (in MW)",
+                                        legend=titleize(show_summed),
+                                        hover_tool=hover)
+    if not check_prosumer_mock() or session.get("prosumer_mock") in ("onshore", "vehicles"):
+        plotting.highlight(fig_profile, next4pm, next4pm + timedelta(hours=1), redirect_to="/control")
+
+    fig_profile.plot_height = 450
+    fig_profile.plot_width = 900
+    fig_profile.sizing_mode = "stretch_both"
 
     df_stacked_data = pd.DataFrame(index=df_sum.index, columns=stack_types)
     for st in stack_types:
-        df_stacked_data[st] = Resource(pluralize(st)).get_data().loc[:, ['y']]  # only get the y data
+        df_stacked_data[st] = Resource(pluralize(st)).get_data(start=start, end=end, resolution=resolution)\
+                                  .loc[:, ['y']]  # only get the y data
     stacked_value_mask(df_stacked_data)
     df_stacked_data = data_or_zeroes(df_stacked_data)
     df_stacked_areas = stacked(df_stacked_data)
@@ -131,29 +166,67 @@ def portfolio_view():
     if num_areas <= 2:
         colors = ['#99d594', '#dddd9d']
     else:
-        colors = color_palette['Spectral'][num_areas]
+        colors = palettes.brewer['Spectral'][num_areas]
     x_points = np.hstack((df_stacked_data.index[::-1], df_stacked_data.index))
 
-    fig.grid.minor_grid_line_color = '#eeeeee'
+    fig_profile.grid.minor_grid_line_color = '#eeeeee'
 
     for a, area in enumerate(df_stacked_areas):
-        fig.patch(x_points, df_stacked_areas[area].values,
-                  color=colors[a], alpha=0.8, line_color=None, legend=titleize(df_stacked_data.columns[a]))
+        fig_profile.patch(x_points, df_stacked_areas[area].values,
+                          color=colors[a], alpha=0.8, line_color=None, legend=titleize(df_stacked_data.columns[a]))
 
-    portfolio_plot_script, portfolio_plot_div = components(fig)
+    # actions
+    df_actions = pd.DataFrame(index=df_sum.index, columns=["y"]).fillna(0)
+    if not check_prosumer_mock():
+        df_actions.loc[next4pm] = -2.4  # mock two actions
+    elif session.get("prosumer_mock") == "onshore":
+        df_actions.loc[next4pm] = -1.3  # mock one action
+    elif session.get("prosumer_mock") == "vehicles":
+        df_actions.loc[next4pm] = -1.1  # mock one action
+    next2pm = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 14][0]
+    if next2pm < next4pm and (not check_prosumer_mock() or session.get("prosumer_mock") == "vehicles"):
+        df_actions.loc[next2pm] = 1.1  # mock the shift "payback" (actually occurs earlier in our mock example)
+    next9pm = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 21][0]
+    df_actions.loc[next9pm] = 3.5  # mock some other ordered actions that are not in an opportunity hour anymore
+
+    fig_actions = plotting.create_graph(df_actions.y,
+                                        title="Ordered balancing actions",
+                                        x_range=x_range,
+                                        y_label="Power (in MW)")
+    if not check_prosumer_mock() or session.get("prosumer_mock") in ("onshore", "vehicles"):
+        plotting.highlight(fig_actions, next4pm, next4pm + timedelta(hours=1), redirect_to="/control")
+
+    fig_actions.plot_height = 150
+    fig_actions.plot_width = fig_profile.plot_width
+    fig_actions.sizing_mode = "fixed"
+    fig_actions.xaxis.visible = False
+
+    portfolio_plot_script, portfolio_plot_div = components(gridplot([fig_profile], [fig_actions],
+                                                                    toolbar_options={'logo': None}))
+    next24hours = [(time_utils.get_most_recent_hour() + timedelta(hours=i)).strftime("%I:00 %p") for i in range(1, 26)]
 
     return render_bvp_template("portfolio.html", prosumer_mock=session.get("prosumer_mock", "0"),
                                assets=assets,
                                asset_types=represented_asset_types,
                                production_per_asset=production_per_asset,
                                consumption_per_asset=consumption_per_asset,
-                               profit_loss_per_asset=profit_loss_per_asset,
+                               profit_loss_energy_per_asset=profit_loss_energy_per_asset,
+                               curtailment_per_asset=curtailment_per_asset,
+                               shifting_per_asset=shifting_per_asset,
+                               profit_loss_flexibility_per_asset=profit_loss_flexibility_per_asset,
                                production_per_asset_type=production_per_asset_type,
                                consumption_per_asset_type=consumption_per_asset_type,
-                               profit_loss_per_asset_type=profit_loss_per_asset_type,
+                               profit_loss_energy_per_asset_type=profit_loss_energy_per_asset_type,
+                               curtailment_per_asset_type=curtailment_per_asset_type,
+                               shifting_per_asset_type=shifting_per_asset_type,
+                               profit_loss_flexibility_per_asset_type=profit_loss_flexibility_per_asset_type,
                                sum_production=sum(production_per_asset_type.values()),
                                sum_consumption=sum(consumption_per_asset_type.values()),
-                               sum_profit_loss=sum(profit_loss_per_asset_type.values()),
-                               portfolio_plot_script=portfolio_plot_script,
-                               portfolio_plot_div=portfolio_plot_div,
+                               sum_profit_loss_energy=sum(profit_loss_energy_per_asset_type.values()),
+                               sum_curtailment=sum(curtailment_per_asset_type.values()),
+                               sum_shifting=sum(shifting_per_asset_type.values()),
+                               sum_profit_loss_flexibility=sum(profit_loss_flexibility_per_asset_type.values()),
+                               portfolio_plots_script=portfolio_plot_script,
+                               portfolio_plots_div=portfolio_plot_div,
+                               next24hours=next24hours,
                                alt_stacking=show_summed)

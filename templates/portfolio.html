@@ -8,24 +8,21 @@
 
     <div class="container-fluid">
         <div class="row">
-            <div class="col-sm-3 top-bottom">
+            <div class="col-sm-4 top-bottom">
                 <h3>About</h3>
                 <div class="justify">
-                    Break-down of portfolio and some analytics and KPIs on portfolio level.
+                    Break-down of portfolio in the upcoming 24 hours and some analytics and KPIs on portfolio level.
                 </div>
 
-                <h3>Controls</h3>
-                {% block datetimepicker %} {{ super() }} {% endblock %}
-
                 {% if asset_types | length > 0 %}
-                <h3>Summary</h3>
+                <h3>Energy summary</h3>
                 <table class="table text-right" style="font-size: 100%;">
                     <thead>
                         <tr>
                             <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
-                            <th><span title="All production by assets of this type.">Production (MWh)</span></th>
-                            <th><span title="All consumption by assets of this type.">Consumption (MWh)</span></th>
-                            <th><span title="The revenue achieved by assets of this type (on the day-ahead market).">Revenue (KRW)</span></th>
+                            <th class="text-right"><span title="All production by assets of this type.">Production (MWh)</span></th>
+                            <th class="text-right"><span title="All consumption by assets of this type.">Consumption (MWh)</span></th>
+                            <!--th><span title="The revenue achieved by assets of this type (on the day-ahead market).">Revenue (KRW)</span></th-->
                         </tr>
                     </thead>
                     <tbody>
@@ -34,9 +31,15 @@
                             <td class="text-left">
                                 {{ asset_type_name }}
                             </td>
-                            <td>{% if asset_types[asset_type_name].is_producer %}{{ "{:,.3f}".format( production_per_asset_type[asset_type_name]  | round(3)) }} {% endif %}</td>
-                            <td>{% if asset_types[asset_type_name].is_consumer %}{{ "{:,.3f}".format( consumption_per_asset_type[asset_type_name]  | round(3)) }} {% endif %}</td>
-                            <td>{{ "{:,.2f}".format( profit_loss_per_asset_type[asset_type_name] | round(2)) }}</td>
+                            <td>{% if asset_types[asset_type_name].is_producer and production_per_asset_type[asset_type_name] > 0  %}
+                                    {{ "{:,.3f}".format( production_per_asset_type[asset_type_name]  | round(3)) }}
+                                {% endif %}
+                            </td>
+                            <td>{% if asset_types[asset_type_name].is_consumer and consumption_per_asset_type[asset_type_name] > 0 %}
+                                    {{ "{:,.3f}".format( consumption_per_asset_type[asset_type_name]  | round(3)) }}
+                                {% endif %}
+                            </td>
+                            <!--td>{{ "{:,.2f}".format( profit_loss_energy_per_asset_type[asset_type_name] | round(2)) }}</td-->
                         </tr>
                     {% endfor %}
                     {% if asset_types | length > 1 %}
@@ -46,11 +49,51 @@
                             </td>
                             <td>{{ "{:,.3f}".format( sum_production | round(3)) }}</td>
                             <td>{{ "{:,.3f}".format( sum_consumption | round(3)) }}</td>
-                            <td>{{ "{:,.2f}".format( sum_profit_loss | round(2)) }}</td>
+                            <!--td>{{ "{:,.2f}".format( sum_profit_loss_energy | round(2)) }}</td-->
+                        </tr>
+                    {% endif %}
+                    </tbody>
+
+                </table><h3>Flexibility summary</h3>
+                <table class="table text-right" style="font-size: 100%;">
+                    <thead>
+                        <tr>
+                            <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
+                            <th class="text-right"><span title="All curtailment actions by assets of this type.">Curtailment (MWh)</span></th>
+                            <th class="text-right"><span title="All shifting actions by assets of this type.">Shifting (MWh * h)</span></th>
+                            <th class="text-right"><span title="The revenue achieved by assets of this type (by payment of supplier).">Revenue (KRW)</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for asset_type_name in asset_types %}
+                        <tr>
+                            <td class="text-right">
+                                {{ asset_type_name }}
+                            </td>
+                            <td>{% if asset_types[asset_type_name].is_producer and curtailment_per_asset_type[asset_type_name] > 0  %}
+                                    {{ "{:,.3f}".format( curtailment_per_asset_type[asset_type_name]  | round(3)) }}
+                                {% endif %}
+                            </td>
+                            <td>{% if asset_types[asset_type_name].is_consumer and shifting_per_asset_type[asset_type_name] > 0  %}
+                                    {{ "{:,.3f}".format( shifting_per_asset_type[asset_type_name]  | round(3)) }}
+                                {% endif %}
+                            </td>
+                            <td>{{ "{:,.2f}".format( profit_loss_flexibility_per_asset_type[asset_type_name] | round(2)) }}</td>
+                        </tr>
+                    {% endfor %}
+                    {% if asset_types | length > 1 %}
+                        <tr style="font-weight: bold;">
+                            <td class="text-left">
+                                Total
+                            </td>
+                            <td>{{ "{:,.3f}".format( sum_curtailment | round(3)) }}</td>
+                            <td>{{ "{:,.3f}".format( sum_shifting | round(3)) }}</td>
+                            <td>{{ "{:,.2f}".format( sum_profit_loss_flexibility | round(2)) }}</td>
                         </tr>
                     {% endif %}
                     </tbody>
                 </table>
+
                 {% endif %}
 
                 <div class="todo">
@@ -81,13 +124,19 @@
                     </div>
                 </div>
             </div>
-            <div class="col-sm-9">
+            <div class="col-sm-1">
+            </div>
+            <div class="col-sm-7">
 
                 <div class="row">
                     <h3>Portfolio status</h3>
-                    {{ portfolio_plot_div | safe }}
-                    {{ portfolio_plot_script | safe }}
-                    <a href="?show_stacked={{alt_stacking}}">Switch to showing stacked {{ alt_stacking }}</a>
+                    <div class="todo">
+                        <p>This shows activity of your portfolio in the next 24 hours and (for onshore and vehicles) mocks an opportunity.
+                            <i>Double-click the opportunity</i> to see the order book. </p>
+                        <p> You can also <button><a href="?show_stacked={{alt_stacking}}">Switch to showing stacked {{ alt_stacking }}</a></button> </p>
+                    </div>
+                    {{ portfolio_plots_div | safe }}
+                    {{ portfolio_plots_script | safe }}
                 </div>
 
                 <div class="row">
@@ -97,14 +146,12 @@
                             <thead>
                                 <tr>
                                     <th>Asset</th>
-                                    <th>Supplier</th>
-                                    <th>Aggregator</th>
                                     <!--<th>Energy Service Company</th>-->
                                     <th>Production</th>
                                     <th>Consumption</th>
-                                    <th>Revenue</th>
-                                    <th>Type of actions</th>
-                                    <th>Available capacity</th>
+                                    <th>Curtailment</th>
+                                    <th>Shifting</th>
+                                    <th>Balancing Revenue</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -130,9 +177,6 @@
                                         </label>
                                         {{ asset.display_name }}
                                     </td>
-                                    <td>KEPCO</td>
-                                    <td>My AGR</td>
-                                    <!--td>ESCo 1</td-->
                                     <td>
                                         {% if asset.asset_type.is_producer %}
                                         <a href="analytics?resource={{ asset.name | urlencode }}">
@@ -146,13 +190,24 @@
                                             {{ consumption_per_asset[asset.name] | round(2) }} MWh
                                         </a>
                                         {% endif %}
+                                    </td><td>
+                                        {% if asset.asset_type.can_curtail  and curtailment_per_asset[asset.name] > 0 %}
+                                        <a href="control?resource={{ asset.name | urlencode }}">
+                                            {{ curtailment_per_asset[asset.name] | round(2) }} MWh
+                                        </a>
+                                        {% endif %}
                                     </td>
-                                    <td><a href="analytics?resource={{ asset.name | urlencode }}">{{ profit_loss_per_asset[asset.name] | round(2) }} KRW</a></td>
                                     <td>
-                                        {% if asset.asset_type_name in ("wind", "house") %}<a href="control">Curtail load</a>{% endif %}
-                                        {% if asset.asset_type_name in ("charging_station", "building") %}<a href="control">Shift load</a>{% endif %}
+                                        {% if asset.asset_type.can_shift and shifting_per_asset[asset.name] > 0 %}
+                                        <a href="control?resource={{ asset.name | urlencode }}">
+                                            {{ shifting_per_asset[asset.name] | round(2) }} MWh
+                                        </a>
+                                        {% endif %}
                                     </td>
-                                    <td>
+                                    <td><a href="analytics?resource={{ asset.name | urlencode }}">
+                                        {{ profit_loss_flexibility_per_asset[asset.name] | round(2) }} KRW
+                                    </a></td>
+                                    <!--td>
                                         {% if not prosumer_mock: %}
                                             {% if "onshore" in asset.name:%}
                                             60%
@@ -169,7 +224,7 @@
                                             <option>20%</option>
                                         </select>
                                         {% endif %}
-                                    </td>
+                                    </td-->
                                 </tr>
                                 {% endfor %}
                             </tbody>

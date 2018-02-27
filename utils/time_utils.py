@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 from flask import request, session
@@ -10,11 +10,11 @@ def decide_resolution(start: datetime, end: datetime) -> str:
     """Decide on a resolution, given the length of the time period."""
     resolution = "15T"  # default is 15 minute intervals
     period_length = end - start
-    if period_length > datetime.timedelta(weeks=16):
+    if period_length > timedelta(weeks=16):
         resolution = "1w"  # So upon switching from days to weeks, you get at least 16 data points
-    elif period_length > datetime.timedelta(days=14):
+    elif period_length > timedelta(days=14):
         resolution = "1d"  # So upon switching from hours to days, you get at least 14 data points
-    elif period_length > datetime.timedelta(hours=48):
+    elif period_length > timedelta(hours=48):
         resolution = "1h"  # So upon switching from 15min to hours, you get at least 48 data points
     return resolution
 
@@ -32,17 +32,17 @@ def resolution_to_hour_factor(resolution: str):
 
 
 def get_most_recent_quarter() -> datetime:
-    now = datetime.datetime.now()
+    now = datetime.now()
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
 
 
 def get_most_recent_hour() -> datetime:
-    now = datetime.datetime.now()
+    now = datetime.now()
     return now.replace(minute=now.minute - (now.minute % 60), second=0, microsecond=0)
 
 
 def get_default_start_time() -> datetime:
-    return get_most_recent_quarter() - datetime.timedelta(days=1)
+    return get_most_recent_quarter() - timedelta(days=1)
 
 
 def get_default_end_time() -> datetime:

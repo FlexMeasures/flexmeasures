@@ -46,10 +46,13 @@ class AssetType:
 
     def __init__(self, name: str,
                  is_consumer: bool=False, is_producer: bool=False,
+                 can_curtail=False, can_shift=False,
                  daily_seasonality: bool=False, weekly_seasonality: bool=False, yearly_seasonality: bool=False):
         self.name = name
         self.is_consumer = is_consumer
         self.is_producer = is_producer
+        self.can_curtail = can_curtail
+        self.can_shift = can_shift
 
         self.preconditions = dict(
             daily_seasonality=daily_seasonality,
@@ -64,13 +67,13 @@ class AssetType:
 
 asset_types = dict(
     solar=AssetType("solar", is_producer=True, daily_seasonality=True, yearly_seasonality=True),
-    wind=AssetType("wind", is_producer=True, daily_seasonality=True, yearly_seasonality=True),
-    charging_station=AssetType("charging_station", is_consumer=True, daily_seasonality=True, weekly_seasonality=True,
-                               yearly_seasonality=True),
-    battery=AssetType("battery", is_consumer=True, is_producer=True,
+    wind=AssetType("wind", is_producer=True, can_curtail=True, daily_seasonality=True, yearly_seasonality=True),
+    charging_station=AssetType("charging_station", is_consumer=True, can_shift=True,
+                               daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True),
+    battery=AssetType("battery", is_consumer=True, is_producer=True, can_curtail=True, can_shift=True,
                       daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True),
-    building=AssetType("building", is_consumer=True, daily_seasonality=True, weekly_seasonality=True,
-                       yearly_seasonality=True)
+    building=AssetType("building", is_consumer=True, can_shift=True,
+                       daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=True)
     # Todo: add holidays?
 )
 

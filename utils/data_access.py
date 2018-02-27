@@ -129,15 +129,6 @@ class Resource:
             raise Exception("Empty name passed (%s)" % name)
         self.name = name
 
-    def to_json(self) -> str:
-        return self.__dict__
-
-    def from_json(self, json_str: str):
-        json_obj = json.loads(json_str)
-        if not "name" in json_obj:
-            raise Exception("No name passed.")
-        self.name = json_obj["name"]
-
     @property
     def assets(self) -> List[Asset]:
         """Gather assets (lazily) which are identified by this resource name.

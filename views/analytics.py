@@ -3,6 +3,7 @@ from flask import request, session
 from werkzeug.exceptions import BadRequest
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
+from bokeh.layouts import gridplot
 from inflection import titleize
 
 from views import bvp_views
@@ -51,30 +52,32 @@ def analytics_view():
     showing_pure_consumption_data = all([a.is_pure_consumer for a in Resource(session["resource"]).assets])
     showing_pure_production_data = all([a.is_pure_producer for a in Resource(session["resource"]).assets])
 
-    # loads
-    load_data = Resource(session["resource"]).get_data()
-    if load_data is None or load_data.size == 0:
+    # Power
+    power_data = Resource(session["resource"]).get_data()
+    if power_data is None or power_data.size == 0:
         raise BadRequest("Not enough data available for resource \"%s\" in the time range %s to %s"
                          % (session["resource"], session["start_time"], session["end_time"]))
     if showing_pure_consumption_data:
-        load_data *= -1
+        power_data *= -1
         title = "Electricity consumption of %s" % titleize(session["resource"])
     else:
         title = "Electricity production from %s" % titleize(session["resource"])
-    load_hover = plotting.create_hover_tool("MW", session.get("resolution"))
-    load_data_to_show = load_data.loc[load_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
-    load_forecast_data = extract_forecasts(load_data)
-    load_fig = plotting.create_graph(load_data_to_show.y,
-                                     forecasts=load_forecast_data,
-                                     title=title,
-                                     x_label="Time (sampled by %s)"
-                                     % time_utils.freq_label_to_human_readable_label(session["resolution"]),
-                                     y_label="Load (in MW)",
-                                     show_y_floats=True,
-                                     hover_tool=load_hover)
-    load_script, load_div = components(load_fig)
+    power_hover = plotting.create_hover_tool("MW", session.get("resolution"))
+    power_data_to_show = power_data.loc[power_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
+    power_forecast_data = extract_forecasts(power_data)
+    shared_x_range = plotting.make_range(power_data_to_show.index, power_forecast_data.index)
+    power_fig = plotting.create_graph(power_data_to_show.y,
+                                      legend="Actual",
+                                      forecasts=power_forecast_data,
+                                      title=title,
+                                      x_range=shared_x_range,
+                                      x_label="Time (sampled by %s)"
+                                      % time_utils.freq_label_to_human_readable_label(session["resolution"]),
+                                      y_label="Power (in MW)",
+                                      show_y_floats=True,
+                                      hover_tool=power_hover)
 
-    load_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
+    power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
 
     # prices
     prices_data = get_data_for_assets(["epex_da"])
@@ -82,13 +85,14 @@ def analytics_view():
     prices_data_to_show = prices_data.loc[prices_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
     prices_forecast_data = extract_forecasts(prices_data)
     prices_fig = plotting.create_graph(prices_data_to_show.y,
+                                       legend="Actual",
                                        forecasts=prices_forecast_data,
                                        title="Market prices (day-ahead)",
+                                       x_range=shared_x_range,
                                        x_label="Time (sampled by %s)"
                                        % time_utils.freq_label_to_human_readable_label(session["resolution"]),
                                        y_label="Prices (in KRW/MWh)",
                                        hover_tool=prices_hover)
-    prices_script, prices_div = components(prices_fig)
 
     # weather
     session_asset_types = Resource(session["resource"]).unique_asset_type_names
@@ -119,16 +123,16 @@ def analytics_view():
     weather_fig = plotting.create_graph(weather_data_to_show.y,
                                         forecasts=weather_forecast_data,
                                         title=title,
+                                        x_range=shared_x_range,
                                         x_label="Time (sampled by %s)"
                                                 % time_utils.freq_label_to_human_readable_label(session["resolution"]),
                                         y_label=weather_axis,
                                         legend=None,
                                         hover_tool=weather_hover)
-    weather_script, weather_div = components(weather_fig)
 
     # metrics
-    realised_load_in_mwh = pd.Series(load_data.y * load_hour_factor).values
-    expected_load_in_mwh = pd.Series(load_forecast_data.yhat * load_hour_factor).values
+    realised_load_in_mwh = pd.Series(power_data.y * power_hour_factor).values
+    expected_load_in_mwh = pd.Series(power_forecast_data.yhat * power_hour_factor).values
     mae_load_in_mwh = calculations.mean_absolute_error(realised_load_in_mwh, expected_load_in_mwh)
     mae_unit_price = calculations.mean_absolute_error(prices_data.y, prices_forecast_data.yhat)
     mape_load = calculations.mean_absolute_percentage_error(realised_load_in_mwh, expected_load_in_mwh)
@@ -137,10 +141,10 @@ def analytics_view():
     wape_unit_price = calculations.weighted_absolute_percentage_error(prices_data.y, prices_forecast_data.yhat)
 
     # revenues/costs
-    rev_cost_data = pd.Series(load_data.y * prices_data.y, index=load_data.index)
-    rev_cost_forecasts = pd.DataFrame(index=load_data.index, columns=["yhat", "yhat_upper", "yhat_lower"])
+    rev_cost_data = pd.Series(power_data.y * prices_data.y, index=power_data.index)
+    rev_cost_forecasts = pd.DataFrame(index=power_data.index, columns=["yhat", "yhat_upper", "yhat_lower"])
     wape_factor_rev_costs = (wape_load / 100. + wape_unit_price / 100.) / 2.  # there might be a better heuristic here
-    rev_cost_forecasts.yhat = load_forecast_data.yhat * prices_forecast_data.yhat
+    rev_cost_forecasts.yhat = power_forecast_data.yhat * prices_forecast_data.yhat
     wape_span_rev_costs = rev_cost_forecasts.yhat * wape_factor_rev_costs
     rev_cost_forecasts.yhat_upper = rev_cost_forecasts.yhat + wape_span_rev_costs
     rev_cost_forecasts.yhat_lower = rev_cost_forecasts.yhat - wape_span_rev_costs
@@ -159,23 +163,23 @@ def analytics_view():
     rev_costs_data_to_show = \
         rev_cost_data.loc[rev_cost_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
     rev_cost_fig = plotting.create_graph(rev_costs_data_to_show,
+                                         legend="Actual",
                                          forecasts=rev_cost_forecasts,
                                          title="%s for %s (on day-ahead market)"
                                          % (rev_cost_str, titleize(session["resource"])),
+                                         x_range=shared_x_range,
                                          x_label="Time (sampled by %s)"
                                          % time_utils.freq_label_to_human_readable_label(session["resolution"]),
                                          y_label="%s (in KRW)" % rev_cost_str,
                                          hover_tool=rev_cost_hover)
-    rev_cost_script, rev_cost_div = components(rev_cost_fig)
+
+    analytics_plots_script, analytics_plots_div = components(gridplot([power_fig, weather_fig],
+                                                                      [prices_fig, rev_cost_fig],
+                                                                      toolbar_options={'logo': None}))
+
     return render_bvp_template("analytics.html",
-                               load_profile_div=encode_utf8(load_div),
-                               load_profile_script=load_script,
-                               prices_series_div=encode_utf8(prices_div),
-                               prices_series_script=prices_script,
-                               weather_profile_div=encode_utf8(weather_div),
-                               weather_profile_script=weather_script,
-                               revenues_costs_series_div=encode_utf8(rev_cost_div),
-                               revenues_costs_series_script=rev_cost_script,
+                               analytics_plots_div=encode_utf8(analytics_plots_div),
+                               analytics_plots_script=analytics_plots_script,
                                realised_load_in_mwh=realised_load_in_mwh.sum(),
                                realised_unit_price=prices_data.y.mean(),
                                realised_revenues_costs=rev_cost_data.values.sum(),

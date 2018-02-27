@@ -26,13 +26,12 @@ def render_bvp_template(html_filename: str, **variables):
         variables["end_time"] = time_utils.get_default_end_time()
     variables["page"] = html_filename.replace(".html", "")
     if "show_datepicker" not in variables:
-        variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio", "control")
-    if "load_profile_div" in variables or "portfolio_plot_div" in variables:
+        variables["show_datepicker"] = variables["page"] in ("analytics", )
+    variables["contains_plots"] = False
+    if any([n.endswith("plots_div") for n in variables.keys()]):
         variables["contains_plots"] = True
         variables["bokeh_css_resources"] = CDN.render_css()
         variables["bokeh_js_resources"] = CDN.render_js()
-    else:
-        variables["contains_plots"] = False
     variables["resolution"] = session.get("resolution", "")
     variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(session.get("resolution", ""))
 
