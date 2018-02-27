@@ -16,7 +16,6 @@ from PyQt5.QtWidgets import QApplication
 
 make_docs_cmd = 'cd documentation; make html; cd ..'
 if os.name != "posix":
-    print(hasattr(sys, 'real_prefix'))
     make_docs_cmd = 'activate a1-venv & cd documentation & make html & cd ..'  # re-activate the virtual environment
 
 
