@@ -1,6 +1,6 @@
 .. _algorithms:
 
-What algorithms does the VPP platform use?
+What algorithms does the platform use?
 ==========================================
 
 
@@ -8,7 +8,7 @@ Forecasting
 -----------
 
 Forecasting algorithms are used by the Aggregator to assess the likelihood of future consumption/production and prices.
-Weather forecasting is included in the VPP platform, but is not the result of an internal algorithm (see :ref:`weather` ).
+Weather forecasting is included in the platform, but is not the result of an internal algorithm (see :ref:`weather` ).
 The performance of our algorithms is indicated by the mean absolute error (MAE) and the weighted absolute percentage error (WAPE).
 Power profiles on an asset level often include zero values, such that the mean absolute percentage error (MAPE), a common statistical measure of forecasting accuracy, is undefined.
 For such profiles, it is more useful to report the WAPE, which is also known as the volume weighted MAPE.

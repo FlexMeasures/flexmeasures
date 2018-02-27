@@ -1,7 +1,8 @@
 .. _components:
 
+****************************************
 What components does the VPP consist of?
-========================================
+****************************************
 
 
 .. image:: ../img/components.png
@@ -15,6 +16,10 @@ Legend
     :align: center
 ..    :scale: 10% 
 
+
+
+Platform components
+===================
 
 
 Trade controller
@@ -35,10 +40,21 @@ Resource controller
 Planning logic and planning UI for Prosumer.
 
 
+External components
+===================
+
+
+A1 simulator
+------------
+
+The platform is coupled to the A1 power systems simulator.
+This simulator provides price data from the Korean Power Exchange (KPX) and consumption/production data from assets on Jeju island.
+
+
 .. _weather:
 
 Weather service
 ---------------
 
-The VPP platform is coupled to the Darksky weather service.
+The platform is coupled to the Darksky weather service.
 

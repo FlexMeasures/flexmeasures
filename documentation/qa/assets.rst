@@ -1,9 +1,9 @@
 .. _assets:
 
-What assets does the VPP work with?
-===================================
+What assets does the platform work with?
+========================================
 
-The VPP supports both non-flexible assets (for monitoring and prediction) and flexible assets (for monitoring, prediction and control). The types of assets listed below are already included in the platform. Additional asset types can be set up by the Aggregator on request.
+The platform supports both non-flexible assets (for monitoring and prediction) and flexible assets (for monitoring, prediction and control). The types of assets listed below are already included in the platform. Additional asset types can be set up by the Aggregator on request.
 
 For each resource type, there exists a default mode (producer or consumer) affecting how load profiles are plotted (e.g. a consumer expects positive values to denote consumption) and whether the revenues or costs are shown.
 

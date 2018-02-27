@@ -1,9 +1,9 @@
 .. _markets:
 
-What markets does the VPP work with?
-====================================
+What markets does the platform work with?
+=========================================
 
-The VPP tracks relevant energy market prices for the user's portfolio of assets.
+The platform tracks relevant energy market prices for the user's portfolio of assets.
 
 
 Day-ahead market
