@@ -23,6 +23,8 @@ var batIcon = new LeafIcon({iconUrl: 'static/icons/battery.svg'});
 var carIcon = new LeafIcon({iconUrl: 'static/icons/car.svg'});
 var sunIcon = new LeafIcon({iconUrl: 'static/icons/sun.svg'});
 
+var opportunityWindIcon = new LeafIcon({iconUrl: 'static/icons/wind_opportunity.png'});
+var opportunityBatteryIcon = new LeafIcon({iconUrl: 'static/icons/battery_opportunity.png'});
 
 function custom_overlay_fade(p1, p2, p3) {
     image_overlay_fade = '<div class="my_container"><img src="' + p1 +
