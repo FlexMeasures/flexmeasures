@@ -23,7 +23,14 @@ var batIcon = new LeafIcon({iconUrl: 'static/icons/battery.svg'});
 var carIcon = new LeafIcon({iconUrl: 'static/icons/car.svg'});
 var sunIcon = new LeafIcon({iconUrl: 'static/icons/sun.svg'});
 
-var opportunityWindIcon = new LeafIcon({iconUrl: 'static/icons/wind_opportunity.png'});
+//var opportunityWindIcon = new LeafIcon({iconUrl: 'static/icons/wind_opportunity.png'});
+var opportunityWindIcon = new L.DivIcon({
+                                            className: 'map-icon',
+                                            html: '<i class="icon-wind"></i>',
+                                            iconSize:     [24, 24], // size of the icon
+                                            iconAnchor:   [12, 12], // point of the icon which will correspond to marker's location
+                                            popupAnchor:  [0, -12] // point from which the popup should open relative to the iconAnchor
+                                        });
 var opportunityBatteryIcon = new LeafIcon({iconUrl: 'static/icons/battery_opportunity.png'});
 
 function custom_overlay_fade(p1, p2, p3) {

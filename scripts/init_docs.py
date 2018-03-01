@@ -14,9 +14,16 @@ from PyQt5.QtWebKitWidgets import QWebView
 from PyQt5.QtWidgets import QApplication
 
 
-make_docs_cmd = 'cd documentation; make html; cd ..'
+path_to_doc = "documentation"
+path_return = ".."
+if os.getcwd().endswith("scripts"):
+    path_to_doc = "../documentation"
+    path_return = "../scripts"
+
+make_docs_cmd = 'cd %s; make html; cd %s' % (path_to_doc, path_return)
 if os.name != "posix":
-    make_docs_cmd = 'activate a1-venv & cd documentation & make html & cd ..'  # re-activate the virtual environment
+    # here we re-activate the virtual environment first
+    make_docs_cmd = 'activate a1-venv & ' + make_docs_cmd
 
 
 class ScreenShot(QWebView):
@@ -33,6 +40,7 @@ class ScreenShot(QWebView):
         frame = self.page().mainFrame()
         self.page().setViewportSize(QSize(width, height))
         # render image
+        time.sleep(5)
         image = QImage(self.page().viewportSize(), QImage.Format_ARGB32)
         painter = QPainter(image)
         frame.render(painter)
@@ -51,12 +59,17 @@ class ScreenShot(QWebView):
         self._loaded = True
 
 
-def initialise_screen_shots(views):
+def make_screen_shots(views):
+
+    print("Capturing screen shots ...")
+
     width = 1500
     height = 1500
     s = ScreenShot()
     for view in views:
-        s.capture('http://127.0.0.1:5000/' + view, 'documentation/img/screenshot_' + view + '.png',
+        url = 'http://127.0.0.1:5000/' + view
+        print("Loading %s" % url)
+        s.capture(url, path_to_doc + '/img/screenshot_' + view + '.png',
                   width=width, height=height)
     return
 
@@ -72,5 +85,5 @@ def initialise_docs():
 if __name__ == "__main__":
     """Initialise screen shots and documentation"""
 
-    initialise_screen_shots(['dashboard', 'portfolio', 'control', 'analytics'])
+    make_screen_shots(['dashboard', 'portfolio', 'control', 'analytics'])
     initialise_docs()

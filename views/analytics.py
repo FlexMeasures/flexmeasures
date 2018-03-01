@@ -175,7 +175,8 @@ def analytics_view():
 
     analytics_plots_script, analytics_plots_div = components(gridplot([power_fig, weather_fig],
                                                                       [prices_fig, rev_cost_fig],
-                                                                      toolbar_options={'logo': None}))
+                                                                      toolbar_options={'logo': None},
+                                                                      sizing_mode='scale_width'))
 
     return render_bvp_template("analytics.html",
                                analytics_plots_div=encode_utf8(analytics_plots_div),
@@ -199,6 +200,7 @@ def analytics_view():
                                asset_groups=list(zip(groups_with_assets,
                                                      [titleize(gwa) for gwa in groups_with_assets])),
                                resource=session["resource"],
+                               asset_types=session_asset_types,
                                showing_pure_consumption_data=showing_pure_consumption_data,
                                showing_pure_production_data=showing_pure_production_data,
                                prosumer_mock=session.get("prosumer_mock", "0"),

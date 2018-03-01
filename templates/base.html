@@ -17,7 +17,7 @@
             <!-- Bootstrap -->
             <link href="static/css/external/bootstrap.min.css" rel="stylesheet"/>
             {% if show_datepicker %}
-            <link href="static/css/external/daterangepicker.css" rel="stylesheet"/>
+                <link href="static/css/external/daterangepicker.css" rel="stylesheet"/>
             {% endif %}
             <!-- Font awesome -->
             <link href="static/css/external/font-awesome.min.css" rel="stylesheet"/>
@@ -27,8 +27,8 @@
             <!-- Custom CSS -->
             <link href="static/css/a1-vpp.css" rel="stylesheet"/>
             {% if contains_plots %}
-            {{ bokeh_css_resources|indent(4)|safe }}
-            {{ bokeh_js_resources|indent(4)|safe }}
+                {{ bokeh_css_resources|indent(4)|safe }}
+                {{ bokeh_js_resources|indent(4)|safe }}
             {% endif %}
         </head>
         <body>
@@ -54,6 +54,7 @@
                                         {{ active_user }}
                                     {% endfor %}
                                     on Jeju island
+
                                 </span>
                             </div>
                             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
@@ -71,7 +72,7 @@
                 {% endblock nav %}
 
                 {% if message and message != "" %}
-                <div class="info">{{ message}} </div>
+                    <div class="info">{{ message}} </div>
                 {% endif %}
 
                 <!-- loading this earlier so templates can use it -->
@@ -92,9 +93,7 @@
 
                         <div class="form-group datetimepicker">
                             <div class="heading-group">
-                                <label class="icon-left" aria-hidden="true">
-                                    <img src="/static/icons/time.svg" alt="Time">
-                                </label>
+                                <i class="icon-time"></i>
                                 <label class="control-label">Time window</label>
                             </div>
                             <div class="btn-group btn-group-justified">
@@ -154,33 +153,33 @@
                 <!-- Custom scripts -->
                 <script src="static/js/a1-vpp.js"></script>
                 {% if show_datepicker %}
-                <script src="static/js/daterangepicker-init.js"></script>
+                    <script src="static/js/daterangepicker-init.js"></script>
                 {% endif %}
 
                 <!-- External scripts that should run after custom scripts -->
                 {% if show_datepicker %}
-                <script src="static/js/external/daterangepicker.js"></script>
+                    <script src="static/js/external/daterangepicker.js"></script>
                 {% endif %}
 
                 {% if page != "error" %}
-                <div class="todo">
-                    {% if prosumer_mock == "0": %}
-                        This is the view of <b>an aggregator or supplier</b>. All assets are listed.
-                    {% else: %}
-                    This is the view of <b>a prosumer who owns "{{ prosumer_mock }}" assets</b>. Only the assets owned by this prosumer are listed.
-                        {% if page == "portfolio": %}
-                            The prosumer can put constraints for actions in place, for example available capacity.
+                    <div class="alert alert-info">
+                        {% if prosumer_mock == "0": %}
+                            This is the view of <b>an aggregator or supplier</b>. All assets are listed.
+                        {% else: %}
+                        This is the view of <b>a prosumer who owns "{{ prosumer_mock }}" assets</b>. Only the assets owned by this prosumer are listed.
+                            {% if page == "portfolio": %}
+                                The prosumer can put constraints for actions in place, for example available capacity.
+                            {% endif %}
                         {% endif %}
-                    {% endif %}
-                    <br/>
-                    Here are possible (mocked) user perspectives:
-                    {% for id, caption, icon in user_list_mock %}
-                        <button onclick="window.location.href='?prosumer_mock={{ id }}'">
-                            <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
-                            {{ caption|e }}
-                        </button>
-                    {% endfor %}
-                </div>
+                        <br/>
+                        Here are possible (mocked) user perspectives:
+                        {% for id, caption, icon in user_list_mock %}
+                            <button onclick="window.location.href='?prosumer_mock={{ id }}'">
+                                <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                                {{ caption|e }}
+                            </button>
+                        {% endfor %}
+                    </div>
                 {% endif %}
 
             {% endblock body %}

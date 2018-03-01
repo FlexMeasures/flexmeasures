@@ -1,6 +1,6 @@
 # Balancing Valorisation Platform (BVP)
 
-This is Seita's implementation of the BVP pilot of A1.
+This is Seita's implementation of the BVP pilot for A1.
 
 ## Getting Started
 
@@ -17,6 +17,12 @@ This is Seita's implementation of the BVP pilot of A1.
 
       conda install flask bokeh pandas==0.22.0 iso8601 xlrd inflection Flask-SSLify 
       conda install -c conda-forge fbprophet
+* Install dependencies for initialising the documentation with automatic screenshots:
+
+      conda install -c anaconda pyqt==5.6.0
+* Or for initialising the documentation on Windows (the [Geckodriver](https://github.com/mozilla/geckodriver/releases) should be on your path):
+
+      conda install selenium==3.9.0
 
 ### Dependencies using plain pip:
 * Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`.

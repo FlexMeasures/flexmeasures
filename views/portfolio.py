@@ -203,7 +203,8 @@ def portfolio_view():
     fig_actions.xaxis.visible = False
 
     portfolio_plot_script, portfolio_plot_div = components(gridplot([fig_profile], [fig_actions],
-                                                                    toolbar_options={'logo': None}))
+                                                                    toolbar_options={'logo': None},
+                                                                    sizing_mode='scale_width'))
     next24hours = [(time_utils.get_most_recent_hour() + timedelta(hours=i)).strftime("%I:00 %p") for i in range(1, 26)]
 
     return render_bvp_template("portfolio.html", prosumer_mock=session.get("prosumer_mock", "0"),

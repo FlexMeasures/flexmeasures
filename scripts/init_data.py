@@ -6,27 +6,26 @@ When we move to a database, this will change.
 Each pickle encodes in its name the asset name and resolution. Asset name should refer to a name in assets.json of
 course, we might add a check or warning here.
 """
+import os
+import sys
 import collections
-import json
+
 import pandas as pd
 
+sys.path.insert(1, os.path.join(sys.path[0], '..'))
 from models import Asset, Market, resolutions
 from forecasting import make_rolling_forecast
 import models
 
 
-asset_excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
-weather_excel_filename = "data/20171120_A1-VPP_DesignDataSetR01.xls"
-prices_filename = 'data/German day-ahead prices 20140101-20160630.csv'
-evs_filename = 'data/German charging stations 20150101-20150620.csv'
-buildings_filename = 'data/neighbourhood.csv'
+path_to_data = "data"  # assuming we are in the main directory
 
-
-Sheet = collections.namedtuple('Sheet', 'name asset_type')
-sheets = [
-    Sheet(name="1_PV_CS6X-295P", asset_type=models.asset_types["solar"]),
-    Sheet(name="2_WT_Enercon E40 600-46", asset_type=models.asset_types["wind"])
-]
+# all these data sources are assumed to be in the data directory
+asset_excel_filename = "20171120_A1-VPP_DesignDataSetR01.xls"
+weather_excel_filename = "20171120_A1-VPP_DesignDataSetR01.xls"
+prices_filename = 'German day-ahead prices 20140101-20160630.csv'
+evs_filename = 'German charging stations 20150101-20150620.csv'
+buildings_filename = 'neighbourhood.csv'
 
 
 def make_datetime_index(a1df):
@@ -81,7 +80,7 @@ def initialise_market_data():
     print("Processing EPEX market data ...")
     markets = []
 
-    df = pd.read_csv(prices_filename, index_col=0, parse_dates=True, names={'EPEX_DA'})
+    df = pd.read_csv("%s/%s" % (path_to_data, prices_filename), index_col=0, parse_dates=True, names={'EPEX_DA'})
     df = set_datetime_index(df, freq='1H')
     market_type = models.market_types['day_ahead']
 
@@ -97,7 +96,7 @@ def initialise_market_data():
             market_df["y"] = res_df[market_col_name]
 
             market_df = get_forecasts(market_df, market_type, res)
-            market_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (market.name, res))
+            market_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, market.name, res))
 
             if res == resolutions[-1]:
                 markets.append(market)
@@ -108,7 +107,7 @@ def initialise_weather_data():
 
     print("Processing weather data ...")
 
-    df = pd.read_excel(weather_excel_filename, "0_Weather", usecols=[0, 6, 14, 38], header=[0, 1], index_col=0)
+    df = pd.read_excel("%s/%s" % (path_to_data, weather_excel_filename), "0_Weather", usecols=[0, 6, 14, 38], header=[0, 1], index_col=0)
     headers = ["temperature", "total_radiation", "wind_speed"]
     df = set_datetime_index(df, freq='15min', start=pd.datetime(year=2015, month=1, day=1))
     df = df[:-1]  # we got one row too many (of 2016)
@@ -119,15 +118,16 @@ def initialise_weather_data():
             weather_df = pd.DataFrame(index=res_df.index)
             weather_df["y"] = res_df[weather_col_name]
 
-            weather_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (headers[i], res))
+            weather_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, headers[i], res))
     return
+
 
 def initialise_buildings_data():
     """Initialise building data"""
 
     print("Processing building data ...")
 
-    df = pd.read_csv(buildings_filename, index_col=0, parse_dates=True)
+    df = pd.read_csv("%s/%s" % (path_to_data, buildings_filename), index_col=0, parse_dates=True)
     df = set_datetime_index(df, freq='1H', start=df.index[0])
     asset_type = models.asset_types['building']
 
@@ -147,7 +147,7 @@ def initialise_buildings_data():
             assert (all(asset_df.y <= 0))
 
             asset_df = get_forecasts(asset_df, asset_type, res)
-            asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
+            asset_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, asset.name, res))
 
 
 def initialise_charging_station_data():
@@ -155,7 +155,7 @@ def initialise_charging_station_data():
 
     print("Processing EV data ...")
 
-    df = pd.read_csv(evs_filename, index_col=0, parse_dates=True)
+    df = pd.read_csv("%s/%s" % (path_to_data, evs_filename), index_col=0, parse_dates=True)
     df = set_datetime_index(df, freq='15min', start=df.index[0].floor('min'))
     asset_type = models.asset_types['charging_station']
 
@@ -175,24 +175,31 @@ def initialise_charging_station_data():
             assert(all(asset_df.y <= 0))
 
             asset_df = get_forecasts(asset_df, asset_type, res)
-            asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
+            asset_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, asset.name, res))
 
 
 def initialise_a1_data():
     """Initialise A1 asset data
-    TODO: if this method gets passed the sheet name, we'd already have three larger jobs (cars, evs, wind)
+    TODO: Better distribution of workload across CPUs?
+          If this method gets passed the sheet name, we'd already have three larger jobs (cars, evs, wind)
           to distribute. Best would be to create one job per asset here (just collecting asset metadata),
           and let each asset be processed by an externally callable method.
           Then we'd read in the same data frame once per asset, but that is not the expensive part here -
           the forecasting is.
           See also https://github.com/nhoening/fjd/issues/12
+          But the main problem is forecasting, and prophet actually nicely uses a computer's CPUs. Distribution
+          makes sense if we can use multiple computers.
     """
-
-    for sheet in sheets:
+    A1Sheet = collections.namedtuple('Sheet', 'name asset_type')
+    a1_sheets = [
+        A1Sheet(name="1_PV_CS6X-295P", asset_type=models.asset_types["solar"]),
+        A1Sheet(name="2_WT_Enercon E40 600-46", asset_type=models.asset_types["wind"])
+    ]
+    for sheet in a1_sheets:
         # read in excel sheet
         print("Processing sheet %s (%d/%d) for %s assets ..." %
-              (sheet.name, sheets.index(sheet) + 1, len(sheets), sheet.asset_type.name))
-        df = pd.read_excel(asset_excel_filename, sheet.name)
+              (sheet.name, a1_sheets.index(sheet) + 1, len(a1_sheets), sheet.asset_type.name))
+        df = pd.read_excel("%s/%s" % (path_to_data, asset_excel_filename), sheet.name)
         df = df[:-1]  # we got one row too many (of 2016)
         df = make_datetime_index(df)
 
@@ -213,11 +220,14 @@ def initialise_a1_data():
                     assert(all(asset_df.y <= 0))
 
                 asset_df = get_forecasts(asset_df, sheet.asset_type, res)
-                asset_df.to_pickle("data/pickles/df_%s_res%s.pickle" % (asset.name, res))
+                asset_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, asset.name, res))
 
 
 if __name__ == "__main__":
     """Initialise markets and assets"""
+
+    if os.getcwd().endswith("scripts"):  # if this script is being called from within the scripts directory
+        path_to_data = "../data"
 
     initialise_weather_data()
     initialise_buildings_data()

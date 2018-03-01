@@ -8,29 +8,35 @@
 
     <div class="container-fluid">
         <div class="row">
-            <div class="col-sm-3 top-bottom">
+            <div class="col-sm-4 top-bottom">
                 <h3>About</h3>
                 <div class="justify">
-                    Analytics on asset level. You can adjust views here to check out different things (assets, time frames), but you can't take control actions here.
+                    <p>
+                        This page provides in-depth analytics for your resources (individual assets or groups of assets).
+                        You can browse through historical data and assess how that platform is monitoring and forecasting data streams from various resources.
+                    </p>
+                    <p>
+                        Need help understanding this page? Check out the <a href="static/documentation/html/views/analytics.html">documentation</a>.
+                    </p>
                 </div>
                 <h3>Controls</h3>
                 <form id="resource-form" method="post">
                     <div class="form-group">
-                        <label class="icon-left">
-                            <img src="static/icons/sun.svg" alt="type" name="preset-icon">
-                        </label>
+                        {% for asset_type in asset_types %}
+                            <i class="icon-{{ asset_type }}"></i>
+                        {% endfor %}
                         <label class="control-label" for="resource">Resource</label>
                         <div>
                             <select class="form-control" id="resource" name="resource" onchange="this.form.submit()">
                                 {% for asset_group, asset_group_display_name in asset_groups %}
-                                <option value="{{ asset_group }}" {% if resource==asset_group %} selected="selected"{% endif %}>
-                                    {{ asset_group_display_name }}
-                                </option>
+                                    <option value="{{ asset_group }}" {% if resource==asset_group %} selected="selected"{% endif %}>
+                                        {{ asset_group_display_name }}
+                                    </option>
                                 {% endfor %}
                                 {% for asset in assets %}
-                                <option value="{{ asset.name }}" {% if resource==asset.name %} selected="selected"{% endif %}>
-                                    {{ asset.display_name }} ({{ asset.asset_type_display_name }})
-                                </option>
+                                    <option value="{{ asset.name }}" {% if resource==asset.name %} selected="selected"{% endif %}>
+                                        {{ asset.display_name }} ({{ asset.asset_type_display_name }})
+                                    </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -42,7 +48,7 @@
                 <table class="table text-right" style="font-size: 100%;">
                     <thead>
                         <tr>
-                            <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
+                            <th><i class="icon-calculator"></i></th>
                             <th>
                                 <span title="Aggregation of the profile of this resource.">
                                     {% if showing_pure_consumption_data %} Consumption
@@ -98,7 +104,7 @@
                         </tr>
                     </tbody>
                 </table>
-                <div class="todo">
+                <div class="alert alert-info">
                     <h3>To do</h3>
                     <div class="justify">
                         <table class="table" style="font-size: 100%;">
@@ -126,10 +132,11 @@
                     </div>
                 </div>
             </div>
-
-            <div class="col-sm-9">
-                {{ analytics_plots_div | safe }}
-                {{ analytics_plots_script | safe }}
+            <div class="col-sm-8">
+                <div class="panel panel-default">
+                    {{ analytics_plots_div | safe }}
+                    {{ analytics_plots_script | safe }}
+                </div>
             </div>
         </div>
     </div>

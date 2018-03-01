@@ -45,7 +45,7 @@ def check_prosumer_mock() -> bool:
     Sets this in the session, as well."""
     if "prosumer_mock" in request.values:
         session["prosumer_mock"] = request.values.get("prosumer_mock")
-    return session.get("prosumer_mock") != "0"
+    return session.get("prosumer_mock", "0") != "0"
 
 
 def filter_mock_prosumer_assets(assets: List[models.Asset]) -> List[models.Asset]:

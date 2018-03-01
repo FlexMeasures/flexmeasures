@@ -9,32 +9,6 @@
 
     // Helper functions
 
-    function getIconNameByAssetType(assetType){
-        if (assetType == "wind") return "wind";
-        if (assetType == "batteries") return "battery";
-        if (assetType == "buildings") return "house";
-        if (assetType == "solar") return "sun";
-        if (assetType == "charging_stations") return "car";
-        // Mock
-        if (assetType == "wind_opp") return "wind_opp";
-        if (assetType == "battery_opp") return "battery_opp";
-        // TODO: more?
-        return "wind";
-    }
-
-    function getIconByAssetType(assetType){
-        if (assetType == "wind") return windIcon;
-        if (assetType == "battery") return batIcon;
-        if (assetType == "building") return houseIcon;
-        if (assetType == "solar") return sunIcon;
-        if (assetType == "charging_station") return carIcon;
-        // Mock
-        if (assetType == "wind_opp") return OpportunityWindIcon;
-        if (assetType == "battery_opp") return OpportunityBatteryIcon;
-        // TODO: more?
-        return windIcon;
-    }
-
     function getMockImageByCapacityFactor(capacity_factor_in_percent){
         var path = "/static/live-mock-imgs/";
         if (capacity_factor_in_percent < 5) return path + "0.0.png";
@@ -53,17 +27,23 @@
 
     <div class="container-fluid">
         <div class="row">
-            <div class="col-sm-3 top-bottom">
+            <div class="col-sm-4 top-bottom">
                 <h3>About</h3>
                 <div class="justify">
-                    This is the Balancing Valorisation Plaform (BVP) for Aggregators and Energy Service Companies operating on Jeju island.
-
-                    The BVP is a tool for scheduling balancing actions on behalf of the connected asset owners.
-                    Its purpose is to offer these balancing actions as one aggregated service to energy markets, realising the highest possible value for its users.
-                    It fulfills this purpose with four services: automation, insight, autonomy, and profit sharing.
-
+                    <p>
+                        The Balancing Valorisation Platform (BVP) is a tool <em>for scheduling balancing actions</em> on behalf of connected asset owners.
+                        Its purpose is to realise the best value for the owners by selling balancing services to energy markets.
+                        It fulfills this purpose with four services: automation, insight, autonomy, and profit sharing.
+                    </p>
+                    <p>
+                        This dashboard shows you which of your assets are connected to the platform and how they are doing.
+                        Assets marked red require your attention, as balancing opportunities have been identified.
+                    </p>
+                    <p>
+                        Need help understanding this page? Check out the <a href="static/documentation/html/views/dashboard.html">documentation</a>.
+                    </p>
                 </div>
-                <div class="todo">
+                <div class="alert alert-info">
                     <h3>To do</h3>
                     <div class="justify">
                         <table class="table" style="font-size: 100%;">
@@ -95,7 +75,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-sm-9">
+            <div class="col-sm-8">
                 <div class="row eq-height">
                     <div class="col-sm-12">
                         <h3>{% if not prosumer_mock == "0": %}BVP status:{% else %}Status of my assets:{% endif%}
@@ -121,12 +101,7 @@
                                     {% for asset_type in asset_counts_per_pluralised_type: %}
                                         {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
                                     <td>
-                                        <label class="icon-left">
-                                            <img id="icon-for-{{ asset_type }}" alt="{{ asset_type }}" src="">
-                                            <script type="text/javascript">
-                                            $("#icon-for-{{ asset_type }}").attr("src", "/static/icons/" + getIconNameByAssetType("{{ asset_type }}") + ".svg");
-                                            </script>
-                                        </label>
+                                        <i class="icon-{{ asset_type }}"></i>
                                         {{ asset_counts_per_pluralised_type[asset_type] }}
                                     </td>
                                         {% endif %}
@@ -151,37 +126,51 @@
     {% for asset_type in asset_counts_per_pluralised_type: %}
         {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
             var {{ asset_type }}_markers = [];
+
+            var {{ asset_type }}_icon = new L.DivIcon({
+                    className:      'map-icon',
+                    html:           '<i class="icon-{{ asset_type }}"></i>',
+                    iconSize:       [24, 24], // size of the icon
+                    iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
+                    popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
+                });
+
+            var {{ asset_type }}_opportunity_icon = new L.DivIcon({
+                    className:      'map-icon opportunity',
+                    html:           '<i class="icon-{{ asset_type }}"></i>',
+                    iconSize:       [24, 24], // size of the icon
+                    iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
+                    popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
+                });
         {% endif %}
     {% endfor %}
 
     {% for asset in assets: %}
         {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
-        var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = L.marker([{{ asset.location[0] }}, {{ asset.location[1] }}], {icon: getIconByAssetType("{{ asset.asset_type_name }}")})
+        var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = L.marker([{{ asset.location[0] }}, {{ asset.location[1] }}], {icon: {{ asset.asset_type.pluralized_name }}_icon})
                                 .bindPopup('<a href="analytics?resource={{ asset.name | urlencode }}">{{ asset.display_name }}</a>' +
                                            custom_overlay_fade(getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}),
                                         'Load',
                                         'Currently producing at {{ current_load_in_mw }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}% capacity)'));
-                                   // .openPopup();
+                                // .openPopup();
         {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ asset.name.replace("-", "").replace(".", "") }});
     {% endfor%}
 
     // add mock icons in layer
     {% if prosumer_mock == "0" or prosumer_mock=="offshore" %}
-        var marker_for_wind = L.marker([33.428833, 126.166126], {icon: opportunityWindIcon})
+        var marker_for_wind = L.marker([33.428833, 126.166126], {icon: wind_opportunity_icon})
                                 .bindPopup('<a href="analytics?resource={{ "sw-offshore" | urlencode }}">Suwon</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a><p>' +
                                            custom_overlay_fade(getMockImageByCapacityFactor(80),
                                         'Load',
                                         'Currently producing at 1 MW (80% capacity)'));
-                                   // .openPopup();
         wind_markers.push(marker_for_wind);
     {% endif%}
     {% if prosumer_mock == "0" or prosumer_mock=="vehicles" %}
-        var marker_for_bat = L.marker([33.3761057, 126.3025723], {icon: opportunityBatteryIcon})
+        var marker_for_bat = L.marker([33.3761057, 126.3025723], {icon: charging_stations_opportunity_icon})
                                 .bindPopup('<a href="analytics?resource={{ "bsu" | urlencode }}">Battery storage unit</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a>.<p>' +
                                            custom_overlay_fade(getMockImageByCapacityFactor(80),
                                         'Load',
                                         'Currently producing at 1 MW (80% capacity)'));
-                                   // .openPopup();
         charging_stations_markers.push(marker_for_bat); // Battery marker added in the charging station layer
     {% endif%}
 

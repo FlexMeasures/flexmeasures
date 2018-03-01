@@ -2,25 +2,28 @@
 
 {% set active_page = "control" %}
 
-{% block title %} DR actions {% endblock %}
+{% block title %} Balancing actions {% endblock %}
 
 {% block divs %}
 
     <div class="container-fluid">
         <div class="row">
-            <div class="col-sm-3 top-bottom">
+            <div class="col-sm-4 top-bottom">
                 <h3>About</h3>
                 <div class="justify">
-                    You can take control actions here on asset and on portfolio level.
-                    For the Supplier, control actions are presented as an order book.
-                    <!--For each action the expected value is stated as well as the associated financial risks.-->
+                    <p>
+                        This page shows you which balancing actions you can take to valorise on identified opportunities.
+                        Possible actions are listed in order books for future time slots.
+                        You can check the expected value of each action, as well as the expected effect on the power profile of your portfolio.
+                    </p>
+                    <p>
+                        Need help understanding this page? Check out the <a href="static/documentation/html/views/control.html">documentation</a>.
+                    </p>
                 </div>
                 <h3>Controls</h3>
                 <form id="resource-form" method="post">
                     <div class="form-group">
-                        <label class="icon-left" aria-hidden="true">
-                            <img src="/static/icons/time.svg" alt="Time">
-                        </label>
+                        <i class="icon-time"></i>
                         <label class="control-label">Upcoming hours</label>
                         <div>
                             <select class="form-control" id="resource" name="resource" onchange="this.form.submit()">
@@ -36,7 +39,7 @@
                 <table class="table" style="font-size: 100%;">
                     <thead>
                         <tr>
-                            <th><label class="icon-left"><img src="static/icons/calculator.svg" alt="Calculator"></label></th>
+                            <th><i class="icon-calculator"></i></th>
                             <th>Load (MWh)</th>
                             <th>Expected value (KRW)</th>
                         </tr>
@@ -49,7 +52,7 @@
                         </tr>
                     </tbody>
                 </table>
-                <div class="todo">
+                <div class="alert alert-info">
                     <h3>To do</h3>
                     <div class="justify">
                         <table class="table" style="font-size: 100%;">
@@ -85,9 +88,9 @@
                     </div>
                 </div>
             </div>
-            <div class="col-sm-9">
+            <div class="col-sm-8">
                 <h3>Control actions on asset level (by AGR for SUP)</h3>
-                <div class="todo">
+                <div class="alert alert-info">
                     This is a mockup of intended functionality (expected: M3) and still subject to change.
                     Only the upcoming hour between 04:00 AM and 05:00 AM can be selected.
                     <br/>
@@ -118,9 +121,7 @@
                     {% if prosumer_mock in ("0", "vehicles"): %}
                         <tr class="active">
                             <td>
-                                <label class="icon-left">
-                                    <img src="/static/icons/car.svg" alt="Time">
-                                </label>
+                                <i class="icon-charging_station"></i>
                                 Seongsan Ilchulbong
                             </td>
                             <td>ESCo 1</td>
@@ -151,9 +152,7 @@
                     {% if prosumer_mock in ("0", "onshore"): %}
                         <tr class="active">
                             <td>
-                                <label class="icon-left">
-                                    <img src="/static/icons/wind.svg" alt="Time">
-                                </label>
+                                <i class="icon-wind"></i>
                                 SamDal
                             </td>
                             <td>ESCo 1</td>
@@ -184,9 +183,7 @@
                     {% if prosumer_mock in ("0",): %}
                         <tr id="control-tr-offshore">
                             <td>
-                                <label class="icon-left">
-                                    <img src="/static/icons/wind.svg" alt="Time">
-                                </label>
+                                <i class="icon-wind"></i>
                                 Suwon
                             </td>
                             <td>ESCo 1</td>
@@ -224,9 +221,7 @@
                     {% if prosumer_mock in ("0", ): %}
                         <tr id="control-tr-battery">
                             <td>
-                                <label class="icon-left">
-                                    <img src="/static/icons/battery.svg" alt="Time">
-                                </label>
+                                <i class="icon-battery"></i>
                                 Battery storage unit
                             </td>
                             <td>ESCo 2</td>
