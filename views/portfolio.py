@@ -19,10 +19,10 @@ from views.utils import render_bvp_template, check_prosumer_mock, filter_mock_pr
 @bvp_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
     """ Portfolio view. Todo: expand this docstring."""
-    # time_utils.set_time_range_for_session()  # we're mocking the next 24 hours for now
-    start = time_utils.get_most_recent_hour().replace(year=2015)
-    end = start + timedelta(hours=24)
-    resolution = "1h"  # session["resolution"]
+    time_utils.set_time_range_for_session()
+    start = session.get("start_time")
+    end = session.get("end_time")
+    resolution = session.get("resolution")
 
     assets = get_assets()
     if check_prosumer_mock():
@@ -178,17 +178,20 @@ def portfolio_view():
 
     # actions
     df_actions = pd.DataFrame(index=df_sum.index, columns=["y"]).fillna(0)
-    if not check_prosumer_mock():
-        df_actions.loc[next4pm] = -2.4  # mock two actions
-    elif session.get("prosumer_mock") == "onshore":
-        df_actions.loc[next4pm] = -1.3  # mock one action
-    elif session.get("prosumer_mock") == "vehicles":
-        df_actions.loc[next4pm] = -1.1  # mock one action
+    if next4pm in df_actions.index:
+        if not check_prosumer_mock():
+            df_actions.loc[next4pm] = -2.4  # mock two actions
+        elif session.get("prosumer_mock") == "onshore":
+            df_actions.loc[next4pm] = -1.3  # mock one action
+        elif session.get("prosumer_mock") == "vehicles":
+            df_actions.loc[next4pm] = -1.1  # mock one action
     next2pm = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 14][0]
-    if next2pm < next4pm and (not check_prosumer_mock() or session.get("prosumer_mock") == "vehicles"):
-        df_actions.loc[next2pm] = 1.1  # mock the shift "payback" (actually occurs earlier in our mock example)
+    if next2pm in df_actions.index:
+        if next2pm < next4pm and (not check_prosumer_mock() or session.get("prosumer_mock") == "vehicles"):
+            df_actions.loc[next2pm] = 1.1  # mock the shift "payback" (actually occurs earlier in our mock example)
     next9pm = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 21][0]
-    df_actions.loc[next9pm] = 3.5  # mock some other ordered actions that are not in an opportunity hour anymore
+    if next9pm in df_actions.index:
+        df_actions.loc[next9pm] = 3.5  # mock some other ordered actions that are not in an opportunity hour anymore
 
     fig_actions = plotting.create_graph(df_actions.y,
                                         title="Ordered balancing actions",

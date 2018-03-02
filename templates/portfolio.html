@@ -12,13 +12,16 @@
                 <h3>About</h3>
                 <div class="justify">
                     <p>
-                        This page shows you how your portfolio of assets is doing in terms of energy production, consumption and flexibility over the next 24 hours.
+                        This page shows you how your portfolio of assets is doing in terms of energy (production &amp; consumption) and flexibility.
                         Highlighted time slots require your attention, as upcoming balancing opportunities have been identified.
                     </p>
                     <p>
                         Need help understanding this page? Check out the <a href="static/documentation/html/views/portfolio.html">documentation</a>.
                     </p>
                 </div>
+
+                <h3>Controls</h3>
+                {% block datetimepicker %} {{ super() }} {% endblock %}
 
                 {% if asset_types | length > 0 %}
                     <h3>Energy summary</h3>
@@ -60,7 +63,9 @@
                         {% endif %}
                         </tbody>
 
-                    </table><h3>Flexibility summary</h3>
+                    </table>
+
+                    <h3>Flexibility summary</h3>
                     <table class="table text-right" style="font-size: 100%;">
                         <thead>
                             <tr>
@@ -101,41 +106,14 @@
                     </table>
                 {% endif %}
 
-                <div class="alert alert-info">
-                    <h3>To do</h3>
-                    <div class="justify">
-                        <table class="table" style="font-size: 100%;">
-                            <thead>
-                                <tr>
-                                    <th>Feature</th>
-                                    <th>Expected</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Portfolio editing: adding/removing assets</td>
-                                    <td>M2</td>
-                                </tr>
-                                <tr>
-                                    <td>Portfolio editing: assigning assets to prices</td>
-                                    <td>M2</td>
-                                </tr>
-                                <tr>
-                                    <td>...</td>
-                                    <td>...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
             </div>
             <div class="col-sm-8">
 
                 <!--<div class="row">-->
                     <h3>Portfolio status</h3>
                     <div class="alert alert-info">
-                        <p>This shows activity of your portfolio in the next 24 hours and (for onshore and vehicles) mocks an opportunity.
-                            <i>Double-click the opportunity</i> to see the order book. </p>
+                        <p>For onshore and vehicles, an opportunity is mocked for the following 4pm timeslot (select time window "today" or "tomorrow").
+                            <b>Double-click the opportunity</b> to see the order book. </p>
                         <p> You can also <button><a href="?show_stacked={{alt_stacking}}">Switch to showing stacked {{ alt_stacking }}</a></button> </p>
                     </div>
                     <div class="panel panel-default">
@@ -157,6 +135,7 @@
                                     <th>Curtailment</th>
                                     <th>Shifting</th>
                                     <th>Balancing Revenue</th>
+                                    <th/>
                                 </tr>
                             </thead>
                             <tbody>
@@ -168,35 +147,35 @@
                                     </td>
                                     <td>
                                         {% if asset.asset_type.is_producer %}
-                                        <a href="analytics?resource={{ asset.name | urlencode }}">
                                             {{ production_per_asset[asset.name] | round(2) }} MWh
-                                        </a>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if asset.asset_type.is_consumer %}
-                                        <a href="analytics?resource={{ asset.name | urlencode }}">
                                             {{ consumption_per_asset[asset.name] | round(2) }} MWh
-                                        </a>
                                         {% endif %}
-                                    </td><td>
+                                    </td>
+                                    <td>
                                         {% if asset.asset_type.can_curtail  and curtailment_per_asset[asset.name] > 0 %}
-                                        <a href="control?resource={{ asset.name | urlencode }}">
                                             {{ curtailment_per_asset[asset.name] | round(2) }} MWh
-                                        </a>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if asset.asset_type.can_shift and shifting_per_asset[asset.name] > 0 %}
-                                        <a href="control?resource={{ asset.name | urlencode }}">
                                             {{ shifting_per_asset[asset.name] | round(2) }} MWh
-                                        </a>
                                         {% endif %}
                                     </td>
-                                    <td><a href="analytics?resource={{ asset.name | urlencode }}">
+                                    <td>
                                         {{ profit_loss_flexibility_per_asset[asset.name] | round(2) }} KRW
-                                    </a></td>
-                                    <!--td>
+                                    </td>
+                                    <td>
+                                        <button>
+                                            <a target="_blank" href="analytics?resource={{ asset.name | urlencode }}">
+                                            Analyze
+                                            </a>
+                                        </button>
+                                    </td>
+                                                <!--td>
                                         {% if not prosumer_mock: %}
                                             {% if "onshore" in asset.name:%}
                                             60%

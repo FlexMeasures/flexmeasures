@@ -33,10 +33,12 @@ var opportunityWindIcon = new L.DivIcon({
                                         });
 var opportunityBatteryIcon = new LeafIcon({iconUrl: 'static/icons/battery_opportunity.png'});
 
-function custom_overlay_fade(p1, p2, p3) {
-    image_overlay_fade = '<div class="my_container"><img src="' + p1 +
-                         '" alt="' + p2 +
-                         '" class="image"><div class="middle"><div class="text">' + p3 +
-                         '</div></div></div>';
-    return image_overlay_fade
+function custom_overlay_fade(image, asset_name, asset_display_name, overlay_text) {
+    return '<div class="my_container">' +
+           '  <img src="' + image + '" alt="Current energy level for ' + asset_name + '" class="image">' +
+           '    <div class="middle">' +
+           '      <div class="text">' + overlay_text + '</div>' +
+           '  </div>' +
+           '</div>' +
+           '<br/><button><a target="_blank" href="analytics?resource=' + asset_name + '">Analyze '+ asset_display_name +'</a></button>';
 }

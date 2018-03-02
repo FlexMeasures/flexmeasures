@@ -43,37 +43,6 @@
                         Need help understanding this page? Check out the <a href="static/documentation/html/views/dashboard.html">documentation</a>.
                     </p>
                 </div>
-                <div class="alert alert-info">
-                    <h3>To do</h3>
-                    <div class="justify">
-                        <table class="table" style="font-size: 100%;">
-                            <thead>
-                                <tr>
-                                    <th>Feature</th>
-                                    <th>Expected</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>User authentication</td>
-                                    <td>M2</td>
-                                </tr>
-                                <tr>
-                                    <td>Language toggling</td>
-                                    <td>M3</td>
-                                </tr>
-                                <tr>
-                                    <td>Asset locations updated from database</td>
-                                    <td>Extra</td>
-                                </tr>
-                                <tr>
-                                    <td>...</td>
-                                    <td>...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
             </div>
             <div class="col-sm-8">
                 <div class="row eq-height">
@@ -148,10 +117,10 @@
     {% for asset in assets: %}
         {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
         var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = L.marker([{{ asset.location[0] }}, {{ asset.location[1] }}], {icon: {{ asset.asset_type.pluralized_name }}_icon})
-                                .bindPopup('<a href="analytics?resource={{ asset.name | urlencode }}">{{ asset.display_name }}</a>' +
+                                .bindPopup('<h2>{{ asset.display_name }}</h2>' +
                                            custom_overlay_fade(getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}),
-                                        'Load',
-                                        'Currently producing at {{ current_load_in_mw }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}% capacity)'));
+                                                               '{{ asset.name }}', '{{ asset.display_name }}',
+                                                               'Currently producing at {{ current_load_in_mw | round(2) }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}% capacity)'));
                                 // .openPopup();
         {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ asset.name.replace("-", "").replace(".", "") }});
     {% endfor%}
@@ -159,17 +128,17 @@
     // add mock icons in layer
     {% if prosumer_mock == "0" or prosumer_mock=="offshore" %}
         var marker_for_wind = L.marker([33.428833, 126.166126], {icon: wind_opportunity_icon})
-                                .bindPopup('<a href="analytics?resource={{ "sw-offshore" | urlencode }}">Suwon</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a><p>' +
+                                .bindPopup('<i>Suwon</i> has a balancing opportunity! Please valorise on the opportunity <a href="control">here</a><p>' +
                                            custom_overlay_fade(getMockImageByCapacityFactor(80),
-                                        'Load',
+                                        'sw-offshore', 'Suwon',
                                         'Currently producing at 1 MW (80% capacity)'));
         wind_markers.push(marker_for_wind);
     {% endif%}
     {% if prosumer_mock == "0" or prosumer_mock=="vehicles" %}
         var marker_for_bat = L.marker([33.3761057, 126.3025723], {icon: charging_stations_opportunity_icon})
-                                .bindPopup('<a href="analytics?resource={{ "bsu" | urlencode }}">Battery storage unit</a> has a balancing opportunity. Please valorise on the opportunity <a href="control">here</a>.<p>' +
+                                .bindPopup('<i>Battery storage unit</i> has a balancing opportunity! Please valorise on the opportunity <a href="control">here</a>.<p>' +
                                            custom_overlay_fade(getMockImageByCapacityFactor(80),
-                                        'Load',
+                                        'bsu', 'Battery storage unit',
                                         'Currently producing at 1 MW (80% capacity)'));
         charging_stations_markers.push(marker_for_bat); // Battery marker added in the charging station layer
     {% endif%}

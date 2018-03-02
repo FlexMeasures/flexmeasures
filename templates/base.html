@@ -58,6 +58,7 @@
                                 </span>
                             </div>
                             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
+                                {% if page != "analytics" %}
                                 <ul class="nav navbar-nav">	
                                     {% for href, id, caption, icon in navigation_bar %}
                                         <li{% if id == active_page %} class="active"{% endif %}>
@@ -65,6 +66,11 @@
                                         </li>
                                     {% endfor %}
                                 </ul>
+                                {% else %}
+                                <button onclick="window.close(); return false;">
+                                    Close Analysis View
+                                </button>
+                                {% endif %}
                             </div>
                         </div>
                     </nav>

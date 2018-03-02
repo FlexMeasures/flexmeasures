@@ -26,7 +26,7 @@ def render_bvp_template(html_filename: str, **variables):
         variables["end_time"] = time_utils.get_default_end_time()
     variables["page"] = html_filename.replace(".html", "")
     if "show_datepicker" not in variables:
-        variables["show_datepicker"] = variables["page"] in ("analytics", )
+        variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio")
     variables["contains_plots"] = False
     if any([n.endswith("plots_div") for n in variables.keys()]):
         variables["contains_plots"] = True

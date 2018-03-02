@@ -7,6 +7,7 @@ $(document).ready(function() {
             format: 'YYYY-MM-DD h:mm A'
         },
         "ranges": {
+            'Tomorrow': [moment().add(1, 'day').startOf('day'), moment().add(1, 'day').endOf('day')],
             'Today': [moment().startOf('day'), moment().endOf('day')],
             'Yesterday': [moment().subtract(1, 'days').startOf('day'), moment().subtract(1, 'days').endOf('day')],
             'This week': [moment().startOf('week').startOf('week'), moment().endOf('week').endOf('week')],
