@@ -134,7 +134,7 @@
                                     <th>Consumption</th>
                                     <th>Curtailment</th>
                                     <th>Shifting</th>
-                                    <th>Balancing Revenue</th>
+                                    <th>Balancing revenue</th>
                                     <th/>
                                 </tr>
                             </thead>
@@ -169,11 +169,10 @@
                                         {{ profit_loss_flexibility_per_asset[asset.name] | round(2) }} KRW
                                     </td>
                                     <td>
-                                        <button>
-                                            <a target="_blank" href="analytics?resource={{ asset.name | urlencode }}">
-                                            Analyze
-                                            </a>
-                                        </button>
+                                        <form action="analytics" method="get">
+                                            <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
+                                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+                                        </form>
                                     </td>
                                                 <!--td>
                                         {% if not prosumer_mock: %}

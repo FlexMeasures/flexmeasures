@@ -259,6 +259,10 @@ table#control-actions tr.active b {
 .top-buffer { margin-top:15px; }
 
 
+/* extra buffer for buttons inside tables */
+td button { margin:5px; }
+
+
 /* map icons */
 .map-icon {
     display: flex;
