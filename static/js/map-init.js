@@ -23,22 +23,14 @@ var batIcon = new LeafIcon({iconUrl: 'static/icons/battery.svg'});
 var carIcon = new LeafIcon({iconUrl: 'static/icons/car.svg'});
 var sunIcon = new LeafIcon({iconUrl: 'static/icons/sun.svg'});
 
-//var opportunityWindIcon = new LeafIcon({iconUrl: 'static/icons/wind_opportunity.png'});
-var opportunityWindIcon = new L.DivIcon({
-                                            className: 'map-icon',
-                                            html: '<i class="icon-wind"></i>',
-                                            iconSize:     [24, 24], // size of the icon
-                                            iconAnchor:   [12, 12], // point of the icon which will correspond to marker's location
-                                            popupAnchor:  [0, -12] // point from which the popup should open relative to the iconAnchor
-                                        });
-var opportunityBatteryIcon = new LeafIcon({iconUrl: 'static/icons/battery_opportunity.png'});
+function responsiveImageWithTooltip(p1, p2, p3) {
+    image = '<img class="img-responsive" data-toggle="tooltip" data-placement="bottom" src="' + p1 +
+                         '" alt="' + p2 +
+                         '" title="' + p3 +
+                         '">';
+    return image
+}
 
-function custom_overlay_fade(image, asset_name, asset_display_name, overlay_text) {
-    return '<div class="my_container">' +
-           '  <img src="' + image + '" alt="Current energy level for ' + asset_name + '" class="image">' +
-           '    <div class="middle">' +
-           '      <div class="text">' + overlay_text + '</div>' +
-           '  </div>' +
-           '</div>' +
-           '<br/><button><a target="_blank" href="analytics?resource=' + asset_name + '">Analyze '+ asset_display_name +'</a></button>';
+function clickZoom(e) {
+    assetMap.setView(e.target.getLatLng());
 }

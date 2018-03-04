@@ -57,9 +57,9 @@
                                 <tr>
                                     <th></th>
                                     {% for asset_type in asset_counts_per_pluralised_type: %}
-                                    {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
-                                    <th><a href="analytics?resource={{ asset_type }}">{{ asset_type | capitalize | replace("_", " ") }}</a></th>
-                                    {% endif %}
+                                        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
+                                            <th><a href="analytics?resource={{ asset_type }}">{{ asset_type | capitalize | replace("_", " ") }}</a></th>
+                                        {% endif %}
                                     {% endfor %}
                                 </tr>
                             </thead>
@@ -114,32 +114,168 @@
         {% endif %}
     {% endfor %}
 
+    // mock battery opportunity icon
+    var battery_opportunity_icon = new L.DivIcon({
+        className:      'map-icon opportunity',
+        html:           '<i class="icon-battery"></i>',
+        iconSize:       [24, 24], // size of the icon
+        iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
+        popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
+    });
+
     {% for asset in assets: %}
         {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
-        var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = L.marker([{{ asset.location[0] }}, {{ asset.location[1] }}], {icon: {{ asset.asset_type.pluralized_name }}_icon})
-                                .bindPopup('<h2>{{ asset.display_name }}</h2>' +
-                                           custom_overlay_fade(getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}),
-                                                               '{{ asset.name }}', '{{ asset.display_name }}',
-                                                               'Currently producing at {{ current_load_in_mw | round(2) }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}% capacity)'));
-                                // .openPopup();
+        <!--var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = makeMarker({{ asset }})-->
+
+        var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = L
+            .marker(
+                [{{ asset.location[0] }}, {{ asset.location[1] }}],
+                {icon: {{ asset.asset_type.pluralized_name }}_icon}
+            )
+            .bindPopup(`
+                <div class="row">
+                    <div class="col-sm-12">
+                        <h4>{{ asset.display_name }}</h4>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-9">
+                        This {{ asset.asset_type.name | replace("_", " ") }} asset is currently
+                        {% if asset.asset_type.is_producer %}
+                            producing at {{ current_load_in_mw|round(3) }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw)|round(1) }}%
+                        {% else %}
+                            consuming at {{ -current_load_in_mw|round(3) }} MW ({{ asset.capacity_factor_in_percent_for(-current_load_in_mw)|round(1) }}%
+                        {% endif %}
+                        capacity).
+                    </div>
+                    <div class="col-sm-3">
+                        ` +
+                        {% if asset.asset_type.is_producer %}
+                            responsiveImageWithTooltip(
+                                getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}),
+                                'Power',
+                                'Currently producing at {{ current_load_in_mw|round(3) }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw)|round(1) }}% capacity)'
+                            )
+                        {% else %}
+                            responsiveImageWithTooltip(
+                                getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(-current_load_in_mw) }}),
+                                'Load',
+                                'Currently consuming at {{ -current_load_in_mw|round(3) }} MW ({{ asset.capacity_factor_in_percent_for(-current_load_in_mw)|round(1) }}% capacity)'
+                            )
+                        {% endif %}
+                        + `
+                    </div>
+                </div>
+                <div class="row top-buffer">
+                    <div class="col-sm-6">
+                        <form action="analytics" method="get">
+                            <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+                        </form>
+                    </div>
+                    <div class="col-sm-6">
+                        <form action="control" method="get">
+                            <!--<input type="hidden" name="offer" value="still_mocked">-->
+                            <!--<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
+                        </form>
+                    </div>
+                </div>
+                `
+            )
+            .on('click', clickZoom);
+            // .openPopup();
         {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ asset.name.replace("-", "").replace(".", "") }});
     {% endfor%}
 
     // add mock icons in layer
     {% if prosumer_mock == "0" or prosumer_mock=="offshore" %}
-        var marker_for_wind = L.marker([33.428833, 126.166126], {icon: wind_opportunity_icon})
-                                .bindPopup('<i>Suwon</i> has a balancing opportunity! Please valorise on the opportunity <a href="control">here</a><p>' +
-                                           custom_overlay_fade(getMockImageByCapacityFactor(80),
-                                        'sw-offshore', 'Suwon',
-                                        'Currently producing at 1 MW (80% capacity)'));
+        var marker_for_wind = L
+            .marker(
+                [33.428833, 126.166126],
+                {icon: wind_opportunity_icon}
+            )
+            .bindPopup(`
+                <div class="row">
+                    <div class="col-sm-12">
+                        <h4>Suwon</h4>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-9">
+                        This wind asset is currently producing at 3 MW (60% capacity) and has a balancing opportunity. Please consider valorising on this opportunity.
+                    </div>
+                    <div class="col-sm-3">
+                        ` +
+                        responsiveImageWithTooltip(
+                            getMockImageByCapacityFactor(60),
+                            'Power',
+                            'Currently producing at 3 MW (60% capacity)'
+                        )
+                        + `
+                    </div>
+                </div>
+                <div class="row top-buffer">
+                    <div class="col-sm-6">
+                        <form action="analytics" method="get">
+                            <input type="hidden" name="resource" value="sw-offshore">
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+                        </form>
+                    </div>
+                    <div class="col-sm-6">
+                        <form action="control" method="get">
+                            <!--<input type="hidden" name="offer" value="still_mocked">-->
+                            <button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>
+                        </form>
+                    </div>
+                </div>
+                `
+            )
+            .on('click', clickZoom);
         wind_markers.push(marker_for_wind);
     {% endif%}
-    {% if prosumer_mock == "0" or prosumer_mock=="vehicles" %}
-        var marker_for_bat = L.marker([33.3761057, 126.3025723], {icon: charging_stations_opportunity_icon})
-                                .bindPopup('<i>Battery storage unit</i> has a balancing opportunity! Please valorise on the opportunity <a href="control">here</a>.<p>' +
-                                           custom_overlay_fade(getMockImageByCapacityFactor(80),
-                                        'bsu', 'Battery storage unit',
-                                        'Currently producing at 1 MW (80% capacity)'));
+    {% if prosumer_mock == "0" %}
+        var marker_for_bat = L
+            .marker(
+                [33.3761057, 126.3025723],
+                {icon: battery_opportunity_icon}
+            )
+            .bindPopup(`
+                <div class="row">
+                    <div class="col-sm-12">
+                        <h4>Battery storage unit</h4>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-9">
+                        This battery asset is currently consuming at 4 MW (80% capacity) and has a balancing opportunity. Please consider valorising on this opportunity.
+                    </div>
+                    <div class="col-sm-3">
+                        ` +
+                        responsiveImageWithTooltip(
+                            getMockImageByCapacityFactor(80),
+                            'Power',
+                            'Currently consuming at 4 MW (80% capacity)'
+                        )
+                        + `
+                    </div>
+                </div>
+                <div class="row top-buffer">
+                    <div class="col-sm-6">
+                        <form action="analytics" method="get">
+                            <!--<input type="hidden" name="resource" value="still_mocked">-->
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+                        </form>
+                    </div>
+                    <div class="col-sm-6">
+                        <form action="control" method="get">
+                            <!--<input type="hidden" name="offer" value="still_mocked">-->
+                            <button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>
+                        </form>
+                    </div>
+                </div>
+                `
+            )
+            .on('click', clickZoom);
         charging_stations_markers.push(marker_for_bat); // Battery marker added in the charging station layer
     {% endif%}
 
@@ -155,12 +291,16 @@
     {% endfor %}
 
     // create Map with layers
-    var assetMap = L.map('mapid', {center: [33.4049, 126.6504], zoom: 10, layers: asset_type_layers});
+    var assetMap = L
+        .map('mapid', {center: [33.4049, 126.6504], zoom: 10, layers: asset_type_layers})
+        .on('popupopen', function(){
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
     tileLayer.addTo(assetMap);
 
     L.control.layers(null, overlay_maps).addTo(assetMap);
-
-
 
     </script>
 

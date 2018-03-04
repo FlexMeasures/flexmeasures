@@ -248,6 +248,17 @@ table#control-actions tr.active b {
 }
 
 
+/* responsive buttons with nice word wrap */
+.btn-responsive {
+    white-space: normal !important;
+    word-wrap: break-word;
+}
+
+
+/* extra buffer for bootstrap rows */
+.top-buffer { margin-top:15px; }
+
+
 /* map icons */
 .map-icon {
     display: flex;
