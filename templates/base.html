@@ -59,17 +59,17 @@
                             </div>
                             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
                                 {% if page != "analytics" %}
-                                <ul class="nav navbar-nav">	
-                                    {% for href, id, caption, icon in navigation_bar %}
-                                        <li{% if id == active_page %} class="active"{% endif %}>
-                                            <a href="{{ href|e }}"> <span class="fa fa-{{ icon }}" aria-hidden="true"></span> {{ caption|e }}</a>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
+                                    <ul class="nav navbar-nav">
+                                        {% for href, id, caption, icon in navigation_bar %}
+                                            <li{% if id == active_page %} class="active"{% endif %}>
+                                                <a href="{{ href|e }}"> <span class="fa fa-{{ icon }}" aria-hidden="true"></span> {{ caption|e }}</a>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
                                 {% else %}
-                                <button onclick="window.close(); return false;">
-                                    Close Analysis View
-                                </button>
+                                    <button class="btn btn-sm btn-responsive btn-danger" onclick="window.close(); return false;">
+                                        Close analysis <i class="fa fa-window-close"></i>
+                                    </button>
                                 {% endif %}
                             </div>
                         </div>

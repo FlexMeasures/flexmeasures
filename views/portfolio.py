@@ -138,7 +138,7 @@ def portfolio_view():
     summed_value_mask(df_sum)
     hover = plotting.create_hover_tool("MW", resolution)
     this_hour = time_utils.get_most_recent_hour().replace(year=2015)
-    next4pm = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 16][0]
+    next4am = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 4][0]
     x_range = plotting.make_range(df_sum.index)
     fig_profile = plotting.create_graph(df_sum.y,
                                         title=plot_label,
@@ -149,7 +149,7 @@ def portfolio_view():
                                         legend=titleize(show_summed),
                                         hover_tool=hover)
     if not check_prosumer_mock() or session.get("prosumer_mock") in ("onshore", "vehicles"):
-        plotting.highlight(fig_profile, next4pm, next4pm + timedelta(hours=1), redirect_to="/control")
+        plotting.highlight(fig_profile, next4am, next4am + timedelta(hours=1), redirect_to="/control")
 
     fig_profile.plot_height = 450
     fig_profile.plot_width = 900
@@ -178,27 +178,27 @@ def portfolio_view():
 
     # actions
     df_actions = pd.DataFrame(index=df_sum.index, columns=["y"]).fillna(0)
-    if next4pm in df_actions.index:
+    if next4am in df_actions.index:
         if not check_prosumer_mock():
-            df_actions.loc[next4pm] = -2.4  # mock two actions
+            df_actions.loc[next4am] = -2.4  # mock two actions
         elif session.get("prosumer_mock") == "onshore":
-            df_actions.loc[next4pm] = -1.3  # mock one action
+            df_actions.loc[next4am] = -1.3  # mock one action
         elif session.get("prosumer_mock") == "vehicles":
-            df_actions.loc[next4pm] = -1.1  # mock one action
-    next2pm = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 14][0]
-    if next2pm in df_actions.index:
-        if next2pm < next4pm and (not check_prosumer_mock() or session.get("prosumer_mock") == "vehicles"):
-            df_actions.loc[next2pm] = 1.1  # mock the shift "payback" (actually occurs earlier in our mock example)
-    next9pm = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 21][0]
-    if next9pm in df_actions.index:
-        df_actions.loc[next9pm] = 3.5  # mock some other ordered actions that are not in an opportunity hour anymore
+            df_actions.loc[next4am] = -1.1  # mock one action
+    next2am = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 2][0]
+    if next2am in df_actions.index:
+        if next2am < next4am and (not check_prosumer_mock() or session.get("prosumer_mock") == "vehicles"):
+            df_actions.loc[next2am] = 1.1  # mock the shift "payback" (actually occurs earlier in our mock example)
+    next9am = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 9][0]
+    if next9am in df_actions.index:
+        df_actions.loc[next9am] = 3.5  # mock some other ordered actions that are not in an opportunity hour anymore
 
     fig_actions = plotting.create_graph(df_actions.y,
                                         title="Ordered balancing actions",
                                         x_range=x_range,
                                         y_label="Power (in MW)")
     if not check_prosumer_mock() or session.get("prosumer_mock") in ("onshore", "vehicles"):
-        plotting.highlight(fig_actions, next4pm, next4pm + timedelta(hours=1), redirect_to="/control")
+        plotting.highlight(fig_actions, next4am, next4am + timedelta(hours=1), redirect_to="/control")
 
     fig_actions.plot_height = 150
     fig_actions.plot_width = fig_profile.plot_width

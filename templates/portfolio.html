@@ -112,9 +112,12 @@
                 <!--<div class="row">-->
                     <h3>Portfolio status</h3>
                     <div class="alert alert-info">
-                        <p>For onshore and vehicles, an opportunity is mocked for the following 4pm timeslot (select time window "today" or "tomorrow").
+                        <p>For onshore and vehicles, an opportunity is mocked for the following 4am timeslot (select time window "today" or "tomorrow").
                             <b>Double-click the opportunity</b> to see the order book. </p>
-                        <p> You can also <button><a href="?show_stacked={{alt_stacking}}">Switch to showing stacked {{ alt_stacking }}</a></button> </p>
+                        <p> You can also
+                            <button onclick="window.location.href='?show_stacked={{alt_stacking}}'">
+                                Switch to showing stacked {{ alt_stacking }}
+                            </button>
                     </div>
                     <div class="panel panel-default">
                         {{ portfolio_plots_div | safe }}
@@ -169,7 +172,7 @@
                                         {{ profit_loss_flexibility_per_asset[asset.name] | round(2) }} KRW
                                     </td>
                                     <td>
-                                        <form action="analytics" method="get">
+                                        <form action="analytics" target="_blank" method="get">
                                             <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
                                             <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
                                         </form>
