@@ -1,10 +1,10 @@
 .. _control:
 
-**********
-DR actions
-**********
+*****************
+Balancing actions
+*****************
 
-The DR actions page shows all balancing actions that can be taken by the user for the selected time window.
+The Balancing actions page shows all balancing actions that the user can take for a selected time window.
 Listed balancing actions include previously ordered actions and currently offered actions.
 Currently offered actions are presented as an order book.
 The user can place orders and check the expected value of offers.
@@ -19,16 +19,43 @@ The user can place orders and check the expected value of offers.
 Types of balancing actions
 ==========================
 
+Balancing actions cause changes to the power profile of an asset.
+Depending on the time window selection and constraints set by the asset owner, the effects of an action may partially take place outside of the selected time window.
+Such effects are taken into account by the BVP and shown to the user, e.g. as a part of expected value calculations and power profile forecasts.
+The platform distinguishes between different types of balancing actions that an asset can take.
 
-Curtailing
-----------
+Curtailment
+-----------
 
+Curtailment happens when an asset temporarily lowers or stops its production or consumption.
+A defining feature of curtailment is that total production or consumption at the end of the balancing action has decreased.
+
+- A typical example of curtailing production is when a wind turbine adjusts the pitch angle of its blades to decrease the generator torque.
+- An example of curtailing consumption is load shedding of energy intensive industries.
+
+Curtailment offers may specify some freedom in terms of how much energy can be curtailed.
+In these cases, the user can select the energy volume (in MWh) to be ordered, within constraints set by the relevant Prosumer.
+The net effect of a curtailment action is also measured in terms of an energy volume (see the flexibility metrics in the :ref:`porfolio` page).
+Note that the volume ordered is not necessarily equal to the volume curtailed:
+the ordered volume relates only to the selected time window,
+while the curtailed volume may include volumes outside of the selected time window.
+For example, an asset that runs an all-or-nothing consumption process of 2 hours can be ordered to curtail consumption for 1 hour, but will in effect stop the entire process.
+In this case, the curtailed volume will be higher than the ordered volume, and the platform will take into account the total expected curtailment in its calculations.
 
 Shifting
 --------
 
+Shifting happens when an asset delays or advances its energy production or consumption.
+A defining feature of shifting is that total production or consumption at the end of the balancing action remains the same.
 
+- An example of delaying consumption is when a charging station postpones the charging process of an electric vehicle.
+- An example of advancing consumption is when a cooling unit starts to cool before the upper temperature bound was reached (pre-cooling).
 
+Shifting offers may specify some freedom in terms of how much energy can be shifted.
+In these cases, the user can select the energy volume (in MWh) to be ordered, within constraints set by the relevant Prosumer.
+This energy volume represents how much energy is shifting into or out of the selected time window.
+The net effect of a shifting action is measured in terms of an energy-time volume (see the flexibility metrics in the :ref:`porfolio` page).
+This volume is a multiplication of the energy volume being shifted and the duration of that shift.
 
 
 .. image:: ../img/screenshot_control.png

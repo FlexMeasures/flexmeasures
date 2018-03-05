@@ -36,7 +36,7 @@ Statements about balancing actions
 ----------------------------------
 
 The bottom table lists the effects of balancing actions for each asset type in the user's portfolio.
-Separate columns are stated for each type of action, e.g. curtailing and shifting, with relevant total volumes within the selected time window.
+Separate columns are stated for each type of action, e.g. curtailment and shifting (see :ref:`action_types`), with relevant total volumes within the selected time window.
 [#f1]_
 
 Costs and revenues are calculated based on the internal method for profit sharing.
