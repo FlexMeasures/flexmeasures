@@ -46,7 +46,7 @@ def get_default_start_time() -> datetime:
 
 
 def get_default_end_time() -> datetime:
-    return get_most_recent_quarter()
+    return get_most_recent_quarter() + timedelta(days=1)
 
 
 def set_time_range_for_session():
