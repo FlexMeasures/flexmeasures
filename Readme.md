@@ -23,6 +23,7 @@ This is Seita's implementation of the BVP pilot for A1.
 * Or for initialising the documentation on Windows (the [Geckodriver](https://github.com/mozilla/geckodriver/releases) should be on your path):
 
       conda install selenium==3.9.0
+      conda install -c conda-forge awesome-slugify
 
 ### Dependencies using plain pip:
 * Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`.

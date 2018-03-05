@@ -36,3 +36,7 @@ Shifting
     :align: center
 ..    :scale: 40%
 
+.. image:: ../img/screenshot_control-prosumer-mock-vehicles.png
+    :target: ../../../../control?prosumer_mock=vehicles
+    :align: center
+..    :scale: 40%

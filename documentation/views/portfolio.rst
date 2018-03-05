@@ -88,4 +88,9 @@ The user can follow up on identified opportunities by taking a balancing action 
     :align: center
 ..    :scale: 40%
 
+.. image:: ../img/screenshot_portfolio-prosumer-mock-vehicles.png
+    :target: ../../../../portfolio?prosumer_mock=vehicles
+    :align: center
+..    :scale: 40%
+
 

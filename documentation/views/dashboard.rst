@@ -34,3 +34,8 @@ The summary below the map lists all asset types that the user has hooked up to t
     :target: ../../../../dashboard
     :align: center
 ..    :scale: 40%
+
+.. image:: ../img/screenshot_dashboard-prosumer-mock-vehicles.png
+    :target: ../../../../dashboard?prosumer_mock=vehicles
+    :align: center
+..    :scale: 40%
