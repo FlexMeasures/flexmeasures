@@ -20,11 +20,9 @@ The BVP is compliant with the `Universal Smart Energy Framework (USEF) <https://
 Therefore, this documentation uses USEF terminology, e.g. for role definitions.
 The intended platform operator of the BVP is a Supplier. Asset owners are referred to as Prosumers.
 
-*********
-The pages
-*********
 
 .. toctree::
+    :caption: The pages
     :maxdepth: 1
 
     views/dashboard
@@ -33,12 +31,9 @@ The pages
     views/analytics
 
 
-*********
-Tutorials
-*********
-
 .. toctree::
     :maxdepth: 1
+    :caption: Tutorials
 
     tut/supplier
     tut/prosumer
@@ -46,11 +41,8 @@ Tutorials
     tut/esco
 
 
-******************
-Narrative contents
-******************
-
 .. toctree::
+    :caption: Narrative Contents
     :maxdepth: 2
 
     qa/users
@@ -60,15 +52,11 @@ Narrative contents
     qa/algorithms
 
 
-******************
-Code documentation
-******************
+Code Documentation
+-------------------
 
-There is also detailed documentation of all internal modules and functions:
+Go To :ref:`source`.
 
-.. toctree::
-    :hidden:
-    code.rst
 
 
 .. Indices and tables
