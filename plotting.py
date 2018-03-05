@@ -45,7 +45,7 @@ def create_graph(series: pd.Series, title: str="A plot", x_label: str="X", y_lab
                  hover_tool: Optional[HoverTool]=None, show_y_floats: bool=False) -> Figure:
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
-    
+
     :param series: the actual data
     :param title: Title of the graph
     :param x_label: x axis label

@@ -18,7 +18,8 @@ For more on BVP services, read :ref:`services`.
 
 The BVP is compliant with the `Universal Smart Energy Framework (USEF) <https://www.usef.energy/>`_.
 Therefore, this documentation uses USEF terminology, e.g. for role definitions.
-The intended platform operator of the BVP is a Supplier. Asset owners are referred to as Prosumers.
+The intended users of the BVP are a Supplier (energy company) and its Prosumers (asset owners who have energy contracts with that Supplier).
+The platform operator of the BVP is an Aggregator.
 
 
 .. toctree::
