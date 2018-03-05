@@ -12,16 +12,16 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+sys.path.insert(0, os.path.abspath('..'))
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'Balancing Valorisation Platform'
-copyright = '2018, Seita'
-author = ''
+copyright = '2018, Seita, developed in partnership with A1 Engineering, South Korea'
+author = 'A1 Engineering with Seita B.V.'
 
 # The short X.Y version
 version = ''
@@ -79,7 +79,7 @@ pygments_style = 'sphinx'
 # a list of builtin themes.
 #
 # html_theme = 'alabaster'
-html_theme = "sphinx_rtd_vpp_theme"
+html_theme = "sphinx_rtd_bvp_theme"
 html_theme_path = ["_themes", ]
 
 # Theme options are theme-specific and customize the look and feel of a theme
@@ -107,7 +107,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'A1VPPdoc'
+htmlhelp_basename = 'BVPdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -134,7 +134,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'A1VPP.tex', 'BVP Documentation',
+    (master_doc, 'BPP.tex', 'BVP Documentation',
      'Seita', 'manual'),
 ]
 
@@ -144,7 +144,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'a1vpp', 'BVP Documentation',
+    (master_doc, 'bpp', 'BVP Documentation',
      [author], 1)
 ]
 
@@ -155,8 +155,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'A1VPP', 'BVP Documentation',
-     author, 'A1VPP', 'One line description of project.',
+    (master_doc, 'BVP', 'BVP Documentation',
+     author, 'BVP', 'The Balancing Valorisation Platform (BVP) is a tool for scheduling balancing actions on behalf of the connected asset owners.',
      'Miscellaneous'),
 ]
 
