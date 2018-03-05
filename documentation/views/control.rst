@@ -35,7 +35,7 @@ A defining feature of curtailment is that total production or consumption at the
 
 Curtailment offers may specify some freedom in terms of how much energy can be curtailed.
 In these cases, the user can select the energy volume (in MWh) to be ordered, within constraints set by the relevant Prosumer.
-The net effect of a curtailment action is also measured in terms of an energy volume (see the flexibility metrics in the :ref:`porfolio` page).
+The net effect of a curtailment action is also measured in terms of an energy volume (see the flexibility metrics in the :ref:`portfolio` page).
 Note that the volume ordered is not necessarily equal to the volume curtailed:
 the ordered volume relates only to the selected time window,
 while the curtailed volume may include volumes outside of the selected time window.
@@ -54,7 +54,7 @@ A defining feature of shifting is that total production or consumption at the en
 Shifting offers may specify some freedom in terms of how much energy can be shifted.
 In these cases, the user can select the energy volume (in MWh) to be ordered, within constraints set by the relevant Prosumer.
 This energy volume represents how much energy is shifting into or out of the selected time window.
-The net effect of a shifting action is measured in terms of an energy-time volume (see the flexibility metrics in the :ref:`porfolio` page).
+The net effect of a shifting action is measured in terms of an energy-time volume (see the flexibility metrics in the :ref:`portfolio` page).
 This volume is a multiplication of the energy volume being shifted and the duration of that shift.
 
 
