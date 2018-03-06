@@ -4,9 +4,12 @@
 Balancing actions
 *****************
 
-The Balancing actions page shows all balancing actions that the user can take for a selected time window.
+Balancing actions have commercial value that users can valorise on.
+In the Balancing actions page, the BVP shows all balancing actions that the user can take for a selected time window.
+When the BVP has identified commercial value for balancing actions, the user is suggested to order them.
+The user can opt to automatise this otherwise manual process.
 Listed balancing actions include previously ordered actions and currently offered actions.
-Currently offered actions are presented as an order book.
+Currently offered actions are presented as an order book, where they are sorted according to their commercial value.
 The user can place orders and check the expected value of offers.
 
 .. contents::
@@ -19,9 +22,6 @@ The user can place orders and check the expected value of offers.
 Types of balancing actions
 ==========================
 
-Balancing actions cause changes to the power profile of an asset.
-Depending on the time window selection and constraints set by the asset owner, the effects of an action may partially take place outside of the selected time window.
-Such effects are taken into account by the BVP and shown to the user, e.g. as a part of expected value calculations and power profile forecasts.
 The platform distinguishes between different types of balancing actions that an asset can take.
 
 Curtailment
@@ -56,6 +56,14 @@ In these cases, the user can select the energy volume (in MWh) to be ordered, wi
 This energy volume represents how much energy is shifting into or out of the selected time window.
 The net effect of a shifting action is measured in terms of an energy-time volume (see the flexibility metrics in the :ref:`portfolio` page).
 This volume is a multiplication of the energy volume being shifted and the duration of that shift.
+
+
+Visualisation of actions
+========================
+
+Balancing actions cause changes to the power profile of an asset.
+Depending on the time window selection and constraints set by the asset owner, the effects of an action may partially take place outside of the selected time window.
+Such effects are taken into account by the BVP and shown to the user, e.g. as a part of expected value calculations and power profile forecasts.
 
 
 .. image:: ../img/screenshot_control.png
