@@ -58,7 +58,7 @@
                                     <th></th>
                                     {% for asset_type in asset_counts_per_pluralised_type: %}
                                         {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
-                                            <th><a href="analytics?resource={{ asset_type }}">{{ asset_type | capitalize | replace("_", " ") }}</a></th>
+                                            <th><a href="analytics?resource={{ asset_type }}" target="_blank">{{ asset_type | capitalize | replace("_", " ") }}</a></th>
                                         {% endif %}
                                     {% endfor %}
                                 </tr>
