@@ -114,7 +114,14 @@
         {% endif %}
     {% endfor %}
 
-    // mock battery opportunity icon
+    // mock battery icons
+    var battery_icon = new L.DivIcon({
+        className:      'map-icon',
+        html:           '<i class="icon-battery"></i>',
+        iconSize:       [24, 24], // size of the icon
+        iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
+        popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
+    });
     var battery_opportunity_icon = new L.DivIcon({
         className:      'map-icon opportunity',
         html:           '<i class="icon-battery"></i>',
@@ -276,7 +283,51 @@
                 `
             )
             .on('click', clickZoom);
-        charging_stations_markers.push(marker_for_bat); // Battery marker added in the charging station layer
+        batteries_markers.push(marker_for_bat);
+
+        var marker_for_bat = L
+            .marker(
+                [33.3262057, 126.3925813],
+                {icon: battery_icon}
+            )
+            .bindPopup(`
+                <div class="row">
+                    <div class="col-sm-12">
+                        <h4>Four battery storage units</h4>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-9">
+                        This battery asset is currently consuming at 4 MW (80% capacity).
+                    </div>
+                    <div class="col-sm-3">
+                        ` +
+                        responsiveImageWithTooltip(
+                            getMockImageByCapacityFactor(80),
+                            'Power',
+                            'Currently consuming at 4 MW (80% capacity)'
+                        )
+                        + `
+                    </div>
+                </div>
+                <div class="row top-buffer">
+                    <div class="col-sm-6">
+                        <form action="analytics" target="_blank" method="get">
+                            <!--<input type="hidden" name="resource" value="still_mocked">-->
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+                        </form>
+                    </div>
+                    <div class="col-sm-6">
+                        <form action="control" method="get">
+                            <!--<input type="hidden" name="offer" value="still_mocked">-->
+                            <!--<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
+                        </form>
+                    </div>
+                </div>
+                `
+            )
+            .on('click', clickZoom);
+        batteries_markers.push(marker_for_bat);
     {% endif%}
 
     // make layer groups
