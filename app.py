@@ -1,5 +1,6 @@
 import sys
 import os.path
+from datetime import datetime
 from logging.config import dictConfig as loggingDictConfig
 
 from flask import Flask
@@ -69,6 +70,7 @@ sslify = SSLify(APP)
 install_secret_key(APP)
 
 APP.config['SESSION_TYPE'] = 'filesystem'
+APP.config["START_TIME"] = datetime.now()
 
 APP.config['LOGGER_HANDLER_POLICY'] = 'always'  # 'always' (default), 'never',  'production', 'debug'
 APP.config['LOGGER_NAME'] = 'bvp'  # define which logger to use for Flask

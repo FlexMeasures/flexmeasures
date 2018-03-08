@@ -1,10 +1,12 @@
 """Utilities for views"""
 import os
-import datetime
+import subprocess
 from typing import List
+from datetime import datetime, timedelta
 
-from flask import render_template, request, session
+from flask import render_template, request, session, current_app
 from bokeh.resources import CDN
+from humanize import naturaldate, naturaltime
 
 import models
 from utils import time_utils
@@ -35,7 +37,45 @@ def render_bvp_template(html_filename: str, **variables):
     variables["resolution"] = session.get("resolution", "")
     variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(session.get("resolution", ""))
 
+    variables["git_description"] = get_git_description(just_the_latest_tag=True)
+    variables["git_description_full"] = get_git_description()
+    app_start_time = current_app.config.get("START_TIME")
+    now = datetime.now()
+    print(app_start_time, now)
+    if app_start_time >= now - timedelta(hours=24):
+        variables["app_running_since"] = naturaltime(app_start_time)
+    else:
+        variables["app_running_since"] = naturaldate(app_start_time)
+
     return render_template(html_filename, **variables)
+
+
+def get_git_description(just_the_latest_tag:bool=False):
+    """ Return the git description as a string,
+    or just the latest tag in the chain of commits that lead to the current commit """
+    def _minimal_ext_cmd(cmd: list):
+        # construct minimal environment
+        env = {}
+        for k in ['SYSTEMROOT', 'PATH']:
+            v = os.environ.get(k)
+            if v is not None:
+                env[k] = v
+        # LANGUAGE is used on win32
+        env['LANGUAGE'] = 'C'
+        env['LANG'] = 'C'
+        env['LC_ALL'] = 'C'
+        return subprocess.Popen(cmd, stdout=subprocess.PIPE, env=env).communicate()[0]
+
+    try:
+        if just_the_latest_tag is False:
+            out = _minimal_ext_cmd(['git', 'describe', '--always'])
+        else:
+            out = _minimal_ext_cmd(['git', 'describe', '--abbrev=0', '--tags'])
+        git_description = out.strip().decode('ascii')
+    except OSError:
+        git_description = "Unknown"
+
+    return git_description
 
 
 # TODO: replace these mock helpers when we have real auth & user groups
@@ -63,3 +103,4 @@ def filter_mock_prosumer_assets(assets: List[models.Asset]) -> List[models.Asset
         return [a for a in assets if "offshore" in a.name]
     else:
         return assets
+

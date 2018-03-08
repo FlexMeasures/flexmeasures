@@ -274,6 +274,13 @@ td button { margin:5px; }
     color: #F00;
 }
 
+
+/* footer */
+.footer {
+    color: darkgray;
+    font-size: tiny;
+}
+
 /* custom icons - replace this when updating seita-webfonts with Fontello */
 
 @font-face {

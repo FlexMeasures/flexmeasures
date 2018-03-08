@@ -46,7 +46,7 @@
                                     <span class="icon-bar"></span>
                                     <span class="icon-bar"></span>
                                 </button>
-                                <span class="navbar-brand"><span class="navbar-tool-name">{{ app_name_short }}</span>{{ self.title() }} for
+                                <span class="navbar-brand"><a href="/"><span class="navbar-tool-name">{{ app_name_short }}</span></a>{{ self.title() }} for
                                     {% for id, caption, icon in user_list_mock %}
                                         {% if id == prosumer_mock %}
                                             {% set active_user = caption %}
@@ -188,6 +188,14 @@
                     </div>
                 {% endif %}
 
+                <footer class="page-footer font-small pt-4 mt-4">
+                      <div class="footer text-center">
+                          <div class="container-fluid">
+                              &copy 2018 by <a href="https://seita.nl/">Seita</a>, developed together with <a href="http://aoneeng.com/">A1 Engineering</a>.
+                              This app is running since {{ app_running_since }} on version {{ git_description }}.<!-- (Version {{ git_description_full }}, to be exact.) -->
+                          </div>
+                      </div>
+                </footer>
             {% endblock body %}
         </body>
     </html>
