@@ -41,7 +41,6 @@ def render_bvp_template(html_filename: str, **variables):
     variables["git_description_full"] = get_git_description()
     app_start_time = current_app.config.get("START_TIME")
     now = datetime.now()
-    print(app_start_time, now)
     if app_start_time >= now - timedelta(hours=24):
         variables["app_running_since"] = naturaltime(app_start_time)
     else:

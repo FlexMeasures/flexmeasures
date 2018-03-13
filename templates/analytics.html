@@ -74,33 +74,33 @@
                             <td class="text-left">
                                 Realised
                             </td>
-                            <td>{{ "{:,.3f}".format( realised_load_in_mwh | round(3) ) }}</td>
-                            <td>{{ "{:,.2f}".format( realised_unit_price | round(2)) }}</td>
-                            <td>{{ "{:,.2f}".format( realised_revenues_costs | round(2)) }}</td>
+                            <td>{{ "{:,.3f}".format( metrics["realised_power_in_mwh"] | round(3) ) }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["realised_unit_price"] | round(2)) }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["realised_revenues_costs"] | round(2)) }}</td>
                         </tr>
                         <tr>
                             <td class="text-left">
                                 Expected (forecast per {{ resolution_human }})
                             </td>
-                            <td>{{ "{:,.3f}".format(expected_load_in_mwh | round(3) ) }}</td>
-                            <td>{{ "{:,.2f}".format(expected_unit_price | round(2) ) }}</td>
-                            <td>{{ "{:,.2f}".format(expected_revenues_costs | round(2) ) }}</td>
+                            <td>{{ "{:,.3f}".format( metrics["expected_power_in_mwh"] | round(3) ) }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["expected_unit_price"] | round(2) ) }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["expected_revenues_costs"] | round(2) ) }}</td>
                         </tr>
                         <tr>
                             <td class="text-left">
                                 MAE (per {{ resolution_human }})
                             </td>
-                            <td>{{ "{:,.3f}".format( mae_load_in_mwh | round(3)) }}</td>
-                            <td>{{ "{:,.2f}".format( mae_unit_price | round(2)) }}</td>
-                            <td>{{ "{:,.2f}".format( mae_revenues_costs | round(2)) }}</td>
+                            <td>{{ "{:,.3f}".format( metrics["mae_power_in_mwh"] | round(3)) }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["mae_unit_price"] | round(2)) }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["mae_revenues_costs"] | round(2)) }}</td>
                         </tr>
                         <tr>
                             <td class="text-left">
                                 WAPE
                             </td>
-                            <td>{{ "{:,.1f}".format( wape_load | round(1)) }} %</td>
-                            <td>{{ "{:,.1f}".format( wape_unit_price | round(1)) }} %</td>
-                            <td>{{ "{:,.2f}".format( wape_revenues_costs | round(2)) }} %</td>
+                            <td>{{ "{:,.1f}".format( metrics["wape_power"] | round(1)) }} %</td>
+                            <td>{{ "{:,.1f}".format( metrics["wape_unit_price"] | round(1)) }} %</td>
+                            <td>{{ "{:,.2f}".format( metrics["wape_revenues_costs"] | round(2)) }} %</td>
                         </tr>
                     </tbody>
                 </table>

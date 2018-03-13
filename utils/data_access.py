@@ -184,4 +184,8 @@ class Resource:
         market = self.get_market()
         if market is not None:
             asset_names.append(market.name)
-        return get_data_for_assets(asset_names, start, end, resolution, sum_multiple=sum_multiple)
+        data = get_data_for_assets(asset_names, start, end, resolution, sum_multiple=sum_multiple)
+        if data is None or data.size == 0:
+            raise BadRequest("Not enough data available for resource \"%s\" in the time range %s to %s"
+                             % (self.name, start, end))
+        return data
