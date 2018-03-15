@@ -1,7 +1,7 @@
 """Utilities for views"""
 import os
 import subprocess
-from typing import List
+from typing import List, Tuple
 from datetime import datetime, timedelta
 
 from flask import render_template, request, session, current_app
@@ -37,8 +37,7 @@ def render_bvp_template(html_filename: str, **variables):
     variables["resolution"] = session.get("resolution", "")
     variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(session.get("resolution", ""))
 
-    variables["git_description"] = get_git_description(just_the_latest_tag=True)
-    variables["git_description_full"] = get_git_description()
+    variables["git_version"], variables["git_commits_since"], variables["git_hash"] = get_git_description()
     app_start_time = current_app.config.get("START_TIME")
     now = datetime.now()
     if app_start_time >= now - timedelta(hours=24):
@@ -49,9 +48,9 @@ def render_bvp_template(html_filename: str, **variables):
     return render_template(html_filename, **variables)
 
 
-def get_git_description(just_the_latest_tag:bool=False):
-    """ Return the git description as a string,
-    or just the latest tag in the chain of commits that lead to the current commit """
+def get_git_description() -> Tuple[str, int, str]:
+    """ Return the latest git version (tag) as a string, the number of commits since then as an int and the
+    current commit hash as string. """
     def _minimal_ext_cmd(cmd: list):
         # construct minimal environment
         env = {}
@@ -65,16 +64,20 @@ def get_git_description(just_the_latest_tag:bool=False):
         env['LC_ALL'] = 'C'
         return subprocess.Popen(cmd, stdout=subprocess.PIPE, env=env).communicate()[0]
 
+    sha = "Unknown"
+    commits_since = 0
+    sha = "Unknown"
     try:
-        if just_the_latest_tag is False:
-            out = _minimal_ext_cmd(['git', 'describe', '--always'])
-        else:
-            out = _minimal_ext_cmd(['git', 'describe', '--abbrev=0', '--tags'])
-        git_description = out.strip().decode('ascii')
-    except OSError:
-        git_description = "Unknown"
+        git_output = _minimal_ext_cmd(['git', 'describe', '--always', '--long'])
+        components = git_output.strip().decode('ascii').split('-')
+        sha = components.pop()
+        commits_since = int(components.pop())
+        version = "-".join(components)
+    except OSError as ose:
+        current_app.logger.warn("Problem when reading git describe: %s" % ose)
+        pass
 
-    return git_description
+    return version, commits_since, sha
 
 
 # TODO: replace these mock helpers when we have real auth & user groups
