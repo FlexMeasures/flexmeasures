@@ -60,3 +60,18 @@ If you edit notebooks, make sure results do not end up in git:
 
 (on Windows, maybe you need to look closer at https://github.com/kynan/nbstripout)
 
+
+## Quickstart for development
+
+I added this to my ~/.bashrc, so I only need to type `bvp` to get started (all paths depend on your local environment, of course):
+
+    addssh(){
+        eval `ssh-agent -s`
+        ssh-add ~/.ssh/id_bitbucket
+    }
+    bvp(){
+        addssh
+        cd ~/bvp  
+        git pull  # do not use if any production-like app runs from the git code                                                                                                                                                                     
+        workon bvp-venv  # this depends on how you created your virtual environment
+    }
