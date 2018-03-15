@@ -85,6 +85,7 @@ def analytics_view():
                                asset_groups=list(zip(groups_with_assets,
                                                      [titleize(gwa) for gwa in groups_with_assets])),
                                resource=session["resource"],
+                               resource_display_name=Resource(session["resource"]).display_name,
                                asset_types=session_asset_types,
                                showing_pure_consumption_data=showing_pure_consumption_data,
                                showing_pure_production_data=showing_pure_production_data,
