@@ -1,7 +1,7 @@
 .. _users:
 
 Who can use the platform?
-====================================
+=========================
 
 Potential users of the platform are listed below by their role in the Universal Smart Energy Framework (USEF).
 

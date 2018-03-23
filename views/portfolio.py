@@ -18,7 +18,11 @@ from views.utils import render_bvp_template, check_prosumer_mock, filter_mock_pr
 # Portfolio view
 @bvp_views.route('/portfolio', methods=['GET', 'POST'])
 def portfolio_view():
-    """ Portfolio view. Todo: expand this docstring."""
+    """ Portfolio view.
+    By default, this page shows live results (production, consumption and market data) from the user's portfolio.
+    Time windows for which the platform has identified upcoming balancing opportunities are highlighted.
+    The page can also be used to navigate historical results.
+    """
     time_utils.set_time_range_for_session()
     start = session.get("start_time")
     end = session.get("end_time")

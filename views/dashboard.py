@@ -14,7 +14,11 @@ import models
 @bvp_views.route('/')
 @bvp_views.route('/dashboard')
 def dashboard_view():
-    """ Dashboard view. Todo: expand this docstring.
+    """ Dashboard view.
+    This is the default landing page for the platform user.
+    It shows a map with the location and status of all of the user's assets,
+    as well as a breakdown of the asset types in the user's portfolio.
+    Assets for which the platform has identified upcoming balancing opportunities are highlighted.
     """
     msg = ""
     if "clear-session" in request.values:

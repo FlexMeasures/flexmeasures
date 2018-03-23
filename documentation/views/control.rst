@@ -7,7 +7,7 @@ Balancing actions
 Balancing actions have commercial value that users can valorise on.
 In the Balancing actions page, the BVP shows all balancing actions that the user can take for a selected time window.
 When the BVP has identified commercial value for balancing actions, the user is suggested to order them.
-The user can opt to automatise this otherwise manual process.
+The user can opt to automate this otherwise manual process.
 Listed balancing actions include previously ordered actions and currently offered actions.
 Currently offered actions are presented as an order book, where they are sorted according to their commercial value.
 The user can place orders and check the expected value of offers.

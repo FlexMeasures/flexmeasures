@@ -30,6 +30,7 @@ The platform operator of the BVP is an Aggregator.
     views/portfolio
     views/control
     views/analytics
+    views/admin
 
 
 .. toctree::
@@ -51,6 +52,7 @@ The platform operator of the BVP is an Aggregator.
     qa/markets
     qa/components
     qa/algorithms
+    qa/data
 
 
 Code Documentation
