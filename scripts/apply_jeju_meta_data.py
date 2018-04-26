@@ -11,10 +11,11 @@ Call this from the main directory:
 
 import json
 import pandas as pd
-from typing import Tuple
+from typing import Tuple, Optional
 
 
 filename = "data/VPP_DesignDataSetR02_(Jeju_GPS_180219).xls"
+
 
 def extract() -> pd.DataFrame:
     print("Extracting meta data ...")
@@ -26,17 +27,21 @@ def extract() -> pd.DataFrame:
     return df
 
 
-def update_asset(asset: dict, display_name: str, capacity: float, location: Tuple[str, str]):
+def update_asset(asset: dict, display_name: str, capacity: Optional[float], location: Tuple[str, str]):
     if display_name is not None:
         asset["display_name"] = display_name
     if capacity is not None:
         asset["capacity_in_mw"] = capacity
     if location is not None:
-        latitude, longitude = location.split(",")
-        asset["location"] = [float(latitude.strip()), float(longitude.strip())]
+        latitude, longitude = location
+        if "location" in asset:
+            del asset["location"]
+        asset["latitude"] = float(latitude.strip())
+        asset["longitude"] = float(longitude.strip())
 
 
 matched_charging_stations = []
+
 
 def update_assets(metadata: pd.DataFrame):
     print("Updating assets.json ...")
@@ -54,13 +59,14 @@ def update_assets(metadata: pd.DataFrame):
                 if asset_md.asset_type == "ChargingStation":
                     # manually find one
                     candidates = [a for a in assets if a["asset_type_name"] == "charging_station"
-                                                       and a["name"] not in matched_charging_stations]
+                                  and a["name"] not in matched_charging_stations]
                     if candidates:
                         print("Putting %s's name and location to %s" % (asset_md.display_name, candidates[0]["name"]))
                         update_asset(candidates[0], asset_md.display_name, None, asset_md.location)
                         matched_charging_stations.append(candidates[0]["name"])
     with open('data/assets.json', 'w') as assets_json:
         assets_json.write(json.dumps(assets, indent=True))
+
 
 if __name__ == "__main__":
     df_metadata = extract()

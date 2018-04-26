@@ -6,7 +6,8 @@ from flask import current_app, request
 from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 from jinja2.exceptions import TemplateNotFound
 
-from views import bvp_error_views, render_bvp_template
+from views import bvp_error_views
+from utils.view_utils import  render_bvp_template
 
 
 def log_error(exc: Exception, error_msg: str):

@@ -3,6 +3,7 @@ from datetime import timedelta
 
 import pandas as pd
 from flask import request, session
+from flask_security import roles_accepted
 from bokeh.plotting import Figure
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
@@ -11,14 +12,15 @@ from bokeh.models import Range1d
 from inflection import titleize
 
 from views import bvp_views
-from views.utils import render_bvp_template, check_prosumer_mock, filter_mock_prosumer_assets
+from models.assets import Asset
+from utils.view_utils import render_bvp_template
 from utils import time_utils, calculations
-from utils.data_access import get_assets, get_data_for_assets, extract_forecasts, Resource
-import models
-import plotting
+from utils.data_access import get_assets, get_asset_groups, get_data_for_assets, extract_forecasts, Resource
+from utils import plotting_utils as plotting
 
 
 @bvp_views.route('/analytics', methods=['GET', 'POST'])
+@roles_accepted('admin', 'asset-owner')
 def analytics_view():
     """ Analytics view. Here, four plots (consumption/generation, weather, prices and a profit/loss calculation)
     and a table of metrics data are prepared. This view allows to select a resource name, from which a
@@ -26,20 +28,11 @@ def analytics_view():
     Based on the resource, plots and table are labelled appropriately.
     """
     time_utils.set_time_range_for_session()
-    groups_with_assets = [group for group in models.asset_groups if len(Resource(group).assets) > 0]
-    set_session_resource(groups_with_assets)
     assets = get_assets()
+    asset_groups = get_asset_groups()
+    groups_with_assets: List[str] = [group for group in asset_groups if asset_groups[group].count() > 0]
+    set_session_resource(assets, groups_with_assets)
     session_asset_types = Resource(session["resource"]).unique_asset_type_names
-
-    if check_prosumer_mock():
-        groups_with_assets = []
-        assets = filter_mock_prosumer_assets(assets)
-        if len(assets) > 0:
-            if session.get("prosumer_mock", "0") not in ("0", "offshore", "onshore"):
-                groups_with_assets = [session.get("prosumer_mock")]
-            if session.get("resource") not in [a.name for a in assets]\
-                    and session.get("resource") != session.get("prosumer_mock"):
-                session["resource"] = assets[0].name
 
     # This is useful information - we might want to adapt the sign of the data and labels.
     showing_pure_consumption_data = all([a.is_pure_consumer for a in Resource(session["resource"]).assets])
@@ -77,7 +70,7 @@ def analytics_view():
                                                                       toolbar_options={'logo': None},
                                                                       sizing_mode='scale_width'))
 
-    return render_bvp_template("analytics.html",
+    return render_bvp_template("views/analytics.html",
                                analytics_plots_div=encode_utf8(analytics_plots_div),
                                analytics_plots_script=analytics_plots_script,
                                metrics=metrics,
@@ -89,12 +82,11 @@ def analytics_view():
                                asset_types=session_asset_types,
                                showing_pure_consumption_data=showing_pure_consumption_data,
                                showing_pure_production_data=showing_pure_production_data,
-                               prosumer_mock=session.get("prosumer_mock", "0"),
                                forecast_horizons=time_utils.forecast_horizons_for(session["resolution"]),
                                active_forecast_horizon=session["forecast_horizon"])
 
 
-def set_session_resource(groups_with_assets: list):
+def set_session_resource(assets: List[Asset], groups_with_assets: List[str]):
     """Set session["resource"] to something, based on the available asset groups or the request."""
     if "resource" not in session:  # set some default, if possible
         if "solar" in groups_with_assets:
@@ -103,8 +95,8 @@ def set_session_resource(groups_with_assets: list):
             session["resource"] = "wind"
         elif "vehicles" in groups_with_assets:
             session["resource"] = "vehicles"
-        elif len(get_assets()) > 0:
-            session["resource"] = get_assets()[0].name
+        elif len(assets) > 0:
+            session["resource"] = assets[0].name
     if "resource" in request.args:  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
         session["resource"] = request.args['resource']
     if "resource" in request.form:  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.

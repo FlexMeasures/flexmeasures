@@ -1,6 +1,8 @@
 from datetime import timedelta
 
 from flask import request, session
+from flask_security import roles_accepted
+from flask_security.core import current_user
 import pandas as pd
 import numpy as np
 from inflection import pluralize, titleize
@@ -10,13 +12,14 @@ import bokeh.palettes as palettes
 
 from utils import time_utils
 from utils.data_access import get_assets, get_data_for_assets, Resource
-import plotting
+import utils.plotting_utils as plotting
 from views import bvp_views
-from views.utils import render_bvp_template, check_prosumer_mock, filter_mock_prosumer_assets
+from utils.view_utils import render_bvp_template
 
 
 # Portfolio view
 @bvp_views.route('/portfolio', methods=['GET', 'POST'])
+@roles_accepted("admin", "asset-owner")
 def portfolio_view():
     """ Portfolio view.
     By default, this page shows live results (production, consumption and market data) from the user's portfolio.
@@ -29,8 +32,6 @@ def portfolio_view():
     resolution = session.get("resolution")
 
     assets = get_assets()
-    if check_prosumer_mock():
-        assets = filter_mock_prosumer_assets(assets)
 
     production_per_asset = dict.fromkeys([a.name for a in assets])
     consumption_per_asset = dict.fromkeys([a.name for a in assets])
@@ -92,8 +93,10 @@ def portfolio_view():
     # get data for stacked plot for the selected period
 
     def only_positive(df: pd.DataFrame) -> None:
+        # noinspection PyTypeChecker
         df[df < 0] = 0
 
+    # noinspection PyTypeChecker
     def only_negative_abs(df: pd.DataFrame) -> None:
         # If this functions fails, a possible solution may be to stack the dataframe before
         # checking for negative values (unstacking afterwards).
@@ -117,7 +120,7 @@ def portfolio_view():
         return df_stack
 
     default_stack_side = "production"
-    if session.get("prosumer_mock", "0") in ("buildings", "vehicles"):
+    if "building" in current_user.email or "charging" in current_user.email:
         default_stack_side = "consumption"
     show_stacked = request.values.get("show_stacked", default_stack_side)
     if show_stacked == "production":
@@ -148,11 +151,14 @@ def portfolio_view():
                                         title=plot_label,
                                         x_range=x_range,
                                         x_label="Time (sampled by %s)"
-                                            % time_utils.freq_label_to_human_readable_label(resolution),
+                                        % time_utils.freq_label_to_human_readable_label(resolution),
                                         y_label="Power (in MW)",
                                         legend=titleize(show_summed),
                                         hover_tool=hover)
-    if not check_prosumer_mock() or session.get("prosumer_mock") in ("onshore", "vehicles"):
+
+    # TODO: show when user has (possible) actions in order book for a time slot
+    if current_user.is_authenticated and (current_user.has_role("admin") or "wind" in current_user.email
+                                          or "charging" in current_user.email):
         plotting.highlight(fig_profile, next4am, next4am + timedelta(hours=1), redirect_to="/control")
 
     fig_profile.plot_height = 450
@@ -183,15 +189,18 @@ def portfolio_view():
     # actions
     df_actions = pd.DataFrame(index=df_sum.index, columns=["y"]).fillna(0)
     if next4am in df_actions.index:
-        if not check_prosumer_mock():
-            df_actions.loc[next4am] = -2.4  # mock two actions
-        elif session.get("prosumer_mock") == "onshore":
-            df_actions.loc[next4am] = -1.3  # mock one action
-        elif session.get("prosumer_mock") == "vehicles":
-            df_actions.loc[next4am] = -1.1  # mock one action
+        if current_user.is_authenticated:
+            if current_user.has_role("admin"):
+                df_actions.loc[next4am] = -2.4  # mock two actions
+            elif "wind" in current_user.email:
+                df_actions.loc[next4am] = -1.3  # mock one action
+            elif "charging" in current_user.email:
+                df_actions.loc[next4am] = -1.1  # mock one action
     next2am = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 2][0]
     if next2am in df_actions.index:
-        if next2am < next4am and (not check_prosumer_mock() or session.get("prosumer_mock") == "vehicles"):
+        if next2am < next4am and (current_user.is_authenticated and (current_user.has_role("admin")
+                                                                     or "wind" in current_user.email
+                                                                     or "charging" in current_user.email)):
             df_actions.loc[next2am] = 1.1  # mock the shift "payback" (actually occurs earlier in our mock example)
     next9am = [dt for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)] if dt.hour == 9][0]
     if next9am in df_actions.index:
@@ -201,7 +210,8 @@ def portfolio_view():
                                         title="Ordered balancing actions",
                                         x_range=x_range,
                                         y_label="Power (in MW)")
-    if not check_prosumer_mock() or session.get("prosumer_mock") in ("onshore", "vehicles"):
+    if current_user.is_authenticated and (current_user.has_role("admin") or "wind" in current_user.email
+                                          or "charging" in current_user.email):
         plotting.highlight(fig_actions, next4am, next4am + timedelta(hours=1), redirect_to="/control")
 
     fig_actions.plot_height = 150
@@ -214,7 +224,7 @@ def portfolio_view():
                                                                     sizing_mode='scale_width'))
     next24hours = [(time_utils.get_most_recent_hour() + timedelta(hours=i)).strftime("%I:00 %p") for i in range(1, 26)]
 
-    return render_bvp_template("portfolio.html", prosumer_mock=session.get("prosumer_mock", "0"),
+    return render_bvp_template("views/portfolio.html",
                                assets=assets,
                                asset_types=represented_asset_types,
                                production_per_asset=production_per_asset,

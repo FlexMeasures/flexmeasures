@@ -1,12 +1,12 @@
-from app import APP, bvp_logging_config
+from app import app
+from utils.config_utils import bvp_logging_config
+from utils import config_defaults
 
 """
 Run the BVP application locally.
 
-Best to use in a development setup. A professional web server should be handed the APP object to use in a WSGI context.
+Best to use in a development setup. A professional web server should be handed the app object to use in a WSGI context.
 """
-
-DEBUG = True  # if False, Flask-SSlify kicks in
 
 if __name__ == '__main__':
 
@@ -21,4 +21,4 @@ if __name__ == '__main__':
 
     print("Starting the Balancing Valorisation Platform ...")
 
-    APP.run(debug=DEBUG)
+    app.run(debug=config_defaults.DevelopmentConfig.DEBUG)

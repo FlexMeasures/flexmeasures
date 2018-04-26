@@ -59,7 +59,7 @@
                     This is a mockup of intended functionality (expected: M3) and still subject to change.
                     Only the upcoming hour between 04:00 AM and 05:00 AM can be selected.
                     <br/>
-                    {% if prosumer_mock == "0": %}
+                    {% if user_is_admin %}
                     As the <b>aggregator (A1)</b>, you can check the effects of several actions (of both offshore
                     and battery), but only perform the following sequence of actions:
                     <ol>
@@ -83,7 +83,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                    {% if prosumer_mock in ("0", "vehicles"): %}
+                    {% if user_is_admin or "charging" in user_email: %}
                         <tr class="active">
                             <td>
                                 <i class="icon-charging_station"></i>
@@ -100,7 +100,7 @@
                                     Shift consumption
                                     <span class="fa fa-arrows-h" aria-hidden="true"></span>
                                 </div>
-                                {% if prosumer_mock == "0": %}
+                                {% if user_is_admin %}
                                 <a class="btn btn-default" role="button" id="control-order-button-ev">
                                     <span class="fa fa-minus" aria-hidden="true"></span> Cancel
                                 </a>
@@ -114,7 +114,7 @@
                             </td>
                         </tr>
                     {% endif %}
-                    {% if prosumer_mock in ("0", "onshore"): %}
+                    {% if user_is_admin or "wind" in user_email: %}
                         <tr class="active">
                             <td>
                                 <i class="icon-wind"></i>
@@ -131,7 +131,7 @@
                                     Curtail production
                                     <span class="fa fa-cut" aria-hidden="true"></span>
                                 </div>
-                                {% if prosumer_mock == "0": %}
+                                {% if user_is_admin %}
                                 <a class="btn btn-default" role="button" id="control-order-button-onshore">
                                     <span class="fa fa-minus" aria-hidden="true"></span> Cancel
                                 </a>
@@ -144,8 +144,6 @@
                                 </div>
                             </td>
                         </tr>
-                    {% endif %}
-                    {% if prosumer_mock in ("0",): %}
                         <tr id="control-tr-offshore">
                             <td>
                                 <i class="icon-wind"></i>
@@ -164,7 +162,7 @@
                                     Curtail production
                                     <span class="fa fa-cut" aria-hidden="true"></span>
                                 </div>
-                                {% if prosumer_mock == "0": %}
+                                {% if user_is_admin %}
                                 <a class="btn btn-default" role="button" id="control-order-button-offshore"> <!-- data-toggle="modal" data-target="#orderModal" -->
                                     <span class="fa fa-plus" aria-hidden="true"></span> Order
                                 </a>
@@ -175,7 +173,7 @@
                                     <span id="control-expected-value-offshore">70,000</span>
                                     <span class="fa fa-won" aria-hidden="true"></span>
                                 </div>
-                                {% if prosumer_mock == "0": %}
+                                {% if user_is_admin %}
                                 <a class="btn btn-default" role="button" id="control-check-expected-value-offshore">
                                     <span class="fa fa-line-chart" aria-hidden="true"></span> Check
                                 </a>
@@ -183,7 +181,7 @@
                             </td>
                         </tr>
                     {% endif %}
-                    {% if prosumer_mock in ("0", ): %}
+                    {% if user_is_admin %}
                         <tr id="control-tr-battery">
                             <td>
                                 <i class="icon-battery"></i>
@@ -202,22 +200,18 @@
                                     Shift consumption
                                     <span class="fa fa-arrows-h" aria-hidden="true"></span>
                                 </div>
-                                {% if prosumer_mock == "0": %}
                                 <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#orderModal" id="control-order-button-battery">
                                     <span class="fa fa-plus" aria-hidden="true"></span> Order
                                 </a>
-                                {% endif %}
                             </td>
                             <td>
                                 <div>
                                     <span id="control-expected-value-battery">10.000</span>
                                     <span class="fa fa-won" aria-hidden="true"></span>
                                 </div>
-                                {% if prosumer_mock == "0": %}
                                 <a class="btn btn-default" href="#" role="button" id="control-check-expected-value-battery">
                                     <span class="fa fa-line-chart" aria-hidden="true"></span> Check
                                 </a>
-                                {% endif %}
                             </td>
                         </tr>
                     {% endif %}
@@ -229,7 +223,7 @@
                         </tr>
                     </tbody>
                 </table>
-                {% if prosumer_mock == "0": %}
+                {% if user_is_admin %}
                 <img class="expected_load_mock reset_default" src="static/control-mock-imgs/load-action1.png" style="max-width:100%;max-height:100%;">
                 {% endif %}
             </div>

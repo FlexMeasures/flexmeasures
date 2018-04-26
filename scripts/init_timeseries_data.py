@@ -13,9 +13,12 @@ import collections
 import pandas as pd
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
-from models import Asset, Market, resolutions
-from forecasting import make_rolling_forecast
-import models
+import database
+from app import app
+database.configure_db(app)
+from models.assets import Asset, AssetType
+from models.markets import Market, market_types
+from utils.forecasting_utils import make_rolling_forecast
 
 
 path_to_data = "data"  # assuming we are in the main directory
@@ -47,7 +50,7 @@ def set_datetime_index(old_df: pd.DataFrame, freq: str, start=None) -> pd.DataFr
     return new_df
 
 
-def get_forecasts(df: pd.DataFrame, asset_type: models.AssetType, res: str) -> pd.DataFrame:
+def get_forecasts(df: pd.DataFrame, asset_type: AssetType, res: str) -> pd.DataFrame:
     """ Run forecasts (the heavy computation) and put them in the df"""
     forecasts, horizons = make_rolling_forecast(df.y, asset_type, res)
     for h in horizons:
@@ -78,28 +81,22 @@ def initialise_market_data():
     """Initialise market data"""
 
     print("Processing EPEX market data ...")
-    markets = []
 
     df = pd.read_csv("%s/%s" % (path_to_data, prices_filename), index_col=0, parse_dates=True, names={'EPEX_DA'})
     df = set_datetime_index(df, freq='1H')
-    market_type = models.market_types['day_ahead']
+    market_type = market_types['day_ahead']
 
-    for res in resolutions:
-        res_df = timeseries_resample(df, res)  # Sample time series for given resolution
-        market_count = 0
-        for market_col_name in df:
-            market_count += 1
-            market = Market(name=market_col_name, market_type_name=market_type.name)
-            print("Processing market %s (%d/%d) for resolution %s (%d/%d) ..."
-                  % (market.name, market_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
-            market_df = pd.DataFrame(index=res_df.index)
-            market_df["y"] = res_df[market_col_name]
+    res_df = timeseries_resample(df, "15T")  # Sample time series for our target resolution
+    market_count = 0
+    for market_col_name in df:
+        market_count += 1
+        market = Market(name=market_col_name, market_type_name=market_type.name)
+        print("Processing market %s for resolution 15T ..." % market.name)
+        market_df = pd.DataFrame(index=res_df.index)
+        market_df["y"] = res_df[market_col_name]
 
-            market_df = get_forecasts(market_df, market_type, res)
-            market_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, market.name, res))
-
-            if res == resolutions[-1]:
-                markets.append(market)
+        market_df = get_forecasts(market_df, market_type, "15T")
+        market_df.to_pickle("%s/pickles/df_%s_res15T.pickle" % (path_to_data, market.name))
 
 
 def initialise_weather_data():
@@ -113,13 +110,10 @@ def initialise_weather_data():
     df = df[:-1]  # we got one row too many (of 2016)
 
     for i, weather_col_name in enumerate(df):
-        for res in resolutions:
-            res_df = timeseries_resample(df, res)  # Sample time series for given resolution
-            weather_df = pd.DataFrame(index=res_df.index)
-            weather_df["y"] = res_df[weather_col_name]
-
-            weather_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, headers[i], res))
-    return
+        res_df = timeseries_resample(df, "15T")  # Sample time series for our targetresolution
+        weather_df = pd.DataFrame(index=res_df.index)
+        weather_df["y"] = res_df[weather_col_name]
+        weather_df.to_pickle("%s/pickles/df_%s_res15T.pickle" % (path_to_data, headers[i]))
 
 
 def initialise_buildings_data():
@@ -129,25 +123,25 @@ def initialise_buildings_data():
 
     df = pd.read_csv("%s/%s" % (path_to_data, buildings_filename), index_col=0, parse_dates=True)
     df = set_datetime_index(df, freq='1H', start=df.index[0])
-    asset_type = models.asset_types['building']
+    asset_type = AssetType.query.filter_by(name='building').one_or_none()
 
     asset_count = 0
     for asset_col_name in df:
-        asset = Asset(name=asset_col_name, asset_type_name=asset_type.name)
+        asset_name = asset_col_name.replace(" ", "_").lower()
+        asset = Asset.query.filter_by(name=asset_name, asset_type_name=asset_type.name).one_or_none()
         asset_count += 1
-        for res in resolutions:
-            print("Processing building %s (%d/%d) for resolution %s (%d/%d) ..."
-                  % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
-            res_df = timeseries_resample(df, res)  # Sample time series for given resolution
-            asset_df = pd.DataFrame(index=res_df.index)
-            asset_df["y"] = res_df[asset_col_name]
+        print("Processing building %s (%d/%d) for resolution 15T ..."
+              % (asset.name, asset_count, len(df.columns)))
+        res_df = timeseries_resample(df, "15T")  # Sample time series for our target resolution
+        asset_df = pd.DataFrame(index=res_df.index)
+        asset_df["y"] = res_df[asset_col_name]
 
-            asset_df.y /= -1000  # turn positive to negative to match our model, adjust from kWh to MWh
+        asset_df.y /= -1000  # turn positive to negative to match our model, adjust from kWh to MWh
 
-            assert (all(asset_df.y <= 0))
+        assert (all(asset_df.y <= 0))
 
-            asset_df = get_forecasts(asset_df, asset_type, res)
-            asset_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, asset.name, res))
+        asset_df = get_forecasts(asset_df, asset_type, "15T")
+        asset_df.to_pickle("%s/pickles/df_%s_res15T.pickle" % (path_to_data, asset.name))
 
 
 def initialise_charging_station_data():
@@ -157,25 +151,25 @@ def initialise_charging_station_data():
 
     df = pd.read_csv("%s/%s" % (path_to_data, evs_filename), index_col=0, parse_dates=True)
     df = set_datetime_index(df, freq='15min', start=df.index[0].floor('min'))
-    asset_type = models.asset_types['charging_station']
+    asset_type = AssetType.query.filter_by(name='charging_station').one_or_none()
 
     asset_count = 0
     for asset_col_name in df:
-        asset = Asset(name=asset_col_name, asset_type_name=asset_type.name)
+        asset_name = asset_col_name.replace(" ", "_").lower()
+        asset = Asset.query.filter_by(name=asset_name, asset_type_name=asset_type.name).one_or_none()
         asset_count += 1
-        for res in resolutions:
-            print("Processing EV %s (%d/%d) for resolution %s (%d/%d) ..."
-                  % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
-            res_df = timeseries_resample(df, res)  # Sample time series for given resolution
-            asset_df = pd.DataFrame(index=res_df.index)
-            asset_df["y"] = res_df[asset_col_name]
+        print("Processing EV %s (%d/%d) for resolution 15T ..."
+              % (asset.name, asset_count, len(df.columns)))
+        res_df = timeseries_resample(df, "15T")  # Sample time series for our target resolution
+        asset_df = pd.DataFrame(index=res_df.index)
+        asset_df["y"] = res_df[asset_col_name]
 
-            asset_df.y /= -1000000  # turn positive to negative to match our model, adjust from Wh to MWh
+        asset_df.y /= -1000000  # turn positive to negative to match our model, adjust from Wh to MWh
 
-            assert(all(asset_df.y <= 0))
+        assert(all(asset_df.y <= 0))
 
-            asset_df = get_forecasts(asset_df, asset_type, res)
-            asset_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, asset.name, res))
+        asset_df = get_forecasts(asset_df, asset_type, "15T")
+        asset_df.to_pickle("%s/pickles/df_%s_res15T.pickle" % (path_to_data, asset.name))
 
 
 def initialise_a1_data():
@@ -191,9 +185,11 @@ def initialise_a1_data():
           makes sense if we can use multiple computers.
     """
     A1Sheet = collections.namedtuple('Sheet', 'name asset_type')
+    solar_asset_type = AssetType.query.filter_by(name='solar').one_or_none()
+    wind_asset_type = AssetType.query.filter_by(name='wind').one_or_none()
     a1_sheets = [
-        A1Sheet(name="1_PV_CS6X-295P", asset_type=models.asset_types["solar"]),
-        A1Sheet(name="2_WT_Enercon E40 600-46", asset_type=models.asset_types["wind"])
+        A1Sheet(name="1_PV_CS6X-295P", asset_type=solar_asset_type),
+        A1Sheet(name="2_WT_Enercon E40 600-46", asset_type=wind_asset_type)
     ]
     for sheet in a1_sheets:
         # read in excel sheet
@@ -205,22 +201,22 @@ def initialise_a1_data():
 
         asset_count = 0
         for asset_col_name in df:
-            asset = Asset(name=asset_col_name, asset_type_name=sheet.asset_type.name)
+            asset_name = asset_col_name.replace(" ", "_").lower()
+            asset = Asset.query.filter_by(name=asset_name, asset_type_name=sheet.asset_type.name).one_or_none()
             asset_count += 1
-            for res in resolutions:
-                print("Processing asset %s (%d/%d) for resolution %s (%d/%d) ..."
-                      % (asset.name, asset_count, len(df.columns), res, resolutions.index(res) + 1, len(resolutions)))
-                res_df = df.resample(res).mean()  # Sample time series for given resolution
-                asset_df = pd.DataFrame(index=res_df.index)
-                asset_df["y"] = res_df[asset_col_name]
+            print("Processing asset %s (%d/%d) for resolution 15T ..."
+                  % (asset.name, asset_count, len(df.columns)))
+            res_df = df.resample("15T").mean()  # Sample time series for given resolution
+            asset_df = pd.DataFrame(index=res_df.index)
+            asset_df["y"] = res_df[asset_col_name]
 
-                if sheet.asset_type.is_producer and not sheet.asset_type.is_consumer:
-                    assert(all(asset_df.y >= 0))
-                if sheet.asset_type.is_consumer and not sheet.asset_type.is_producer:
-                    assert(all(asset_df.y <= 0))
+            if sheet.asset_type.is_producer and not sheet.asset_type.is_consumer:
+                assert(all(asset_df.y >= 0))
+            if sheet.asset_type.is_consumer and not sheet.asset_type.is_producer:
+                assert(all(asset_df.y <= 0))
 
-                asset_df = get_forecasts(asset_df, sheet.asset_type, res)
-                asset_df.to_pickle("%s/pickles/df_%s_res%s.pickle" % (path_to_data, asset.name, res))
+            asset_df = get_forecasts(asset_df, sheet.asset_type, "15T")
+            asset_df.to_pickle("%s/pickles/df_%s_res15T.pickle" % (path_to_data, asset.name))
 
 
 if __name__ == "__main__":

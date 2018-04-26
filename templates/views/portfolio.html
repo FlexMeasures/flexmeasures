@@ -128,7 +128,7 @@
                 <!--<div class="row">-->
                     <h3>Asset status</h3>
                     <div class="wrapper small-wrapper">
-                        <table>
+                        <table class="table-striped">
                             <thead>
                                 <tr>
                                     <th>Asset</th>
@@ -138,7 +138,7 @@
                                     <th>Curtailment</th>
                                     <th>Shifting</th>
                                     <th>Balancing revenue</th>
-                                    <th/>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -146,7 +146,7 @@
                                 <tr class="active">
                                     <td>
                                         <i class="icon-{{ asset.asset_type_name }}"></i>
-                                        {{ asset.display_name }}
+                                        <a href="/assets/{{ asset.id }}" title="Show asset meta data and location on map">{{ asset.display_name }}</a>
                                     </td>
                                     <td>
                                         {% if asset.asset_type.is_producer %}
@@ -177,24 +177,6 @@
                                             <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
                                         </form>
                                     </td>
-                                                <!--td>
-                                        {% if not prosumer_mock: %}
-                                            {% if "onshore" in asset.name:%}
-                                            60%
-                                            {% else %}
-                                            100%
-                                            {% endif%}
-                                        {% endif %}
-                                        {% if prosumer_mock: %}
-                                        <select>
-                                            <option>100%</option>
-                                            <option>80%</option>
-                                            <option selected="selected">60%</option>
-                                            <option>40%</option>
-                                            <option>20%</option>
-                                        </select>
-                                        {% endif %}
-                                    </td-->
                                 </tr>
                                 {% endfor %}
                             </tbody>

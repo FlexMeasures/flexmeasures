@@ -1,9 +1,36 @@
 from datetime import datetime, timedelta
+import pytz
 from typing import List
 
 from flask import request, session
+from flask_security.core import current_user
+from humanize import naturaldate, naturaltime
 from werkzeug.exceptions import BadRequest
 import iso8601
+
+
+def localized_datetime(value: datetime, dt_format: str="%Y-%m-%d %I:%M %p") -> datetime:
+    """Localise a datetime to the timezone of the user (or UTC if no user is logged in).
+       Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
+       app.jinja_env.filters['datetime'] = localized_datetime_filter
+    """
+    utc = pytz.timezone('UTC')
+    print("%s: %s (%s)" % (current_user, current_user.username, current_user.timezone))
+    if current_user.is_authenticated:
+        tz = pytz.timezone(current_user.timezone)
+    else:
+        tz = utc
+    value = utc.localize(value, is_dst=None).astimezone(pytz.utc)
+    local_dt = value.astimezone(tz)
+    return local_dt.strftime(dt_format)
+
+
+def naturalized_datetime(value: datetime) -> str:
+    """ Naturalise a datetime object."""
+    if value >= datetime.now() - timedelta(hours=24):
+        return naturaltime(value)
+    else:
+        return naturaldate(value)
 
 
 def decide_resolution(start: datetime, end: datetime) -> str:

@@ -5,12 +5,13 @@ import random
 import pandas as pd
 from fbprophet import Prophet
 
-import models
+from models.assets import AssetType
+from models import confidence_interval_width
 from utils.time_utils import forecast_horizons_for
 
 
 def make_rolling_forecast(data: pd.Series,
-                          asset_type: models.AssetType,
+                          asset_type: AssetType,
                           resolution: str) -> Tuple[pd.DataFrame, List[str]]:
     """Return a df with three series per forecasting horizon,
     forecast from the historic data in a rolling fashion: yhat_{horizon}, yhat_{horizon}_upper and yhat_{horizon}_lower
@@ -30,7 +31,7 @@ def make_rolling_forecast(data: pd.Series,
     #    return _make_in_sample_forecast(df, asset_type, resolution)
 
 
-def _make_in_sample_forecast(data: pd.DataFrame, asset_type: models.AssetType, resolution: str)\
+def _make_in_sample_forecast(data: pd.DataFrame, asset_type: AssetType, resolution: str)\
                              -> Tuple[pd.DataFrame, List[str]]:
     """
     Run cheap inner-sample forecasts, return yhat[_horizon][_upper,_lower] data frame.
@@ -39,7 +40,7 @@ def _make_in_sample_forecast(data: pd.DataFrame, asset_type: models.AssetType, r
     """
     print("Making in-sample forecasts...")
     # Precondition the model to look for certain trends and seasonalities, and fit it
-    model = Prophet(interval_width=models.confidence_interval_width, **asset_type.preconditions)
+    model = Prophet(interval_width=confidence_interval_width, **asset_type.preconditions)
 
     model.fit(data)
     print("Model was fitted.")
@@ -80,7 +81,7 @@ def _make_in_sample_forecast(data: pd.DataFrame, asset_type: models.AssetType, r
     return confidence_df, horizons
 
 
-def _make_rough_rolling_forecast(data: pd.DataFrame, asset_type: models.AssetType, resolution: str)\
+def _make_rough_rolling_forecast(data: pd.DataFrame, asset_type: AssetType, resolution: str)\
                                  -> Tuple[pd.DataFrame, List[str]]:
     """
     Run a rolling forecast, with a trick to save on the time this takes.
@@ -120,7 +121,7 @@ def _make_rough_rolling_forecast(data: pd.DataFrame, asset_type: models.AssetTyp
             continue  # wait for initial training
         if dt.hour == 0:
             print(dt)
-        model = Prophet(interval_width=models.confidence_interval_width, **asset_type.preconditions)
+        model = Prophet(interval_width=confidence_interval_width, **asset_type.preconditions)
         model.fit(data[data["ds"] <= dt])
         future = model.make_future_dataframe(freq=resolution, periods=periods_forward)
         forecast_at_dt = model.predict(future)

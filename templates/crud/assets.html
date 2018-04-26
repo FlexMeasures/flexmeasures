@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} Asset listing {% endblock %}
+
+{% block divs %}
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-12">
+
+                <h2>All assets</h2>
+
+                <table class="table table-striped table-responsive">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Capacity</th>
+                            <th>Location</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for asset in assets: %}
+                            <tr>
+                                <td>
+                                    <i class="icon-{{ asset.asset_type_name }}"></i>
+                                    <a href="/assets/{{ asset.id }}" alt="Edit this asset">{{ asset.display_name }}</a>
+                                </td>
+                                <td>
+                                    {{ asset.capacity_in_mw | round(2) }} MW
+                                </td>
+                                <td>
+                                    LAT: {{ asset.latitude | round(2) }} LONG: {{ asset.longitude | round(2) }}
+                                </td>
+                                <td>
+                                    <form action="analytics" target="_blank" method="get">
+                                        <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
+                                        <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+                                    </form>
+                                </td>
+
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+{% endblock%}

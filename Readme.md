@@ -15,7 +15,8 @@ This is Seita's implementation of the BVP pilot for A1.
 * Activate it: `source activate bvp-venv`
 * Install dependencies:
 
-      conda install flask bokeh pandas==0.22.0 iso8601 xlrd inflection humanize Flask-SSLify 
+      conda install flask bokeh pandas==0.22.0 iso8601 xlrd inflection humanize Flask-SSLify psycopg2-binary Flask-SQLALchemy Flask-Migrate Flask-Classful Flask-WTF Flask-Security bcrypt
+      sudo apt-get install python3.6-dev
       conda install -c conda-forge fbprophet
 * Install dependencies for initialising the documentation with automatic screenshots:
 
@@ -31,7 +32,7 @@ This is Seita's implementation of the BVP pilot for A1.
 * Install dependencies:
 
       sudo apt-get install python3.6-dev
-      pip install flask bokeh pandas==0.22.0 iso8601 xlrd inflection humanize Flask-SSLify fbprophet
+      pip install flask bokeh pandas==0.22.0 iso8601 xlrd inflection humanize Flask-SSLify psycopg2-binary Flask-SQLALchemy Flask-Migrate Flask-Classful Flask-WTF fbprophet Flask-Security bcrypt
 
 
 Note: python3.6-dev, xlrd and fbprophet are used for initialising data only.
@@ -43,12 +44,15 @@ Note: python3.6-dev, xlrd and fbprophet are used for initialising data only.
   as well as data/German day-ahead prices 20140101-20160630.csv (provided by Seita)
   and data/German charging stations 20150101-20150620.csv (provided by Seita).
   You probably also need to create the folder data/pickles.
-* Run: `python init_data.py` (you only need to do this once)
+* Run: `python scripts/init_timeseries_data.py` (you only need to do this once)
 
 
 ### Done.
 
-Now you can run `python app.py` to start the web application.
+Now you can run `python run-local.py` to start the web application. Note, that in a production context,
+you'd not run a script but hand the `app` object to a WSGI process.
+You probably will be missing several expected environment variables and configuration settings,
+but the app will tell you what to do.
 
 
 ## Notebooks

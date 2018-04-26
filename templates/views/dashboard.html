@@ -47,7 +47,7 @@
             <div class="col-sm-8">
                 <div class="row eq-height">
                     <div class="col-sm-12">
-                        <h3>{% if not prosumer_mock == "0": %}BVP status:{% else %}Status of my assets:{% endif%}
+                        <h3>{% if user_is_admin: %}BVP status:{% else %}Status of my assets:{% endif%}
                         </h3>
 
                         <div id="mapid"></div>
@@ -65,7 +65,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>{% if not prosumer_mock: %}BVP total:{% else %}My assets:{% endif%}</td>
+                                    <td>{% if user_is_admin: %}BVP total:{% else %}My assets:{% endif%}</td>
 
                                     {% for asset_type in asset_counts_per_pluralised_type: %}
                                         {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
@@ -195,7 +195,7 @@
     {% endfor%}
 
     // add mock icons in layer
-    {% if prosumer_mock == "0" or prosumer_mock=="offshore" %}
+    {% if user_is_logged_in and (user_is_admin or "wind" in user_email) %}
         var marker_for_wind = L
             .marker(
                 [33.428833, 126.166126],
@@ -240,7 +240,7 @@
             .on('click', clickZoom);
         wind_markers.push(marker_for_wind);
     {% endif%}
-    {% if prosumer_mock == "0" %}
+    {% if user_is_admin %}
         var marker_for_bat = L
             .marker(
                 [33.3761057, 126.3025723],

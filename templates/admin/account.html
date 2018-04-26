@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% set active_page = "account" %}
+
+{% block title %} Your account {% endblock %}
+
+{% block divs %}
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-12">
+                <form action="/logout" method="get">
+                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Log out</button>
+                </form>
+                <h2> Account overview for {{ logged_in_user.username }} </h2>
+                <ul>
+                    <li>Email address:  {{logged_in_user.email }}</li>
+                    <li>Time Zone:  {{logged_in_user.timezone }}</li>
+                    <li>Last login was: {{ logged_in_user.last_login_at | localized_datetime }} </li>
+                    <li>Assets owned: <a href="/assets">{{ num_assets }}</a></li>
+                    <li>Roles: {{ roles }}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}

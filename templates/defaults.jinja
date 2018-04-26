@@ -15,22 +15,13 @@
     ('control', 'control', 'Balancing actions', 'wrench'),
 ]
 -%}
-{% do navigation_bar.append(('static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists %}
 {# ('analytics', 'analytics', 'Client analytics', 'bar-chart') #}
 {# ('upload', 'upload', 'Upload datasets', 'cloud-upload') #}
+
+{% do navigation_bar.append(('account', 'account', '', 'user')) if user_is_logged_in %}
+{% do navigation_bar.append(('static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists %}
+
 {% set active_page = active_page|default('dashboard') -%}
-
-
-{# Front-end user mock, as columns with id, caption, and (fa fa-)icon #}
-{% set user_list_mock = [
-    ('0', 'Aggregator/supplier', 'plug'),
-    ('offshore', 'Offshore wind prosumer', 'mixcloud'),
-    ('onshore', 'Onshore wind prosumer', 'mixcloud'),
-    ('solar', 'Solar prosumer', 'sun-o'),
-    ('buildings', 'Building prosumer', 'building'),
-    ('vehicles', 'EV charging station prosumer', 'car'),
-]
--%}
 
 
 {# Front-end app contents, always include this #}

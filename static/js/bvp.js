@@ -2,6 +2,18 @@ $(document).ready(function() {
     ready();
 });
 
+$(window).resize(function () {
+    $('body').css('padding-top', $("#navbar-container").height());
+    $('.floatThead-container').css('top', $("#navbar-container").height() - 60 + 'px');
+    $('.floatThead-container').css('margin-top', $("#navbar-container").height() - 60 + 'px');
+});
+
+
+$(window).scroll(function () {
+    $('.floatThead-container').css('top', $("#navbar-container").height() - 60 + 'px');
+});
+
+
 var offshoreOrdered = false;
 
 
@@ -119,9 +131,13 @@ function ready() {
 
     $('table').floatThead({
         position: 'absolute',
+        top: 60,
         scrollContainer: true
     });
 
+
+    // Security messages styling
+    $('.flashes').addClass('alert alert-info');
 
     // Check button behaviour
 
