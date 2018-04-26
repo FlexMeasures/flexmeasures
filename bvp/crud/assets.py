@@ -4,10 +4,10 @@ from wtforms import StringField, FloatField
 from wtforms.validators import DataRequired
 from flask_security import login_required
 
-from utils.data_access import get_assets
-from utils.view_utils import render_bvp_template
-from models.assets import Asset
-from database import db
+from bvp.utils.data_access import get_assets
+from bvp.utils.view_utils import render_bvp_template
+from bvp.models.assets import Asset
+from bvp.database import db
 
 
 class AssetForm(FlaskForm):

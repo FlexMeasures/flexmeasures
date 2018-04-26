@@ -35,7 +35,7 @@
                                     LAT: {{ asset.latitude | round(2) }} LONG: {{ asset.longitude | round(2) }}
                                 </td>
                                 <td>
-                                    <form action="analytics" target="_blank" method="get">
+                                    <form action="../analytics" target="_blank" method="get">
                                         <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
                                         <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
                                     </form>

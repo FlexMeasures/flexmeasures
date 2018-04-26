@@ -1,6 +1,6 @@
-from app import app
-from utils.config_utils import bvp_logging_config
-from utils import config_defaults
+from bvp.app import app
+from bvp.utils.config_utils import bvp_logging_config
+from bvp.utils import config_defaults
 
 """
 Run the BVP application locally.

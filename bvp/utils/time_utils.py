@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import pytz
 from typing import List
 
 from flask import request, session
@@ -7,6 +6,7 @@ from flask_security.core import current_user
 from humanize import naturaldate, naturaltime
 from werkzeug.exceptions import BadRequest
 import iso8601
+import pytz
 
 
 def localized_datetime(value: datetime, dt_format: str="%Y-%m-%d %I:%M %p") -> datetime:

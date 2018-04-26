@@ -5,11 +5,11 @@ from flask_security import login_required
 from flask_security.core import current_user
 from inflection import pluralize
 
-from views import bvp_views
-from utils.view_utils import render_bvp_template
-from utils import time_utils
-from utils.data_access import get_data_for_assets, Resource
-from models.assets import AssetType
+from bvp.views import bvp_views
+from bvp.utils.view_utils import render_bvp_template
+from bvp.utils import time_utils
+from bvp.utils.data_access import get_data_for_assets, Resource
+from bvp.models.assets import AssetType
 
 
 # Dashboard and main landing page

@@ -16,10 +16,9 @@ from werkzeug.exceptions import BadRequest
 import pandas as pd
 from sqlalchemy.orm.query import Query
 
-from models.assets import Asset, AssetType
-from models.markets import Market
-from models.user import User
-from utils import time_utils
+from bvp.models.assets import Asset, AssetType
+from bvp.models.markets import Market
+from bvp.utils import time_utils
 
 
 # global, lazily loaded market description

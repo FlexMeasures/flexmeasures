@@ -5,7 +5,7 @@ import pandas as pd
 import inflection
 from inflection import pluralize, titleize
 
-from database import db
+from bvp.database import db
 
 
 # Give the inflection module some help for our domain

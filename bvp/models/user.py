@@ -4,7 +4,7 @@ from flask_security import UserMixin, RoleMixin
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 
-from database import db
+from bvp.database import db
 
 
 class RolesUsers(db.Model):

@@ -10,11 +10,11 @@ from bokeh.layouts import gridplot
 from bokeh.embed import components
 import bokeh.palettes as palettes
 
-from utils import time_utils
-from utils.data_access import get_assets, get_data_for_assets, Resource
-import utils.plotting_utils as plotting
-from views import bvp_views
-from utils.view_utils import render_bvp_template
+from bvp.utils import time_utils
+from bvp.utils.data_access import get_assets, get_data_for_assets, Resource
+import bvp.utils.plotting_utils as plotting
+from bvp.views import bvp_views
+from bvp.utils.view_utils import render_bvp_template
 
 
 # Portfolio view

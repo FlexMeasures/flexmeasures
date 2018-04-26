@@ -7,7 +7,7 @@ from flask import render_template, session, current_app
 from bokeh.resources import CDN
 from flask_security.core import current_user
 
-from utils import time_utils
+from bvp.utils import time_utils
 
 
 def render_bvp_template(html_filename: str, **variables):

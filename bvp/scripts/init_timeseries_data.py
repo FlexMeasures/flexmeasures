@@ -13,12 +13,12 @@ import collections
 import pandas as pd
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
-import database
-from app import app
+import bvp.database as database
+from bvp.app import app
 database.configure_db(app)
-from models.assets import Asset, AssetType
-from models.markets import Market, market_types
-from utils.forecasting_utils import make_rolling_forecast
+from bvp.models.assets import Asset, AssetType
+from bvp.models.markets import Market, market_types
+from bvp.utils.forecasting_utils import make_rolling_forecast
 
 
 path_to_data = "data"  # assuming we are in the main directory

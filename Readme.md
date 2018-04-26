@@ -2,6 +2,9 @@
 
 This is Seita's implementation of the BVP pilot for A1.
 
+The *Balancing Valorisation Platform (BVP)* is a tool for scheduling balancing actions on behalf of the connected asset owners.
+Its purpose is to offer these balancing actions as one aggregated service to energy markets, realising the highest possible value for its users.
+
 ## Getting Started
 
 ### Make a secret key for sessions:
@@ -9,33 +12,16 @@ This is Seita's implementation of the BVP pilot for A1.
     mkdir -p /path/to/bvp/instance
     head -c 24 /dev/urandom > /path/to/bvp/instance/secret_key
 
-### Dependencies using Anaconda:
-* Install Anaconda for Python3.6+
-* Make a virtual environment: `conda create --name bvp-venv`
-* Activate it: `source activate bvp-venv`
-* Install dependencies:
-
-      conda install flask bokeh pandas==0.22.0 iso8601 xlrd inflection humanize Flask-SSLify psycopg2-binary Flask-SQLALchemy Flask-Migrate Flask-Classful Flask-WTF Flask-Security bcrypt
-      sudo apt-get install python3.6-dev
-      conda install -c conda-forge fbprophet
-* Install dependencies for initialising the documentation with automatic screenshots:
-
-      conda install -c anaconda pyqt==5.6.0
-* Or for initialising the documentation on Windows (the [Geckodriver](https://github.com/mozilla/geckodriver/releases) should be on your path):
-
-      conda install selenium==3.9.0
-      conda install -c conda-forge awesome-slugify
-
-### Dependencies using plain pip:
+### Dependencies (using plain pip, see below for Anaconda):
 * Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`.
 * Activate it: `source bvp-venv/bin/activate`
-* Install dependencies:
+* Install the bvp platform:
 
-      sudo apt-get install python3.6-dev
-      pip install flask bokeh pandas==0.22.0 iso8601 xlrd inflection humanize Flask-SSLify psycopg2-binary Flask-SQLALchemy Flask-Migrate Flask-Classful Flask-WTF fbprophet Flask-Security bcrypt
+      python setup.py [develop~install]
 
 
-Note: python3.6-dev, xlrd and fbprophet are used for initialising data only.
+Note: python3.6-dev should be installed by apt-get or so and xlrd and fbprophet by pip if you 
+are using data initialisation in the old-fashioned way. (xlrd might be needed for a while, let's see)
 
 ### Prepare/load data:
 
@@ -53,6 +39,25 @@ Now you can run `python run-local.py` to start the web application. Note, that i
 you'd not run a script but hand the `app` object to a WSGI process.
 You probably will be missing several expected environment variables and configuration settings,
 but the app will tell you what to do.
+
+
+### Dependencies using Anaconda:
+
+* Install Anaconda for Python3.6+
+* Make a virtual environment: `conda create --name bvp-venv`
+* Activate it: `source activate bvp-venv`
+* Install dependencies:
+
+      conda install flask bokeh pandas==0.22.0 iso8601 xlrd inflection humanize Flask-SSLify psycopg2-binary Flask-SQLALchemy Flask-Migrate Flask-Classful Flask-WTF Flask-Security bcrypt
+      sudo apt-get install python3.6-dev
+      conda install -c conda-forge fbprophet
+* Install dependencies for initialising the documentation with automatic screenshots:
+
+      conda install -c anaconda pyqt==5.6.0
+* For initialising the documentation on Windows (the [Geckodriver](https://github.com/mozilla/geckodriver/releases) should be on your path):
+
+      conda install selenium==3.9.0
+      conda install -c conda-forge awesome-slugify
 
 
 ## Notebooks

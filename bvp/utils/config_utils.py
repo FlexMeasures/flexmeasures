@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from logging.config import dictConfig as loggingDictConfig
 
-from utils.config_defaults import Config as DefaultConfig
+from bvp.utils.config_defaults import Config as DefaultConfig
 
 
 basedir = os.path.abspath(os.path.dirname(__file__))

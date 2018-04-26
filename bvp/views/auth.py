@@ -1,9 +1,9 @@
 from flask_security.core import current_user
 from flask_security import login_required
 
-from views import bvp_views
-from utils.data_access import get_assets
-from utils.view_utils import render_bvp_template
+from bvp.views import bvp_views
+from bvp.utils.data_access import get_assets
+from bvp.utils.view_utils import render_bvp_template
 
 
 @bvp_views.route('/account', methods=['GET'])

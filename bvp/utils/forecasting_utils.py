@@ -5,9 +5,9 @@ import random
 import pandas as pd
 from fbprophet import Prophet
 
-from models.assets import AssetType
-from models import confidence_interval_width
-from utils.time_utils import forecast_horizons_for
+from bvp.models.assets import AssetType
+from bvp.models import confidence_interval_width
+from bvp.utils.time_utils import forecast_horizons_for
 
 
 def make_rolling_forecast(data: pd.Series,

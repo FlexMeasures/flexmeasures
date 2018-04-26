@@ -1,7 +1,7 @@
 data
 instance
-static/documentation
+bvp/static/documentation
 venv
-Development-conf.py
+bvp/Development-conf.py
 notebooks/.ipynb_checkpoints/
 documentation/img/screenshot_*

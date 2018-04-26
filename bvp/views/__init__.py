@@ -8,12 +8,12 @@ bvp_views = Blueprint('a1_views', __name__, static_folder='static', template_fol
 bvp_error_views = Blueprint('a1_error_views', __name__)
 
 # Now views can register
-from views.dashboard import dashboard_view
-from views.portfolio import portfolio_view
-from views.control import control_view
-from views.analytics import analytics_view
+from bvp.views.dashboard import dashboard_view
+from bvp.views.portfolio import portfolio_view
+from bvp.views.control import control_view
+from bvp.views.analytics import analytics_view
 
-from views.auth import account_view
+from bvp.views.auth import account_view
 
 
 @bvp_views.route('/docs')

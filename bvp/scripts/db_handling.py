@@ -11,8 +11,8 @@ from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 import click
 
-from models.assets import AssetType, Asset
-from models.user import User, Role
+from bvp.models.assets import AssetType, Asset
+from bvp.models.user import User, Role
 
 
 def add_asset_types(db: SQLAlchemy):
