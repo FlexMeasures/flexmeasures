@@ -56,7 +56,7 @@ def read_config(app):
         sys.exit(2)
 
     app_env = os.environ.get('BVP_ENVIRONMENT')
-    app.config.from_object("utils.config_defaults.%sConfig" % app_env)
+    app.config.from_object("bvp.utils.config_defaults.%sConfig" % app_env)
 
     env_config_path = "%s/%s-conf.py" % (app.root_path, app_env)
     app.config.from_pyfile(env_config_path)

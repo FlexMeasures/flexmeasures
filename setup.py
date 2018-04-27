@@ -9,7 +9,7 @@ setup(
     version="0.1",
     install_requires=["flask", "bokeh", "pandas>=0.22.0", "iso8601", "xlrd", "inflection", "humanize", "Flask-SSLify",
                       "psycopg2-binary", "Flask-SQLALchemy", "Flask-Migrate", "Flask-Classful", "Flask-WTF",
-                      "Flask-Security", "bcrypt", "pytz", "numpy", "click"],
+                      "Flask-Security", "bcrypt", "pytz", "numpy", "click", "python-dotenv"],
     tests_require = ["pytest"],
     packages=["bvp"],
     include_package_data=True,

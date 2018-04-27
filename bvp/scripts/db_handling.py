@@ -31,7 +31,7 @@ def add_assets(db: SQLAlchemy) -> List[Asset]:
     """Reads in assets.json. For each asset, create an Asset in the session."""
     if not os.path.exists('data/assets.json'):
         click.echo('Could not find data/assets.json. Exiting ...')
-        return
+        return []
     assets: List[Asset] = []
     with open('data/assets.json', 'r') as assets_json:
         for json_asset in json.loads(assets_json.read()):
@@ -42,7 +42,7 @@ def add_assets(db: SQLAlchemy) -> List[Asset]:
 
 
 def add_users(db: SQLAlchemy, assets: List[Asset]):
-    #print(bcrypt.gensalt())  # I used this to generate a salt value for my PASSWORD_SALT env
+    # print(bcrypt.gensalt())  # I used this to generate a salt value for my PASSWORD_SALT env
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
     # Admins
@@ -87,6 +87,7 @@ def populate_structure(app: Flask):
     except Exception as e:
         click.echo("[populate_structure] Encountered Problem: %s" % str(e))
         db.session.rollback()
+        raise
     click.echo("DB now has %d AssetType objects" % db.session.query(AssetType).count())
     click.echo("DB now has %d Asset objects" % db.session.query(Asset).count())
     click.echo("DB now has %d User objects" % db.session.query(User).count())
@@ -112,13 +113,14 @@ def depopulate_structure(app: Flask):
             db.session.delete(user)
             num_users_deleted += 1
         db.session.commit()
-        click.echo("Deleted %d AssetType objects" % num_asset_types_deleted)
-        click.echo("Deleted %d Asset objects" % num_assets_deleted)
-        click.echo("Deleted %d Role objects" % num_roles_deleted)
-        click.echo("Deleted %d User objects" % num_users_deleted)
     except Exception as e:
         click.echo("[depopulate_structure] Encountered Problem: %s" % str(e))
         db.session.rollback()
+        raise
+    click.echo("Deleted %d AssetType objects" % num_asset_types_deleted)
+    click.echo("Deleted %d Asset objects" % num_assets_deleted)
+    click.echo("Deleted %d Role objects" % num_roles_deleted)
+    click.echo("Deleted %d User objects" % num_users_deleted)
 
 
 def reset_db(app: Flask):
@@ -126,4 +128,3 @@ def reset_db(app: Flask):
     db.drop_all()
     db.create_all()
     db.session.commit()
-

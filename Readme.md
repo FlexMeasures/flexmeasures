@@ -30,7 +30,9 @@ are using data initialisation in the old-fashioned way. (xlrd might be needed fo
   as well as data/German day-ahead prices 20140101-20160630.csv (provided by Seita)
   and data/German charging stations 20150101-20150620.csv (provided by Seita).
   You probably also need to create the folder data/pickles.
-* Run: `python scripts/init_timeseries_data.py` (you only need to do this once)
+* Run `python scripts/init_timeseries_data.py` (you only need to do this once)
+* Run `flask db upgrade` to create the Postgres DB structure.
+* Run `flask populate_db_structure` to get assets and user data created.
 
 
 ### Done.
