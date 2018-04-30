@@ -13,34 +13,49 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
     head -c 24 /dev/urandom > /path/to/bvp/instance/secret_key
 
 ### Dependencies (using plain pip, see below for Anaconda):
+
 * Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`.
 * Activate it: `source bvp-venv/bin/activate`
 * Install the bvp platform:
 
-      python setup.py [develop~install]
+      python setup.py [develop|install]
 
 
-Note: python3.6-dev should be installed by apt-get or so and xlrd and fbprophet by pip if you 
-are using data initialisation in the old-fashioned way. (xlrd might be needed for a while, let's see)
+Note: `python3.6-dev` should be installed by apt-get or so and `xlrd` and `fbprophet` by pip if you 
+are using data initialisation in the old-fashioned way. (`xlrd` might be needed for a while, let's see)
+
+
+### Configure environment
+
+* Set the env variable to make the Flask CLI work:
+
+    `echo "FLASK_APP=bvp/app.py" >> .env`
+* Set an env variable to indicate in which environment we are, e.g.:
+
+    `echo "BVP_ENVIRONMENT=<Development|Staging|Production>" >> .env`
+* Create `bvp/<Development|Staging|Production>-conf.py` and add required settings.
+  If you're unsure what you need, just continue for now and the app will tell you what it misses.
+
 
 ### Prepare/load data:
 
-* Add meta data: data/assets.json and data/markets.json.
-* Add real data: data/20171120_A1-VPP_DesignDataSetR01.xls & (Excel sheet provided by A1 to Seita)
-  as well as data/German day-ahead prices 20140101-20160630.csv (provided by Seita)
-  and data/German charging stations 20150101-20150620.csv (provided by Seita).
+* Add meta data: `data/assets.json` and `data/markets.json`.
+* Add real data: `data/20171120_A1-VPP_DesignDataSetR01.xls` & (Excel sheet provided by A1 to Seita)
+  as well as `data/German day-ahead prices 20140101-20160630.csv` (provided by Seita)
+  and `data/German charging stations 20150101-20150620.csv` (provided by Seita).
   You probably also need to create the folder data/pickles.
 * Run `python scripts/init_timeseries_data.py` (you only need to do this once)
+* Make sure you have a postgres database and configure it: In `bvp/<Development|Staging|Production>-conf.py`,
+  set the variable `SLALCHEMY_DATABASE_URI = 'postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`
 * Run `flask db upgrade` to create the Postgres DB structure.
 * Run `flask populate_db_structure` to get assets and user data created.
+
 
 
 ### Done.
 
 Now you can run `python run-local.py` to start the web application. Note, that in a production context,
 you'd not run a script but hand the `app` object to a WSGI process.
-You probably will be missing several expected environment variables and configuration settings,
-but the app will tell you what to do.
 
 
 ### Dependencies using Anaconda:
