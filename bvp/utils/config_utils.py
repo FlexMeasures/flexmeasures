@@ -58,7 +58,7 @@ def read_config(app):
     app_env = os.environ.get('BVP_ENVIRONMENT')
     app.config.from_object("bvp.utils.config_defaults.%sConfig" % app_env)
 
-    env_config_path = "%s/%s-conf.py" % (app.root_path, app_env)
+    env_config_path = "%s/%sConfig.py" % (app.root_path, app_env)
     app.config.from_pyfile(env_config_path)
 
     missing_settings = check_config_completeness(app)

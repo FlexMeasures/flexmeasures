@@ -7,10 +7,12 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 
 ## Getting Started
 
+
 ### Make a secret key for sessions:
 
     mkdir -p /path/to/bvp/instance
     head -c 24 /dev/urandom > /path/to/bvp/instance/secret_key
+
 
 ### Dependencies (using plain pip, see below for Anaconda):
 
@@ -19,7 +21,6 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 * Install the bvp platform:
 
       python setup.py [develop|install]
-
 
 Note: `python3.6-dev` should be installed by apt-get or so and `xlrd` and `fbprophet` by pip if you 
 are using data initialisation in the old-fashioned way. (`xlrd` might be needed for a while, let's see)

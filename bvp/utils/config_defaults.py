@@ -36,6 +36,8 @@ class Config(object):
     SECURITY_TRACKABLE = False  # this is more in line with modern privacy law
     SECURITY_UNAUTHORIZED_VIEW = None  # TODO: make an error view that looks okay (maybe could even be informative)
 
+    DARK_SKY_API_KEY = None
+
     #  names of settings which cannot be None
     required: List[str] = [
         "SQLALCHEMY_DATABASE_URI",

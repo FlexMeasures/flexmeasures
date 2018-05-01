@@ -2,14 +2,14 @@ from setuptools import setup
 
 setup(
     name="bvp",
-    description="Balancing Valaorisation Platform.",
+    description="Balancing Valorisation Platform.",
     author="Seita BV",
     author_email="nicolas@seita.nl",
     keywords=["smart grid", "renewables", "balancing", "forecasting"],
     version="0.1",
     install_requires=["flask", "bokeh", "pandas>=0.22.0", "iso8601", "xlrd", "inflection", "humanize", "Flask-SSLify",
                       "psycopg2-binary", "Flask-SQLALchemy", "Flask-Migrate", "Flask-Classful", "Flask-WTF",
-                      "Flask-Security", "bcrypt", "pytz", "numpy", "click", "python-dotenv"],
+                      "Flask-Security", "bcrypt", "pytz", "numpy", "click", "forecastiopy", "python-dotenv"],
     tests_require = ["pytest"],
     packages=["bvp"],
     include_package_data=True,
