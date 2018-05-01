@@ -13,7 +13,7 @@ from bvp.utils import time_utils
 def render_bvp_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
     variables["documentation_exists"] = False
-    if os.path.exists("bvp/static/documentation/html/index.html"):
+    if os.path.exists("%s/static/documentation/html/index.html" % current_app.root_path):
         variables["documentation_exists"] = True
 
     variables["start_time"] = time_utils.get_default_start_time()
