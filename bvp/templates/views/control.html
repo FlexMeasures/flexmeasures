@@ -16,9 +16,11 @@
                         Possible actions are listed in order books for future time slots.
                         You can check the expected value of each action, as well as the expected effect on the power profile of your portfolio.
                     </p>
+                    {% if documentation_exists %}
                     <p>
-                        Need help understanding this page? Check out the <a href="static/documentation/html/views/control.html">documentation</a>.
+                        Need help understanding this page? Check out the <a href="static/documentation/html/views/control.html" target="_blank">documentation</a>.
                     </p>
+                    {% endif %}
                 </div>
                 <h3>Controls</h3>
                 <form id="resource-form" method="post">

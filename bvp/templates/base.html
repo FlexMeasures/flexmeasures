@@ -56,7 +56,10 @@
                                     <ul class="nav navbar-nav">
                                         {% for href, id, caption, icon in navigation_bar %}
                                             <li{% if id == active_page %} class="active"{% endif %}>
-                                                <a href="/{{ href|e }}"> <span class="fa fa-{{ icon }}" aria-hidden="true"></span> {{ caption|e }}</a>
+                                                <a href="/{{ href|e }}"{% if id == 'docs' %} target="_blank"{% endif %}>
+                                                    <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                                                    {{ caption|e }}
+                                                </a>
                                             </li>
                                         {% endfor %}
                                     </ul>

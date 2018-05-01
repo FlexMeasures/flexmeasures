@@ -12,26 +12,28 @@ from bvp.utils import time_utils
 
 def render_bvp_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
-    if os.path.exists("static/documentation/html/index.html"):
+    variables["documentation_exists"] = False
+    if os.path.exists("bvp/static/documentation/html/index.html"):
         variables["documentation_exists"] = True
-    else:
-        variables["documentation_exists"] = False
+
+    variables["start_time"] = time_utils.get_default_start_time()
     if "start_time" in session:
         variables["start_time"] = session["start_time"]
-    else:
-        variables["start_time"] = time_utils.get_default_start_time()
+
+    variables["end_time"] = time_utils.get_default_end_time()
     if "end_time" in session:
         variables["end_time"] = session["end_time"]
-    else:
-        variables["end_time"] = time_utils.get_default_end_time()
+
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
     if "show_datepicker" not in variables:
         variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio")
+
     variables["contains_plots"] = False
     if any([n.endswith("plots_div") for n in variables.keys()]):
         variables["contains_plots"] = True
         variables["bokeh_css_resources"] = CDN.render_css()
         variables["bokeh_js_resources"] = CDN.render_js()
+
     variables["resolution"] = session.get("resolution", "")
     variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(session.get("resolution", ""))
 

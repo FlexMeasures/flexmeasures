@@ -15,9 +15,11 @@
                         This page shows you how your portfolio of assets is doing in terms of energy (production &amp; consumption) and flexibility.
                         Highlighted time slots require your attention, as upcoming balancing opportunities have been identified.
                     </p>
+                    {% if documentation_exists %}
                     <p>
-                        Need help understanding this page? Check out the <a href="static/documentation/html/views/portfolio.html">documentation</a>.
+                        Need help understanding this page? Check out the <a href="static/documentation/html/views/portfolio.html" target="_blank">documentation</a>.
                     </p>
+                    {% endif %}
                 </div>
 
                 <h3>Controls</h3>

@@ -39,9 +39,11 @@
                         This dashboard shows you which of your assets are connected to the platform and how they are doing.
                         Assets marked red require your attention, as balancing opportunities have been identified.
                     </p>
+                    {% if documentation_exists %}
                     <p>
-                        Need help understanding this page? Check out the <a href="static/documentation/html/views/dashboard.html">documentation</a>.
+                        Need help understanding this page? Check out the <a href="static/documentation/html/views/dashboard.html" target="_blank">documentation</a>.
                     </p>
+                    {% endif %}
                 </div>
             </div>
             <div class="col-sm-8">
