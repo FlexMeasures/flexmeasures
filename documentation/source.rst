@@ -8,73 +8,73 @@ Detailed documentation of all internal modules
 app
 ---
 
-.. automodule:: app
+.. automodule:: bvp.app
     :members:
 
 
 models
 -------
 
-.. automodule:: models
-    :members:
-
-
-forecasting
--------------
-
-.. automodule:: forecasting
+.. automodule:: bvp.models
     :members:
 
 
 utils
 -------
 
-.. automodule:: utils
+.. automodule:: bvp.utils
     :members:
 
 utils.calculations
 ~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: utils.calculations
+.. automodule:: bvp.utils.calculations
     :members:
 
 utils.data_access
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: utils.data_access
+.. automodule:: bvp.utils.data_access
     :members:
 
 utils.time_utils
 ~~~~~~~~~~~~~~~~~
 
-.. automodule:: utils.time_utils
+.. automodule:: bvp.utils.time_utils
     :members:
+
+utils.view_utils
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: bvp.utils.view_utils
+    :members:
+
+ utils.forecasting_utils
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: bvp.utils.forecasting_utils
+    :members:
+
+utils.plotting_utils
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: bvp.utils.plotting_utils
+    :members:
+
 
 
 views
 -------
 
-.. automodule:: views.dashboard
+.. automodule:: bvp.views.dashboard
     :members:
 
-.. automodule:: views.portfolio
+.. automodule:: bvp.views.portfolio
     :members:
 
-.. automodule:: views.control
+.. automodule:: bvp.views.control
     :members:
 
-.. automodule:: views.analytics
+.. automodule:: bvp.views.analytics
     :members:
 
-views.utils
-~~~~~~~~~~~~~
-
-.. automodule:: views.utils
-    :members:
-
-
-plotting
-----------
-
-.. automodule:: plotting
-    :members:
