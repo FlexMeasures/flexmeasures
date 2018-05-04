@@ -1,7 +1,6 @@
 import os
 
 from flask import Flask
-from flask import send_from_directory
 from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_migrate import Migrate
@@ -12,7 +11,6 @@ import click
 import bvp.database as database
 from bvp.utils import install_secret_key
 from bvp.utils.config_utils import read_config, configure_logging
-from bvp.utils.time_utils import localized_datetime, naturalized_datetime
 
 
 """
@@ -54,20 +52,8 @@ def create_app(environment=None):
 
     # Register the UI
 
-    from bvp.ui.views import bvp_ui
-    new_app.register_blueprint(bvp_ui)
-
-    from bvp.ui.crud.assets import AssetCrud
-    AssetCrud.register(new_app)
-
-    @new_app.route('/favicon.ico')
-    def favicon():
-        return send_from_directory(bvp_ui.static_folder, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
-
-    new_app.jinja_env.filters['zip'] = zip  # Allow zip function in templates
-    new_app.jinja_env.add_extension('jinja2.ext.do')    # Allow expression statements (e.g. for modifying lists)
-    new_app.jinja_env.filters['localized_datetime'] = localized_datetime
-    new_app.jinja_env.filters['naturalized_datetime'] = naturalized_datetime
+    from bvp.ui import register_at as register_ui_at
+    register_ui_at(new_app)
 
     # Register some useful custom scripts with the flask cli
 

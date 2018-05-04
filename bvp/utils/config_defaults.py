@@ -67,6 +67,7 @@ class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
     SQLALCHEMY_ECHO = True
+    PROPAGATE_EXCEPTIONS = True
 
 
 class TestingConfig(Config):
