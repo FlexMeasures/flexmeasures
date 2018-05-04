@@ -47,20 +47,26 @@ Try logging in::
 
 Configure BVP app for that database
 -----------------------------------
+Write
 ::
 
-    export POSTGRES_DB_URL=postgresql://a1:<password>@127.0.0.1/a1
+    POSTGRES_DB_URL = postgresql://a1:<password>@127.0.0.1/a1
 
-In PyCharm, set this as Environment Variable in the Run Configuration you are using.
+into the config file you are using, e.g. bvp/DevelopmentConfig.py
 
 
 Make first migration
 --------------------
-The first command (``flask db init``) is usually not needed::
+Run these commands from the repository root directory::
 
     flask db init
     flask db upgrade
     flask populate_db_structure
+
+The first command (``flask db init``) is usually not needed, it initialises the alembic migration tool.
+The second command gives you the db structure.
+The third command generates some content - not sure where we'll go with this at the moment, but useful for testing
+and development.
 
 
 Make another migration
@@ -110,19 +116,25 @@ Configure BVP app for that database
     activate bvp-venv
     set FLASK_APP=app.py
     set BVP_ENVIRONMENT=Development
-    set POSTGRES_DB_URL=postgresql://a1:<password>@127.0.0.1/a1
 
-replacing ``<password>`` with your a1 user password. In PyCharm, set the ``POSTGRES_DB_URL`` as Environment Variable in the Run Configuration you are using.
+Write
+::
+
+    POSTGRES_DB_URL = postgresql://a1:<password>@127.0.0.1/a1
+
+into the config file you are using, e.g. bvp/DevelopmentConfig.py, replacing ``<password>`` with your a1 user password.
 
 
 Make first migration
 --------------------
-The next command (``flask db init``) may in fact throw an error about directories being there already,
-but that's okay, it just means the directories were there already::
+Run these commands from the repository root directory::
 
     flask db init
     flask db upgrade
     flask populate_db_structure
+
+The first command (``flask db init``) may in fact throw an error about directories being there already,
+but that's okay, it just means the directories were there already.
 
 
 Update database

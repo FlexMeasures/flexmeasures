@@ -48,17 +48,23 @@ def configure_logging(app):
     loggingDictConfig(bvp_logging_config)
 
 
-def read_config(app):
+def read_config(app, environment=None):
     """Read configuration from various expected sources, complain if not setup correctly. """
-    if os.environ.get("BVP_ENVIRONMENT") is None:
+
+    if environment is None:
+        environment = os.environ.get('BVP_ENVIRONMENT')
+
+    if environment is None:
         print('Please set/export the BVP_ENVIRONMENT variable to either "Development", "Testing", "Staging"'
               ' or "Production".')
         sys.exit(2)
 
-    app_env = os.environ.get('BVP_ENVIRONMENT')
-    app.config.from_object("bvp.utils.config_defaults.%sConfig" % app_env)
+    app.config.from_object("bvp.utils.config_defaults.%sConfig" % environment)
 
-    env_config_path = "%s/%sConfig.py" % (app.root_path, app_env)
+    path_to_file = app.root_path
+    if environment == "Testing":
+        path_to_file += "/tests"
+    env_config_path = "%s/%sConfig.py" % (path_to_file, environment)
     app.config.from_pyfile(env_config_path)
 
     missing_settings = check_config_completeness(app)

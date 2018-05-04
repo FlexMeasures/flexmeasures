@@ -18,6 +18,8 @@ class Config(object):
     CSRF_ENABLED = True
 
     SQLALCHEMY_DATABASE_URI = None
+    # https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     MAIL_SERVER = None
     MAIL_PORT = None
@@ -69,3 +71,8 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
+    DEBUG = True  # this seems to be important for logging in, not sure why
+    WTF_CSRF_ENABLED = False  # also necessary for logging in during tests
+
+    SQLALCHEMY_DATABASE_URI = 'postgresql://tester:testpass@127.0.0.1/test'
+    # SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'

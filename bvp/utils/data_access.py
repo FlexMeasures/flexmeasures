@@ -31,16 +31,17 @@ def get_assets() -> List[Asset]:
     """Return a list of all models.Asset objects that are mentioned in assets.json and have data.
     The asset list is constructed lazily (only once per app start)."""
     result = list()
-    if current_user.is_authenticated and not current_user.has_role("admin"):
-        assets = Asset.query.filter_by(owner=current_user).order_by(Asset.id.desc())
-    else:
-        assets = Asset.query.order_by(Asset.id.desc())
-    for asset in assets:
-        has_data = True
-        if not os.path.exists("data/pickles/df_%s_res15T.pickle" % asset.name):
-            has_data = False
-        if has_data:
-            result.append(asset)
+    if current_user.is_authenticated:
+        if current_user.has_role("admin"):
+            assets = Asset.query.order_by(Asset.id.desc())
+        else:
+            assets = Asset.query.filter_by(owner=current_user).order_by(Asset.id.desc())
+        for asset in assets:
+            has_data = True
+            if not os.path.exists("data/pickles/df_%s_res15T.pickle" % asset.name):
+                has_data = False
+            if has_data:
+                result.append(asset)
     return result
 
 

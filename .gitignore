@@ -2,6 +2,7 @@ data
 instance
 bvp/static/documentation
 venv
-bvp/Development-conf.py
+bvp/DevelopmentConfig.py
+bvp/tests/TestingConfig.py
 notebooks/.ipynb_checkpoints/
 documentation/img/screenshot_*

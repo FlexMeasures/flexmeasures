@@ -29,11 +29,14 @@ def add_asset_types(db: SQLAlchemy):
 
 def add_assets(db: SQLAlchemy) -> List[Asset]:
     """Reads in assets.json. For each asset, create an Asset in the session."""
-    if not os.path.exists('data/assets.json'):
+    asset_path = 'data/assets.json'
+    if os.getcwd().endswith('bvp'):
+        asset_path = '../' + asset_path
+    if not os.path.exists(asset_path):
         click.echo('Could not find data/assets.json. Exiting ...')
         return []
     assets: List[Asset] = []
-    with open('data/assets.json', 'r') as assets_json:
+    with open(asset_path, 'r') as assets_json:
         for json_asset in json.loads(assets_json.read()):
             asset = Asset(**json_asset)
             assets.append(asset)

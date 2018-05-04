@@ -1,4 +1,4 @@
-from bvp.app import app
+from bvp.app import create_app
 from bvp.utils.config_utils import bvp_logging_config
 from bvp.utils import config_defaults
 
@@ -21,4 +21,4 @@ if __name__ == '__main__':
 
     print("Starting the Balancing Valorisation Platform ...")
 
-    app.run(debug=config_defaults.DevelopmentConfig.DEBUG)
+    create_app().run(debug=config_defaults.DevelopmentConfig.DEBUG)
