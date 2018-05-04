@@ -12,9 +12,9 @@ import bokeh.palettes as palettes
 
 from bvp.utils import time_utils
 from bvp.utils.data_access import get_assets, get_data_for_assets, Resource
-import bvp.utils.plotting_utils as plotting
-from bvp.views import bvp_ui
-from bvp.utils.view_utils import render_bvp_template
+import bvp.ui.utils.plotting_utils as plotting
+from bvp.ui.views import bvp_ui
+from bvp.ui.utils.view_utils import render_bvp_template
 
 
 # Portfolio view

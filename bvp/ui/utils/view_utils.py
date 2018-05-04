@@ -8,12 +8,13 @@ from bokeh.resources import CDN
 from flask_security.core import current_user
 
 from bvp.utils import time_utils
+from bvp.ui import bvp_ui
 
 
 def render_bvp_template(html_filename: str, **variables):
     """Render template and add all expected template variables, plus the ones given as **variables."""
     variables["documentation_exists"] = False
-    if os.path.exists("%s/static/documentation/html/index.html" % current_app.root_path):
+    if os.path.exists("%s/static/documentation/html/index.html" % bvp_ui.root_path):
         variables["documentation_exists"] = True
 
     variables["start_time"] = time_utils.get_default_start_time()

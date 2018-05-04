@@ -17,11 +17,11 @@ var LeafIcon = L.Icon.extend({
     }
 });
 
-var windIcon = new LeafIcon({iconUrl: 'static/icons/wind.png'});
-var houseIcon = new LeafIcon({iconUrl: 'static/icons/house.png'});
-var batIcon = new LeafIcon({iconUrl: 'static/icons/battery.svg'});
-var carIcon = new LeafIcon({iconUrl: 'static/icons/car.svg'});
-var sunIcon = new LeafIcon({iconUrl: 'static/icons/sun.svg'});
+var windIcon = new LeafIcon({iconUrl: 'ui/static/icons/wind.png'});
+var houseIcon = new LeafIcon({iconUrl: 'ui/static/icons/house.png'});
+var batIcon = new LeafIcon({iconUrl: 'ui/static/icons/battery.svg'});
+var carIcon = new LeafIcon({iconUrl: 'ui/static/icons/car.svg'});
+var sunIcon = new LeafIcon({iconUrl: 'ui/static/icons/sun.svg'});
 
 function responsiveImageWithTooltip(p1, p2, p3) {
     image = '<img class="img-responsive" data-toggle="tooltip" data-placement="bottom" src="' + p1 +

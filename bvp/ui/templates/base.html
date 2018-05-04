@@ -13,19 +13,19 @@
             <link rel="icon" href="favicon.ico" type="image/x-icon" />
             <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
             <!-- Leaflet -->
-            <link href="/static/css/external/leaflet.css" rel="stylesheet"/>
+            <link href="{{ url_for('bvp_ui.static', filename='css/external/leaflet.css') }}" rel="stylesheet"/>
             <!-- Bootstrap -->
-            <link href="/static/css/external/bootstrap.min.css" rel="stylesheet"/>
+            <link href="{{ url_for('bvp_ui.static', filename='css/external/bootstrap.min.css') }}" rel="stylesheet"/>
             {% if show_datepicker %}
-                <link href="/static/css/external/daterangepicker.css" rel="stylesheet"/>
+                <link href="{{ url_for('bvp_ui.static', filename='css/external/daterangepicker.css') }}" rel="stylesheet"/>
             {% endif %}
             <!-- Font awesome -->
-            <link href="/static/css/external/font-awesome.min.css" rel="stylesheet"/>
+            <link href="{{ url_for('bvp_ui.static', filename='css/external/font-awesome.min.css') }}" rel="stylesheet"/>
             <!-- Ion range slider -->
-            <link href="/static/css/external/ion.rangeSlider.css" rel="stylesheet"/>
-            <link href="/static/css/external/ion.rangeSlider.skinCustom.css" rel="stylesheet"/>
+            <link href="{{ url_for('bvp_ui.static', filename='css/external/ion.rangeSlider.css') }}" rel="stylesheet"/>
+            <link href="{{ url_for('bvp_ui.static', filename='css/external/ion.rangeSlider.skinCustom.css') }}" rel="stylesheet"/>
             <!-- Custom CSS -->
-            <link href="/static/css/bvp.css" rel="stylesheet"/>
+            <link href="{{ url_for('bvp_ui.static', filename='css/bvp.css') }}" rel="stylesheet"/>
             {% if contains_plots %}
                 {{ bokeh_css_resources|indent(4)|safe }}
                 {{ bokeh_js_resources|indent(4)|safe }}
@@ -82,8 +82,8 @@
                 {% endif %}
 
                 <!-- loading this earlier so templates can use it -->
-                <script src="/static/js/external/jquery-3.1.0.min.js"></script>
-                <script src="/static/js/external/jquery.floatThead.min.js"></script>
+                <script src="{{ url_for('bvp_ui.static', filename='js/external/jquery-3.1.0.min.js') }}"></script>
+                <script src="{{ url_for('bvp_ui.static', filename='js/external/jquery.floatThead.min.js') }}"></script>
 
                 <!-- This should always be there, even on error pages  -->
                 <script type="text/javascript">
@@ -112,7 +112,7 @@
                             <input type="hidden" id="datepicker_form_end_time" name="end_time" value="{{ end_time }}"/>
                         </form>
 
-                        <script src="/static/js/external/moment.min.js"></script>
+                        <script src="{{ url_for('bvp_ui.static', filename='js/external/moment.min.js') }}"></script>
                     {% endblock datetimepicker %}
                     
                     {% block forecastpicker %}
@@ -120,7 +120,7 @@
                         <div class="form-group">
                             <div class="heading-group">
                                 <label class="icon-left" aria-hidden="true">
-                                    <img src="/static/icons/binoculars.svg" alt="Forecast">
+                                    <img src="{{ url_for('bvp_ui.static', filename='icons/binoculars.svg') }}" alt="Forecast">
                                 </label>
                                 <label class="control-label">Forecast (rolling)</label>
                             </div>
@@ -153,18 +153,18 @@
                 {% endblock divs %}
                 
                 <!-- External scripts -->
-                <script src="/static/js/external/ion.rangeSlider.min.js"></script>
-                <script src="/static/js/external/bootstrap.min.js"></script>
+                <script src="{{ url_for('bvp_ui.static', filename='js/external/ion.rangeSlider.min.js') }}"></script>
+                <script src="{{ url_for('bvp_ui.static', filename='js/external/bootstrap.min.js') }}"></script>
 
                 <!-- Custom scripts -->
-                <script src="/static/js/bvp.js"></script>
+                <script src="{{ url_for('bvp_ui.static', filename='js/bvp.js') }}"></script>
                 {% if show_datepicker %}
-                    <script src="/static/js/daterangepicker-init.js"></script>
+                    <script src="{{ url_for('bvp_ui.static', filename='js/daterangepicker-init.js') }}"></script>
                 {% endif %}
 
                 <!-- External scripts that should run after custom scripts -->
                 {% if show_datepicker %}
-                    <script src="/static/js/external/daterangepicker.js"></script>
+                    <script src="{{ url_for('bvp_ui.static', filename='js/external/daterangepicker.js') }}"></script>
                 {% endif %}
 
                 <footer class="page-footer font-small pt-4 mt-4">

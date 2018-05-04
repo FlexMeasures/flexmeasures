@@ -5,7 +5,7 @@ from wtforms.validators import DataRequired
 from flask_security import login_required, current_user
 
 from bvp.utils.data_access import get_assets
-from bvp.utils.view_utils import render_bvp_template
+from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.models.assets import Asset
 from bvp.database import db
 

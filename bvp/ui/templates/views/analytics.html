@@ -17,7 +17,8 @@
                     </p>
                     {% if documentation_exists %}
                     <p>
-                        Need help understanding this page? Check out the <a href="static/documentation/html/views/analytics.html" target="_blank">documentation</a>.
+                        Need help understanding this page? Check out the
+                        <a href="{{ url_for('bvp_ui.static', filename='documentation/html/views/analytics.html') }}" target="_blank">documentation</a>.
                     </p>
                     {% endif %}
                 </div>

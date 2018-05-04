@@ -11,12 +11,12 @@ from bokeh.layouts import gridplot
 from bokeh.models import Range1d
 from inflection import titleize
 
-from bvp.views import bvp_ui
+from bvp.ui.views import bvp_ui
 from bvp.models.assets import Asset
-from bvp.utils.view_utils import render_bvp_template
 from bvp.utils import time_utils, calculations
 from bvp.utils.data_access import get_assets, get_asset_groups, get_data_for_assets, extract_forecasts, Resource
-from bvp.utils import plotting_utils as plotting
+from bvp.ui.utils.view_utils import render_bvp_template
+from bvp.ui.utils import plotting_utils as plotting
 
 
 @bvp_ui.route('/analytics', methods=['GET', 'POST'])

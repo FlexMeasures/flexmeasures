@@ -2,8 +2,8 @@ from datetime import timedelta
 
 from flask_security import roles_accepted
 
-from bvp.views import bvp_ui
-from bvp.utils.view_utils import render_bvp_template
+from bvp.ui.views import bvp_ui
+from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.utils import time_utils
 
 

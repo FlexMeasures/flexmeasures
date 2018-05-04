@@ -5,8 +5,8 @@ from flask_security import login_required
 from flask_security.core import current_user
 from inflection import pluralize
 
-from bvp.views import bvp_ui
-from bvp.utils.view_utils import render_bvp_template
+from bvp.ui.views import bvp_ui
+from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.utils import time_utils
 from bvp.utils.data_access import get_data_for_assets, Resource
 from bvp.models.assets import AssetType

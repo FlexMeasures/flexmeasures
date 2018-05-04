@@ -28,37 +28,41 @@ def create_app(environment=None):
     """
     new_app = Flask(__name__)
 
-    # Some security measures
+    # Some basic security measures
+
     install_secret_key(new_app)
     sslify = SSLify(new_app)
 
-    # Gather configuration
+    # Configuration
+
     read_config(new_app, environment=environment)
     configure_logging(new_app)
     print(new_app.config)
 
     # Database handling
+
     database.configure_db(new_app)
     migrate = Migrate(new_app, database.db)
 
-    # Setup Flask-Security for user authorization
+    # Setup Flask-Security for user authentication & authorization
+
     from bvp.models.user import User, Role, remember_login
     user_datastore = SQLAlchemySessionUserDatastore(database.db.session, User, Role)
     new_app.security = Security(new_app, user_datastore)
     user_logged_in.connect(remember_login)
     mail = Mail(new_app)
 
-    # Register views
-    from bvp.views import bvp_ui
+    # Register the UI
+
+    from bvp.ui.views import bvp_ui
     new_app.register_blueprint(bvp_ui)
 
-    from bvp.crud.assets import AssetCrud
+    from bvp.ui.crud.assets import AssetCrud
     AssetCrud.register(new_app)
 
     @new_app.route('/favicon.ico')
     def favicon():
-        return send_from_directory(os.path.join(new_app.root_path, 'static'),
-                                   'favicon.ico', mimetype='image/vnd.microsoft.icon')
+        return send_from_directory(bvp_ui.static_folder, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
     new_app.jinja_env.filters['zip'] = zip  # Allow zip function in templates
     new_app.jinja_env.add_extension('jinja2.ext.do')    # Allow expression statements (e.g. for modifying lists)

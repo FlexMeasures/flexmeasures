@@ -1,8 +1,13 @@
 data
 instance
-bvp/static/documentation
 venv
+
+.cache
+.pytest_cache/
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+bvp/ui/static/documentation
 bvp/DevelopmentConfig.py
 bvp/tests/TestingConfig.py
-notebooks/.ipynb_checkpoints/
 documentation/img/screenshot_*

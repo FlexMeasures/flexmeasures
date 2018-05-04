@@ -10,7 +10,7 @@
     // Helper functions
 
     function getMockImageByCapacityFactor(capacity_factor_in_percent){
-        var path = "/static/live-mock-imgs/";
+        var path = "ui/static/live-mock-imgs/";
         if (capacity_factor_in_percent < 5) return path + "0.0.png";
         if (capacity_factor_in_percent < 15) return path + "0.1.png";
         if (capacity_factor_in_percent < 25) return path + "0.2.png";
@@ -41,7 +41,8 @@
                     </p>
                     {% if documentation_exists %}
                     <p>
-                        Need help understanding this page? Check out the <a href="static/documentation/html/views/dashboard.html" target="_blank">documentation</a>.
+                        Need help understanding this page? Check out the
+                        <a href="{{ url_for('bvp_ui.static', filename='documentation/html/views/dashboard.html') }}" target="_blank">documentation</a>.
                     </p>
                     {% endif %}
                 </div>
@@ -88,8 +89,8 @@
 
 
     <!-- Initialise the map -->
-    <script src="static/js/external/leaflet.js"></script>
-    <script src="static/js/map-init.js"></script>
+    <script src="{{ url_for('bvp_ui.static', filename='js/external/leaflet.js') }}"></script>
+    <script src="{{ url_for('bvp_ui.static', filename='js/map-init.js') }}"></script>
 
     <script type="text/javascript">
     // create markers, keep them by asset type

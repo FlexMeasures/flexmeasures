@@ -18,7 +18,8 @@
                     </p>
                     {% if documentation_exists %}
                     <p>
-                        Need help understanding this page? Check out the <a href="static/documentation/html/views/control.html" target="_blank">documentation</a>.
+                        Need help understanding this page? Check out the
+                        <a href="{{ url_for('bvp_ui.static', filename='documentation/html/views/control.html') }}" target="_blank">documentation</a>.
                     </p>
                     {% endif %}
                 </div>
@@ -226,7 +227,7 @@
                     </tbody>
                 </table>
                 {% if user_is_admin %}
-                <img class="expected_load_mock reset_default" src="static/control-mock-imgs/load-action1.png" style="max-width:100%;max-height:100%;">
+                <img class="expected_load_mock reset_default" src="{{ url_for('bvp_ui.static', filename='control-mock-imgs/load-action1.png') }}" style="max-width:100%;max-height:100%;">
                 {% endif %}
             </div>
         </div>
@@ -237,8 +238,8 @@
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 Here are our calculations:
-                <img id=expected_value_mock src="static/control-mock-imgs/placeholder.png" style="max-width:100%;max-height:100%;">
-                <img class=expected_load_mock src="static/control-mock-imgs/placeholder.png" style="max-width:100%;max-height:100%;">
+                <img id=expected_value_mock src="{{ url_for('bvp_ui.static', filename='control-mock-imgs/placeholder.png') }}" style="max-width:100%;max-height:100%;">
+                <img class=expected_load_mock src="{{ url_for('bvp_ui.static', filename='control-mock-imgs/placeholder.png') }}" style="max-width:100%;max-height:100%;">
             </div>
         </div>
     </div>
