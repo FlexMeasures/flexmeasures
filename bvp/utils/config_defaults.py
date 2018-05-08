@@ -40,6 +40,8 @@ class Config(object):
 
     DARK_SKY_API_KEY = None
 
+    JSONIFY_PRETTYPRINT_REGULAR = False
+
     #  names of settings which cannot be None
     required: List[str] = [
         "SQLALCHEMY_DATABASE_URI",
@@ -68,6 +70,7 @@ class DevelopmentConfig(Config):
     DEBUG = True
     SQLALCHEMY_ECHO = False
     PROPAGATE_EXCEPTIONS = True
+    JSONIFY_PRETTYPRINT_REGULAR = True
 
 
 class TestingConfig(Config):

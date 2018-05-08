@@ -53,6 +53,11 @@ def create_app(environment=None):
     from bvp.ui import register_at as register_ui_at
     register_ui_at(new_app)
 
+    # Register the API
+
+    from bvp.api import register_at as register_api_at
+    register_api_at(new_app)
+
     # Register some useful custom scripts with the flask cli
 
     # @new_app.before_first_request

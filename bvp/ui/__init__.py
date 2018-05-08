@@ -1,4 +1,4 @@
-from flask import Blueprint
+from flask import Flask, Blueprint
 
 from flask import send_from_directory
 
@@ -11,14 +11,14 @@ bvp_ui = Blueprint('bvp_ui', __name__,
                    template_folder='templates')
 
 
-def register_at(app):
+def register_at(app: Flask):
     """This can be used to register this blueprint together with other ui-related things"""
 
     from bvp.ui.crud.assets import AssetCrud
     AssetCrud.register(app)
 
     import bvp.ui.views  # this is necessary to load the views
-    app.register_blueprint(bvp_ui)  # now registering the blueprint contains all views
+    app.register_blueprint(bvp_ui)  # now registering the blueprint will affect all views
 
     @app.route('/favicon.ico')
     def favicon():

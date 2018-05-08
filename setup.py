@@ -8,9 +8,10 @@ setup(
     keywords=["smart grid", "renewables", "balancing", "forecasting"],
     version="0.1",
     # flask should be after all the flusk plugins, because setup might find they ARE flask
-    install_requires=["bokeh", "pandas>=0.22.0", "iso8601", "xlrd", "inflection", "humanize", "Flask-SSLify",
-                      "psycopg2-binary", "Flask-SQLALchemy", "Flask-Migrate", "Flask-Classful", "Flask-WTF", "Flask-Mail",
-                      "Flask-Security", "flask>=1.0", "bcrypt", "pytz", "numpy", "click", "forecastiopy", "python-dotenv"],
+    install_requires=["bokeh", "pandas>=0.22.0", "iso8601", "xlrd", "inflection", "humanize", "psycopg2-binary",
+                      "bcrypt", "pytz", "numpy", "click", "forecastiopy", "python-dotenv",
+                      "Flask-SSLify", "Flask-SQLALchemy", "Flask-Migrate", "Flask-Classful", "Flask-WTF", "Flask-Mail",
+                      "Flask-Security", "Flask-Marshmallow", "marshmallow-sqlalchemy", "flask>=1.0"],
     tests_require = ["pytest", "pytest-flask"],
     packages=["bvp"],
     include_package_data=True,
