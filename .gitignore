@@ -1,6 +1,7 @@
 data
 instance
 venv
+.env
 
 .cache
 .pytest_cache/

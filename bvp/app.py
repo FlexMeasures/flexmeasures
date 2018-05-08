@@ -1,5 +1,3 @@
-import os
-
 from flask import Flask
 from flask_mail import Mail
 from flask_sslify import SSLify
@@ -59,18 +57,21 @@ def create_app(environment=None):
 
     # @new_app.before_first_request
     @new_app.cli.command()
-    def populate_db_structure():
-        """Initialize the database."""
-        from bvp.scripts import db_handling
-        click.echo('Populating the database structure ...')
-        db_handling.populate_structure(new_app)
+    @click.option("--measurements/--no-measurements", default=False, help="Add measurements. May take long.")
+    def db_populate(measurements: bool):
+        """Initialize the database with some static values."""
+        from bvp.scripts import db_content
+        click.echo('Populating the database ...')
+        db_content.populate(new_app, measurements)
 
     @new_app.cli.command()
-    def depopulate_db_structure():
-        """Initialize the database."""
-        from bvp.scripts import db_handling
-        click.echo('Depopulating the database structure ...')
-        db_handling.depopulate_structure(new_app)
+    @click.option("--force/no-force", default=False, help="Skip warning about consequences.")
+    @click.option("--measurements/--no-measurements", default=False, help="Delete measurements.")
+    def db_depopulate(measurements: bool):
+        """Remove all values."""
+        from bvp.scripts import db_content
+        click.echo('Depopulating the database ...')
+        db_content.depopulate(new_app, measurements)
 
     return new_app
 

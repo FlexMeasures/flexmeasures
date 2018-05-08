@@ -20,7 +20,7 @@ Install
 ::
 
     sudo apt-get install postgresql
-    pip install psycopg2
+    pip install psycopg2i-binary
 
 
 Setup the "a1" Unix user
@@ -57,11 +57,11 @@ into the config file you are using, e.g. bvp/DevelopmentConfig.py
 
 Make first migration
 --------------------
-Run these commands from the repository root directory::
+Run these commands from the repository root directoryi (read below comments first)::
 
     flask db init
     flask db upgrade
-    flask populate_db_structure
+    flask db_populate
 
 The first command (``flask db init``) is usually not needed, it initialises the alembic migration tool.
 The second command gives you the db structure.
@@ -131,8 +131,8 @@ Run these commands from the repository root directory::
 
     flask db init
     flask db upgrade
-    flask populate_db_structure
-
+    flaski db_populate
+    
 The first command (``flask db init``) may in fact throw an error about directories being there already,
 but that's okay, it just means the directories were there already.
 
@@ -142,5 +142,5 @@ Update database
 If your development server throws a database error after a code update:
 
     flask db upgrade
-    flask depopulate_db_structure
-    flask populate_db_structure
+    flask db_depopulate
+    flask db_populate
