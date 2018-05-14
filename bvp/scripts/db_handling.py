@@ -63,6 +63,11 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
                                          password=hash_password('shadywinter'),
                                          timezone="Asia/Seoul")
     user_datastore.add_role_to_user(ki_yeol, admin)
+    
+    michael = user_datastore.create_user(username="michael",
+                                         email='michael.kaisers@cwi.nl',
+                                         password=hash_password('shadywinter'))
+    user_datastore.add_role_to_user(michael, admin)
 
     # Asset owners
     asset_owner = user_datastore.create_role(name="asset-owner",
