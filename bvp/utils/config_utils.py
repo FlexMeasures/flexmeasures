@@ -73,7 +73,7 @@ def read_config(app, environment=None):
             print("Missing settings: %s" % ", ".join(missing_settings))
         sys.exit(2)
 
-    app.config["START_TIME"] = datetime.now()
+    app.config["START_TIME"] = datetime.utcnow()
 
 
 def check_config_completeness(app):

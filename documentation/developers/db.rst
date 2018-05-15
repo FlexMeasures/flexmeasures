@@ -32,12 +32,18 @@ This may in fact not be needed::
 
 Create a1 database and user
 ---------------------------
-::
+
+From the terminal::
 
     sudo -i -u postgres
     createdb a1
     createuser a1 --pwprompt
     exit
+
+From within Postgres console::
+
+    CREATE USER a1 WITH UNENCRYPTED PASSWORD 'whatever';
+    CREATE DATABASE a1 WITH OWNER = a1;
 
 Try logging in::
 

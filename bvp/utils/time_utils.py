@@ -9,28 +9,32 @@ import iso8601
 import pytz
 
 
-def localized_datetime(value: datetime, dt_format: str="%Y-%m-%d %I:%M %p") -> datetime:
+def naive_utc_from(dt: datetime) -> datetime:
+    """Return a naive datetime, that is localised to UTC if it has a timezone."""
+    if dt.tzinfo is None:  # let's hope this is the UTC time you expect
+        return dt
+    else:
+        return dt.astimezone(pytz.utc).replace(tzinfo=None)
+
+
+def localized_datetime(dt: datetime, dt_format: str="%Y-%m-%d %I:%M %p") -> str:
     """Localise a datetime to the timezone of the user (or UTC if no user is logged in).
        Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
        app.jinja_env.filters['datetime'] = localized_datetime_filter
     """
-    utc = pytz.timezone('UTC')
-    print("%s: %s (%s)" % (current_user, current_user.username, current_user.timezone))
-    if current_user.is_authenticated:
-        tz = pytz.timezone(current_user.timezone)
-    else:
-        tz = utc
-    value = utc.localize(value, is_dst=None).astimezone(pytz.utc)
-    local_dt = value.astimezone(tz)
+    local_tz = pytz.utc
+    if current_user and current_user.is_authenticated:
+        local_tz = pytz.timezone(current_user.timezone)
+    local_dt = naive_utc_from(dt).astimezone(local_tz)
     return local_dt.strftime(dt_format)
 
 
-def naturalized_datetime(value: datetime) -> str:
+def naturalized_datetime(dt: datetime) -> str:
     """ Naturalise a datetime object."""
-    if value >= datetime.now() - timedelta(hours=24):
-        return naturaltime(value)
+    if dt >= datetime.utcnow() - timedelta(hours=24):
+        return naturaltime(dt)
     else:
-        return naturaldate(value)
+        return naturaldate(dt)
 
 
 def decide_resolution(start: datetime, end: datetime) -> str:
@@ -59,12 +63,12 @@ def resolution_to_hour_factor(resolution: str):
 
 
 def get_most_recent_quarter() -> datetime:
-    now = datetime.now()
+    now = datetime.utcnow()
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
 
 
 def get_most_recent_hour() -> datetime:
-    now = datetime.now()
+    now = datetime.utcnow()
     return now.replace(minute=now.minute - (now.minute % 60), second=0, microsecond=0)
 
 

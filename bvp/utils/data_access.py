@@ -103,7 +103,10 @@ def get_data_for_assets(asset_names: List[str], start: datetime=None, end: datet
             except FileNotFoundError:
                 raise BadRequest("Sorry, we cannot find any data for the resource \"%s\" ..." % asset_name)
 
-        date_mask = (DATA[asset_name].index >= start) & (DATA[asset_name].index <= end)
+        # before comparing datetimes, make sure both are naive
+        naive_start = time_utils.naive_utc_from(start)
+        naive_end = time_utils.naive_utc_from(end)
+        date_mask = (DATA[asset_name].index >= naive_start) & (DATA[asset_name].index <= naive_end)
         data = DATA[asset_name].loc[date_mask].resample(resolution).mean()
 
         if sum_multiple is True:  # Here we only build one data frame, summed up if necessary.
