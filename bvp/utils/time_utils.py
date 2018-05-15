@@ -7,11 +7,12 @@ from humanize import naturaldate, naturaltime
 from werkzeug.exceptions import BadRequest
 import iso8601
 import pytz
+import tzlocal
 
 
 def naive_utc_from(dt: datetime) -> datetime:
     """Return a naive datetime, that is localised to UTC if it has a timezone."""
-    if dt.tzinfo is None:  # let's hope this is the UTC time you expect
+    if not hasattr(dt, "tzinfo") or dt.tzinfo is None:  # let's hope this is the UTC time you expect
         return dt
     else:
         return dt.astimezone(pytz.utc).replace(tzinfo=None)
@@ -22,6 +23,8 @@ def localized_datetime(dt: datetime, dt_format: str="%Y-%m-%d %I:%M %p") -> str:
        Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
        app.jinja_env.filters['datetime'] = localized_datetime_filter
     """
+    if dt is None:
+        return ""
     local_tz = pytz.utc
     if current_user and current_user.is_authenticated:
         local_tz = pytz.timezone(current_user.timezone)
@@ -31,10 +34,13 @@ def localized_datetime(dt: datetime, dt_format: str="%Y-%m-%d %I:%M %p") -> str:
 
 def naturalized_datetime(dt: datetime) -> str:
     """ Naturalise a datetime object."""
+    # humanize uses the local now internally, so let's make dt local
+    local_timezone = tzlocal.get_localzone()
+    local_dt = dt.replace(tzinfo=pytz.utc).astimezone(local_timezone).replace(tzinfo=None)
     if dt >= datetime.utcnow() - timedelta(hours=24):
-        return naturaltime(dt)
+        return naturaltime(local_dt)
     else:
-        return naturaldate(dt)
+        return naturaldate(local_dt)
 
 
 def decide_resolution(start: datetime, end: datetime) -> str:
