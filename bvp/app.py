@@ -24,9 +24,12 @@ def create_app(environment=None):
     """
     Create a Flask app and configure it.
     The environment name is usually gotten from environment variable (BVP_ENVIRONMENT), but can be overwritten here
-    (e.g. fore teting).
+    (e.g. fore testing).
     """
+    configure_logging()
     new_app = Flask(__name__)
+    new_app.config['LOGGER_HANDLER_POLICY'] = 'always'  # 'always' (default), 'never',  'production', 'debug'
+    new_app.config['LOGGER_NAME'] = 'bvp'  # define which logger to use for Flask
 
     # Some security measures
     install_secret_key(new_app)
@@ -34,8 +37,8 @@ def create_app(environment=None):
 
     # Gather configuration
     read_config(new_app, environment=environment)
-    configure_logging(new_app)
-    print(new_app.config)
+    if new_app.debug:
+        print(new_app.config)
 
     # Database handling
     database.configure_db(new_app)

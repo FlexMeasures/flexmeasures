@@ -39,12 +39,9 @@ bvp_logging_config = {
 }
 
 
-def configure_logging(app):
+def configure_logging():
     """Configure and register logging"""
-    app.config['LOGGER_HANDLER_POLICY'] = 'always'  # 'always' (default), 'never',  'production', 'debug'
-    app.config['LOGGER_NAME'] = 'bvp'  # define which logger to use for Flask
     # For some reason, we first need to initialise Flask's logger with this so our config will take effect:
-    assert app.logger
     loggingDictConfig(bvp_logging_config)
 
 
