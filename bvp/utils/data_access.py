@@ -28,7 +28,7 @@ DATA = {}
 
 
 def get_assets() -> List[Asset]:
-    """Return a list of all models.Asset objects that are mentioned in assets.json and have data.
+    """Return a list of all models.Asset objects of current_user (or all for admins), for which we have data.
     The asset list is constructed lazily (only once per app start)."""
     result = list()
     if current_user.is_authenticated:

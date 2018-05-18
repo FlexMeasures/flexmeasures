@@ -41,7 +41,7 @@ def make_range(series: pd.Series, other_series: pd.Series = None) -> Range1d:
 
 
 def create_graph(series: pd.Series, title: str="A plot", x_label: str="X", y_label: str="Y", legend: str=None,
-                 x_range: Range1d = None, forecasts: pd.DataFrame = None,
+                 x_range: Range1d=None, forecasts: pd.DataFrame=None,
                  hover_tool: Optional[HoverTool]=None, show_y_floats: bool=False) -> Figure:
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
