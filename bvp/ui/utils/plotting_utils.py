@@ -81,7 +81,7 @@ def create_graph(series: pd.Series, title: str="A plot", x_label: str="X", y_lab
                  outline_line_color="#666666")
 
     # Make a data source which encodes with each x (start time) also the boundary to which it runs (end time).
-    # Useful for the hover tool.
+    # Useful for the hover tool. TODO: only works with datetime indexes
     x = series.index.values
     if x.size and series.index.freq is not None:  # i.e. if there is data and with a clearly defined frequency
         next_x = pd.DatetimeIndex(start=x[1], freq=series.index.freq, periods=len(series)).values
@@ -122,22 +122,24 @@ def highlight(fig: Figure, x_start: Any, x_end: Any, color: str="#FF3936", redir
     fig.add_layout(ba)
 
     if redirect_to is not None:
-        def open_order_book(o_url: str, box_start: datetime, box_end: datetime) -> CustomJS:
-            return CustomJS(code="""
-                var boxStartDate = new Date("%s");
-                var boxEndDate = new Date("%s");
-                var clickedDate = new Date(cb_obj["x"]);
-                // This quickfixes some UTC offset bug that needs further investigation!
-                var minutesCorrection = -1 * 60;
-                clickedDate = new Date(clickedDate.getTime() + minutesCorrection*60000);
-                if (boxStartDate <= clickedDate && clickedDate <= boxEndDate) {
-                    // TODO: change this to a URL which fits the order book once we actually make it work
-                    var urlPlusParams = "%s" + "?year=" + clickedDate.getUTCFullYear()
-                                             + "&month=" + (clickedDate.getUTCMonth()+1)
-                                             + "&day=" + clickedDate.getUTCDate()
-                                             + "&hour=" + clickedDate.getUTCHours()
-                                             + "&minute=" + clickedDate.getMinutes();
-                    $(location).attr("href", urlPlusParams);
-                }
-            """ % (box_start, box_end, o_url))
+        if isinstance(x_start, datetime):
+            def open_order_book(o_url: str, box_start: datetime, box_end: datetime) -> CustomJS:
+                return CustomJS(code="""
+                    var boxStartDate = new Date("%s");
+                    var boxEndDate = new Date("%s");
+                    var clickedDate = new Date(cb_obj["x"]);
+                    // This quickfixes some localisation behaviour in bokehJS (a bug?). Bring it back to UTC.
+                    clickedDate = new Date(clickedDate.getTime() + clickedDate.getTimezoneOffset() * 60000);
+                    if (boxStartDate <= clickedDate && clickedDate <= boxEndDate) {
+                        // TODO: change this to a URL which fits the order book once we actually make it work
+                        var urlPlusParams = "%s" + "?year=" + clickedDate.getUTCFullYear()
+                                                 + "&month=" + (clickedDate.getUTCMonth()+1)
+                                                 + "&day=" + clickedDate.getUTCDate()
+                                                 + "&hour=" + clickedDate.getUTCHours()
+                                                 + "&minute=" + clickedDate.getMinutes();
+                        $(location).attr("href", urlPlusParams);
+                    }
+                """ % (box_start, box_end, o_url))
+        else:
+            open_order_book = None  # TODO: implement for other x-range types
         fig.js_on_event(events.DoubleTap, open_order_book(redirect_to, x_start, x_end))
