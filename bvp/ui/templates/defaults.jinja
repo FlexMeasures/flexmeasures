@@ -1,0 +1,29 @@
+{# Set defaults for variables #}
+
+
+{# Front-end app naming #}
+
+{% set app_name = 'Balancing Valorisation Platform' %}
+{% set app_name_short = 'BVP' %}
+
+
+{# Front-end menu, as columns with href, id, caption, and (fa fa-)icon #}
+
+{% set navigation_bar = [
+    ('dashboard', 'dashboard', 'Dashboard', 'dashboard'),
+    ('portfolio', 'portfolio', 'Portfolio overview', 'briefcase'),
+    ('control', 'control', 'Balancing actions', 'wrench'),
+]
+-%}
+{# ('analytics', 'analytics', 'Client analytics', 'bar-chart') #}
+{# ('upload', 'upload', 'Upload datasets', 'cloud-upload') #}
+
+{% do navigation_bar.append(('account', 'account', '', 'user')) if user_is_logged_in %}
+{% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists %}
+
+{% set active_page = active_page|default('dashboard') -%}
+
+
+{# Front-end app contents, always include this #}
+
+{% block base %} All your base are belong to us. {% endblock base %}

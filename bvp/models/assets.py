@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 from random import random
 
 import pandas as pd
@@ -11,20 +11,6 @@ from bvp.database import db
 # Give the inflection module some help for our domain
 inflection.UNCOUNTABLES.add("solar")
 inflection.UNCOUNTABLES.add("wind")
-
-
-def random_jeju_island_location() -> Tuple[float, float]:
-    """ Temporary helper for randomizing locations of assets on the island
-    (for which we have no real location). TODO: make obsolete? """
-    return 33.3 + random() * 0.2, 126.25 + random() * .65
-
-
-def get_capacity_for(asset_name: str, asset_type_name: str) -> float:
-    """Temporary helper to guess a maximum capacity from the data we have"""
-    if asset_type_name in ("ev", "building"):
-        return -1 * min(pd.read_pickle("data/pickles/df_%s_res15T.pickle" % asset_name).y)
-    else:
-        return max(pd.read_pickle("data/pickles/df_%s_res15T.pickle" % asset_name).y)
 
 
 class AssetType(db.Model):
@@ -76,7 +62,6 @@ class Asset(db.Model):
     # owner
     owner_id = db.Column(db.Integer, db.ForeignKey('bvp_users.id'))
 
-
     def __init__(self, **kwargs):
         super(Asset, self).__init__(**kwargs)
         self.name = self.name.replace(" (MW)", "")
@@ -109,7 +94,7 @@ class Asset(db.Model):
         """Return True if this asset is producing but not consuming."""
         return self.asset_type.is_producer and not self.asset_type.is_consumer
 
-    def to_dict(self) -> Dict[str, str]:  # TODO: actually not always a str
+    def to_dict(self) -> Dict[str, Union[str, float]]:
         return dict(name=self.name,
                     display_name=self.display_name,
                     asset_type_name=self.asset_type_name,

@@ -6,7 +6,7 @@ SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 SPHINXPROJ    = A1VPP
 SOURCEDIR     = .
-BUILDDIR      = ../bvp/static/documentation
+BUILDDIR      = ../bvp/ui/static/documentation
 
 # Put it first so that "make" without argument is like "make help".
 help:
