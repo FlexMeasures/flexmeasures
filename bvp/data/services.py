@@ -13,9 +13,8 @@ from werkzeug.exceptions import BadRequest
 import pandas as pd
 from sqlalchemy.orm.query import Query
 
-from bvp.data.models.assets import Asset, AssetType
+from bvp.data.models.assets import AssetType, Asset, Measurement
 from bvp.data.models.markets import Market, Price
-from bvp.data.models.measurements import Measurement
 from bvp.utils import time_utils
 from bvp.data.config import db
 

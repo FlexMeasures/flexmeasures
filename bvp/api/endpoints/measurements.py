@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask_security import auth_token_required, current_user
 
-from bvp.data.models.measurements import Measurement
+from bvp.data.models.assets import Measurement
 # from bvp.data.models.user import User
 from bvp.api import ma, bvp_api
 from bvp.data.services import get_assets
