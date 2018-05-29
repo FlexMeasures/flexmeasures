@@ -5,7 +5,8 @@ This is Seita's implementation of the BVP pilot for A1.
 The *Balancing Valorisation Platform (BVP)* is a tool for scheduling balancing actions on behalf of the connected asset owners.
 Its purpose is to offer these balancing actions as one aggregated service to energy markets, realising the highest possible value for its users.
 
-## Getting Started
+
+## Build & Run
 
 
 ### Make a secret key for sessions:
@@ -14,71 +15,71 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
     head -c 24 /dev/urandom > /path/to/bvp/instance/secret_key
 
 
-### Dependencies (using plain pip, see below for Anaconda):
+### Dependencies:
 
-* Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`.
-* Activate it: `source bvp-venv/bin/activate`
-* Install the bvp platform:
+* Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`. You can also use
+  an [Anaconda distribution](https://conda.io/docs/user-guide/tasks/manage-environments.html) as base.
+* Activate it, e.g.: `source bvp-venv/bin/activate`
+* Install the `bvp` platform and dependencies:
 
       python setup.py [develop|install]
 
-Note: `python3.6-dev` should be installed by apt-get or so and `xlrd` and `fbprophet` by pip if you 
-are using data initialisation in the old-fashioned way. (`xlrd` might be needed for a while, let's see)
 
 
 ### Configure environment
 
-* Set the env variable to make the Flask CLI work:
+* Set an env variable to indicate in which environment you are operating (one out of development|testing|staging|production), e.g.:
 
-    `echo "FLASK_APP=bvp/app.py" >> .env`
-* Set an env variable to indicate in which environment we are, e.g.:
-
-    `echo "BVP_ENVIRONMENT=<Development|Staging|Production>" >> .env`
-* Create `bvp/<Development|Staging|Production>-conf.py` and add required settings.
+    `echo "FLASK_ENV=development" >> .env`
+    
+    `export FLASK_ENV=production`
+* If you need to customise settings, create `bvp/<development|testing|staging|production>_config.py` and add required settings.
   If you're unsure what you need, just continue for now and the app will tell you what it misses.
 
 
-### Prepare/load data:
+### Prepare & load data:
 
-* Add meta data: `data/assets.json` and `data/markets.json`.
-* Add real data: `data/20171120_A1-VPP_DesignDataSetR01.xls` & (Excel sheet provided by A1 to Seita)
-  as well as `data/German day-ahead prices 20140101-20160630.csv` (provided by Seita)
-  and `data/German charging stations 20150101-20150620.csv` (provided by Seita).
-  You probably also need to create the folder data/pickles.
-* Run `python scripts/init_timeseries_data.py` (you only need to do this once)
-* Make sure you have a postgres database and configure it: In `bvp/<Development|Staging|Production>-conf.py`,
-  set the variable `SLALCHEMY_DATABASE_URI = 'postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`
+#### Preparing a database
+
+* Make sure you have a Postgres (Version 9+) database.
+* Tell `bvp` about it. Either you are using the default for the environment you're in (see `bvp/utils/config_defaults`),
+   or you can configure your own connection string: In `bvp/<Development|Staging|Production>Conf.py`,
+  set the variable `SQLALCHEMY_DATABASE_URI = 'postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`
 * Run `flask db upgrade` to create the Postgres DB structure.
-* Run `flask populate_db_structure` to get assets and user data created.
 
+
+#### Loading data
+
+If you have a SQL Dump file, you can load that:
+
+    psql -U {user_name} -d {database_name} -f {file_path} -h {host_name}
+    
+Else, you can populate some standard data, most of which comes from files:
+
+* For meta data, ask someone for `data/assets.json`
+* For measurement data: 
+  - Either ask someone for pickled dataframes, to be put in `data/pickles`
+  - Or add get them from the source:
+     - Ask someone for `data/20171120_A1-VPP_DesignDataSetR01.xls` (Excel sheet provided by A1 to Seita),
+       `data/German day-ahead prices 20140101-20160630.csv` (provided by Seita)
+       and `data/German charging stations 20150101-20150620.csv` (provided by Seita).
+       You probably also need to create the folder data/pickles.
+    - Install `python3.6-dev` by apt-get or so, as well as `xlrd` and `fbprophet` by pip.
+    - Run `python bvp/scripts/init_timeseries_data.py`
+* Run `flask populate_db_structure --measurements` to get data, including measurements, created.
 
 
 ### Done.
 
-Now you can run `python run-local.py` to start the web application. Note, that in a production context,
-you'd not run a script but hand the `app` object to a WSGI process.
+Now, to start the web application, you can run:
+
+    pythoni bvp/run-local.py
+    
+Note that in a production context, you'd not run a script but hand the `app` object to a WSGI process.
 
 
-### Dependencies using Anaconda:
 
-* Install Anaconda for Python3.6+
-* Make a virtual environment: `conda create --name bvp-venv`
-* Activate it: `source activate bvp-venv`
-* Install dependencies:
-
-      conda install flask bokeh pandas==0.22.0 iso8601 xlrd inflection humanize Flask-SSLify psycopg2-binary Flask-SQLALchemy Flask-Migrate Flask-Classful Flask-WTF Flask-Security bcrypt
-      sudo apt-get install python3.6-dev
-      conda install -c conda-forge fbprophet
-* Install dependencies for initialising the documentation with automatic screenshots:
-
-      conda install -c anaconda pyqt==5.6.0
-* For initialising the documentation on Windows (the [Geckodriver](https://github.com/mozilla/geckodriver/releases) should be on your path):
-
-      conda install selenium==3.9.0
-      conda install -c conda-forge awesome-slugify
-
-
-## Notebooks
+## Hint: Notebooks
 
 If you edit notebooks, make sure results do not end up in git:
 
@@ -88,7 +89,7 @@ If you edit notebooks, make sure results do not end up in git:
 (on Windows, maybe you need to look closer at https://github.com/kynan/nbstripout)
 
 
-## Quickstart for development
+## Hint: Quickstart for development
 
 I added this to my ~/.bashrc, so I only need to type `bvp` to get started (all paths depend on your local environment, of course):
 

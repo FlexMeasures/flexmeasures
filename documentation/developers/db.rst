@@ -56,7 +56,7 @@ Configure BVP app for that database
 Write
 ::
 
-    POSTGRES_DB_URL = postgresql://a1:<password>@127.0.0.1/a1
+    SQLALCHEMY_DB_URL = postgresql://a1:<password>@127.0.0.1/a1
 
 into the config file you are using, e.g. bvp/DevelopmentConfig.py
 
@@ -126,7 +126,7 @@ Configure BVP app for that database
 Write
 ::
 
-    POSTGRES_DB_URL = postgresql://a1:<password>@127.0.0.1/a1
+    SQLALCHEMY_DB_URL = postgresql://a1:<password>@127.0.0.1/a1
 
 into the config file you are using, e.g. bvp/DevelopmentConfig.py, replacing ``<password>`` with your a1 user password.
 

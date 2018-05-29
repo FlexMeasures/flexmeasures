@@ -8,8 +8,8 @@ from inflection import pluralize
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.utils import time_utils
-from bvp.utils.data_access import get_data_for_assets, Resource
-from bvp.models.assets import AssetType
+from bvp.data.services import get_measurements, Resource
+from bvp.data.models.assets import AssetType
 
 
 # Dashboard and main landing page
@@ -35,12 +35,16 @@ def dashboard_view():
         assets_by_pluralised_type = Resource(pluralize(asset_type.name)).assets
         asset_counts_per_pluralised_type[pluralize(asset_type.name)] = len(assets_by_pluralised_type)
         for asset in assets_by_pluralised_type:
-            # TODO: the 2015 selection is temporary
-            current_asset_loads[asset.name] =\
-                get_data_for_assets([asset.name],
-                                    time_utils.get_most_recent_quarter().replace(year=2015),
-                                    time_utils.get_most_recent_quarter().replace(year=2015) + timedelta(minutes=15),
-                                    "15T").y[0]
+            # TODO: the 2015 hack is temporary
+            measured_now = get_measurements([asset.name],
+                                            time_utils.get_most_recent_quarter().replace(year=2015),
+                                            time_utils.get_most_recent_quarter().replace(year=2015)
+                                            + timedelta(minutes=15),
+                                            "15T").y
+            if measured_now.size > 0:
+                current_asset_loads[asset.name] = measured_now[0]
+            else:
+                current_asset_loads[asset.name] = 0
             assets.append(asset)
 
     # TODO: remove this trick to list batteries

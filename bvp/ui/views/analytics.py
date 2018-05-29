@@ -1,8 +1,8 @@
-from typing import List, Tuple, Union
+from typing import List, Union
 from datetime import timedelta
 
 import pandas as pd
-from flask import request, session
+from flask import session
 from flask_security import roles_accepted
 from bokeh.plotting import Figure
 from bokeh.embed import components
@@ -12,10 +12,10 @@ from bokeh.models import Range1d
 from inflection import titleize
 
 from bvp.ui.views import bvp_ui
-from bvp.models.assets import Asset
-from bvp.utils import time_utils, calculations
-from bvp.utils.data_access import get_assets, get_asset_groups, get_data_for_assets, extract_forecasts, Resource
-from bvp.ui.utils.view_utils import render_bvp_template
+from bvp.utils import time_utils
+from bvp.data.services import get_assets, get_asset_groups, Resource
+from bvp.data.queries.analytics import get_power_data, get_prices_data, get_weather_data, get_revenues_costs_data
+from bvp.ui.utils.view_utils import render_bvp_template, set_session_resource
 from bvp.ui.utils import plotting_utils as plotting
 
 
@@ -48,21 +48,25 @@ def analytics_view():
                                                                              metrics)
 
     # TODO: get rid of this hack, which we use because we mock 2015 data
-    power_data_to_show = power_data.loc[power_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
-    prices_data_to_show = prices_data.loc[prices_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
-    weather_data_to_show = weather_data.loc[weather_data.index <
-                                            time_utils.get_most_recent_quarter().replace(year=2015)
-                                            + timedelta(hours=24)]
-    rev_cost_data_to_show = \
-        rev_cost_data.loc[rev_cost_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
+    if not power_data.empty:
+        power_data = power_data.loc[power_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
+    if not prices_data.empty:
+        prices_data = prices_data.loc[prices_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
+    if not weather_data.empty:
+        weather_data = weather_data.loc[weather_data.index <
+                                        time_utils.get_most_recent_quarter().replace(year=2015)
+                                        + timedelta(hours=24)]
+    if not rev_cost_data.empty:
+        rev_cost_data = \
+            rev_cost_data.loc[rev_cost_data.index < time_utils.get_most_recent_quarter().replace(year=2015)]
 
     # Making figures
-    shared_x_range = plotting.make_range(power_data_to_show.index, power_forecast_data.index)
-    power_fig = make_power_figure(power_data_to_show.y, power_forecast_data, showing_pure_consumption_data,
+    shared_x_range = plotting.make_range(power_data.index, power_forecast_data.index)
+    power_fig = make_power_figure(power_data.y, power_forecast_data, showing_pure_consumption_data,
                                   shared_x_range)
-    prices_fig = make_prices_figure(prices_data_to_show.y, prices_forecast_data, shared_x_range)
-    weather_fig = make_weather_figure(weather_data_to_show.y, None, shared_x_range, weather_type, session_asset_types)
-    rev_cost_fig = make_revenues_costs_figure(rev_cost_data_to_show, rev_cost_forecast_data,
+    prices_fig = make_prices_figure(prices_data.y, prices_forecast_data, shared_x_range)
+    weather_fig = make_weather_figure(weather_data.y, None, shared_x_range, weather_type, session_asset_types)
+    rev_cost_fig = make_revenues_costs_figure(rev_cost_data, rev_cost_forecast_data,
                                               showing_pure_consumption_data, shared_x_range)
 
     analytics_plots_script, analytics_plots_div = components(gridplot([power_fig, weather_fig],
@@ -84,92 +88,6 @@ def analytics_view():
                                showing_pure_production_data=showing_pure_production_data,
                                forecast_horizons=time_utils.forecast_horizons_for(session["resolution"]),
                                active_forecast_horizon=session["forecast_horizon"])
-
-
-def set_session_resource(assets: List[Asset], groups_with_assets: List[str]):
-    """Set session["resource"] to something, based on the available asset groups or the request."""
-    if "resource" not in session:  # set some default, if possible
-        if "solar" in groups_with_assets:
-            session["resource"] = "solar"
-        elif "wind" in groups_with_assets:
-            session["resource"] = "wind"
-        elif "vehicles" in groups_with_assets:
-            session["resource"] = "vehicles"
-        elif len(assets) > 0:
-            session["resource"] = assets[0].name
-    if "resource" in request.args:  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
-        session["resource"] = request.args['resource']
-    if "resource" in request.form:  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
-        session["resource"] = request.form['resource']
-
-
-def get_power_data(showing_pure_consumption_data: bool, metrics: dict)\
-        -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
-    """Get power data and metrics"""
-    power_data = Resource(session["resource"]).get_data()
-    power_forecast_data = extract_forecasts(power_data)
-    if showing_pure_consumption_data:
-        power_data *= -1
-    power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
-    realised_power_in_mwh = pd.Series(power_data.y * power_hour_factor).values
-    expected_power_in_mwh = pd.Series(power_forecast_data.yhat * power_hour_factor).values
-    metrics["realised_power_in_mwh"] = realised_power_in_mwh.sum()
-    metrics["expected_power_in_mwh"] = expected_power_in_mwh.sum()
-    metrics["mae_power_in_mwh"] = calculations.mean_absolute_error(realised_power_in_mwh, expected_power_in_mwh)
-    metrics["mape_power"] = calculations.mean_absolute_percentage_error(realised_power_in_mwh, expected_power_in_mwh)
-    metrics["wape_power"] = calculations.weighted_absolute_percentage_error(realised_power_in_mwh,
-                                                                            expected_power_in_mwh)
-    return power_data, power_forecast_data, metrics
-
-
-def get_prices_data(metrics: dict) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
-    """Get price data and metrics"""
-    prices_data = get_data_for_assets(["epex_da"])
-    prices_forecast_data = extract_forecasts(prices_data)
-    metrics["realised_unit_price"] = prices_data.y.mean()
-    metrics["expected_unit_price"] = prices_forecast_data.yhat.mean()
-    metrics["mae_unit_price"] = calculations.mean_absolute_error(prices_data.y, prices_forecast_data.yhat)
-    metrics["mape_unit_price"] = calculations.mean_absolute_percentage_error(prices_data.y, prices_forecast_data.yhat)
-    metrics["wape_unit_price"] = calculations.weighted_absolute_percentage_error(prices_data.y,
-                                                                                 prices_forecast_data.yhat)
-    return prices_data, prices_forecast_data, metrics
-
-
-def get_weather_data(session_asset_types: List[str], metrics: dict)\
-        -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], str, dict]:
-    """Get weather data. No metrics yet, as we do not forecast this. It *is* forecast data we get from elsewhere."""
-    if session_asset_types[0] == "wind":
-        weather_type = "wind_speed"
-    elif session_asset_types[0] == "solar":
-        weather_type = "total_radiation"
-    else:
-        weather_type = "temperature"
-    weather_data = get_data_for_assets([weather_type],
-                                       session["start_time"], session["end_time"], session["resolution"])
-    return weather_data, None, weather_type, metrics
-
-
-def get_revenues_costs_data(power_data: pd.DataFrame, prices_data: pd.DataFrame,
-                            power_forecast_data: pd.DataFrame, prices_forecast_data: pd.DataFrame,
-                            metrics: dict) -> Tuple[pd.Series, Union[None, pd.DataFrame], dict]:
-    """Compute Revenues/costs data. These data are purely derivative from power and prices.
-    For forecasts we use the WAPE metrics. Then we calculate metrics on this construct."""
-    rev_cost_data = pd.Series(power_data.y * prices_data.y, index=power_data.index)
-    rev_cost_forecasts = pd.DataFrame(index=power_data.index, columns=["yhat", "yhat_upper", "yhat_lower"])
-    rev_cost_forecasts.yhat = power_forecast_data.yhat * prices_forecast_data.yhat
-    # factor for confidence interval - there might be a better heuristic here
-    wape_factor_rev_costs = (metrics["wape_power"] / 100. + metrics["wape_unit_price"] / 100.) / 2.
-    wape_span_rev_costs = rev_cost_forecasts.yhat * wape_factor_rev_costs
-    rev_cost_forecasts.yhat_upper = rev_cost_forecasts.yhat + wape_span_rev_costs
-    rev_cost_forecasts.yhat_lower = rev_cost_forecasts.yhat - wape_span_rev_costs
-    metrics["realised_revenues_costs"] = rev_cost_data.values.sum()
-    metrics["expected_revenues_costs"] = rev_cost_forecasts.yhat.sum()
-    metrics["mae_revenues_costs"] = calculations.mean_absolute_error(rev_cost_data.values, rev_cost_forecasts.yhat)
-    metrics["mape_revenues_costs"] = calculations.mean_absolute_percentage_error(rev_cost_data.values,
-                                                                                 rev_cost_forecasts.yhat)
-    metrics["wape_revenues_costs"] = calculations.weighted_absolute_percentage_error(rev_cost_data.values,
-                                                                                     rev_cost_forecasts.yhat)
-    return rev_cost_data, rev_cost_forecasts, metrics
 
 
 def make_power_figure(data: pd.Series,

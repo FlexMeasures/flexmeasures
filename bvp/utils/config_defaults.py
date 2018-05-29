@@ -42,6 +42,8 @@ class Config(object):
 
     JSONIFY_PRETTYPRINT_REGULAR = False
 
+    READ_SERIES_DATA_FROM = "database"  # database or pickles
+    
     #  names of settings which cannot be None
     required: List[str] = [
         "SQLALCHEMY_DATABASE_URI",
@@ -58,11 +60,12 @@ class Config(object):
 
 class ProductionConfig(Config):
     DEBUG = False
+    READ_SERIES_DATA_FROM = "pickles"
 
 
 class StagingConfig(Config):
-    DEVELOPMENT = True
-    DEBUG = True
+    DEBUG = False
+    READ_SERIES_DATA_FROM = "pickles"
 
 
 class DevelopmentConfig(Config):
@@ -78,5 +81,6 @@ class TestingConfig(Config):
     DEBUG = True  # this seems to be important for logging in, not sure why
     WTF_CSRF_ENABLED = False  # also necessary for logging in during tests
 
-    SQLALCHEMY_DATABASE_URI = 'postgresql://tester:testpass@127.0.0.1/test'
+    SECURITY_PASSWORD_SALT = '$2b$19$abcdefghijklmnopqrstuv'
+    SQLALCHEMY_DATABASE_URI = 'postgresql://a1test:a1test@127.0.0.1/a1test'
     # SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'

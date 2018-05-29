@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional, Any, Union
 from datetime import datetime
 
 from flask import current_app
@@ -27,12 +27,14 @@ def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:
     })
 
 
-def make_range(series: pd.Series, other_series: pd.Series = None) -> Range1d:
+def make_range(series: pd.Series, other_series: pd.Series = None) -> Union[None, Range1d]:
     """Make a 1D range of values from a series or two. Useful to share axis among Bokeh Figures."""
     a_range = None
-    if series.size > 0:  # if there is some actual data, use that to set the range
+    # if there is some actual data, use that to set the range
+    if not series.empty:
         a_range = Range1d(start=min(series), end=max(series))
-    if other_series is not None:  # if there is other data, include it
+    # if there is other data, include it
+    if not series.empty and other_series is not None and not other_series.empty:
         a_range = Range1d(start=min(series.append(other_series)),
                           end=max(series.append(other_series)))
     if a_range is None:
@@ -67,7 +69,7 @@ def create_graph(series: pd.Series, title: str="A plot", x_label: str="X", y_lab
         tools = [hover_tool] + tools
 
     if show_y_floats is False and series.size > 0:  # apply a simple heuristic
-        if forecasts is None:
+        if forecasts is None or forecasts.empty:
             show_y_floats = max(series.values) < 2
         else:
             show_y_floats = max(max(series.values), max(forecasts.yhat)) < 2
@@ -92,7 +94,7 @@ def create_graph(series: pd.Series, title: str="A plot", x_label: str="X", y_lab
 
     fig.circle(x='x', y='y', source=data_source, color="#3B0757", alpha=0.5, legend=legend)
 
-    if forecasts is not None:
+    if forecasts is not None and not forecasts.empty:
         fc_color = "#DDD0B3"
         fig.line(forecasts.index, forecasts["yhat"], color=fc_color, legend="Forecast")
 

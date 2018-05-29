@@ -69,12 +69,12 @@ def resolution_to_hour_factor(resolution: str):
 
 
 def get_most_recent_quarter() -> datetime:
-    now = datetime.utcnow()
+    now = datetime.utcnow().astimezone(pytz.utc)
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
 
 
 def get_most_recent_hour() -> datetime:
-    now = datetime.utcnow()
+    now = datetime.utcnow().astimezone(pytz.utc)
     return now.replace(minute=now.minute - (now.minute % 60), second=0, microsecond=0)
 
 

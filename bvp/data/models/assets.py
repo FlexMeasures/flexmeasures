@@ -1,11 +1,9 @@
 from typing import Dict, Tuple, Union
-from random import random
 
-import pandas as pd
 import inflection
 from inflection import pluralize, titleize
 
-from bvp.database import db
+from bvp.data.config import db
 
 
 # Give the inflection module some help for our domain

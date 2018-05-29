@@ -2,10 +2,10 @@ from datetime import datetime
 
 from flask_security import auth_token_required, current_user
 
-from bvp.models.measurements import Measurement
-# from bvp.models.user import User
+from bvp.data.models.measurements import Measurement
+# from bvp.data.models.user import User
 from bvp.api import ma, bvp_api
-from bvp.utils.data_access import get_assets
+from bvp.data.services import get_assets
 
 
 class MeasurementSchema(ma.ModelSchema):
@@ -30,6 +30,7 @@ def measurements_get():
     end = datetime(2015, 2, 10, 4)
     asset = get_assets()[0]
     print("For user %s, I chose Asset %s, id: %s" % (current_user, asset, asset.id))
+    # TODO: use our new data package when it is available, get_measurements for now
     measurements = Measurement.query.filter((Measurement.datetime >= start)
                                             & (Measurement.datetime <= end)
                                             & (Measurement.asset_id == asset.id)).all()

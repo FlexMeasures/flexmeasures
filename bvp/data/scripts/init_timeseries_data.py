@@ -13,15 +13,15 @@ import collections
 import pandas as pd
 
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
-import bvp.database as database
-from bvp.app import app
-database.configure_db(app)
-from bvp.models.assets import Asset, AssetType
-from bvp.models.markets import Market, market_types
+import bvp.data.config as db_config
+from bvp.app import create as create_app
+db_config.configure_db(create_app())
+from bvp.data.models.assets import Asset, AssetType
+from bvp.data.models.markets import Market
 from bvp.utils.forecasting_utils import make_rolling_forecast
 
 
-path_to_data = "data"  # assuming we are in the main directory
+path_to_data = "raw_data"  # assuming we are in the main directory
 
 # all these data sources are assumed to be in the data directory
 asset_excel_filename = "20171120_A1-VPP_DesignDataSetR01.xls"
@@ -78,18 +78,20 @@ def timeseries_resample(the_df: pd.DataFrame, the_res: str) -> pd.DataFrame:
 
 
 def initialise_market_data():
-    """Initialise market data"""
+    """Initialise market data, TODO: broken, needs a little work"""
 
     print("Processing EPEX market data ...")
 
     df = pd.read_csv("%s/%s" % (path_to_data, prices_filename), index_col=0, parse_dates=True, names={'EPEX_DA'})
     df = set_datetime_index(df, freq='1H')
-    market_type = market_types['day_ahead']
+    # TODO: query DB
+    market_type = None # market_types['day_ahead']
 
     res_df = timeseries_resample(df, "15T")  # Sample time series for our target resolution
     market_count = 0
     for market_col_name in df:
         market_count += 1
+        # TODO: query DB
         market = Market(name=market_col_name, market_type_name=market_type.name)
         print("Processing market %s for resolution 15T ..." % market.name)
         market_df = pd.DataFrame(index=res_df.index)
@@ -222,8 +224,8 @@ def initialise_a1_data():
 if __name__ == "__main__":
     """Initialise markets and assets"""
 
-    if os.getcwd().endswith("scripts"):  # if this script is being called from within the scripts directory
-        path_to_data = "../data"
+    if os.getcwd().endswith("scripts"):  # if this script is being called from within the data/scripts directory
+        path_to_data = "../../raw_data"
 
     initialise_weather_data()
     initialise_buildings_data()

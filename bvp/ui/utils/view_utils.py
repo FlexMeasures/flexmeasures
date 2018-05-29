@@ -1,14 +1,15 @@
 """Utilities for views"""
 import os
 import subprocess
-from typing import Tuple
+from typing import Tuple, List
 
-from flask import render_template, session, current_app
+from flask import render_template, request, session, current_app
 from bokeh.resources import CDN
 from flask_security.core import current_user
 
 from bvp.utils import time_utils
 from bvp.ui import bvp_ui
+from bvp.data.models.assets import Asset
 
 
 def render_bvp_template(html_filename: str, **variables):
@@ -47,6 +48,23 @@ def render_bvp_template(html_filename: str, **variables):
     variables["user_email"] = current_user.is_authenticated and current_user.email or ""
 
     return render_template(html_filename, **variables)
+
+
+def set_session_resource(assets: List[Asset], groups_with_assets: List[str]):
+    """Set session["resource"] to something, based on the available asset groups or the request."""
+    if "resource" not in session:  # set some default, if possible
+        if "solar" in groups_with_assets:
+            session["resource"] = "solar"
+        elif "wind" in groups_with_assets:
+            session["resource"] = "wind"
+        elif "vehicles" in groups_with_assets:
+            session["resource"] = "vehicles"
+        elif len(assets) > 0:
+            session["resource"] = assets[0].name
+    if "resource" in request.args:  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
+        session["resource"] = request.args['resource']
+    if "resource" in request.form:  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
+        session["resource"] = request.form['resource']
 
 
 def get_git_description() -> Tuple[str, int, str]:

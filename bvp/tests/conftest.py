@@ -1,16 +1,14 @@
 import pytest
 
-from bvp.app import create_app
-
+from bvp.app import create as create_app
 from bvp.tests.utils import login, logout
 
 
 @pytest.fixture(scope="session")
 def app():
     # TODO: maybe get the environment identifier from a env var? We could test any local & configured env if we want.
-    app = create_app(environment='Testing')
-    app.testing = True
-    return app
+    test_app = create_app(env="testing")
+    return test_app
 
 
 @pytest.fixture()
@@ -21,7 +19,7 @@ def use_auth(client):
     """
     login(client, "wind@seita.nl", "wind")
 
-    yield()
+    yield ()
 
     def teardown():
         logout(client)

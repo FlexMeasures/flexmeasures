@@ -1,4 +1,4 @@
-from bvp.database import db
+from bvp.data.config import db
 
 
 class Measurement(db.Model):

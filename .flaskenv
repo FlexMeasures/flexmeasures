@@ -1,1 +1,1 @@
-FLASK_APP=bvp/app:app
+FLASK_APP=bvp.app:create

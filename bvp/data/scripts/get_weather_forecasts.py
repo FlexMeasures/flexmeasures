@@ -261,20 +261,19 @@ def get_weather_now(num_cells, method, top, left, bottom, right):
 
 
 def get_config():
-    app_env = os.environ.get('BVP_ENVIRONMENT')
+    app_env = os.environ.get('FLASK_ENV')
     if app_env is None:
-        print("Environment variable BVP_ENVIRONMENT not set."
+        print("Environment variable FLASK_ENV not set."
               "Please set it to 'Development', 'Staging' or 'Production'.")
-    config_module_name = "bvp.%sConfig" % app_env
+    config_module_name = "bvp.%s_config" % app_env
 
     __import__(config_module_name)
     return sys.modules[config_module_name]
 
 
 if __name__ == "__main__":
-    """ This script should be called from the bvp directory."""
     cur_dir = os.getcwd()
-    path2bvp_dir = "%s/.." % os.path.dirname(sys.argv[0])
+    path2bvp_dir = "%s/../.." % os.path.dirname(sys.argv[0])
     os.chdir(path2bvp_dir)
 
     get_weather_now()

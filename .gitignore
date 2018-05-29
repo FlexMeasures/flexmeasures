@@ -1,6 +1,7 @@
-data
+raw_data
 instance
 venv
+.eggs
 .env
 
 .cache
@@ -9,6 +10,6 @@ venv
 notebooks/.ipynb_checkpoints/
 
 bvp/ui/static/documentation
-bvp/DevelopmentConfig.py
-bvp/tests/TestingConfig.py
+bvp/development_config.py
+bvp/testing_config.py
 documentation/img/screenshot_*

@@ -77,7 +77,12 @@
                             <td class="text-left">
                                 Realised
                             </td>
-                            <td>{{ "{:,.3f}".format( metrics["realised_power_in_mwh"] | round(3) ) }}</td>
+                            <td>{% if metrics["realised_power_in_mwh"] %}
+                                    {{ "{:,.3f}".format( metrics["realised_power_in_mwh"] | round(3) ) }}
+                                {% else %}
+                                    nan
+                                {% endif %}
+                            </td>
                             <td>{{ "{:,.2f}".format( metrics["realised_unit_price"] | round(2)) }}</td>
                             <td>{{ "{:,.2f}".format( metrics["realised_revenues_costs"] | round(2)) }}</td>
                         </tr>
@@ -102,8 +107,18 @@
                                 WAPE
                             </td>
                             <td>{{ "{:,.1f}".format( metrics["wape_power"] | round(1)) }} %</td>
-                            <td>{{ "{:,.1f}".format( metrics["wape_unit_price"] | round(1)) }} %</td>
-                            <td>{{ "{:,.2f}".format( metrics["wape_revenues_costs"] | round(2)) }} %</td>
+                            <td>{% if metrics["wape_unit_price"] %}
+                                    {{ "{:,.1f}".format( metrics["wape_unit_price"] | round(1)) }} %
+                                {% else %}
+                                    nan
+                                {% endif %}
+                            </td>
+                            <td>{% if metrics["wape_revenues_costs"] %}
+                                    {{ "{:,.2f}".format( metrics["wape_revenues_costs"] | round(2)) }} %
+                                {% else %}
+                                    nan
+                                {% endif %}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
