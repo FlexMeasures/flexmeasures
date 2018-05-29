@@ -25,21 +25,21 @@ def register(app: Flask):
     # @app.before_first_request
     @app.cli.command()
     @click.option(
-        "--measurements/--no-measurements",
+        "--time-series-data/--no-time-series-data",
         default=False,
-        help="Add measurements. May take long.",
+        help="Add time series data. May take long.",
     )
     @click.option(
         "--test-data-set/--no-test-data-set",
         default=False,
         help="Limit data set to a small one, useful for automated tests."
     )
-    def db_populate(measurements: bool, test_data_set: bool):
+    def db_populate(time_series_data: bool, test_data_set: bool):
         """Initialize the database with some static values."""
         from bvp.data.static_content import populate
 
         click.echo("Populating the database ...")
-        populate(app, measurements, test_data_set)
+        populate(app, time_series_data, test_data_set)
 
     @app.cli.command()
     @click.option(

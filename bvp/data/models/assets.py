@@ -104,7 +104,7 @@ class Asset(db.Model):
         return '<Asset %r (%s)>' % (self.name, self.asset_type_name)
 
 
-class Measurement(db.Model):
+class Power(db.Model):
     """
     All measurements of power data are stored in one slim table.
     TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.

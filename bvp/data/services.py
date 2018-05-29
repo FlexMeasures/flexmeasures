@@ -13,7 +13,7 @@ from werkzeug.exceptions import BadRequest
 import pandas as pd
 from sqlalchemy.orm.query import Query
 
-from bvp.data.models.assets import AssetType, Asset, Measurement
+from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.markets import Market, Price
 from bvp.utils import time_utils
 from bvp.data.config import db
@@ -34,7 +34,7 @@ def get_assets() -> List[Asset]:
                 if not os.path.exists("data/pickles/df_%s_res15T.pickle" % asset.name):
                     has_data = False
             else:
-                if db.session.query(Measurement).join(Asset).filter(Asset.name == asset.name).count() == 0:
+                if db.session.query(Power).join(Asset).filter(Asset.name == asset.name).count() == 0:
                     has_data = False
             if has_data:
                 result.append(asset)
@@ -61,22 +61,22 @@ def get_asset_groups() -> Dict[str, Query]:
     return asset_queries
 
 
-def get_measurements(asset_names: List[str],
-                     start: datetime=None, end: datetime=None,
-                     resolution: str=None, sum_multiple=True, create_if_empty=False) \
+def get_power(asset_names: List[str],
+              start: datetime=None, end: datetime=None,
+              resolution: str=None, sum_multiple=True, create_if_empty=False) \
             -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     # TODO: check if asset names are all valid?
     def make_query(asset_name: str, query_start: datetime, query_end: datetime) -> Query:
-        return db.session.query(Measurement.datetime, Measurement.value) \
+        return db.session.query(Power.datetime, Power.value) \
             .join(Asset).filter(Asset.name == asset_name) \
-            .filter((Measurement.datetime >= query_start) & (Measurement.datetime <= query_end))
+            .filter((Power.datetime >= query_start) & (Power.datetime <= query_end))
     return _get_time_series_data(data_sources=asset_names, make_query=make_query, start=start, end=end,
                                  resolution=resolution, sum_multiple=sum_multiple, create_if_empty=create_if_empty)
 
 
 def get_prices(market_names: List[str],
-                     start: datetime=None, end: datetime=None,
-                     resolution: str=None, sum_multiple=True, create_if_empty=False) \
+               start: datetime=None, end: datetime=None,
+               resolution: str=None, sum_multiple=True, create_if_empty=False) \
             -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     # TODO: check if market names are all valid?
     def make_query(market_name: str, query_start: datetime, query_end: datetime) -> Query:
@@ -86,6 +86,22 @@ def get_prices(market_names: List[str],
     return _get_time_series_data(data_sources=market_names, make_query=make_query, start=start, end=end,
                                  resolution=resolution, sum_multiple=sum_multiple, create_if_empty=create_if_empty)
 
+
+# this trick lets us hold off from making the weather model just yet.
+get_weather = get_power
+"""
+def get_weather(sensor_names: List[str],
+                start: datetime=None, end: datetime=None,
+                resolution: str=None, sum_multiple=True, create_if_empty=False) \
+            -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    # TODO: check if sensor names are all valid?
+    def make_query(sensor_name: str, query_start: datetime, query_end: datetime) -> Query:
+        return db.session.query(Weather.datetime, Weather.value) \
+            .join(Market).filter(Sensor.name == sensor_name) \
+            .filter((Price.datetime >= query_start) & (Price.datetime <= query_end))
+    return _get_time_series_data(data_sources=sensor_names, make_query=make_query, start=start, end=end,
+                                 resolution=resolution, sum_multiple=sum_multiple, create_if_empty=create_if_empty)
+"""
 
 # global, lazily loaded data source, will be replaced by DB connection probably
 DATA = {}
@@ -98,7 +114,7 @@ def _get_time_series_data(data_sources: List[str],
         -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """Get time series data from one or more sources and rescale and re-package it to order.
     We can (lazily) look up by pickle, or load from the database.
-    In the latter case, we are relying on time series data (measurements and prices at this point) to
+    In the latter case, we are relying on time series data (power measurements and prices at this point) to
     have the same relevant column names (datetime, value).
     We require a list of asset or market names to find the source.
     If the time range parameters are None, they will be gotten from the session.
@@ -205,7 +221,7 @@ class Resource:
     * Resource(session["resource"]).get_data()
 
     TODO: The link to markets still needs some care (best to do that once we have modeled markets better)
-          First, decide, if we want to call makets a "Resource". If so, get_data, should maybe just decide which data
+          First, decide, if we want to call markets a "Resource". If so, get_data, should maybe just decide which data
           to fetch. I cannot imagine we ever want to mix data from assets and markets.
     """
 
@@ -253,9 +269,9 @@ class Resource:
                  sum_multiple: bool=True) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Get data for one or more assets.
         If the time range parameters are None, they will be gotten from the session.
-        See utils.data_access.get_measurements for more information."""
+        See get_power for more information."""
         asset_names = []
         for asset in self.assets:
             asset_names.append(asset.name)
-        data = get_measurements(asset_names, start, end, resolution, sum_multiple=sum_multiple)
+        data = get_power(asset_names, start, end, resolution, sum_multiple=sum_multiple)
         return data

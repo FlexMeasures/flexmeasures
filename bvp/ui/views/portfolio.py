@@ -11,7 +11,7 @@ from bokeh.embed import components
 import bokeh.palettes as palettes
 
 from bvp.utils import time_utils
-from bvp.data.services import get_assets, get_measurements, Resource
+from bvp.data.services import get_assets, get_prices, get_power, Resource
 import bvp.ui.utils.plotting_utils as plotting
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
@@ -49,12 +49,12 @@ def portfolio_view():
 
     represented_asset_types = {}
 
-    prices_data = get_measurements(["epex_da"], start=start, end=end, resolution=resolution)
+    prices_data = get_prices(["epex_da"], start=start, end=end, resolution=resolution)
 
     load_hour_factor = time_utils.resolution_to_hour_factor(resolution)
 
     for asset in assets:
-        power_data = get_measurements([asset.name], start=start, end=end, resolution=resolution)
+        power_data = get_power([asset.name], start=start, end=end, resolution=resolution)
         if prices_data.empty:
             profit_loss_energy_per_asset[asset.name] = np.NaN
         else:
@@ -141,7 +141,7 @@ def portfolio_view():
         stacked_value_mask = only_negative_abs
         summed_value_mask = only_positive
 
-    df_sum = get_measurements(sum_assets, start=start, end=end, resolution=resolution)
+    df_sum = get_power(sum_assets, start=start, end=end, resolution=resolution)
     if df_sum is not None:
         df_sum = df_sum.loc[:, ['y']]  # only get the y data
     df_sum = data_or_zeroes(df_sum)

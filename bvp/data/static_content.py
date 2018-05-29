@@ -15,12 +15,12 @@ import pandas as pd
 
 from bvp.data.models.markets import MarketType, Market, Price
 from bvp.data.models.assets import AssetType, Asset
-from bvp.data.models.measurements import Measurement
+from bvp.data.models.assets import Power
 from bvp.data.models.user import User, Role
 
 
 def get_pickle_path() -> str:
-    pickle_path = "data/pickles"
+    pickle_path = "raw_data/pickles"
     if os.getcwd().endswith("bvp") and "app.py" in os.listdir(os.getcwd()):
         pickle_path = "../" + pickle_path
     if not os.path.exists(pickle_path):
@@ -99,7 +99,7 @@ def add_asset_types(db: SQLAlchemy):
     )
 
 
-def add_prices(db: SQLAlchemy, markets:List[Market], test_data_set: bool):
+def add_prices(db: SQLAlchemy, markets: List[Market], test_data_set: bool):
     pickle_path = get_pickle_path()
     db.session.flush()  # make sure markets have IDs
     processed_markets = []
@@ -124,6 +124,7 @@ def add_prices(db: SQLAlchemy, markets:List[Market], test_data_set: bool):
         )
         prices = []
         first = None
+        last = None
         count = 0
         for i in range(df.index.size):  # df.iteritems stopped at 10,000 for me (wtf), this is slower than it could be.
             count += 1
@@ -137,6 +138,7 @@ def add_prices(db: SQLAlchemy, markets:List[Market], test_data_set: bool):
                 break
             if dt >= datetime(2015, 3, 29):
                 break  # weird problem at 29 March 29, 3am. Let's skip that for the moment. TODO: fix
+            last = dt
             if first is None:
                 first = dt
             p = Price(datetime=dt, value=value, market_id=db_market.id)
@@ -146,13 +148,13 @@ def add_prices(db: SQLAlchemy, markets:List[Market], test_data_set: bool):
         processed_markets.append(market.name)
         print(
             "Added %d prices for %s (from %s to %s)"
-            % (len(prices), market, first, dt)
+            % (len(prices), market, first, last)
         )
 
 
 def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
     """Reads in assets.json. For each asset, create an Asset in the session."""
-    asset_path = "data/assets.json"
+    asset_path = "raw_data/assets.json"
     if os.getcwd().endswith("bvp") and "app.py" in os.listdir(os.getcwd()):
         asset_path = "../" + asset_path
     if not os.path.exists(asset_path):
@@ -169,9 +171,9 @@ def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
     return assets
 
 
-def add_measurements(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
+def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
     """
-    Adding measurements from pickles. This is a lot of data points, so we use the bulk method of SQLAlchemy.
+    Adding power measurements from pickles. This is a lot of data points, so we use the bulk method of SQLAlchemy.
 
     There is a weird issue with data on March 29, 3am that I couldn't figure out, where a DuplicateKey error is caused.
     """
@@ -183,7 +185,7 @@ def add_measurements(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
         pickle_file_path = os.path.join(pickle_path, pickle_file)
         if not os.path.exists(pickle_file_path):
             print(
-                "No measurement pickle file found in directory to represent %s. Tried '%s'"
+                "No power measurement pickle file found in directory to represent %s. Tried '%s'"
                 % (asset.name, pickle_file_path)
             )
             continue
@@ -193,12 +195,13 @@ def add_measurements(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
             % (df.index.size, pickle_file, asset.name)
         )
         if asset.name in processed_assets:
-            raise Exception("We already added measurements for %s" % asset)
+            raise Exception("We already added power measurements for %s" % asset)
         db_asset = (
             db.session.query(Asset).filter(Asset.name == asset.name).one_or_none()
         )
-        measurements = []
+        power_measurements = []
         first = None
+        last = None
         count = 0
         for dt in df.index:
             count += 1
@@ -209,16 +212,17 @@ def add_measurements(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
                 break
             if dt >= datetime(2015, 3, 29):
                 break  # weird problem at 29 March 29, 3am. Let's skip that for the moment. TODO: fix
+            last = dt
             if first is None:
                 first = dt
-            m = Measurement(datetime=dt, value=value, asset_id=db_asset.id)
-            # m.asset = asset  # does not work in bulk save
-            measurements.append(m)
-        db.session.bulk_save_objects(measurements)
+            p = Power(datetime=dt, value=value, asset_id=db_asset.id)
+            # p.asset = asset  # does not work in bulk save
+            power_measurements.append(p)
+        db.session.bulk_save_objects(power_measurements)
         processed_assets.append(asset.name)
         print(
-            "Added %d measurements for %s (from %s to %s)"
-            % (len(measurements), asset, first, dt)
+            "Added %d power measurements for %s (from %s to %s)"
+            % (len(power_measurements), asset, first, last)
         )
 
 
@@ -276,15 +280,16 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
 # These could be registered at the app object as cli functions
 
 
-def populate(app: Flask, measurements: bool, test_data_set: bool):
+def populate(app: Flask, time_series_data: bool, test_data_set: bool):
     db = SQLAlchemy(app)
     try:
         markets = add_markets(db)
-        add_prices(db, markets, test_data_set)
+        if time_series_data:
+            add_prices(db, markets, test_data_set)
         add_asset_types(db)
         assets = add_assets(db, test_data_set)
-        if measurements:
-            add_measurements(db, assets, test_data_set)
+        if time_series_data:
+            add_power(db, assets, test_data_set)
         add_users(db, assets)
         db.session.commit()
     except Exception as e:
@@ -293,12 +298,13 @@ def populate(app: Flask, measurements: bool, test_data_set: bool):
         raise
     click.echo("DB now has %d MarketTypes" % db.session.query(MarketType).count())
     click.echo("DB now has %d Markets" % db.session.query(Market).count())
-    click.echo("DB now has %d Prices" % db.session.query(Price).count())
+    if time_series_data:
+        click.echo("DB now has %d Prices" % db.session.query(Price).count())
     click.echo("DB now has %d AssetTypes" % db.session.query(AssetType).count())
     click.echo("DB now has %d Assets" % db.session.query(Asset).count())
-    if measurements:
+    if time_series_data:
         click.echo(
-            "DB now has %d Measurements" % db.session.query(Measurement).count()
+            "DB now has %d Power Measurements" % db.session.query(Power).count()
         )
     click.echo("DB now has %d Users" % db.session.query(User).count())
     click.echo("DB now has %d Roles" % db.session.query(Role).count())
@@ -315,7 +321,7 @@ def depopulate(app: Flask, force: bool):
         num_prices_deleted = db.session.query(Price).delete()
         num_markets_deleted = db.session.query(Market).delete()
         num_market_types_deleted = db.session.query(MarketType).delete()
-        num_measurements_deleted = db.session.query(Measurement).delete()
+        num_power_measurements_deleted = db.session.query(Power).delete()
         num_assets_deleted = db.session.query(Asset).delete()
         num_asset_types_deleted = db.session.query(AssetType).delete()
         roles = db.session.query(Role).all()
@@ -338,7 +344,7 @@ def depopulate(app: Flask, force: bool):
     click.echo("Deleted %d Prices" % num_prices_deleted)
     click.echo("Deleted %d AssetTypes" % num_asset_types_deleted)
     click.echo("Deleted %d Assets" % num_assets_deleted)
-    click.echo("Deleted %d Measurements" % num_measurements_deleted)
+    click.echo("Deleted %d Power Measurements" % num_power_measurements_deleted)
     click.echo("Deleted %d Roles" % num_roles_deleted)
     click.echo("Deleted %d Users" % num_users_deleted)
 

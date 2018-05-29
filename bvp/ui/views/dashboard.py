@@ -8,7 +8,7 @@ from inflection import pluralize
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.utils import time_utils
-from bvp.data.services import get_measurements, Resource
+from bvp.data.services import get_power, Resource
 from bvp.data.models.assets import AssetType
 
 
@@ -36,11 +36,11 @@ def dashboard_view():
         asset_counts_per_pluralised_type[pluralize(asset_type.name)] = len(assets_by_pluralised_type)
         for asset in assets_by_pluralised_type:
             # TODO: the 2015 hack is temporary
-            measured_now = get_measurements([asset.name],
-                                            time_utils.get_most_recent_quarter().replace(year=2015),
-                                            time_utils.get_most_recent_quarter().replace(year=2015)
-                                            + timedelta(minutes=15),
-                                            "15T").y
+            measured_now = get_power([asset.name],
+                                     time_utils.get_most_recent_quarter().replace(year=2015),
+                                     time_utils.get_most_recent_quarter().replace(year=2015)
+                                     + timedelta(minutes=15),
+                                     "15T").y
             if measured_now.size > 0:
                 current_asset_loads[asset.name] = measured_now[0]
             else:

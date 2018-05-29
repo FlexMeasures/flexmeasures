@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from bvp.utils import time_utils, calculations
-from bvp.data.services import get_measurements, get_prices, extract_forecasts, Resource
+from bvp.data.services import get_prices, get_weather, extract_forecasts, Resource
 
 
 def get_power_data(showing_pure_consumption_data: bool, metrics: dict)\
@@ -66,8 +66,8 @@ def get_weather_data(session_asset_types: List[str], metrics: dict)\
         weather_type = "total_radiation"
     else:
         weather_type = "temperature"
-    weather_data = get_measurements([weather_type],
-                                    session["start_time"], session["end_time"], session["resolution"])
+    weather_data = get_weather([weather_type],
+                               session["start_time"], session["end_time"], session["resolution"])
     return weather_data, None, weather_type, metrics
 
 
