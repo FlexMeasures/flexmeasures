@@ -1,1 +1,1 @@
-from bvp.api.endpoints.measurements import measurements_get
+from bvp.api.endpoints.power import power_get

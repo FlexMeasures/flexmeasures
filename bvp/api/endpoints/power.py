@@ -2,25 +2,25 @@ from datetime import datetime
 
 from flask_security import auth_token_required, current_user
 
-from bvp.data.models.measurements import Measurement
+from bvp.data.models.assets import Power
 # from bvp.data.models.user import User
 from bvp.api import ma, bvp_api
 from bvp.data.services import get_assets
 
 
-class MeasurementSchema(ma.ModelSchema):
+class PowerSchema(ma.ModelSchema):
     """For some neat tricks, read
     https://marshmallow-sqlalchemy.readthedocs.io/en/latest/recipes.html#overriding-generated-fields
-    e.g. for getting other asset info in there than the ID
+    e.g. for getting other asset info in there
     """
     class Meta:
-        model = Measurement
+        model = Power
         fields = ('datetime', 'value')
 
 
-@bvp_api.route('/api/measurements')
+@bvp_api.route('/api/power')
 @auth_token_required
-def measurements_get():
+def power_get():
     """
     Use marshmallow to connect SQLAlchemy-modelled data to the outside world.
     Just a demonstration for now. Needs more work.
@@ -30,9 +30,9 @@ def measurements_get():
     end = datetime(2015, 2, 10, 4)
     asset = get_assets()[0]
     print("For user %s, I chose Asset %s, id: %s" % (current_user, asset, asset.id))
-    # TODO: use our new data package when it is available, get_measurements for now
-    measurements = Measurement.query.filter((Measurement.datetime >= start)
-                                            & (Measurement.datetime <= end)
-                                            & (Measurement.asset_id == asset.id)).all()
-    response = MeasurementSchema().jsonify(measurements, many=True)
+    # TODO: use bvp.data.services.get_power? Maybe make it possible to return the actual DB objects we want here.
+    measurements = Power.query.filter((Power.datetime >= start)
+                                       & (Power.datetime <= end)
+                                       & (Power.asset_id == asset.id)).all()
+    response = PowerSchema().jsonify(measurements, many=True)
     return response

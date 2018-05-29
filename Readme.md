@@ -57,7 +57,7 @@ If you have a SQL Dump file, you can load that:
 Else, you can populate some standard data, most of which comes from files:
 
 * For meta data, ask someone for `data/assets.json`
-* For measurement data: 
+* For time series data: 
   - Either ask someone for pickled dataframes, to be put in `data/pickles`
   - Or add get them from the source:
      - Ask someone for `data/20171120_A1-VPP_DesignDataSetR01.xls` (Excel sheet provided by A1 to Seita),
@@ -66,14 +66,14 @@ Else, you can populate some standard data, most of which comes from files:
        You probably also need to create the folder data/pickles.
     - Install `python3.6-dev` by apt-get or so, as well as `xlrd` and `fbprophet` by pip.
     - Run `python bvp/scripts/init_timeseries_data.py`
-* Run `flask populate_db_structure --measurements` to get data, including measurements, created.
+* Run `flask db_populate --time-series-data` to get data, including time series data created.
 
 
 ### Done.
 
 Now, to start the web application, you can run:
 
-    pythoni bvp/run-local.py
+    python bvp/run-local.py
     
 Note that in a production context, you'd not run a script but hand the `app` object to a WSGI process.
 
