@@ -43,7 +43,7 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 
 * Make sure you have a Postgres (Version 9+) database.
 * Tell `bvp` about it. Either you are using the default for the environment you're in (see `bvp/utils/config_defaults`),
-   or you can configure your own connection string: In `bvp/<Development|Staging|Production>Conf.py`,
+   or you can configure your own connection string: In `bvp/<development|testing|staging|production>_conf.py`,
   set the variable `SQLALCHEMY_DATABASE_URI = 'postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`
 * Run `flask db upgrade` to create the Postgres DB structure.
 

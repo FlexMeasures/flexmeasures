@@ -283,9 +283,10 @@ def populate(app: Flask, measurements: bool, test_data_set: bool):
         add_prices(db, markets, test_data_set)
         add_asset_types(db)
         assets = add_assets(db, test_data_set)
+        add_users(db, assets)
+        db.session.commit()  # extra session commit before adding all the measurements
         if measurements:
             add_measurements(db, assets, test_data_set)
-        add_users(db, assets)
         db.session.commit()
     except Exception as e:
         click.echo("[db_populate] Encountered Problem: %s" % str(e))

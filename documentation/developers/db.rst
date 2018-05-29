@@ -120,8 +120,8 @@ Configure BVP app for that database
 ::
 
     activate bvp-venv
-    set FLASK_APP=app.py
-    set BVP_ENVIRONMENT=Development
+    set FLASK_APP=bvp.app:create
+    set FLASK_ENV=development
 
 Write
 ::
