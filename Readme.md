@@ -66,7 +66,8 @@ Else, you can populate some standard data, most of which comes from files:
        You probably also need to create the folder data/pickles.
     - Install `python3.6-dev` by apt-get or so, as well as `xlrd` and `fbprophet` by pip.
     - Run `python bvp/scripts/init_timeseries_data.py`
-* Run `flask db_populate --time-series-data` to get data, including time series data created.
+* Run `flask db_populate --structure --data --small` to get data, including time series data created.
+  The `--small` parameter will only load four assets and four days, so use this first to try things out.
 
 
 ### Done.
@@ -77,6 +78,18 @@ Now, to start the web application, you can run:
     
 Note that in a production context, you'd not run a script but hand the `app` object to a WSGI process.
 
+
+### Tests
+
+You can run automated tests with:
+
+    py.test
+
+Also possible:
+
+    python setup.py test
+    
+One possible source of failures is that pytest needs to be build with Python>=3.6.
 
 
 ## Hint: Notebooks

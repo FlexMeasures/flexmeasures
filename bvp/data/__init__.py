@@ -25,29 +25,59 @@ def register(app: Flask):
     # @app.before_first_request
     @app.cli.command()
     @click.option(
-        "--time-series-data/--no-time-series-data",
+        "--structure/--no-structure",
         default=False,
-        help="Add time series data. May take long.",
+        help="Populate structural data like asset (types), market (types), users, roles."
     )
     @click.option(
-        "--test-data-set/--no-test-data-set",
+        "--data/--no-data",
+        default=False,
+        help="Populate (time series) data. Will do nothing without structural data present. Data links into structure."
+    )
+    @click.option(
+        "--small/--no-small",
         default=False,
         help="Limit data set to a small one, useful for automated tests."
     )
-    def db_populate(time_series_data: bool, test_data_set: bool):
-        """Initialize the database with some static values."""
-        from bvp.data.static_content import populate
-
-        click.echo("Populating the database ...")
-        populate(app, time_series_data, test_data_set)
+    def db_populate(structure: bool, data: bool, small: bool):
+        """Initialize the database with static values."""
+        if structure:
+            from bvp.data.static_content import populate_structure
+            click.echo("Populating the database structure ...")
+            populate_structure(app, small)
+        if data:
+            from bvp.data.static_content import populate_time_series_data
+            click.echo("Populating the database structure ...")
+            populate_time_series_data(app, small)
+        if not structure and not data:
+            click.echo("I did nothing as neither --structure nor --data was given. Decide what you want!")
 
     @app.cli.command()
     @click.option(
+        "--structure/--no-structure",
+        default=True,
+        help="Depopulate structural data like asset (types), market (types), users, roles."
+    )
+    @click.option(
+        "--data/--no-data",
+        default=True,
+        help="Depopulate (time series) data."
+    )
+    @click.option(
         "--force/--no-force", default=False, help="Skip warning about consequences."
     )
-    def db_depopulate(force: bool):
+    def db_depopulate(structure: bool, data: bool, force: bool):
         """Remove all values."""
-        from bvp.data.static_content import depopulate
-
-        click.echo("Depopulating the database ...")
-        depopulate(app, force)
+        if not force:
+            prompt = "This deletes all market_types, markets, asset_type, asset, measurement, role and user entries. "\
+                 "Do you want to continue?"
+            if not click.confirm(prompt):
+                return
+        if data:
+            from bvp.data.static_content import depopulate_data
+            click.echo("Depopulating (time series) data from the database ...")
+            depopulate_data(app)
+        if structure:
+            from bvp.data.static_content import depopulate_structure
+            click.echo("Depopulating structural data from the database ...")
+            depopulate_structure(app)

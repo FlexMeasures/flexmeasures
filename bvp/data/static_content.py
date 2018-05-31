@@ -101,7 +101,6 @@ def add_asset_types(db: SQLAlchemy):
 
 def add_prices(db: SQLAlchemy, markets: List[Market], test_data_set: bool):
     pickle_path = get_pickle_path()
-    db.session.flush()  # make sure markets have IDs
     processed_markets = []
     for market in markets:
         pickle_file = "df_%s_res15T.pickle" % market.name
@@ -178,7 +177,6 @@ def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
     There is a weird issue with data on March 29, 3am that I couldn't figure out, where a DuplicateKey error is caused.
     """
     pickle_path = get_pickle_path()
-    db.session.flush()  # make sure Assets have IDs
     processed_assets = []
     for asset in assets:
         pickle_file = "df_%s_res15T.pickle" % asset.name
@@ -276,78 +274,94 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
             asset.owner = mock_asset_owner
 
 
+def as_transaction(db_function):
+    """Decorator for handling SQLAlchemy commands as a database transaction (ACID).
+    Calls db operation function and when it is done, submits the db session.
+    Rolls back the session if anything goes wrong."""
+    def wrap(app: Flask, *args, **kwargs):
+        db = SQLAlchemy(app)
+        try:
+            db_function(db, *args, **kwargs)
+            db.session.commit()
+        except Exception as e:
+            click.echo("[%s] Encountered Problem: %s" % (db_function.__name__, str(e)))
+            db.session.rollback()
+            raise
+
+    return wrap
+
+
 # ------------ Main functions --------------------------------
-# These could be registered at the app object as cli functions
+# These can registered at the app object as cli functions
 
 
-def populate(app: Flask, time_series_data: bool, test_data_set: bool):
-    db = SQLAlchemy(app)
-    try:
-        markets = add_markets(db)
-        if time_series_data:
-            add_prices(db, markets, test_data_set)
-        add_asset_types(db)
-        assets = add_assets(db, test_data_set)
-        add_users(db, assets)
-        #db.session.commit()  # extra session commit if you want to log in already TODO: refactor structure from time series population
-        if time_series_data:
-            add_power(db, assets, test_data_set)
-        db.session.commit()
-    except Exception as e:
-        click.echo("[db_populate] Encountered Problem: %s" % str(e))
-        db.session.rollback()
-        raise
+@as_transaction
+def populate_structure(db: SQLAlchemy, test_data_set: bool):
+    """
+    Add all meta data for assets, markets, users
+    """
+    add_markets(db)
+    add_asset_types(db)
+    assets = add_assets(db, test_data_set)
+    add_users(db, assets)
     click.echo("DB now has %d MarketTypes" % db.session.query(MarketType).count())
     click.echo("DB now has %d Markets" % db.session.query(Market).count())
-    if time_series_data:
-        click.echo("DB now has %d Prices" % db.session.query(Price).count())
     click.echo("DB now has %d AssetTypes" % db.session.query(AssetType).count())
     click.echo("DB now has %d Assets" % db.session.query(Asset).count())
-    if time_series_data:
-        click.echo(
-            "DB now has %d Power Measurements" % db.session.query(Power).count()
-        )
     click.echo("DB now has %d Users" % db.session.query(User).count())
     click.echo("DB now has %d Roles" % db.session.query(Role).count())
 
 
-def depopulate(app: Flask, force: bool):
-    if not force:
-        prompt = "This deletes all market_types, markets, asset_type, asset, measurement, role and user entries. "\
-                 "Do you want to continue?"
-        if not click.confirm(prompt):
-            return
-    db = SQLAlchemy(app)
-    try:
-        num_prices_deleted = db.session.query(Price).delete()
-        num_markets_deleted = db.session.query(Market).delete()
-        num_market_types_deleted = db.session.query(MarketType).delete()
-        num_power_measurements_deleted = db.session.query(Power).delete()
-        num_assets_deleted = db.session.query(Asset).delete()
-        num_asset_types_deleted = db.session.query(AssetType).delete()
-        roles = db.session.query(Role).all()
-        num_roles_deleted = 0
-        for role in roles:
-            db.session.delete(role)
-            num_roles_deleted += 1
-        users = db.session.query(User).all()
-        num_users_deleted = 0
-        for user in users:
-            db.session.delete(user)
-            num_users_deleted += 1
-        db.session.commit()
-    except Exception as e:
-        click.echo("[db_depopulate] Encountered Problem: %s" % str(e))
-        db.session.rollback()
-        raise
+@as_transaction
+def populate_time_series_data(db: SQLAlchemy, test_data_set: bool):
+    markets = Market.query.all()
+    if markets:
+        add_prices(db, markets, test_data_set)
+    else:
+        click.echo("No markets in db, so I will not add any prices.")
+
+    assets = Asset.query.all()
+    if assets:
+        add_power(db, assets, test_data_set)
+    else:
+        click.echo("No assets in db, so I will not add any power measurements.")
+
+    click.echo("DB now has %d Prices" % db.session.query(Price).count())
+    click.echo(
+        "DB now has %d Power Measurements" % db.session.query(Power).count()
+    )
+
+
+@as_transaction
+def depopulate_structure(db: SQLAlchemy):
+    num_markets_deleted = db.session.query(Market).delete()
+    num_market_types_deleted = db.session.query(MarketType).delete()
+    num_assets_deleted = db.session.query(Asset).delete()
+    num_asset_types_deleted = db.session.query(AssetType).delete()
+    roles = db.session.query(Role).all()
+    num_roles_deleted = 0
+    for role in roles:
+        db.session.delete(role)
+        num_roles_deleted += 1
+    users = db.session.query(User).all()
+    num_users_deleted = 0
+    for user in users:
+        db.session.delete(user)
+        num_users_deleted += 1
     click.echo("Deleted %d MarketTypes" % num_market_types_deleted)
     click.echo("Deleted %d Markets" % num_markets_deleted)
-    click.echo("Deleted %d Prices" % num_prices_deleted)
     click.echo("Deleted %d AssetTypes" % num_asset_types_deleted)
     click.echo("Deleted %d Assets" % num_assets_deleted)
-    click.echo("Deleted %d Power Measurements" % num_power_measurements_deleted)
     click.echo("Deleted %d Roles" % num_roles_deleted)
     click.echo("Deleted %d Users" % num_users_deleted)
+
+
+@as_transaction
+def depopulate_data(db: SQLAlchemy):
+    num_prices_deleted = db.session.query(Price).delete()
+    num_power_measurements_deleted = db.session.query(Power).delete()
+    click.echo("Deleted %d Prices" % num_prices_deleted)
+    click.echo("Deleted %d Power Measurements" % num_power_measurements_deleted)
 
 
 def reset_db(app: Flask):
