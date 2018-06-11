@@ -1,6 +1,6 @@
 from flask import url_for
 
-from bvp.tests.utils import logout
+from bvp.ui.tests.utils import logout
 
 
 def test_dashboard_responds(app, use_auth, client):

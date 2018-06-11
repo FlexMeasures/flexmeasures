@@ -4,6 +4,7 @@ import inflection
 from inflection import pluralize, titleize
 
 from bvp.data.config import db
+from bvp.data.models import TimedValue
 
 
 # Give the inflection module some help for our domain
@@ -30,7 +31,7 @@ class AssetType(db.Model):
         return dict(
             daily_seasonality=self.daily_seasonality,
             weekly_seasonality=self.weekly_seasonality,
-            yearly_seasonality=self.yearly_seasonality
+            yearly_seasonality=self.yearly_seasonality,
         )
 
     @property
@@ -38,7 +39,7 @@ class AssetType(db.Model):
         return pluralize(self.name)
 
     def __repr__(self):
-        return '<AssetType %r>' % self.name
+        return "<AssetType %r>" % self.name
 
 
 class Asset(db.Model):
@@ -50,7 +51,9 @@ class Asset(db.Model):
     # The name we want to see
     display_name = db.Column(db.String(80), default="", unique=True)
     # The name of the assorted AssetType
-    asset_type_name = db.Column(db.String(80), db.ForeignKey('asset_type.name'), nullable=False)
+    asset_type_name = db.Column(
+        db.String(80), db.ForeignKey("asset_type.name"), nullable=False
+    )
     # How many MW at peak usage
     capacity_in_mw = db.Column(db.Float, nullable=False)
     # latitude is the North/South coordinate
@@ -58,7 +61,7 @@ class Asset(db.Model):
     # longitude is the East/West coordinate
     longitude = db.Column(db.Float, nullable=False)
     # owner
-    owner_id = db.Column(db.Integer, db.ForeignKey('bvp_users.id'))
+    owner_id = db.Column(db.Integer, db.ForeignKey("bvp_users.id"))
 
     def __init__(self, **kwargs):
         super(Asset, self).__init__(**kwargs)
@@ -66,8 +69,8 @@ class Asset(db.Model):
         if self.display_name == "":
             self.display_name = titleize(self.name)
 
-    asset_type = db.relationship('AssetType', backref=db.backref('assets', lazy=True))
-    owner = db.relationship('User', backref=db.backref('assets', lazy=True))
+    asset_type = db.relationship("AssetType", backref=db.backref("assets", lazy=True))
+    owner = db.relationship("User", backref=db.backref("assets", lazy=True))
 
     @property
     def asset_type_display_name(self) -> str:
@@ -93,26 +96,25 @@ class Asset(db.Model):
         return self.asset_type.is_producer and not self.asset_type.is_consumer
 
     def to_dict(self) -> Dict[str, Union[str, float]]:
-        return dict(name=self.name,
-                    display_name=self.display_name,
-                    asset_type_name=self.asset_type_name,
-                    latitude=self.latitude,
-                    longitude=self.longitude,
-                    capacity_in_mw=self.capacity_in_mw)
+        return dict(
+            name=self.name,
+            display_name=self.display_name,
+            asset_type_name=self.asset_type_name,
+            latitude=self.latitude,
+            longitude=self.longitude,
+            capacity_in_mw=self.capacity_in_mw,
+        )
 
     def __repr__(self):
-        return '<Asset %r (%s)>' % (self.name, self.asset_type_name)
+        return "<Asset %r (%s)>" % (self.name, self.asset_type_name)
 
 
-class Power(db.Model):
+class Power(TimedValue, db.Model):
     """
     All measurements of power data are stored in one slim table.
     TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
     TODO: If there are more than one measurements per asset per time step possible, we can expand rather easily.
     """
 
-    datetime = db.Column(db.DateTime(timezone=True), primary_key=True)
-    asset_id = db.Column(db.Integer(), db.ForeignKey('asset.id'), primary_key=True)
-    value = db.Column(db.Float, nullable=False)
-
-    asset = db.relationship('Asset', backref=db.backref('measurements', lazy=True))
+    asset_id = db.Column(db.Integer(), db.ForeignKey("asset.id"), primary_key=True)
+    asset = db.relationship("Asset", backref=db.backref("measurements", lazy=True))

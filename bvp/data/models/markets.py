@@ -1,6 +1,7 @@
 from typing import Dict
 
 from bvp.data.config import db
+from bvp.data.models import TimedValue
 
 
 class MarketType(db.Model):
@@ -55,14 +56,11 @@ class Market(db.Model):
         return dict(name=self.name, market_type=self.market_type.name)
 
 
-class Price(db.Model):
+class Price(TimedValue, db.Model):
     """
     All prices are stored in one slim table.
     TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
     """
 
-    datetime = db.Column(db.DateTime(timezone=True), primary_key=True)
-    market_id = db.Column(db.Integer(), db.ForeignKey('market.id'), primary_key=True)
-    value = db.Column(db.Float, nullable=False)
-
-    market = db.relationship('Market', backref=db.backref('prices', lazy=True))
+    market_id = db.Column(db.Integer(), db.ForeignKey("market.id"), primary_key=True)
+    market = db.relationship("Market", backref=db.backref("prices", lazy=True))

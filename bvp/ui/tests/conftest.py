@@ -1,7 +1,7 @@
 import pytest
 
 from bvp.app import create as create_app
-from bvp.tests.utils import login, logout
+from bvp.ui.tests.utils import login, logout
 
 
 @pytest.fixture(scope="session")

@@ -15,6 +15,7 @@ from sqlalchemy.orm.query import Query
 
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.markets import Market, Price
+from bvp.data.models.weather import WeatherSensor, Weather
 from bvp.utils import time_utils
 from bvp.data.config import db
 
@@ -88,20 +89,19 @@ def get_prices(market_names: List[str],
 
 
 # this trick lets us hold off from making the weather model just yet.
-get_weather = get_power
-"""
 def get_weather(sensor_names: List[str],
                 start: datetime=None, end: datetime=None,
                 resolution: str=None, sum_multiple=True, create_if_empty=False) \
             -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     # TODO: check if sensor names are all valid?
+    # TODO: move query creation as util method to the model class?
     def make_query(sensor_name: str, query_start: datetime, query_end: datetime) -> Query:
         return db.session.query(Weather.datetime, Weather.value) \
-            .join(Market).filter(Sensor.name == sensor_name) \
-            .filter((Price.datetime >= query_start) & (Price.datetime <= query_end))
+            .join(WeatherSensor).filter(WeatherSensor.name == sensor_name) \
+            .filter((Weather.datetime >= query_start) & (Weather.datetime <= query_end))
     return _get_time_series_data(data_sources=sensor_names, make_query=make_query, start=start, end=end,
                                  resolution=resolution, sum_multiple=sum_multiple, create_if_empty=create_if_empty)
-"""
+
 
 # global, lazily loaded data source, will be replaced by DB connection probably
 DATA = {}

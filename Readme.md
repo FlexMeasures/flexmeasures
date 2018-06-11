@@ -52,21 +52,21 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 
 If you have a SQL Dump file, you can load that:
 
-    psql -U {user_name} -d {database_name} -f {file_path} -h {host_name}
+    psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
     
 Else, you can populate some standard data, most of which comes from files:
 
-* For meta data, ask someone for `data/assets.json`
+* For meta data, ask someone for `raw_data/assets.json`
 * For time series data: 
   - Either ask someone for pickled dataframes, to be put in `data/pickles`
-  - Or add get them from the source:
-     - Ask someone for `data/20171120_A1-VPP_DesignDataSetR01.xls` (Excel sheet provided by A1 to Seita),
-       `data/German day-ahead prices 20140101-20160630.csv` (provided by Seita)
-       and `data/German charging stations 20150101-20150620.csv` (provided by Seita).
+  - Or get the pickles from the source:
+     - Ask someone for `raw_data/20171120_A1-VPP_DesignDataSetR01.xls` (Excel sheet provided by A1 to Seita),
+       `raw_data/German day-ahead prices 20140101-20160630.csv` (provided by Seita)
+       and `raw_data/German charging stations 20150101-20150620.csv` (provided by Seita).
        You probably also need to create the folder data/pickles.
     - Install `python3.6-dev` by apt-get or so, as well as `xlrd` and `fbprophet` by pip.
-    - Run `python bvp/scripts/init_timeseries_data.py`
-* Run `flask db_populate --structure --data --small` to get data, including time series data created.
+    - Run `python bvp/data/scripts/init_timeseries_data.py`
+* Finally, run `flask db_populate --structure --data --small` to load this data into the database.
   The `--small` parameter will only load four assets and four days, so use this first to try things out.
 
 
@@ -78,6 +78,8 @@ Now, to start the web application, you can run:
     
 Note that in a production context, you'd not run a script but hand the `app` object to a WSGI process.
 
+
+## Developing
 
 ### Tests
 
@@ -92,7 +94,26 @@ Also possible:
 One possible source of failures is that pytest needs to be build with Python>=3.6.
 
 
-## Hint: Notebooks
+### Auto-formatting
+
+We use [Black](https://github.com/ambv/black) to format our Python code and thus find real problems faster.
+`Black` can be installed in your editor, but we also use it as a pre-commit hook. To activate that behaviour, do:
+
+    pip install pre-commit
+    pre-commit install
+
+in your virtual environment.
+
+Now each git commit will first run `black --diff` over the files affected by the commit
+(`pre-commit` will install `black` into its own structure on the first run).
+If `black` proposes to edit any file, the commit is aborted (saying that it "failed"), 
+and the proposed changes are printed for you to review.
+
+With `git ls-files -m | grep ".py" | xargs black` you can apply the formatting, 
+and make them part of your next commit.
+
+
+### Hint: Notebooks
 
 If you edit notebooks, make sure results do not end up in git:
 
@@ -102,7 +123,7 @@ If you edit notebooks, make sure results do not end up in git:
 (on Windows, maybe you need to look closer at https://github.com/kynan/nbstripout)
 
 
-## Hint: Quickstart for development
+### Hint: Quickstart for development
 
 I added this to my ~/.bashrc, so I only need to type `bvp` to get started (all paths depend on your local environment, of course):
 
