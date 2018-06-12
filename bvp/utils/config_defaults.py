@@ -30,20 +30,22 @@ class Config(object):
     MAIL_PASSWORD = None
 
     SECURITY_REGISTERABLE = False
-    SECURITY_LOGIN_USER_TEMPLATE = 'admin/login_user.html'
-    SECURITY_FORGOT_PASSWORD_TEMPLATE = 'admin/forgot_password.html'
-    SECURITY_RESET_PASSWORD_TEMPLATE = 'admin/reset_password.html'
+    SECURITY_LOGIN_USER_TEMPLATE = "admin/login_user.html"
+    SECURITY_FORGOT_PASSWORD_TEMPLATE = "admin/forgot_password.html"
+    SECURITY_RESET_PASSWORD_TEMPLATE = "admin/reset_password.html"
     SECURITY_PASSWORD_SALT = None
     SECURITY_RECOVERABLE = True
     SECURITY_TRACKABLE = False  # this is more in line with modern privacy law
-    SECURITY_UNAUTHORIZED_VIEW = None  # TODO: make an error view that looks okay (maybe could even be informative)
+    SECURITY_UNAUTHORIZED_VIEW = (
+        None
+    )  # TODO: make an error view that looks okay (maybe could even be informative)
 
     DARK_SKY_API_KEY = None
 
     JSONIFY_PRETTYPRINT_REGULAR = False
 
     READ_SERIES_DATA_FROM = "database"  # database or pickles
-    
+
     #  names of settings which cannot be None
     required: List[str] = [
         "SQLALCHEMY_DATABASE_URI",
@@ -54,7 +56,7 @@ class Config(object):
         "MAIL_USERNAME",
         "MAIL_DEFAULT_SENDER",
         "MAIL_PASSWORD",
-        "SECURITY_PASSWORD_SALT"
+        "SECURITY_PASSWORD_SALT",
     ]
 
 
@@ -65,7 +67,7 @@ class ProductionConfig(Config):
 
 class StagingConfig(Config):
     DEBUG = False
-    READ_SERIES_DATA_FROM = "pickles"
+    READ_SERIES_DATA_FROM = "database"
 
 
 class DevelopmentConfig(Config):
@@ -81,6 +83,6 @@ class TestingConfig(Config):
     DEBUG = True  # this seems to be important for logging in, not sure why
     WTF_CSRF_ENABLED = False  # also necessary for logging in during tests
 
-    SECURITY_PASSWORD_SALT = '$2b$19$abcdefghijklmnopqrstuv'
-    SQLALCHEMY_DATABASE_URI = 'postgresql://a1test:a1test@127.0.0.1/a1test'
+    SECURITY_PASSWORD_SALT = "$2b$19$abcdefghijklmnopqrstuv"
+    SQLALCHEMY_DATABASE_URI = "postgresql://a1test:a1test@127.0.0.1/a1test"
     # SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'
