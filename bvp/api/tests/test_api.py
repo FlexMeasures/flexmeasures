@@ -95,7 +95,7 @@ def set_up_test_data(app):
         raise
 
 
-def test_api_login_service_responds(app, set_up_test_data, client):
+def _test_api_login_service_responds(app, set_up_test_data, client):
 
     # get auth token
     auth_data = json.dumps({"email": "test_user@seita.nl", "password": "testtest"})
