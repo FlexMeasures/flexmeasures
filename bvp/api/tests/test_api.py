@@ -38,7 +38,8 @@ def set_up_test_data(app):
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     test_prosumer_role = user_datastore.create_role(
-        name="prosumer", description="A Prosumer with access to some solar assets and Prosumer controls."
+        name="prosumer",
+        description="A Prosumer with access to some solar assets and Prosumer controls.",
     )
 
     # Create 2 test users
@@ -62,7 +63,13 @@ def set_up_test_data(app):
     asset_names = ["test-asset-1", "test-asset-2", "test-asset-3"]
     assets: List[Asset] = []
     for asset_name in asset_names:
-        asset = Asset(name=asset_name, asset_type_name="test-type", capacity_in_mw=1, latitude=100, longitude=100)
+        asset = Asset(
+            name=asset_name,
+            asset_type_name="test-type",
+            capacity_in_mw=1,
+            latitude=100,
+            longitude=100,
+        )
         asset.owner = test_prosumer
         assets.append(asset)
         db.session.add(asset)
@@ -91,73 +98,79 @@ def set_up_test_data(app):
 def test_api_login_service_responds(app, set_up_test_data, client):
 
     # get auth token
-    auth_data = json.dumps({'email': 'test_user@seita.nl', 'password': 'testtest'})
-    auth_response = client.post(url_for("bvp_api.request_auth_token"),
-                                data=auth_data,
-                                headers={'content-type': 'application/json'})
+    auth_data = json.dumps({"email": "test_user@seita.nl", "password": "testtest"})
+    auth_response = client.post(
+        url_for("bvp_api.request_auth_token"),
+        data=auth_data,
+        headers={"content-type": "application/json"},
+    )
     auth_token = auth_response.json["auth_token"]
 
     # get meter data
-    get_meter_data_response = client.get(url_for("bvp_api.get_meter_data"),
-                                         query_string={"start": "2016-05-01T12:45:00Z",
-                                                       "duration": "PT1H30M",
-                                                       "connection": "test-asset-1",
-                                                       "unit": "MW"},
-                                         headers={'Authentication-Token': auth_token})
+    get_meter_data_response = client.get(
+        url_for("bvp_api.get_meter_data"),
+        query_string={
+            "start": "2016-05-01T12:45:00Z",
+            "duration": "PT1H30M",
+            "connection": "test-asset-1",
+            "unit": "MW",
+        },
+        headers={"Authentication-Token": auth_token},
+    )
     assert get_meter_data_response.status_code == 401
 
     # get auth token
-    auth_data = json.dumps({'email': 'test_prosumer@seita.nl', 'password': 'testtest'})
-    auth_response = client.post(url_for("bvp_api.request_auth_token"),
-                                data=auth_data,
-                                headers={'content-type': 'application/json'})
+    auth_data = json.dumps({"email": "test_prosumer@seita.nl", "password": "testtest"})
+    auth_response = client.post(
+        url_for("bvp_api.request_auth_token"),
+        data=auth_data,
+        headers={"content-type": "application/json"},
+    )
     auth_token = auth_response.json["auth_token"]
 
     # post meter data
-    test_values_for_asset_1_and_2 = [306.66,
-                                     306.66,
-                                     0,
-                                     0,
-                                     306.66,
-                                     306.66
-                                     ]
-    test_values_for_asset_3 = [306.66,
-                               0,
-                               0,
-                               0,
-                               306.66,
-                               306.66
-                               ]
-    post_meter_data_response = client.post(url_for('bvp_api.post_meter_data'),
-                                           data=json.dumps({
-                                               "type": "PostMeterDataRequest",
-                                               "groups": [
-                                                   {
-                                                       "connections": [
-                                                           "ea1.2018-06.com.bvp.api:45:test-asset-1",
-                                                           "ea1.2018-06.com.bvp.api:45:test-asset-2"
-                                                       ],
-                                                       "values": test_values_for_asset_1_and_2
-                                                   },
-                                                   {
-                                                       "connection": "ea1.2018-06.com.bvp.api:45:test-asset-3",
-                                                       "values": test_values_for_asset_3
-                                                   }
-                                               ],
-                                               "start": "2016-05-01T12:45:00Z",
-                                               "duration": "PT1H30M",
-                                               "unit": "MW"
-                                           }),
-                                           headers={'content-type': 'application/json',
-                                                    'Authentication-Token': auth_token})
+    test_values_for_asset_1_and_2 = [306.66, 306.66, 0, 0, 306.66, 306.66]
+    test_values_for_asset_3 = [306.66, 0, 0, 0, 306.66, 306.66]
+    post_meter_data_response = client.post(
+        url_for("bvp_api.post_meter_data"),
+        data=json.dumps(
+            {
+                "type": "PostMeterDataRequest",
+                "groups": [
+                    {
+                        "connections": [
+                            "ea1.2018-06.com.bvp.api:45:test-asset-1",
+                            "ea1.2018-06.com.bvp.api:45:test-asset-2",
+                        ],
+                        "values": test_values_for_asset_1_and_2,
+                    },
+                    {
+                        "connection": "ea1.2018-06.com.bvp.api:45:test-asset-3",
+                        "values": test_values_for_asset_3,
+                    },
+                ],
+                "start": "2016-05-01T12:45:00Z",
+                "duration": "PT1H30M",
+                "unit": "MW",
+            }
+        ),
+        headers={
+            "content-type": "application/json",
+            "Authentication-Token": auth_token,
+        },
+    )
     assert post_meter_data_response.status_code == 200
 
     # get meter data
-    get_meter_data_response = client.get(url_for("bvp_api.get_meter_data"),
-                                         query_string={"start": "2016-05-01T12:45:00Z",
-                                                       "duration": "PT1H30M",
-                                                       "connection": "test-asset-1",
-                                                       "unit": "MW"},
-                                         headers={'Authentication-Token': auth_token})
+    get_meter_data_response = client.get(
+        url_for("bvp_api.get_meter_data"),
+        query_string={
+            "start": "2016-05-01T12:45:00Z",
+            "duration": "PT1H30M",
+            "connection": "test-asset-1",
+            "unit": "MW",
+        },
+        headers={"Authentication-Token": auth_token},
+    )
     assert get_meter_data_response.status_code == 200
     assert get_meter_data_response.json["values"] == test_values_for_asset_1_and_2

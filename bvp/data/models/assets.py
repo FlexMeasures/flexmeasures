@@ -32,7 +32,7 @@ class AssetType(db.Model):
         return dict(
             daily_seasonality=self.daily_seasonality,
             weekly_seasonality=self.weekly_seasonality,
-            yearly_seasonality=self.yearly_seasonality
+            yearly_seasonality=self.yearly_seasonality,
         )
 
     @property
@@ -122,9 +122,9 @@ class Power(TimedValue, db.Model):
 
     def to_dict(self):
         return {
-            'datetime': isodate.datetime_isoformat(self.datetime),
-            'asset_id': self.asset_id,
-            'value': self.value
+            "datetime": isodate.datetime_isoformat(self.datetime),
+            "asset_id": self.asset_id,
+            "value": self.value,
         }
 
     def __repr__(self):

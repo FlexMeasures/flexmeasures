@@ -34,8 +34,13 @@ class LatLngGrid(object):
     num_cells_lat: int
     num_cells_lng: int
 
-    def __init__(self, top_left: Tuple[float, float], bottom_right: Tuple[float, float],
-                 num_cells_lat: int, num_cells_lng: int):
+    def __init__(
+        self,
+        top_left: Tuple[float, float],
+        bottom_right: Tuple[float, float],
+        num_cells_lat: int,
+        num_cells_lng: int,
+    ):
         self.top_left = top_left
         self.bottom_right = bottom_right
         self.num_cells_lat = num_cells_lat
@@ -45,15 +50,26 @@ class LatLngGrid(object):
 
         # correct top-left and bottom-right if there is only one cell
         if self.num_cells_lat == 1:  # if only one row
-            self.top_left = (self.top_left[0] + self.cell_size_lat / 4, self.top_left[1])
-            self.bottom_right = (self.bottom_right[0] - self.cell_size_lat / 4, self.bottom_right[1])
+            self.top_left = (
+                self.top_left[0] + self.cell_size_lat / 4,
+                self.top_left[1],
+            )
+            self.bottom_right = (
+                self.bottom_right[0] - self.cell_size_lat / 4,
+                self.bottom_right[1],
+            )
         if self.num_cells_lng == 1:
-            self.top_left = (self.top_left[0], self.top_left[1] + self.cell_size_lng / 4)
-            self.bottom_right = (self.bottom_right[0], self.bottom_right[1] - self.cell_size_lng / 4)
+            self.top_left = (
+                self.top_left[0],
+                self.top_left[1] + self.cell_size_lng / 4,
+            )
+            self.bottom_right = (
+                self.bottom_right[0],
+                self.bottom_right[1] - self.cell_size_lng / 4,
+            )
 
     def __repr__(self) -> str:
-        return f'<LatLngGrid top-left:{self.top_left}, bot-right:{self.bottom_right},' \
-               f' num_lat:{self.num_cells_lat}, num_lng:{self.num_cells_lng}>'
+        return f"<LatLngGrid top-left:{self.top_left}, bot-right:{self.bottom_right}," f" num_lat:{self.num_cells_lat}, num_lng:{self.num_cells_lng}>"
 
     def compute_cell_size_lat(self) -> float:
         """Calculate the step size between latitudes"""
@@ -78,23 +94,41 @@ class LatLngGrid(object):
             lat = self.top_left[0] + ilat * self.cell_size_lat
             for ilng in range(self.num_cells_lng):
                 lng = self.top_left[1] + ilng * self.cell_size_lng
-                nw = (lat - self.cell_size_lat / 2, lng - self.cell_size_lng / 2)  # North west coordinate of the cell
+                nw = (
+                    lat - self.cell_size_lat / 2,
+                    lng - self.cell_size_lng / 2,
+                )  # North west coordinate of the cell
                 locations.append(nw)
-                sw = (lat + self.cell_size_lat / 2, lng - self.cell_size_lng / 2)  # South west coordinate
+                sw = (
+                    lat + self.cell_size_lat / 2,
+                    lng - self.cell_size_lng / 2,
+                )  # South west coordinate
                 locations.append(sw)
-            ne = (lat - self.cell_size_lat / 2, lng + self.cell_size_lng / 2)  # North east coordinate
+            ne = (
+                lat - self.cell_size_lat / 2,
+                lng + self.cell_size_lng / 2,
+            )  # North east coordinate
             locations.append(ne)
-            se = (lat + self.cell_size_lat / 2, lng + self.cell_size_lng / 2)  # South east coordinate
+            se = (
+                lat + self.cell_size_lat / 2,
+                lng + self.cell_size_lng / 2,
+            )  # South east coordinate
             locations.append(se)
 
         # In case of an even number of cell rows, add the southern coordinates of the southern most row
         if not self.num_cells_lat % 2:
-            lat = self.top_left[0] + (self.num_cells_lat-1) * self.cell_size_lat
+            lat = self.top_left[0] + (self.num_cells_lat - 1) * self.cell_size_lat
             for ilng in range(self.num_cells_lng):
                 lng = self.top_left[1] + ilng * self.cell_size_lng
-                sw = (lat + self.cell_size_lat / 2, lng - self.cell_size_lng / 2)  # South west coordinate
+                sw = (
+                    lat + self.cell_size_lat / 2,
+                    lng - self.cell_size_lng / 2,
+                )  # South west coordinate
                 locations.append(sw)
-            se = (lat + self.cell_size_lat / 2, lng + self.cell_size_lng / 2)  # South east coordinate
+            se = (
+                lat + self.cell_size_lat / 2,
+                lng + self.cell_size_lng / 2,
+            )  # South east coordinate
             locations.append(se)
 
         return locations
@@ -108,35 +142,60 @@ class LatLngGrid(object):
             lat = self.top_left[0] + ilat * self.cell_size_lat
             for ilng in range(self.num_cells_lng):
                 lng = self.top_left[1] + ilng * self.cell_size_lng
-                n = (lat - self.cell_size_lat * 2/3, lng)  # North coordinate of the cell
+                n = (
+                    lat - self.cell_size_lat * 2 / 3,
+                    lng,
+                )  # North coordinate of the cell
                 locations.append(n)
-                nw = (lat - self.cell_size_lat * 1/4, lng - self.cell_size_lng * 1/2)  # North west coordinate
+                nw = (
+                    lat - self.cell_size_lat * 1 / 4,
+                    lng - self.cell_size_lng * 1 / 2,
+                )  # North west coordinate
                 locations.append(nw)
-                s = (lat + self.cell_size_lat * 2/3, lng)  # South coordinate
+                s = (lat + self.cell_size_lat * 2 / 3, lng)  # South coordinate
                 locations.append(s)
-                sw = (lat + self.cell_size_lat * 1/4, lng - self.cell_size_lng * 1/2)  # South west coordinate
+                sw = (
+                    lat + self.cell_size_lat * 1 / 4,
+                    lng - self.cell_size_lng * 1 / 2,
+                )  # South west coordinate
                 locations.append(sw)
-            ne = (lat - self.cell_size_lat * 1/4, lng + self.cell_size_lng * 1/2)  # North east coordinate
+            ne = (
+                lat - self.cell_size_lat * 1 / 4,
+                lng + self.cell_size_lng * 1 / 2,
+            )  # North east coordinate
             locations.append(ne)
-            se = (lat + self.cell_size_lat * 1/4, lng + self.cell_size_lng * 1/2)  # South east coordinate
+            se = (
+                lat + self.cell_size_lat * 1 / 4,
+                lng + self.cell_size_lng * 1 / 2,
+            )  # South east coordinate
             locations.append(se)
 
         # In case of an even number of cell rows, add the southern coordinates of the southern most row
         if not self.num_cells_lat % 2:
             lat = self.top_left[0] + (self.num_cells_lat - 1) * self.cell_size_lat
-            for ilng in range(self.num_cells_lng-1):  # One less cell in even rows of hexagonal locations
+            for ilng in range(
+                self.num_cells_lng - 1
+            ):  # One less cell in even rows of hexagonal locations
                 # Cells are shifted half a cell to the right in even rows of hex locations
-                lng = self.top_left[1] + (ilng + 1/2) * self.cell_size_lng
+                lng = self.top_left[1] + (ilng + 1 / 2) * self.cell_size_lng
                 s = (lat + self.cell_size_lat / 3 ** (1 / 2), lng)  # South coordinate
                 locations.append(s)
-                sw = (lat + self.cell_size_lat / 2, lng - self.cell_size_lat / 3 ** (1 / 2) / 2)  # South west coord.
+                sw = (
+                    lat + self.cell_size_lat / 2,
+                    lng - self.cell_size_lat / 3 ** (1 / 2) / 2,
+                )  # South west coord.
                 locations.append(sw)
-                se = (lat + self.cell_size_lat / 2, lng + self.cell_size_lng / 3 ** (1 / 2) / 2)  # South east coord.
+                se = (
+                    lat + self.cell_size_lat / 2,
+                    lng + self.cell_size_lng / 3 ** (1 / 2) / 2,
+                )  # South east coord.
                 locations.append(se)
         return locations
 
 
-def get_cell_nums(tl: Tuple[float, float], br: Tuple[float, float], num_cells: int=9) -> Tuple[int, int]:
+def get_cell_nums(
+    tl: Tuple[float, float], br: Tuple[float, float], num_cells: int = 9
+) -> Tuple[int, int]:
     """
     Compute the nuber of cells in both directions, latitude and longitude.
     By default, a square grid with N=9 cells is computed, so 3 by 3.
@@ -149,7 +208,9 @@ def get_cell_nums(tl: Tuple[float, float], br: Tuple[float, float], num_cells: i
     def factors(n):
         """Factors of a number n"""
         return set(
-            factor for i in range(1, int(n ** 0.5) + 1) if n % i == 0
+            factor
+            for i in range(1, int(n ** 0.5) + 1)
+            if n % i == 0
             for factor in (i, n // i)
         )
 
@@ -169,32 +230,48 @@ def get_region_from_assets() -> Tuple[Tuple[float, float], Tuple[float, float]]:
     Create a suitable region of interest from all asset locations.
     Currently not used. Should later probably contact the database actually.
     """
-    assets_path = '../data/assets.json'
+    assets_path = "../data/assets.json"
     lats, lngs = [], []
     if os.path.exists(assets_path):
-        with open(assets_path, 'r') as json_data:
+        with open(assets_path, "r") as json_data:
             assets = json.load(json_data)
     else:
-        raise Exception('File not found: %s' % assets_path)
+        raise Exception("File not found: %s" % assets_path)
 
     for asset in assets:
-        if 'latitude' in asset and 'longitude' in asset:
-            lats.append(asset['latitude'])
-            lngs.append(asset['longitude'])
+        if "latitude" in asset and "longitude" in asset:
+            lats.append(asset["latitude"])
+            lngs.append(asset["longitude"])
         else:
-            print('Asset %s has no latitude and/or longitude.' % asset['name'])
+            print("Asset %s has no latitude and/or longitude." % asset["name"])
     top_left = min(lats), min(lngs)
     bottom_right = max(lats), max(lngs)
     return top_left, bottom_right
 
 
 @click.command()
-@click.option('--num_cells', default=1, help='Number of cells on the grid.')
-@click.option('--method', default='hex', type=click.Choice(['hex', 'square']), help='Grid creation method.')
-@click.option('--top', type=float, required=True, help="Top latitude for region of interest.")
-@click.option('--left', type=float, required=True, help="Left longitude for region of interest.")
-@click.option('--bottom', type=float, required=True, help="Bottom latitude for region of interest.")
-@click.option('--right', type=float, required=True, help="Right longitude for region of interest.")
+@click.option("--num_cells", default=1, help="Number of cells on the grid.")
+@click.option(
+    "--method",
+    default="hex",
+    type=click.Choice(["hex", "square"]),
+    help="Grid creation method.",
+)
+@click.option(
+    "--top", type=float, required=True, help="Top latitude for region of interest."
+)
+@click.option(
+    "--left", type=float, required=True, help="Left longitude for region of interest."
+)
+@click.option(
+    "--bottom",
+    type=float,
+    required=True,
+    help="Bottom latitude for region of interest.",
+)
+@click.option(
+    "--right", type=float, required=True, help="Right longitude for region of interest."
+)
 def get_weather_now(num_cells, method, top, left, bottom, right):
     """
     Get current weather forecasts for a latitude/longitude grid and store them in individual json files.
@@ -205,9 +282,9 @@ def get_weather_now(num_cells, method, top, left, bottom, right):
     if not hasattr(config, "DARK_SKY_API_KEY") or config.DARK_SKY_API_KEY is None:
         raise Exception("No DarkSky API key available.")
 
-    data_path = '../data/weather-forecasts'
+    data_path = "../data/weather-forecasts"
     if not os.path.exists(data_path):
-        if os.path.exists('../data'):
+        if os.path.exists("../data"):
             print("Creating %s ..." % data_path)
             os.mkdir(data_path)
         else:
@@ -218,22 +295,27 @@ def get_weather_now(num_cells, method, top, left, bottom, right):
     bottom_right = bottom, right
     num_lat, num_lng = get_cell_nums(top_left, bottom_right, num_cells)
 
-    grid = LatLngGrid(top_left=top_left, bottom_right=bottom_right, num_cells_lat=num_lat, num_cells_lng=num_lng)
+    grid = LatLngGrid(
+        top_left=top_left,
+        bottom_right=bottom_right,
+        num_cells_lat=num_lat,
+        num_cells_lng=num_lng,
+    )
     print(grid)
 
     print()
-    print('Number of locations in square grid: ' + str(len(grid.locations_square())))
-    print('Number of locations in hex grid: ' + str(len(grid.locations_hex())))
+    print("Number of locations in square grid: " + str(len(grid.locations_square())))
+    print("Number of locations in hex grid: " + str(len(grid.locations_hex())))
     print()
 
     # UTC timestamp to remember when data was fetched.
-    now_str = datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%S')
+    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
     os.mkdir("%s/%s" % (data_path, now_str))
 
     # Get forecasts for each location
-    if method == 'hex':
+    if method == "hex":
         locations = grid.locations_hex()
-    elif method == 'square':
+    elif method == "square":
         locations = grid.locations_square()
     else:
         print("Method must either be 'square' or 'hex'!")
@@ -244,27 +326,35 @@ def get_weather_now(num_cells, method, top, left, bottom, right):
         print("%s,%s" % (location[0], location[1]))
 
         # Make a single call to the Dark Sky API
-        forecasts = ForecastIO.ForecastIO(config.DARK_SKY_API_KEY,
-                                          units=ForecastIO.ForecastIO.UNITS_SI,
-                                          lang=ForecastIO.ForecastIO.LANG_ENGLISH,
-                                          latitude=location[0],
-                                          longitude=location[1],
-                                          extend='hourly')
-        
+        forecasts = ForecastIO.ForecastIO(
+            config.DARK_SKY_API_KEY,
+            units=ForecastIO.ForecastIO.UNITS_SI,
+            lang=ForecastIO.ForecastIO.LANG_ENGLISH,
+            latitude=location[0],
+            longitude=location[1],
+            extend="hourly",
+        )
+
         # Save the results
-        forecasts_file = '%s/%s/forecast_lat_%s_lng_%s.json' % (data_path, now_str,
-                                                                str(location[0]), str(location[1]), )
-        with open(forecasts_file, 'w') as outfile:
+        forecasts_file = "%s/%s/forecast_lat_%s_lng_%s.json" % (
+            data_path,
+            now_str,
+            str(location[0]),
+            str(location[1]),
+        )
+        with open(forecasts_file, "w") as outfile:
             json.dump(forecasts.forecast, outfile)
 
     return
 
 
 def get_config():
-    app_env = os.environ.get('FLASK_ENV')
+    app_env = os.environ.get("FLASK_ENV")
     if app_env is None:
-        print("Environment variable FLASK_ENV not set."
-              "Please set it to 'Development', 'Staging' or 'Production'.")
+        print(
+            "Environment variable FLASK_ENV not set."
+            "Please set it to 'Development', 'Staging' or 'Production'."
+        )
     config_module_name = "bvp.%s_config" % app_env
 
     __import__(config_module_name)

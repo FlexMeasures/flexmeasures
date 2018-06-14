@@ -28,7 +28,11 @@ def get_assets() -> List[Asset]:
         if current_user.has_role("admin"):
             assets = Asset.query.order_by(Asset.id.desc()).all()
         else:
-            assets = Asset.query.filter_by(owner=current_user).order_by(Asset.id.desc()).all()
+            assets = (
+                Asset.query.filter_by(owner=current_user)
+                .order_by(Asset.id.desc())
+                .all()
+            )
     return assets
 
 
@@ -39,11 +43,13 @@ def get_asset_groups() -> Dict[str, Query]:
     """
     # 1. Custom asset groups by combinations of asset types
     asset_queries = dict(
-            renewables=(Asset.query.filter(Asset.asset_type_name.in_(["solar", "wind"])))
-        )
+        renewables=(Asset.query.filter(Asset.asset_type_name.in_(["solar", "wind"])))
+    )
     # 2. We also include a group per asset type - using the pluralised asset type name
     for asset_type in AssetType.query.all():
-        asset_queries[pluralize(asset_type.name)] = Asset.query.filter_by(asset_type_name=asset_type.name)
+        asset_queries[pluralize(asset_type.name)] = Asset.query.filter_by(
+            asset_type_name=asset_type.name
+        )
 
     if current_user.is_authenticated and not current_user.has_role("admin"):
         for name, query in asset_queries.items():
@@ -52,56 +58,111 @@ def get_asset_groups() -> Dict[str, Query]:
     return asset_queries
 
 
-def get_power(asset_names: List[str],
-              start: datetime=None, end: datetime=None,
-              resolution: str=None, sum_multiple=True, create_if_empty=False) \
-            -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+def get_power(
+    asset_names: List[str],
+    start: datetime = None,
+    end: datetime = None,
+    resolution: str = None,
+    sum_multiple=True,
+    create_if_empty=False,
+) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     # TODO: check if asset names are all valid?
-    def make_query(asset_name: str, query_start: datetime, query_end: datetime) -> Query:
-        return db.session.query(Power.datetime, Power.value) \
-            .join(Asset).filter(Asset.name == asset_name) \
+    def make_query(
+        asset_name: str, query_start: datetime, query_end: datetime
+    ) -> Query:
+        return (
+            db.session.query(Power.datetime, Power.value)
+            .join(Asset)
+            .filter(Asset.name == asset_name)
             .filter((Power.datetime >= query_start) & (Power.datetime <= query_end))
-    return _get_time_series_data(data_sources=asset_names, make_query=make_query, start=start, end=end,
-                                 resolution=resolution, sum_multiple=sum_multiple, create_if_empty=create_if_empty)
+        )
+
+    return _get_time_series_data(
+        data_sources=asset_names,
+        make_query=make_query,
+        start=start,
+        end=end,
+        resolution=resolution,
+        sum_multiple=sum_multiple,
+        create_if_empty=create_if_empty,
+    )
 
 
-def get_prices(market_names: List[str],
-               start: datetime=None, end: datetime=None,
-               resolution: str=None, sum_multiple=True, create_if_empty=False) \
-            -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+def get_prices(
+    market_names: List[str],
+    start: datetime = None,
+    end: datetime = None,
+    resolution: str = None,
+    sum_multiple=True,
+    create_if_empty=False,
+) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     # TODO: check if market names are all valid?
-    def make_query(market_name: str, query_start: datetime, query_end: datetime) -> Query:
-        return db.session.query(Price.datetime, Price.value) \
-            .join(Market).filter(Market.name == market_name) \
+    def make_query(
+        market_name: str, query_start: datetime, query_end: datetime
+    ) -> Query:
+        return (
+            db.session.query(Price.datetime, Price.value)
+            .join(Market)
+            .filter(Market.name == market_name)
             .filter((Price.datetime >= query_start) & (Price.datetime <= query_end))
-    return _get_time_series_data(data_sources=market_names, make_query=make_query, start=start, end=end,
-                                 resolution=resolution, sum_multiple=sum_multiple, create_if_empty=create_if_empty)
+        )
+
+    return _get_time_series_data(
+        data_sources=market_names,
+        make_query=make_query,
+        start=start,
+        end=end,
+        resolution=resolution,
+        sum_multiple=sum_multiple,
+        create_if_empty=create_if_empty,
+    )
 
 
 # this trick lets us hold off from making the weather model just yet.
-def get_weather(sensor_names: List[str],
-                start: datetime=None, end: datetime=None,
-                resolution: str=None, sum_multiple=True, create_if_empty=False) \
-            -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+def get_weather(
+    sensor_names: List[str],
+    start: datetime = None,
+    end: datetime = None,
+    resolution: str = None,
+    sum_multiple=True,
+    create_if_empty=False,
+) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     # TODO: check if sensor names are all valid?
     # TODO: move query creation as util method to the model class?
-    def make_query(sensor_name: str, query_start: datetime, query_end: datetime) -> Query:
-        return db.session.query(Weather.datetime, Weather.value) \
-            .join(WeatherSensor).filter(WeatherSensor.name == sensor_name) \
+    def make_query(
+        sensor_name: str, query_start: datetime, query_end: datetime
+    ) -> Query:
+        return (
+            db.session.query(Weather.datetime, Weather.value)
+            .join(WeatherSensor)
+            .filter(WeatherSensor.name == sensor_name)
             .filter((Weather.datetime >= query_start) & (Weather.datetime <= query_end))
-    return _get_time_series_data(data_sources=sensor_names, make_query=make_query, start=start, end=end,
-                                 resolution=resolution, sum_multiple=sum_multiple, create_if_empty=create_if_empty)
+        )
+
+    return _get_time_series_data(
+        data_sources=sensor_names,
+        make_query=make_query,
+        start=start,
+        end=end,
+        resolution=resolution,
+        sum_multiple=sum_multiple,
+        create_if_empty=create_if_empty,
+    )
 
 
 # global, lazily loaded data source, will be replaced by DB connection probably
 DATA = {}
 
 
-def _get_time_series_data(data_sources: List[str],
-                          make_query: Callable[[str, datetime, datetime], Query],
-                          start: datetime=None, end: datetime=None,
-                          resolution: str=None, sum_multiple=True, create_if_empty=False)\
-        -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+def _get_time_series_data(
+    data_sources: List[str],
+    make_query: Callable[[str, datetime, datetime], Query],
+    start: datetime = None,
+    end: datetime = None,
+    resolution: str = None,
+    sum_multiple=True,
+    create_if_empty=False,
+) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """Get time series data from one or more sources and rescale and re-package it to order.
     We can (lazily) look up by pickle, or load from the database.
     In the latter case, we are relying on time series data (power measurements and prices at this point) to
@@ -120,7 +181,12 @@ def _get_time_series_data(data_sources: List[str],
     data_as_dict: Dict[str, pd.DataFrame] = None
     data_as_df: pd.DataFrame = None
 
-    if start is None or end is None or resolution is None and "resolution" not in session:
+    if (
+        start is None
+        or end is None
+        or resolution is None
+        and "resolution" not in session
+    ):
         time_utils.set_time_range_for_session()
     if start is None:
         start = session["start_time"]
@@ -141,15 +207,24 @@ def _get_time_series_data(data_sources: List[str],
             if data_source not in DATA:
                 current_app.logger.info("Loading %s data from disk ..." % data_source)
                 try:
-                    DATA[data_source] = pd.read_pickle("data/pickles/df_%s_res15T.pickle" % data_source)
+                    DATA[data_source] = pd.read_pickle(
+                        "data/pickles/df_%s_res15T.pickle" % data_source
+                    )
                 except FileNotFoundError:
-                    raise BadRequest("Sorry, we cannot find any data for the resource \"%s\" ..." % data_source)
+                    raise BadRequest(
+                        'Sorry, we cannot find any data for the resource "%s" ...'
+                        % data_source
+                    )
 
-            date_mask = (DATA[data_source].index >= naive_start) & (DATA[data_source].index <= naive_end)
+            date_mask = (DATA[data_source].index >= naive_start) & (
+                DATA[data_source].index <= naive_end
+            )
             values_orig = DATA[data_source].loc[date_mask]
         else:
             query = make_query(data_source, start, end)
-            values_orig = pd.read_sql(query.statement, db.session.bind, parse_dates=["datetime"])
+            values_orig = pd.read_sql(
+                query.statement, db.session.bind, parse_dates=["datetime"]
+            )
             values_orig.rename(index=str, columns={"value": "y"}, inplace=True)
             values_orig.set_index("datetime", drop=True, inplace=True)
 
@@ -157,16 +232,21 @@ def _get_time_series_data(data_sources: List[str],
         values = values_orig.resample(resolution).mean()
 
         if values.empty and create_if_empty:
-            time_steps = pd.date_range(start.replace(hour=0, minute=0),
-                                       end.replace(hour=0, minute=0), freq=resolution)
+            time_steps = pd.date_range(
+                start.replace(hour=0, minute=0),
+                end.replace(hour=0, minute=0),
+                freq=resolution,
+            )
             values = pd.DataFrame(index=time_steps, columns=["y"]).fillna(0.)
 
-        if sum_multiple is True:  # Here we only build one data frame, summed up if necessary.
+        if (
+            sum_multiple is True
+        ):  # Here we only build one data frame, summed up if necessary.
             if data_as_df is None:
                 data_as_df = values
             else:
                 data_as_df = data_as_df.add(values)
-        else:                     # Here we build a dict with data frames.
+        else:  # Here we build a dict with data frames.
             if data_as_dict is None:
                 data_as_dict = {data_source: values}
             else:
@@ -183,12 +263,18 @@ def extract_forecasts(df: pd.DataFrame) -> pd.DataFrame:
     Extract forecast columns (given the chosen horizon) and give them the standard naming.
     Returns an empty DataFrame if the expected forecast columns don't exist.
     """
-    forecast_columns = ["yhat", "yhat_upper", "yhat_lower"]  # this is what the plotter expects
+    forecast_columns = [
+        "yhat",
+        "yhat_upper",
+        "yhat_lower",
+    ]  # this is what the plotter expects
     horizon = session["forecast_horizon"]
-    forecast_renaming = {"yhat_%s" % horizon: "yhat",
-                         "yhat_%s_upper" % horizon: "yhat_upper",
-                         "yhat_%s_lower" % horizon:  "yhat_lower"}
-    if 'yhat_%s' % horizon not in df.columns:
+    forecast_renaming = {
+        "yhat_%s" % horizon: "yhat",
+        "yhat_%s_upper" % horizon: "yhat_upper",
+        "yhat_%s_lower" % horizon: "yhat_lower",
+    }
+    if "yhat_%s" % horizon not in df.columns:
         return pd.DataFrame()
     return df.rename(forecast_renaming, axis="columns")[forecast_columns]
 
@@ -253,10 +339,17 @@ class Resource:
     @property
     def unique_asset_type_names(self) -> List[str]:
         """Return list of unique asset types represented by this resource."""
-        return list(set([a.asset_type.name for a in self.assets]))  # list of unique asset type names in resource
+        return list(
+            set([a.asset_type.name for a in self.assets])
+        )  # list of unique asset type names in resource
 
-    def get_data(self, start: datetime=None, end: datetime=None, resolution: str=None,
-                 sum_multiple: bool=True) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    def get_data(
+        self,
+        start: datetime = None,
+        end: datetime = None,
+        resolution: str = None,
+        sum_multiple: bool = True,
+    ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Get data for one or more assets.
         If the time range parameters are None, they will be gotten from the session.
         See get_power for more information."""

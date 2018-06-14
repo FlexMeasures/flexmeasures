@@ -20,4 +20,5 @@ def configure_db(app):
     # they will be registered properly on the metadata. Otherwise
     # you will have to import them first before calling configure_db().
     from bvp.data.models import assets, markets, user
+
     Base.metadata.create_all(bind=db.engine)

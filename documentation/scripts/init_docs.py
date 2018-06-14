@@ -20,10 +20,10 @@ if os.getcwd().endswith("scripts"):
     path_to_doc = "../documentation"
     path_return = "../scripts"
 
-make_docs_cmd = 'cd %s; make html; cd %s' % (path_to_doc, path_return)
+make_docs_cmd = "cd %s; make html; cd %s" % (path_to_doc, path_return)
 if os.name != "posix":
     # here we re-activate the virtual environment first
-    make_docs_cmd = 'activate a1-venv & ' + make_docs_cmd
+    make_docs_cmd = "activate a1-venv & " + make_docs_cmd
 
 
 class ScreenShot(QWebView):
@@ -45,7 +45,7 @@ class ScreenShot(QWebView):
         painter = QPainter(image)
         frame.render(painter)
         painter.end()
-        print('saving', output_file)
+        print("saving", output_file)
         image.save(output_file)
 
     def wait_load(self, delay=0):
@@ -67,10 +67,14 @@ def make_screen_shots(views):
     height = 1500
     s = ScreenShot()
     for view in views:
-        url = 'http://127.0.0.1:5000/' + view
+        url = "http://127.0.0.1:5000/" + view
         print("Loading %s" % url)
-        s.capture(url, path_to_doc + '/img/screenshot_' + view + '.png',
-                  width=width, height=height)
+        s.capture(
+            url,
+            path_to_doc + "/img/screenshot_" + view + ".png",
+            width=width,
+            height=height,
+        )
     return
 
 
@@ -85,5 +89,5 @@ def initialise_docs():
 if __name__ == "__main__":
     """Initialise screen shots and documentation"""
 
-    make_screen_shots(['dashboard', 'portfolio', 'control', 'analytics'])
+    make_screen_shots(["dashboard", "portfolio", "control", "analytics"])
     initialise_docs()

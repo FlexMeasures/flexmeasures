@@ -37,14 +37,20 @@ def render_bvp_template(html_filename: str, **variables):
         variables["bokeh_js_resources"] = CDN.render_js()
 
     variables["resolution"] = session.get("resolution", "")
-    variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(session.get("resolution", ""))
+    variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(
+        session.get("resolution", "")
+    )
 
-    variables["git_version"], variables["git_commits_since"], variables["git_hash"] = get_git_description()
+    variables["git_version"], variables["git_commits_since"], variables[
+        "git_hash"
+    ] = get_git_description()
     app_start_time = current_app.config.get("START_TIME")
     variables["app_running_since"] = time_utils.naturalized_datetime(app_start_time)
 
     variables["user_is_logged_in"] = current_user.is_authenticated
-    variables["user_is_admin"] = current_user.is_authenticated and current_user.has_role("admin")
+    variables[
+        "user_is_admin"
+    ] = current_user.is_authenticated and current_user.has_role("admin")
     variables["user_email"] = current_user.is_authenticated and current_user.email or ""
 
     return render_template(html_filename, **variables)
@@ -61,34 +67,39 @@ def set_session_resource(assets: List[Asset], groups_with_assets: List[str]):
             session["resource"] = "vehicles"
         elif len(assets) > 0:
             session["resource"] = assets[0].name
-    if "resource" in request.args:  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
-        session["resource"] = request.args['resource']
-    if "resource" in request.form:  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
-        session["resource"] = request.form['resource']
+    if (
+        "resource" in request.args
+    ):  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
+        session["resource"] = request.args["resource"]
+    if (
+        "resource" in request.form
+    ):  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
+        session["resource"] = request.form["resource"]
 
 
 def get_git_description() -> Tuple[str, int, str]:
     """ Return the latest git version (tag) as a string, the number of commits since then as an int and the
     current commit hash as string. """
+
     def _minimal_ext_cmd(cmd: list):
         # construct minimal environment
         env = {}
-        for k in ['SYSTEMROOT', 'PATH']:
+        for k in ["SYSTEMROOT", "PATH"]:
             v = os.environ.get(k)
             if v is not None:
                 env[k] = v
         # LANGUAGE is used on win32
-        env['LANGUAGE'] = 'C'
-        env['LANG'] = 'C'
-        env['LC_ALL'] = 'C'
+        env["LANGUAGE"] = "C"
+        env["LANG"] = "C"
+        env["LC_ALL"] = "C"
         return subprocess.Popen(cmd, stdout=subprocess.PIPE, env=env).communicate()[0]
 
     version = "Unknown"
     commits_since = 0
     sha = "Unknown"
     try:
-        git_output = _minimal_ext_cmd(['git', 'describe', '--always', '--long'])
-        components = git_output.strip().decode('ascii').split('-')
+        git_output = _minimal_ext_cmd(["git", "describe", "--always", "--long"])
+        components = git_output.strip().decode("ascii").split("-")
         sha = components.pop()
         commits_since = int(components.pop())
         version = "-".join(components)

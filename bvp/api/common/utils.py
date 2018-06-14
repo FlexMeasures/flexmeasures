@@ -13,7 +13,7 @@ def sender_has_allowed_role(user, roles: Union[List[str], str]) -> bool:
 
 def message_has_allowed_unit(unit: str) -> bool:
     # TODO: properly handle units (comparing the unit in the request to the unit used for data in the database)
-    if unit == 'MW':
+    if unit == "MW":
         return True
     else:
         return False

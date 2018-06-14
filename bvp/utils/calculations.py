@@ -16,5 +16,3 @@ def mean_absolute_percentage_error(y_true, y_forecast):
 def weighted_absolute_percentage_error(y_true, y_forecast):
     y_true, y_forecast = np.array(y_true), np.array(y_forecast)
     return np.sum(np.abs((y_true - y_forecast))) / np.sum(y_true) * 100
-
-

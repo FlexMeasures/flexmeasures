@@ -6,10 +6,12 @@ from bvp.data.services import get_assets
 from bvp.ui.utils.view_utils import render_bvp_template
 
 
-@bvp_ui.route('/account', methods=['GET'])
+@bvp_ui.route("/account", methods=["GET"])
 @login_required
 def account_view():
-    return render_bvp_template("admin/account.html",
-                               logged_in_user=current_user,
-                               roles=",".join([role.name for role in current_user.roles]),
-                               num_assets=len(get_assets()))
+    return render_bvp_template(
+        "admin/account.html",
+        logged_in_user=current_user,
+        roles=",".join([role.name for role in current_user.roles]),
+        num_assets=len(get_assets()),
+    )

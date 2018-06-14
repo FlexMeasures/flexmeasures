@@ -4,7 +4,13 @@ from datetime import datetime
 from flask import current_app
 from bokeh.models import Range1d
 from bokeh.plotting import figure, Figure
-from bokeh.models import ColumnDataSource, HoverTool, NumeralTickFormatter, BoxAnnotation, CustomJS
+from bokeh.models import (
+    ColumnDataSource,
+    HoverTool,
+    NumeralTickFormatter,
+    BoxAnnotation,
+    CustomJS,
+)
 from bokeh import events
 import pandas as pd
 import numpy as np
@@ -17,17 +23,15 @@ def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:
     if resolution in ("15T", "1h"):
         date_format = "@x{%F %H:%M} to @next_x{%F %H:%M}"
 
-    return HoverTool(tooltips=[
-        ('Time', date_format),
-        ('Value', "@y{0.000a} %s" % y_unit),
-    ], formatters={
-        "x": "datetime",
-        "next_x": "datetime",
-        "y": "numeral"
-    })
+    return HoverTool(
+        tooltips=[("Time", date_format), ("Value", "@y{0.000a} %s" % y_unit)],
+        formatters={"x": "datetime", "next_x": "datetime", "y": "numeral"},
+    )
 
 
-def make_range(series: pd.Series, other_series: pd.Series = None) -> Union[None, Range1d]:
+def make_range(
+    series: pd.Series, other_series: pd.Series = None
+) -> Union[None, Range1d]:
     """Make a 1D range of values from a series or two. Useful to share axis among Bokeh Figures."""
     a_range = None
     # if there is some actual data, use that to set the range
@@ -35,16 +39,25 @@ def make_range(series: pd.Series, other_series: pd.Series = None) -> Union[None,
         a_range = Range1d(start=min(series), end=max(series))
     # if there is other data, include it
     if not series.empty and other_series is not None and not other_series.empty:
-        a_range = Range1d(start=min(series.append(other_series)),
-                          end=max(series.append(other_series)))
+        a_range = Range1d(
+            start=min(series.append(other_series)), end=max(series.append(other_series))
+        )
     if a_range is None:
         current_app.logger.warn("Not sufficient data to create a range.")
     return a_range
 
 
-def create_graph(series: pd.Series, title: str="A plot", x_label: str="X", y_label: str="Y", legend: str=None,
-                 x_range: Range1d=None, forecasts: pd.DataFrame=None,
-                 hover_tool: Optional[HoverTool]=None, show_y_floats: bool=False) -> Figure:
+def create_graph(
+    series: pd.Series,
+    title: str = "A plot",
+    x_label: str = "X",
+    y_label: str = "Y",
+    legend: str = None,
+    x_range: Range1d = None,
+    forecasts: pd.DataFrame = None,
+    hover_tool: Optional[HoverTool] = None,
+    show_y_floats: bool = False,
+) -> Figure:
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
 
@@ -74,25 +87,35 @@ def create_graph(series: pd.Series, title: str="A plot", x_label: str="X", y_lab
         else:
             show_y_floats = max(max(series.values), max(forecasts.yhat)) < 2
 
-    fig = figure(title=title,
-                 x_range=x_range,
-                 min_border=0,
-                 toolbar_location="right", tools=tools,
-                 h_symmetry=False, v_symmetry=False,
-                 sizing_mode='scale_width',
-                 outline_line_color="#666666")
+    fig = figure(
+        title=title,
+        x_range=x_range,
+        min_border=0,
+        toolbar_location="right",
+        tools=tools,
+        h_symmetry=False,
+        v_symmetry=False,
+        sizing_mode="scale_width",
+        outline_line_color="#666666",
+    )
 
     # Make a data source which encodes with each x (start time) also the boundary to which it runs (end time).
     # Useful for the hover tool. TODO: only works with datetime indexes
     x = series.index.values
-    if x.size and series.index.freq is not None:  # i.e. if there is data and with a clearly defined frequency
-        next_x = pd.DatetimeIndex(start=x[1], freq=series.index.freq, periods=len(series)).values
+    if (
+        x.size and series.index.freq is not None
+    ):  # i.e. if there is data and with a clearly defined frequency
+        next_x = pd.DatetimeIndex(
+            start=x[1], freq=series.index.freq, periods=len(series)
+        ).values
     else:
         next_x = []
     y = series.values
     data_source = ColumnDataSource(dict(x=x, next_x=next_x, y=y))
 
-    fig.circle(x='x', y='y', source=data_source, color="#3B0757", alpha=0.5, legend=legend)
+    fig.circle(
+        x="x", y="y", source=data_source, color="#3B0757", alpha=0.5, legend=legend
+    )
 
     if forecasts is not None and not forecasts.empty:
         fc_color = "#DDD0B3"
@@ -115,18 +138,29 @@ def create_graph(series: pd.Series, title: str="A plot", x_label: str="X", y_lab
     return fig
 
 
-def highlight(fig: Figure, x_start: Any, x_end: Any, color: str="#FF3936", redirect_to: str=None):
+def highlight(
+    fig: Figure,
+    x_start: Any,
+    x_end: Any,
+    color: str = "#FF3936",
+    redirect_to: str = None,
+):
     """Add a box highlight to an area above the x axis.
     If a redirection URL is given, it can open the URL on double-click (this assumes datetimes are used on x axis!).
     It will pass the year, month, day, hour and minute as parameters to the URL."""
-    ba = BoxAnnotation(left=x_start, right=x_end,
-                       fill_alpha=0.1, line_color=color, fill_color=color)
+    ba = BoxAnnotation(
+        left=x_start, right=x_end, fill_alpha=0.1, line_color=color, fill_color=color
+    )
     fig.add_layout(ba)
 
     if redirect_to is not None:
         if isinstance(x_start, datetime):
-            def open_order_book(o_url: str, box_start: datetime, box_end: datetime) -> CustomJS:
-                return CustomJS(code="""
+
+            def open_order_book(
+                o_url: str, box_start: datetime, box_end: datetime
+            ) -> CustomJS:
+                return CustomJS(
+                    code="""
                     var boxStartDate = new Date("%s");
                     var boxEndDate = new Date("%s");
                     var clickedDate = new Date(cb_obj["x"]);
@@ -141,7 +175,10 @@ def highlight(fig: Figure, x_start: Any, x_end: Any, color: str="#FF3936", redir
                                                  + "&minute=" + clickedDate.getMinutes();
                         $(location).attr("href", urlPlusParams);
                     }
-                """ % (box_start, box_end, o_url))
+                """
+                    % (box_start, box_end, o_url)
+                )
+
         else:
             open_order_book = None  # TODO: implement for other x-range types
         fig.js_on_event(events.DoubleTap, open_order_book(redirect_to, x_start, x_end))

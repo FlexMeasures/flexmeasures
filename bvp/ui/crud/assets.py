@@ -11,21 +11,21 @@ from bvp.data.config import db
 
 
 class AssetForm(FlaskForm):
-    display_name = StringField('Display name', validators=[DataRequired()])
-    capacity_in_mw = FloatField('Capacity in MW', validators=[DataRequired()])
-    latitude = FloatField('Latitude', validators=[DataRequired()])
-    longitude = FloatField('Longitude', validators=[DataRequired()])
+    display_name = StringField("Display name", validators=[DataRequired()])
+    capacity_in_mw = FloatField("Capacity in MW", validators=[DataRequired()])
+    latitude = FloatField("Latitude", validators=[DataRequired()])
+    longitude = FloatField("Longitude", validators=[DataRequired()])
 
 
 class AssetCrud(FlaskView):
 
-    route_base = '/assets'
+    route_base = "/assets"
 
     @login_required
     def index(self):
         """/assets"""
         assets = get_assets()
-        return render_bvp_template('crud/assets.html', assets=assets)
+        return render_bvp_template("crud/assets.html", assets=assets)
 
     @login_required
     def get(self, id: str):
@@ -36,7 +36,9 @@ class AssetCrud(FlaskView):
                 return "Unauthorized", 401
             asset_form = AssetForm()
             asset_form.process(obj=asset)
-            return render_bvp_template("crud/asset.html", asset=asset, asset_form=asset_form, msg="")
+            return render_bvp_template(
+                "crud/asset.html", asset=asset, asset_form=asset_form, msg=""
+            )
         else:
             return "Not Found", 404
 
@@ -51,7 +53,11 @@ class AssetCrud(FlaskView):
             asset_form.populate_obj(asset)
             db.session.add(asset)
             db.session.commit()
-            return render_bvp_template("crud/asset.html", asset=asset, asset_form=asset_form,
-                                       msg="Editing was successful.")
+            return render_bvp_template(
+                "crud/asset.html",
+                asset=asset,
+                asset_form=asset_form,
+                msg="Editing was successful.",
+            )
         else:
             return "Not Found", 404

@@ -15,12 +15,12 @@ if os.getcwd().endswith("scripts"):
     path_to_doc = "../documentation"
     path_return = "../scripts"
 
-make_docs_cmd = 'cd %s; make html; cd %s' % (path_to_doc, path_return)
+make_docs_cmd = "cd %s; make html; cd %s" % (path_to_doc, path_return)
 if os.name != "posix":
-    make_docs_cmd = make_docs_cmd.replace(';', ' &')
+    make_docs_cmd = make_docs_cmd.replace(";", " &")
 
     # here we re-activate the virtual environment first
-    make_docs_cmd = 'activate a1-venv & ' + make_docs_cmd
+    make_docs_cmd = "activate a1-venv & " + make_docs_cmd
 
 
 def initialise_screen_shots(views):
@@ -31,15 +31,15 @@ def initialise_screen_shots(views):
     browser.set_window_size(width, max_height)
     for view in views:
         print("Saving " + view)
-        url = 'http://127.0.0.1:5000/' + view
+        url = "http://127.0.0.1:5000/" + view
         browser.get(url)
-        output_file = '../documentation/img/screenshot_' + slugify(view) + '.png'
+        output_file = "../documentation/img/screenshot_" + slugify(view) + ".png"
         browser.save_screenshot(output_file)
     browser.close()
 
     # remove trailing white rows from the image
     for view in views:
-        output_file = '../documentation/img/screenshot_' + slugify(view) + '.png'
+        output_file = "../documentation/img/screenshot_" + slugify(view) + ".png"
         im = Image.open(output_file)
         im.crop(ImageOps.invert(im.convert("RGB")).getbbox()).save(output_file)
 
@@ -57,9 +57,15 @@ def initialise_docs():
 if __name__ == "__main__":
     """Initialise screen shots and documentation"""
 
-    initialise_screen_shots(['dashboard', 'portfolio', 'control', 'analytics',
-                             'dashboard?prosumer_mock=vehicles',
-                             'portfolio?prosumer_mock=vehicles',
-                             'control?prosumer_mock=vehicles'
-                             ])
+    initialise_screen_shots(
+        [
+            "dashboard",
+            "portfolio",
+            "control",
+            "analytics",
+            "dashboard?prosumer_mock=vehicles",
+            "portfolio?prosumer_mock=vehicles",
+            "control?prosumer_mock=vehicles",
+        ]
+    )
     initialise_docs()

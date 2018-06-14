@@ -335,8 +335,7 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
         description="An asset owner can has access to a subset of assets.",
     )
     prosumer = user_datastore.create_role(
-        name="prosumer",
-        description="USEF defined role of asset owner.",
+        name="prosumer", description="USEF defined role of asset owner."
     )
     for asset_type in ("solar", "wind", "charging_station", "building"):
         mock_asset_owner = user_datastore.create_user(

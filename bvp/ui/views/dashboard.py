@@ -13,8 +13,8 @@ from bvp.data.models.assets import AssetType
 
 
 # Dashboard and main landing page
-@bvp_ui.route('/')
-@bvp_ui.route('/dashboard')
+@bvp_ui.route("/")
+@bvp_ui.route("/dashboard")
 @login_required
 def dashboard_view():
     """ Dashboard view.
@@ -33,14 +33,18 @@ def dashboard_view():
     current_asset_loads = {}
     for asset_type in AssetType.query.all():
         assets_by_pluralised_type = Resource(pluralize(asset_type.name)).assets
-        asset_counts_per_pluralised_type[pluralize(asset_type.name)] = len(assets_by_pluralised_type)
+        asset_counts_per_pluralised_type[pluralize(asset_type.name)] = len(
+            assets_by_pluralised_type
+        )
         for asset in assets_by_pluralised_type:
             # TODO: the 2015 hack is temporary
-            measured_now = get_power([asset.name],
-                                     time_utils.get_most_recent_quarter().replace(year=2015),
-                                     time_utils.get_most_recent_quarter().replace(year=2015)
-                                     + timedelta(minutes=15),
-                                     "15T").y
+            measured_now = get_power(
+                [asset.name],
+                time_utils.get_most_recent_quarter().replace(year=2015),
+                time_utils.get_most_recent_quarter().replace(year=2015)
+                + timedelta(minutes=15),
+                "15T",
+            ).y
             if measured_now.size > 0:
                 current_asset_loads[asset.name] = measured_now[0]
             else:
@@ -49,9 +53,15 @@ def dashboard_view():
 
     # TODO: remove this trick to list batteries
     if current_user.has_role("admin"):
-        asset_counts_per_pluralised_type["batteries"] = asset_counts_per_pluralised_type["solar"]
+        asset_counts_per_pluralised_type[
+            "batteries"
+        ] = asset_counts_per_pluralised_type["solar"]
 
-    return render_bvp_template('views/dashboard.html', show_map=True, message=msg,
-                               assets=assets,
-                               asset_counts_per_pluralised_type=asset_counts_per_pluralised_type,
-                               current_asset_loads=current_asset_loads)
+    return render_bvp_template(
+        "views/dashboard.html",
+        show_map=True,
+        message=msg,
+        assets=assets,
+        asset_counts_per_pluralised_type=asset_counts_per_pluralised_type,
+        current_asset_loads=current_asset_loads,
+    )
