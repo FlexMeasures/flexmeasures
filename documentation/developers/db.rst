@@ -63,7 +63,7 @@ into the config file you are using, e.g. bvp/DevelopmentConfig.py
 
 Make first migration
 --------------------
-Run these commands from the repository root directoryi (read below comments first)::
+Run these commands from the repository root directory (read below comments first)::
 
     flask db init
     flask db upgrade

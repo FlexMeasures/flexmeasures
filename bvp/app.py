@@ -2,6 +2,7 @@ from flask import Flask
 from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
+from flask_json import FlaskJSON
 
 from bvp.utils.config_utils import read_config, configure_logging
 from bvp.utils.app_utils import install_secret_key
@@ -32,6 +33,7 @@ def create(env=None) -> Flask:
     if app.debug and not app.testing:
         print(app.config)
     Mail(app)
+    FlaskJSON(app)
 
     # Some basic security measures
 

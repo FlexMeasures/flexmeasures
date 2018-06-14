@@ -1,5 +1,6 @@
 from typing import Dict, Tuple, Union
 
+import isodate
 import inflection
 from inflection import pluralize, titleize
 
@@ -31,7 +32,7 @@ class AssetType(db.Model):
         return dict(
             daily_seasonality=self.daily_seasonality,
             weekly_seasonality=self.weekly_seasonality,
-            yearly_seasonality=self.yearly_seasonality,
+            yearly_seasonality=self.yearly_seasonality
         )
 
     @property
@@ -66,7 +67,7 @@ class Asset(db.Model):
     def __init__(self, **kwargs):
         super(Asset, self).__init__(**kwargs)
         self.name = self.name.replace(" (MW)", "")
-        if self.display_name == "":
+        if self.display_name == "" or self.display_name is None:
             self.display_name = titleize(self.name)
 
     asset_type = db.relationship("AssetType", backref=db.backref("assets", lazy=True))
@@ -118,3 +119,13 @@ class Power(TimedValue, db.Model):
 
     asset_id = db.Column(db.Integer(), db.ForeignKey("asset.id"), primary_key=True)
     asset = db.relationship("Asset", backref=db.backref("measurements", lazy=True))
+
+    def to_dict(self):
+        return {
+            'datetime': isodate.datetime_isoformat(self.datetime),
+            'asset_id': self.asset_id,
+            'value': self.value
+        }
+
+    def __repr__(self):
+        return "<Power %.2f on %s at %s>" % (self.value, self.asset_id, self.datetime)

@@ -21,25 +21,15 @@ from bvp.data.config import db
 
 
 def get_assets() -> List[Asset]:
-    """Return a list of all Asset objects of current_user (or all for admins), for which we have data.
+    """Return a list of all Asset objects of current_user (or all for admins).
     The asset list is constructed lazily (only once per app start)."""
     result = list()
     if current_user.is_authenticated:
         if current_user.has_role("admin"):
-            assets = Asset.query.order_by(Asset.id.desc())
+            assets = Asset.query.order_by(Asset.id.desc()).all()
         else:
-            assets = Asset.query.filter_by(owner=current_user).order_by(Asset.id.desc())
-        for asset in assets:
-            has_data = True
-            if current_app.config.get("READ_SERIES_DATA_FROM") == 'pickles':
-                if not os.path.exists("data/pickles/df_%s_res15T.pickle" % asset.name):
-                    has_data = False
-            else:
-                if db.session.query(Power).join(Asset).filter(Asset.name == asset.name).count() == 0:
-                    has_data = False
-            if has_data:
-                result.append(asset)
-    return result
+            assets = Asset.query.filter_by(owner=current_user).order_by(Asset.id.desc()).all()
+    return assets
 
 
 def get_asset_groups() -> Dict[str, Query]:

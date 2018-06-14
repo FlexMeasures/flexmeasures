@@ -334,6 +334,10 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
         name="asset-owner",
         description="An asset owner can has access to a subset of assets.",
     )
+    prosumer = user_datastore.create_role(
+        name="prosumer",
+        description="USEF defined role of asset owner.",
+    )
     for asset_type in ("solar", "wind", "charging_station", "building"):
         mock_asset_owner = user_datastore.create_user(
             username="mocked %s-owner" % asset_type,
@@ -342,6 +346,7 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
             timezone="Asia/Seoul",
         )
         user_datastore.add_role_to_user(mock_asset_owner, asset_owner)
+        user_datastore.add_role_to_user(mock_asset_owner, prosumer)
         for asset in [a for a in assets if a.asset_type_name == asset_type]:
             asset.owner = mock_asset_owner
 
