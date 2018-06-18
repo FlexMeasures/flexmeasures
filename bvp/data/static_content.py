@@ -330,10 +330,6 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
     user_datastore.add_role_to_user(michael, admin)
 
     # Asset owners
-    asset_owner = user_datastore.create_role(
-        name="asset-owner",
-        description="An asset owner can has access to a subset of assets.",
-    )
     prosumer = user_datastore.create_role(
         name="prosumer", description="USEF defined role of asset owner."
     )
@@ -344,7 +340,6 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
             password=hash_password(asset_type),
             timezone="Asia/Seoul",
         )
-        user_datastore.add_role_to_user(mock_asset_owner, asset_owner)
         user_datastore.add_role_to_user(mock_asset_owner, prosumer)
         for asset in [a for a in assets if a.asset_type_name == asset_type]:
             asset.owner = mock_asset_owner
@@ -364,6 +359,8 @@ def as_transaction(db_function):
             click.echo("[%s] Encountered Problem: %s" % (db_function.__name__, str(e)))
             db.session.rollback()
             raise
+        finally:
+            db.session.close()
 
     return wrap
 
@@ -463,6 +460,11 @@ def depopulate_data(db: SQLAlchemy):
 
 def reset_db(app: Flask):
     db = SQLAlchemy(app)
+    db.session.commit()  # close any existing sessions
+    click.echo("Dropping everything in %s ..." % db.engine)
+    db.reflect()  # see http://jrheard.tumblr.com/post/12759432733/dropping-all-tables-on-postgres-using
     db.drop_all()
+    click.echo("Recreating everything ...")
     db.create_all()
+    click.echo("Committing ...")
     db.session.commit()

@@ -8,7 +8,7 @@ def test_resolutions():
     assert len(bvp.data.models.resolutions) == 4
 
 
-def test_users(app):
+def _test_users(app):
     # TODO: importing before the app fixture is executed fails as db is still None. We might be able to do better.
     from bvp.data.models.user import User
 
@@ -16,7 +16,7 @@ def test_users(app):
     assert len(users) > 0
 
 
-def test_prices_horizons(app):
+def _test_prices_horizons(app):
     from bvp.data.models.markets import Price
 
     prices = Price.query.all()

@@ -110,7 +110,8 @@ If `black` proposes to edit any file, the commit is aborted (saying that it "fai
 and the proposed changes are printed for you to review.
 
 With `git ls-files -m | grep ".py" | xargs black` you can apply the formatting, 
-and make them part of your next commit.
+and make them part of your next commit (`git ls-files` cannot list added files,
+so they need to be black-formatted separately).
 
 
 ### Hint: Notebooks

@@ -19,7 +19,7 @@ from bvp.ui.utils.view_utils import render_bvp_template
 
 # Portfolio view
 @bvp_ui.route("/portfolio", methods=["GET", "POST"])
-@roles_accepted("admin", "asset-owner")
+@roles_accepted("admin", "prosumer")
 def portfolio_view():
     """ Portfolio view.
     By default, this page shows live results (production, consumption and market data) from the user's portfolio.

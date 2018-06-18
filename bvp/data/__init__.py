@@ -89,8 +89,11 @@ def register(app: Flask):
             if data:
                 affected_tables += ["Power", "Price", "Weather"]
             prompt = (
-                "This deletes all %s entries.\nDo you want to continue?"
-                % " and ".join(", ".join(affected_tables).rsplit(", ", 1))
+                "This deletes all %s entries from %s.\nDo you want to continue?"
+                % (
+                    " and ".join(", ".join(affected_tables).rsplit(", ", 1)),
+                    app.config.get("SQLALCHEMY_DATABASE_URI"),
+                )
             )
             if not click.confirm(prompt):
                 return
@@ -102,3 +105,18 @@ def register(app: Flask):
             from bvp.data.static_content import depopulate_structure
 
             depopulate_structure(app)
+
+    @app.cli.command()
+    def db_reset():
+        """Initialize the database with static values."""
+        if not app.debug:
+            prompt = (
+                "This deletes all data and resets the structure on %s.\nDo you want to continue?"
+                % app.config.get("SQLALCHEMY_DATABASE_URI")
+            )
+            if not click.confirm(prompt):
+                click.echo("I did nothing.")
+                return
+        from bvp.data.static_content import reset_db
+
+        reset_db(app)

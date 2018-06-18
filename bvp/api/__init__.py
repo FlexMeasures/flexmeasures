@@ -1,6 +1,6 @@
 from flask import Flask, Blueprint, request, current_app
 from flask_marshmallow import Marshmallow
-from flask_security.views import login
+from flask_security.views import login, logout
 from flask_json import as_json
 
 
@@ -25,17 +25,31 @@ def request_auth_token():
         current_app.config["WTF_CSRF_ENABLED"] = False
         if not request.is_json:
             return {"errors": ["Content-type of request must be application/json"]}, 400
-        login_response = login()  # this is doing the actual work
-        return_code = login_response[1]
+        from flask_login import current_user
+
+        if current_user.is_authenticated:
+            return {
+                "auth_token": current_user.get_auth_token(),
+                "user_id": current_user.id,
+            }
+        login_response = login()  # this logs in the user and also grabs the auth token.
+        logout()  # make sure user is returned to the previous state of authentication
+        if type(login_response) == tuple:
+            return_code = login_response[1]
+        else:
+            return_code = login_response.status_code
         if return_code != 200:
-            return login_response[0].json["response"], return_code
+            if type(login_response) == tuple:
+                return login_response[0].json["response"], return_code
+            else:
+                return {"errors": ["We cannot log you in."]}, return_code
         user_info = login_response[0].json["response"]["user"]
         return {
             "auth_token": user_info["authentication_token"],
             "user_id": user_info["id"],
         }
     except Exception as e:
-        return {"errors": [str(e)]}
+        return {"errors": [str(e)]}, 400
     finally:
         current_app.config["WTF_CSRF_ENABLED"] = csrf_enabled
 
