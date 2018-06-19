@@ -3,6 +3,11 @@ instance
 venv
 .eggs
 .env
+.vscode
+
+.env-bvp/
+bvp.egg-info
+bvp-errors.log
 
 .cache
 .pytest_cache/

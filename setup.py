@@ -9,6 +9,7 @@ setup(
     version="0.1",
     # flask should be after all the flask plugins, because setup might find they ARE flask
     install_requires=[
+        "flake8",
         "bokeh",
         "pandas>=0.22.0",
         "iso8601",

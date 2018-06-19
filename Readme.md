@@ -138,3 +138,7 @@ I added this to my ~/.bashrc, so I only need to type `bvp` to get started (all p
         git pull  # do not use if any production-like app runs from the git code                                                                                                                                                                     
         workon bvp-venv  # this depends on how you created your virtual environment
     }
+
+### CI Deployment
+
+Bitbucket pipelines are used for deployment and unit testing. See [documentation](ci/README.md) in CI directory for more information.

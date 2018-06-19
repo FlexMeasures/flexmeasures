@@ -1,0 +1,27 @@
+pipelines:
+  default:
+    - step:
+        name: Build and Test
+        image: python:3.6
+        script:
+          - ci/SETUP.sh
+          - python setup.py test
+        services:
+          - postgres
+  branches:
+    master:
+      - step:
+          name: Deploy to Staging
+          deployment: staging
+          script:
+            - ci/DEPLOY.sh
+
+definitions:
+  services:
+    postgres:
+      image: postgres
+      environment:
+        POSTGRES_DB: a1test
+        POSTGRES_USER: a1test
+        POSTGRES_PASSWORD: a1test
+        DATABASE_URL: postgres://a1test:a1test@127.0.0.1:5432/a1test
