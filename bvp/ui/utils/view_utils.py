@@ -98,11 +98,18 @@ def get_git_description() -> Tuple[str, int, str]:
     commits_since = 0
     sha = "Unknown"
     try:
-        git_output = _minimal_ext_cmd(["git", "describe", "--always", "--long"])
+        commands = ["git", "describe", "--always", "--long"]
+        if not os.path.exists(
+            os.path.join(os.path.dirname(__file__), "..", "..", "..", ".git")
+        ):
+            # convention if we are operating in a non-git checkout, could be made configurable
+            commands.insert(1, "--git-dir=../bvp.git")
+        git_output = _minimal_ext_cmd(commands)
         components = git_output.strip().decode("ascii").split("-")
-        sha = components.pop()
-        commits_since = int(components.pop())
-        version = "-".join(components)
+        if not (len(components) == 1 and components[0] == ""):
+            sha = components.pop()
+            commits_since = int(components.pop())
+            version = "-".join(components)
     except OSError as ose:
         current_app.logger.warn("Problem when reading git describe: %s" % ose)
 

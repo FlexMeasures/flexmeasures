@@ -32,5 +32,7 @@ a way to soft restart the running application.
 ```
 #!/bin/bash
 GIT_WORK_TREE=/path/to/your/bvp/work/tree git checkout -f 
+python setup.py develop
+flask db upgrade
 touch /var/www/staging_a1-bvp_com_wsgi.py
 ```

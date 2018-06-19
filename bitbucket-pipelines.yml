@@ -11,6 +11,14 @@ pipelines:
   branches:
     master:
       - step:
+        name: Build and Test
+        image: python:3.6
+        script:
+          - ci/SETUP.sh
+          - python setup.py test
+        services:
+          - postgres
+      - step:
           name: Deploy to Staging
           deployment: staging
           script:
