@@ -31,7 +31,6 @@ a way to soft restart the running application.
 
 ```
 #!/bin/bash
-
-GIT_WORK_TREE=/bvp git checkout -f 
+GIT_WORK_TREE=/path/to/bvp/work/tree git checkout -f 
 touch /var/www/staging_a1-bvp_com_wsgi.py
 ```
