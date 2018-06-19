@@ -99,11 +99,12 @@ def get_git_description() -> Tuple[str, int, str]:
     sha = "Unknown"
     try:
         commands = ["git", "describe", "--always", "--long"]
-        if not os.path.exists(
-            os.path.join(os.path.dirname(__file__), "..", "..", "..", ".git")
-        ):
+        path_to_bvp = os.path.join(os.path.dirname(__file__), "..", "..", "..")
+        if not os.path.exists(os.path.join(path_to_bvp, ".git")):
             # convention if we are operating in a non-git checkout, could be made configurable
-            commands.insert(1, "--git-dir=../bvp.git")
+            commands.insert(
+                1, "--git-dir=%s" % os.path.join(path_to_bvp, "..", "bvp.git")
+            )
         git_output = _minimal_ext_cmd(commands)
         components = git_output.strip().decode("ascii").split("-")
         if not (len(components) == 1 and components[0] == ""):
