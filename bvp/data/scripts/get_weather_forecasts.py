@@ -230,7 +230,7 @@ def get_region_from_assets() -> Tuple[Tuple[float, float], Tuple[float, float]]:
     Create a suitable region of interest from all asset locations.
     Currently not used. Should later probably contact the database actually.
     """
-    assets_path = "../data/assets.json"
+    assets_path = "../raw_data/assets.json"
     lats, lngs = [], []
     if os.path.exists(assets_path):
         with open(assets_path, "r") as json_data:
@@ -282,13 +282,13 @@ def get_weather_now(num_cells, method, top, left, bottom, right):
     if not hasattr(config, "DARK_SKY_API_KEY") or config.DARK_SKY_API_KEY is None:
         raise Exception("No DarkSky API key available.")
 
-    data_path = "../data/weather-forecasts"
+    data_path = "../raw_data/weather-forecasts"
     if not os.path.exists(data_path):
-        if os.path.exists("../data"):
+        if os.path.exists("../raw_data"):
             print("Creating %s ..." % data_path)
             os.mkdir(data_path)
         else:
-            print("No data directory found.")
+            print("No raw_data directory found.")
             return
 
     top_left = top, left
