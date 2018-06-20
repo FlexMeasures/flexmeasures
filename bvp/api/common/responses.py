@@ -1,6 +1,4 @@
 from typing import List
-from bvp.data.models.user import User
-from inflection import pluralize, humanize
 import inflect
 
 p = inflect.engine()
@@ -10,8 +8,8 @@ def invalid_domain() -> dict:
     return dict(
         result="Rejected",
         status="INVALID_DOMAIN",
-        message="Connections should be identified using the EA1 addressing scheme. "
-        "For example: 'ea1.2018-06.com.bvp.api:<owner-id>:<asset-id or asset-name>'",
+        message="Connections should be identified using the EA1 addressing scheme recommended by USEF. "
+        "For example: 'ea1.2018-06.com.bvp.api:<owner-id>:<asset-id>'",
     )
 
 
@@ -34,17 +32,28 @@ def invalid_ptu_duration() -> dict:
     )
 
 
-def invalid_sender(user: User, allowed_roles: List[str]) -> dict:
-    user_roles = [p.a(humanize(role.name)) for role in user.roles]
-    user_roles = p.join(user_roles)
-    allowed_roles = [pluralize(humanize(role)) for role in allowed_roles]
-    allowed_roles = p.join(allowed_roles)
+def invalid_role(requested_access_role: str) -> dict:
+    return dict(
+        result="Rejected",
+        status="INVALID_ROLE",
+        message="No known services for specified role %s." % requested_access_role,
+    )
+
+
+def invalid_sender(user_role_names: List[str], *allowed_role_names: str) -> dict:
+    if not user_role_names:
+        user_roles_str = "have no role"
+    else:
+        user_role_names = [p.a(role_name) for role_name in user_role_names]
+        user_roles_str = "are %s" % p.join(user_role_names)
+    allowed_role_names = [pluralize(role_name) for role_name in allowed_role_names]
+    allowed_role_names = p.join(allowed_role_names)
     return dict(
         result="Rejected",
         status="INVALID_SENDER",
         message="You don't have the right role to access this service. "
-        "You are %s while this service is reserved for %s."
-        % (user_roles, allowed_roles),
+        "You %s while this service is reserved for %s."
+        % (user_roles_str, allowed_role_names),
     )
 
 
@@ -74,3 +83,8 @@ def unrecognized_connection_group() -> dict:
         status="UNRECOGNIZED_CONNECTION_GROUP",
         message="One or more connections in your request were not found in your account.",
     )
+
+
+def pluralize(usef_role_name):
+    """Adding a trailing 's' works well for USEF roles."""
+    return "%ss" % usef_role_name

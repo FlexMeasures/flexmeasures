@@ -13,13 +13,58 @@
                     <button class="btn btn-sm btn-responsive btn-info" type="submit">Log out</button>
                 </form>
                 <h2> Account overview for {{ logged_in_user.username }} </h2>
-                <ul>
-                    <li>Email address:  {{logged_in_user.email }}</li>
-                    <li>Time Zone:  {{logged_in_user.timezone }}</li>
-                    <li>Last login was: {{ logged_in_user.last_login_at | localized_datetime }} </li>
-                    <li>Assets owned: <a href="/assets">{{ num_assets }}</a></li>
-                    <li>Roles: {{ roles }}</li>
-                </ul>
+                <table class="table">
+                    <tbody>
+                        <tr>
+                            <td>
+                                Email address
+                            </td>
+                            <td>
+                                {{logged_in_user.email }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Time Zone
+                            </td>
+                            <td>
+                                {{logged_in_user.timezone }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Last login was
+                            </td>
+                            <td>
+                                {{ logged_in_user.last_login_at | localized_datetime }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Assets owned
+                            </td>
+                            <td>
+                                <a href="/assets">{{ num_assets }}</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Roles
+                            </td>
+                            <td>
+                                {{ roles }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                Authentication token
+                            </td>
+                            <td>
+                                {{ logged_in_user.get_auth_token() }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

@@ -57,6 +57,25 @@
                         <div class="col-sm-6">
                             <input type="submit" value="Save">
                         </div>
+                        <h2>API info for this asset</h2>
+                        <div class="form-group">
+                            <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
+                            <div class="col-sm-6">
+                                <input class="form-control" id="asset-id" name="asset-id" type="text" value="{{ asset.id }}" disabled></input>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="asset-id" class="col-sm-6 control-label">Owner id</label>
+                            <div class="col-sm-6">
+                                <input class="form-control" id="owner-id" name="owner-id" type="text" value="{{ asset.owner_id }}" disabled></input>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="ea" class="col-sm-6 control-label">Unique entity address</label>
+                            <div class="col-sm-6">
+                                <input class="form-control" id="ea" name="ea" type="text" value="{{ asset.entity_address }}" disabled></input>
+                            </div>
+                        </div>
                     </div>
                     <div class="col-sm-6">
                         <h3>Location</h3>

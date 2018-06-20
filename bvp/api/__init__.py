@@ -10,7 +10,7 @@ bvp_api = Blueprint("bvp_api", __name__)
 ma: Marshmallow = None
 
 
-@bvp_api.route("/api/request_auth_token", methods=["POST"])
+@bvp_api.route("/requestAuthToken", methods=["POST"])
 @as_json
 def request_auth_token():
     """Calling the login of flask security here, so we can
@@ -54,6 +54,19 @@ def request_auth_token():
         current_app.config["WTF_CSRF_ENABLED"] = csrf_enabled
 
 
+@bvp_api.route('/', methods=['GET'])
+@as_json
+def get_versions() -> dict:
+    """Public endpoint to list API versions"""
+    response = {
+        "message": "For these API versions a public endpoint is available listing its service. For example: "
+                   "/api/v1/getService and /api/v1.1/getService. An authentication token can be requested at: "
+                   "/api/requestAuthToken",
+        "versions": ["v1", "v1.1"],
+    }
+    return response
+
+
 def register_at(app: Flask):
     """This can be used to register this blueprint together with other api-related things"""
     global ma
@@ -62,13 +75,13 @@ def register_at(app: Flask):
     import bvp.api.endpoints  # this is necessary to load the endpoints
 
     app.register_blueprint(
-        bvp_api
+        bvp_api, url_prefix='/api'
     )  # now registering the blueprint will affect all endpoints
 
-    # # Load the following versions of the endpoints
-    # from bvp.api.v1 import bvp_api as api_v1
-    # from bvp.api.v1_1 import bvp_api as api_v1_1
-    #
-    # # Register the following blueprint versions to the api
-    # app.register_blueprint(api_v1, url_prefix='/v1')
-    # app.register_blueprint(api_v1_1, url_prefix='/v1.1')
+    # Load the following versions of the endpoints
+    from bvp.api.v1 import bvp_api as api_v1
+    from bvp.api.v1_1 import bvp_api as api_v1_1
+
+    # Register the following blueprint versions to the api
+    app.register_blueprint(api_v1, url_prefix='/api/v1')
+    app.register_blueprint(api_v1_1, url_prefix='/api/v1.1')

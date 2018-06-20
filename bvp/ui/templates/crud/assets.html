@@ -18,6 +18,9 @@
                             <th>Name</th>
                             <th>Capacity</th>
                             <th>Location</th>
+                            <th>Asset id</th>
+                            <th>Owner id</th>
+                            <th>Entity address</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -33,6 +36,15 @@
                                 </td>
                                 <td>
                                     LAT: {{ asset.latitude | round(2) }} LONG: {{ asset.longitude | round(2) }}
+                                </td>
+                                <td>
+                                    {{ asset.id }}
+                                </td>
+                                <td>
+                                    {{ asset.owner_id }}
+                                </td>
+                                <td>
+                                    {{ asset.entity_address }}
                                 </td>
                                 <td>
                                     <form action="../analytics" target="_blank" method="get">

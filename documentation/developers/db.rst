@@ -137,7 +137,7 @@ Run these commands from the repository root directory::
 
     flask db init
     flask db upgrade
-    flaski db_populate
+    flask db_populate
     
 The first command (``flask db init``) may in fact throw an error about directories being there already,
 but that's okay, it just means the directories were there already.
