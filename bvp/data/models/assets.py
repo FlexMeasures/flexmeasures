@@ -1,5 +1,4 @@
 from typing import Dict, Tuple, Union
-import socket
 
 import isodate
 import inflection
@@ -78,11 +77,8 @@ class Asset(db.Model):
     def asset_type_display_name(self) -> str:
         return titleize(self.asset_type_name)
 
-    @property
-    def entity_address(self) -> str:
-        domain_name = socket.getfqdn()
-        reverse_domain_name = ".".join(domain_name.split('.')[::-1])
-        return "ea1.2018-06.%s:%s:%s" % (reverse_domain_name, self.owner_id, self.id)
+    def entity_address(self, addressing_scheme, naming_authority: str) -> str:
+        return "%s.%s:%s:%s" % (addressing_scheme, naming_authority, self.owner_id, self.id)
 
     @property
     def location(self) -> Tuple[float, float]:

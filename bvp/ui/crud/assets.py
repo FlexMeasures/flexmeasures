@@ -5,7 +5,7 @@ from wtforms.validators import DataRequired
 from flask_security import login_required, current_user
 
 from bvp.data.services import get_assets
-from bvp.ui.utils.view_utils import render_bvp_template
+from bvp.ui.utils.view_utils import render_bvp_template, get_addressing_scheme, get_naming_authority
 from bvp.data.models.assets import Asset
 from bvp.data.config import db
 
@@ -18,14 +18,18 @@ class AssetForm(FlaskForm):
 
 
 class AssetCrud(FlaskView):
-
     route_base = "/assets"
 
     @login_required
     def index(self):
         """/assets"""
         assets = get_assets()
-        return render_bvp_template("crud/assets.html", assets=assets)
+        return render_bvp_template(
+            "crud/assets.html",
+            assets=assets,
+            get_addressing_scheme=get_addressing_scheme,
+            get_naming_authority=get_naming_authority,
+        )
 
     @login_required
     def get(self, id: str):
@@ -37,7 +41,12 @@ class AssetCrud(FlaskView):
             asset_form = AssetForm()
             asset_form.process(obj=asset)
             return render_bvp_template(
-                "crud/asset.html", asset=asset, asset_form=asset_form, msg=""
+                "crud/asset.html",
+                asset=asset,
+                asset_form=asset_form,
+                msg="",
+                get_addressing_scheme=get_addressing_scheme,
+                get_naming_authority=get_naming_authority,
             )
         else:
             return "Not Found", 404
@@ -58,6 +67,8 @@ class AssetCrud(FlaskView):
                 asset=asset,
                 asset_form=asset_form,
                 msg="Editing was successful.",
+                get_addressing_scheme=get_addressing_scheme,
+                get_naming_authority=get_naming_authority,
             )
         else:
             return "Not Found", 404

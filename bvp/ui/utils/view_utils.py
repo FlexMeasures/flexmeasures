@@ -2,6 +2,7 @@
 import os
 import subprocess
 from typing import Tuple, List
+from urllib.parse import urlparse
 
 from flask import render_template, request, session, current_app
 from bokeh.resources import CDN
@@ -115,3 +116,13 @@ def get_git_description() -> Tuple[str, int, str]:
         current_app.logger.warn("Problem when reading git describe: %s" % ose)
 
     return version, commits_since, sha
+
+
+def get_naming_authority() -> str:
+    domain_name = urlparse(request.url).netloc
+    reverse_domain_name = ".".join(domain_name.split('.')[::-1])
+    return "2018-06.%s" % reverse_domain_name
+
+
+def get_addressing_scheme() -> str:
+    return "ea1"

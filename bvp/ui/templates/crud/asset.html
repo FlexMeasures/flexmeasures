@@ -73,7 +73,7 @@
                         <div class="form-group">
                             <label for="ea" class="col-sm-6 control-label">Unique entity address</label>
                             <div class="col-sm-6">
-                                <input class="form-control" id="ea" name="ea" type="text" value="{{ asset.entity_address }}" disabled></input>
+                                <input class="form-control" id="ea" name="ea" type="text" value="{{ asset.entity_address(get_addressing_scheme(), get_naming_authority()) }}" disabled></input>
                             </div>
                         </div>
                     </div>
