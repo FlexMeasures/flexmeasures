@@ -2,12 +2,11 @@ from datetime import datetime
 
 import pytz
 from flask import request
-from flask_security import auth_token_required, roles_required
 from flask_json import as_json
 
 from bvp.data.config import db
 from bvp.data.models.task_runs import LatestTaskRun
-from bvp.api import ma, bvp_api
+from bvp.api import ma
 
 
 class TaskSchema(ma.ModelSchema):
@@ -16,12 +15,7 @@ class TaskSchema(ma.ModelSchema):
         fields = ("datetime", "status")
         sqla_session = db.session
 
-    # def make_object(self, data):
-    #    return LatestTaskRun(name=data['name'], datetime=data['datetime'], status=data["status"])
 
-
-@bvp_api.route("/api/GetLatestTaskRun", methods=["GET"])
-@auth_token_required
 @as_json
 def get_task_run():
     """
@@ -37,9 +31,6 @@ def get_task_run():
     return TaskSchema().jsonify(last_run)
 
 
-@bvp_api.route("/api/PostLatestTaskRun", methods=["POST"])
-@auth_token_required
-@roles_required("task-runner")
 @as_json
 def post_task_run():
     """
@@ -50,11 +41,11 @@ def post_task_run():
         return {"error": "No task name given."}, 400
     date_time = request.form.get("datetime", datetime.utcnow().replace(tzinfo=pytz.utc))
     status = request.form.get("status", "True") == "True"
-    task_run = LatestTaskRun.query.filter(LatestTaskRun.name == task_name).one()
+    task_run = LatestTaskRun.query.filter(LatestTaskRun.name == task_name).one_or_none()
     if task_run is None:
         task_run = LatestTaskRun(name=task_name)
+        db.session.add(task_run)
     task_run.datetime = date_time
     task_run.status = status
-    # db.session.commit()  # TODO: this should not work without.
-    # Also, should we strive to have only one commit per request?
+    db.session.commit()  # TODO: should we strive to have only one commit per request?
     return {"message": "ok"}, 200

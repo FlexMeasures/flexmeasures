@@ -5,7 +5,7 @@ from typing import List, Tuple, Union
 from flask import request, current_app
 from flask_json import as_json
 from flask_principal import Permission, RoleNeed
-from flask_security import auth_token_required, current_user, roles_accepted
+from flask_security import auth_token_required, current_user
 
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
@@ -258,7 +258,9 @@ def post_meter_data_response() -> Union[dict, Tuple[dict, int]]:
                 for j, value in enumerate(values_for_asset_group):
                     dt = start + j * duration / len(values_for_asset_group)
                     # Todo: determine horizon based on message contents
-                    p = Power(datetime=dt, value=value, horizon="-PT15M", asset_id=db_asset.id)
+                    p = Power(
+                        datetime=dt, value=value, horizon="-PT15M", asset_id=db_asset.id
+                    )
                     power_measurements.append(p)
         else:
             asset = asset_group
@@ -274,7 +276,9 @@ def post_meter_data_response() -> Union[dict, Tuple[dict, int]]:
             for j, value in enumerate(values_for_asset_group):
                 dt = start + j * duration / len(values_for_asset_group)
                 # Todo: determine horizon based on message contents
-                p = Power(datetime=dt, value=value, horizon="-PT15M", asset_id=db_asset.id)
+                p = Power(
+                    datetime=dt, value=value, horizon="-PT15M", asset_id=db_asset.id
+                )
                 power_measurements.append(p)
 
     # Put these into the database
@@ -314,10 +318,7 @@ def get_service_response(service_listing, requested_access_role) -> dict:
     either all of them or only those that apply to the requested access role.
     """
 
-    response = {
-        "type": "GetServiceResponse",
-        "version": service_listing["version"],
-    }
+    response = {"type": "GetServiceResponse", "version": service_listing["version"]}
     if requested_access_role:
         accessible_services = []
         for service in service_listing["services"]:
@@ -336,7 +337,11 @@ def check_access(service_listing, service_name):
     For a given USEF service name (API endpoint) in a service listing,
     returns the list of USEF roles that are allowed to access the service.
     """
-    return next(service["access"] for service in service_listing["services"] if service["name"] == service_name)
+    return next(
+        service["access"]
+        for service in service_listing["services"]
+        if service["name"] == service_name
+    )
 
 
 def service_access(service: str) -> List[str]:
@@ -389,6 +394,7 @@ def usef_roles_accepted(*usef_roles):
 
     :param args: The possible roles.
     """
+
     def wrapper(fn):
         @wraps(fn)
         @as_json
@@ -398,6 +404,13 @@ def usef_roles_accepted(*usef_roles):
                 return fn(*args, **kwargs)
             else:
                 current_app.logger.warn("User role is not accepted for this service")
-                return invalid_sender([role.name for role in current_user.roles], *usef_roles), 403
+                return (
+                    invalid_sender(
+                        [role.name for role in current_user.roles], *usef_roles
+                    ),
+                    403,
+                )
+
         return decorated_service
+
     return wrapper

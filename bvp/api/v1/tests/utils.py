@@ -9,7 +9,8 @@ Useful things for API testing
 
 def get_auth_token(client, user_email, password):
     """
-    Get an auth token for a user
+    Get an auth token for a user via the API (like users need to do in real life).
+    TODO: if you have the user object (e.g. fro DB, you simply get the token via my_user.get_auth_token()!
     """
     print("Getting auth token for %s ..." % user_email)
     auth_data = json.dumps({"email": user_email, "password": password})
@@ -26,7 +27,7 @@ def get_auth_token(client, user_email, password):
 def get_task_run(client, task_name: str):
     """Utility for getting task run information"""
     return client.get(
-        url_for("bvp_api.get_task_run"),
+        url_for("bvp_api_v1.get_task_run"),
         query_string={"name": task_name},
         headers={
             "Authentication-Token": get_auth_token(
@@ -39,7 +40,7 @@ def get_task_run(client, task_name: str):
 def post_task_run(client, task_name: str, status: bool = True):
     """Utility for getting task run information"""
     return client.post(
-        url_for("bvp_api.post_task_run"),
+        url_for("bvp_api_v1.post_task_run"),
         data={"name": task_name, "status": status},
         headers={
             "Authentication-Token": get_auth_token(

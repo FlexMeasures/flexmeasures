@@ -22,7 +22,7 @@ def register_at(app: Flask):
 
     AssetCrud.register(app)
 
-    import bvp.ui.views  # this is necessary to load the views
+    import bvp.ui.views  # noqa: F401 this is necessary to load the views
 
     app.register_blueprint(
         bvp_ui

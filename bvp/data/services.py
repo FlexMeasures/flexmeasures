@@ -3,13 +3,11 @@ Generic services for accessing data.
 """
 
 from typing import List, Dict, Union, Callable
-import os
 from datetime import datetime
 from inflection import pluralize
 
-from flask import session, current_app
+from flask import session
 from flask_security.core import current_user
-from werkzeug.exceptions import BadRequest
 import pandas as pd
 from sqlalchemy.orm.query import Query
 
@@ -23,7 +21,6 @@ from bvp.data.config import db
 def get_assets() -> List[Asset]:
     """Return a list of all Asset objects of current_user (or all for admins).
     The asset list is constructed lazily (only once per app start)."""
-    result = list()
     if current_user.is_authenticated:
         if current_user.has_role("admin"):
             assets = Asset.query.order_by(Asset.id.desc()).all()
@@ -33,7 +30,8 @@ def get_assets() -> List[Asset]:
                 .order_by(Asset.id.desc())
                 .all()
             )
-    return assets
+        return assets
+    return []
 
 
 def get_asset_groups() -> Dict[str, Query]:
@@ -198,35 +196,12 @@ def _get_time_series_data(
     for data_source in data_sources:
 
         # collect data
-        # TODO: this option will go away soon, don't optimize
-        if current_app.config.get("READ_SERIES_DATA_FROM") == "pickles":
-            # before comparing datetimes, make sure both are naive
-            naive_start = time_utils.naive_utc_from(start)
-            naive_end = time_utils.naive_utc_from(end)
-            global DATA
-            if data_source not in DATA:
-                current_app.logger.info("Loading %s data from disk ..." % data_source)
-                try:
-                    DATA[data_source] = pd.read_pickle(
-                        "data/pickles/df_%s_res15T.pickle" % data_source
-                    )
-                except FileNotFoundError:
-                    raise BadRequest(
-                        'Sorry, we cannot find any data for the resource "%s" ...'
-                        % data_source
-                    )
-
-            date_mask = (DATA[data_source].index >= naive_start) & (
-                DATA[data_source].index <= naive_end
-            )
-            values_orig = DATA[data_source].loc[date_mask]
-        else:
-            query = make_query(data_source, start, end)
-            values_orig = pd.read_sql(
-                query.statement, db.session.bind, parse_dates=["datetime"]
-            )
-            values_orig.rename(index=str, columns={"value": "y"}, inplace=True)
-            values_orig.set_index("datetime", drop=True, inplace=True)
+        query = make_query(data_source, start, end)
+        values_orig = pd.read_sql(
+            query.statement, db.session.bind, parse_dates=["datetime"]
+        )
+        values_orig.rename(index=str, columns={"value": "y"}, inplace=True)
+        values_orig.set_index("datetime", drop=True, inplace=True)
 
         # re-sample data to the resolution we need to serve
         values = values_orig.resample(resolution).mean()

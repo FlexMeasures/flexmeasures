@@ -46,6 +46,8 @@ class Config(object):
 
     READ_SERIES_DATA_FROM = "database"  # database or pickles
 
+    TASKER_PWD = None
+
     #  names of settings which cannot be None
     required: List[str] = [
         "SQLALCHEMY_DATABASE_URI",
@@ -76,6 +78,7 @@ class DevelopmentConfig(Config):
     SQLALCHEMY_ECHO = False
     PROPAGATE_EXCEPTIONS = True
     JSONIFY_PRETTYPRINT_REGULAR = True
+    SERVER_NAME = "localhost:5000"
 
 
 class TestingConfig(Config):
@@ -85,4 +88,3 @@ class TestingConfig(Config):
 
     SECURITY_PASSWORD_SALT = "$2b$19$abcdefghijklmnopqrstuv"
     SQLALCHEMY_DATABASE_URI = "postgresql://a1test:a1test@127.0.0.1/a1test"
-    # SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'

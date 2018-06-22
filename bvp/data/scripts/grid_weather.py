@@ -5,13 +5,14 @@
 # but not in a venv. Just python3 is not enough, sadly, because we love type hinting.
 
 import os
-import sys
 from typing import Tuple, List
 import json
 from datetime import datetime
 
-import click
+from flask import Flask
 from forecastiopy import ForecastIO
+
+from bvp.utils.app_utils import task_with_status_report
 
 
 class LatLngGrid(object):
@@ -197,7 +198,7 @@ def get_cell_nums(
     tl: Tuple[float, float], br: Tuple[float, float], num_cells: int = 9
 ) -> Tuple[int, int]:
     """
-    Compute the nuber of cells in both directions, latitude and longitude.
+    Compute the number of cells in both directions, latitude and longitude.
     By default, a square grid with N=9 cells is computed, so 3 by 3.
     For N with non-integer square root, the function will determine a nice cell pattern.
     :param tl: top-left (lat, lng) tuple of ROI
@@ -228,7 +229,8 @@ def get_cell_nums(
 def get_region_from_assets() -> Tuple[Tuple[float, float], Tuple[float, float]]:
     """
     Create a suitable region of interest from all asset locations.
-    Currently not used. Should later probably contact the database actually.
+    Currently not used. (we simply pass top left and bottom right to thsi script).
+    Should in any case later probably contact the database actually.
     """
     assets_path = "../raw_data/assets.json"
     lats, lngs = [], []
@@ -249,47 +251,23 @@ def get_region_from_assets() -> Tuple[Tuple[float, float], Tuple[float, float]]:
     return top_left, bottom_right
 
 
-@click.command()
-@click.option("--num_cells", default=1, help="Number of cells on the grid.")
-@click.option(
-    "--method",
-    default="hex",
-    type=click.Choice(["hex", "square"]),
-    help="Grid creation method.",
-)
-@click.option(
-    "--top", type=float, required=True, help="Top latitude for region of interest."
-)
-@click.option(
-    "--left", type=float, required=True, help="Left longitude for region of interest."
-)
-@click.option(
-    "--bottom",
-    type=float,
-    required=True,
-    help="Bottom latitude for region of interest.",
-)
-@click.option(
-    "--right", type=float, required=True, help="Right longitude for region of interest."
-)
-def get_weather_now(num_cells, method, top, left, bottom, right):
+@task_with_status_report
+def get_weather_forecasts(app: Flask, num_cells, method, top, left, bottom, right):
     """
     Get current weather forecasts for a latitude/longitude grid and store them in individual json files.
     Note that 1000 free calls per day can be made to the Dark Sky API,
     so we can make a call every 15 minutes for up to 10 assets or every hour for up to 40 assets.
     """
-    config = get_config()
-    if not hasattr(config, "DARK_SKY_API_KEY") or config.DARK_SKY_API_KEY is None:
+    if app.config.get("DARK_SKY_API_KEY") is None:
         raise Exception("No DarkSky API key available.")
 
-    data_path = "../raw_data/weather-forecasts"
+    data_path = app.root_path + "/../raw_data/weather-forecasts"
     if not os.path.exists(data_path):
-        if os.path.exists("../raw_data"):
+        if os.path.exists(app.root_path + "/../raw_data"):
             print("Creating %s ..." % data_path)
             os.mkdir(data_path)
         else:
-            print("No raw_data directory found.")
-            return
+            raise Exception("No %s/../raw_data directory found." % app.root_path)
 
     top_left = top, left
     bottom_right = bottom, right
@@ -318,8 +296,7 @@ def get_weather_now(num_cells, method, top, left, bottom, right):
     elif method == "square":
         locations = grid.locations_square()
     else:
-        print("Method must either be 'square' or 'hex'!")
-        return
+        raise Exception("Method must either be 'square' or 'hex'!")
 
     print("Latitude,Longitude")
     for location in locations:
@@ -327,7 +304,7 @@ def get_weather_now(num_cells, method, top, left, bottom, right):
 
         # Make a single call to the Dark Sky API
         forecasts = ForecastIO.ForecastIO(
-            config.DARK_SKY_API_KEY,
+            app.config.get("DARK_SKY_API_KEY"),
             units=ForecastIO.ForecastIO.UNITS_SI,
             lang=ForecastIO.ForecastIO.LANG_ENGLISH,
             latitude=location[0],
@@ -344,28 +321,3 @@ def get_weather_now(num_cells, method, top, left, bottom, right):
         )
         with open(forecasts_file, "w") as outfile:
             json.dump(forecasts.forecast, outfile)
-
-    return
-
-
-def get_config():
-    app_env = os.environ.get("FLASK_ENV")
-    if app_env is None:
-        print(
-            "Environment variable FLASK_ENV not set."
-            "Please set it to 'Development', 'Staging' or 'Production'."
-        )
-    config_module_name = "bvp.%s_config" % app_env
-
-    __import__(config_module_name)
-    return sys.modules[config_module_name]
-
-
-if __name__ == "__main__":
-    cur_dir = os.getcwd()
-    path2bvp_dir = "%s/../.." % os.path.dirname(sys.argv[0])
-    os.chdir(path2bvp_dir)
-
-    get_weather_now()
-
-    os.chdir(cur_dir)

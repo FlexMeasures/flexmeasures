@@ -348,6 +348,18 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
         for asset in [a for a in assets if a.asset_type_name == asset_type]:
             asset.owner = mock_asset_owner
 
+    # task runner
+    task_runner = user_datastore.create_role(
+        name="task-runner", description="Process running BVP-relevant tasks."
+    )
+    tasker = user_datastore.create_user(
+        username="Tasker",
+        email="tasker@seita.nl",
+        password=hash_password("take-a-coleslaw"),
+        timezone="Europe/Amsterdam",
+    )
+    user_datastore.add_role_to_user(tasker, task_runner)
+
 
 def as_transaction(db_function):
     """Decorator for handling SQLAlchemy commands as a database transaction (ACID).

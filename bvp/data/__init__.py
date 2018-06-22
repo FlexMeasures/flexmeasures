@@ -5,7 +5,7 @@ from flask_login import user_logged_in
 import click
 
 
-def register(app: Flask):
+def register_at(app: Flask):
     # First configure the central db object and Alembic's migration tool
 
     import bvp.data.config as db_config
@@ -22,6 +22,11 @@ def register(app: Flask):
     user_logged_in.connect(remember_login)
 
     # Register some useful custom scripts with the flask cli
+    register_db_maintenance_tasks(app)
+    register_data_collection_tasks(app)
+
+
+def register_db_maintenance_tasks(app: Flask):
 
     # @app.before_first_request
     @app.cli.command()
@@ -120,3 +125,42 @@ def register(app: Flask):
         from bvp.data.static_content import reset_db
 
         reset_db(app)
+
+
+def register_data_collection_tasks(app):
+    """Any tasks to collect third-party data."""
+
+    @app.cli.command()
+    @click.option("--num_cells", default=1, help="Number of cells on the grid.")
+    @click.option(
+        "--method",
+        default="hex",
+        type=click.Choice(["hex", "square"]),
+        help="Grid creation method.",
+    )
+    @click.option(
+        "--top", type=float, required=True, help="Top latitude for region of interest."
+    )
+    @click.option(
+        "--left",
+        type=float,
+        required=True,
+        help="Left longitude for region of interest.",
+    )
+    @click.option(
+        "--bottom",
+        type=float,
+        required=True,
+        help="Bottom latitude for region of interest.",
+    )
+    @click.option(
+        "--right",
+        type=float,
+        required=True,
+        help="Right longitude for region of interest.",
+    )
+    def collect_weather_data(num_cells, method, top, left, bottom, right):
+        """Collect weather data"""
+        from bvp.data.scripts.grid_weather import get_weather_forecasts
+
+        get_weather_forecasts(app, num_cells, method, top, left, bottom, right)

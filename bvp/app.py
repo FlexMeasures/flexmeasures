@@ -42,9 +42,9 @@ def create(env=None) -> Flask:
 
     # Register database and models, including user auth security measures
 
-    from bvp.data import register as register_db
+    from bvp.data import register_at as register_db_at
 
-    register_db(app)
+    register_db_at(app)
 
     # Register the UI
 

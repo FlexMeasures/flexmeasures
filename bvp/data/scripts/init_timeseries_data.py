@@ -14,13 +14,13 @@ import pytz
 import pandas as pd
 
 sys.path.insert(1, os.path.join(sys.path[0], ".."))
-import bvp.data.config as db_config
-from bvp.app import create as create_app
+import bvp.data.config as db_config  # noqa: E402
+from bvp.app import create as create_app  # noqa: E402
 
 db_config.configure_db(create_app())
-from bvp.data.models.assets import Asset, AssetType
-from bvp.data.models.markets import Market, MarketType
-from bvp.utils.forecasting_utils import make_rolling_forecast
+from bvp.data.models.assets import Asset, AssetType  # noqa: E402
+from bvp.data.models.markets import Market, MarketType  # noqa: E402
+from bvp.utils.forecasting_utils import make_rolling_forecast  # noqa: E402
 
 
 path_to_input_data = "raw_data/time-series"  # assuming we are in the main directory

@@ -2,7 +2,7 @@ import json
 
 from flask import url_for
 
-from bvp.api.tests.utils import get_auth_token
+from bvp.api.v1.tests.utils import get_auth_token
 
 
 def test_api_login_service_responds(client):
@@ -21,9 +21,13 @@ def test_api_login_service_responds(client):
     )
     assert get_meter_data_response.status_code == 403
 
-    logout_response = client.get(url_for('security.logout'),
-                                 headers={"Authentication-Token": auth_token,
-                                          "content-type": "application/json"})
+    logout_response = client.get(
+        url_for("security.logout"),
+        headers={
+            "Authentication-Token": auth_token,
+            "content-type": "application/json",
+        },
+    )
     assert logout_response.status_code == 302
 
     # get auth token
@@ -39,16 +43,10 @@ def test_api_login_service_responds(client):
                 "type": "PostMeterDataRequest",
                 "groups": [
                     {
-                        "connections": [
-                            "CS 1",
-                            "CS 2",
-                        ],
+                        "connections": ["CS 1", "CS 2"],
                         "values": test_values_for_asset_1_and_2,
                     },
-                    {
-                        "connection": "CS 3",
-                        "values": test_values_for_asset_3,
-                    },
+                    {"connection": "CS 3", "values": test_values_for_asset_3},
                 ],
                 "start": "2015-01-01T00:00:00Z",
                 "duration": "PT1H30M",

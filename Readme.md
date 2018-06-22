@@ -79,8 +79,6 @@ Now, to start the web application, you can run:
 Note that in a production context, you'd not run a script but hand the `app` object to a WSGI process.
 
 
-## Developing
-
 ### Tests
 
 You can run automated tests with:
@@ -94,51 +92,12 @@ Also possible:
 One possible source of failures is that pytest needs to be build with Python>=3.6.
 
 
-### Auto-formatting
+## Developing
 
-We use [Black](https://github.com/ambv/black) to format our Python code and thus find real problems faster.
-`Black` can be installed in your editor, but we also use it as a pre-commit hook. To activate that behaviour, do:
+For developers, please consult the documentation next to the relevant code:
 
-    pip install pre-commit
-    pre-commit install
+* [General coding tips and maintenance](bvp/README.md)
+* [Continuous Integration](ci/README.md)
+* [Database management](bvp/data/Readme.md)
+* [API development](bvp/api/Readme.md)
 
-in your virtual environment.
-
-Now each git commit will first run `black --diff` over the files affected by the commit
-(`pre-commit` will install `black` into its own structure on the first run).
-If `black` proposes to edit any file, the commit is aborted (saying that it "failed"), 
-and the proposed changes are printed for you to review.
-
-With `git ls-files -m | grep ".py" | xargs black` you can apply the formatting, 
-and make them part of your next commit (`git ls-files` cannot list added files,
-so they need to be black-formatted separately).
-
-
-### Hint: Notebooks
-
-If you edit notebooks, make sure results do not end up in git:
-
-    conda install -c conda-forge nbstripout
-    nbstripout --install
-
-(on Windows, maybe you need to look closer at https://github.com/kynan/nbstripout)
-
-
-### Hint: Quickstart for development
-
-I added this to my ~/.bashrc, so I only need to type `bvp` to get started (all paths depend on your local environment, of course):
-
-    addssh(){
-        eval `ssh-agent -s`
-        ssh-add ~/.ssh/id_bitbucket
-    }
-    bvp(){
-        addssh
-        cd ~/bvp  
-        git pull  # do not use if any production-like app runs from the git code                                                                                                                                                                     
-        workon bvp-venv  # this depends on how you created your virtual environment
-    }
-
-### CI Deployment
-
-Bitbucket pipelines are used for deployment and unit testing. See [documentation](ci/README.md) in CI directory for more information.

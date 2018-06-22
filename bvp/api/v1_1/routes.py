@@ -1,5 +1,7 @@
 from flask import request
 
+from flask_security import auth_token_required, roles_required
+
 from bvp.api import v1
 from bvp.api.common.utils import check_access, get_service_response, usef_roles_accepted
 from bvp.api.v1_1 import bvp_api
@@ -32,13 +34,13 @@ service_listing = {
             "name": "postUdiEvent",
             "access": ["Prosumer", "ESCo"],
             "description": "Send a description of some flexible consumption or production process as a USEF Device "
-                           "Interface (UDI) event, including device capabilities (control constraints)",
+            "Interface (UDI) event, including device capabilities (control constraints)",
         },
         {
             "name": "getDeviceMessage",
             "access": ["Prosumer", "ESCo"],
             "description": "Get an Active Demand & Supply (ADS) request for a certain type of control action, "
-                           "including control set points",
+            "including control set points",
         },
     ],
 }
@@ -54,6 +56,19 @@ def get_meter_data():
 @usef_roles_accepted(*check_access(service_listing, "postMeterData"))
 def post_meter_data():
     return v1.routes.post_meter_data()
+
+
+@bvp_api.route("/getLatestTaskRun", methods=["GET"])
+@auth_token_required
+def get_task_run():
+    return v1.routes.get_task_run()
+
+
+@bvp_api.route("/postLatestTaskRun", methods=["POST"])
+@auth_token_required
+@roles_required("task-runner")
+def post_task_run():
+    return v1.routes.post_task_run()
 
 
 @bvp_api.route("/getService", methods=["GET"])

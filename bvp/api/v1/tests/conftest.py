@@ -44,7 +44,7 @@ def setup_api_test_data(db):
     )
     user_datastore.add_role_to_user(test_task_runner, test_task_runner_role)
 
-    test_user = user_datastore.create_user(
+    user_datastore.create_user(
         username="test user without roles",
         email="test_user@seita.nl",
         password=hash_password("testtest"),

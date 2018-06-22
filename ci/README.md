@@ -25,14 +25,18 @@ git push -u pythonanywhere $BITBUCKET_BRANCH
 
 On the PythonAnywhere server, ssh and install the Git Post Receive Hook
 in the repo where you wish to deploy the final code. This will be triggered when a
-push is received by the Bitbucket repo. The script below will force checkout the master
-branch and finally will touch the wsgi.py file. This is documented by PythonAnywhere as
+push is received by the Bitbucket repo.
+The script below will force checkout the master branch,
+update dependencies, upgrade the database structure, update the documentation \
+and finally touch the wsgi.py file. This last step is documented by PythonAnywhere as
 a way to soft restart the running application.
 
 ```
 #!/bin/bash
 GIT_WORK_TREE=/path/to/your/bvp/work/tree git checkout -f 
+cd /path/to/your/bvp/work/tree
 python setup.py develop
 flask db upgrade
+cd documentation; make html
 touch /var/www/staging_a1-bvp_com_wsgi.py
 ```
