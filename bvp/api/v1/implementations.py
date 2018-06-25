@@ -17,6 +17,11 @@ class TaskSchema(ma.ModelSchema):
 
 
 @as_json
+def ping():
+    return dict(message="ok"), 200
+
+
+@as_json
 def get_task_run():
     """
     Get latest task runs

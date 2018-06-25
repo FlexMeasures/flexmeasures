@@ -30,6 +30,11 @@ service_listing = {
 }
 
 
+@bvp_api_v1.route("/ping", methods=["GET"])
+def get_ping():
+    return v1_impl.ping()
+
+
 @bvp_api_v1.route("/getMeterData", methods=["GET"])
 @usef_roles_accepted(*check_access(service_listing, "getMeterData"))
 def get_meter_data():
