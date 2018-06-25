@@ -3,11 +3,17 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField
 from wtforms.validators import DataRequired
 from flask_security import login_required, current_user
+from werkzeug.exceptions import NotFound
 
 from bvp.data.services import get_assets
-from bvp.ui.utils.view_utils import render_bvp_template, get_addressing_scheme, get_naming_authority
+from bvp.ui.utils.view_utils import (
+    render_bvp_template,
+    get_addressing_scheme,
+    get_naming_authority,
+)
 from bvp.data.models.assets import Asset
 from bvp.data.config import db
+from bvp.data.auth_setup import unauth_handler
 
 
 class AssetForm(FlaskForm):
@@ -37,7 +43,7 @@ class AssetCrud(FlaskView):
         asset: Asset = Asset.query.filter_by(id=int(id)).one_or_none()
         if asset is not None:
             if asset.owner != current_user and not current_user.has_role("admin"):
-                return "Unauthorized", 401
+                return unauth_handler()
             asset_form = AssetForm()
             asset_form.process(obj=asset)
             return render_bvp_template(
@@ -49,7 +55,7 @@ class AssetCrud(FlaskView):
                 get_naming_authority=get_naming_authority,
             )
         else:
-            return "Not Found", 404
+            raise NotFound
 
     @login_required
     def post(self, id: str):
@@ -57,7 +63,7 @@ class AssetCrud(FlaskView):
         asset: Asset = Asset.query.filter_by(id=int(id)).one_or_none()
         if asset is not None:
             if asset.owner != current_user and not current_user.has_role("admin"):
-                return "Unauthorized", 401
+                return unauth_handler()
             asset_form = AssetForm()
             asset_form.populate_obj(asset)
             db.session.add(asset)
@@ -71,4 +77,4 @@ class AssetCrud(FlaskView):
                 get_naming_authority=get_naming_authority,
             )
         else:
-            return "Not Found", 404
+            raise NotFound

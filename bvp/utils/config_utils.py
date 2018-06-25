@@ -30,10 +30,7 @@ bvp_logging_config = {
             "filename": "bvp-errors.log",
         },
     },
-    "loggers": {
-        "bvp": {"handlers": ["console", "file"], "level": "INFO", "propagate": True},
-        "werkzeug": {"propagate": True},
-    },
+    "root": {"level": "INFO", "handlers": ["console", "file"], "propagate": True},
 }
 
 

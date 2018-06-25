@@ -1,25 +1,17 @@
 from flask import Flask
 from flask_migrate import Migrate
-from flask_security import Security, SQLAlchemySessionUserDatastore
-from flask_login import user_logged_in
 import click
+
+from bvp.data.config import configure_db, db
+from bvp.data.auth_setup import configure_auth
 
 
 def register_at(app: Flask):
     # First configure the central db object and Alembic's migration tool
+    configure_db(app)
+    Migrate(app, db)
 
-    import bvp.data.config as db_config
-
-    db_config.configure_db(app)
-    Migrate(app, db_config.db)
-
-    # Setup Flask-Security for user authentication & authorization
-
-    from bvp.data.models.user import User, Role, remember_login
-
-    user_datastore = SQLAlchemySessionUserDatastore(db_config.db.session, User, Role)
-    app.security = Security(app, user_datastore)
-    user_logged_in.connect(remember_login)
+    configure_auth(app, db)
 
     # Register some useful custom scripts with the flask cli
     register_db_maintenance_tasks(app)

@@ -3,6 +3,7 @@
 import sys
 import traceback
 from flask import current_app, request
+from flask_security import current_user
 from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 from jinja2.exceptions import TemplateNotFound
 
@@ -20,11 +21,14 @@ def log_error(exc: Exception, error_msg: str):
         exc_info = (exc.__cause__.__class__, exc.__cause__, last_traceback)
 
     extra = dict(
-        user="a1 Test User", url=request.path, **get_err_source_info(last_traceback)
+        user=current_user, url=request.path, **get_err_source_info(last_traceback)
     )
 
-    msg = "{error_name}:{message} [occured at {src_module}({src_func}):{src_linenr}, URL was: {url}, user was: {user}]".format(
-        error_name=exc.__class__.__name__, message=error_msg, **extra
+    msg = (
+        '{error_name}:"{message}" [occured at {src_module}({src_func}):{src_linenr},'
+        "URL was: {url}, user was: {user}]".format(
+            error_name=exc.__class__.__name__, message=error_msg, **extra
+        )
     )
 
     current_app.logger.error(msg, exc_info=exc_info)
@@ -98,7 +102,7 @@ def handle_not_found(e):
     return (
         render_bvp_template(
             "error.html",
-            error_class=e.__class__.__name__,
+            error_class="",  # standard message already includes "404: NotFound"
             error_description="The page you are looking for cannot be found.",
             error_message=str(e),
         ),

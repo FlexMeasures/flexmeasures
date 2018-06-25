@@ -48,7 +48,7 @@
                                 </button>
                                 <span class="navbar-brand">
                                     <a href="/"><span class="navbar-tool-name">{{ app_name_short }}</span></a>
-                                    {{ self.title() }} {% if user_is_logged_in %} for {{ user_email }} on Jeju island {% endif %}
+                                    {{ self.title() }} {% if user_is_logged_in and not "Error" in self.title() %} for {{ user_email }} on Jeju island {% endif %}
                                 </span>
                             </div>
                             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">

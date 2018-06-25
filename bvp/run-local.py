@@ -1,5 +1,4 @@
 from bvp.app import create as create_app
-from bvp.utils.config_utils import bvp_logging_config
 from bvp.utils import config_defaults
 
 """
@@ -9,15 +8,6 @@ Best to use in a development setup. A professional web server should be handed t
 """
 
 if __name__ == "__main__":
-
-    print("Initiating FileHandler logger.")
-
-    bvp_logging_config["handlers"]["file"] = {
-        "class": "logging.FileHandler",
-        "formatter": "default",
-        "level": "WARNING",
-        "filename": "bvp-errors.log",
-    }
 
     print("Starting the Balancing Valorisation Platform ...")
 
