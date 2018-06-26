@@ -36,15 +36,10 @@ class Config(object):
     SECURITY_PASSWORD_SALT = None
     SECURITY_RECOVERABLE = True
     SECURITY_TRACKABLE = False  # this is more in line with modern privacy law
-    SECURITY_UNAUTHORIZED_VIEW = (
-        None
-    )  # TODO: make an error view that looks okay (maybe could even be informative)
 
     DARK_SKY_API_KEY = None
 
     JSONIFY_PRETTYPRINT_REGULAR = False
-
-    READ_SERIES_DATA_FROM = "database"  # database or pickles
 
     TASKER_PWD = None
 
@@ -64,12 +59,10 @@ class Config(object):
 
 class ProductionConfig(Config):
     DEBUG = False
-    READ_SERIES_DATA_FROM = "pickles"
 
 
 class StagingConfig(Config):
     DEBUG = False
-    READ_SERIES_DATA_FROM = "database"
 
 
 class DevelopmentConfig(Config):

@@ -7,7 +7,7 @@ from bvp.data.models.user import User, Role, remember_login
 
 
 UNAUTH_ERROR_CLASS = "Forbidden"
-UNAUTH_MSG = "You cannot be authorized for this content for function."
+UNAUTH_MSG = "You cannot be authorized for this content or function."
 # We only can have one with flask security, so we opt for 403: Forbidden.
 UNAUTH_STATUS_CODE = 403
 

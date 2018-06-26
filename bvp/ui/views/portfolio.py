@@ -17,8 +17,7 @@ from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
 
 
-# Portfolio view
-@bvp_ui.route("/portfolio", methods=["GET", "POST"])
+@bvp_ui.route("/portfolio", methods=["GET", "POST"])  # noqa: C901
 @roles_accepted("admin", "prosumer")
 def portfolio_view():
     """ Portfolio view.
@@ -57,7 +56,7 @@ def portfolio_view():
         power_data = get_power(
             [asset.name], start=start, end=end, resolution=resolution
         )
-        if prices_data.empty:
+        if prices_data.empty or power_data.empty:
             profit_loss_energy_per_asset[asset.name] = np.NaN
         else:
             profit_loss_energy_per_asset[asset.name] = pd.Series(
@@ -126,7 +125,8 @@ def portfolio_view():
         df[:] = df * -1
 
     def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
-        if df is None:
+        """Making really sure we have the structure to let the plots not fail"""
+        if df is None or df.empty:
             return pd.DataFrame(
                 index=pd.date_range(start=start, end=end, freq=resolution),
                 columns=["y"],
@@ -164,8 +164,10 @@ def portfolio_view():
         stacked_value_mask = only_negative_abs
         summed_value_mask = only_positive
 
-    df_sum = get_power(sum_assets, start=start, end=end, resolution=resolution)
-    if df_sum is not None:
+    df_sum = get_power(
+        sum_assets, start=start, end=end, resolution=resolution, create_if_empty=True
+    )
+    if df_sum is not None and not df_sum.empty:
         df_sum = df_sum.loc[:, ["y"]]  # only get the y data
     df_sum = data_or_zeroes(df_sum)
     summed_value_mask(df_sum)

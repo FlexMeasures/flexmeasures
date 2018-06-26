@@ -116,7 +116,6 @@ def get_prices(
     )
 
 
-# this trick lets us hold off from making the weather model just yet.
 def get_weather(
     sensor_names: List[str],
     start: datetime = None,
@@ -148,20 +147,17 @@ def get_weather(
     )
 
 
-# global, lazily loaded data source, will be replaced by DB connection probably
-DATA = {}
-
-
 def _get_time_series_data(
     data_sources: List[str],
     make_query: Callable[[str, datetime, datetime], Query],
     start: datetime = None,
     end: datetime = None,
     resolution: str = None,
-    sum_multiple=True,
-    create_if_empty=False,
+    sum_multiple: bool = True,
+    create_if_empty: bool = False,
 ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """Get time series data from one or more sources and rescale and re-package it to order.
+    
     We can (lazily) look up by pickle, or load from the database.
     In the latter case, we are relying on time series data (power measurements and prices at this point) to
     have the same relevant column names (datetime, value).
@@ -176,8 +172,8 @@ def _get_time_series_data(
     If an empty data frame would be returned, but create_if_empty is True, then
     a new DataFrame with the correct datetime index but zeroes as content is returned.
     """
-    data_as_dict: Dict[str, pd.DataFrame] = None
-    data_as_df: pd.DataFrame = None
+    data_as_dict: Dict[str, pd.DataFrame] = {}
+    data_as_df: pd.DataFrame() = pd.DataFrame()
 
     if (
         start is None
@@ -195,34 +191,18 @@ def _get_time_series_data(
 
     for data_source in data_sources:
 
-        # collect data
-        query = make_query(data_source, start, end)
-        values_orig = pd.read_sql(
-            query.statement, db.session.bind, parse_dates=["datetime"]
+        values = query_time_series_data(
+            data_source, make_query, start, end, resolution, create_if_empty
         )
-        values_orig.rename(index=str, columns={"value": "y"}, inplace=True)
-        values_orig.set_index("datetime", drop=True, inplace=True)
 
-        # re-sample data to the resolution we need to serve
-        values = values_orig.resample(resolution).mean()
-
-        if values.empty and create_if_empty:
-            time_steps = pd.date_range(
-                start.replace(hour=0, minute=0),
-                end.replace(hour=0, minute=0),
-                freq=resolution,
-            )
-            values = pd.DataFrame(index=time_steps, columns=["y"]).fillna(0.)
-
-        if (
-            sum_multiple is True
-        ):  # Here we only build one data frame, summed up if necessary.
-            if data_as_df is None:
+        # Here we only build one data frame, summed up if necessary.
+        if sum_multiple is True:
+            if data_as_df.empty:
                 data_as_df = values
             else:
                 data_as_df = data_as_df.add(values)
         else:  # Here we build a dict with data frames.
-            if data_as_dict is None:
+            if len(data_as_dict.keys()) == 0:
                 data_as_dict = {data_source: values}
             else:
                 data_as_dict[data_source] = values
@@ -231,6 +211,36 @@ def _get_time_series_data(
         return data_as_df
     else:
         return data_as_dict
+
+
+def query_time_series_data(
+    data_source: str,
+    make_query: Callable[[str, datetime, datetime], Query],
+    start: datetime = None,
+    end: datetime = None,
+    resolution: str = None,
+    create_if_empty: bool = False,
+) -> pd.DataFrame:
+    """Query the database for values."""
+    query = make_query(data_source, start, end)
+    values_orig = pd.read_sql(
+        query.statement, db.session.bind, parse_dates=["datetime"]
+    )
+    values_orig.rename(index=str, columns={"value": "y"}, inplace=True)
+    values_orig.set_index("datetime", drop=True, inplace=True)
+
+    # re-sample data to the resolution we need to serve
+    values = values_orig.resample(resolution).mean()
+
+    if values.empty and create_if_empty:
+        time_steps = pd.date_range(
+            start.replace(hour=0, minute=0),
+            end.replace(hour=0, minute=0),
+            freq=resolution,
+        )
+        values = pd.DataFrame(index=time_steps, columns=["y"]).fillna(0.)
+
+    return values
 
 
 def extract_forecasts(df: pd.DataFrame) -> pd.DataFrame:
