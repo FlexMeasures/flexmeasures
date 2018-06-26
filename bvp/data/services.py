@@ -199,7 +199,7 @@ def _get_time_series_data(
         if sum_multiple is True:
             if data_as_df.empty:
                 data_as_df = values
-            else:
+            elif not values.empty:
                 data_as_df = data_as_df.add(values)
         else:  # Here we build a dict with data frames.
             if len(data_as_dict.keys()) == 0:
