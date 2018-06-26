@@ -157,7 +157,7 @@ def _get_time_series_data(
     create_if_empty: bool = False,
 ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """Get time series data from one or more sources and rescale and re-package it to order.
-    
+
     We can (lazily) look up by pickle, or load from the database.
     In the latter case, we are relying on time series data (power measurements and prices at this point) to
     have the same relevant column names (datetime, value).
