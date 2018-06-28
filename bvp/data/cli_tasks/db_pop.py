@@ -71,7 +71,7 @@ def db_depopulate(structure: bool, data: bool, force: bool):
             affected_tables += ["Power", "Price", "Weather"]
         prompt = "This deletes all %s entries from %s.\nDo you want to continue?" % (
             " and ".join(", ".join(affected_tables).rsplit(", ", 1)),
-            app.config.get("SQLALCHEMY_DATABASE_URI"),
+            app.db.engine,
         )
         if not click.confirm(prompt):
             return
@@ -91,7 +91,7 @@ def db_reset():
     if not app.debug:
         prompt = (
             "This deletes all data and resets the structure on %s.\nDo you want to continue?"
-            % app.config.get("SQLALCHEMY_DATABASE_URI")
+            % app.db.engine
         )
         if not click.confirm(prompt):
             click.echo("I did nothing.")

@@ -18,7 +18,7 @@ def initialise_ts_pickles():
 
 
 @app.cli.command()
-def localize_pickles():
+def localize_ts_pickles():
     """Set the tz of all datetime indexes to Asia/Seoul"""
     for pickle in [p for p in os.listdir("raw_data/pickles") if p.endswith(".pickle")]:
         print(
