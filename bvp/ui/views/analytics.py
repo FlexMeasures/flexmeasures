@@ -25,7 +25,7 @@ from bvp.ui.utils import plotting_utils as plotting
 
 
 @bvp_ui.route("/analytics", methods=["GET", "POST"])
-@roles_accepted("admin", "prosumer")
+@roles_accepted("admin", "Prosumer")
 def analytics_view():
     """ Analytics view. Here, four plots (consumption/generation, weather, prices and a profit/loss calculation)
     and a table of metrics data are prepared. This view allows to select a resource name, from which a

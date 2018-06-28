@@ -18,13 +18,14 @@ from bvp.ui.utils.view_utils import render_bvp_template
 
 
 @bvp_ui.route("/portfolio", methods=["GET", "POST"])  # noqa: C901
-@roles_accepted("admin", "prosumer")
+@roles_accepted("admin", "Prosumer")
 def portfolio_view():
     """ Portfolio view.
     By default, this page shows live results (production, consumption and market data) from the user's portfolio.
     Time windows for which the platform has identified upcoming balancing opportunities are highlighted.
     The page can also be used to navigate historical results.
     """
+
     time_utils.set_time_range_for_session()
     start = session.get("start_time")
     end = session.get("end_time")
@@ -124,11 +125,13 @@ def portfolio_view():
         # df = df.unstack()
         df[:] = df * -1
 
-    def data_or_zeroes(df: pd.DataFrame, tz: str) -> pd.DataFrame:
+    def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
         """Making really sure we have the structure to let the plots not fail"""
         if df is None or df.empty:
             return pd.DataFrame(
-                index=pd.date_range(start=start, end=end, freq=resolution, tz=tz),
+                index=pd.date_range(
+                    start=start, end=end, freq=resolution, tz=time_utils.get_timezone()
+                ),
                 columns=["y"],
             ).fillna(0)
         else:
@@ -169,7 +172,7 @@ def portfolio_view():
     )
     if df_sum is not None and not df_sum.empty:
         df_sum = df_sum.loc[:, ["y"]]  # only get the y data
-    df_sum = data_or_zeroes(df_sum, tz=start.tzinfo.zone)
+    df_sum = data_or_zeroes(df_sum)
     summed_value_mask(df_sum)
     hover = plotting.create_hover_tool("MW", resolution)
     this_hour = time_utils.get_most_recent_hour().replace(year=2015)
@@ -212,7 +215,7 @@ def portfolio_view():
             .y
         )
     stacked_value_mask(df_stacked_data)
-    df_stacked_data = data_or_zeroes(df_stacked_data, tz=start.tzinfo.zone)
+    df_stacked_data = data_or_zeroes(df_stacked_data)
     df_stacked_areas = stacked(df_stacked_data)
 
     num_areas = df_stacked_areas.shape[1]

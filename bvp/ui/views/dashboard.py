@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from flask import request, session
+from flask import request, session, current_app
 from flask_security import login_required
 from flask_security.core import current_user
 from inflection import pluralize
@@ -25,7 +25,13 @@ def dashboard_view():
     """
     msg = ""
     if "clear-session" in request.values:
-        session.clear()
+        for skey in [
+            k for k in session.keys() if k not in ("_id", "user_id", "csrf_token")
+        ]:
+            current_app.logger.info(
+                "Removing %s:%s from session ... " % (skey, session[skey])
+            )
+            del session[skey]
         msg = "Your session was cleared."
 
     assets = []

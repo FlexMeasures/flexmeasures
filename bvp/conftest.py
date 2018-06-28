@@ -60,7 +60,7 @@ def setup_roles_users(db):
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     test_prosumer_role = user_datastore.create_role(
-        name="prosumer", description="A prosumer."
+        name="Prosumer", description="A prosumer."
     )
     test_prosumer = user_datastore.create_user(
         username="Test Prosumer",

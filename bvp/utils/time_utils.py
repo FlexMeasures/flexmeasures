@@ -32,21 +32,19 @@ def tz_index_naively(
     return data
 
 
-def localized_datetime(dt: datetime = None) -> datetime:
-    """Localise a datetime to the timezone of the BVP platform.
-    If no datetime is passed in, use utcnow() as basis."""
-    if dt is None:
-        dt = datetime.utcnow()
+def localized_datetime(dt: datetime) -> datetime:
+    """Localise a datetime to the timezone of the BVP platform."""
     return get_timezone().localize(naive_utc_from(dt))
 
 
 def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -> str:
-    """Localise a datetime to the timezone of the BVP platform.
-       Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
-       app.jinja_env.filters['datetime'] = localized_datetime_filter
+    """ Localise a datetime to the timezone of the BVP platform.
+        Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
+        app.jinja_env.filters['datetime'] = localized_datetime_filter
+        If no datetime is passed in, use bvp_now() as basis.
     """
     if dt is None:
-        return ""
+        dt = bvp_now()
     local_tz = get_timezone()
     local_dt = naive_utc_from(dt).astimezone(local_tz)
     return local_dt.strftime(dt_format)
@@ -92,7 +90,7 @@ def resolution_to_hour_factor(resolution: str):
 
 
 def get_timezone(of_user=False):
-    """Get a timezone to be used, preferrably that of the current user."""
+    """Get a timezone to be used, preferably that of the current user."""
     default_timezone = pytz.timezone(current_app.config.get("BVP_TIMEZONE"))
     if not of_user:
         return default_timezone
@@ -103,13 +101,18 @@ def get_timezone(of_user=False):
     return pytz.timezone(current_user.timezone)
 
 
+def bvp_now():
+    """The time of the bvp platform. UTC time, localized to the bvp timezone."""
+    return datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(get_timezone())
+
+
 def get_most_recent_quarter() -> datetime:
-    now = get_timezone().localize(datetime.now())
+    now = bvp_now()
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
 
 
 def get_most_recent_hour() -> datetime:
-    now = get_timezone().localize(datetime.now())
+    now = bvp_now()
     return now.replace(minute=now.minute - (now.minute % 60), second=0, microsecond=0)
 
 
@@ -130,12 +133,27 @@ def set_time_range_for_session():
         )
     elif "start_time" not in session:
         session["start_time"] = get_default_start_time()
+    else:
+        if (
+            session["start_time"].tzinfo is None
+        ):  # session storage seems to lose tz info
+            session["start_time"] = (
+                session["start_time"]
+                .replace(tzinfo=pytz.utc)
+                .astimezone(get_timezone())
+            )
+
     if "end_time" in request.values:
         session["end_time"] = localized_datetime(
             iso8601.parse_date(request.values.get("end_time"))
         )
     elif "end_time" not in session:
         session["end_time"] = get_default_end_time()
+    else:
+        if session["end_time"].tzinfo is None:
+            session["end_time"] = (
+                session["end_time"].replace(tzinfo=pytz.utc).astimezone(get_timezone())
+            )
 
     # TODO: For now, we have to work with the data we have, that means 2015
     session["start_time"] = session["start_time"].replace(year=2015)

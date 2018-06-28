@@ -9,7 +9,7 @@ from bvp.utils import time_utils
 
 # Control view
 @bvp_ui.route("/control", methods=["GET", "POST"])
-@roles_accepted("admin", "prosumer")
+@roles_accepted("admin", "Prosumer")
 def control_view():
     """ Control view.
     This page lists balancing opportunities for a selected time window.

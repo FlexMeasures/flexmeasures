@@ -22,7 +22,7 @@ def localize_ts_pickles():
     """Set the tz of all datetime indexes to Asia/Seoul"""
     for pickle in [p for p in os.listdir("raw_data/pickles") if p.endswith(".pickle")]:
         print(
-            "Localising index of %s ... to %s"
+            "Localising index of %s to %s ..."
             % (pickle, app.config.get("BVP_TIMEZONE"))
         )
         df = pd.read_pickle("raw_data/pickles/%s" % pickle)

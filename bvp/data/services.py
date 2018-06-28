@@ -2,7 +2,7 @@
 Generic services for accessing data.
 """
 
-from typing import List, Dict, Union, Callable
+from typing import List, Dict, Tuple, Union, Callable
 from datetime import datetime
 from inflection import pluralize
 
@@ -10,7 +10,6 @@ from flask import session
 from flask_security.core import current_user
 import pandas as pd
 from sqlalchemy.orm.query import Query
-import pytz
 
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.markets import Market, Price
@@ -176,19 +175,7 @@ def _get_time_series_data(
     data_as_dict: Dict[str, pd.DataFrame] = {}
     data_as_df: pd.DataFrame() = pd.DataFrame()
 
-    if (
-        start is None
-        or end is None
-        or resolution is None
-        and "resolution" not in session
-    ):
-        time_utils.set_time_range_for_session()
-    if start is None:
-        start = session["start_time"]
-    if end is None:
-        end = session["end_time"]
-    if resolution is None:
-        resolution = session["resolution"]
+    start, end, resolution = ensure_timing_vars_are_set(start, end, resolution)
 
     for data_source in data_sources:
 
@@ -230,9 +217,7 @@ def query_time_series_data(
     If wanted, we can create a DataFrame with zeroes if no results were found in the database.
     Returns a DataFrame with a "y" column.
     """
-    query = make_query(
-        data_source, start.astimezone(pytz.utc), end.astimezone(pytz.utc)
-    )
+    query = make_query(data_source, start, end)
     values_orig = pd.read_sql(
         query.statement, db.session.bind, parse_dates=["datetime"]
     )
@@ -249,15 +234,27 @@ def query_time_series_data(
     # make zero-based result if no values were found
     if values.empty and create_if_empty:
         time_steps = pd.date_range(
-            start.replace(hour=0, minute=0),
-            end.replace(hour=0, minute=0),
-            freq=resolution,
+            start, end, freq=resolution, tz=time_utils.get_timezone()
         )
-        if time_steps.tzinfo is None:
-            time_steps = time_steps.tz_localize(start.tzinfo.zone)
         values = pd.DataFrame(index=time_steps, columns=["y"]).fillna(0.)
 
     return values
+
+
+def ensure_timing_vars_are_set(
+    start: datetime, end: datetime, resolution: str
+) -> Tuple[datetime, datetime, str]:
+    if (
+        start is None
+        or end is None
+        or (resolution is None and "resolution" not in session)
+    ):
+        time_utils.set_time_range_for_session()
+        start = session["start_time"]
+        end = session["end_time"]
+        resolution = session["resolution"]
+
+    return start, end, resolution
 
 
 def extract_forecasts(df: pd.DataFrame) -> pd.DataFrame:
