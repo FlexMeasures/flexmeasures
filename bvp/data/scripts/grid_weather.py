@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-# #!/usr/bin/python3.6
-# This above formulation makes it work as a task on PA as-is, see https://www.pythonanywhere.com/forums/topic/1327/
-# but not in a venv. Just python3 is not enough, sadly, because we love type hinting.
-
 import os
 from typing import Tuple, List
 import json
@@ -252,7 +248,16 @@ def get_region_from_assets() -> Tuple[Tuple[float, float], Tuple[float, float]]:
 
 
 @task_with_status_report
-def get_weather_forecasts(app: Flask, num_cells, method, top, left, bottom, right):
+def get_weather_forecasts(
+    app: Flask,
+    region: str,
+    num_cells: int,
+    method: str,
+    top: float,
+    left: float,
+    bottom: float,
+    right: float,
+):
     """
     Get current weather forecasts for a latitude/longitude grid and store them in individual json files.
     Note that 1000 free calls per day can be made to the Dark Sky API,
@@ -261,6 +266,7 @@ def get_weather_forecasts(app: Flask, num_cells, method, top, left, bottom, righ
     if app.config.get("DARK_SKY_API_KEY") is None:
         raise Exception("No DarkSky API key available.")
 
+    # make path for weather data
     data_path = app.root_path + "/../raw_data/weather-forecasts"
     if not os.path.exists(data_path):
         if os.path.exists(app.root_path + "/../raw_data"):
@@ -268,6 +274,13 @@ def get_weather_forecasts(app: Flask, num_cells, method, top, left, bottom, righ
             os.mkdir(data_path)
         else:
             raise Exception("No %s/../raw_data directory found." % app.root_path)
+    # optional: extend with subpath for region
+    if region is not None and region != "":
+        region_data_path = "%s/%s" % (data_path, region)
+        if not os.path.exists(region_data_path):
+            print("Creating %s ..." % region_data_path)
+            os.mkdir(region_data_path)
+        data_path = region_data_path
 
     top_left = top, left
     bottom_right = bottom, right
