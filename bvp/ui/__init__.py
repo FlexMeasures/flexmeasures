@@ -2,7 +2,7 @@ from flask import Flask, Blueprint
 
 from flask import send_from_directory
 
-from bvp.utils.time_utils import localized_datetime, naturalized_datetime
+from bvp.utils.time_utils import localized_datetime_str, naturalized_datetime_str
 from bvp.data import auth_setup
 
 
@@ -55,5 +55,5 @@ def register_at(app: Flask):
     app.jinja_env.add_extension(
         "jinja2.ext.do"
     )  # Allow expression statements (e.g. for modifying lists)
-    app.jinja_env.filters["localized_datetime"] = localized_datetime
-    app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime
+    app.jinja_env.filters["localized_datetime"] = localized_datetime_str
+    app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime_str

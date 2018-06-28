@@ -124,11 +124,11 @@ def portfolio_view():
         # df = df.unstack()
         df[:] = df * -1
 
-    def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
+    def data_or_zeroes(df: pd.DataFrame, tz: str) -> pd.DataFrame:
         """Making really sure we have the structure to let the plots not fail"""
         if df is None or df.empty:
             return pd.DataFrame(
-                index=pd.date_range(start=start, end=end, freq=resolution),
+                index=pd.date_range(start=start, end=end, freq=resolution, tz=tz),
                 columns=["y"],
             ).fillna(0)
         else:
@@ -169,7 +169,7 @@ def portfolio_view():
     )
     if df_sum is not None and not df_sum.empty:
         df_sum = df_sum.loc[:, ["y"]]  # only get the y data
-    df_sum = data_or_zeroes(df_sum)
+    df_sum = data_or_zeroes(df_sum, tz=start.tzinfo.zone)
     summed_value_mask(df_sum)
     hover = plotting.create_hover_tool("MW", resolution)
     this_hour = time_utils.get_most_recent_hour().replace(year=2015)
@@ -212,7 +212,7 @@ def portfolio_view():
             .y
         )
     stacked_value_mask(df_stacked_data)
-    df_stacked_data = data_or_zeroes(df_stacked_data)
+    df_stacked_data = data_or_zeroes(df_stacked_data, tz=start.tzinfo.zone)
     df_stacked_areas = stacked(df_stacked_data)
 
     num_areas = df_stacked_areas.shape[1]
@@ -220,6 +220,8 @@ def portfolio_view():
         colors = ["#99d594", "#dddd9d"]
     else:
         colors = palettes.brewer["Spectral"][num_areas]
+
+    df_stacked_data = time_utils.tz_index_naively(df_stacked_data)
     x_points = np.hstack((df_stacked_data.index[::-1], df_stacked_data.index))
 
     fig_profile.grid.minor_grid_line_color = "#eeeeee"
@@ -258,22 +260,16 @@ def portfolio_view():
                 or "charging" in current_user.email
             )
         ):
-            df_actions.loc[
-                next2am
-            ] = (
-                1.1
-            )  # mock the shift "payback" (actually occurs earlier in our mock example)
+            # mock the shift "payback" (actually occurs earlier in our mock example)
+            df_actions.loc[next2am] = 1.1
     next9am = [
         dt
         for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)]
         if dt.hour == 9
     ][0]
     if next9am in df_actions.index:
-        df_actions.loc[
-            next9am
-        ] = (
-            3.5
-        )  # mock some other ordered actions that are not in an opportunity hour anymore
+        # mock some other ordered actions that are not in an opportunity hour anymore
+        df_actions.loc[next9am] = 3.5
 
     fig_actions = plotting.create_graph(
         df_actions.y,

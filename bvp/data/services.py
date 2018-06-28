@@ -10,6 +10,7 @@ from flask import session
 from flask_security.core import current_user
 import pandas as pd
 from sqlalchemy.orm.query import Query
+import pytz
 
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.markets import Market, Price
@@ -221,23 +222,39 @@ def query_time_series_data(
     resolution: str = None,
     create_if_empty: bool = False,
 ) -> pd.DataFrame:
-    """Query the database for values."""
-    query = make_query(data_source, start, end)
+    """
+    Run a query for time series data on the database.
+    Here, we need to know that postgres only stores naive datetimes and we keep them as UTC.
+    Therefore, we localize the result.
+    Then, we resample the result, to fit the given resolution.
+    If wanted, we can create a DataFrame with zeroes if no results were found in the database.
+    Returns a DataFrame with a "y" column.
+    """
+    query = make_query(
+        data_source, start.astimezone(pytz.utc), end.astimezone(pytz.utc)
+    )
     values_orig = pd.read_sql(
         query.statement, db.session.bind, parse_dates=["datetime"]
     )
     values_orig.rename(index=str, columns={"value": "y"}, inplace=True)
     values_orig.set_index("datetime", drop=True, inplace=True)
+    if values_orig.index.tzinfo is None:
+        values_orig.index = values_orig.index.tz_localize(time_utils.get_timezone())
+    else:
+        values_orig.index = values_orig.index.tz_convert(time_utils.get_timezone())
 
     # re-sample data to the resolution we need to serve
     values = values_orig.resample(resolution).mean()
 
+    # make zero-based result if no values were found
     if values.empty and create_if_empty:
         time_steps = pd.date_range(
             start.replace(hour=0, minute=0),
             end.replace(hour=0, minute=0),
             freq=resolution,
         )
+        if time_steps.tzinfo is None:
+            time_steps = time_steps.tz_localize(start.tzinfo.zone)
         values = pd.DataFrame(index=time_steps, columns=["y"]).fillna(0.)
 
     return values

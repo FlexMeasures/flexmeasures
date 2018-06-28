@@ -15,6 +15,8 @@ from bokeh import events
 import pandas as pd
 import numpy as np
 
+from bvp.utils.time_utils import tz_index_naively
+
 
 def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:
     """Describe behaviour of default tooltips
@@ -33,6 +35,8 @@ def make_range(
     series: pd.Series, other_series: pd.Series = None
 ) -> Union[None, Range1d]:
     """Make a 1D range of values from a series or two. Useful to share axis among Bokeh Figures."""
+    series = tz_index_naively(series)
+    other_series = tz_index_naively(other_series)
     a_range = None
     # if there is some actual data, use that to set the range
     if not series.empty:
@@ -72,9 +76,9 @@ def create_graph(
     :param show_y_floats: if True, y axis will show floating numbers (defaults False, will be True if y values are < 2)
     :return: a Bokeh Figure
     """
-
     if x_range is None:
         x_range = make_range(series.index)
+    series = tz_index_naively(series)
 
     # set tools
     tools = ["box_zoom", "reset", "save"]
@@ -99,18 +103,20 @@ def create_graph(
         outline_line_color="#666666",
     )
 
-    # Make a data source which encodes with each x (start time) also the boundary to which it runs (end time).
-    # Useful for the hover tool. TODO: only works with datetime indexes
+    # Make a bokeh data source, which is for instance useful for the hover tool.
     x = series.index.values
+    y = series.values
+    next_x = []
+    # If we have a DatetimeIndex, we encode with each x (start time) also the boundary to which it runs (end time).
     if (
-        x.size and series.index.freq is not None
-    ):  # i.e. if there is data and with a clearly defined frequency
+        x.size
+        and isinstance(series.index, pd.DatetimeIndex)
+        and series.index.freq is not None
+    ):
+        # i.e. if there is data and with a clearly defined frequency
         next_x = pd.DatetimeIndex(
             start=x[1], freq=series.index.freq, periods=len(series)
         ).values
-    else:
-        next_x = []
-    y = series.values
     data_source = ColumnDataSource(dict(x=x, next_x=next_x, y=y))
 
     fig.circle(

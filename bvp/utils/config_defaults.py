@@ -41,7 +41,7 @@ class Config(object):
 
     JSONIFY_PRETTYPRINT_REGULAR = False
 
-    TASKER_PWD = None
+    BVP_TIMEZONE = "Asia/Seoul"
 
     #  names of settings which cannot be None
     required: List[str] = [

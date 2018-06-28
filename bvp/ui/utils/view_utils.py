@@ -46,7 +46,7 @@ def render_bvp_template(html_filename: str, **variables):
         "git_hash"
     ] = get_git_description()
     app_start_time = current_app.config.get("START_TIME")
-    variables["app_running_since"] = time_utils.naturalized_datetime(app_start_time)
+    variables["app_running_since"] = time_utils.naturalized_datetime_str(app_start_time)
 
     variables["user_is_logged_in"] = current_user.is_authenticated
     variables[
@@ -120,7 +120,7 @@ def get_git_description() -> Tuple[str, int, str]:
 
 def get_naming_authority() -> str:
     domain_name = urlparse(request.url).netloc
-    reverse_domain_name = ".".join(domain_name.split('.')[::-1])
+    reverse_domain_name = ".".join(domain_name.split(".")[::-1])
     return "2018-06.%s" % reverse_domain_name
 
 

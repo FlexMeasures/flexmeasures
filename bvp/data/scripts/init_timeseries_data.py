@@ -7,17 +7,11 @@ Each pickle encodes in its name the asset name and resolution. Asset name should
 course, we might add a check or warning here.
 """
 import os
-import sys
 import collections
 
 import pytz
 import pandas as pd
 
-sys.path.insert(1, os.path.join(sys.path[0], ".."))
-import bvp.data.config as db_config  # noqa: E402
-from bvp.app import create as create_app  # noqa: E402
-
-db_config.configure_db(create_app())
 from bvp.data.models.assets import Asset, AssetType  # noqa: E402
 from bvp.data.models.markets import Market, MarketType  # noqa: E402
 from bvp.utils.forecasting_utils import make_rolling_forecast  # noqa: E402
@@ -302,8 +296,21 @@ def initialise_a1_data():
             asset_df.to_pickle("%s/df_%s_res15T.pickle" % (path_to_pickles, asset.name))
 
 
+def initialise_all():
+    initialise_weather_data()
+    initialise_buildings_data()
+    initialise_market_data()
+    initialise_charging_station_data()
+    initialise_a1_data()
+
+
 if __name__ == "__main__":
     """Initialise markets and assets"""
+
+    import bvp.data.config as db_config  # noqa: E402
+    from bvp.app import create as create_app  # noqa: E402
+
+    db_config.configure_db(create_app())
 
     if os.getcwd().endswith(
         "scripts"
@@ -311,8 +318,4 @@ if __name__ == "__main__":
         path_to_input_data = "../../raw_data/time-series"
         path_to_pickles = "../../raw_data/pickles"
 
-    initialise_weather_data()
-    initialise_buildings_data()
-    initialise_market_data()
-    initialise_charging_station_data()
-    initialise_a1_data()
+    initialise_all()

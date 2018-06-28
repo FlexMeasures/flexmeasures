@@ -1,7 +1,35 @@
 """CLI tasks tasks to collect third-party data."""
 
+import os
+
 from flask import current_app as app
 import click
+import pytz
+import pandas as pd
+
+
+@app.cli.command()
+def initialise_ts_pickles():
+    """Import and clean data from CSV/Excel sheets into pickles"""
+    from bvp.data.scripts.init_timeseries_data import initialise_all
+
+    with app.app_context():
+        initialise_all()
+
+
+@app.cli.command()
+def localize_pickles():
+    """Set the tz of all datetime indexes to Asia/Seoul"""
+    for pickle in [p for p in os.listdir("raw_data/pickles") if p.endswith(".pickle")]:
+        print(
+            "Localising index of %s ... to %s"
+            % (pickle, app.config.get("BVP_TIMEZONE"))
+        )
+        df = pd.read_pickle("raw_data/pickles/%s" % pickle)
+        df.index = df.index.tz_localize(
+            tz=pytz.timezone(app.config.get("BVP_TIMEZONE"))
+        )
+        df.to_pickle("raw_data/pickles/%s" % pickle)
 
 
 @app.cli.command()

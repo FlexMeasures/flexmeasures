@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Union
 
-from flask import request, session
+from flask import request, session, current_app
 from flask_security.core import current_user
 from humanize import naturaldate, naturaltime
 from werkzeug.exceptions import BadRequest
+import pandas as pd
 import iso8601
 import pytz
 import tzlocal
@@ -12,29 +13,46 @@ import tzlocal
 
 def naive_utc_from(dt: datetime) -> datetime:
     """Return a naive datetime, that is localised to UTC if it has a timezone."""
-    if (
-        not hasattr(dt, "tzinfo") or dt.tzinfo is None
-    ):  # let's hope this is the UTC time you expect
+    if not hasattr(dt, "tzinfo") or dt.tzinfo is None:
+        # let's hope this is the UTC time you expect
         return dt
     else:
         return dt.astimezone(pytz.utc).replace(tzinfo=None)
 
 
-def localized_datetime(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -> str:
-    """Localise a datetime to the timezone of the user (or UTC if no user is logged in).
+def tz_index_naively(
+    data: Union[pd.DataFrame, pd.Series, pd.DatetimeIndex]
+) -> Union[pd.DataFrame, pd.Series, pd.DatetimeIndex]:
+    """Turn any DatetimeIndex into a tz-naive one, then return. Useful for bokeh, for instance."""
+    if isinstance(data, pd.DatetimeIndex):
+        return data.tz_localize(tz=None)
+    if hasattr(data, "index") and isinstance(data.index, pd.DatetimeIndex):
+        # TODO: if index is already naive, don't
+        data.index = data.index.tz_localize(tz=None)
+    return data
+
+
+def localized_datetime(dt: datetime = None) -> datetime:
+    """Localise a datetime to the timezone of the BVP platform.
+    If no datetime is passed in, use utcnow() as basis."""
+    if dt is None:
+        dt = datetime.utcnow()
+    return get_timezone().localize(naive_utc_from(dt))
+
+
+def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -> str:
+    """Localise a datetime to the timezone of the BVP platform.
        Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
        app.jinja_env.filters['datetime'] = localized_datetime_filter
     """
     if dt is None:
         return ""
-    local_tz = pytz.utc
-    if current_user and current_user.is_authenticated:
-        local_tz = pytz.timezone(current_user.timezone)
+    local_tz = get_timezone()
     local_dt = naive_utc_from(dt).astimezone(local_tz)
     return local_dt.strftime(dt_format)
 
 
-def naturalized_datetime(dt: datetime) -> str:
+def naturalized_datetime_str(dt: datetime) -> str:
     """ Naturalise a datetime object."""
     # humanize uses the local now internally, so let's make dt local
     local_timezone = tzlocal.get_localzone()
@@ -73,13 +91,25 @@ def resolution_to_hour_factor(resolution: str):
     return switch.get(resolution, 1)
 
 
+def get_timezone(of_user=False):
+    """Get a timezone to be used, preferrably that of the current user."""
+    default_timezone = pytz.timezone(current_app.config.get("BVP_TIMEZONE"))
+    if not of_user:
+        return default_timezone
+    if current_user.is_anonymous:
+        return default_timezone
+    if current_user.timezone not in pytz.common_timezones:
+        return default_timezone
+    return pytz.timezone(current_user.timezone)
+
+
 def get_most_recent_quarter() -> datetime:
-    now = datetime.utcnow().astimezone(pytz.utc)
+    now = get_timezone().localize(datetime.now())
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)
 
 
 def get_most_recent_hour() -> datetime:
-    now = datetime.utcnow().astimezone(pytz.utc)
+    now = get_timezone().localize(datetime.now())
     return now.replace(minute=now.minute - (now.minute % 60), second=0, microsecond=0)
 
 
@@ -95,11 +125,15 @@ def set_time_range_for_session():
     """Set period (start_date, end_date and resolution) on session if they are not yet set.
     Also set the forecast horizon, if given."""
     if "start_time" in request.values:
-        session["start_time"] = iso8601.parse_date(request.values.get("start_time"))
+        session["start_time"] = localized_datetime(
+            iso8601.parse_date(request.values.get("start_time"))
+        )
     elif "start_time" not in session:
         session["start_time"] = get_default_start_time()
     if "end_time" in request.values:
-        session["end_time"] = iso8601.parse_date(request.values.get("end_time"))
+        session["end_time"] = localized_datetime(
+            iso8601.parse_date(request.values.get("end_time"))
+        )
     elif "end_time" not in session:
         session["end_time"] = get_default_end_time()
 
