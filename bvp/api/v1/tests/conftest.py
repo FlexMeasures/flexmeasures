@@ -26,10 +26,9 @@ def setup_api_test_data(db):
     test_task_runner_role = user_datastore.create_role(
         name="task-runner", description="A node running repeated tasks."
     )
-    test_prosumer_role = user_datastore.create_role(
-        name="Prosumer",
-        description="A Prosumer with access to some solar assets and Prosumer controls.",
-    )
+    test_prosumer_role = user_datastore.find_role(
+        "Prosumer"
+    )  # created in top-level conftest
     test_mdc_role = user_datastore.create_role(
         name="MDC",
         description="A Meter Data Company allowed to post verified meter data.",
