@@ -1,10 +1,13 @@
 from flask import request
 
-from flask_security import auth_token_required, roles_required
+from flask_security import auth_token_required
 
-from bvp.api import v1
-from bvp.api.common.utils import check_access, get_service_response, usef_roles_accepted
+from bvp.api.v1 import routes
+from bvp.api.common.utils.api_utils import check_access
+from bvp.api.common.utils.validators import usef_roles_accepted
 from bvp.api.v1_1 import bvp_api
+from bvp.api.common.utils.decorators import as_response_type
+
 
 # The service listing for this API version (import from previous version or update if needed)
 service_listing = {
@@ -47,30 +50,23 @@ service_listing = {
 
 
 @bvp_api.route("/getMeterData", methods=["GET"])
+@as_response_type('GetMeterDataResponse')
+@auth_token_required
 @usef_roles_accepted(*check_access(service_listing, "getMeterData"))
 def get_meter_data():
-    return v1.routes.get_meter_data()
+    """Get meter data v1.1"""
+    return routes.get_meter_data()
 
 
 @bvp_api.route("/postMeterData", methods=["POST"])
+@as_response_type('PostMeterDataResponse')
+@auth_token_required
 @usef_roles_accepted(*check_access(service_listing, "postMeterData"))
 def post_meter_data():
-    return v1.routes.post_meter_data()
-
-
-@bvp_api.route("/getLatestTaskRun", methods=["GET"])
-@auth_token_required
-def get_task_run():
-    return v1.routes.get_task_run()
-
-
-@bvp_api.route("/postLatestTaskRun", methods=["POST"])
-@auth_token_required
-@roles_required("task-runner")
-def post_task_run():
-    return v1.routes.post_task_run()
+    return routes.post_meter_data()
 
 
 @bvp_api.route("/getService", methods=["GET"])
+@as_response_type('GetServiceResponse')
 def get_service():
-    return get_service_response(service_listing, request.args.get("access"))
+    return routes.get_service_response(service_listing, request.args.get("access"))

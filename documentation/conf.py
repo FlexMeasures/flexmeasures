@@ -44,6 +44,8 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.coverage",
     "sphinx.ext.imgmath",
+    'sphinxcontrib.autohttp.flask',
+    'sphinxcontrib.autohttp.flaskqref',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -89,8 +91,8 @@ html_theme_path = ["_themes"]
 #
 # html_theme_options = {}
 
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
+# Add any paths that contain custom _static files (such as style sheets) here,
+# relative to this directory. They are copied after the builtin _static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 

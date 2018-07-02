@@ -1,7 +1,9 @@
+:orphan:
+
 .. _services:
 
 **************************************************
-Services of the Balancing Valoristion Platform
+Services of the Balancing Valorisation Platform
 **************************************************
 
 Automation

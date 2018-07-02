@@ -15,12 +15,10 @@ from PyQt5.QtWidgets import QApplication
 
 
 path_to_doc = "documentation"
-path_return = ".."
 if os.getcwd().endswith("scripts"):
-    path_to_doc = "../documentation"
-    path_return = "../scripts"
+    path_to_doc = ".."
 
-make_docs_cmd = "cd %s; make html; cd %s" % (path_to_doc, path_return)
+make_docs_cmd = "make html"
 if os.name != "posix":
     # here we re-activate the virtual environment first
     make_docs_cmd = "activate a1-venv & " + make_docs_cmd
@@ -45,7 +43,7 @@ class ScreenShot(QWebView):
         painter = QPainter(image)
         frame.render(painter)
         painter.end()
-        print("saving", output_file)
+        print("saving to ", output_file)
         image.save(output_file)
 
     def wait_load(self, delay=0):
@@ -67,11 +65,11 @@ def make_screen_shots(views):
     height = 1500
     s = ScreenShot()
     for view in views:
-        url = "http://127.0.0.1:5000/" + view
-        print("Loading %s" % url)
+        url = "http://127.0.0.1:5000/%s" % view
+        print("Loading", url)
         s.capture(
             url,
-            path_to_doc + "/img/screenshot_" + view + ".png",
+            path_to_doc + "/img/screenshot_%s.png" % view,
             width=width,
             height=height,
         )
@@ -82,12 +80,12 @@ def initialise_docs():
     """Initialise doc files"""
 
     print("Processing documentation files ...")
-
-    call(make_docs_cmd, shell=True)
+    call(make_docs_cmd, shell=True, cwd=path_to_doc)
 
 
 if __name__ == "__main__":
     """Initialise screen shots and documentation"""
+    # Todo: log in before taking screenshots
 
-    make_screen_shots(["dashboard", "portfolio", "control", "analytics"])
+    # make_screen_shots(["dashboard", "portfolio", "control", "analytics"])
     initialise_docs()

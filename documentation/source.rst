@@ -1,4 +1,7 @@
+:orphan:
+
 .. _source:
+
 
 Detailed documentation of all internal modules
 ===============================================
@@ -12,10 +15,10 @@ app
     :members:
 
 
-models
--------
+data.models
+-----------
 
-.. automodule:: bvp.models
+.. automodule:: bvp.data.models
     :members:
 
 
@@ -31,50 +34,44 @@ utils.calculations
 .. automodule:: bvp.utils.calculations
     :members:
 
-utils.data_access
-~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: bvp.utils.data_access
-    :members:
-
 utils.time_utils
 ~~~~~~~~~~~~~~~~~
 
 .. automodule:: bvp.utils.time_utils
     :members:
 
-utils.view_utils
-~~~~~~~~~~~~~~~~~
+ui.utils.view_utils
+~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: bvp.utils.view_utils
+.. automodule:: bvp.ui.utils.view_utils
     :members:
 
  utils.forecasting_utils
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: bvp.utils.forecasting_utils
     :members:
 
-utils.plotting_utils
-~~~~~~~~~~~~~~~~~
+ui.utils.plotting_utils
+~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: bvp.utils.plotting_utils
+.. automodule:: bvp.ui.utils.plotting_utils
     :members:
 
 
 
-views
--------
+ui.views
+--------
 
-.. automodule:: bvp.views.dashboard
+.. automodule:: bvp.ui.views.dashboard
     :members:
 
-.. automodule:: bvp.views.portfolio
+.. automodule:: bvp.ui.views.portfolio
     :members:
 
-.. automodule:: bvp.views.control
+.. automodule:: bvp.ui.views.control
     :members:
 
-.. automodule:: bvp.views.analytics
+.. automodule:: bvp.ui.views.analytics
     :members:
 

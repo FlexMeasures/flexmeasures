@@ -70,8 +70,3 @@ Such effects are taken into account by the BVP and shown to the user, e.g. as a 
     :target: ../../../../control
     :align: center
 ..    :scale: 40%
-
-.. image:: ../img/screenshot_control-prosumer-mock-vehicles.png
-    :target: ../../../../control?prosumer_mock=vehicles
-    :align: center
-..    :scale: 40%

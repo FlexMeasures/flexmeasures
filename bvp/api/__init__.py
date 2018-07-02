@@ -7,13 +7,19 @@ from flask_json import as_json
 # The api blueprint. It is registered with the Flask app (see app.py)
 bvp_api = Blueprint("bvp_api", __name__)
 
-ma: Marshmallow = None
+ma: Marshmallow = Marshmallow()
 
 
 @bvp_api.route("/requestAuthToken", methods=["POST"])
 @as_json
 def request_auth_token():
-    """Calling the login of flask security here, so we can
+    """API endpoint to get an authentication token.
+
+    .. :quickref: Public; Obtain an authentication token
+    """
+
+    """
+    Calling the login of flask security here, so we can
      * be exempt from csrf protection (this is a JSON-only endpoint)
      * use a more fitting name inside the api namespace
      * return the information in a nicer structure
@@ -57,7 +63,11 @@ def request_auth_token():
 @bvp_api.route("/", methods=["GET"])
 @as_json
 def get_versions() -> dict:
-    """Public endpoint to list API versions"""
+    """Public endpoint to list API versions.
+
+    .. :quickref: Public; List available API versions
+
+    """
     response = {
         "message": "For these API versions a public endpoint is available listing its service. For example: "
         "/api/v1/getService and /api/v1.1/getService. An authentication token can be requested at: "
@@ -67,19 +77,28 @@ def get_versions() -> dict:
     return response
 
 
-def register_at(app: Flask):
+def register_at(app: Flask, api_version: str = None):
     """This can be used to register this blueprint together with other api-related things"""
     global ma
-    ma = Marshmallow(app)
+    # ma = Marshmallow(app)
+    ma.init_app(app)
 
     app.register_blueprint(
         bvp_api, url_prefix="/api"
     )  # now registering the blueprint will affect all endpoints
 
+    # Load API endpoints for internal operations
+    from bvp.api.common import register_at as ops_register_at
+
+    ops_register_at(app)
+
     # Load the following versions of the API
-    from bvp.api.v1 import register_at as v1_register_at
+    if not api_version or api_version == 'v1':
+        from bvp.api.v1 import register_at as v1_register_at
 
-    v1_register_at(app)
-    from bvp.api.v1_1 import register_at as v1_1_register_at
+        v1_register_at(app)
 
-    v1_1_register_at(app)
+    if not api_version or api_version == 'v1.1':
+        from bvp.api.v1_1 import register_at as v1_1_register_at
+
+        v1_1_register_at(app)

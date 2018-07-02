@@ -2,7 +2,6 @@
 
 This is a small guide for getting the postgres database ready to use.
 It also has steps how to deal with migrations (changes to the structure).
-Read on if you want to run the database on a Unix system (), or check out the :ref:`db_windows`.
 
 
 Getting ready to use
@@ -32,7 +31,7 @@ This may in fact not be needed:
     sudo /usr/sbin/adduser a1
 
 
-Create "a1" database and user
+Create "a1" and "a1test" databases and users
 ------------------------------
 
 From the terminal:
@@ -41,14 +40,17 @@ Open a console (use your Windows key and type ``cmd``).
 Proceed to create a database as the postgres superuser (using your postgres user password)::
 
     sudo -i -u postgres
-    createdb a1 -U postgres
+    createdb -U postgres a1
+    createdb -U postgres a1test
     createuser --pwprompt -U postgres a1
+    createuser --pwprompt -U postgres a1test
     exit
 
 Or, from within Postgres console:
 
     CREATE USER a1 WITH UNENCRYPTED PASSWORD 'whatever';
     CREATE DATABASE a1 WITH OWNER = a1;
+    CREATE DATABASE a1test WITH OWNER = a1test;
 
 Try logging in:
 

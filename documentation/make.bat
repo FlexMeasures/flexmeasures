@@ -2,6 +2,12 @@
 
 pushd %~dp0
 
+REM Touch api docs to always trigger a build (otherwise updating a docstring wouldn't be enough to trigger a build)
+
+cd api
+copy * /B+ ,,/Y
+cd ..
+
 REM Command file for Sphinx documentation
 
 if "%SPHINXBUILD%" == "" (

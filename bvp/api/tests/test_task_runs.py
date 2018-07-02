@@ -4,25 +4,26 @@ from flask import url_for
 import pytz
 import isodate
 
-from bvp.api.v1.tests.utils import get_auth_token, get_task_run, post_task_run
+from bvp.api.tests.utils import get_auth_token, get_task_run, post_task_run
+from bvp.data.auth_setup import UNAUTH_ERROR_STATUS, UNAUTH_STATUS_CODE, UNAUTH_ERROR_CLASS
 
 
 def test_api_task_run_post_unauthorized_wrong_role(client):
-    url = url_for("bvp_api_v1.post_task_run")
+    url = url_for("bvp_api_ops.post_task_run")
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     post_req_params = dict(
-        query_string={"name": "my-task"}, headers={"Authentication-Token": auth_token}
+        query_string={"name": "my-task"}, headers={"Authorization": auth_token}
     )
     task_run = client.post(url, **post_req_params)
-    assert task_run.status_code == 403
-    assert b"Forbidden" in task_run.data
+    assert task_run.status_code == UNAUTH_STATUS_CODE
+    assert bytes(UNAUTH_ERROR_CLASS, encoding='utf') in task_run.data
     # While we are on it, test if the unauth handler correctly returns json if we set the content-type
     post_req_params.update(
-        headers={"Authentication-Token": auth_token, "Content-Type": "application/json"}
+        headers={"Authorization": auth_token, "Content-Type": "application/json"}
     )
     task_run = client.post(url, **post_req_params)
-    assert task_run.status_code == 403
-    assert "Forbidden" in task_run.json["message"]
+    assert task_run.status_code == UNAUTH_STATUS_CODE
+    assert task_run.json["status"] == UNAUTH_ERROR_STATUS
 
 
 def test_api_task_run_get_no_name(client):

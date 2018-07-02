@@ -6,10 +6,11 @@ from flask_login import user_logged_in
 from bvp.data.models.user import User, Role, remember_login
 
 
-UNAUTH_ERROR_CLASS = "Forbidden"
+UNAUTH_ERROR_CLASS = "Unauthorized"
+UNAUTH_ERROR_STATUS = "UNAUTHORIZED"
 UNAUTH_MSG = "You cannot be authorized for this content or function."
-# We only can have one with flask security, so we opt for 403: Forbidden.
-UNAUTH_STATUS_CODE = 403
+# We only can have one with flask security, so we opt for 401: Unauthorized.
+UNAUTH_STATUS_CODE = 401
 
 
 def configure_auth(app: Flask, db: SQLAlchemy):
@@ -30,10 +31,9 @@ def unauth_handler():
     The ui package can also define how it wants to render HTML errors.
     """
     if request.is_json:
-        return (
-            jsonify(dict(message="%s:%s" % (UNAUTH_ERROR_CLASS, UNAUTH_MSG))),
-            UNAUTH_STATUS_CODE,
-        )
+        response = jsonify(dict(message=UNAUTH_MSG, status=UNAUTH_ERROR_STATUS))
+        response.status_code = UNAUTH_STATUS_CODE
+        return response
     elif hasattr(current_app, "unauth_handler_html"):
         return current_app.unauth_handler_html()
     else:

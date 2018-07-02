@@ -9,4 +9,4 @@ def register_at(app: Flask):
 
     import bvp.api.v1_1.routes  # noqa: F401 this is necessary to load the endpoints
 
-    app.register_blueprint(bvp_api, url_prefix="/api/v1")
+    app.register_blueprint(bvp_api, url_prefix="/api/v1_1")

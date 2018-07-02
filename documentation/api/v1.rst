@@ -1,0 +1,20 @@
+.. _v1:
+
+Version 1
+=========
+
+Summary
+-------
+
+.. qrefflask:: bvp.app:create()
+  :blueprints: bvp_api, bvp_api_v1
+  :order: path
+  :include-empty-docstring:
+
+API Details
+-----------
+
+.. autoflask:: bvp.app:create()
+  :blueprints: bvp_api, bvp_api_v1
+  :order: path
+  :include-empty-docstring:

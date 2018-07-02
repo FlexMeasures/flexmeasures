@@ -1,76 +1,128 @@
 import json
 
 from flask import url_for
+import pytest
 
-from bvp.api.v1.tests.utils import get_auth_token
+from bvp.api.common.responses import invalid_sender, invalid_unit, unrecognized_connection_group
+from bvp.api.tests.utils import get_auth_token
+from bvp.api.v1.tests.utils import (
+    message_for_get_meter_data,
+    message_for_post_meter_data,
+    message_replace_name_with_ea,
+)
+from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
 
 
-def test_api_login_service_responds(client):
+def test_unauthorized_request(client):
+    get_meter_data_response = client.get(
+        url_for("bvp_api_v1.get_meter_data"),
+        query_string=message_for_get_meter_data(no_connection=True),
+        headers={"content-type": "application/json"},
+    )
+    print(get_meter_data_response.json)
+    assert get_meter_data_response.status_code == 401
+    assert get_meter_data_response.json["type"] == 'GetMeterDataResponse'
+    assert get_meter_data_response.json["status"] == UNAUTH_ERROR_STATUS
+
+
+def test_no_connection_in_get_request(client):
+    get_meter_data_response = client.get(
+        url_for("bvp_api_v1.get_meter_data"),
+        query_string=message_for_get_meter_data(no_connection=True),
+        headers={"Authorization": get_auth_token(client, "test_prosumer@seita.nl", "testtest")},
+    )
+    print(get_meter_data_response.json)
+    assert get_meter_data_response.status_code == 400
+    assert get_meter_data_response.json["type"] == 'GetMeterDataResponse'
+    assert get_meter_data_response.json["status"] == unrecognized_connection_group()[0]["status"]
+
+
+@pytest.mark.parametrize("method", ["GET", "POST"])
+@pytest.mark.parametrize("message", [message_for_get_meter_data(no_unit=True),
+                                     message_for_get_meter_data(invalid_unit=True)])
+def test_invalid_or_no_unit(client, method, message):
+    if method == "GET":
+        get_meter_data_response = client.get(
+            url_for("bvp_api_v1.get_meter_data"),
+            query_string=message,
+            headers={"Authorization": get_auth_token(client, "test_prosumer@seita.nl", "testtest")},
+        )
+    elif method == "POST":
+        get_meter_data_response = client.post(
+            url_for("bvp_api_v1.get_meter_data"),
+            data=json.dumps(message),
+            headers={"Authorization": get_auth_token(client, "test_prosumer@seita.nl", "testtest")},
+        )
+    else:
+        get_meter_data_response = []
+    assert get_meter_data_response.status_code == 400
+    assert get_meter_data_response.json["type"] == 'GetMeterDataResponse'
+    assert get_meter_data_response.json["status"] == invalid_unit()[0]["status"]
+
+
+def test_invalid_sender_and_logout(client):
+    """
+    Tries to get meter data as a logged-in test user without any USEF role, which should fail.
+    Then tries to log out, which should succeed as a url direction.
+    """
 
     # get meter data
     auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
     get_meter_data_response = client.get(
         url_for("bvp_api_v1.get_meter_data"),
-        query_string={
-            "start": "2015-01-01T00:00:00Z",
-            "duration": "PT1H30M",
-            "connection": "CS 1",
-            "unit": "MW",
-        },
-        headers={"Authentication-Token": auth_token},
+        query_string=message_for_get_meter_data(),
+        headers={"Authorization": auth_token},
     )
+    print(get_meter_data_response.json)
     assert get_meter_data_response.status_code == 403
+    assert get_meter_data_response.json["type"] == 'GetMeterDataResponse'
+    assert get_meter_data_response.json["status"] == invalid_sender("MDC")[0]["status"]
 
+    # log out
     logout_response = client.get(
         url_for("security.logout"),
         headers={
-            "Authentication-Token": auth_token,
+            "Authorization ": auth_token,
             "content-type": "application/json",
         },
     )
     assert logout_response.status_code == 302
 
-    # get auth token
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+
+@pytest.mark.parametrize("message", [message_for_post_meter_data(),
+                                     message_for_post_meter_data(single_connection=True),
+                                     message_for_post_meter_data(single_connection_group=True)])
+def test_post_and_get_meter_data(client, message):
+    """
+    Tries to post meter data as a logged-in test user with the MDC role, which should succeed.
+    Then tries to get meter data, which should succeed, and should return the same meter data as was posted.
+    """
 
     # post meter data
-    test_values_for_asset_1_and_2 = [306.66, 306.66, 0, 0, 306.66, 306.66]
-    test_values_for_asset_3 = [306.66, 0, 0, 0, 306.66, 306.66]
+    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     post_meter_data_response = client.post(
         url_for("bvp_api_v1.post_meter_data"),
-        data=json.dumps(
-            {
-                "type": "PostMeterDataRequest",
-                "groups": [
-                    {
-                        "connections": ["CS 1", "CS 2"],
-                        "values": test_values_for_asset_1_and_2,
-                    },
-                    {"connection": "CS 3", "values": test_values_for_asset_3},
-                ],
-                "start": "2015-01-01T00:00:00Z",
-                "duration": "PT1H30M",
-                "unit": "MW",
-            }
-        ),
+        data=json.dumps(message_replace_name_with_ea(message)),
         headers={
             "content-type": "application/json",
-            "Authentication-Token": auth_token,
+            "Authorization": auth_token,
         },
     )
     print(post_meter_data_response.json)
     assert post_meter_data_response.status_code == 200
+    assert post_meter_data_response.json["type"] == 'PostMeterDataResponse'
 
     # get meter data
     get_meter_data_response = client.get(
         url_for("bvp_api_v1.get_meter_data"),
-        query_string={
-            "start": "2015-01-01T00:00:00Z",
-            "duration": "PT1H30M",
-            "connection": "CS 1",
-            "unit": "MW",
-        },
-        headers={"Authentication-Token": auth_token},
+        query_string=message_for_get_meter_data(),
+        headers={"Authorization": auth_token},
     )
+    print(get_meter_data_response.json)
     assert get_meter_data_response.status_code == 200
-    assert get_meter_data_response.json["values"] == test_values_for_asset_1_and_2
+    assert get_meter_data_response.json["type"] == 'GetMeterDataResponse'
+    if "groups" in message:
+        values = message["groups"][0]["values"]
+    else:
+        values = message["values"]
+    assert get_meter_data_response.json["values"] == values
