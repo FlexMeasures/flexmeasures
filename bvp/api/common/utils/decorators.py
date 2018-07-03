@@ -35,8 +35,10 @@ def as_response_type(response_type):
             print(data)
             print(headers)
             print(status_code)
-            if 'type' in data:
-                current_app.logger.warn("Response already contains 'type' key. I did not assign a new response type.")
+            if "type" in data:
+                current_app.logger.warn(
+                    "Response already contains 'type' key. I did not assign a new response type."
+                )
             else:
                 data["type"] = response_type
             return data, status_code, headers

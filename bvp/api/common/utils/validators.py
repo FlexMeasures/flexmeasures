@@ -18,14 +18,18 @@ from bvp.api.common.responses import (
     ptus_incomplete,
     unrecognized_connection_group,
 )
-from bvp.api.common.utils.api_utils import get_form_from_request, parse_as_list, contains_empty_items
+from bvp.api.common.utils.api_utils import (
+    get_form_from_request,
+    parse_as_list,
+    contains_empty_items,
+)
 
 
 def validate_entity_address(connection: str) -> str:
     """
     Validates whether the string 'connection' is a valid type 1 USEF entity address.
     """
-    match = re.search('.+\.\d{4}-\d{2}\..+:\d+:\d+', connection)
+    match = re.search(".+\.\d{4}-\d{2}\..+:\d+:\d+", connection)
     if match:
         return match.string
 
@@ -48,7 +52,9 @@ def connections_required(fn):
     def wrapper(*args, **kwargs):
         form = get_form_from_request(request)
         if form is None:
-            current_app.logger.warn("Unsupported request method for unpacking 'connections' from request.")
+            current_app.logger.warn(
+                "Unsupported request method for unpacking 'connections' from request."
+            )
             return invalid_method(request.method)
 
         if "connection" in form:
@@ -97,7 +103,9 @@ def values_required(fn):
     def wrapper(*args, **kwargs):
         form = get_form_from_request(request)
         if form is None:
-            current_app.logger.warn("Unsupported request method for unpacking 'values' from request.")
+            current_app.logger.warn(
+                "Unsupported request method for unpacking 'values' from request."
+            )
             return invalid_method(request.method)
 
         if "value" in form:
@@ -147,7 +155,9 @@ def type_accepted(message_type: str):
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn("Unsupported request method for unpacking 'unit' from request.")
+                current_app.logger.warn(
+                    "Unsupported request method for unpacking 'unit' from request."
+                )
                 return invalid_method(request.method)
             elif "type" not in form:
                 current_app.logger.warn("Request is missing message type.")
@@ -183,7 +193,9 @@ def units_accepted(*units):
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn("Unsupported request method for unpacking 'unit' from request.")
+                current_app.logger.warn(
+                    "Unsupported request method for unpacking 'unit' from request."
+                )
                 return invalid_method(request.method)
             elif "unit" not in form:
                 current_app.logger.warn("Request is missing unit.")
@@ -224,7 +236,9 @@ def usef_roles_accepted(*usef_roles):
                 return fn(*args, **kwargs)
             else:
                 current_app.logger.warn("User role is not accepted for this service")
-                return invalid_sender([role.name for role in current_user.roles], *usef_roles)
+                return invalid_sender(
+                    [role.name for role in current_user.roles], *usef_roles
+                )
 
         return decorated_service
 

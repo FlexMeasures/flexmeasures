@@ -25,8 +25,8 @@ from bvp.api.common.utils.validators import (
 )
 
 
-@type_accepted('GetMeterDataRequest')
-@units_accepted('MW')
+@type_accepted("GetMeterDataRequest")
+@units_accepted("MW")
 @connections_required
 @as_json
 def get_meter_data_response(unit, connection_groups) -> Union[dict, Tuple[dict, int]]:
@@ -53,7 +53,9 @@ def get_meter_data_response(unit, connection_groups) -> Union[dict, Tuple[dict, 
     # Todo: Check whether the time window lies in the past (if so advise the user to use getPrognosis)
 
     # Retrieve meter data from database
-    connections = connection_groups[0]  # only one connection group allowed for get_meter_data
+    connections = connection_groups[
+        0
+    ]  # only one connection group allowed for get_meter_data
     group = []
     for asset in get_assets():
         if asset.name in connections or str(asset.id) in connections:
@@ -73,11 +75,11 @@ def get_meter_data_response(unit, connection_groups) -> Union[dict, Tuple[dict, 
             ).all()
             # Todo: Check if all the data is there, otherwise return what is known and warn the user
             start_buffer = (
-                                   measurements[0].datetime + measurement_frequency - start
-                           ) % measurement_frequency
+                measurements[0].datetime + measurement_frequency - start
+            ) % measurement_frequency
             end_buffer = (
-                                 start + duration - measurements[-1].datetime
-                         ) % measurement_frequency
+                start + duration - measurements[-1].datetime
+            ) % measurement_frequency
             values = [measurement.value for measurement in measurements]
             # datetimes = [isodate.datetime_isoformat(measurement.datetime) for measurement in measurements]
             # print(datetimes)
@@ -142,12 +144,14 @@ def get_meter_data_response(unit, connection_groups) -> Union[dict, Tuple[dict, 
     return response
 
 
-@type_accepted('PostMeterDataRequest')
-@units_accepted('MW')
+@type_accepted("PostMeterDataRequest")
+@units_accepted("MW")
 @connections_required
 @values_required
 @as_json
-def post_meter_data_response(unit, connection_groups, value_groups) -> Union[dict, Tuple[dict, int]]:
+def post_meter_data_response(
+    unit, connection_groups, value_groups
+) -> Union[dict, Tuple[dict, int]]:
     """
     Use marshmallow to connect SQLAlchemy-modelled data to the outside world.
     Only supports POST requests.
@@ -183,9 +187,13 @@ def post_meter_data_response(unit, connection_groups, value_groups) -> Union[dic
             # Look for the Asset object
             connection = validate_entity_address(connection)
             if not connection:
-                current_app.logger.warn("Cannot parse this connection's entity address: %s" % connection)
+                current_app.logger.warn(
+                    "Cannot parse this connection's entity address: %s" % connection
+                )
                 return invalid_domain()
-            scheme_and_naming_authority, owner_id, asset_id = parse_entity_address(connection)
+            scheme_and_naming_authority, owner_id, asset_id = parse_entity_address(
+                connection
+            )
             if asset_id in user_asset_ids:
                 asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
             # elif current_app.env == 'testing' and isinstance(asset_id, str) and asset_id in user_asset_names:
@@ -198,9 +206,7 @@ def post_meter_data_response(unit, connection_groups, value_groups) -> Union[dic
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 # Todo: determine horizon based on message contents
-                p = Power(
-                    datetime=dt, value=value, horizon="-PT15M", asset_id=asset.id
-                )
+                p = Power(datetime=dt, value=value, horizon="-PT15M", asset_id=asset.id)
                 power_measurements.append(p)
 
     # Put these into the database
@@ -220,7 +226,7 @@ def post_meter_data_response(unit, connection_groups, value_groups) -> Union[dic
     return request_processed()
 
 
-@type_accepted('GetServiceRequest')
+@type_accepted("GetServiceRequest")
 @as_json
 def get_service_response(service_listing, requested_access_role) -> dict:
     """

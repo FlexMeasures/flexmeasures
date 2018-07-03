@@ -20,7 +20,9 @@ def check_access(service_listing, service_name):
     )
 
 
-def parse_entity_address(entity_address: str) -> Tuple[str, Union[int, str], Union[int, str]]:
+def parse_entity_address(
+    entity_address: str
+) -> Tuple[str, Union[int, str], Union[int, str]]:
     """
     Parse an entity address into scheme_and_naming_authority, owner_id, and asset_id.
 
@@ -51,7 +53,7 @@ def contains_empty_items(groups: List[List[str]]):
     """
     for group in groups:
         for item in group:
-            if item == '' or item is None:
+            if item == "" or item is None:
                 return True
     return False
 
@@ -70,9 +72,9 @@ def parse_as_list(connection: Union[List[str], str]) -> List[str]:
 
 
 def get_form_from_request(_request) -> Union[dict, None]:
-    if _request.method == 'GET':
+    if _request.method == "GET":
         return _request.args
-    elif _request.method == 'POST':
+    elif _request.method == "POST":
         return _request.get_json(force=True)
     else:
         return None

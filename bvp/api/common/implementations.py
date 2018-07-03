@@ -6,6 +6,7 @@ from flask_json import as_json
 
 from bvp.data.config import db
 from bvp.data.models.task_runs import LatestTaskRun
+
 # from bvp.api import ma
 
 """"

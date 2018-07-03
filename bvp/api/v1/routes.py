@@ -4,7 +4,11 @@ from flask_security import auth_token_required
 from bvp.api.common.utils.api_utils import check_access
 from bvp.api.common.utils.validators import usef_roles_accepted
 from bvp.api.v1 import bvp_api as bvp_api_v1
-from bvp.api.v1.implementations import get_meter_data_response, post_meter_data_response, get_service_response
+from bvp.api.v1.implementations import (
+    get_meter_data_response,
+    post_meter_data_response,
+    get_service_response,
+)
 from bvp.api.common.utils.decorators import as_response_type
 
 
@@ -27,7 +31,7 @@ service_listing = {
 
 
 @bvp_api_v1.route("/getMeterData", methods=["GET", "POST"])
-@as_response_type('GetMeterDataResponse')
+@as_response_type("GetMeterDataResponse")
 @auth_token_required
 @usef_roles_accepted(*check_access(service_listing, "getMeterData"))
 def get_meter_data():
@@ -88,7 +92,7 @@ def get_meter_data():
 
 
 @bvp_api_v1.route("/postMeterData", methods=["POST"])
-@as_response_type('PostMeterDataResponse')
+@as_response_type("PostMeterDataResponse")
 @auth_token_required
 @usef_roles_accepted(*check_access(service_listing, "postMeterData"))
 def post_meter_data():
@@ -168,7 +172,7 @@ def post_meter_data():
 
 
 @bvp_api_v1.route("/getService", methods=["GET"])
-@as_response_type('GetServiceResponse')
+@as_response_type("GetServiceResponse")
 def get_service():
     """API endpoint to get a service listing for this version.
 

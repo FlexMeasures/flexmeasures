@@ -78,7 +78,12 @@ class Asset(db.Model):
         return titleize(self.asset_type_name)
 
     def entity_address(self, addressing_scheme, naming_authority: str) -> str:
-        return "%s.%s:%s:%s" % (addressing_scheme, naming_authority, self.owner_id, self.id)
+        return "%s.%s:%s:%s" % (
+            addressing_scheme,
+            naming_authority,
+            self.owner_id,
+            self.id,
+        )
 
     @property
     def location(self) -> Tuple[float, float]:
