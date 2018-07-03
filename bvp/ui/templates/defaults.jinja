@@ -19,7 +19,7 @@
 {# ('upload', 'upload', 'Upload datasets', 'cloud-upload') #}
 
 {% do navigation_bar.append(('account', 'account', '', 'user')) if user_is_logged_in %}
-{% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists %}
+{% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists and user_is_logged_in %}
 
 {% set active_page = active_page|default('dashboard') -%}
 
