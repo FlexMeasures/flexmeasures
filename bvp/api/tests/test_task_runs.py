@@ -33,39 +33,42 @@ def test_api_task_run_post_unauthorized_wrong_role(client):
 def test_api_task_run_get_no_name(client):
     task_run = get_task_run(client, "")
     assert task_run.status_code == 400
-    assert task_run.json["error"] == "No task name given."
+    assert task_run.json["status"] == "ERROR"
+    assert task_run.json["reason"] == "No task name given."
 
 
 def test_api_task_run_post_no_name(client):
     task_run = post_task_run(client, "")
     assert task_run.status_code == 400
-    assert task_run.json["error"] == "No task name given."
+    assert task_run.json["status"] == "ERROR"
+    assert task_run.json["reason"] == "No task name given."
 
 
 def test_api_task_run_get_recent_entry(client):
     task_run = get_task_run(client, "task-B")
     assert task_run.status_code == 200
-    task_time = isodate.parse_datetime(task_run.json.get("datetime"))
+    assert task_run.json["frequency"] == 10
+    task_time = isodate.parse_datetime(task_run.json.get("lastrun"))
     utcnow = datetime.utcnow().replace(tzinfo=pytz.utc)
     assert task_time <= utcnow
     assert task_time >= utcnow - timedelta(minutes=1)
-    assert task_run.json.get("status") is False
+    assert task_run.json.get("status") == "ERROR"
 
 
 def test_api_task_run_get_older_entry_then_update(client):
     task_run = get_task_run(client, "task-A")
     assert task_run.status_code == 200
-    task_time = isodate.parse_datetime(task_run.json.get("datetime"))
+    task_time = isodate.parse_datetime(task_run.json.get("lastrun"))
     utcnow = datetime.utcnow().replace(tzinfo=pytz.utc)
     assert task_time <= utcnow - timedelta(days=1)
     assert task_time >= utcnow - timedelta(days=1, minutes=1)
-    assert task_run.json.get("status") is True
+    assert task_run.json.get("status") == "OK"
     # update the latest run of this task (also report that it failed)
     task_update = post_task_run(client, "task-A", False)
     assert task_update.status_code == 200
     task_run = get_task_run(client, "task-A")
-    task_time = isodate.parse_datetime(task_run.json.get("datetime"))
+    task_time = isodate.parse_datetime(task_run.json.get("lastrun"))
     utcnow = datetime.utcnow().replace(tzinfo=pytz.utc)
     assert task_time <= utcnow
     assert task_time >= utcnow - timedelta(minutes=1)
-    assert task_run.json.get("status") is False
+    assert task_run.json.get("status") == "ERROR"
