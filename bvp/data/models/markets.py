@@ -1,7 +1,10 @@
 from typing import Dict
+from datetime import datetime
+
+from sqlalchemy.orm import Query, Session
 
 from bvp.data.config import db
-from bvp.data.models import TimedValue
+from bvp.data.models.time_series import TimedValue
 
 
 class MarketType(db.Model):
@@ -64,3 +67,20 @@ class Price(TimedValue, db.Model):
 
     market_id = db.Column(db.Integer(), db.ForeignKey("market.id"), primary_key=True)
     market = db.relationship("Market", backref=db.backref("prices", lazy=True))
+
+    @classmethod
+    def make_query(
+        cls,
+        market_name: str,
+        query_start: datetime,
+        query_end: datetime,
+        session: Session = None,
+    ) -> Query:
+        if session is None:
+            session = db.session
+        return (
+            session.query(Price.datetime, Price.value)
+            .join(Market)
+            .filter(Market.name == market_name)
+            .filter((Price.datetime >= query_start) & (Price.datetime <= query_end))
+        )

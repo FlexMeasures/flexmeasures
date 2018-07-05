@@ -14,7 +14,7 @@ from bvp.api.common.responses import (
     unrecognized_connection_group,
     request_processed,
 )
-from bvp.data.services import get_assets
+from bvp.data.services.resources import get_assets
 from bvp.api.common.utils.api_utils import parse_entity_address, update_beliefs
 from bvp.api.common.utils.validators import (
     type_accepted,

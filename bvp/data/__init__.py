@@ -16,4 +16,5 @@ def register_at(app: Flask):
         # Register some useful custom scripts with the flask cli
         with app.app_context():
             import bvp.data.cli_tasks.db_pop
-            import bvp.data.cli_tasks.data_collection  # noqa: F401
+            import bvp.data.cli_tasks.data_collection
+            import bvp.data.cli_tasks.forecasting  # noqa: F401

@@ -1,6 +1,13 @@
 pipelines:
   default:
     - step:
+        name: Lint by Flake8
+        image: python:3.6
+        script:
+            - python setup.py develop
+            - pip install flake8
+            - flake8 bvp
+    - step:
         name: Build and Test
         image: python:3.6
         script:

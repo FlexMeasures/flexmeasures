@@ -8,8 +8,9 @@ from inflection import pluralize
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.utils import time_utils
-from bvp.data.services import get_power, Resource
+from bvp.data.services.resources import Resource
 from bvp.data.models.assets import AssetType
+from bvp.data.models.assets import Power
 
 
 # Dashboard and main landing page
@@ -44,7 +45,7 @@ def dashboard_view():
         )
         for asset in assets_by_pluralised_type:
             # TODO: the 2015 hack is temporary
-            measured_now = get_power(
+            measured_now = Power.collect(
                 [asset.name],
                 time_utils.get_most_recent_quarter().replace(year=2015),
                 time_utils.get_most_recent_quarter().replace(year=2015)

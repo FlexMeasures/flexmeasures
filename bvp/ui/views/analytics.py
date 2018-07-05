@@ -13,7 +13,7 @@ from inflection import titleize
 
 from bvp.ui.views import bvp_ui
 from bvp.utils import time_utils
-from bvp.data.services import get_assets, get_asset_groups, Resource
+from bvp.data.services.resources import get_assets, get_asset_groups, Resource
 from bvp.data.queries.analytics import (
     get_power_data,
     get_prices_data,

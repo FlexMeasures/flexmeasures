@@ -26,17 +26,30 @@ git push -u pythonanywhere $BITBUCKET_BRANCH
 On the PythonAnywhere server, ssh and install the Git Post Receive Hook
 in the repo where you wish to deploy the final code. This will be triggered when a
 push is received by the Bitbucket repo.
-The script below will force checkout the master branch,
-update dependencies, upgrade the database structure, update the documentation \
-and finally touch the wsgi.py file. This last step is documented by PythonAnywhere as
-a way to soft restart the running application.
 
-```
-#!/bin/bash
-GIT_WORK_TREE=/path/to/your/bvp/work/tree git checkout -f 
-cd /path/to/your/bvp/work/tree
-python setup.py develop
-flask db upgrade
+The script below can be a Post Receive Hook (save as `hooks/post-receive` in your remote origin repo and update paths).
+It will force checkout the master branch,update dependencies, upgrade the database structure,
+update the documentation and finally touch the wsgi.py file.
+This last step is documented by PythonAnywhere as a way to soft restart the running application.
+
+
+```#!/bin/bash
+PATH_TO_GIT_WORK_TREE=/path/to/where/you/want/to/checout/code/to
+PATH_TO_VENV=/path/to/your/venv
+PATH_TO_WSGI=/path/to/wsgi/script/for/the/app
+
+echo "CHECKING OUT CODE TO GIT WORK TREE ($PATH_TO_GIT_WORK_TREE) ..."
+GIT_WORK_TREE=$PATH_TO_GIT_WORK_TREE git checkout -f
+
+cd $PATH_TO_GIT_WORK_TREE 
+echo "INSTALLING DEPENDENCIES ..."
+$PATH_TO_VENV/bin/python setup.py develop
+echo "UPGRADING DATABASE STRUCTURE ..."
+$PATH_TO_VENV/bin/flask db upgrade                                                                                                                                                                             
+echo "UPDATING DOCUMENTATION ..."
+$PATH_TO_VENV/bin/pip install sphinx sphinxcontrib.httpdomain
 cd documentation; make html
-touch /var/www/staging_a1-bvp_com_wsgi.py
+
+echo "RESTARTING APPLICATION ..."
+touch $PATH_TO_WSGI
 ```

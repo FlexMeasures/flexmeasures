@@ -2,7 +2,7 @@ from flask_security.core import current_user
 from flask_security import login_required
 
 from bvp.ui.views import bvp_ui
-from bvp.data.services import get_assets
+from bvp.data.services.resources import get_assets
 from bvp.ui.utils.view_utils import render_bvp_template
 
 

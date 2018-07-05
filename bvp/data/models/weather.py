@@ -1,7 +1,10 @@
 from typing import Dict
+from datetime import datetime
+
+from sqlalchemy.orm import Query, Session
 
 from bvp.data.config import db
-from bvp.data.models import TimedValue
+from bvp.data.models.time_series import TimedValue
 
 
 class WeatherSensorType(db.Model):
@@ -51,3 +54,20 @@ class Weather(TimedValue, db.Model):
         db.Integer(), db.ForeignKey("weather_sensor.id"), primary_key=True
     )
     sensor = db.relationship("WeatherSensor", backref=db.backref("weather", lazy=True))
+
+    @classmethod
+    def make_query(
+        cls,
+        sensor_name: str,
+        query_start: datetime,
+        query_end: datetime,
+        session: Session = None,
+    ) -> Query:
+        if session is None:
+            session = db.session
+        return (
+            session.query(cls.datetime, cls.value)
+            .join(WeatherSensor)
+            .filter(WeatherSensor.name == sensor_name)
+            .filter((Weather.datetime >= query_start) & (Weather.datetime <= query_end))
+        )

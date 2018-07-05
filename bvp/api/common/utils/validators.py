@@ -7,7 +7,7 @@ from flask_json import as_json
 from flask_principal import Permission, RoleNeed
 from flask_security import current_user
 
-from bvp.api.common.responses import (
+from bvp.api.common.responses import (  # noqa: F401
     invalid_domain,
     invalid_method,
     invalid_message_type,

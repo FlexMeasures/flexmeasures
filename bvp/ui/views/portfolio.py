@@ -11,7 +11,9 @@ from bokeh.embed import components
 import bokeh.palettes as palettes
 
 from bvp.utils import time_utils
-from bvp.data.services import get_assets, get_prices, get_power, Resource
+from bvp.data.models.assets import Power
+from bvp.data.models.markets import Price
+from bvp.data.services.resources import Resource, get_assets
 import bvp.ui.utils.plotting_utils as plotting
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
@@ -49,12 +51,14 @@ def portfolio_view():
 
     represented_asset_types = {}
 
-    prices_data = get_prices(["epex_da"], start=start, end=end, resolution=resolution)
+    prices_data = Price.collect(
+        ["epex_da"], start=start, end=end, resolution=resolution
+    )
 
     load_hour_factor = time_utils.resolution_to_hour_factor(resolution)
 
     for asset in assets:
-        power_data = get_power(
+        power_data = Power.collect(
             [asset.name], start=start, end=end, resolution=resolution
         )
         if prices_data.empty or power_data.empty:
@@ -167,7 +171,7 @@ def portfolio_view():
         stacked_value_mask = only_negative_abs
         summed_value_mask = only_positive
 
-    df_sum = get_power(
+    df_sum = Power.collect(
         sum_assets, start=start, end=end, resolution=resolution, create_if_empty=True
     )
     if df_sum is not None and not df_sum.empty:

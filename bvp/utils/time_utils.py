@@ -11,6 +11,11 @@ import pytz
 import tzlocal
 
 
+def bvp_now() -> datetime:
+    """The time of the bvp platform. UTC time, localized to the bvp timezone."""
+    return datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(get_timezone())
+
+
 def naive_utc_from(dt: datetime) -> datetime:
     """Return a naive datetime, that is localised to UTC if it has a timezone."""
     if not hasattr(dt, "tzinfo") or dt.tzinfo is None:
@@ -99,11 +104,6 @@ def get_timezone(of_user=False):
     if current_user.timezone not in pytz.common_timezones:
         return default_timezone
     return pytz.timezone(current_user.timezone)
-
-
-def bvp_now():
-    """The time of the bvp platform. UTC time, localized to the bvp timezone."""
-    return datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(get_timezone())
 
 
 def get_most_recent_quarter() -> datetime:

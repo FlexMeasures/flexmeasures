@@ -1,11 +1,13 @@
 from typing import Dict, Tuple, Union
+from datetime import datetime
 
 import isodate
 import inflection
 from inflection import pluralize, titleize
+from sqlalchemy.orm import Query, Session
 
 from bvp.data.config import db
-from bvp.data.models import TimedValue
+from bvp.data.models.time_series import TimedValue
 
 
 # Give the inflection module some help for our domain
@@ -127,6 +129,23 @@ class Power(TimedValue, db.Model):
 
     asset_id = db.Column(db.Integer(), db.ForeignKey("asset.id"), primary_key=True)
     asset = db.relationship("Asset", backref=db.backref("measurements", lazy=True))
+
+    @classmethod
+    def make_query(
+        cls,
+        asset_name: str,
+        query_start: datetime,
+        query_end: datetime,
+        session: Session = None,
+    ) -> Query:
+        if session is None:
+            session = db.session
+        return (
+            session.query(Power.datetime, Power.value)
+            .join(Asset)
+            .filter(Asset.name == asset_name)
+            .filter((Power.datetime >= query_start) & (Power.datetime <= query_end))
+        )
 
     def to_dict(self):
         return {

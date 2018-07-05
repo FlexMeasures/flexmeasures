@@ -5,7 +5,10 @@ import numpy as np
 import pandas as pd
 
 from bvp.utils import time_utils, calculations
-from bvp.data.services import get_prices, get_weather, extract_forecasts, Resource
+from bvp.data.services.resources import Resource
+from bvp.data.services.time_series import extract_forecasts
+from bvp.data.models.markets import Price
+from bvp.data.models.weather import Weather
 
 
 def get_power_data(
@@ -47,7 +50,7 @@ def get_prices_data(
     metrics: dict
 ) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Get price data and metrics"""
-    prices_data = get_prices(["epex_da"])
+    prices_data = Price.collect(["epex_da"])
     metrics["realised_unit_price"] = prices_data.y.mean()
     prices_forecast_data = extract_forecasts(prices_data)
     if not prices_forecast_data.empty:
@@ -79,7 +82,7 @@ def get_weather_data(
         weather_type = "total_radiation"
     else:
         weather_type = "temperature"
-    weather_data = get_weather(
+    weather_data = Weather.collect(
         [weather_type],
         session["start_time"],
         session["end_time"],
