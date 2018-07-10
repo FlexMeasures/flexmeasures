@@ -1,7 +1,10 @@
+import datetime
 import re
-
 from functools import wraps
+from typing import List, Union
 
+import isodate
+from isodate.isoerror import ISO8601Error
 from flask import request, current_app
 from flask_json import as_json
 from flask_principal import Permission, RoleNeed
@@ -9,8 +12,11 @@ from flask_security import current_user
 
 from bvp.api.common.responses import (  # noqa: F401
     invalid_domain,
+    invalid_horizon,
     invalid_method,
     invalid_message_type,
+    invalid_period,
+    invalid_resolution,
     invalid_sender,
     invalid_timezone,
     invalid_unit,
@@ -23,6 +29,62 @@ from bvp.api.common.utils.api_utils import (
     parse_as_list,
     contains_empty_items,
 )
+from bvp.utils.time_utils import bvp_now
+
+
+def validate_horizon(
+    horizon: str
+) -> Union[datetime.timedelta, List[datetime.timedelta], None]:
+    """
+    Validates whether the string 'horizon' is a valid ISO 8601 (repeating) time interval.
+
+    Examples:
+
+        horizon = "PT6H"
+        horizon = "R/PT6H"
+        horizon = "-PT10M"
+
+    """
+    if horizon[0] == "-":
+        neg = True
+        horizon = horizon[1:]
+    else:
+        neg = False
+    if re.search("^R\d*/", horizon):
+        _, horizon, *_ = re.split("/", horizon)
+        rep = True
+    else:
+        rep = False
+    try:
+        horizon = isodate.parse_duration(horizon)
+    except ISO8601Error:
+        return None
+    if neg:
+        horizon = -horizon
+    if rep:
+        return [horizon]
+    else:
+        return horizon
+
+
+def validate_duration(duration: str) -> Union[datetime.timedelta, None]:
+    """
+    Validates whether the string 'duration' is a valid ISO 8601 time interval.
+    """
+    try:
+        return isodate.parse_duration(duration)
+    except ISO8601Error:
+        return None
+
+
+def validate_start(start: str) -> Union[datetime.datetime, None]:
+    """
+    Validates whether the string 'start' is a valid ISO 8601 datetime.
+    """
+    try:
+        return isodate.parse_datetime(start)
+    except ISO8601Error:
+        return None
 
 
 def validate_entity_address(connection: str) -> str:
@@ -32,6 +94,102 @@ def validate_entity_address(connection: str) -> str:
     match = re.search(".+\.\d{4}-\d{2}\..+:\d+:\d+", connection)
     if match:
         return match.string
+
+
+def horizon_accepted(fn):
+    """Decorator which specifies that a GET or POST request accepts an optional horizon.
+    Example:
+
+        @app.route('/postMeterData')
+        @horizon_required
+        def post_meter_data(value_groups):
+            return 'Meter data posted'
+
+    If the message specifies a 'horizon', it should be in accordance with the ISO 8601 standard.
+    If no 'horizon' is specified, it is determined by the server based on when the API endpoint was called.
+    """
+
+    @wraps(fn)
+    @as_json
+    def wrapper(*args, **kwargs):
+        form = get_form_from_request(request)
+        if form is None:
+            current_app.logger.warn(
+                "Unsupported request method for unpacking 'horizon' from request."
+            )
+            return invalid_method(request.method)
+
+        if "horizon" in form:
+            horizon = validate_horizon(form["horizon"])
+            if not horizon:
+                current_app.logger.warn("Cannot parse 'horizon' value")
+                return invalid_horizon()
+        elif "start" in form:
+            start = validate_start(form["start"])
+            if not start:
+                current_app.logger.warn("Cannot parse 'start' value")
+                return invalid_period()
+            if start.tzinfo is None:
+                current_app.logger.warn("Cannot parse timezone of 'start' value")
+                return invalid_timezone()
+            horizon = start - bvp_now()
+        else:
+            current_app.logger.warn("Request missing both 'horizon' and 'start'.")
+            return invalid_horizon()
+
+        kwargs["horizon"] = horizon
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
+def period_required(fn):
+    """Decorator which specifies that a GET or POST request must specify a time period.
+    Example:
+
+        @app.route('/postMeterData')
+        @period_required
+        def post_meter_data(value_groups):
+            return 'Meter data posted'
+
+    The message must specify a 'start' and a 'duration' in accordance with the ISO 8601 standard.
+    """
+
+    @wraps(fn)
+    @as_json
+    def wrapper(*args, **kwargs):
+        form = get_form_from_request(request)
+        if form is None:
+            current_app.logger.warn(
+                "Unsupported request method for unpacking 'start' and 'duration' from request."
+            )
+            return invalid_method(request.method)
+
+        if "start" in form:
+            start = validate_start(form["start"])
+            if not start:
+                current_app.logger.warn("Cannot parse 'start' value")
+                return invalid_period()
+            if start.tzinfo is None:
+                current_app.logger.warn("Cannot parse timezone of 'start' value")
+                return invalid_timezone()
+        else:
+            current_app.logger.warn("Request missing 'start'.")
+            return invalid_period()
+        if "duration" in form:
+            duration = validate_duration(form["duration"])
+            if not duration:
+                current_app.logger.warn("Cannot parse 'duration' value")
+                return invalid_period()
+        else:
+            current_app.logger.warn("Request missing 'duration'.")
+            return invalid_period()
+
+        kwargs["start"] = start
+        kwargs["duration"] = duration
+        return fn(*args, **kwargs)
+
+    return wrapper
 
 
 def connections_required(fn):
@@ -205,6 +363,45 @@ def units_accepted(*units):
                 return invalid_unit()
             else:
                 kwargs["unit"] = form["unit"]
+                return fn(*args, **kwargs)
+
+        return decorated_service
+
+    return wrapper
+
+
+def resolutions_accepted(*resolutions):
+    """Decorator which specifies that a GET or POST request must specify one of the
+    specified time resolutions. Example:
+
+        @app.route('/postMeterData')
+        @resolutions_accepted('PT15M', 'PT1H')
+        def post_meter_data():
+            return 'Meter data posted'
+
+    The message must either specify 'PT15M' or 'PT1H' as the resolution.
+
+    :param resolutions: The possible resolutions.
+    """
+
+    def wrapper(fn):
+        @wraps(fn)
+        @as_json
+        def decorated_service(*args, **kwargs):
+            form = get_form_from_request(request)
+            if form is None:
+                current_app.logger.warn(
+                    "Unsupported request method for unpacking 'resolution' from request."
+                )
+                return invalid_method(request.method)
+            elif "resolution" not in form:
+                current_app.logger.warn("Request is missing resolution.")
+                return invalid_resolution()
+            elif form["resolution"] not in resolutions:
+                current_app.logger.warn("Resolution is not accepted.")
+                return invalid_resolution()
+            else:
+                kwargs["resolution"] = form["resolution"]
                 return fn(*args, **kwargs)
 
         return decorated_service

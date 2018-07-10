@@ -6,15 +6,31 @@ import pytest
 from bvp.api.common.responses import (
     invalid_sender,
     invalid_unit,
+    request_processed,
     unrecognized_connection_group,
 )
-from bvp.api.tests.utils import get_auth_token
+from bvp.api.tests.utils import get_auth_token, message_replace_name_with_ea
 from bvp.api.v1.tests.utils import (
     message_for_get_meter_data,
     message_for_post_meter_data,
-    message_replace_name_with_ea,
 )
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
+
+
+@pytest.mark.parametrize("query", [{}, {"access": "Prosumer"}])
+def test_get_service(client, query):
+    get_service_response = client.get(
+        url_for("bvp_api_v1.get_service"),
+        query_string=query,
+        headers={"content-type": "application/json"},
+    )
+    print(get_service_response.json)
+    assert get_service_response.status_code == 200
+    assert get_service_response.json["type"] == "GetServiceResponse"
+    assert get_service_response.json["status"] == request_processed()[0]["status"]
+    if "access" in query:
+        for service in get_service_response.json["services"]:
+            assert "Prosumer" in service["access"]
 
 
 def test_unauthorized_request(client):

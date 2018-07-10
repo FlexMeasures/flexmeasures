@@ -144,7 +144,9 @@ class Power(TimedValue, db.Model):
             session.query(Power.datetime, Power.value)
             .join(Asset)
             .filter(Asset.name == asset_name)
-            .filter((Power.datetime >= query_start) & (Power.datetime <= query_end))
+            .filter(
+                (Power.datetime >= query_start) & (Power.datetime <= query_end)
+            )  # Todo: inclusive? + frequency?
         )
 
     def to_dict(self):
@@ -156,4 +158,8 @@ class Power(TimedValue, db.Model):
         }
 
     def __repr__(self):
-        return "<Power %.2f on %s at %s>" % (self.value, self.asset_id, self.datetime)
+        return "<Power %.2f on Asset %s at %s>" % (
+            self.value,
+            self.asset_id,
+            self.datetime,
+        )

@@ -10,20 +10,22 @@ from bvp.data.config import db
 
 
 def collect_time_series_data(
-    data_sources: List[str],
+    generic_asset_names: List[str],
     make_query: Callable[[str, datetime, datetime], Query],
     start: datetime = None,
     end: datetime = None,
     resolution: str = None,
+    horizon: datetime = None,
     sum_multiple: bool = True,
     create_if_empty: bool = False,
+    zero_if_nan: bool = False,
 ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
-    """Get time series data from one or more sources and rescale and re-package it to order.
+    """Get time series data from one or more generic assets and rescale and re-package it to order.
 
     We can (lazily) look up by pickle, or load from the database.
     In the latter case, we are relying on time series data (power measurements and prices at this point) to
     have the same relevant column names (datetime, value).
-    We require a list of asset or market names to find the source.
+    We require a list of assets or market names to find the generic asset.
     If the time range parameters are None, they will be gotten from the session.
     Response is a 2D data frame with the usual columns (y, yhat, ...).
     If data from multiple assets is retrieved, the results are being summed.
@@ -39,10 +41,10 @@ def collect_time_series_data(
 
     start, end, resolution = ensure_timing_vars_are_set(start, end, resolution)
 
-    for data_source in data_sources:
+    for generic_asset_name in generic_asset_names:
 
         values = query_time_series_data(
-            data_source, make_query, start, end, resolution, create_if_empty
+            generic_asset_name, make_query, start, end, resolution, create_if_empty
         )
 
         # Here we only build one data frame, summed up if necessary.
@@ -53,9 +55,9 @@ def collect_time_series_data(
                 data_as_df = data_as_df.add(values)
         else:  # Here we build a dict with data frames.
             if len(data_as_dict.keys()) == 0:
-                data_as_dict = {data_source: values}
+                data_as_dict = {generic_asset_name: values}
             else:
-                data_as_dict[data_source] = values
+                data_as_dict[generic_asset_name] = values
 
     if sum_multiple is True:
         return data_as_df
@@ -64,12 +66,14 @@ def collect_time_series_data(
 
 
 def query_time_series_data(
-    data_source: str,
+    generic_asset_name: str,
     make_query: Callable[[str, datetime, datetime], Query],
     start: datetime = None,
     end: datetime = None,
     resolution: str = None,
+    horizon: datetime = None,
     create_if_empty: bool = False,
+    zero_if_nan: bool = False,
 ) -> pd.DataFrame:
     """
     Run a query for time series data on the database.
@@ -79,7 +83,7 @@ def query_time_series_data(
     If wanted, we can create a DataFrame with zeroes if no results were found in the database.
     Returns a DataFrame with a "y" column.
     """
-    query = make_query(data_source, start, end)
+    query = make_query(generic_asset_name, start, end)
     values_orig = pd.read_sql(
         query.statement, db.session.bind, parse_dates=["datetime"]
     )
@@ -98,8 +102,9 @@ def query_time_series_data(
         time_steps = pd.date_range(
             start, end, freq=resolution, tz=time_utils.get_timezone()
         )
-        values = pd.DataFrame(index=time_steps, columns=["y"]).fillna(0.)
-
+        values = pd.DataFrame(index=time_steps, columns=["y"])
+    if zero_if_nan:
+        values.fillna(0.)
     return values
 
 

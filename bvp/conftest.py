@@ -4,6 +4,7 @@ from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 
 from bvp.app import create as create_app
+from bvp.data.static_content import add_user_data_sources
 
 """
 Useful things for all tests.
@@ -108,3 +109,4 @@ def setup_assets(db, setup_roles_users):
         )
         asset.owner = test_prosumer
         db.session.add(asset)
+    add_user_data_sources(db)

@@ -32,7 +32,7 @@ This may in fact not be needed:
 
 
 Create "a1" and "a1test" databases and users
-------------------------------
+--------------------------------------------
 
 From the terminal:
 
@@ -74,7 +74,7 @@ See the first maintenance step below.
 
 
 
-Maintenace
+Maintenance
 ===================
 
 Maintenance is supported with the alembic tool. It reacts automatically
@@ -84,7 +84,7 @@ e.g. dev, staging and production can be kept in sync.
 
 Make first migration
 --------------------
-Run these commands from the repository root directory (read below comments first)::
+Run these commands from the repository root directory (read below comments first):
 
     flask db init
     flask db upgrade
@@ -95,7 +95,7 @@ The second command gives you the db structure.
 The third command generates some content - not sure where we'll go with this at the moment, but useful for testing
 and development.
 
-With every migration, you get a new migration step in `migrations/versions`. Be sure to addd that to `git`,
+With every migration, you get a new migration step in `migrations/versions`. Be sure to add that to `git`,
 as future calls to `flask db upgrade` will need those steps, and they might happen on another computer.
 
 Hint: You can edit these migrations steps, if you want.
@@ -122,3 +122,18 @@ The goal is that on any other computer, you can always execute
     flask db upgrade
     
 to have the database structure up-to-date with all migrations.
+
+Check out database status
+-------------------------
+
+Log in into the database:
+
+    psql -U a1 --password -h 127.0.0.1 -d a1
+
+with the password from bvp/development_config.py. Check which tables are there:
+
+    \dt
+
+To log out:
+
+    \q

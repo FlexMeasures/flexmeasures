@@ -23,6 +23,7 @@ def configure_db(app):
         # you will have to import them first before calling configure_db().
         from bvp.data.models import (  # noqa: F401
             assets,
+            data_sources,
             markets,
             weather,
             user,

@@ -39,9 +39,6 @@ def get_meter_data():
 
     .. :quickref: User; Download meter data from the platform
 
-    A Prosumer owns a number of energy consuming or producing assets behind a connection to the electricity grid.
-    A Prosumer can query the BVP web service for its own meter data using the *getMeterData* service.
-
     **Example request**
 
     This "GetMeterDataRequest" message requests measured consumption between 0.00am and 1.30am for charging station 1.
@@ -79,8 +76,8 @@ def get_meter_data():
             "unit": "MW"
         }
 
-    :reqheader Content-Type: application/json
     :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
     :resheader Content-Type: application/json
     :status 200: PROCESSED
     :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, or UNRECOGNIZED_CONNECTION_GROUP
@@ -99,16 +96,6 @@ def post_meter_data():
     """API endpoint to post meter data.
 
     .. :quickref: User; Upload meter data to the platform
-
-    The meter data company (MDC) represents a trusted party that shares the meter data of connections that are
-    registered within the BVP. In case the MDC cannot be queried to provide relevant meter data (e.g. because the role
-    has not taken up by a market party), the party taking up the Prosumer role will also take up the MDC role, and will
-    bear the responsibility to post their own meter data with the *postMeterData* service.
-
-    The granularity of the meter data and the time delay between the actual measurement and its posting should be
-    specified in the service contract between Prosumer and Aggregator. In this example, the Prosumer decided to share
-    the meter data in 15-minute intervals and only after 1.30am. It is desirable to send meter readings in 5-minute
-    intervals (or with an even finer granularity), and as soon as possible after measurement.
 
     **Example request**
 
@@ -153,8 +140,6 @@ def post_meter_data():
             "unit": "MW"
         }
 
-
-
     **Example response**
 
     This "PostMeterDataResponse" message indicates that the measurement has been processed without any error.
@@ -167,6 +152,14 @@ def post_meter_data():
             "message": "Meter data has been processed."
         }
 
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, or UNRECOGNIZED_CONNECTION_GROUP
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 405: INVALID_METHOD
     """
     return post_meter_data_response()
 
@@ -178,5 +171,7 @@ def get_service():
 
     .. :quickref: Public; Obtain a service listing for this version
 
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
     """
     return get_service_response(service_listing, request.args.get("access"))

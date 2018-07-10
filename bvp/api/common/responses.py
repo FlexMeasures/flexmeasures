@@ -16,6 +16,17 @@ def invalid_domain() -> Tuple[dict, int]:
     )
 
 
+def invalid_horizon() -> Tuple[dict, int]:
+    return (
+        dict(
+            result="Rejected",
+            status="INVALID_HORIZON",
+            message="The prognosis horizon in your request could not be parased",
+        ),
+        400,
+    )
+
+
 def invalid_period() -> Tuple[dict, int]:
     return (
         dict(
@@ -36,6 +47,17 @@ def invalid_ptu_duration() -> Tuple[dict, int]:
             message="Start time should be on the hour or a multiple of 15 minutes thereafter, "
             "duration should be some multiple N of 15 minutes, and "
             "the number of values should be some factor of N.",
+        ),
+        400,
+    )
+
+
+def invalid_resolution() -> Tuple[dict, int]:
+    return (
+        dict(
+            result="Rejected",
+            status="INVALID_RESOLUTION",
+            message="Only a 15 minute resolution is currently supported.",
         ),
         400,
     )

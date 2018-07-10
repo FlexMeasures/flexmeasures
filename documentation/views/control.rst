@@ -67,6 +67,6 @@ Such effects are taken into account by the BVP and shown to the user, e.g. as a 
 
 
 .. image:: ../img/screenshot_control.png
-    :target: ../../../../control
+    :target: ../../../../../../control
     :align: center
 ..    :scale: 40%

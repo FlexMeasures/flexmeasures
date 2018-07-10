@@ -10,7 +10,6 @@ from bvp.data.models.assets import Asset, Power
 from bvp.api.common.responses import (
     invalid_domain,
     invalid_role,
-    invalid_timezone,
     unrecognized_connection_group,
     request_processed,
 )
@@ -20,6 +19,7 @@ from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
     connections_required,
+    period_required,
     values_required,
     validate_entity_address,
 )
@@ -28,8 +28,11 @@ from bvp.api.common.utils.validators import (
 @type_accepted("GetMeterDataRequest")
 @units_accepted("MW")
 @connections_required
+@period_required
 @as_json
-def get_meter_data_response(unit, connection_groups) -> Union[dict, Tuple[dict, int]]:
+def get_meter_data_response(
+    unit, connection_groups, start, duration
+) -> Union[dict, Tuple[dict, int]]:
     """
     Use marshmallow to connect SQLAlchemy-modelled data to the outside world.
     Only supports GET requests.
@@ -43,14 +46,6 @@ def get_meter_data_response(unit, connection_groups) -> Union[dict, Tuple[dict, 
     from flask import current_app
 
     current_app.logger.info("GETTING")
-
-    # Validate time window
-    start = isodate.parse_datetime(request.args.get("start"))
-    tz = start.tzinfo
-    if tz is None:
-        return invalid_timezone()
-    duration = isodate.parse_duration(request.args.get("duration"))
-    # Todo: Check whether the time window lies in the past (if so advise the user to use getPrognosis)
 
     # Retrieve meter data from database
     connections = connection_groups[
@@ -105,7 +100,7 @@ def get_meter_data_response(unit, connection_groups) -> Union[dict, Tuple[dict, 
                     dict(
                         values=values,
                         start=isodate.datetime_isoformat(
-                            measurements[1].datetime.astimezone(tz)
+                            measurements[1].datetime.astimezone(start.tzinfo)
                         ),
                         duration=isodate.duration_isoformat(
                             len(values) * measurement_frequency
@@ -117,7 +112,7 @@ def get_meter_data_response(unit, connection_groups) -> Union[dict, Tuple[dict, 
                         dict(
                             value=temp_value,
                             start=isodate.datetime_isoformat(
-                                measurements[-1].datetime.astimezone(tz)
+                                measurements[-1].datetime.astimezone(start.tzinfo)
                             ),
                             duration=isodate.duration_isoformat(end_buffer),
                         )
@@ -148,9 +143,10 @@ def get_meter_data_response(unit, connection_groups) -> Union[dict, Tuple[dict, 
 @units_accepted("MW")
 @connections_required
 @values_required
+@period_required
 @as_json
 def post_meter_data_response(
-    unit, connection_groups, value_groups
+    unit, connection_groups, value_groups, start, duration
 ) -> Union[dict, Tuple[dict, int]]:
     """
     Use marshmallow to connect SQLAlchemy-modelled data to the outside world.
@@ -160,14 +156,6 @@ def post_meter_data_response(
     from flask import current_app
 
     current_app.logger.info("POSTING")
-
-    form = request.get_json(force=True)
-
-    # Validate time window
-    start = isodate.parse_datetime(form["start"])
-    duration = isodate.parse_duration(form["duration"])
-    # Todo: Check whether the time interval lies in the past
-    # - Else advise the user to use postPrognosis or inform that the user is simulating the future
 
     # Abstract the assets from the message (listed in one of the following ways)
     # - value of 'connection' key (for a single asset)
@@ -206,7 +194,13 @@ def post_meter_data_response(
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 # Todo: determine horizon based on message contents
-                p = Power(datetime=dt, value=value, horizon="-PT15M", asset_id=asset.id)
+                p = Power(
+                    datetime=dt,
+                    value=value,
+                    horizon="-PT15M",
+                    asset_id=asset.id,
+                    data_source=current_user.id,
+                )
                 power_measurements.append(p)
 
     # Put these into the database
@@ -226,9 +220,10 @@ def post_meter_data_response(
     return request_processed()
 
 
-@type_accepted("GetServiceRequest")
 @as_json
-def get_service_response(service_listing, requested_access_role) -> dict:
+def get_service_response(
+    service_listing, requested_access_role
+) -> Union[dict, Tuple[dict, int]]:
     """
     Lists the available services for the public endpoint version,
     either all of them or only those that apply to the requested access role.
@@ -245,4 +240,5 @@ def get_service_response(service_listing, requested_access_role) -> dict:
             response["message"] = invalid_role(requested_access_role)
     else:
         response["services"] = service_listing["services"]
-    return response
+    d, s = request_processed()
+    return dict(**response, **d), s

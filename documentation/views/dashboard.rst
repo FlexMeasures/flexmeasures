@@ -31,6 +31,6 @@ The summary below the map lists all asset types that the user has hooked up to t
 
 
 .. image:: ../img/screenshot_dashboard.png
-    :target: ../../../../dashboard
+    :target: ../../../../../../dashboard
     :align: center
 ..    :scale: 40%

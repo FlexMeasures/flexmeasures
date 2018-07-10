@@ -77,7 +77,7 @@ def get_versions() -> dict:
     return response
 
 
-def register_at(app: Flask, api_version: str = None):
+def register_at(app: Flask):
     """This can be used to register this blueprint together with other api-related things"""
     global ma
     # ma = Marshmallow(app)
@@ -93,12 +93,8 @@ def register_at(app: Flask, api_version: str = None):
     ops_register_at(app)
 
     # Load the following versions of the API
-    if not api_version or api_version == "v1":
-        from bvp.api.v1 import register_at as v1_register_at
+    from bvp.api.v1 import register_at as v1_register_at
+    from bvp.api.v1_1 import register_at as v1_1_register_at
 
-        v1_register_at(app)
-
-    if not api_version or api_version == "v1.1":
-        from bvp.api.v1_1 import register_at as v1_1_register_at
-
-        v1_1_register_at(app)
+    v1_register_at(app)
+    v1_1_register_at(app)

@@ -15,6 +15,7 @@ import pandas as pd
 
 from bvp.data.models.markets import MarketType, Market, Price
 from bvp.data.models.assets import AssetType, Asset, Power
+from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role
 
@@ -52,6 +53,32 @@ def add_markets(db: SQLAlchemy) -> List[Market]:
     epex_da = Market(name="epex_da", market_type=day_ahead)
     db.session.add(epex_da)
     return [epex_da]
+
+
+def add_user_data_sources(db: SQLAlchemy):
+    """Register all users as potential data sources."""
+    users = (
+        User.query.all()
+    )  # Todo: only add a data_source if the user is not already registered as a data source
+    for user in users:
+        db.session.add(
+            DataSource(
+                label="Data entered by user %s" % user.username,
+                type="user",
+                source_id=user.id,
+            )
+        )
+
+
+def add_data_sources(db: SQLAlchemy):
+    db.session.add(
+        DataSource(
+            label="Data initialised by bvp.data.static_content",
+            type="script",
+            source_id=None,
+        )
+    )
+    add_user_data_sources()
 
 
 def add_asset_types(db: SQLAlchemy):
@@ -126,6 +153,9 @@ def add_sensors(db: SQLAlchemy) -> List[WeatherSensor]:
 def add_prices(db: SQLAlchemy, markets: List[Market], test_data_set: bool):
     pickle_path = get_pickle_path()
     processed_markets = []
+    ds = DataSource.query.filter(
+        DataSource.label == "Data initialised by bvp.data.static_content"
+    ).one_or_none()
     for market in markets:
         pickle_file = "df_%s_res15T.pickle" % market.name
         pickle_file_path = os.path.join(pickle_path, pickle_file)
@@ -161,7 +191,13 @@ def add_prices(db: SQLAlchemy, markets: List[Market], test_data_set: bool):
             last = dt
             if first is None:
                 first = dt
-            p = Price(datetime=dt, horizon="PT0M", value=value, market_id=market.id)
+            p = Price(
+                datetime=dt,
+                horizon="-PT15M",
+                value=value,
+                market_id=market.id,
+                data_source=ds.id,
+            )
             # p.market = market  # does not work in bulk save
             prices.append(p)
         db.session.bulk_save_objects(prices)
@@ -199,6 +235,9 @@ def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
     """
     pickle_path = get_pickle_path()
     processed_assets = []
+    ds = DataSource.query.filter(
+        DataSource.label == "Data initialised by bvp.data.static_content"
+    ).one_or_none()
     for asset in assets:
         pickle_file = "df_%s_res15T.pickle" % asset.name
         pickle_file_path = os.path.join(pickle_path, pickle_file)
@@ -232,7 +271,13 @@ def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
             last = dt
             if first is None:
                 first = dt
-            p = Power(datetime=dt, horizon="PT0M", value=value, asset_id=asset.id)
+            p = Power(
+                datetime=dt,
+                horizon="-PT15M",
+                value=value,
+                asset_id=asset.id,
+                data_source=ds.id,
+            )
             # p.asset = asset  # does not work in bulk save
             power_measurements.append(p)
         db.session.bulk_save_objects(power_measurements)
@@ -251,6 +296,9 @@ def add_weather(db: SQLAlchemy, sensors: List[WeatherSensor], test_data_set: boo
     """
     pickle_path = get_pickle_path()
     processed_sensors = []
+    ds = DataSource.query.filter(
+        DataSource.label == "Data initialised by bvp.data.static_content"
+    ).one_or_none()
     for sensor in sensors:
         pickle_file = "df_%s_res15T.pickle" % sensor.name
         pickle_file_path = os.path.join(pickle_path, pickle_file)
@@ -284,7 +332,13 @@ def add_weather(db: SQLAlchemy, sensors: List[WeatherSensor], test_data_set: boo
             last = dt
             if first is None:
                 first = dt
-            w = Weather(datetime=dt, horizon="PT0M", value=value, sensor_id=sensor.id)
+            w = Weather(
+                datetime=dt,
+                horizon="-PT15M",
+                value=value,
+                sensor_id=sensor.id,
+                data_source=ds.id,
+            )
             # w.sensor = sensor  # does not work in bulk save
             weather_measurements.append(w)
 
@@ -396,6 +450,7 @@ def populate_structure(db: SQLAlchemy, test_data_set: bool):
     assets = add_assets(db, test_data_set)
     add_sensors(db)
     add_users(db, assets)
+    add_data_sources(db)
     click.echo("DB now has %d MarketTypes" % db.session.query(MarketType).count())
     click.echo("DB now has %d Markets" % db.session.query(Market).count())
     click.echo("DB now has %d AssetTypes" % db.session.query(AssetType).count())
@@ -404,6 +459,7 @@ def populate_structure(db: SQLAlchemy, test_data_set: bool):
         "DB now has %d WeatherSensorTypes" % db.session.query(WeatherSensorType).count()
     )
     click.echo("DB now has %d WeatherSensors" % db.session.query(WeatherSensor).count())
+    click.echo("DB now has %d DataSources" % db.session.query(DataSource).count())
     click.echo("DB now has %d Users" % db.session.query(User).count())
     click.echo("DB now has %d Roles" % db.session.query(Role).count())
 
@@ -443,6 +499,7 @@ def depopulate_structure(db: SQLAlchemy):
     num_asset_types_deleted = db.session.query(AssetType).delete()
     num_sensors_deleted = db.session.query(WeatherSensor).delete()
     num_sensor_types_deleted = db.session.query(WeatherSensorType).delete()
+    num_data_sources_deleted = db.session.query(DataSource).delete()
     roles = db.session.query(Role).all()
     num_roles_deleted = 0
     for role in roles:
@@ -459,6 +516,7 @@ def depopulate_structure(db: SQLAlchemy):
     click.echo("Deleted %d WeatherSensors" % num_sensors_deleted)
     click.echo("Deleted %d AssetTypes" % num_asset_types_deleted)
     click.echo("Deleted %d Assets" % num_assets_deleted)
+    click.echo("Deleted %d DataSources" % num_data_sources_deleted)
     click.echo("Deleted %d Roles" % num_roles_deleted)
     click.echo("Deleted %d Users" % num_users_deleted)
 

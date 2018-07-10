@@ -84,6 +84,6 @@ The user can follow up on identified opportunities by taking a balancing action 
 
 
 .. image:: ../img/screenshot_portfolio.png
-    :target: ../../../../portfolio
+    :target: ../../../../../../portfolio
     :align: center
 ..    :scale: 40%

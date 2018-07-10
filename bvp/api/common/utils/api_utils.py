@@ -78,3 +78,14 @@ def get_form_from_request(_request) -> Union[dict, None]:
         return _request.get_json(force=True)
     else:
         return None
+
+
+def append_doc_of(fun):
+    def decorator(f):
+        if f.__doc__:
+            f.__doc__ += fun.__doc__
+        else:
+            f.__doc__ = fun.__doc__
+        return f
+
+    return decorator
