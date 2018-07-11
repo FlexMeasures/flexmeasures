@@ -52,14 +52,14 @@ def portfolio_view():
     represented_asset_types = {}
 
     prices_data = Price.collect(
-        ["epex_da"], start=start, end=end, resolution=resolution
+        ["epex_da"], query_window=(start, end), resolution=resolution
     )
 
     load_hour_factor = time_utils.resolution_to_hour_factor(resolution)
 
     for asset in assets:
         power_data = Power.collect(
-            [asset.name], start=start, end=end, resolution=resolution
+            [asset.name], query_window=(start, end), resolution=resolution
         )
         if prices_data.empty or power_data.empty:
             profit_loss_energy_per_asset[asset.name] = np.NaN
@@ -172,7 +172,10 @@ def portfolio_view():
         summed_value_mask = only_positive
 
     df_sum = Power.collect(
-        sum_assets, start=start, end=end, resolution=resolution, create_if_empty=True
+        sum_assets,
+        query_window=(start, end),
+        resolution=resolution,
+        create_if_empty=True,
     )
     if df_sum is not None and not df_sum.empty:
         df_sum = df_sum.loc[:, ["y"]]  # only get the y data

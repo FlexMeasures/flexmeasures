@@ -1,5 +1,5 @@
 from typing import List, Dict, Tuple, Union, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import session
 import pandas as pd
@@ -11,11 +11,12 @@ from bvp.data.config import db
 
 def collect_time_series_data(
     generic_asset_names: List[str],
-    make_query: Callable[[str, datetime, datetime], Query],
-    start: datetime = None,
-    end: datetime = None,
+    make_query: Callable[
+        [str, Tuple[datetime, datetime], Tuple[timedelta, timedelta]], Query
+    ],
+    query_window: Tuple[datetime, datetime] = (None, None),
+    horizon_window: Tuple[timedelta, timedelta] = (None, None),
     resolution: str = None,
-    horizon: datetime = None,
     sum_multiple: bool = True,
     create_if_empty: bool = False,
     zero_if_nan: bool = False,
@@ -39,12 +40,18 @@ def collect_time_series_data(
     data_as_dict: Dict[str, pd.DataFrame] = {}
     data_as_df: pd.DataFrame() = pd.DataFrame()
 
-    start, end, resolution = ensure_timing_vars_are_set(start, end, resolution)
+    query_window, resolution = ensure_timing_vars_are_set(query_window, resolution)
 
     for generic_asset_name in generic_asset_names:
 
         values = query_time_series_data(
-            generic_asset_name, make_query, start, end, resolution, create_if_empty
+            generic_asset_name,
+            make_query,
+            query_window,
+            horizon_window,
+            resolution,
+            create_if_empty,
+            zero_if_nan,
         )
 
         # Here we only build one data frame, summed up if necessary.
@@ -67,11 +74,12 @@ def collect_time_series_data(
 
 def query_time_series_data(
     generic_asset_name: str,
-    make_query: Callable[[str, datetime, datetime], Query],
-    start: datetime = None,
-    end: datetime = None,
+    make_query: Callable[
+        [str, Tuple[datetime, datetime], Tuple[timedelta, timedelta]], Query
+    ],
+    query_window: Tuple[datetime, datetime] = (None, None),
+    horizon_window: Tuple[timedelta, timedelta] = (None, None),
     resolution: str = None,
-    horizon: datetime = None,
     create_if_empty: bool = False,
     zero_if_nan: bool = False,
 ) -> pd.DataFrame:
@@ -83,7 +91,7 @@ def query_time_series_data(
     If wanted, we can create a DataFrame with zeroes if no results were found in the database.
     Returns a DataFrame with a "y" column.
     """
-    query = make_query(generic_asset_name, start, end)
+    query = make_query(generic_asset_name, query_window, horizon_window)
     values_orig = pd.read_sql(
         query.statement, db.session.bind, parse_dates=["datetime"]
     )
@@ -99,6 +107,8 @@ def query_time_series_data(
 
     # make zero-based result if no values were found
     if values.empty and create_if_empty:
+        start = query_window[0]
+        end = query_window[1]
         time_steps = pd.date_range(
             start, end, freq=resolution, tz=time_utils.get_timezone()
         )
@@ -109,8 +119,10 @@ def query_time_series_data(
 
 
 def ensure_timing_vars_are_set(
-    start: datetime, end: datetime, resolution: str
-) -> Tuple[datetime, datetime, str]:
+    time_window: Tuple[datetime, datetime], resolution: str
+) -> Tuple[Tuple[datetime, datetime], str]:
+    start = time_window[0]
+    end = time_window[1]
     if (
         start is None
         or end is None
@@ -121,7 +133,7 @@ def ensure_timing_vars_are_set(
         end = session["end_time"]
         resolution = session["resolution"]
 
-    return start, end, resolution
+    return (start, end), resolution
 
 
 def extract_forecasts(df: pd.DataFrame) -> pd.DataFrame:

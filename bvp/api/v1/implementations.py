@@ -4,6 +4,7 @@ from typing import Tuple, Union
 from flask import request
 from flask_json import as_json
 from flask_security import current_user
+from isodate import parse_duration
 
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
@@ -197,7 +198,7 @@ def post_meter_data_response(
                 p = Power(
                     datetime=dt,
                     value=value,
-                    horizon="-PT15M",
+                    horizon=parse_duration("-PT15M"),
                     asset_id=asset.id,
                     data_source=current_user.id,
                 )

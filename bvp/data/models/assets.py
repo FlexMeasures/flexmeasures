@@ -1,5 +1,5 @@
 from typing import Dict, Tuple, Union
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import isodate
 import inflection
@@ -134,20 +134,37 @@ class Power(TimedValue, db.Model):
     def make_query(
         cls,
         asset_name: str,
-        query_start: datetime,
-        query_end: datetime,
+        query_window: Tuple[datetime, datetime],
+        horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]] = (
+            None,
+            None,
+        ),
         session: Session = None,
     ) -> Query:
         if session is None:
             session = db.session
-        return (
+        start, end = query_window
+        query = (
             session.query(Power.datetime, Power.value)
             .join(Asset)
             .filter(Asset.name == asset_name)
             .filter(
-                (Power.datetime >= query_start) & (Power.datetime <= query_end)
+                (Power.datetime >= start) & (Power.datetime <= end)
             )  # Todo: inclusive? + frequency?
         )
+        earliest_horizon, latest_horizon = horizon_window
+        if (
+            earliest_horizon is not None
+            and latest_horizon is not None
+            and earliest_horizon == latest_horizon
+        ):
+            query = query.filter(Power.horizon == earliest_horizon)
+        else:
+            if earliest_horizon is not None:
+                query = query.filter(Power.horizon >= earliest_horizon)
+            if latest_horizon is not None:
+                query = query.filter(Power.horizon <= latest_horizon)
+        return query
 
     def to_dict(self):
         return {

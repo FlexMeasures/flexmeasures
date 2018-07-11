@@ -1,5 +1,5 @@
-from typing import Dict
-from datetime import datetime
+from typing import Dict, Tuple, Union
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Query, Session
 
@@ -72,15 +72,32 @@ class Price(TimedValue, db.Model):
     def make_query(
         cls,
         market_name: str,
-        query_start: datetime,
-        query_end: datetime,
+        query_window: Tuple[datetime, datetime],
+        horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]] = (
+            None,
+            None,
+        ),
         session: Session = None,
     ) -> Query:
         if session is None:
             session = db.session
-        return (
+        start, end = query_window
+        query = (
             session.query(Price.datetime, Price.value)
             .join(Market)
             .filter(Market.name == market_name)
-            .filter((Price.datetime >= query_start) & (Price.datetime <= query_end))
+            .filter((Price.datetime >= start) & (Price.datetime <= end))
         )
+        earliest_horizon, latest_horizon = horizon_window
+        if (
+            earliest_horizon is not None
+            and latest_horizon is not None
+            and earliest_horizon == latest_horizon
+        ):
+            query = query.filter(Price.horizon == earliest_horizon)
+        else:
+            if earliest_horizon is not None:
+                query = query.filter(Price.horizon >= earliest_horizon)
+            if latest_horizon is not None:
+                query = query.filter(Price.horizon <= latest_horizon)
+        return query

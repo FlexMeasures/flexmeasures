@@ -45,10 +45,9 @@ def get_prognosis_response(
         group_response = {"connections": group}
         ts_df = Power.collect(
             generic_asset_names=asset_names,
-            start=start,
-            end=end,
+            query_window=(start, end),
             resolution=resolution,
-            horizon=horizon,
+            horizon_window=(horizon, horizon),
             sum_multiple=True,
         )
         print(ts_df)

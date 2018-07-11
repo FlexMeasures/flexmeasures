@@ -18,11 +18,16 @@ import click
     help="Populate (time series) data. Will do nothing without structural data present. Data links into structure.",
 )
 @click.option(
+    "--forecasts/--no-forecasts",
+    default=False,
+    help="Populate (time series) forecasts. Will do nothing without structural data present. Data links into structure.",
+)
+@click.option(
     "--small/--no-small",
     default=False,
     help="Limit data set to a small one, useful for automated tests.",
 )
-def db_populate(structure: bool, data: bool, small: bool):
+def db_populate(structure: bool, data: bool, forecasts: bool, small: bool):
     """Initialize the database with static values."""
     if structure:
         from bvp.data.static_content import populate_structure
@@ -32,9 +37,13 @@ def db_populate(structure: bool, data: bool, small: bool):
         from bvp.data.static_content import populate_time_series_data
 
         populate_time_series_data(app, small)
-    if not structure and not data:
+    if forecasts:
+        from bvp.data.static_content import populate_time_series_forecasts
+
+        populate_time_series_forecasts(app, small)
+    if not structure and not data and not forecasts:
         click.echo(
-            "I did nothing as neither --structure nor --data was given. Decide what you want!"
+            "I did nothing as neither --structure nor --data nor --forecasts was given. Decide what you want!"
         )
 
 
@@ -47,12 +56,19 @@ def db_populate(structure: bool, data: bool, small: bool):
 )
 @click.option("--data/--no-data", default=False, help="Depopulate (time series) data.")
 @click.option(
+    "--forecasts/--no-forecasts",
+    default=False,
+    help="Depopulate (time series) forecasts.",
+)
+@click.option(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
-def db_depopulate(structure: bool, data: bool, force: bool):
+def db_depopulate(structure: bool, data: bool, forecasts: bool, force: bool):
     """Remove all values."""
-    if not data and not structure:
-        click.echo("Neither --data nor --structure given ... doing nothing.")
+    if not data and not structure and not forecasts:
+        click.echo(
+            "Neither --data nor --forecasts nor --structure given ... doing nothing."
+        )
         return
     if not force and (data or structure):
         affected_tables = []
@@ -64,6 +80,7 @@ def db_depopulate(structure: bool, data: bool, force: bool):
                 "Asset",
                 "WeatherSensorType",
                 "WeatherSensor",
+                "DataSource",
                 "Role",
                 "User",
             ]
@@ -75,6 +92,10 @@ def db_depopulate(structure: bool, data: bool, force: bool):
         )
         if not click.confirm(prompt):
             return
+    if forecasts:
+        from bvp.data.static_content import depopulate_forecasts
+
+        depopulate_forecasts(app)
     if data:
         from bvp.data.static_content import depopulate_data
 

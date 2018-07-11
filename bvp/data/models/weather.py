@@ -1,5 +1,5 @@
-from typing import Dict
-from datetime import datetime
+from typing import Dict, Tuple, Union
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Query, Session
 
@@ -59,15 +59,32 @@ class Weather(TimedValue, db.Model):
     def make_query(
         cls,
         sensor_name: str,
-        query_start: datetime,
-        query_end: datetime,
+        query_window: Tuple[datetime, datetime],
+        horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]] = (
+            None,
+            None,
+        ),
         session: Session = None,
     ) -> Query:
         if session is None:
             session = db.session
-        return (
+        start, end = query_window
+        query = (
             session.query(cls.datetime, cls.value)
             .join(WeatherSensor)
             .filter(WeatherSensor.name == sensor_name)
-            .filter((Weather.datetime >= query_start) & (Weather.datetime <= query_end))
+            .filter((Weather.datetime >= start) & (Weather.datetime <= end))
         )
+        earliest_horizon, latest_horizon = horizon_window
+        if (
+            earliest_horizon is not None
+            and latest_horizon is not None
+            and earliest_horizon == latest_horizon
+        ):
+            query = query.filter(Weather.horizon == earliest_horizon)
+        else:
+            if earliest_horizon is not None:
+                query = query.filter(Weather.horizon >= earliest_horizon)
+            if latest_horizon is not None:
+                query = query.filter(Weather.horizon <= latest_horizon)
+        return query

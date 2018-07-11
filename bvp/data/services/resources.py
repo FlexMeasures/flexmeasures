@@ -3,7 +3,7 @@ Generic services for accessing asset data.
 """
 
 from typing import List, Dict, Union
-from datetime import datetime
+from datetime import datetime, timedelta
 from inflection import pluralize
 
 from flask_security.core import current_user
@@ -128,6 +128,10 @@ class Resource:
         for asset in self.assets:
             asset_names.append(asset.name)
         data = Power.collect(
-            asset_names, start, end, resolution, sum_multiple=sum_multiple
+            asset_names,
+            query_window=(start, end),
+            horizon_window=(None, timedelta(minutes=-15)),
+            resolution=resolution,
+            sum_multiple=sum_multiple,
         )
         return data

@@ -29,7 +29,7 @@ def create(env=None) -> Flask:
     # Configuration
 
     read_config(app)
-    if app.debug and not app.testing:
+    if app.debug and not app.testing and not app.cli:
         print(app.config)
     Mail(app)
     FlaskJSON(app)

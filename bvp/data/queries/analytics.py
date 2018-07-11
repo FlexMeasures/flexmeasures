@@ -82,12 +82,7 @@ def get_weather_data(
         weather_type = "total_radiation"
     else:
         weather_type = "temperature"
-    weather_data = Weather.collect(
-        [weather_type],
-        session["start_time"],
-        session["end_time"],
-        session["resolution"],
-    )
+    weather_data = Weather.collect([weather_type])
     return weather_data, None, weather_type, metrics
 
 

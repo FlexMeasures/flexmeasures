@@ -9,7 +9,6 @@ setup(
     version="0.1",
     # flask should be after all the flask plugins, because setup might find they ARE flask
     install_requires=[
-        "flake8",
         "bokeh",
         "pandas>=0.22.0",
         "iso8601",
@@ -25,6 +24,7 @@ setup(
         "isodate",
         "click",
         "forecastiopy",
+        "ts-forecasting-pipeline",
         "python-dotenv",
         "Flask-SSLify",
         "Flask_JSON",
@@ -52,7 +52,7 @@ setup(
     ],
     long_description="""\
 The *Balancing Valorisation Platform (BVP)* is a tool for scheduling balancing actions on behalf of the connected
-asset owners. Its purpose is to offer these balancing actions as one aggregated service to energy markets, 
+asset owners. Its purpose is to offer these balancing actions as one aggregated service to energy markets,
 realising the highest possible value for its users.
 """,
 )

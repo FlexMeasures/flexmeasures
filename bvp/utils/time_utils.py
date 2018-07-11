@@ -12,8 +12,13 @@ import tzlocal
 
 
 def bvp_now() -> datetime:
-    """The time of the bvp platform. UTC time, localized to the bvp timezone."""
-    return datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(get_timezone())
+    """The current time of the bvp platform. UTC time, localized to the bvp timezone."""
+    return as_bvp_time(datetime.utcnow())
+
+
+def as_bvp_time(dt: datetime) -> datetime:
+    """The datetime represented in the timezone of the bvp platform."""
+    return naive_utc_from(dt).replace(tzinfo=pytz.utc).astimezone(get_timezone())
 
 
 def naive_utc_from(dt: datetime) -> datetime:

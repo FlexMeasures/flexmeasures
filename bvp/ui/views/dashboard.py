@@ -47,10 +47,12 @@ def dashboard_view():
             # TODO: the 2015 hack is temporary
             measured_now = Power.collect(
                 [asset.name],
-                time_utils.get_most_recent_quarter().replace(year=2015),
-                time_utils.get_most_recent_quarter().replace(year=2015)
-                + timedelta(minutes=15),
-                "15T",
+                query_window=(
+                    time_utils.get_most_recent_quarter().replace(year=2015),
+                    time_utils.get_most_recent_quarter().replace(year=2015)
+                    + timedelta(minutes=15),
+                ),
+                resolution="15T",
             ).y
             if measured_now.size > 0:
                 current_asset_loads[asset.name] = measured_now[0]

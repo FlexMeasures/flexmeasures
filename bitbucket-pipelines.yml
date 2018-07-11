@@ -4,8 +4,7 @@ pipelines:
         name: Lint by Flake8
         image: python:3.6
         script:
-            - python setup.py develop
-            - pip install flake8
+            - pip install flake8-bugbear flake8
             - flake8 bvp
     - step:
         name: Build and Test
@@ -13,6 +12,8 @@ pipelines:
         script:
           - ci/SETUP.sh
           - python setup.py test
+        caches:
+          - pip
         services:
           - postgres
   branches:
@@ -23,6 +24,8 @@ pipelines:
           script:
             - ci/SETUP.sh
             - python setup.py test
+          caches:
+            - pip
           services:
             - postgres
       - step:

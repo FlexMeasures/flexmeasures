@@ -4,7 +4,7 @@ Populate the database with data we know or read in.
 import os
 import json
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -12,12 +12,15 @@ from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 import click
 import pandas as pd
+from isodate import parse_duration
 
 from bvp.data.models.markets import MarketType, Market, Price
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role
+from bvp.data.models.forecasting.solar import latest as solar_latest
+from bvp.utils.time_utils import as_bvp_time
 
 
 def get_pickle_path() -> str:
@@ -57,9 +60,9 @@ def add_markets(db: SQLAlchemy) -> List[Market]:
 
 def add_user_data_sources(db: SQLAlchemy):
     """Register all users as potential data sources."""
-    users = (
-        User.query.all()
-    )  # Todo: only add a data_source if the user is not already registered as a data source
+    users = db.session.query(
+        User
+    ).all()  # Todo: only add a data_source if the user is not already registered as a data source
     for user in users:
         db.session.add(
             DataSource(
@@ -78,7 +81,7 @@ def add_data_sources(db: SQLAlchemy):
             source_id=None,
         )
     )
-    add_user_data_sources()
+    add_user_data_sources(db)
 
 
 def add_asset_types(db: SQLAlchemy):
@@ -193,7 +196,7 @@ def add_prices(db: SQLAlchemy, markets: List[Market], test_data_set: bool):
                 first = dt
             p = Price(
                 datetime=dt,
-                horizon="-PT15M",
+                horizon=parse_duration("-PT15M"),
                 value=value,
                 market_id=market.id,
                 data_source=ds.id,
@@ -273,7 +276,7 @@ def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
                 first = dt
             p = Power(
                 datetime=dt,
-                horizon="-PT15M",
+                horizon=parse_duration("-PT15M"),
                 value=value,
                 asset_id=asset.id,
                 data_source=ds.id,
@@ -334,7 +337,7 @@ def add_weather(db: SQLAlchemy, sensors: List[WeatherSensor], test_data_set: boo
                 first = dt
             w = Weather(
                 datetime=dt,
-                horizon="-PT15M",
+                horizon=parse_duration("-PT15M"),
                 value=value,
                 sensor_id=sensor.id,
                 data_source=ds.id,
@@ -491,6 +494,63 @@ def populate_time_series_data(db: SQLAlchemy, test_data_set: bool):
 
 
 @as_transaction
+def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
+    click.echo(
+        "Populating the database %s with time series forecasts (6H) ..." % db.engine
+    )
+
+    from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    start = as_bvp_time(datetime(2015, 2, 8))
+    end = start + timedelta(days=31)
+
+    ds = DataSource.query.filter(
+        DataSource.label == "Data initialised by bvp.data.static_content"
+    ).one_or_none()
+    asset = Asset.query.filter_by(asset_type_name="solar").first()
+    if asset:
+        model_state = solar_latest(
+            solar_asset=asset,
+            start=start,
+            end=end,
+            train_test_period=timedelta(days=30),
+        )
+        model_state.specs.creation_time = start
+        forecasts, model_state = make_rolling_forecasts(
+            start=start, end=end, model_state=model_state
+        )
+
+        plt.plot(
+            model_state.specs.outcome_var.load_series().loc[
+                pd.date_range(start, end=end, freq="15T")
+            ],
+            label="y",
+        )
+        plt.plot(forecasts, label="y^hat")
+        plt.show()
+
+        power_forecasts = [
+            Power(
+                datetime=dt,
+                horizon=parse_duration("PT48H"),
+                value=value,
+                asset_id=asset.id,
+                data_source=ds.id,
+            )
+            for dt, value in forecasts.items()
+        ]
+
+        db.session.bulk_save_objects(power_forecasts)
+
+    else:
+        click.echo("No assets in db, so I will not add any power measurements.")
+
+    click.echo("DB now has %d Power Forecasts" % db.session.query(Power).count())
+
+
+@as_transaction
 def depopulate_structure(db: SQLAlchemy):
     click.echo("Depopulating structural data from the database %s ..." % db.engine)
     num_markets_deleted = db.session.query(Market).delete()
@@ -524,12 +584,41 @@ def depopulate_structure(db: SQLAlchemy):
 @as_transaction
 def depopulate_data(db: SQLAlchemy):
     click.echo("Depopulating (time series) data from the database %s ..." % db.engine)
-    num_prices_deleted = db.session.query(Price).delete()
-    num_power_measurements_deleted = db.session.query(Power).delete()
-    num_weather_measurements_deleted = db.session.query(Weather).delete()
+    num_prices_deleted = db.session.query(Price).filter_by(horizon="PT0M").delete()
+    num_power_measurements_deleted = (
+        db.session.query(Power).filter_by(horizon=parse_duration("-PT15M")).delete()
+    )
+    num_weather_measurements_deleted = (
+        db.session.query(Weather).filter_by(horizon=parse_duration("-PT15M")).delete()
+    )
     click.echo("Deleted %d Prices" % num_prices_deleted)
     click.echo("Deleted %d Power Measurements" % num_power_measurements_deleted)
     click.echo("Deleted %d Weather Measurements" % num_weather_measurements_deleted)
+
+
+@as_transaction
+def depopulate_forecasts(db: SQLAlchemy):
+    click.echo(
+        "Depopulating (time series) forecasts from the database %s ..." % db.engine
+    )
+    num_prices_deleted = (
+        db.session.query(Price)
+        .filter(Price.horizon != parse_duration("-PT15M"))
+        .delete()
+    )
+    num_power_measurements_deleted = (
+        db.session.query(Power)
+        .filter(Power.horizon != parse_duration("-PT15M"))
+        .delete()
+    )
+    num_weather_measurements_deleted = (
+        db.session.query(Weather)
+        .filter(Weather.horizon != parse_duration("-PT15M"))
+        .delete()
+    )
+    click.echo("Deleted %d Price Forecasts" % num_prices_deleted)
+    click.echo("Deleted %d Power Forecasts" % num_power_measurements_deleted)
+    click.echo("Deleted %d Weather Forecasts" % num_weather_measurements_deleted)
 
 
 def reset_db(app: Flask):
