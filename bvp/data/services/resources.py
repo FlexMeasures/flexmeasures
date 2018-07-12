@@ -32,7 +32,7 @@ def get_assets() -> List[Asset]:
 def get_asset_groups() -> Dict[str, Query]:
     """
     An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised names.
-    They still need a executive call, like all(), count() or first()
+    They still need an executive call, like all(), count() or first()
     """
     # 1. Custom asset groups by combinations of asset types
     asset_queries = dict(
@@ -120,17 +120,22 @@ class Resource:
         start: datetime = None,
         end: datetime = None,
         resolution: str = None,
+        horizon_window=None,
         sum_multiple: bool = True,
     ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Get data for one or more assets. TODO: market data?
-        If the time range parameters are None, they will be gotten from the session."""
+        If the time range parameters are None, they will be gotten from the session.
+        Horiozn window will default to latest measurement (anything more in the future than the
+        end of the time interval."""
         asset_names = []
         for asset in self.assets:
             asset_names.append(asset.name)
+        if horizon_window is None:
+            horizon_window = (None, timedelta(minutes=-15))
         data = Power.collect(
             asset_names,
             query_window=(start, end),
-            horizon_window=(None, timedelta(minutes=-15)),
+            horizon_window=horizon_window,
             resolution=resolution,
             sum_multiple=sum_multiple,
         )

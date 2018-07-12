@@ -1,4 +1,5 @@
 from typing import List, Tuple, Union
+from datetime import timedelta
 
 from flask import session
 import numpy as np
@@ -6,7 +7,6 @@ import pandas as pd
 
 from bvp.utils import time_utils, calculations
 from bvp.data.services.resources import Resource
-from bvp.data.services.time_series import extract_forecasts
 from bvp.data.models.markets import Price
 from bvp.data.models.weather import Weather
 
@@ -18,13 +18,16 @@ def get_power_data(
     power_data = Resource(session["resource"]).get_data()
     if showing_pure_consumption_data:
         power_data *= -1
-    power_forecast_data = extract_forecasts(power_data)
+    power_forecast_data = Resource(session["resource"]).get_data(
+        horizon_window=(timedelta(hours=48), timedelta(hours=48))
+    )
+    power_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
     power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
     realised_power_in_mwh = pd.Series(power_data.y * power_hour_factor).values
 
     if not power_data.empty:
         metrics["realised_power_in_mwh"] = realised_power_in_mwh.sum()
-    if not power_forecast_data.empty:
+    if not power_forecast_data.empty and power_forecast_data.size == power_data.size:
         expected_power_in_mwh = pd.Series(
             power_forecast_data.yhat * power_hour_factor
         ).values
@@ -52,8 +55,10 @@ def get_prices_data(
     """Get price data and metrics"""
     prices_data = Price.collect(["epex_da"])
     metrics["realised_unit_price"] = prices_data.y.mean()
-    prices_forecast_data = extract_forecasts(prices_data)
-    if not prices_forecast_data.empty:
+    prices_forecast_data = Price.collect(
+        ["epex_da"], horizon_window=(timedelta(hours=48), timedelta(hours=48))
+    )
+    if not prices_forecast_data.empty and prices_forecast_data.size == prices_data.size:
         metrics["expected_unit_price"] = prices_forecast_data.yhat.mean()
         metrics["mae_unit_price"] = calculations.mean_absolute_error(
             prices_data.y, prices_forecast_data.yhat
@@ -108,6 +113,12 @@ def get_revenues_costs_data(
         or prices_data.empty
         or power_forecast_data.empty
         or prices_forecast_data.empty
+        or not (
+            power_data.size
+            == power_forecast_data.size
+            == prices_data.size
+            == prices_forecast_data.size
+        )
     ):
         metrics["expected_revenues_costs"] = np.NaN
         metrics["mae_revenues_costs"] = np.NaN

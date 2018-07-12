@@ -30,7 +30,7 @@
                         {% endfor %}
                         <label class="control-label" for="resource">Resource</label>
                         <div>
-                            <select class="form-control" id="resource" name="resource" onchange="this.form.submit()">
+                            <select class="form-control" id="resource" name="resource" onchange="submit_resource()">
                                 {% for asset_group, asset_group_display_name in asset_groups %}
                                     <option value="{{ asset_group }}" {% if resource==asset_group %} selected="selected"{% endif %}>
                                         {{ asset_group_display_name }}

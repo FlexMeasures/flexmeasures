@@ -103,34 +103,22 @@ def create_graph(
         outline_line_color="#666666",
     )
 
-    # Make a bokeh data source, which is for instance useful for the hover tool.
-    x = series.index.values
-    y = series.values
-    next_x = []
-    # If we have a DatetimeIndex, we encode with each x (start time) also the boundary to which it runs (end time).
-    if (
-        x.size
-        and isinstance(series.index, pd.DatetimeIndex)
-        and series.index.freq is not None
-    ):
-        # i.e. if there is data and with a clearly defined frequency
-        next_x = pd.DatetimeIndex(
-            start=x[1], freq=series.index.freq, periods=len(series)
-        ).values
-    data_source = ColumnDataSource(dict(x=x, next_x=next_x, y=y))
-
-    fig.circle(
-        x="x", y="y", source=data_source, color="#3B0757", alpha=0.5, legend=legend
-    )
+    ds = make_datasource_from(series)
+    fig.circle(x="x", y="y", source=ds, color="#3B0757", alpha=0.5, legend=legend)
 
     if forecasts is not None and not forecasts.empty:
+        forecasts = tz_index_naively(forecasts)
         fc_color = "#DDD0B3"
-        fig.line(forecasts.index, forecasts["yhat"], color=fc_color, legend="Forecast")
+        fds = make_datasource_from(forecasts.yhat)
+        fig.line(x="x", y="y", source=fds, color=fc_color, legend="Forecast")
 
         # draw uncertainty range as a two-dimensional patch
-        x_points = np.append(forecasts.index, forecasts.index[::-1])
-        y_points = np.append(forecasts.yhat_lower, forecasts.yhat_upper[::-1])
-        fig.patch(x_points, y_points, color=fc_color, fill_alpha=0.2, line_width=0.01)
+        if "yhat_lower" and "yhat_upper" in forecasts:
+            x_points = np.append(forecasts.index, forecasts.index[::-1])
+            y_points = np.append(forecasts.yhat_lower, forecasts.yhat_upper[::-1])
+            fig.patch(
+                x_points, y_points, color=fc_color, fill_alpha=0.2, line_width=0.01
+            )
 
     fig.toolbar.logo = None
     fig.yaxis.axis_label = y_label
@@ -142,6 +130,25 @@ def create_graph(
     fig.xgrid.grid_line_alpha = 0.5
 
     return fig
+
+
+def make_datasource_from(series: pd.Series) -> ColumnDataSource:
+    """ Make a bokeh data source, which is for instance useful for the hover tool. """
+    x = series.index.values
+    y = series.values
+    next_x = []
+    # If we have a DatetimeIndex, we encode with each x (start time) also the boundary to which it runs (end time).
+    # TODO: can be extended to work with other types
+    if (
+        x.size
+        and isinstance(series.index, pd.DatetimeIndex)
+        and series.index.freq is not None
+    ):
+        # i.e. if there is data and with a clearly defined frequency
+        next_x = pd.DatetimeIndex(
+            start=x[1], freq=series.index.freq, periods=len(series)
+        ).values
+    return ColumnDataSource(dict(x=x, next_x=next_x, y=y))
 
 
 def highlight(

@@ -35,20 +35,21 @@ This last step is documented by PythonAnywhere as a way to soft restart the runn
 
 ```#!/bin/bash
 PATH_TO_GIT_WORK_TREE=/path/to/where/you/want/to/checout/code/to
-PATH_TO_VENV=/path/to/your/venv
+ACTIVATE_VENV="command-to-activate-your-venv"
 PATH_TO_WSGI=/path/to/wsgi/script/for/the/app
 
 echo "CHECKING OUT CODE TO GIT WORK TREE ($PATH_TO_GIT_WORK_TREE) ..."
 GIT_WORK_TREE=$PATH_TO_GIT_WORK_TREE git checkout -f
 
 cd $PATH_TO_GIT_WORK_TREE 
+eval $ACTIVATE_VENV
 echo "INSTALLING DEPENDENCIES ..."
-$PATH_TO_VENV/bin/python setup.py develop
+python setup.py develop
 echo "UPGRADING DATABASE STRUCTURE ..."
-$PATH_TO_VENV/bin/flask db upgrade                                                                                                                                                                             
+flask db upgrade                                                                                                                                                                             
 echo "UPDATING DOCUMENTATION ..."
-$PATH_TO_VENV/bin/pip install sphinx sphinxcontrib.httpdomain
-cd documentation; make html
+pip install sphinx sphinxcontrib.httpdomain
+cd documentation; make html; cd ..
 
 echo "RESTARTING APPLICATION ..."
 touch $PATH_TO_WSGI

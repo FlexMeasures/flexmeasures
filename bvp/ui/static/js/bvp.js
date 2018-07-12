@@ -199,10 +199,19 @@ function ready() {
             $("#control-check-expected-value-battery").hide();
         }
     });
+
 }
 
 const numberWithCommas = (x) => {
   var parts = x.toString().split(".");
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return parts.join(".");
+}
+
+/** Analytics: Submit the resource selector, but reload to a clean URL,
+               without any existing resource selection (confusing)
+*/
+function submit_resource() {
+    var empty_location = location.protocol + "//" + location.hostname + ":" + location.port + "/analytics";
+    $("#resource-form").attr("action", empty_location).submit();
 }

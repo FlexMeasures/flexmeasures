@@ -70,7 +70,7 @@ def db_depopulate(structure: bool, data: bool, forecasts: bool, force: bool):
             "Neither --data nor --forecasts nor --structure given ... doing nothing."
         )
         return
-    if not force and (data or structure):
+    if not force and (data or structure or forecasts):
         affected_tables = []
         if structure:
             affected_tables += [

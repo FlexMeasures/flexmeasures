@@ -21,9 +21,10 @@ $(document).ready(function() {
         "endDate": timerangeEnd
     }, function(start, end, label) {
       console.log('New date range selected: ' + start.format('YYYY-MM-DD HH:mm') + ' to ' + end.format('YYYY-MM-DD HH:mm') + ' (predefined range: ' + label + ')');
-      //$("#datepicker_form").action = "/" + location.pathname;
       $("#datepicker_form_start_time").val(start.format('YYYY-MM-DD HH:mm') );
       $("#datepicker_form_end_time").val(end.format('YYYY-MM-DD HH:mm') );
+      // remove any URL params from an earlier call and point to whatever resource is actually selected
+      $("#datepicker_form").attr("action", location.pathname + "?resource=" + $("#resource").val());
       $("#datepicker_form").submit(); // reload page with new time range
     });
 });

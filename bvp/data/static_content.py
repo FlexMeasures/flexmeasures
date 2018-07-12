@@ -496,7 +496,7 @@ def populate_time_series_data(db: SQLAlchemy, test_data_set: bool):
 @as_transaction
 def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
     click.echo(
-        "Populating the database %s with time series forecasts (6H) ..." % db.engine
+        "Populating the database %s with time series forecasts (48H) ..." % db.engine
     )
 
     from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
@@ -529,11 +529,12 @@ def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
             label="y",
         )
         plt.plot(forecasts, label="y^hat")
+        plt.legend()
         plt.show()
 
         power_forecasts = [
             Power(
-                datetime=dt,
+                datetime=ensure_korea_local(dt),
                 horizon=parse_duration("PT48H"),
                 value=value,
                 asset_id=asset.id,

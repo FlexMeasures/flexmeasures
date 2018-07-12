@@ -134,24 +134,3 @@ def ensure_timing_vars_are_set(
         resolution = session["resolution"]
 
     return (start, end), resolution
-
-
-def extract_forecasts(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Extract forecast columns (given the chosen horizon) and give them the standard naming.
-    Returns an empty DataFrame if the expected forecast columns don't exist.
-    """
-    forecast_columns = [
-        "yhat",
-        "yhat_upper",
-        "yhat_lower",
-    ]  # this is what the plotter expects
-    horizon = session["forecast_horizon"]
-    forecast_renaming = {
-        "yhat_%s" % horizon: "yhat",
-        "yhat_%s_upper" % horizon: "yhat_upper",
-        "yhat_%s_lower" % horizon: "yhat_lower",
-    }
-    if "yhat_%s" % horizon not in df.columns:
-        return pd.DataFrame()
-    return df.rename(forecast_renaming, axis="columns")[forecast_columns]
