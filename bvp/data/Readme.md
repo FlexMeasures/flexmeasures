@@ -88,7 +88,7 @@ Run these commands from the repository root directory (read below comments first
 
     flask db init
     flask db upgrade
-    flask db_populate --structure --data
+    flask db_populate --structure --data --forecasts
 
 The first command (``flask db init``) is usually not needed, it initialises the alembic migration tool.
 The second command gives you the db structure.
@@ -105,13 +105,13 @@ Make another migration
 ----------------------
 Just to be clear that the `db init` command is needed only at the beginning - you usually do, if your model changed:
 
-    flask db migrate
+    flask db migrate --message "PLease explain what you did, it helps for later"
     flask db upgrade
     
-You could decide that you need to re-populate:
+You could decide that you need to re-populate (decide what you need to re-populate):
 
-    flask db_depopulate --structure --data
-    flask db_populate --structure --data
+    flask db_depopulate --structure --data --forecasts
+    flask db_populate --structure --data --forecasts
 
 
 Get database structure updated
@@ -122,6 +122,23 @@ The goal is that on any other computer, you can always execute
     flask db upgrade
     
 to have the database structure up-to-date with all migrations.
+
+
+Working with the migration history
+------------------------------------
+
+The history of migrations is at your fingertips:
+
+    flask db current
+    flask db history
+    
+You can move back and forth through the history:
+
+    flask db downgrade
+    flask db upgrade
+    
+Both of these accept a specific revision id parameter, as well.
+
 
 Check out database status
 -------------------------
