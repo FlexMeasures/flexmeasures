@@ -12,7 +12,9 @@ from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 import click
 import pandas as pd
+from sqlalchemy.sql import or_
 from isodate import parse_duration
+from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
 
 from bvp.data.models.markets import MarketType, Market, Price
 from bvp.data.models.assets import AssetType, Asset, Power
@@ -499,29 +501,52 @@ def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
         "Populating the database %s with time series forecasts (48H) ..." % db.engine
     )
 
-    from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
-    import matplotlib.pyplot as plt
-    import pandas as pd
-
     start = as_bvp_time(datetime(2015, 2, 8))
-    end = start + timedelta(days=31)
+    end = as_bvp_time(datetime(2015, 12, 31, 23, 45))
 
     ds = DataSource.query.filter(
         DataSource.label == "Data initialised by bvp.data.static_content"
     ).one_or_none()
-    asset = Asset.query.filter_by(asset_type_name="solar").first()
-    if asset:
-        model_state = solar_latest(
+    """
+    assets = Asset.query.filter(
+        or_(
+            Asset.asset_type_name == "solar",
+            Asset.asset_type_name == "wind",
+            Asset.asset_type_name == "building",
+            Asset.asset_type_name == "charging_station",
+            Asset.asset_type_name == "battery",
+        )
+    ).all()
+    """
+    assets = Asset.query.filter(
+        or_(
+            Asset.asset_type_name == "solar",
+            Asset.asset_type_name == "building",
+            Asset.asset_type_name == "wind",
+        )
+    ).all()
+    for asset in assets:
+        print(
+            "Computing forecasts for %s, train model with data from %s to %s ..."
+            % (asset.name, start, end)
+        )
+        model_specs = solar_latest(
             solar_asset=asset,
+            start_of_training=start - timedelta(days=30),
+            end_of_testing=start - timedelta(minutes=15),
+            query_until=end,
+            specs_only=True,
+        )
+        model_specs.creation_time = start
+        forecasts, model_state = make_rolling_forecasts(
             start=start,
             end=end,
-            train_test_period=timedelta(days=30),
-        )
-        model_state.specs.creation_time = start
-        forecasts, model_state = make_rolling_forecasts(
-            start=start, end=end, model_state=model_state
+            training_period=timedelta(days=30),
+            model_specs=model_specs,
         )
 
+        """
+        import matplotlib.pyplot as plt
         plt.plot(
             model_state.specs.outcome_var.load_series().loc[
                 pd.date_range(start, end=end, freq="15T")
@@ -531,6 +556,7 @@ def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
         plt.plot(forecasts, label="y^hat")
         plt.legend()
         plt.show()
+        """
 
         power_forecasts = [
             Power(
@@ -546,7 +572,7 @@ def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
         db.session.bulk_save_objects(power_forecasts)
 
     else:
-        click.echo("No assets in db, so I will not add any power measurements.")
+        click.echo("No assets in db, so I will not add any power forecasts.")
 
     click.echo("DB now has %d Power Forecasts" % db.session.query(Power).count())
 

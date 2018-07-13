@@ -33,10 +33,10 @@ class Config(object):
     SECURITY_LOGIN_USER_TEMPLATE = "admin/login_user.html"
     SECURITY_FORGOT_PASSWORD_TEMPLATE = "admin/forgot_password.html"
     SECURITY_RESET_PASSWORD_TEMPLATE = "admin/reset_password.html"
-    SECURITY_PASSWORD_SALT = None
     SECURITY_RECOVERABLE = True
     SECURITY_TOKEN_AUTHENTICATION_HEADER = "Authorization"
     SECURITY_TRACKABLE = False  # this is more in line with modern privacy law
+    SECURITY_PASSWORD_SALT = None
 
     DARK_SKY_API_KEY = None
 

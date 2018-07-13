@@ -21,6 +21,15 @@ def test_portfolio_responds(client, use_auth):
     assert b"Portfolio status" in portfolio.data
 
 
+def test_assets_responds(client, use_auth):
+    assets_page = client.get(
+        url_for("bvp_ui.portfolio_view").replace("portfolio", "assets"),
+        follow_redirects=True,
+    )
+    assert assets_page.status_code == 200
+    assert b"All assets" in assets_page.data
+
+
 def test_control_responds(client, use_auth):
     control = client.get(url_for("bvp_ui.control_view"), follow_redirects=True)
     assert control.status_code == 200

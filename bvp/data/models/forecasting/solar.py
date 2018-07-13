@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 from datetime import datetime, timedelta
 
 from ts_forecasting_pipeline import (
@@ -19,21 +19,27 @@ from bvp.data.config import db
 plot_path = None
 
 
-def model_48H_a(
+def model_48h_a(
     solar_asset: Asset,
-    start: datetime,
-    end: datetime,
-    train_test_period: timedelta,
+    start_of_training: datetime,
+    end_of_testing: datetime,
+    query_until: Optional[datetime] = None,
     evaluate: bool = False,
     specs_only: bool = False,
 ) -> Union[ModelSpecs, ModelState]:
-    """Return a ModelState of a fitted model (or only ModelSpecs), ready to predict data from start_date
-    onwards until end_date. The period required for training+testing is given explicitly here.
-    Caution: Might need to query data before start_date, e.g. for lags (see SeriesSpecs in the returned ModelSpecs).
-    Evaluation (including plots) is optional."""
+    """Return a ModelState of a fitted model (or only ModelSpecs), ready to predict from end_of_testing onwards.
+    Caution: Might need to query data before start_of_training,
+    e.g. for lags (see SeriesSpecs in the returned ModelSpecs).
+    Evaluation (including plots) is optional.
+    TODO: if this is being used only for training and then usage, the ratio should be passed in and possibly
+    be only train and no test. (==1, test for problems).
+    """
 
-    # make sure we have enough data for lagging
-    query_start: datetime = start - timedelta(days=7) - train_test_period
+    # make sure we have enough data for lagging and/or rolling
+    query_start: datetime = start_of_training - timedelta(days=7)
+    query_end: datetime = end_of_testing
+    if query_until is not None:
+        query_end = query_until
 
     # TODO: this should be lagged by the transform function?
     regressor_specs = [
@@ -42,7 +48,7 @@ def model_48H_a(
             db_engine=db.engine,
             query=Weather.make_query(
                 "total_radiation",
-                query_window=(query_start, end),
+                query_window=(query_start, query_end),
                 horizon_window=(None, timedelta(minutes=-15)),
                 session=db.session,
             ),
@@ -53,7 +59,7 @@ def model_48H_a(
         db_engine=db.engine,
         query=Power.make_query(
             solar_asset.name,
-            query_window=(query_start, end),
+            query_window=(query_start, query_end),
             horizon_window=(None, timedelta(minutes=-15)),
             session=db.session,
         ),
@@ -64,9 +70,9 @@ def model_48H_a(
         model_type="OLS",
         lags=day_lags([2, 3, 4, 5, 6, 7]),
         regressors=regressor_specs,
-        start_of_training_data=start - train_test_period,
-        end_of_test_data=start,
-        ratio_training_test_data=14 / 15,
+        start_of_training=start_of_training,
+        end_of_testing=end_of_testing,
+        ratio_training_testing_data=14 / 15,
     )
 
     if specs_only:
@@ -83,4 +89,4 @@ def model_48H_a(
 
 
 # return this model as the latest
-latest = model_48H_a
+latest = model_48h_a

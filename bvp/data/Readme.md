@@ -24,6 +24,20 @@ On Windows:
 * `conda install psycopg2`
 
 
+Make sure postgres represents datetimes in UTC timezone
+-------------------------------------------------------
+(Otherwise, pandas can get confused with daylight saving time.)
+
+Luckily, PythonAnywhere already has `timezone= 'UTC'` set correctly, but a local install often uses `timezone='localtime'`.
+
+Find the `postgres.conf` file. Mine is at `/etc/postgresql/9.6/main/postgresql.conf`.
+You can also type `SHOW config_file;` in a postgres console session (as superuser) to find the config file.
+
+Find the `timezone` setting and set it to 'UTC'.
+
+Then restart the postgres server. 
+
+
 Setup the "a1" Unix user
 ------------------------
 This may in fact not be needed:

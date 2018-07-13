@@ -25,6 +25,7 @@ class AssetForm(FlaskForm):
 
 class AssetCrud(FlaskView):
     route_base = "/assets"
+    trailing_slash = False
 
     @login_required
     def index(self):
