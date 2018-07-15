@@ -145,7 +145,7 @@ class Power(TimedValue, db.Model):
         if session is None:
             session = db.session
         start, end = query_window
-        if not isinstance(source_ids, list):
+        if source_ids is not None and not isinstance(source_ids, list):
             source_ids = [source_ids]  # ensure source_ids is a list
         query = (
             session.query(Power.datetime, Power.value)
