@@ -1,4 +1,5 @@
 from typing import List, Tuple, Union
+import re
 
 
 def update_beliefs():
@@ -32,18 +33,27 @@ def parse_entity_address(
              and id of the asset (an integer or string).
              If the owner or asset id is a string, you could still try to look for the owner or asset by name.
     """
+    asset_id_match = re.findall("(?<=:)\d+$", entity_address)
+    if asset_id_match:
+        asset_id = asset_id_match[-1]
+    else:
+        return "", "", entity_address
+    owner_id_match = re.findall("(?<=:)\d+(?=:\d+$)", entity_address)
+    if owner_id_match:
+        owner_id = owner_id_match[-1]
+    else:
+        owner_id = ""
+    scheme_and_naming_authority_match = re.findall(".+(?=:\d+:\d+$)", entity_address)
+    if scheme_and_naming_authority_match:
+        scheme_and_naming_authority = scheme_and_naming_authority_match[-1]
+    else:
+        scheme_and_naming_authority = ""
 
-    scheme_and_naming_authority, owner_id, asset_id = "", "", ""
-    if entity_address.count(":") == 2:
-        scheme_and_naming_authority, owner_id, asset_id = entity_address.split(":", 2)
-    elif entity_address.count(":") == 1:
-        owner_id, asset_id = asset_id.split(":", 1)
-    elif entity_address.count(":") == 0:
-        asset_id = entity_address
     if owner_id.isdigit():
         owner_id = int(owner_id)
     if asset_id.isdigit():
         asset_id = int(asset_id)
+
     return scheme_and_naming_authority, owner_id, asset_id
 
 
@@ -73,7 +83,12 @@ def parse_as_list(connection: Union[List[str], str]) -> List[str]:
 
 def get_form_from_request(_request) -> Union[dict, None]:
     if _request.method == "GET":
-        return _request.args
+        d = _request.args.to_dict(
+            flat=False
+        )  # From MultiDict, obtain all values with the same key as a list
+        return dict(
+            zip(d.keys(), [v[0] if len(v) == 1 else v for k, v in d.items()])
+        )  # Flatten single-value lists
     elif _request.method == "POST":
         return _request.get_json(force=True)
     else:
@@ -89,3 +104,89 @@ def append_doc_of(fun):
         return f
 
     return decorator
+
+
+def groups_to_dict(
+    connection_groups: List[List[str]], value_groups: List[List[str]]
+) -> dict:
+    """Put the connections and values in a dictionary and simplify if groups have identical values and/or if there is
+    only one group.
+
+    Examples:
+
+        >> connection_groups = [[1]]
+        >> value_groups = [[300, 300, 300]]
+        >> response_dict = groups_to_dict(connection_groups, value_groups)
+        >> print(response_dict)
+        <<  {
+                "connection": 1,
+                "values": [300, 300, 300]
+            }
+
+        >> connection_groups = [[1], [2]]
+        >> value_groups = [[300, 300, 300], [300, 300, 300]]
+        >> response_dict = groups_to_dict(connection_groups, value_groups)
+        >> print(response_dict)
+        <<  {
+                "connections": [1, 2],
+                "values": [300, 300, 300]
+            }
+
+        >> connection_groups = [[1], [2]]
+        >> value_groups = [[300, 300, 300], [400, 400, 400]]
+        >> response_dict = groups_to_dict(connection_groups, value_groups)
+        >> print(response_dict)
+        <<  {
+                "groups": [
+                    {
+                        "connection": 1,
+                        "values": [300, 300, 300]
+                    },
+                    {
+                        "connection": 2,
+                        "values": [400, 400, 400]
+                    }
+                ]
+            }
+    """
+
+    # Simplify groups that have identical values
+    value_groups, connection_groups = unique_ever_seen(value_groups, connection_groups)
+
+    # Simplify if there is only one group
+    if len(value_groups) == len(connection_groups) == 1:
+        if len(connection_groups[0]) == 1:
+            return {"connection": connection_groups[0][0], "values": value_groups[0]}
+        else:
+            return {"connections": connection_groups[0], "values": value_groups[0]}
+    else:
+        d = {"groups": []}
+        for connection_group, value_group in zip(connection_groups, value_groups):
+            if len(connection_group) == 1:
+                d["groups"].append(
+                    {"connection": connection_group[0], "values": value_group}
+                )
+            else:
+                d["groups"].append(
+                    {"connections": connection_group, "values": value_group}
+                )
+        return d
+
+
+def unique_ever_seen(iterable, selector):
+    """
+    Return unique iterable elements with corresponding lists of selector elements, preserving order.
+    """
+    u = []
+    s = []
+    for iterable_element, selector_element in zip(iterable, selector):
+        if iterable_element not in u:
+            u.append(iterable_element)
+            s.append(selector_element)
+        else:
+            us = s[u.index(iterable_element)]
+            if not isinstance(us, list):
+                us = [us]
+            us.append(selector_element)
+            s[u.index(iterable_element)] = us
+    return u, s

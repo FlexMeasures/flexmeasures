@@ -29,6 +29,11 @@ def as_response_type(response_type):
         @as_json
         def decorated_service(*args, **kwargs):
             response = fn(*args, **kwargs)  # expects flask response object
+            if not hasattr(response, "json"):
+                current_app.logger.warn(
+                    "Response is not a Flask response object. I did not assign a response type."
+                )
+                return response
             data = response.json
             headers = response.headers
             status_code = response.status_code

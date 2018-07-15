@@ -125,7 +125,7 @@ class Resource:
     ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Get data for one or more assets. TODO: market data?
         If the time range parameters are None, they will be gotten from the session.
-        Horiozn window will default to latest measurement (anything more in the future than the
+        The horizon window will default to the latest measurement (anything more in the future than the
         end of the time interval."""
         asset_names = []
         for asset in self.assets:

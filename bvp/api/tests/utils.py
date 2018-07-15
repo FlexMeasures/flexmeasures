@@ -1,3 +1,4 @@
+import copy
 import json
 from typing import List
 
@@ -52,14 +53,16 @@ def post_task_run(client, task_name: str, status: bool = True):
 
 def message_replace_name_with_ea(message_with_connections_as_asset_names: dict) -> dict:
     """For each connection in the message specified by a name, replace that name with the correct entity address."""
-    message_with_connections_as_eas = message_with_connections_as_asset_names
+    message_with_connections_as_eas = copy.deepcopy(
+        message_with_connections_as_asset_names
+    )
     if "connection" in message_with_connections_as_asset_names:
         message_with_connections_as_eas["connection"] = asset_replace_name_with_id(
-            parse_as_list(message_with_connections_as_asset_names["connection"])
+            parse_as_list(message_with_connections_as_eas["connection"])
         )
     elif "connections" in message_with_connections_as_asset_names:
         message_with_connections_as_eas["connections"] = asset_replace_name_with_id(
-            parse_as_list(message_with_connections_as_asset_names["connections"])
+            parse_as_list(message_with_connections_as_eas["connections"])
         )
     elif "groups" in message_with_connections_as_asset_names:
         for i, group in enumerate(message_with_connections_as_asset_names["groups"]):
@@ -76,7 +79,7 @@ def message_replace_name_with_ea(message_with_connections_as_asset_names: dict) 
 
 def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
     """Look up the owner and id given the asset name and constructs a type 1 USEF entity address."""
-    connections_as_ea = connections_as_name
+    connections_as_ea = copy.deepcopy(connections_as_name)
     for i, connection in enumerate(connections_as_name):
         scheme_and_naming_authority, owner_id, asset_name = parse_entity_address(
             connection
@@ -90,4 +93,4 @@ def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
             owner_id,
             asset_id,
         )
-    return connections_as_name
+    return connections_as_ea

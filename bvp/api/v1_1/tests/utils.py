@@ -7,6 +7,7 @@ def message_for_get_prognosis(
     rolling_horizon=False,
     no_data=False,
     no_resolution=False,
+    single_connection=False,
 ) -> dict:
     message = {
         "type": "GetPrognosisRequest",
@@ -14,7 +15,7 @@ def message_for_get_prognosis(
         "duration": "PT1H30M",
         "horizon": "PT6H",
         "resolution": "PT15M",
-        "connection": "CS 1",
+        "connections": ["CS 1", "CS 2", "CS 3"],
         "unit": "MW",
     }
     if no_horizon:
@@ -27,7 +28,10 @@ def message_for_get_prognosis(
     elif rolling_horizon:
         message["horizon"] = "R/PT6h"
     if no_data:
-        message["connection"] = "CS 2"
+        message["start"] = ("2010-01-01T00:00:00Z",)
     if no_resolution:
         message.pop("resolution", None)
+    if single_connection:
+        message["connection"] = message["connections"][0]
+        message.pop("connections", None)
     return message

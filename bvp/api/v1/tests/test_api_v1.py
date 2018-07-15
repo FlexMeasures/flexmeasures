@@ -4,6 +4,7 @@ from flask import url_for
 import pytest
 
 from bvp.api.common.responses import (
+    invalid_domain,
     invalid_sender,
     invalid_unit,
     request_processed,
@@ -62,6 +63,22 @@ def test_no_connection_in_get_request(client):
         get_meter_data_response.json["status"]
         == unrecognized_connection_group()[0]["status"]
     )
+
+
+def test_invalid_connection_in_get_request(client):
+    get_meter_data_response = client.get(
+        url_for("bvp_api_v1.get_meter_data"),
+        query_string=message_for_get_meter_data(invalid_connection=True),
+        headers={
+            "Authorization": get_auth_token(
+                client, "test_prosumer@seita.nl", "testtest"
+            )
+        },
+    )
+    print(get_meter_data_response.json)
+    assert get_meter_data_response.status_code == 400
+    assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
+    assert get_meter_data_response.json["status"] == invalid_domain()[0]["status"]
 
 
 @pytest.mark.parametrize("method", ["GET", "POST"])
@@ -127,14 +144,18 @@ def test_invalid_sender_and_logout(client):
 
 
 @pytest.mark.parametrize(
-    "message",
+    "post_message",
     [
         message_for_post_meter_data(),
         message_for_post_meter_data(single_connection=True),
         message_for_post_meter_data(single_connection_group=True),
     ],
 )
-def test_post_and_get_meter_data(client, message):
+@pytest.mark.parametrize(
+    "get_message",
+    [message_for_get_meter_data(), message_for_get_meter_data(single_connection=False)],
+)
+def test_post_and_get_meter_data(client, post_message, get_message):
     """
     Tries to post meter data as a logged-in test user with the MDC role, which should succeed.
     Then tries to get meter data, which should succeed, and should return the same meter data as was posted.
@@ -144,7 +165,7 @@ def test_post_and_get_meter_data(client, message):
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     post_meter_data_response = client.post(
         url_for("bvp_api_v1.post_meter_data"),
-        data=json.dumps(message_replace_name_with_ea(message)),
+        data=json.dumps(message_replace_name_with_ea(post_message)),
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print(post_meter_data_response.json)
@@ -154,14 +175,17 @@ def test_post_and_get_meter_data(client, message):
     # get meter data
     get_meter_data_response = client.get(
         url_for("bvp_api_v1.get_meter_data"),
-        query_string=message_for_get_meter_data(),
+        query_string=message_replace_name_with_ea(get_message),
         headers={"Authorization": auth_token},
     )
     print(get_meter_data_response.json)
     assert get_meter_data_response.status_code == 200
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
-    if "groups" in message:
-        values = message["groups"][0]["values"]
+    if "groups" in post_message:
+        values = post_message["groups"][0]["values"]
     else:
-        values = message["values"]
-    assert get_meter_data_response.json["values"] == values
+        values = post_message["values"]
+    if "groups" in get_meter_data_response.json:
+        assert get_meter_data_response.json["groups"][0]["values"] == values
+    else:
+        assert get_meter_data_response.json["values"] == values

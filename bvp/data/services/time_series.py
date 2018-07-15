@@ -16,6 +16,12 @@ def collect_time_series_data(
     ],
     query_window: Tuple[datetime, datetime] = (None, None),
     horizon_window: Tuple[timedelta, timedelta] = (None, None),
+    preferred_source_ids: {
+        Union[int, List[int]]
+    } = None,  # None is interpreted as all sources
+    fallback_source_ids: Union[
+        int, List[int]
+    ] = -1,  # An id = -1 is interpreted as no sources
     resolution: str = None,
     sum_multiple: bool = True,
     create_if_empty: bool = False,
@@ -49,10 +55,48 @@ def collect_time_series_data(
             make_query,
             query_window,
             horizon_window,
+            preferred_source_ids,
             resolution,
             create_if_empty,
             zero_if_nan,
         )
+
+        # Cases explaining the following if statement for when to do a fallback query:
+        # 1)    p = None, f = -1          query all sources using id = None
+        # 2)    p = None, f = None        query all sources using id = None
+        # 3)    p = None, f = 1           query all sources using id = None
+        # 4)    p = 1, f = 1              query one source using id = 1 (id = 1 already queried)
+        # 5)    p = 1, f = None           query one source using id = 1,
+        #                                 if values == None then query all source using id = None
+        # 6)    p = 1, f = 2              query one source using id = 1,
+        #                                 if values == None then query one source using id = 2
+        # 7)    p = [1, 2], f = [2, 3]    query two sources with id = 1 or id = 2,
+        #                                 if values == None then query one source with id = 3 (id = 2 already queried)
+        # So the general rule is:
+        #   - if the preferred sources don't have values
+        #   - and if we didn't query all sources already (catches case 1, 2 and 3)
+        #   - and if there are unique fallback sources stated (catches case 4 and part of 7)
+
+        # As a fallback, we'll only query sources that were not queried already (except if the fallback is to query all)
+        unique_fallback_source_ids = drop_non_unique_elements(
+            preferred_source_ids, fallback_source_ids
+        )  # now a list
+
+        if (
+            values.empty
+            and preferred_source_ids
+            and -1 not in unique_fallback_source_ids
+        ):
+            values = query_time_series_data(
+                generic_asset_name,
+                make_query,
+                query_window,
+                horizon_window,
+                unique_fallback_source_ids,
+                resolution,
+                create_if_empty,
+                zero_if_nan,
+            )
 
         # Here we only build one data frame, summed up if necessary.
         if sum_multiple is True:
@@ -75,10 +119,17 @@ def collect_time_series_data(
 def query_time_series_data(
     generic_asset_name: str,
     make_query: Callable[
-        [str, Tuple[datetime, datetime], Tuple[timedelta, timedelta]], Query
+        [
+            str,
+            Tuple[datetime, datetime],
+            Tuple[timedelta, timedelta],
+            Union[int, List[int]],
+        ],
+        Query,
     ],
     query_window: Tuple[datetime, datetime] = (None, None),
     horizon_window: Tuple[timedelta, timedelta] = (None, None),
+    source_ids: Union[int, List[int]] = None,
     resolution: str = None,
     create_if_empty: bool = False,
     zero_if_nan: bool = False,
@@ -91,7 +142,7 @@ def query_time_series_data(
     If wanted, we can create a DataFrame with zeroes if no results were found in the database.
     Returns a DataFrame with a "y" column.
     """
-    query = make_query(generic_asset_name, query_window, horizon_window)
+    query = make_query(generic_asset_name, query_window, horizon_window, source_ids)
     values_orig = pd.read_sql(
         query.statement, db.session.bind, parse_dates=["datetime"]
     )
@@ -134,3 +185,12 @@ def ensure_timing_vars_are_set(
         resolution = session["resolution"]
 
     return (start, end), resolution
+
+
+def drop_non_unique_elements(
+    a: Union[int, List[int]], b: Union[int, List[int]]
+) -> List[int]:
+    """Removes all elements from B that are already in A."""
+    a = a if type(a) == list else [a]
+    b = b if type(b) == list else [b]
+    return list(set(b).difference(a))  # just the unique ones

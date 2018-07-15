@@ -56,11 +56,13 @@ def setup_api_test_data(db):
 
     add_user_data_sources(db)
 
-    # Add power forecasts to the CS 1 asset
+    # Add power forecasts to the assets
     cs_1 = Asset.query.filter(Asset.name == "CS 1").one_or_none()
+    cs_2 = Asset.query.filter(Asset.name == "CS 2").one_or_none()
+    cs_3 = Asset.query.filter(Asset.name == "CS 3").one_or_none()
     power_forecasts = []
     for i in range(6):
-        p = Power(
+        p_1 = Power(
             datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + i * isodate.parse_duration("PT15M"),
             horizon="PT6H",
@@ -68,7 +70,25 @@ def setup_api_test_data(db):
             asset_id=cs_1.id,
             data_source=test_prosumer.id,
         )
-        power_forecasts.append(p)
+        p_2 = Power(
+            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+            + i * isodate.parse_duration("PT15M"),
+            horizon="PT6H",
+            value=300,
+            asset_id=cs_2.id,
+            data_source=test_prosumer.id,
+        )
+        p_3 = Power(
+            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+            + i * isodate.parse_duration("PT15M"),
+            horizon="PT6H",
+            value=0,
+            asset_id=cs_3.id,
+            data_source=test_prosumer.id,
+        )
+        power_forecasts.append(p_1)
+        power_forecasts.append(p_2)
+        power_forecasts.append(p_3)
     db.session.bulk_save_objects(power_forecasts)
 
     print("Done setting up data for API v1.1 tests")

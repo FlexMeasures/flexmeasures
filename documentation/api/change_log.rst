@@ -8,7 +8,13 @@ v1.1-0
 
 - Added the *getPrognosis* endpoint
 - Added the *postPrognosis* endpoint
-- Added information about timeseries resolution in the Introduction section
+- Changed the *getMeterData* endpoint to accept an optional resolution, source, and horizon
+- Changed the Introduction section:
+
+    - Added information about timeseries resolutions
+    - Added information about sources
+    - Updated information about horizons
+
 - Added a description of the *getPrognosis* endpoint in the Supplier section
 - Added a description of the *postPrognosis* endpoint in the Aggregator section
 

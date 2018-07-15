@@ -2,17 +2,26 @@
 
 
 def message_for_get_meter_data(
-    no_connection: bool = False, invalid_unit: bool = False, no_unit: bool = False
+    no_connection: bool = False,
+    invalid_connection: bool = False,
+    single_connection=False,
+    invalid_unit: bool = False,
+    no_unit: bool = False,
 ) -> dict:
     message = {
         "type": "GetMeterDataRequest",
         "start": "2015-01-01T00:00:00Z",
         "duration": "PT1H30M",
-        "connection": "CS 1",
+        "connections": ["CS 1", "CS 2", "CS 3"],
         "unit": "MW",
     }
     if no_connection:
-        message.pop("connection", None)
+        message.pop("connections", None)
+    elif invalid_connection:
+        message["connections"] = ["Non-existing asset 1", "Non-existing asset 2"]
+    elif single_connection:
+        message["connection"] = message["connections"][0]
+        message.pop("connections", None)
     if no_unit:
         message.pop("unit", None)
     elif invalid_unit:

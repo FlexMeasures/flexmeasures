@@ -39,6 +39,12 @@ def get_meter_data():
 
     .. :quickref: User; Download meter data from the platform
 
+    **Optional parameters**
+
+    - "resolution" (see :ref:`resolutions`)
+    - "horizon" (see :ref:`prognoses`)
+    - "source" (see :ref:`sources`)
+
     **Example request**
 
     This "GetMeterDataRequest" message requests measured consumption between 0.00am and 1.30am for charging station 1.

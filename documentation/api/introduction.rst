@@ -52,7 +52,7 @@ Service usage is only possible with a user authentication token specified in the
 .. code-block:: json
 
     {
-        "Authentication-Token": "<token>"
+        "Authorization": "<token>"
     }
 
 The "<token>" can be obtained on the user's profile after logging in:
@@ -90,6 +90,21 @@ We distinguish the following roles with different access rights to the individua
 - ESCo: an energy service company (see :ref:`esco`)
 - MDC: a meter data company (see :ref:`mdc`)
 - DSO: a distribution system operator (see :ref:`dso`)
+
+.. _sources:
+
+Sources
+-------
+
+Requests for data may limit the data selection by specifying a source, for example, a specific user.
+USEF roles are also valid source selectors.
+For example, to obtain data originating from either a meter data company or user 42, include the following:
+
+.. code-block:: json
+
+    {
+        "sources": ["MDC", "42"],
+    }
 
 Notation
 --------
@@ -260,10 +275,12 @@ For version 1 of the API, only univariate timeseries data is expected to be comm
 - "start" should be a timestamp on the hour or a multiple of 15 minutes thereafter, and
 - "duration" should be a multiple of 15 minutes.
 
+.. _prognoses:
+
 Prognoses
 ^^^^^^^^^
 
-A prognosis should state a time horizon, i.e. the duration between the time at which the prognosis was made and the time to which the prognosis refers. The horizon can be stated explicitly by including a ``horizon'', consistent with the ISO 8601 standard, as follows:
+A prognosis should state a time horizon, i.e. the duration between the time at which the prognosis was made and the time to which the prognosis refers. The horizon can be stated explicitly by including a "horizon", consistent with the ISO 8601 standard, as follows:
 
 .. code-block:: json
 
@@ -315,8 +332,10 @@ A "horizon" may be omitted, in which case the web service will derive the horizo
 For a rolling horizon indicating a prognosis 10 minutes after the value occurred, the "horizon" would have been "R/-PT25M".
 Note that, for ex-ante observations, the timeseries resolution (here 15 minutes) is included in the horizon, because the horizon is relative to the start of the timeseries.
 
-Resolution
-^^^^^^^^^^
+.. _resolutions:
+
+Resolutions
+^^^^^^^^^^^
 
 Specifying a "resolution" is redundant for POST requests that contain both "values" and a "duration".
 For GET requests such as *getMeterData* a "resolution" may be specified explicitly to obtain e.g. hourly or daily

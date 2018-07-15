@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Union
+from typing import Dict, List, Tuple, Union
 from datetime import datetime, timedelta
 
 import isodate
@@ -139,11 +139,14 @@ class Power(TimedValue, db.Model):
             None,
             None,
         ),
+        source_ids: Union[int, List[int]] = None,
         session: Session = None,
     ) -> Query:
         if session is None:
             session = db.session
         start, end = query_window
+        if not isinstance(source_ids, list):
+            source_ids = [source_ids]  # ensure source_ids is a list
         query = (
             session.query(Power.datetime, Power.value)
             .join(Asset)
@@ -152,6 +155,8 @@ class Power(TimedValue, db.Model):
                 (Power.datetime >= start) & (Power.datetime <= end)
             )  # Todo: inclusive? + frequency?
         )
+        if source_ids:
+            query = query.filter(Power.data_source.in_(source_ids))
         earliest_horizon, latest_horizon = horizon_window
         if (
             earliest_horizon is not None

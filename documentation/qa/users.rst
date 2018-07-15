@@ -9,7 +9,7 @@ Potential users of the platform are listed below by their role in the Universal 
 Prosumers
 ---------
 
-Prosumers are owners of assets that are connected to the electricity grid and can produce and/or consume energy (like building, wind turbines, charging stations for electric vehicles). A part of these assets consists of Active Demand & Supply, which are assets that have some flexibility in their load or generation. This flexibility can be activated by the Prosumer itself, or given the Prosumer's consent, by a third party.
+Prosumers are owners of assets that are connected to the electricity grid and can produce and/or consume energy (like building, wind turbines, charging stations for electric vehicles). A part of these assets consists of Active Demand & Supply (ADS), which are assets that have some flexibility in their load or generation. This flexibility can be activated by the Prosumer itself, or given the Prosumer's consent, by a third party.
 
 A Prosumer can use the BVP to sell flexibility services.
 
@@ -24,10 +24,10 @@ A Supplier can use the BVP to buy flexibility services.
 Aggregators
 -----------
 
-An Aggregator can use the BVP to broker flexibility services to Suppliers.
+An Aggregator is a company that has a contractual relationship with Prosumers to provide analytics and planning for their Active Demand & Supply (ADS). By being able to directly control ADS, the Aggregator can sell energy flexibility on the market, sharing revenues with the Prosumer. The BVP allows Aggregators to broker flexibility to Suppliers through an order book.
 
 
 Energy Service Companies
 ------------------------
 
-An Aggregator can use the BVP to broker flexibility services to Prosumers.
+Similar to an Aggregator, an ESCo is a company that has a contractual relationship with Prosumers to provide analytics and planning for their Active Demand & Supply (ADS). Unlike Aggregators, an ESCo does not bring flexibility to the market. Instead it provides optimisation services for behind the meter. Implicit demand response (DR) happens when ESCos are optimising ADS against market prices (wholesale or retail). The BVP supports implicit DR by providing ESCos with visualisation, data storage and API services for timeseries data of market prices.

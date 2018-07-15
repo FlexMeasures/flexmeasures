@@ -57,7 +57,13 @@ def get_prognosis():
 
     .. :quickref: User; Download prognosis from the platform
 
-        **Example request**
+    **Optional parameters**
+
+    - "resolution" (see :ref:`resolutions`)
+    - "horizon" (see :ref:`prognoses`)
+    - "source" (see :ref:`sources`)
+
+    **Example request**
 
     This "GetPrognosisRequest" message requests prognosed consumption between 0.00am and 1.30am for charging station 1,
     with a rolling horizon of 6 hours before the start of each 15 minute time interval.

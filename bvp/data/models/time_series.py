@@ -26,9 +26,10 @@ class TimedValue(object):
         return Column(DateTime(timezone=True), primary_key=True)
 
     """The time delta of measuring or forecasting.
-    This should be a duration in ISO8601, e.g. "-PT10M", which you can turn into a timedelta with
-    isodate.parse_duration.
-    Positive durations indicate a forecast, negative ones a measurement after the fact.
+    This should be a duration in ISO8601, e.g. "PT10M", which you can turn into a timedelta with
+    isodate.parse_duration, optionally with a minus sign, e.g. "-PT10M".
+    Positive durations indicate a forecast into the future, negative ones a backward forecast into the past or simply
+    a measurement after the fact.
     """
 
     @declared_attr
@@ -76,6 +77,12 @@ class TimedValue(object):
             None,
             None,
         ),
+        preferred_source_ids: {
+            Union[int, List[int]]
+        } = None,  # None is interpreted as all sources
+        fallback_source_ids: Union[
+            int, List[int]
+        ] = -1,  # An id = -1 is interpreted as no sources
         resolution: str = None,
         sum_multiple: bool = True,
         create_if_empty: bool = False,
@@ -91,6 +98,8 @@ class TimedValue(object):
             make_query=cls.make_query,
             query_window=query_window,
             horizon_window=horizon_window,
+            preferred_source_ids=preferred_source_ids,
+            fallback_source_ids=fallback_source_ids,
             resolution=resolution,
             sum_multiple=sum_multiple,
             create_if_empty=create_if_empty,

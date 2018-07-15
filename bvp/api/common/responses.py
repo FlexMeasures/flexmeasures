@@ -90,7 +90,6 @@ def invalid_sender(
 ) -> Tuple[dict, int]:
     if isinstance(user_role_names, str):
         user_role_names = [user_role_names]
-    print(user_role_names)
     if not user_role_names:
         user_roles_str = "have no role"
     else:

@@ -29,7 +29,22 @@ from bvp.api.common.utils.api_utils import (
     parse_as_list,
     contains_empty_items,
 )
+from bvp.data.models.user import User
+from bvp.data.services.users import get_users
 from bvp.utils.time_utils import bvp_now
+
+
+def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[int]:
+    sources = (
+        sources if isinstance(sources, list) else [sources]
+    )  # Make sure sources is a list
+    source_ids = []
+    for source in sources:
+        if isinstance(source, int):
+            source_ids.extend(User.query.filter(User.id == source).one_or_none())
+        else:
+            source_ids.extend([user.id for user in get_users(source)])
+    return list(set(source_ids))  # only unique source ids
 
 
 def validate_horizon(
@@ -96,49 +111,126 @@ def validate_entity_address(connection: str) -> str:
         return match.string
 
 
-def horizon_accepted(fn):
-    """Decorator which specifies that a GET or POST request accepts an optional horizon.
+def optional_sources_accepted(
+    preferred_source: Union[int, str, List[Union[int, str]]] = None
+):
+    """Decorator which specifies that a GET or POST request accepts an optional source or list of data sources.
+    Each source should either be a known USEF role name or a user id. We'll parse them as an id or list of ids.
+    If a requests states one or more data sources, then we'll only query those (no fallback sources).
+    However, if one or more preferred data sources are already specified in the decorator, we'll query those instead,
+    and if a request states one or more data sources, then we'll only query those as a fallback in case the preferred
+    sources don't have any data to give.
+    Example:
+
+        @app.route('/getMeterData')
+        @optional_sources_accepted("MDC")
+        def get_meter_data(preferred_source_ids, fallback_source_ids):
+            return 'Meter data posted'
+
+    The preferred source ids will be users that are registered as a meter data company.
+    If the message specifies:
+
+    .. code-block:: json
+
+        {
+            "sources": ["Prosumer", "ESCo"]
+        }
+
+    and the MDC has no data available yet, we'll also query data provided by Prosumers and ESCos.
+    If no "source" is specified, we won't query for any other data than from MDCs.
+    """
+
+    def wrapper(fn):
+        @wraps(fn)
+        @as_json
+        def decorated_service(*args, **kwargs):
+            form = get_form_from_request(request)
+            if form is None:
+                current_app.logger.warn(
+                    "Unsupported request method for unpacking 'source' from request."
+                )
+                return invalid_method(request.method)
+
+            unknown_sources = False
+            if "source" in form:
+                validated_sources = validate_sources(form["source"])
+                if None in validated_sources:
+                    unknown_sources = True
+                if preferred_source:
+                    preferred_source_ids = validate_sources(preferred_source)
+                    fallback_source_ids = validated_sources
+                else:
+                    preferred_source_ids = validated_sources
+                    fallback_source_ids = -1
+            else:
+                preferred_source_ids = validate_sources(preferred_source)
+                fallback_source_ids = -1
+
+            kwargs["preferred_source_ids"] = preferred_source_ids
+            kwargs["fallback_source_ids"] = fallback_source_ids
+
+            response = fn(*args, **kwargs)
+            if unknown_sources:
+                # preferred_source_ids.index(None)  # Todo: improve warning message by including the ones that could not be found.
+                response["message"].append(" Warning: some data sources are unknown.")
+                return response
+            else:
+                return response
+
+        return decorated_service
+
+    return wrapper
+
+
+def optional_horizon_accepted(default_horizon=None):
+    """Decorator which specifies that a GET or POST request accepts an optional horizon. May specify a default horizon,
+    otherwise the horizon is determined by the server based on when the API endpoint was called.
     Example:
 
         @app.route('/postMeterData')
-        @horizon_required
-        def post_meter_data(value_groups):
+        @optional_horizon_accepted()
+        def post_meter_data(horizon):
             return 'Meter data posted'
 
-    If the message specifies a 'horizon', it should be in accordance with the ISO 8601 standard.
-    If no 'horizon' is specified, it is determined by the server based on when the API endpoint was called.
+    If the message specifies a "horizon", it should be in accordance with the ISO 8601 standard.
+    If no "horizon" is specified, it is determined by the server, since no default horizon was set.
     """
 
-    @wraps(fn)
-    @as_json
-    def wrapper(*args, **kwargs):
-        form = get_form_from_request(request)
-        if form is None:
-            current_app.logger.warn(
-                "Unsupported request method for unpacking 'horizon' from request."
-            )
-            return invalid_method(request.method)
+    def wrapper(fn):
+        @wraps(fn)
+        @as_json
+        def decorated_service(*args, **kwargs):
+            form = get_form_from_request(request)
+            if form is None:
+                current_app.logger.warn(
+                    "Unsupported request method for unpacking 'horizon' from request."
+                )
+                return invalid_method(request.method)
 
-        if "horizon" in form:
-            horizon = validate_horizon(form["horizon"])
-            if not horizon:
-                current_app.logger.warn("Cannot parse 'horizon' value")
+            if "horizon" in form:
+                horizon = validate_horizon(form["horizon"])
+                if not horizon:
+                    current_app.logger.warn("Cannot parse 'horizon' value")
+                    return invalid_horizon()
+            elif default_horizon:
+                horizon = validate_horizon(default_horizon)
+            elif "start" in form:
+                start = validate_start(form["start"])
+                if not start:
+                    current_app.logger.warn("Cannot parse 'start' value")
+                    return invalid_period()
+                if start.tzinfo is None:
+                    current_app.logger.warn("Cannot parse timezone of 'start' value")
+                    return invalid_timezone()
+                horizon = start - bvp_now()
+            else:
+                current_app.logger.warn("Request missing both 'horizon' and 'start'.")
                 return invalid_horizon()
-        elif "start" in form:
-            start = validate_start(form["start"])
-            if not start:
-                current_app.logger.warn("Cannot parse 'start' value")
-                return invalid_period()
-            if start.tzinfo is None:
-                current_app.logger.warn("Cannot parse timezone of 'start' value")
-                return invalid_timezone()
-            horizon = start - bvp_now()
-        else:
-            current_app.logger.warn("Request missing both 'horizon' and 'start'.")
-            return invalid_horizon()
 
-        kwargs["horizon"] = horizon
-        return fn(*args, **kwargs)
+            kwargs["horizon"] = horizon
+            return fn(*args, **kwargs)
+
+        return decorated_service
 
     return wrapper
 
@@ -149,7 +241,7 @@ def period_required(fn):
 
         @app.route('/postMeterData')
         @period_required
-        def post_meter_data(value_groups):
+        def post_meter_data(period):
             return 'Meter data posted'
 
     The message must specify a 'start' and a 'duration' in accordance with the ISO 8601 standard.
@@ -337,7 +429,7 @@ def units_accepted(*units):
 
         @app.route('/postMeterData')
         @units_accepted('MW', 'MWh')
-        def post_meter_data():
+        def post_meter_data(unit):
             return 'Meter data posted'
 
     The message must either specify 'MW' or 'MWh' as the unit.
@@ -370,16 +462,16 @@ def units_accepted(*units):
     return wrapper
 
 
-def resolutions_accepted(*resolutions):
-    """Decorator which specifies that a GET or POST request must specify one of the
+def optional_resolutions_accepted(*resolutions):
+    """Decorator which specifies that a GET or POST request accepts one of the
     specified time resolutions. Example:
 
         @app.route('/postMeterData')
-        @resolutions_accepted('PT15M', 'PT1H')
-        def post_meter_data():
+        @optional_resolutions_accepted('PT15M', 'PT1H')
+        def post_meter_data(resolution):
             return 'Meter data posted'
 
-    The message must either specify 'PT15M' or 'PT1H' as the resolution.
+    The message must either specify 'PT15M' or 'PT1H' as the resolution, or no resolution.
 
     :param resolutions: The possible resolutions.
     """
@@ -394,9 +486,12 @@ def resolutions_accepted(*resolutions):
                     "Unsupported request method for unpacking 'resolution' from request."
                 )
                 return invalid_method(request.method)
+
             elif "resolution" not in form:
-                current_app.logger.warn("Request is missing resolution.")
-                return invalid_resolution()
+                kwargs[
+                    "resolution"
+                ] = "PT15M"  # Todo: should be decided based on available data
+                return fn(*args, **kwargs)
             elif form["resolution"] not in resolutions:
                 current_app.logger.warn("Resolution is not accepted.")
                 return invalid_resolution()

@@ -70,14 +70,31 @@ def test_no_data(client):
     # assert get_prognosis_response.json["values"] == []
 
 
-def test_get_prognosis(client):
+@pytest.mark.parametrize(
+    "message",
+    [
+        message_for_get_prognosis(single_connection=False),
+        message_for_get_prognosis(single_connection=True),
+        message_for_get_prognosis(no_resolution=True),
+    ],
+)
+def test_get_prognosis(client, message):
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("bvp_api_v1_1.get_prognosis"),
-        query_string=message_replace_name_with_ea(message_for_get_prognosis()),
+        query_string=message_replace_name_with_ea(message),
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print(get_prognosis_response.json)
     assert get_prognosis_response.status_code == 200
-    assert get_prognosis_response.json["values"] == [300, 300, 300, 300, 300, 300]
-    # Todo: more asserts should go here
+    if "groups" in get_prognosis_response.json:
+        assert get_prognosis_response.json["groups"][0]["values"] == [
+            300,
+            300,
+            300,
+            300,
+            300,
+            300,
+        ]
+    else:
+        assert get_prognosis_response.json["values"] == [300, 300, 300, 300, 300, 300]
