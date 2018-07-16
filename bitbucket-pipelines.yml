@@ -8,9 +8,9 @@ pipelines:
             - flake8 bvp
     - step:
         name: Build and Test
+        image: python:3.6
         caches:
           - pip
-        image: python:3.6
         script:
           - ci/SETUP.sh
           - python setup.py test
