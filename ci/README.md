@@ -41,12 +41,15 @@ PATH_TO_WSGI=/path/to/wsgi/script/for/the/app
 echo "CHECKING OUT CODE TO GIT WORK TREE ($PATH_TO_GIT_WORK_TREE) ..."
 GIT_WORK_TREE=$PATH_TO_GIT_WORK_TREE git checkout -f
 
-cd $PATH_TO_GIT_WORK_TREE 
-eval $ACTIVATE_VENV
+cd $PATH_TO_GIT_WORK_TREE
+PATH=$PATH_TO_VENV/bin:$PATH                                                                                                                                                                                  
+
 echo "INSTALLING DEPENDENCIES ..."
 python setup.py develop
+
 echo "UPGRADING DATABASE STRUCTURE ..."
-flask db upgrade                                                                                                                                                                             
+flask db upgrade
+
 echo "UPDATING DOCUMENTATION ..."
 pip install sphinx sphinxcontrib.httpdomain
 cd documentation; make html; cd ..
