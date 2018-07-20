@@ -2,6 +2,7 @@ from functools import wraps
 
 from flask import current_app
 from flask_json import as_json
+from werkzeug.datastructures import Headers
 
 
 def as_response_type(response_type):
@@ -29,23 +30,28 @@ def as_response_type(response_type):
         @as_json
         def decorated_service(*args, **kwargs):
             response = fn(*args, **kwargs)  # expects flask response object
-            if not hasattr(response, "json"):
+            if not (
+                hasattr(response, "json")
+                and hasattr(response, "headers")
+                and hasattr(response, "status_code")
+            ):
                 current_app.logger.warn(
                     "Response is not a Flask response object. I did not assign a response type."
                 )
                 return response
             data = response.json
-            headers = response.headers
+            headers = dict(
+                zip(Headers.keys(response.headers), Headers.values(response.headers))
+            )
             status_code = response.status_code
-            print(data)
-            print(headers)
-            print(status_code)
             if "type" in data:
                 current_app.logger.warn(
                     "Response already contains 'type' key. I did not assign a new response type."
                 )
             else:
                 data["type"] = response_type
+                headers.pop("content-length", None)
+                headers.pop("Content-Length", None)
             return data, status_code, headers
 
         return decorated_service

@@ -7,6 +7,7 @@ from inflection import pluralize, titleize
 from sqlalchemy.orm import Query, Session
 
 from bvp.data.config import db
+from bvp.data.models.data_sources import DataSource
 from bvp.data.models.time_series import TimedValue
 
 
@@ -156,7 +157,19 @@ class Power(TimedValue, db.Model):
             )  # Todo: inclusive? + frequency?
         )
         if source_ids:
-            query = query.filter(Power.data_source.in_(source_ids))
+            # Collect only data from sources that are either a specified user id or a script
+            script_sources = DataSource.query.filter(DataSource.type == "script").all()
+            user_sources = (
+                DataSource.query.filter(DataSource.type == "user")
+                .filter(DataSource.user_id.in_(source_ids))
+                .all()
+            )
+            script_source_ids = [script_source.id for script_source in script_sources]
+            user_source_ids = [user_source.id for user_source in user_sources]
+            query = query.filter(
+                Power.data_source.in_(user_source_ids)
+                | Power.data_source.in_(script_source_ids)
+            )
         earliest_horizon, latest_horizon = horizon_window
         if (
             earliest_horizon is not None

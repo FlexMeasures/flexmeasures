@@ -44,8 +44,42 @@ service_listing = {
             "description": "Get an Active Demand & Supply (ADS) request for a certain type of control action, "
             "including control set points",
         },
+        {
+            "name": "postMarketData",
+            "access": ["Aggregator", "Supplier", "MDC", "DSO", "Prosumer", "ESCo"],
+            "description": "Send prices",
+        },
+        {
+            "name": "postWeatherData",
+            "access": ["Aggregator", "Supplier", "MDC", "DSO", "Prosumer", "ESCo"],
+            "description": "Send weather forecasts or weather sensor observations",
+        },
     ],
 }
+
+
+@bvp_api.route("/getDeviceMessage", methods=["GET"])
+@as_response_type("GetDeviceMessageResponse")
+@auth_token_required
+@usef_roles_accepted(*check_access(service_listing, "getDeviceMessage"))
+def get_device_message():
+    return
+
+
+@bvp_api.route("/postMarketData", methods=["POST"])
+@as_response_type("PostMarketDataResponse")
+@auth_token_required
+@usef_roles_accepted(*check_access(service_listing, "postMarketData"))
+def post_market_data():
+    return
+
+
+@bvp_api.route("/postWeatherData", methods=["POST"])
+@as_response_type("PostWeatherDataResponse")
+@auth_token_required
+@usef_roles_accepted(*check_access(service_listing, "postWeatherData"))
+def post_weather_data():
+    return
 
 
 @bvp_api.route("/getPrognosis", methods=["GET"])

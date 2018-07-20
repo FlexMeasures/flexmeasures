@@ -5,6 +5,7 @@ from typing import List, Union
 
 import isodate
 from isodate.isoerror import ISO8601Error
+from pandas.tseries.frequencies import to_offset
 from flask import request, current_app
 from flask_json import as_json
 from flask_principal import Permission, RoleNeed
@@ -115,7 +116,8 @@ def optional_sources_accepted(
     preferred_source: Union[int, str, List[Union[int, str]]] = None
 ):
     """Decorator which specifies that a GET or POST request accepts an optional source or list of data sources.
-    Each source should either be a known USEF role name or a user id. We'll parse them as an id or list of ids.
+    Each source should either be a known USEF role name or a user id.
+    We'll parse them as a source id or list of source ids.
     If a requests states one or more data sources, then we'll only query those (no fallback sources).
     However, if one or more preferred data sources are already specified in the decorator, we'll query those instead,
     and if a request states one or more data sources, then we'll only query those as a fallback in case the preferred
@@ -127,7 +129,7 @@ def optional_sources_accepted(
         def get_meter_data(preferred_source_ids, fallback_source_ids):
             return 'Meter data posted'
 
-    The preferred source ids will be users that are registered as a meter data company.
+    The preferred source ids will be those of users that are registered as a meter data company.
     If the message specifies:
 
     .. code-block:: json
@@ -490,13 +492,15 @@ def optional_resolutions_accepted(*resolutions):
             elif "resolution" not in form:
                 kwargs[
                     "resolution"
-                ] = "PT15M"  # Todo: should be decided based on available data
+                ] = "15T"  # Todo: should be decided based on available data
                 return fn(*args, **kwargs)
             elif form["resolution"] not in resolutions:
                 current_app.logger.warn("Resolution is not accepted.")
                 return invalid_resolution()
             else:
-                kwargs["resolution"] = form["resolution"]
+                kwargs["resolution"] = to_offset(
+                    isodate.parse_duration(form["resolution"])
+                ).freqstr  # Convert ISO period string to pandas frequency string
                 return fn(*args, **kwargs)
 
         return decorated_service

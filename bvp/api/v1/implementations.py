@@ -17,7 +17,7 @@ from bvp.api.common.responses import (
 from bvp.data.services.resources import get_assets
 from bvp.api.common.utils.api_utils import (
     parse_entity_address,
-    update_beliefs,
+    message_replace_name_with_ea,
     groups_to_dict,
 )
 from bvp.api.common.utils.validators import (
@@ -143,10 +143,6 @@ def post_meter_data_response(
     db.session.bulk_save_objects(power_measurements)
     db.session.commit()
 
-    # Store the data in the power forecasts table
-    # - This represents the belief states
-    update_beliefs()
-
     # Optionally update the measurements table
     # - If the mdc called, update the measurements table and verify the measurements
     # - Else (if not the mdc) if the measurements are not yet verified, update the measurements table
@@ -198,10 +194,6 @@ def collect_connection_and_value_groups(
 
     from flask import current_app
 
-    # Todo: if resolution is specified, it should be converted properly to a pandas dataframe frequency
-    if resolution == "PT15M":
-        resolution = "15T"
-
     user_assets = get_assets()
     if not user_assets:
         current_app.logger.info("User doesn't seem to have any assets")
@@ -211,9 +203,11 @@ def collect_connection_and_value_groups(
     end = start + duration
     value_groups = []
     new_connection_groups = []  # Each connection in the old connection groups will be interpreted as a separate group
-    for group in connection_groups:
+    for connections in connection_groups:
+
+        # Get the asset names
         asset_names = []
-        for connection in group:
+        for connection in connections:
 
             # Look for the Asset object
             connection = validate_entity_address(connection)
@@ -233,8 +227,9 @@ def collect_connection_and_value_groups(
                 return unrecognized_connection_group()
 
             asset_names.append(asset.name)
-        group_response = {"connections": group}
-        ts_df_or_dict = Power.collect(
+
+        # Get the power values
+        ts_values = Power.collect(
             generic_asset_names=asset_names,
             query_window=(start, end),
             resolution=resolution,
@@ -243,20 +238,12 @@ def collect_connection_and_value_groups(
             fallback_source_ids=fallback_source_ids,
             sum_multiple=False,
         )
-        if isinstance(ts_df_or_dict, dict):
-            for k, v in ts_df_or_dict.items():
-                value_groups.append(v.y.tolist())
-                new_connection_groups.append(k)
-        elif ts_df_or_dict.empty:
-            group_response["values"] = []
-            value_groups.append([])
-            new_connection_groups.append(group)
-        else:
-            group_response["values"] = ts_df_or_dict.y.tolist()
-            value_groups.append(ts_df_or_dict.y.tolist())
-            new_connection_groups.append(group)
+        for k, v in ts_values.items():
+            value_groups.append(v.y.tolist())
+            new_connection_groups.append(k)
 
     response = groups_to_dict(new_connection_groups, value_groups)
+    response = message_replace_name_with_ea(response)
     response["start"] = isodate.datetime_isoformat(start)
     response["duration"] = isodate.duration_isoformat(duration)
     response["unit"] = unit  # TODO: convert to requested unit

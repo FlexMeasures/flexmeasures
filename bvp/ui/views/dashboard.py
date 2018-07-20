@@ -44,14 +44,12 @@ def dashboard_view():
             assets_by_pluralised_type
         )
         for asset in assets_by_pluralised_type:
-            # TODO: the 2015 hack is temporary
+            recent_quarter = time_utils.get_most_recent_quarter()
+            if current_app.config.get("BVP_MODE", "") == "demo":
+                recent_quarter = recent_quarter.replace(year=2015)
             measured_now = Power.collect(
                 [asset.name],
-                query_window=(
-                    time_utils.get_most_recent_quarter().replace(year=2015),
-                    time_utils.get_most_recent_quarter().replace(year=2015)
-                    + timedelta(minutes=15),
-                ),
+                query_window=(recent_quarter, recent_quarter + timedelta(minutes=15)),
                 resolution="15T",
             ).y
             if measured_now.size > 0:

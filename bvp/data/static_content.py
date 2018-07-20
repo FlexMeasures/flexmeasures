@@ -70,7 +70,7 @@ def add_user_data_sources(db: SQLAlchemy):
             DataSource(
                 label="Data entered by user %s" % user.username,
                 type="user",
-                source_id=user.id,
+                user_id=user.id,
             )
         )
 
@@ -80,7 +80,7 @@ def add_data_sources(db: SQLAlchemy):
         DataSource(
             label="Data initialised by bvp.data.static_content",
             type="script",
-            source_id=None,
+            user_id=None,
         )
     )
     add_user_data_sources(db)
@@ -219,7 +219,7 @@ def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
     if os.getcwd().endswith("bvp") and "app.py" in os.listdir(os.getcwd()):
         asset_path = "../" + asset_path
     if not os.path.exists(asset_path):
-        raise Exception("Could not find %s." % asset_path)
+        raise Exception("Could not find %s/%s." % (os.getcwd(), asset_path))
     assets: List[Asset] = []
     with open(asset_path, "r") as assets_json:
         for json_asset in json.loads(assets_json.read()):

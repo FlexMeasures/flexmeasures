@@ -160,9 +160,10 @@ def set_time_range_for_session():
                 session["end_time"].replace(tzinfo=pytz.utc).astimezone(get_timezone())
             )
 
-    # TODO: For now, we have to work with the data we have, that means 2015
-    session["start_time"] = session["start_time"].replace(year=2015)
-    session["end_time"] = session["end_time"].replace(year=2015)
+    # Our static node works only with 2015 data
+    if current_app.config.get("BVP_MODE", "") == "demo":
+        session["start_time"] = session["start_time"].replace(year=2015)
+        session["end_time"] = session["end_time"].replace(year=2015)
 
     if session["start_time"] >= session["end_time"]:
         raise BadRequest(

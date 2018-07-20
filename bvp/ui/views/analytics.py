@@ -2,7 +2,7 @@ from typing import List, Union
 from datetime import timedelta
 
 import pandas as pd
-from flask import session
+from flask import session, current_app
 from flask_security import roles_accepted
 from bokeh.plotting import Figure
 from bokeh.embed import components
@@ -62,26 +62,29 @@ def analytics_view():
         power_data, prices_data, power_forecast_data, prices_forecast_data, metrics
     )
 
-    # TODO: get rid of this hack, which we use because we mock 2015 data
-    if not power_data.empty:
-        power_data = power_data.loc[
-            power_data.index < time_utils.get_most_recent_quarter().replace(year=2015)
-        ]
-    if not prices_data.empty:
-        prices_data = prices_data.loc[
-            prices_data.index < time_utils.get_most_recent_quarter().replace(year=2015)
-        ]
-    if not weather_data.empty:
-        weather_data = weather_data.loc[
-            weather_data.index
-            < time_utils.get_most_recent_quarter().replace(year=2015)
-            + timedelta(hours=24)
-        ]
-    if not rev_cost_data.empty:
-        rev_cost_data = rev_cost_data.loc[
-            rev_cost_data.index
-            < time_utils.get_most_recent_quarter().replace(year=2015)
-        ]
+    # TODO: get rid of this hack, which we use because we mock 2015 data in static mode
+    if current_app.config.get("BVP_MODE", "") == "demo":
+        if not power_data.empty:
+            power_data = power_data.loc[
+                power_data.index
+                < time_utils.get_most_recent_quarter().replace(year=2015)
+            ]
+        if not prices_data.empty:
+            prices_data = prices_data.loc[
+                prices_data.index
+                < time_utils.get_most_recent_quarter().replace(year=2015)
+            ]
+        if not weather_data.empty:
+            weather_data = weather_data.loc[
+                weather_data.index
+                < time_utils.get_most_recent_quarter().replace(year=2015)
+                + timedelta(hours=24)
+            ]
+        if not rev_cost_data.empty:
+            rev_cost_data = rev_cost_data.loc[
+                rev_cost_data.index
+                < time_utils.get_most_recent_quarter().replace(year=2015)
+            ]
 
     # Making figures
     shared_x_range = plotting.make_range(power_data.index, power_forecast_data.index)

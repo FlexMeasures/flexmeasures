@@ -68,7 +68,7 @@ Or, from within Postgres console:
 
 Try logging in:
 
-    psql -U a1 --pass -h 127.0.0.1 -d a1
+    psql -U a1 --password -h 127.0.0.1 -d a1
     \q
 
 

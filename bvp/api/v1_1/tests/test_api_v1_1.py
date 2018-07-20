@@ -2,7 +2,8 @@ from flask import url_for
 import pytest
 
 from bvp.api.common.responses import request_processed, invalid_horizon
-from bvp.api.tests.utils import get_auth_token, message_replace_name_with_ea
+from bvp.api.tests.utils import get_auth_token
+from bvp.api.common.utils.api_utils import message_replace_name_with_ea
 from bvp.api.v1_1.tests.utils import message_for_get_prognosis
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
 

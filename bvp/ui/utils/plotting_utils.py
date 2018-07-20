@@ -129,6 +129,9 @@ def create_graph(
     fig.xaxis.axis_label = x_label
     fig.xgrid.grid_line_alpha = 0.5
 
+    # fig_legend = fig.legend[0]
+    # fig_legend.click_policy = "hide"
+
     return fig
 
 

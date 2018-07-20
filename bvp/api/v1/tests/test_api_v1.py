@@ -10,7 +10,8 @@ from bvp.api.common.responses import (
     request_processed,
     unrecognized_connection_group,
 )
-from bvp.api.tests.utils import get_auth_token, message_replace_name_with_ea
+from bvp.api.tests.utils import get_auth_token
+from bvp.api.common.utils.api_utils import message_replace_name_with_ea
 from bvp.api.v1.tests.utils import (
     message_for_get_meter_data,
     message_for_post_meter_data,
