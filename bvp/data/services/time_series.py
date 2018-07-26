@@ -161,13 +161,16 @@ def query_time_series_data(
 
     # re-sample data to the resolution we need to serve
     if not values_orig.empty:
-        values = values_orig.resample(resolution).aggregate(
-            {
-                "y": np.nanmean,
-                "horizon": np.min,
-                "label": lambda x: data_source_resampler(values_orig["label"]),
-            }
-        )
+        if all(k in values_orig for k in ("horizon", "label")):
+            values = values_orig.resample(resolution).aggregate(
+                {
+                    "y": np.nanmean,
+                    "horizon": np.min,
+                    "label": lambda x: data_source_resampler(values_orig["label"]),
+                }
+            )
+        else:
+            values = values_orig.resample(resolution).aggregate({"y": np.nanmean})
     else:
         values = values_orig
 
