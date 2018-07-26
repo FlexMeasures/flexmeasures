@@ -23,7 +23,7 @@ service_listing = {
         },
         {
             "name": "postMeterData",
-            "access": ["MDC"],
+            "access": ["Aggregator", "Supplier", "MDC", "DSO", "Prosumer", "ESCo"],
             "description": "Send meter reading",
         },
     ],

@@ -5,6 +5,8 @@ import pytest
 from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 
+from bvp.data.services.users import create_user
+
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_api_test_data(db):
@@ -19,22 +21,14 @@ def setup_api_test_data(db):
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
     # Create a test user without a USEF role
-
-    user_datastore.create_user(
+    create_user(
         username="test user without roles",
         email="test_user@seita.nl",
         password=hash_password("testtest"),
     )
 
-    # Add the MDC role to the test_prosumer user
-    test_mdc_role = user_datastore.create_role(
-        name="MDC",
-        description="A Meter Data Company allowed to post verified meter data.",
-    )
-    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
-    user_datastore.add_role_to_user(test_prosumer, test_mdc_role)
-
     # Create 3 test assets for the test_prosumer user
+    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
     asset_names = ["CS 1", "CS 2", "CS 3"]

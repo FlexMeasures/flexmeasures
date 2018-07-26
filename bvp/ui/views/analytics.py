@@ -89,7 +89,7 @@ def analytics_view():
     # Making figures
     shared_x_range = plotting.make_range(power_data.index, power_forecast_data.index)
     power_fig = make_power_figure(
-        power_data.y, power_forecast_data, showing_pure_consumption_data, shared_x_range
+        power_data, power_forecast_data, showing_pure_consumption_data, shared_x_range
     )
     prices_fig = make_prices_figure(prices_data.y, prices_forecast_data, shared_x_range)
     weather_fig = make_weather_figure(
@@ -131,7 +131,7 @@ def analytics_view():
 
 
 def make_power_figure(
-    data: pd.Series,
+    data: pd.DataFrame,
     forecast_data: Union[None, pd.DataFrame],
     showing_pure_consumption_data: bool,
     shared_x_range: Range1d,
@@ -166,7 +166,7 @@ def make_prices_figure(
     data: pd.Series, forecast_data: Union[None, pd.DataFrame], shared_x_range: Range1d
 ) -> Figure:
     """Make a bokeh figure for price data"""
-    prices_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
+    price_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
     return plotting.create_graph(
         data,
         legend="Actual",
@@ -176,7 +176,7 @@ def make_prices_figure(
         x_label="Time (sampled by %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
         y_label="Prices (in KRW/MWh)",
-        hover_tool=prices_hover,
+        hover_tool=price_hover,
     )
 
 

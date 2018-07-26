@@ -11,6 +11,7 @@ from bokeh.models import (
     BoxAnnotation,
     CustomJS,
 )
+from bokeh.models.tools import CustomJSHover
 from bokeh import events
 import pandas as pd
 import numpy as np
@@ -18,16 +19,119 @@ import numpy as np
 from bvp.utils.time_utils import tz_index_naively
 
 
-def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:
+def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:  # noqa: C901
     """Describe behaviour of default tooltips
     (we could also return html for custom tooltips)"""
+
+    def horizon_formatter() -> str:
+        horizon = value  # noqa
+
+        def ngettext(message, plural, num):
+            if num == 1:
+                return message
+            else:
+                return plural
+
+        def naturaltime(delta):
+            """humanize.naturaldelta adjusted for use in pscript"""
+
+            use_months = False
+            seconds = abs(delta // 1000)
+            days = seconds // (60 * 60 * 24)
+            years = days // 365
+            days = days % 365
+            months = int(days // 30.5)
+
+            if not years and days < 1:
+                if seconds == 0:
+                    return "a moment"
+                elif seconds == 1:
+                    return "a second"
+                elif seconds < 60:
+                    return ngettext(
+                        "%d second" % seconds, "%d seconds" % seconds, seconds
+                    )
+                elif 60 <= seconds < 120:
+                    return "a minute"
+                elif 120 <= seconds < 3600:
+                    minutes = seconds // 60
+                    return ngettext(
+                        "%d minute" % minutes, "%d minutes" % minutes, minutes
+                    )
+                elif 3600 <= seconds < 3600 * 2:
+                    return "an hour"
+                elif 3600 < seconds:
+                    hours = seconds // 3600
+                    return ngettext("%d hour" % hours, "%d hours" % hours, hours)
+            elif years == 0:
+                if days == 1:
+                    return "a day"
+                if not use_months:
+                    return ngettext("%d day" % days, "%d days" % days, days)
+                else:
+                    if not months:
+                        return ngettext("%d day" % days, "%d days" % days, days)
+                    elif months == 1:
+                        return "a month"
+                    else:
+                        return ngettext(
+                            "%d month" % months, "%d months" % months, months
+                        )
+            elif years == 1:
+                if not months and not days:
+                    return "a year"
+                elif not months:
+                    return ngettext(
+                        "1 year, %d day" % days, "1 year, %d days" % days, days
+                    )
+                elif use_months:
+                    if months == 1:
+                        return "1 year, 1 month"
+                    else:
+                        return ngettext(
+                            "1 year, %d month" % months,
+                            "1 year, %d months" % months,
+                            months,
+                        )
+                else:
+                    return ngettext(
+                        "1 year, %d day" % days, "1 year, %d days" % days, days
+                    )
+            else:
+                return ngettext("%d year" % years, "%d years" % years, years)
+
+        if isinstance(horizon, list):
+            min_horizon = min(horizon)
+            if min_horizon < 0:
+                return "at most %s after realisation" % naturaltime(min_horizon)
+            elif min_horizon > 0:
+                return "at least %s before realisation" % naturaltime(min_horizon)
+            else:
+                return "exactly at realisation"
+        if horizon < 0:
+            return "%s after realisation" % naturaltime(horizon)
+        elif horizon > 0:
+            return "%s before realisation" % naturaltime(horizon)
+        else:
+            return "exactly at realisation"
+
+    custom_horizon_string = CustomJSHover.from_py_func(horizon_formatter)
     date_format = "@x{%F} to @next_x{%F}"
     if resolution in ("15T", "1h"):
         date_format = "@x{%F %H:%M} to @next_x{%F %H:%M}"
 
     return HoverTool(
-        tooltips=[("Time", date_format), ("Value", "@y{0.000a} %s" % y_unit)],
-        formatters={"x": "datetime", "next_x": "datetime", "y": "numeral"},
+        tooltips=[
+            ("Time", date_format),
+            ("Value", "@y{0.000a} %s" % y_unit),
+            ("Description", "@data_source @horizon{custom}"),
+        ],
+        formatters={
+            "x": "datetime",
+            "next_x": "datetime",
+            "y": "numeral",
+            "horizon": custom_horizon_string,
+        },
     )
 
 
@@ -52,7 +156,7 @@ def make_range(
 
 
 def create_graph(
-    series: pd.Series,
+    data: Union[pd.Series, pd.DataFrame],
     title: str = "A plot",
     x_label: str = "X",
     y_label: str = "Y",
@@ -65,7 +169,7 @@ def create_graph(
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
 
-    :param series: the actual data
+    :param data: the actual data
     :param title: Title of the graph
     :param x_label: x axis label
     :param y_label: y axis label
@@ -77,19 +181,24 @@ def create_graph(
     :return: a Bokeh Figure
     """
     if x_range is None:
-        x_range = make_range(series.index)
-    series = tz_index_naively(series)
+        x_range = make_range(data.index)
+    data = tz_index_naively(data)
+
+    if isinstance(data, pd.DataFrame):
+        y_data = data.y
+    else:
+        y_data = data
 
     # set tools
     tools = ["box_zoom", "reset", "save"]
     if hover_tool is not None:
         tools = [hover_tool] + tools
 
-    if show_y_floats is False and series.size > 0:  # apply a simple heuristic
+    if show_y_floats is False and y_data.size > 0:  # apply a simple heuristic
         if forecasts is None or forecasts.empty:
-            show_y_floats = max(series.values) < 2
+            show_y_floats = max(y_data.values) < 2
         else:
-            show_y_floats = max(max(series.values), max(forecasts.yhat)) < 2
+            show_y_floats = max(max(y_data.values), max(forecasts.yhat)) < 2
 
     fig = figure(
         title=title,
@@ -103,8 +212,10 @@ def create_graph(
         outline_line_color="#666666",
     )
 
-    ds = make_datasource_from(series)
-    fig.circle(x="x", y="y", source=ds, color="#3B0757", alpha=0.5, legend=legend)
+    ds = make_datasource_from(data)
+    fig.circle(
+        x="x", y="y", source=ds, color="#3B0757", alpha=0.5, legend=legend, size=20
+    )
 
     if forecasts is not None and not forecasts.empty:
         forecasts = tz_index_naively(forecasts)
@@ -135,23 +246,33 @@ def create_graph(
     return fig
 
 
-def make_datasource_from(series: pd.Series) -> ColumnDataSource:
+def make_datasource_from(data: Union[pd.Series, pd.DataFrame]) -> ColumnDataSource:
     """ Make a bokeh data source, which is for instance useful for the hover tool. """
-    x = series.index.values
-    y = series.values
+    if isinstance(data, pd.DataFrame):
+        y_data = data.y
+    else:
+        y_data = data
+
+    x = data.index.values
+    y = y_data.values
     next_x = []
     # If we have a DatetimeIndex, we encode with each x (start time) also the boundary to which it runs (end time).
     # TODO: can be extended to work with other types
     if (
         x.size
-        and isinstance(series.index, pd.DatetimeIndex)
-        and series.index.freq is not None
+        and isinstance(data.index, pd.DatetimeIndex)
+        and data.index.freq is not None
     ):
         # i.e. if there is data and with a clearly defined frequency
         next_x = pd.DatetimeIndex(
-            start=x[1], freq=series.index.freq, periods=len(series)
+            start=x[1], freq=data.index.freq, periods=len(data.index)
         ).values
-    return ColumnDataSource(dict(x=x, next_x=next_x, y=y))
+    if isinstance(data, pd.DataFrame):
+        return ColumnDataSource(
+            dict(x=x, next_x=next_x, y=y, horizon=data.horizon, data_source=data.label)
+        )
+    else:
+        return ColumnDataSource(dict(x=x, next_x=next_x, y=y))
 
 
 def highlight(

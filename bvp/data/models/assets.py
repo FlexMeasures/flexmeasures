@@ -125,7 +125,7 @@ class Power(TimedValue, db.Model):
     """
     All measurements of power data are stored in one slim table.
     TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
-    TODO: If there are more than one measurements per asset per time step possible, we can expand rather easily.
+    TODO: If there are more than one measurement per asset per time step possible, we can expand rather easily.
     """
 
     asset_id = db.Column(db.Integer(), db.ForeignKey("asset.id"), primary_key=True)
@@ -146,29 +146,31 @@ class Power(TimedValue, db.Model):
         if session is None:
             session = db.session
         start, end = query_window
-        if source_ids is not None and not isinstance(source_ids, list):
-            source_ids = [source_ids]  # ensure source_ids is a list
         query = (
-            session.query(Power.datetime, Power.value)
+            session.query(Power.datetime, Power.value, Power.horizon, DataSource.label)
+            .join(DataSource)
+            .filter(Power.data_source_id == DataSource.id)
             .join(Asset)
             .filter(Asset.name == asset_name)
             .filter(
                 (Power.datetime >= start) & (Power.datetime <= end)
             )  # Todo: inclusive? + frequency?
         )
+        if source_ids is not None and not isinstance(source_ids, list):
+            source_ids = [source_ids]  # ensure source_ids is a list
         if source_ids:
             # Collect only data from sources that are either a specified user id or a script
             script_sources = DataSource.query.filter(DataSource.type == "script").all()
             user_sources = (
                 DataSource.query.filter(DataSource.type == "user")
-                .filter(DataSource.user_id.in_(source_ids))
+                .filter(DataSource.id.in_(source_ids))
                 .all()
             )
             script_source_ids = [script_source.id for script_source in script_sources]
             user_source_ids = [user_source.id for user_source in user_sources]
             query = query.filter(
-                Power.data_source.in_(user_source_ids)
-                | Power.data_source.in_(script_source_ids)
+                Power.data_source_id.in_(user_source_ids)
+                | Power.data_source_id.in_(script_source_ids)
             )
         earliest_horizon, latest_horizon = horizon_window
         if (
@@ -192,9 +194,14 @@ class Power(TimedValue, db.Model):
             "horizon": self.horizon,
         }
 
+    def __init__(self, **kwargs):
+        super(Power, self).__init__(**kwargs)
+
     def __repr__(self):
-        return "<Power %.2f on Asset %s at %s>" % (
+        return "<Power %.2f on Asset %s at %s by DataSource %s at %s>" % (
             self.value,
             self.asset_id,
             self.datetime,
+            self.data_source_id,
+            self.horizon,
         )

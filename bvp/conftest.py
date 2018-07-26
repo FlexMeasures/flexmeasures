@@ -4,7 +4,7 @@ from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 
 from bvp.app import create as create_app
-from bvp.data.static_content import add_user_data_sources
+from bvp.data.services.users import create_user
 
 """
 Useful things for all tests.
@@ -57,18 +57,12 @@ def db(app):
 @pytest.fixture(scope="function")
 def setup_roles_users(db):
     """Create a minimal set of roles and users"""
-    from bvp.data.models.user import User, Role
-
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-    test_prosumer_role = user_datastore.create_role(
-        name="Prosumer", description="A Prosumer with a few assets."
-    )
-    test_prosumer = user_datastore.create_user(
+    create_user(
         username="Test Prosumer",
         email="test_prosumer@seita.nl",
         password=hash_password("testtest"),
+        user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
     )
-    user_datastore.add_role_to_user(test_prosumer, test_prosumer_role)
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -109,4 +103,3 @@ def setup_assets(db, setup_roles_users):
         )
         asset.owner = test_prosumer
         db.session.add(asset)
-    add_user_data_sources(db)

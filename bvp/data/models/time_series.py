@@ -3,9 +3,9 @@ from datetime import datetime as datetime_type, timedelta
 
 import pandas as pd
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy import Column, DateTime, Float, Interval, ForeignKey, Integer
 from sqlalchemy.orm import Query, Session
 
+from bvp.data.config import db
 from bvp.data.services.time_series import collect_time_series_data
 
 
@@ -23,7 +23,7 @@ class TimedValue(object):
 
     @declared_attr
     def datetime(cls):  # noqa: B902
-        return Column(DateTime(timezone=True), primary_key=True)
+        return db.Column(db.DateTime(timezone=True), primary_key=True)
 
     """The time delta of measuring or forecasting.
     This should be a duration in ISO8601, e.g. "PT10M", which you can turn into a timedelta with
@@ -34,19 +34,19 @@ class TimedValue(object):
 
     @declared_attr
     def horizon(cls):  # noqa: B902
-        return Column(Interval(), nullable=False, primary_key=True)
+        return db.Column(db.Interval(), nullable=False, primary_key=True)
 
     """The value."""
 
     @declared_attr
     def value(cls):  # noqa: B902
-        return Column(Float, nullable=False)
+        return db.Column(db.Float, nullable=False)
 
     """The data source."""
 
     @declared_attr
-    def data_source(cls):  # noqa: B902
-        return Column(Integer, ForeignKey("data_sources.id"), primary_key=True)
+    def data_source_id(cls):  # noqa: B902
+        return db.Column(db.Integer, db.ForeignKey("data_sources.id"), primary_key=True)
 
     @classmethod
     def make_query(
@@ -63,7 +63,7 @@ class TimedValue(object):
         Should be overwritten with the make_query function in subclasses.
         We identify the asset by name, this assumes a unique string field can be used.
         The query window expects start as well as end TODO: in/exclusive?
-        The horizon window expects first the earliest horizon (e.g. 6H) and then the latest horion (e.g. 24H).
+        The horizon window expects first the earliest horizon (e.g. 6H) and then the latest horizon (e.g. 24H).
         The session can be supplied, but if None, the implementation should find a session itself.
         """
         pass

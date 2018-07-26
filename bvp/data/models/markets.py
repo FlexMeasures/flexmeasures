@@ -101,3 +101,6 @@ class Price(TimedValue, db.Model):
             if latest_horizon is not None:
                 query = query.filter(Price.horizon <= latest_horizon)
         return query
+
+    def __init__(self, **kwargs):
+        super(Price, self).__init__(**kwargs)

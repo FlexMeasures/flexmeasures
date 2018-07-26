@@ -88,3 +88,6 @@ class Weather(TimedValue, db.Model):
             if latest_horizon is not None:
                 query = query.filter(Weather.horizon <= latest_horizon)
         return query
+
+    def __init__(self, **kwargs):
+        super(Weather, self).__init__(**kwargs)

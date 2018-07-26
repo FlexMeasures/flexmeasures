@@ -30,21 +30,38 @@ from bvp.api.common.utils.api_utils import (
     parse_as_list,
     contains_empty_items,
 )
-from bvp.data.models.user import User
+from bvp.data.models.data_sources import DataSource
+from bvp.data.config import db
 from bvp.data.services.users import get_users
 from bvp.utils.time_utils import bvp_now
 
 
 def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[int]:
+    """Return a list of source ids given a user id, a role name or a list thereof.
+    Always include the user id of the current user."""
     sources = (
         sources if isinstance(sources, list) else [sources]
     )  # Make sure sources is a list
     source_ids = []
     for source in sources:
         if isinstance(source, int):
-            source_ids.extend(User.query.filter(User.id == source).one_or_none())
+            source_ids.extend(
+                db.session.query(DataSource.id)
+                .filter(DataSource.user_id == source)
+                .one_or_none()
+            )
         else:
-            source_ids.extend([user.id for user in get_users(source)])
+            user_ids = [user.id for user in get_users(source)]
+            source_ids.extend(
+                db.session.query(DataSource.id)
+                .filter(DataSource.user_id.in_(user_ids))
+                .all()
+            )
+    source_ids.extend(
+        db.session.query(DataSource.id)
+        .filter(DataSource.user_id == current_user.id)
+        .one_or_none()
+    )
     return list(set(source_ids))  # only unique source ids
 
 
@@ -122,6 +139,7 @@ def optional_sources_accepted(
     However, if one or more preferred data sources are already specified in the decorator, we'll query those instead,
     and if a request states one or more data sources, then we'll only query those as a fallback in case the preferred
     sources don't have any data to give.
+    Data originating from the requesting user is always included.
     Example:
 
         @app.route('/getMeterData')
@@ -173,7 +191,7 @@ def optional_sources_accepted(
 
             response = fn(*args, **kwargs)
             if unknown_sources:
-                # preferred_source_ids.index(None)  # Todo: improve warning message by including the ones that could not be found.
+                # preferred_source_ids.index(None)  # Todo: improve warning message by referencing the ones that could not be found.
                 response["message"].append(" Warning: some data sources are unknown.")
                 return response
             else:
@@ -297,6 +315,12 @@ def connections_required(fn):
 
     The message must specify one or more connections. If that is the case, then the connections are passed to the
     function as connection_groups.
+
+    Connections can be listed in one of the following ways:
+    - value of 'connection' key (for a single asset)
+    - values of 'connections' key (for multiple assets that have the same timeseries data)
+    - values of the 'connection' and/or 'connections' keys listed under the 'groups' key
+      (for multiple assets with different timeseries data)
     """
 
     @wraps(fn)

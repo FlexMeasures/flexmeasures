@@ -7,7 +7,7 @@ class DataSource(db.Model):
     __tablename__ = "data_sources"
 
     id = db.Column(db.Integer, primary_key=True)
-    # Human-readable label
+    # Human-readable label (preferably not starting with a capital letter)
     label = db.Column(db.String(80), default="")
     # The type of data source (e.g. user or script)
     type = db.Column(db.String(80), default="")
@@ -15,6 +15,9 @@ class DataSource(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("bvp_users.id"), nullable=True)
 
     user = db.relationship("User", backref=db.backref("data_sources", lazy=True))
+
+    def __init__(self, **kwargs):
+        super(DataSource, self).__init__(**kwargs)
 
     def __repr__(self):
         return "<Data source %r (%s)>" % (self.id, self.label)

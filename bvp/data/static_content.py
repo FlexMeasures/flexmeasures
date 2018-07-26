@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 import click
 import pandas as pd
@@ -22,6 +21,7 @@ from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role
 from bvp.data.models.forecasting.solar import latest as solar_latest
+from bvp.data.services.users import create_user
 from bvp.utils.time_utils import as_bvp_time
 
 
@@ -68,7 +68,7 @@ def add_user_data_sources(db: SQLAlchemy):
     for user in users:
         db.session.add(
             DataSource(
-                label="Data entered by user %s" % user.username,
+                label="data entered by user %s" % user.username,
                 type="user",
                 user_id=user.id,
             )
@@ -78,9 +78,7 @@ def add_user_data_sources(db: SQLAlchemy):
 def add_data_sources(db: SQLAlchemy):
     db.session.add(
         DataSource(
-            label="Data initialised by bvp.data.static_content",
-            type="script",
-            user_id=None,
+            label="data entered for demonstration purposes", type="script", user_id=None
         )
     )
     add_user_data_sources(db)
@@ -158,8 +156,8 @@ def add_sensors(db: SQLAlchemy) -> List[WeatherSensor]:
 def add_prices(db: SQLAlchemy, markets: List[Market], test_data_set: bool):
     pickle_path = get_pickle_path()
     processed_markets = []
-    ds = DataSource.query.filter(
-        DataSource.label == "Data initialised by bvp.data.static_content"
+    data_source = DataSource.query.filter(
+        DataSource.label == "data entered for demonstration purposes"
     ).one_or_none()
     for market in markets:
         pickle_file = "df_%s_res15T.pickle" % market.name
@@ -201,7 +199,7 @@ def add_prices(db: SQLAlchemy, markets: List[Market], test_data_set: bool):
                 horizon=parse_duration("-PT15M"),
                 value=value,
                 market_id=market.id,
-                data_source=ds.id,
+                data_source_id=data_source.id,
             )
             # p.market = market  # does not work in bulk save
             prices.append(p)
@@ -240,8 +238,8 @@ def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
     """
     pickle_path = get_pickle_path()
     processed_assets = []
-    ds = DataSource.query.filter(
-        DataSource.label == "Data initialised by bvp.data.static_content"
+    data_source = DataSource.query.filter(
+        DataSource.label == "data entered for demonstration purposes"
     ).one_or_none()
     for asset in assets:
         pickle_file = "df_%s_res15T.pickle" % asset.name
@@ -281,7 +279,7 @@ def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
                 horizon=parse_duration("-PT15M"),
                 value=value,
                 asset_id=asset.id,
-                data_source=ds.id,
+                data_source_id=data_source.id,
             )
             # p.asset = asset  # does not work in bulk save
             power_measurements.append(p)
@@ -301,8 +299,8 @@ def add_weather(db: SQLAlchemy, sensors: List[WeatherSensor], test_data_set: boo
     """
     pickle_path = get_pickle_path()
     processed_sensors = []
-    ds = DataSource.query.filter(
-        DataSource.label == "Data initialised by bvp.data.static_content"
+    data_source = DataSource.query.filter(
+        DataSource.label == "data entered for demonstration purposes"
     ).one_or_none()
     for sensor in sensors:
         pickle_file = "df_%s_res15T.pickle" % sensor.name
@@ -342,7 +340,7 @@ def add_weather(db: SQLAlchemy, sensors: List[WeatherSensor], test_data_set: boo
                 horizon=parse_duration("-PT15M"),
                 value=value,
                 sensor_id=sensor.id,
-                data_source=ds.id,
+                data_source_id=data_source.id,
             )
             # w.sensor = sensor  # does not work in bulk save
             weather_measurements.append(w)
@@ -357,67 +355,60 @@ def add_weather(db: SQLAlchemy, sensors: List[WeatherSensor], test_data_set: boo
 
 def add_users(db: SQLAlchemy, assets: List[Asset]):
     # click.echo(bcrypt.gensalt())  # I used this to generate a salt value for my PASSWORD_SALT env
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
     # Admins
-    admin = user_datastore.create_role(
-        name="admin", description="An admin has access to all assets and controls."
-    )
-    nicolas = user_datastore.create_user(
+    create_user(
         username="nicolas",
         email="iam@nicolashoening.de",
         password=hash_password("testtest"),
+        user_roles=dict(
+            name="admin", description="An admin has access to all assets and controls."
+        ),
     )
-    user_datastore.add_role_to_user(nicolas, admin)
-    felix = user_datastore.create_user(
-        username="felix", email="felix@seita.nl", password=hash_password("testtest")
+    create_user(
+        username="felix",
+        email="felix@seita.nl",
+        password=hash_password("testtest"),
+        user_roles="admin",
     )
-    user_datastore.add_role_to_user(felix, admin)
-    ki_yeol = user_datastore.create_user(
+    create_user(
         username="ki_yeol",
         email="shinky@ynu.ac.kr",
         password=hash_password("shadywinter"),
         timezone="Asia/Seoul",
+        user_roles="admin",
     )
-    user_datastore.add_role_to_user(ki_yeol, admin)
-
-    michael = user_datastore.create_user(
+    create_user(
         username="michael",
         email="michael.kaisers@cwi.nl",
         password=hash_password("shadywinter"),
+        user_roles="admin",
     )
-    user_datastore.add_role_to_user(michael, admin)
 
     # Asset owners
-    prosumer = user_datastore.create_role(
-        name="Prosumer", description="USEF defined role of asset owner."
-    )
-    mdc = user_datastore.create_role(
-        name="MDC", description="USEF defined role of Meter Data Company."
-    )
     for asset_type in ("solar", "wind", "charging_station", "building"):
-        mock_asset_owner = user_datastore.create_user(
+        mock_asset_owner = create_user(
             username="mocked %s-owner" % asset_type,
             email="%s@seita.nl" % asset_type,
             password=hash_password(asset_type),
             timezone="Asia/Seoul",
+            user_roles=dict(
+                name="Prosumer", description="USEF defined role of asset owner."
+            ),
         )
-        user_datastore.add_role_to_user(mock_asset_owner, prosumer)
-        user_datastore.add_role_to_user(mock_asset_owner, mdc)
         for asset in [a for a in assets if a.asset_type_name == asset_type]:
             asset.owner = mock_asset_owner
 
     # task runner
-    task_runner = user_datastore.create_role(
-        name="task-runner", description="Process running BVP-relevant tasks."
-    )
-    tasker = user_datastore.create_user(
+    create_user(
         username="Tasker",
         email="tasker@seita.nl",
         password=hash_password("take-a-coleslaw"),
         timezone="Europe/Amsterdam",
+        user_roles=dict(
+            name="task-runner", description="Process running BVP-relevant tasks."
+        ),
     )
-    user_datastore.add_role_to_user(tasker, task_runner)
 
 
 def as_transaction(db_function):
@@ -504,8 +495,8 @@ def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
     start = as_bvp_time(datetime(2015, 2, 8))
     end = as_bvp_time(datetime(2015, 12, 31, 23, 45))
 
-    ds = DataSource.query.filter(
-        DataSource.label == "Data initialised by bvp.data.static_content"
+    data_source = DataSource.query.filter(
+        DataSource.label == "data entered for demonstration purposes"
     ).one_or_none()
     """
     assets = Asset.query.filter(
@@ -564,7 +555,7 @@ def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
                 horizon=parse_duration("PT48H"),
                 value=value,
                 asset_id=asset.id,
-                data_source=ds.id,
+                data_source_id=data_source.id,
             )
             for dt, value in forecasts.items()
         ]

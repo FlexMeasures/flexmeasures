@@ -18,7 +18,7 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 ### Dependencies:
 
 * Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`. You can also use
-  an [Anaconda distribution](https://conda.io/docs/user-guide/tasks/manage-environments.html) as base.
+  an [Anaconda distribution](https://conda.io/docs/user-guide/tasks/manage-environments.html) as base with `conda create -n bvp-venv python=3.6`.
 * Activate it, e.g.: `source bvp-venv/bin/activate`
 * Install the `bvp` platform and dependencies:
 

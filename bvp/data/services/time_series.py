@@ -4,9 +4,15 @@ from datetime import datetime, timedelta
 from flask import session
 import pandas as pd
 from sqlalchemy.orm.query import Query
+import numpy as np
+import inflect
+from inflection import humanize
 
 from bvp.utils import time_utils
 from bvp.data.config import db
+
+
+p = inflect.engine()
 
 
 def collect_time_series_data(
@@ -154,7 +160,16 @@ def query_time_series_data(
         values_orig.index = values_orig.index.tz_convert(time_utils.get_timezone())
 
     # re-sample data to the resolution we need to serve
-    values = values_orig.resample(resolution).mean()
+    if not values_orig.empty:
+        values = values_orig.resample(resolution).aggregate(
+            {
+                "y": np.nanmean,
+                "horizon": np.min,
+                "label": lambda x: data_source_resampler(values_orig["label"]),
+            }
+        )
+    else:
+        values = values_orig
 
     # make zero-based result if no values were found
     if values.empty and create_if_empty:
@@ -194,3 +209,10 @@ def drop_non_unique_elements(
     a = a if type(a) == list else [a]
     b = b if type(b) == list else [b]
     return list(set(b).difference(a))  # just the unique ones
+
+
+def data_source_resampler(labels: pd.Series) -> str:
+    """Join unique data source labels in a human readable way."""
+    unique_labels = labels.unique().tolist()
+    new_label = humanize(p.join(unique_labels))
+    return new_label

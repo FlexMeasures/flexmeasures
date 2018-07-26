@@ -8,6 +8,7 @@ from isodate import parse_duration
 
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
+from bvp.data.models.data_sources import DataSource
 from bvp.api.common.responses import (
     invalid_domain,
     invalid_role,
@@ -52,8 +53,7 @@ def get_meter_data_response(
     fallback_source_ids,
 ) -> Tuple[dict, int]:
     """
-    Use marshmallow to connect SQLAlchemy-modelled data to the outside world.
-    Only supports GET requests.
+    Read out the power values for each asset.
     The response message has a different structure depending on:
         1) the number of connections for which meter data is requested, and
         2) whether the time window in the request maps an integer number of time slots for the meter data
@@ -83,24 +83,16 @@ def post_meter_data_response(
     unit, connection_groups, value_groups, start, duration
 ) -> Union[dict, Tuple[dict, int]]:
     """
-    Use marshmallow to connect SQLAlchemy-modelled data to the outside world.
-    Only supports POST requests.
+    Store the new power values for each asset.
     """
 
     from flask import current_app
 
     current_app.logger.info("POSTING")
-
-    # Abstract the assets from the message (listed in one of the following ways)
-    # - value of 'connection' key (for a single asset)
-    # - values of 'connections' key (for multiple assets that have the same timeseries data)
-    # - values of the 'connection' and/or 'connections' keys listed under the 'groups' key
-    #   (for multiple assets with different timeseries data)
-
+    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
     user_assets = get_assets()
     if not user_assets:
         current_app.logger.info("User doesn't seem to have any assets")
-    # user_asset_names = [asset.name for asset in user_assets]
     user_asset_ids = [asset.id for asset in user_assets]
     power_measurements = []
     for connection_group, value_group in zip(connection_groups, value_groups):
@@ -118,8 +110,6 @@ def post_meter_data_response(
             )
             if asset_id in user_asset_ids:
                 asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
-            # elif current_app.env == 'testing' and isinstance(asset_id, str) and asset_id in user_asset_names:
-            #     asset = Asset.query.filter(Asset.name == asset_id).one_or_none()
             else:
                 current_app.logger.warn("Cannot identify connection %s" % connection)
                 return unrecognized_connection_group()
@@ -133,7 +123,7 @@ def post_meter_data_response(
                     value=value,
                     horizon=parse_duration("-PT15M"),
                     asset_id=asset.id,
-                    data_source=current_user.id,
+                    data_source_id=data_source.id,
                 )
                 power_measurements.append(p)
 
@@ -143,10 +133,6 @@ def post_meter_data_response(
     db.session.bulk_save_objects(power_measurements)
     db.session.commit()
 
-    # Optionally update the measurements table
-    # - If the mdc called, update the measurements table and verify the measurements
-    # - Else (if not the mdc) if the measurements are not yet verified, update the measurements table
-    # - Else do not update the measurements table and warn the user about the verification (only mdc can overwrite)
     return request_processed()
 
 
