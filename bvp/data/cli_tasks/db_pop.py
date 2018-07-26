@@ -2,6 +2,7 @@
 
 
 from flask import current_app as app
+import flask_migrate as migrate
 import click
 
 
@@ -119,4 +120,6 @@ def db_reset():
             return
     from bvp.data.static_content import reset_db
 
+    current_version = migrate.current()
     reset_db(app)
+    migrate.stamp(current_version)

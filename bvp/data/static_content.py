@@ -396,6 +396,8 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
                 name="Prosumer", description="USEF defined role of asset owner."
             ),
         )
+        assert mock_asset_owner not in db.session
+        mock_asset_owner = db.session.merge(mock_asset_owner)
         for asset in [a for a in assets if a.asset_type_name == asset_type]:
             asset.owner = mock_asset_owner
 

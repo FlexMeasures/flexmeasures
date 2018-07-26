@@ -51,5 +51,6 @@ def create_user(
             user_id=user.id,
         )
     )
+    db.session.commit()  # Todo: try to handle all transactions in one session, rather than one session per user created
 
     return user
