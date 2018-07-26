@@ -6,14 +6,11 @@ from flask_security import login_required, current_user
 from werkzeug.exceptions import NotFound
 
 from bvp.data.services.resources import get_assets
-from bvp.ui.utils.view_utils import (
-    render_bvp_template,
-    get_addressing_scheme,
-    get_naming_authority,
-)
+from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.data.models.assets import Asset
 from bvp.data.config import db
 from bvp.data.auth_setup import unauth_handler
+from bvp.utils.config_utils import get_naming_authority, get_addressing_scheme
 
 
 class AssetForm(FlaskForm):

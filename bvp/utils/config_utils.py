@@ -2,7 +2,9 @@ import os
 import sys
 from datetime import datetime
 from logging.config import dictConfig as loggingDictConfig
+from urllib.parse import urlparse
 
+from flask import request
 from inflection import camelize
 
 from bvp.utils.config_defaults import Config as DefaultConfig
@@ -88,3 +90,13 @@ def check_config_completeness(app):
         if not callable(getattr(DefaultConfig, attr)):
             expected_settings.append(attr)
     return [s for s in expected_settings if app.config.get(s) is None]
+
+
+def get_naming_authority() -> str:
+    domain_name = urlparse(request.url).netloc
+    reverse_domain_name = ".".join(domain_name.split(".")[::-1])
+    return "2018-06.%s" % reverse_domain_name
+
+
+def get_addressing_scheme() -> str:
+    return "ea1"
