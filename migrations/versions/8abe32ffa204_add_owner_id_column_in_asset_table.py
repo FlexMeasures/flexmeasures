@@ -1,4 +1,4 @@
-"""empty message
+"""add_owner_id_column_in_asset_table
 
 Revision ID: 8abe32ffa204
 Revises: 3d56402cde15

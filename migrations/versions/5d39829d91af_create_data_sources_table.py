@@ -1,4 +1,4 @@
-"""empty message
+"""create_data_sources_table
 
 Revision ID: 5d39829d91af
 Revises: b087ce8b529f

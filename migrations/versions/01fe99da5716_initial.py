@@ -1,4 +1,4 @@
-"""empty message
+"""initial
 
 Revision ID: 01fe99da5716
 Revises: 

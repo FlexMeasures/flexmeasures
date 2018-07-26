@@ -1,4 +1,4 @@
-"""empty message
+"""create_power_table_and_drop_measurement_table
 
 Revision ID: 11b735abebe7
 Revises: 1e8d27922f56

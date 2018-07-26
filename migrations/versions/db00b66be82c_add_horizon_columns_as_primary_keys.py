@@ -1,4 +1,4 @@
-"""empty message
+"""add_horizon_columns_as_primary_keys
 
 Revision ID: db00b66be82c
 Revises: b087ce8b529f

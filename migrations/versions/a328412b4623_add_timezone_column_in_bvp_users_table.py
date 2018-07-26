@@ -1,4 +1,4 @@
-"""empty message
+"""add_timezone_column_in_bvp_users_table
 
 Revision ID: a328412b4623
 Revises: 8abe32ffa204

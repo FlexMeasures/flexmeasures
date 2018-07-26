@@ -1,4 +1,4 @@
-"""empty message
+"""create_weather_sensor_type_and_weather_sensor_and_weather_tables
 
 Revision ID: 4b6cebbdf473
 Revises: 11b735abebe7

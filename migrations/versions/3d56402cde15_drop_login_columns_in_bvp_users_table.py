@@ -1,4 +1,4 @@
-"""empty message
+"""drop_login_columns_in_bvp_users_table
 
 Revision ID: 3d56402cde15
 Revises: d3440de27ab9

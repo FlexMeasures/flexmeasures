@@ -1,4 +1,4 @@
-"""empty message
+"""create_market_type_and_market_tables
 
 Revision ID: 9254559dcac2
 Revises: 45d937300b0f

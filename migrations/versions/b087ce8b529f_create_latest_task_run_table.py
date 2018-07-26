@@ -1,4 +1,4 @@
-"""empty message
+"""create_latest_task_run_table
 
 Revision ID: b087ce8b529f
 Revises: 91a938bfa5a8

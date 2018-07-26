@@ -1,4 +1,4 @@
-"""rename
+"""rename_source_id_column_in_data_sources_table
 
 Revision ID: e0c2f9aff251
 Revises: 919dc9f1dc1f

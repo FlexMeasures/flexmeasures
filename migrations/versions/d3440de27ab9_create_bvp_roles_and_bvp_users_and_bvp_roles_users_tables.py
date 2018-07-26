@@ -1,4 +1,4 @@
-"""empty message
+"""create_bvp_roles_and_bvp_users_and_bvp_roles_users_tables
 
 Revision ID: d3440de27ab9
 Revises: 01fe99da5716

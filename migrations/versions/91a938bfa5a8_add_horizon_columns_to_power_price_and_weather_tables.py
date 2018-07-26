@@ -1,4 +1,4 @@
-"""empty message
+"""add_horizon_columns_to_power_price_and_weather_tables
 
 Revision ID: 91a938bfa5a8
 Revises: 4b6cebbdf473
