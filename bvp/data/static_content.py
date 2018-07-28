@@ -144,11 +144,26 @@ def add_sensors(db: SQLAlchemy) -> List[WeatherSensor]:
     db.session.add(temperature)
     db.session.add(wind_speed)
     db.session.add(radiation)
-    a1_temperature = WeatherSensor(name="temperature", sensor_type=temperature)
+    a1_temperature = WeatherSensor(
+        name="temperature",
+        sensor_type=temperature,
+        latitude=33.4843866,
+        longitude=126.477859,
+    )
     db.session.add(a1_temperature)
-    a1_wind_speed = WeatherSensor(name="wind_speed", sensor_type=wind_speed)
+    a1_wind_speed = WeatherSensor(
+        name="wind_speed",
+        sensor_type=wind_speed,
+        latitude=33.4843866,
+        longitude=126.477859,
+    )
     db.session.add(a1_wind_speed)
-    a1_radiation = WeatherSensor(name="total_radiation", sensor_type=radiation)
+    a1_radiation = WeatherSensor(
+        name="total_radiation",
+        sensor_type=radiation,
+        latitude=33.4843866,
+        longitude=126.477859,
+    )
     db.session.add(a1_radiation)
     return [a1_temperature, a1_wind_speed, a1_radiation]
 

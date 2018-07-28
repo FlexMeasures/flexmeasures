@@ -16,15 +16,11 @@ from bvp.api.common.responses import (
     request_processed,
 )
 from bvp.data.services.resources import get_assets
-from bvp.api.common.utils.api_utils import (
-    parse_entity_address,
-    message_replace_name_with_ea,
-    groups_to_dict,
-)
+from bvp.api.common.utils.api_utils import message_replace_name_with_ea, groups_to_dict
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
-    connections_required,
+    assets_required,
     optional_sources_accepted,
     optional_resolutions_accepted,
     optional_horizon_accepted,
@@ -37,7 +33,7 @@ from bvp.api.common.utils.validators import (
 @type_accepted("GetMeterDataRequest")
 @units_accepted("MW")
 @optional_resolutions_accepted("PT15M")
-@connections_required
+@assets_required("connection")
 @optional_sources_accepted(preferred_source="MDC")
 @optional_horizon_accepted("-PT15M")
 @period_required
@@ -45,7 +41,7 @@ from bvp.api.common.utils.validators import (
 def get_meter_data_response(
     unit,
     resolution,
-    connection_groups,
+    generic_asset_name_groups,
     horizon,
     start,
     duration,
@@ -64,10 +60,10 @@ def get_meter_data_response(
     return collect_connection_and_value_groups(
         unit,
         resolution,
-        connection_groups,
         horizon,
         start,
         duration,
+        generic_asset_name_groups,
         preferred_source_ids,
         fallback_source_ids,
     )
@@ -75,12 +71,12 @@ def get_meter_data_response(
 
 @type_accepted("PostMeterDataRequest")
 @units_accepted("MW")
-@connections_required
+@assets_required("connection")
 @values_required
 @period_required
 @as_json
 def post_meter_data_response(
-    unit, connection_groups, value_groups, start, duration
+    unit, generic_asset_name_groups, value_groups, start, duration
 ) -> Union[dict, Tuple[dict, int]]:
     """
     Store the new power values for each asset.
@@ -95,19 +91,19 @@ def post_meter_data_response(
         current_app.logger.info("User doesn't seem to have any assets")
     user_asset_ids = [asset.id for asset in user_assets]
     power_measurements = []
-    for connection_group, value_group in zip(connection_groups, value_groups):
+    for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
         for connection in connection_group:
 
-            # Look for the Asset object
-            connection = validate_entity_address(connection)
-            if not connection:
+            # Parse the entity address
+            connection = validate_entity_address(connection, entity_type="connection")
+            if connection is None:
                 current_app.logger.warn(
                     "Cannot parse this connection's entity address: %s" % connection
                 )
                 return invalid_domain()
-            scheme_and_naming_authority, owner_id, asset_id = parse_entity_address(
-                connection
-            )
+            asset_id = connection["asset_id"]
+
+            # Look for the Asset object
             if asset_id in user_asset_ids:
                 asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
             else:
@@ -163,10 +159,10 @@ def get_service_response(
 def collect_connection_and_value_groups(
     unit: str,
     resolution: str,
-    connection_groups: List[List[str]],
     horizon: timedelta,
     start: datetime_type,
     duration: timedelta,
+    connection_groups: List[List[str]],
     preferred_source_ids: {
         Union[int, List[int]]
     } = None,  # None is interpreted as all sources
@@ -195,23 +191,21 @@ def collect_connection_and_value_groups(
         asset_names = []
         for connection in connections:
 
-            # Look for the Asset object
-            connection = validate_entity_address(connection)
-            if not connection:
+            # Parse the entity address
+            connection = validate_entity_address(connection, entity_type="connection")
+            if connection is None:
                 current_app.logger.warn(
                     "Cannot parse this connection's entity address: %s" % connection
                 )
                 return invalid_domain()
+            asset_id = connection["asset_id"]
 
-            scheme_and_naming_authority, owner_id, asset_id = parse_entity_address(
-                connection
-            )
+            # Look for the Asset object
             if asset_id in user_asset_ids:
                 asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
             else:
                 current_app.logger.warn("Cannot identify connection %s" % connection)
                 return unrecognized_connection_group()
-
             asset_names.append(asset.name)
 
         # Get the power values

@@ -1,10 +1,14 @@
 from typing import Dict, Tuple, Union
 from datetime import datetime, timedelta
+import math
 
 from sqlalchemy.orm import Query, Session
+from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
+from sqlalchemy.sql.expression import func
 
 from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
+from bvp.utils.geo_utils import parse_lat_lng
 
 
 class WeatherSensorType(db.Model):
@@ -28,10 +32,83 @@ class WeatherSensor(db.Model):
     weather_sensor_type_name = db.Column(
         db.String(80), db.ForeignKey("weather_sensor_type.name"), nullable=False
     )
+    # latitude is the North/South coordinate
+    latitude = db.Column(db.Float, nullable=False)
+    # longitude is the East/West coordinate
+    longitude = db.Column(db.Float, nullable=False)
 
     def __init__(self, **kwargs):
         super(WeatherSensor, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
+
+    @property
+    def location(self) -> Tuple[float, float]:
+        return self.latitude, self.longitude
+
+    @hybrid_property
+    def cos_rad_lat(self):
+        return math.cos(math.radians(self.latitude))
+
+    @hybrid_property
+    def sin_rad_lat(self):
+        return math.sin(math.radians(self.latitude))
+
+    @hybrid_property
+    def rad_lng(self):
+        return math.radians(self.longitude)
+
+    @hybrid_method
+    def great_circle_distance(self, **kwargs):
+        """Query great circle distance (in km).
+
+        Can be called with an object that has latitude and longitude properties, for example:
+
+            great_circle_distance(object=asset)
+
+        Can also be called with latitude and longitude parameters, for example:
+
+            great_circle_distance(latitude=32, longitude=54)
+            great_circle_distance(lat=32, lng=54)
+
+        """
+        r = 6371  # Radius of Earth in kilometers
+        other_latitude, other_longitude = parse_lat_lng(kwargs)
+        if other_latitude is None or other_longitude is None:
+            return None
+        other_cos_rad_lat = math.cos(math.radians(other_latitude))
+        other_sin_rad_lat = math.sin(math.radians(other_latitude))
+        other_rad_lng = math.radians(other_longitude)
+        return (
+            math.acos(
+                self.cos_rad_lat
+                * other_cos_rad_lat
+                * math.cos(self.rad_lng - other_rad_lng)
+                + self.sin_rad_lat * other_sin_rad_lat
+            )
+            * r
+        )
+
+    @great_circle_distance.expression
+    def great_circle_distance(self, **kwargs):
+        """Query great circle distance (unclear if in km or in miles).
+
+        Can be called with an object that has latitude and longitude properties, for example:
+
+            great_circle_distance(object=asset)
+
+        Can also be called with latitude and longitude parameters, for example:
+
+            great_circle_distance(latitude=32, longitude=54)
+            great_circle_distance(lat=32, lng=54)
+
+         """
+        other_latitude, other_longitude = parse_lat_lng(kwargs)
+        if other_latitude is None or other_longitude is None:
+            return None
+        return func.earth_distance(
+            func.ll_to_earth(self.latitude, self.longitude),
+            func.ll_to_earth(other_latitude, other_longitude),
+        )
 
     sensor_type = db.relationship(
         "WeatherSensorType", backref=db.backref("sensors", lazy=True)

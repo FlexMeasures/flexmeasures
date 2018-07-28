@@ -9,8 +9,10 @@ def invalid_domain() -> Tuple[dict, int]:
         dict(
             result="Rejected",
             status="INVALID_DOMAIN",
-            message="Connections should be identified using the EA1 addressing scheme recommended by USEF. "
-            "For example: 'ea1.2018-06.com.a1-bvp.api:<owner-id>:<asset-id>'",
+            message="Connections and sensors should be identified using the EA1 addressing scheme recommended by USEF. "
+            "For example:"
+            " 'ea1.2018-06.com.a1-bvp:<owner-id>:<asset-id>'"
+            " 'ea1.2018-06.com.a1-bvp:temperature:<latitude>:<longitude>'",
         ),
         400,
     )
@@ -120,12 +122,12 @@ def invalid_timezone() -> Tuple[dict, int]:
     )
 
 
-def invalid_unit() -> Tuple[dict, int]:
+def invalid_unit(*units) -> Tuple[dict, int]:
     return (
         dict(
             result="Rejected",
             status="INVALID_UNIT",
-            message="Meter data should be given in MW.",
+            message="Data should be given in %s." % p.join(*units, conj="or"),
         ),
         400,
     )
@@ -166,6 +168,18 @@ def unrecognized_connection_group() -> Tuple[dict, int]:
             result="Rejected",
             status="UNRECOGNIZED_CONNECTION_GROUP",
             message="One or more connections in your request were not found in your account.",
+        ),
+        400,
+    )
+
+
+def unrecognized_sensor(lat, lng) -> Tuple[dict, int]:
+    return (
+        dict(
+            result="Rejected",
+            status="UNRECOGNIZED_SENSOR",
+            message="No sensor is known at this location. The nearest sensor is at latitude %s and longitude %s"
+            % (lat, lng),
         ),
         400,
     )

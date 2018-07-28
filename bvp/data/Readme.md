@@ -71,6 +71,10 @@ Try logging in:
     psql -U a1 --password -h 127.0.0.1 -d a1
     \q
 
+Add the following extensions when logged in:
+
+    CREATE EXTENSION cube;
+    CREATE EXTENSION earthdistance;
 
 Configure BVP app for that database
 -----------------------------------

@@ -5,6 +5,7 @@ from typing import List, Union
 
 import isodate
 from isodate.isoerror import ISO8601Error
+from inflection import pluralize
 from pandas.tseries.frequencies import to_offset
 from flask import request, current_app
 from flask_json import as_json
@@ -29,6 +30,7 @@ from bvp.api.common.utils.api_utils import (
     get_form_from_request,
     parse_as_list,
     contains_empty_items,
+    zip_dic,
 )
 from bvp.data.models.data_sources import DataSource
 from bvp.data.config import db
@@ -48,7 +50,7 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
             source_ids.extend(
                 db.session.query(DataSource.id)
                 .filter(DataSource.user_id == source)
-                .one_or_none()
+                .first()  # Todo: fix database bug with double user data sources. replace .first() with .one_or_none()
             )
         else:
             user_ids = [user.id for user in get_users(source)]
@@ -60,7 +62,7 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
     source_ids.extend(
         db.session.query(DataSource.id)
         .filter(DataSource.user_id == current_user.id)
-        .one_or_none()
+        .first()  # Todo: fix database bug with double user data sources. replace .first() with .one_or_none()
     )
     return list(set(source_ids))  # only unique source ids
 
@@ -120,13 +122,63 @@ def validate_start(start: str) -> Union[datetime.datetime, None]:
         return None
 
 
-def validate_entity_address(connection: str) -> str:
+def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
     """
-    Validates whether the string 'connection' is a valid type 1 USEF entity address.
+    Validates whether the generic asset name is a valid type 1 USEF entity address.
+    That is, it must follow the EA1 addressing scheme recommended by USEF.
+
+    For example:
+
+        connection = ea1.2018-06.localhost:5000:40:30
+        connection = ea1.2018-06.com.a1-bvp:<owner-id>:<asset-id>'
+        sensor = ea1.2018-06.com.a1-bvp:temperature:52:73.0
+
     """
-    match = re.search(".+\.\d{4}-\d{2}\..+:\d+:\d+", connection)
-    if match:
-        return match.string
+    if entity_type == "connection":
+        match = re.search(
+            "^"
+            "((?P<scheme>.+)\.)*"
+            "((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
+            "((?P<owner_id>\d+):(?=.+:{0}))*"
+            "(?P<asset_id>\d+)"
+            "$",
+            generic_asset_name,
+        )
+        if match:
+            print(match.groupdict())
+            value_types = {
+                "scheme": str,
+                "naming_authority": str,
+                "owner_id": int,
+                "asset_id": int,
+            }
+            return {
+                k: v_type(v) if v is not None else v
+                for k, v, v_type in zip_dic(match.groupdict(), value_types)
+            }
+
+    elif entity_type == "sensor":
+        match = re.search(
+            "^"
+            "(?P<scheme>.+)\."
+            "(?P<naming_authority>\d{4}-\d{2}\..+):"
+            "(?=.*[a-zA-Z].*:)(?P<weather_sensor_type_name>[\w]+):"  # should contain at least one letter
+            "(?P<latitude>\d+(\.\d+)?):"
+            "(?P<longitude>\d+(\.\d+)?)"
+            "$",
+            generic_asset_name,
+        )
+        if match:
+            value_types = {
+                "scheme": str,
+                "naming_authority": str,
+                "weather_sensor_type_name": str,
+                "latitude": float,
+                "longitude": float,
+            }
+            return {
+                k: v_type(v) for k, v, v_type in zip_dic(match.groupdict(), value_types)
+            }
 
 
 def optional_sources_accepted(
@@ -304,17 +356,19 @@ def period_required(fn):
     return wrapper
 
 
-def connections_required(fn):
-    """Decorator which specifies that a GET or POST request must specify one or more connections.
+def assets_required(
+    generic_asset_type_name: str, plural_name: str = None, groups_name="groups"
+):
+    """Decorator which specifies that a GET or POST request must specify one or more assets.
     Example:
 
         @app.route('/postMeterData')
-        @connections_required
-        def post_meter_data(connection_groups):
+        @assets_required("connection", plural_name="connections")
+        def post_meter_data(generic_asset_name_groups):
             return 'Meter data posted'
 
     The message must specify one or more connections. If that is the case, then the connections are passed to the
-    function as connection_groups.
+    function as generic_asset_name_groups.
 
     Connections can be listed in one of the following ways:
     - value of 'connection' key (for a single asset)
@@ -322,41 +376,55 @@ def connections_required(fn):
     - values of the 'connection' and/or 'connections' keys listed under the 'groups' key
       (for multiple assets with different timeseries data)
     """
+    if plural_name is None:
+        plural_name = pluralize(generic_asset_type_name)
 
-    @wraps(fn)
-    @as_json
-    def wrapper(*args, **kwargs):
-        form = get_form_from_request(request)
-        if form is None:
-            current_app.logger.warn(
-                "Unsupported request method for unpacking 'connections' from request."
-            )
-            return invalid_method(request.method)
+    def wrapper(fn):
+        @wraps(fn)
+        @as_json
+        def decorated_service(*args, **kwargs):
+            form = get_form_from_request(request)
+            if form is None:
+                current_app.logger.warn(
+                    "Unsupported request method for unpacking '%s' from request."
+                    % plural_name
+                )
+                return invalid_method(request.method)
 
-        if "connection" in form:
-            connection_groups = [parse_as_list(form["connection"])]
-        elif "connections" in form:
-            connection_groups = [parse_as_list(form["connections"])]
-        elif "groups" in form:
-            connection_groups = []
-            for group in form["groups"]:
-                if "connection" in group:
-                    connection_groups.append(parse_as_list(group["connection"]))
-                elif "connections" in group:
-                    connection_groups.append(parse_as_list(group["connections"]))
-                else:
-                    current_app.logger.warn("Group %s missing connection(s)" % group)
-                    return unrecognized_connection_group()
-        else:
-            current_app.logger.warn("Request missing connection(s) or group.")
-            return unrecognized_connection_group()
+            if generic_asset_type_name in form:
+                generic_asset_name_groups = [
+                    parse_as_list(form[generic_asset_type_name])
+                ]
+            elif plural_name in form:
+                generic_asset_name_groups = [parse_as_list(form[plural_name])]
+            elif groups_name in form:
+                generic_asset_name_groups = []
+                for group in form["groups"]:
+                    if generic_asset_type_name in group:
+                        generic_asset_name_groups.append(
+                            parse_as_list(group[generic_asset_type_name])
+                        )
+                    elif plural_name in group:
+                        generic_asset_name_groups.append(
+                            parse_as_list(group[plural_name])
+                        )
+                    else:
+                        current_app.logger.warn(
+                            "Group %s missing %s" % (group, plural_name)
+                        )
+                        return unrecognized_connection_group()
+            else:
+                current_app.logger.warn("Request missing %s or group." % plural_name)
+                return unrecognized_connection_group()
 
-        if not contains_empty_items(connection_groups):
-            kwargs["connection_groups"] = connection_groups
-            return fn(*args, **kwargs)
-        else:
-            current_app.logger.warn("Request includes empty connection(s).")
-            return unrecognized_connection_group()
+            if not contains_empty_items(generic_asset_name_groups):
+                kwargs["generic_asset_name_groups"] = generic_asset_name_groups
+                return fn(*args, **kwargs)
+            else:
+                current_app.logger.warn("Request includes empty %s." % plural_name)
+                return unrecognized_connection_group()
+
+        return decorated_service
 
     return wrapper
 
@@ -475,10 +543,10 @@ def units_accepted(*units):
                 return invalid_method(request.method)
             elif "unit" not in form:
                 current_app.logger.warn("Request is missing unit.")
-                return invalid_unit()
+                return invalid_unit(units)
             elif form["unit"] not in units:
                 current_app.logger.warn("Unit is not accepted.")
-                return invalid_unit()
+                return invalid_unit(units)
             else:
                 kwargs["unit"] = form["unit"]
                 return fn(*args, **kwargs)

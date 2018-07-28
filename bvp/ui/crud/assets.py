@@ -10,7 +10,6 @@ from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.data.models.assets import Asset
 from bvp.data.config import db
 from bvp.data.auth_setup import unauth_handler
-from bvp.utils.config_utils import get_naming_authority, get_addressing_scheme
 
 
 class AssetForm(FlaskForm):
@@ -28,12 +27,7 @@ class AssetCrud(FlaskView):
     def index(self):
         """/assets"""
         assets = get_assets()
-        return render_bvp_template(
-            "crud/assets.html",
-            assets=assets,
-            get_addressing_scheme=get_addressing_scheme,
-            get_naming_authority=get_naming_authority,
-        )
+        return render_bvp_template("crud/assets.html", assets=assets)
 
     @login_required
     def get(self, id: str):
@@ -45,12 +39,7 @@ class AssetCrud(FlaskView):
             asset_form = AssetForm()
             asset_form.process(obj=asset)
             return render_bvp_template(
-                "crud/asset.html",
-                asset=asset,
-                asset_form=asset_form,
-                msg="",
-                get_addressing_scheme=get_addressing_scheme,
-                get_naming_authority=get_naming_authority,
+                "crud/asset.html", asset=asset, asset_form=asset_form, msg=""
             )
         else:
             raise NotFound
@@ -71,8 +60,6 @@ class AssetCrud(FlaskView):
                 asset=asset,
                 asset_form=asset_form,
                 msg="Editing was successful.",
-                get_addressing_scheme=get_addressing_scheme,
-                get_naming_authority=get_naming_authority,
             )
         else:
             raise NotFound

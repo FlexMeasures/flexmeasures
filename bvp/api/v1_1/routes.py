@@ -13,6 +13,11 @@ service_listing = {
     "version": "1.1",
     "services": [
         {
+            "name": "getConnection",
+            "access": ["Aggregator", "Supplier", "MDC", "DSO", "Prosumer", "ESCo"],
+            "description": "Request entity addresses of connections",
+        },
+        {
             "name": "getMeterData",
             "access": ["Aggregator", "Supplier", "MDC", "DSO", "Prosumer", "ESCo"],
             "description": "Request meter reading",
@@ -45,7 +50,7 @@ service_listing = {
             "including control set points",
         },
         {
-            "name": "postMarketData",
+            "name": "postPriceData",
             "access": ["Aggregator", "Supplier", "MDC", "DSO", "Prosumer", "ESCo"],
             "description": "Send prices",
         },
@@ -58,6 +63,59 @@ service_listing = {
 }
 
 
+@bvp_api.route("/getConnection", methods=["GET"])
+@as_response_type("GetConnectionResponse")
+@auth_token_required
+@usef_roles_accepted(*check_access(service_listing, "getConnection"))
+def get_connection():
+    """API endpoint to get the user's connections as entity addresses ordered from newest to oldest.
+
+    .. :quickref: User; Retrieve entity addresses of connections
+
+
+    **Example request**
+
+    .. code-block:: json
+
+        {
+            "type": "GetConnectionRequest",
+        }
+
+    **Example response**
+
+    This "GetConnectionResponse" message indicates that the user had access rights to retrieve four entity addresses
+    owned by three different users.
+
+    .. sourcecode:: json
+
+        {
+            "type": "GetConnectionResponse",
+            "connections": [
+                "ea1.2018-06.com.a1-bvp:3:4",
+                "ea1.2018-06.com.a1-bvp:8:3",
+                "ea1.2018-06.com.a1-bvp:9:2",
+                "ea1.2018-06.com.a1-bvp:3:1"
+            ],
+            "names": [
+                "CS 4",
+                "CS 3",
+                "CS 2",
+                "CS 1"
+            ]
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_MESSAGE_TYPE
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 405: INVALID_METHOD
+    """
+    return implementations.get_connection_response()
+
+
 @bvp_api.route("/getDeviceMessage", methods=["GET"])
 @as_response_type("GetDeviceMessageResponse")
 @auth_token_required
@@ -66,12 +124,12 @@ def get_device_message():
     return
 
 
-@bvp_api.route("/postMarketData", methods=["POST"])
-@as_response_type("PostMarketDataResponse")
+@bvp_api.route("/postPriceData", methods=["POST"])
+@as_response_type("PostPriceDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(service_listing, "postMarketData"))
-def post_market_data():
-    return
+@usef_roles_accepted(*check_access(service_listing, "postPriceData"))
+def post_price_data():
+    return implementations.post_price_data_response()
 
 
 @bvp_api.route("/postWeatherData", methods=["POST"])
@@ -79,7 +137,7 @@ def post_market_data():
 @auth_token_required
 @usef_roles_accepted(*check_access(service_listing, "postWeatherData"))
 def post_weather_data():
-    return
+    return implementations.post_weather_data_response()
 
 
 @bvp_api.route("/getPrognosis", methods=["GET"])

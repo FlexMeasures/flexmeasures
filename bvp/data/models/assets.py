@@ -9,6 +9,7 @@ from sqlalchemy.orm import Query, Session
 from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.time_series import TimedValue
+from bvp.utils.config_utils import get_naming_authority, get_addressing_scheme
 
 
 # Give the inflection module some help for our domain
@@ -80,10 +81,11 @@ class Asset(db.Model):
     def asset_type_display_name(self) -> str:
         return titleize(self.asset_type_name)
 
-    def entity_address(self, addressing_scheme, naming_authority: str) -> str:
+    @property
+    def entity_address(self) -> str:
         return "%s.%s:%s:%s" % (
-            addressing_scheme,
-            naming_authority,
+            get_addressing_scheme(),
+            get_naming_authority(),
             self.owner_id,
             self.id,
         )
@@ -172,18 +174,18 @@ class Power(TimedValue, db.Model):
                 Power.data_source_id.in_(user_source_ids)
                 | Power.data_source_id.in_(script_source_ids)
             )
-        earliest_horizon, latest_horizon = horizon_window
+        short_horizon, long_horizon = horizon_window
         if (
-            earliest_horizon is not None
-            and latest_horizon is not None
-            and earliest_horizon == latest_horizon
+            short_horizon is not None
+            and long_horizon is not None
+            and short_horizon == long_horizon
         ):
-            query = query.filter(Power.horizon == earliest_horizon)
+            query = query.filter(Power.horizon == short_horizon)
         else:
-            if earliest_horizon is not None:
-                query = query.filter(Power.horizon >= earliest_horizon)
-            if latest_horizon is not None:
-                query = query.filter(Power.horizon <= latest_horizon)
+            if short_horizon is not None:
+                query = query.filter(Power.horizon >= short_horizon)
+            if long_horizon is not None:
+                query = query.filter(Power.horizon <= long_horizon)
         return query
 
     def to_dict(self):

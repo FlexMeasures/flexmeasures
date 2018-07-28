@@ -63,7 +63,7 @@ class TimedValue(object):
         Should be overwritten with the make_query function in subclasses.
         We identify the asset by name, this assumes a unique string field can be used.
         The query window expects start as well as end TODO: in/exclusive?
-        The horizon window expects first the earliest horizon (e.g. 6H) and then the latest horizon (e.g. 24H).
+        The horizon window expects first the shorter horizon (e.g. 6H) and then the longer horizon (e.g. 24H).
         The session can be supplied, but if None, the implementation should find a session itself.
         """
         pass

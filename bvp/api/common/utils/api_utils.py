@@ -1,6 +1,5 @@
 import copy
-from typing import List, Tuple, Union
-import re
+from typing import List, Union
 
 from bvp.data.models.assets import Asset
 
@@ -15,42 +14,6 @@ def check_access(service_listing, service_name):
         for service in service_listing["services"]
         if service["name"] == service_name
     )
-
-
-def parse_entity_address(
-    entity_address: str
-) -> Tuple[str, Union[int, str], Union[int, str]]:
-    """
-    Parse an entity address into scheme_and_naming_authority, owner_id, and asset_id.
-
-    :param entity_address: id following the EA1 addressing scheme recommended by USEF, for example:
-                           'ea1.2018-06.com.a1-bvp.api:<owner-id>:<asset-id>'
-    :return: scheme and naming authority (a string), id of the asset's owner (an integer or string),
-             and id of the asset (an integer or string).
-             If the owner or asset id is a string, you could still try to look for the owner or asset by name.
-    """
-    asset_id_match = re.findall("(?<=:)\d+$", entity_address)
-    if asset_id_match:
-        asset_id = asset_id_match[-1]
-    else:
-        return "", "", entity_address
-    owner_id_match = re.findall("(?<=:)\d+(?=:\d+$)", entity_address)
-    if owner_id_match:
-        owner_id = owner_id_match[-1]
-    else:
-        owner_id = ""
-    scheme_and_naming_authority_match = re.findall(".+(?=:\d+:\d+$)", entity_address)
-    if scheme_and_naming_authority_match:
-        scheme_and_naming_authority = scheme_and_naming_authority_match[-1]
-    else:
-        scheme_and_naming_authority = ""
-
-    if owner_id.isdigit():
-        owner_id = int(owner_id)
-    if asset_id.isdigit():
-        asset_id = int(asset_id)
-
-    return scheme_and_naming_authority, owner_id, asset_id
 
 
 def contains_empty_items(groups: List[List[str]]):
@@ -215,19 +178,14 @@ def message_replace_name_with_ea(message_with_connections_as_asset_names: dict) 
 
 
 def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
-    """Look up the owner and id given the asset name and constructs a type 1 USEF entity address."""
-    connections_as_ea = copy.deepcopy(connections_as_name)
-    for i, connection in enumerate(connections_as_name):
-        scheme_and_naming_authority, owner_id, asset_name = parse_entity_address(
-            connection
-        )
+    """Look up the owner and id given the asset name and construct a type 1 USEF entity address."""
+    connections_as_ea = []
+    for asset_name in connections_as_name:
         asset = Asset.query.filter(Asset.name == asset_name).one_or_none()
-        asset_id = asset.id
-        owner_id = asset.owner_id
-        scheme_and_naming_authority = "ea1.2018-06.com.a1-bvp.api"
-        connections_as_ea[i] = "%s:%s:%s" % (
-            scheme_and_naming_authority,
-            owner_id,
-            asset_id,
-        )
+        connections_as_ea.append(asset.entity_address)
     return connections_as_ea
+
+
+def zip_dic(*dicts):
+    for i in set(dicts[0]).intersection(*dicts[1:]):
+        yield (i,) + tuple(d[i] for d in dicts)
