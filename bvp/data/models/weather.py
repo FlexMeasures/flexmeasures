@@ -146,11 +146,16 @@ class Weather(TimedValue, db.Model):
         if session is None:
             session = db.session
         start, end = query_window
+        # Todo: get data resolution for the weather sensor
+        resolution = timedelta(minutes=15)
+        start = (
+            start - resolution
+        )  # Adjust for the fact that we index time slots by their start time
         query = (
             session.query(cls.datetime, cls.value)
             .join(WeatherSensor)
             .filter(WeatherSensor.name == sensor_name)
-            .filter((Weather.datetime >= start) & (Weather.datetime <= end))
+            .filter((Weather.datetime > start) & (Weather.datetime < end))
         )
         earliest_horizon, latest_horizon = horizon_window
         if (

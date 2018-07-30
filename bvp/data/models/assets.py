@@ -148,15 +148,18 @@ class Power(TimedValue, db.Model):
         if session is None:
             session = db.session
         start, end = query_window
+        # Todo: get data resolution for the asset
+        resolution = timedelta(minutes=15)
+        start = (
+            start - resolution
+        )  # Adjust for the fact that we index time slots by their start time
         query = (
             session.query(Power.datetime, Power.value, Power.horizon, DataSource.label)
             .join(DataSource)
             .filter(Power.data_source_id == DataSource.id)
             .join(Asset)
             .filter(Asset.name == asset_name)
-            .filter(
-                (Power.datetime >= start) & (Power.datetime <= end)
-            )  # Todo: inclusive? + frequency?
+            .filter((Power.datetime > start) & (Power.datetime < end))
         )
         if source_ids is not None and not isinstance(source_ids, list):
             source_ids = [source_ids]  # ensure source_ids is a list

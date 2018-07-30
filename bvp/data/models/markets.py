@@ -82,11 +82,16 @@ class Price(TimedValue, db.Model):
         if session is None:
             session = db.session
         start, end = query_window
+        # Todo: get data resolution for the market
+        resolution = timedelta(minutes=15)
+        start = (
+            start - resolution
+        )  # Adjust for the fact that we index time slots by their start time
         query = (
             session.query(Price.datetime, Price.value)
             .join(Market)
             .filter(Market.name == market_name)
-            .filter((Price.datetime >= start) & (Price.datetime <= end))
+            .filter((Price.datetime > start) & (Price.datetime < end))
         )
         earliest_horizon, latest_horizon = horizon_window
         if (

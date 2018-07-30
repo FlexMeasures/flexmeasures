@@ -218,6 +218,9 @@ def collect_connection_and_value_groups(
             fallback_source_ids=fallback_source_ids,
             sum_multiple=False,
         )
+        # Todo: parse time window of ts_values, which will be different for requests that are not of the form:
+        # - start is a timestamp on the hour or a multiple of 15 minutes thereafter
+        # - duration is a multiple of 15 minutes
         for k, v in ts_values.items():
             value_groups.append(v.y.tolist())
             new_connection_groups.append(k)
