@@ -85,7 +85,7 @@ def post_meter_data_response(
     from flask import current_app
 
     current_app.logger.info("POSTING")
-    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
+    data_source = DataSource.query.filter(DataSource.user == current_user).first()  # Todo: fix double user data sources
     user_assets = get_assets()
     if not user_assets:
         current_app.logger.info("User doesn't seem to have any assets")
@@ -179,7 +179,6 @@ def collect_connection_and_value_groups(
     user_assets = get_assets()
     if not user_assets:
         current_app.logger.info("User doesn't seem to have any assets")
-    # user_asset_names = [asset.name for asset in user_assets]
     user_asset_ids = [asset.id for asset in user_assets]
 
     end = start + duration

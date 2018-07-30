@@ -34,8 +34,7 @@ def invalid_period() -> Tuple[dict, int]:
         dict(
             result="Rejected",
             status="INVALID_PERIOD",
-            message="The time period in your request doesn't seem right. "
-            "If you wish to post meter data for the future, set 'simulation' to 'true'.",
+            message="A time period in your request doesn't seem right.",
         ),
         400,
     )

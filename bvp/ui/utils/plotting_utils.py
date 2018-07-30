@@ -214,7 +214,7 @@ def create_graph(
 
     ds = make_datasource_from(data)
     fig.circle(
-        x="x", y="y", source=ds, color="#3B0757", alpha=0.5, legend=legend, size=20
+        x="x", y="y", source=ds, color="#3B0757", alpha=0.5, legend=legend, size=10
     )
 
     if forecasts is not None and not forecasts.empty:

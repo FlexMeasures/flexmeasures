@@ -1,5 +1,6 @@
 import copy
 from typing import List, Union
+from json import loads as parse_json, JSONDecodeError
 
 from bvp.data.models.assets import Asset
 
@@ -45,9 +46,23 @@ def get_form_from_request(_request) -> Union[dict, None]:
         d = _request.args.to_dict(
             flat=False
         )  # From MultiDict, obtain all values with the same key as a list
-        return dict(
-            zip(d.keys(), [v[0] if len(v) == 1 else v for k, v in d.items()])
-        )  # Flatten single-value lists
+        parsed_d = {}
+        for k, v_list in d.items():
+            parsed_v_list = []
+            for v in v_list:
+                try:
+                    parsed_v = parse_json(v)
+                except JSONDecodeError:
+                    parsed_v = v
+                if isinstance(parsed_v, list):
+                    parsed_v_list.extend(parsed_v)
+                else:
+                    parsed_v_list.append(v)
+            if len(parsed_v_list) == 1:  # Flatten single-value lists
+                parsed_d[k] = parsed_v_list[0]
+            else:
+                parsed_d[k] = parsed_v_list
+        return parsed_d
     elif _request.method == "POST":
         return _request.get_json(force=True)
     else:

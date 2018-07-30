@@ -46,19 +46,27 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
     )  # Make sure sources is a list
     source_ids = []
     for source in sources:
-        if isinstance(source, int):
-            source_ids.extend(
-                db.session.query(DataSource.id)
-                .filter(DataSource.user_id == source)
-                .first()  # Todo: fix database bug with double user data sources. replace .first() with .one_or_none()
-            )
-        else:
+        if isinstance(source, int):  # Parse as user id
+            try:
+                source_ids.extend(
+                    db.session.query(DataSource.id)
+                    .filter(DataSource.user_id == source)
+                    .first()  # Todo: fix db bug with double user data sources. replace .first() with .one_or_none()
+                )
+            except TypeError:
+                current_app.logger.warn("Could not retrieve data source %s" % source)
+                pass
+        else:  # Parse as role name
             user_ids = [user.id for user in get_users(source)]
             source_ids.extend(
                 db.session.query(DataSource.id)
                 .filter(DataSource.user_id.in_(user_ids))
                 .all()
             )
+    source_ids = [
+        source_id if isinstance(source_id, int) else int(source_id[0])
+        for source_id in source_ids
+    ]
     source_ids.extend(
         db.session.query(DataSource.id)
         .filter(DataSource.user_id == current_user.id)
@@ -145,7 +153,6 @@ def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
             generic_asset_name,
         )
         if match:
-            print(match.groupdict())
             value_types = {
                 "scheme": str,
                 "naming_authority": str,

@@ -17,7 +17,7 @@ def get_power_data(
     """Get power data and metrics"""
     power_data = Resource(session["resource"]).get_data()
     if showing_pure_consumption_data:
-        power_data *= -1
+        power_data.y *= -1
     power_forecast_data = Resource(session["resource"]).get_data(
         horizon_window=(timedelta(hours=48), timedelta(hours=48))
     )
