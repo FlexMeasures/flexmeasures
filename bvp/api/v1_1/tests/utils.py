@@ -13,7 +13,7 @@ def message_for_get_prognosis(
         "type": "GetPrognosisRequest",
         "start": "2015-01-01T00:00:00Z",
         "duration": "PT1H30M",
-        "horizon": "PT6H",
+        "horizon": "R/PT6H",
         "resolution": "PT15M",
         "connections": ["CS 1", "CS 2", "CS 3"],
         "unit": "MW",

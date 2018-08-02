@@ -1,7 +1,7 @@
 import datetime
 import re
 from functools import wraps
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import isodate
 from isodate.isoerror import ISO8601Error
@@ -51,7 +51,7 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
                 source_ids.extend(
                     db.session.query(DataSource.id)
                     .filter(DataSource.user_id == source)
-                    .first()  # Todo: fix db bug with double user data sources. replace .first() with .one_or_none()
+                    .one_or_none()
                 )
             except TypeError:
                 current_app.logger.warn("Could not retrieve data source %s" % source)
@@ -70,14 +70,14 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
     source_ids.extend(
         db.session.query(DataSource.id)
         .filter(DataSource.user_id == current_user.id)
-        .first()  # Todo: fix database bug with double user data sources. replace .first() with .one_or_none()
+        .one_or_none()
     )
     return list(set(source_ids))  # only unique source ids
 
 
 def validate_horizon(
     horizon: str
-) -> Union[datetime.timedelta, List[datetime.timedelta], None]:
+) -> Union[Tuple[datetime.timedelta, bool], Tuple[None, None]]:
     """
     Validates whether the string 'horizon' is a valid ISO 8601 (repeating) time interval.
 
@@ -101,13 +101,10 @@ def validate_horizon(
     try:
         horizon = isodate.parse_duration(horizon)
     except ISO8601Error:
-        return None
+        return None, None
     if neg:
         horizon = -horizon
-    if rep:
-        return [horizon]
-    else:
-        return horizon
+    return horizon, rep
 
 
 def validate_duration(duration: str) -> Union[datetime.timedelta, None]:
@@ -261,9 +258,10 @@ def optional_sources_accepted(
     return wrapper
 
 
-def optional_horizon_accepted(default_horizon=None):
-    """Decorator which specifies that a GET or POST request accepts an optional horizon. May specify a default horizon,
-    otherwise the horizon is determined by the server based on when the API endpoint was called.
+def optional_horizon_accepted(ex_post: bool = False):
+    """Decorator which specifies that a GET or POST request accepts an optional horizon. If no horizon is specified,
+    the horizon is determined by the server based on when the API endpoint was called.
+    Optionally, an ex_post flag can be passed to the decorator to indicate that only negative horizons are allowed.
     Example:
 
         @app.route('/postMeterData')
@@ -272,7 +270,7 @@ def optional_horizon_accepted(default_horizon=None):
             return 'Meter data posted'
 
     If the message specifies a "horizon", it should be in accordance with the ISO 8601 standard.
-    If no "horizon" is specified, it is determined by the server, since no default horizon was set.
+    If no "horizon" is specified, it is determined by the server.
     """
 
     def wrapper(fn):
@@ -287,12 +285,14 @@ def optional_horizon_accepted(default_horizon=None):
                 return invalid_method(request.method)
 
             if "horizon" in form:
-                horizon = validate_horizon(form["horizon"])
-                if not horizon:
+                horizon, rolling = validate_horizon(form["horizon"])
+                if horizon is None:
                     current_app.logger.warn("Cannot parse 'horizon' value")
                     return invalid_horizon()
-            elif default_horizon:
-                horizon = validate_horizon(default_horizon)
+                elif ex_post is True:
+                    if horizon > datetime.timedelta(minutes=0):
+                        extra_info = "Meter data must have a negative horizon to indicate observations after the fact."
+                        return invalid_horizon(extra_info)
             elif "start" in form:
                 start = validate_start(form["start"])
                 if not start:
@@ -302,11 +302,14 @@ def optional_horizon_accepted(default_horizon=None):
                     current_app.logger.warn("Cannot parse timezone of 'start' value")
                     return invalid_timezone()
                 horizon = start - bvp_now()
+                rolling = False
             else:
                 current_app.logger.warn("Request missing both 'horizon' and 'start'.")
-                return invalid_horizon()
+                extra_info = "Specify a 'horizon' value, or a 'start' value so that the horizon can be inferred."
+                return invalid_horizon(extra_info)
 
             kwargs["horizon"] = horizon
+            kwargs["rolling"] = rolling
             return fn(*args, **kwargs)
 
         return decorated_service
@@ -557,6 +560,52 @@ def units_accepted(*units):
             else:
                 kwargs["unit"] = form["unit"]
                 return fn(*args, **kwargs)
+
+        return decorated_service
+
+    return wrapper
+
+
+def resolutions_accepted(*resolutions):
+    """Decorator which specifies that a GET or POST request accepts one of the specified time resolutions.
+    The resolution is inferred from the duration and the number of values.
+    Therefore, the decorator should follow after the values_required and the period_required decorators.
+    Example:
+
+        @app.route('/postMeterData')
+        @values_required
+        @period_required
+        @resolutions_accepted(timedelta(minutes=15), timedelta(hours=1))
+        def post_meter_data(value_groups, start, duration):
+            return 'Meter data posted'
+
+    The resolution inferred from the message must be 15 minutes or an hour.
+
+    :param resolutions: The possible resolutions.
+    """
+
+    def wrapper(fn):
+        @wraps(fn)
+        @as_json
+        def decorated_service(*args, **kwargs):
+            form = get_form_from_request(request)
+            if form is None:
+                current_app.logger.warn(
+                    "Unsupported request method for inferring resolution from request."
+                )
+                return invalid_method(request.method)
+
+            if "value_groups" in kwargs and "duration" in kwargs:
+                resolution = kwargs["duration"] / len(kwargs["value_groups"][0])
+                if resolution not in resolutions:
+                    current_app.logger.warn("Resolution is not accepted.")
+                    return invalid_resolution()
+                else:
+                    return fn(*args, **kwargs)
+            else:
+                current_app.logger.warn("Could not infer resolution.")
+                extra_info = "Specify some 'values' and a 'duration' so that the resolution can be inferred."
+                return invalid_resolution(extra_info)
 
         return decorated_service
 

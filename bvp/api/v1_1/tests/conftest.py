@@ -1,5 +1,6 @@
 from typing import List
 import pytest
+from datetime import timedelta
 
 import isodate
 from flask_security import SQLAlchemySessionUserDatastore
@@ -58,25 +59,25 @@ def setup_api_test_data(db):
     for i in range(6):
         p_1 = Power(
             datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
-            + i * isodate.parse_duration("PT15M"),
-            horizon="PT6H",
-            value=300,
+            + timedelta(minutes=15 * i),
+            horizon=timedelta(hours=6),
+            value=300 + i,
             asset_id=cs_1.id,
             data_source_id=data_source.id,
         )
         p_2 = Power(
             datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
-            + i * isodate.parse_duration("PT15M"),
-            horizon="PT6H",
-            value=300,
+            + timedelta(minutes=15 * i),
+            horizon=timedelta(hours=6),
+            value=300 - i,
             asset_id=cs_2.id,
             data_source_id=data_source.id,
         )
         p_3 = Power(
             datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
-            + i * isodate.parse_duration("PT15M"),
-            horizon="PT6H",
-            value=0,
+            + timedelta(minutes=15 * i),
+            horizon=timedelta(hours=6),
+            value=0 + i,
             asset_id=cs_3.id,
             data_source_id=data_source.id,
         )

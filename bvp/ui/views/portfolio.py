@@ -116,25 +116,33 @@ def portfolio_view():
 
     # get data for stacked plot for the selected period
 
-    def only_positive(df: pd.DataFrame) -> None:
+    def only_positive(df: pd.DataFrame) -> pd.DataFrame:
+        df = df.stack(dropna=False)
         # noinspection PyTypeChecker
         df[df < 0] = 0
+        df = df.unstack()
+        return df
 
     # noinspection PyTypeChecker
-    def only_negative_abs(df: pd.DataFrame) -> None:
+    def only_negative_abs(df: pd.DataFrame) -> pd.DataFrame:
         # If this functions fails, a possible solution may be to stack the dataframe before
         # checking for negative values (unstacking afterwards).
-        # df = df.stack()
+        df = df.stack(dropna=False)
         df[df > 0] = 0
-        # df = df.unstack()
+        df = df.unstack()
         df[:] = df * -1
+        return df
 
     def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
         """Making really sure we have the structure to let the plots not fail"""
         if df is None or df.empty:
             return pd.DataFrame(
                 index=pd.date_range(
-                    start=start, end=end, freq=resolution, tz=time_utils.get_timezone()
+                    start=start,
+                    end=end,
+                    freq=resolution,
+                    tz=time_utils.get_timezone(),
+                    closed="left",
                 ),
                 columns=["y"],
             ).fillna(0)
@@ -180,7 +188,7 @@ def portfolio_view():
     if df_sum is not None and not df_sum.empty:
         df_sum = df_sum.loc[:, ["y"]]  # only get the y data
     df_sum = data_or_zeroes(df_sum)
-    summed_value_mask(df_sum)
+    df_sum = summed_value_mask(df_sum)
     hover = plotting.create_hover_tool("MW", resolution)
     this_hour = time_utils.get_most_recent_hour()
     if current_app.config.get("BVP_MODE", "") == "demo":
@@ -192,13 +200,15 @@ def portfolio_view():
     ][0]
     x_range = plotting.make_range(df_sum.index)
     fig_profile = plotting.create_graph(
-        df_sum.y,
+        df_sum,
         title=plot_label,
         x_range=x_range,
         x_label="Time (sampled by %s)"
         % time_utils.freq_label_to_human_readable_label(resolution),
         y_label="Power (in MW)",
         legend=titleize(show_summed),
+        show_y_floats=True,
+        positive_y_only=True,
         hover_tool=hover,
     )
 
@@ -219,11 +229,11 @@ def portfolio_view():
     df_stacked_data = pd.DataFrame(index=df_sum.index, columns=stack_types)
     for st in stack_types:
         df_stacked_data[st] = (
-            Resource(pluralize(st))
-            .get_data(start=start, end=end, resolution=resolution)
-            .y
-        )
-    stacked_value_mask(df_stacked_data)
+            Resource(pluralize(st)).get_data(
+                start=start, end=end, resolution=resolution, create_if_empty=True
+            )
+        ).y.values
+    df_stacked_data = stacked_value_mask(df_stacked_data)
     df_stacked_data = data_or_zeroes(df_stacked_data)
     df_stacked_areas = stacked(df_stacked_data)
 
@@ -246,6 +256,7 @@ def portfolio_view():
             alpha=0.8,
             line_color=None,
             legend=titleize(df_stacked_data.columns[a]),
+            level="underlay",
         )
 
     # actions
@@ -284,7 +295,7 @@ def portfolio_view():
         df_actions.loc[next9am] = 3.5
 
     fig_actions = plotting.create_graph(
-        df_actions.y,
+        df_actions,
         title="Ordered balancing actions",
         x_range=x_range,
         y_label="Power (in MW)",

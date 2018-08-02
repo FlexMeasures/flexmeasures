@@ -62,7 +62,7 @@ class TimedValue(object):
         """
         Should be overwritten with the make_query function in subclasses.
         We identify the asset by name, this assumes a unique string field can be used.
-        The query window expects start as well as end TODO: in/exclusive?
+        The query window expects start as well as end
         The horizon window expects first the shorter horizon (e.g. 6H) and then the longer horizon (e.g. 24H).
         The session can be supplied, but if None, the implementation should find a session itself.
         """
@@ -77,6 +77,7 @@ class TimedValue(object):
             None,
             None,
         ),
+        rolling: bool = False,
         preferred_source_ids: {
             Union[int, List[int]]
         } = None,  # None is interpreted as all sources
@@ -98,6 +99,7 @@ class TimedValue(object):
             make_query=cls.make_query,
             query_window=query_window,
             horizon_window=horizon_window,
+            rolling=rolling,
             preferred_source_ids=preferred_source_ids,
             fallback_source_ids=fallback_source_ids,
             resolution=resolution,

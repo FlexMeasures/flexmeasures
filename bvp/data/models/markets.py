@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Query, Session
 
 from bvp.data.config import db
+from bvp.data.models.data_sources import DataSource
 from bvp.data.models.time_series import TimedValue
 
 
@@ -77,6 +78,7 @@ class Price(TimedValue, db.Model):
             None,
             None,
         ),
+        rolling: bool = False,
         session: Session = None,
     ) -> Query:
         if session is None:
@@ -88,7 +90,9 @@ class Price(TimedValue, db.Model):
             start - resolution
         )  # Adjust for the fact that we index time slots by their start time
         query = (
-            session.query(Price.datetime, Price.value)
+            session.query(Price.datetime, Price.value, Price.horizon, DataSource.label)
+            .join(DataSource)
+            .filter(Price.data_source_id == DataSource.id)
             .join(Market)
             .filter(Market.name == market_name)
             .filter((Price.datetime > start) & (Price.datetime < end))

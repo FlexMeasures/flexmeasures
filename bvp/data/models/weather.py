@@ -7,6 +7,7 @@ from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.expression import func
 
 from bvp.data.config import db
+from bvp.data.models.data_sources import DataSource
 from bvp.data.models.time_series import TimedValue
 from bvp.utils.geo_utils import parse_lat_lng
 
@@ -141,6 +142,7 @@ class Weather(TimedValue, db.Model):
             None,
             None,
         ),
+        rolling: bool = False,
         session: Session = None,
     ) -> Query:
         if session is None:
@@ -152,7 +154,9 @@ class Weather(TimedValue, db.Model):
             start - resolution
         )  # Adjust for the fact that we index time slots by their start time
         query = (
-            session.query(cls.datetime, cls.value)
+            session.query(cls.datetime, cls.value, cls.horizon, DataSource.label)
+            .join(DataSource)
+            .filter(cls.data_source_id == DataSource.id)
             .join(WeatherSensor)
             .filter(WeatherSensor.name == sensor_name)
             .filter((Weather.datetime > start) & (Weather.datetime < end))

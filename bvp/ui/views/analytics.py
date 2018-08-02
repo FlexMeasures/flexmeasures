@@ -86,14 +86,23 @@ def analytics_view():
                 < time_utils.get_most_recent_quarter().replace(year=2015)
             ]
 
+    # Set shared x range
+    series = time_utils.tz_index_naively(power_data.index)
+    shared_x_range = Range1d(
+        start=min(series), end=max(series) + pd.to_timedelta(power_data.index.freq)
+    )
+
     # Making figures
-    shared_x_range = plotting.make_range(power_data.index, power_forecast_data.index)
     power_fig = make_power_figure(
         power_data, power_forecast_data, showing_pure_consumption_data, shared_x_range
     )
-    prices_fig = make_prices_figure(prices_data.y, prices_forecast_data, shared_x_range)
+    prices_fig = make_prices_figure(prices_data, prices_forecast_data, shared_x_range)
     weather_fig = make_weather_figure(
-        weather_data.y, None, shared_x_range, weather_type, session_asset_types
+        weather_data,
+        None,
+        shared_x_range,
+        weather_type,
+        session_asset_types,  # Todo: plot weather forecast data, too
     )
     rev_cost_fig = make_revenues_costs_figure(
         rev_cost_data,
@@ -163,7 +172,9 @@ def make_power_figure(
 
 
 def make_prices_figure(
-    data: pd.Series, forecast_data: Union[None, pd.DataFrame], shared_x_range: Range1d
+    data: pd.DataFrame,
+    forecast_data: Union[None, pd.DataFrame],
+    shared_x_range: Range1d,
 ) -> Figure:
     """Make a bokeh figure for price data"""
     price_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
@@ -176,12 +187,13 @@ def make_prices_figure(
         x_label="Time (sampled by %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
         y_label="Prices (in KRW/MWh)",
+        show_y_floats=True,
         hover_tool=price_hover,
     )
 
 
 def make_weather_figure(
-    data: pd.Series,
+    data: pd.DataFrame,
     forecast_data: Union[None, pd.DataFrame],
     shared_x_range: Range1d,
     weather_type: str,
@@ -214,12 +226,13 @@ def make_weather_figure(
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
         y_label=weather_axis_label,
         legend=None,
+        show_y_floats=True,
         hover_tool=weather_hover,
     )
 
 
 def make_revenues_costs_figure(
-    data: pd.Series,
+    data: pd.DataFrame,
     forecast_data: pd.DataFrame,
     showing_pure_consumption_data: bool,
     shared_x_range: Range1d,
@@ -241,5 +254,6 @@ def make_revenues_costs_figure(
         x_label="Time (sampled by %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
         y_label="%s (in KRW)" % rev_cost_str,
+        show_y_floats=True,
         hover_tool=rev_cost_hover,
     )

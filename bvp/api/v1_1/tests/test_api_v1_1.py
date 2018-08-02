@@ -91,11 +91,11 @@ def test_get_prognosis(client, message):
     if "groups" in get_prognosis_response.json:
         assert get_prognosis_response.json["groups"][0]["values"] == [
             300,
-            300,
-            300,
-            300,
-            300,
-            300,
+            301,
+            302,
+            303,
+            304,
+            305,
         ]
     else:
-        assert get_prognosis_response.json["values"] == [300, 300, 300, 300, 300, 300]
+        assert get_prognosis_response.json["values"] == [300, 301, 302, 303, 304, 305]

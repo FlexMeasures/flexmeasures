@@ -1,4 +1,5 @@
 from typing import Tuple, Union
+from datetime import timedelta
 
 from flask import current_app
 from flask_json import as_json
@@ -14,6 +15,7 @@ from bvp.api.common.utils.validators import (
     units_accepted,
     assets_required,
     optional_sources_accepted,
+    resolutions_accepted,
     optional_resolutions_accepted,
     optional_horizon_accepted,
     period_required,
@@ -45,7 +47,7 @@ def get_connection_response():
 
 @assets_required("market")
 @optional_horizon_accepted()
-def post_price_data_response(horizon):
+def post_price_data_response(horizon, rolling):
     # Parse the entity address
     # Look for the Market object
     # Create new Price objects
@@ -55,19 +57,17 @@ def post_price_data_response(horizon):
 @type_accepted("PostWeatherDataRequest")
 @units_accepted("°C")
 @assets_required("sensor")
-@optional_horizon_accepted("-PT15M")
+@optional_horizon_accepted()
 @values_required
 @period_required
+@resolutions_accepted(timedelta(minutes=15), timedelta(hours=1))
 def post_weather_data_response(
-    unit, generic_asset_name_groups, horizon, value_groups, start, duration
+    unit, generic_asset_name_groups, horizon, rolling, value_groups, start, duration
 ):
     api_policy = "create sensor if unknown"
 
     current_app.logger.info("POSTING")
-    # data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
-    data_source = DataSource.query.filter(
-        DataSource.user == current_user
-    ).first()  # Todo: fix double db entries for user data sources
+    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
     weather_measurements = []
     for sensor_group, value_group in zip(generic_asset_name_groups, value_groups):
         for sensor in sensor_group:
@@ -122,7 +122,6 @@ def post_weather_data_response(
             # Create new Weather objects
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
-                # Todo: determine horizon based on message contents
                 w = Weather(
                     datetime=dt,
                     value=value,
@@ -154,19 +153,24 @@ def get_prognosis_response(
     resolution,
     generic_asset_name_groups,
     horizon,
+    rolling,
     start,
     duration,
     preferred_source_ids,
     fallback_source_ids,
 ) -> Union[dict, Tuple[dict, int]]:
 
+    # Any prognosis made at least <horizon> before the fact
+    horizon_window = (horizon, None)
+
     return collect_connection_and_value_groups(
         unit,
         resolution,
-        horizon,
+        horizon_window,
         start,
         duration,
         generic_asset_name_groups,
         preferred_source_ids,
         fallback_source_ids,
+        rolling=rolling,
     )

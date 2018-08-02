@@ -121,7 +121,9 @@ class Resource:
         end: datetime = None,
         resolution: str = None,
         horizon_window=None,
+        rolling: bool = False,
         sum_multiple: bool = True,
+        create_if_empty: bool = False,
     ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Get data for one or more assets. TODO: market data?
         If the time range parameters are None, they will be gotten from the session.
@@ -136,7 +138,9 @@ class Resource:
             asset_names,
             query_window=(start, end),
             horizon_window=horizon_window,
+            rolling=rolling,
             resolution=resolution,
             sum_multiple=sum_multiple,
+            create_if_empty=create_if_empty,
         )
         return data

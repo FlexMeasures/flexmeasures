@@ -124,7 +124,7 @@ def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:  # noqa: C901
         tooltips=[
             ("Time", date_format),
             ("Value", "@y{0.000a} %s" % y_unit),
-            ("Description", "@data_source @horizon{custom}"),
+            ("Description", "@label @horizon{custom}"),
         ],
         formatters={
             "x": "datetime",
@@ -156,7 +156,7 @@ def make_range(
 
 
 def create_graph(
-    data: Union[pd.Series, pd.DataFrame],
+    data: pd.DataFrame,
     title: str = "A plot",
     x_label: str = "X",
     y_label: str = "Y",
@@ -165,6 +165,7 @@ def create_graph(
     forecasts: pd.DataFrame = None,
     hover_tool: Optional[HoverTool] = None,
     show_y_floats: bool = False,
+    positive_y_only: bool = False,
 ) -> Figure:
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
@@ -180,29 +181,27 @@ def create_graph(
     :param show_y_floats: if True, y axis will show floating numbers (defaults False, will be True if y values are < 2)
     :return: a Bokeh Figure
     """
+
+    # Set x range
     if x_range is None:
         x_range = make_range(data.index)
     data = tz_index_naively(data)
 
-    if isinstance(data, pd.DataFrame):
-        y_data = data.y
+    # Set y range
+    if data.y.isnull().all():
+        y_range = Range1d(start=0, end=1)
     else:
-        y_data = data
+        y_range = None
 
-    # set tools
+    # Set tools
     tools = ["box_zoom", "reset", "save"]
     if hover_tool is not None:
         tools = [hover_tool] + tools
 
-    if show_y_floats is False and y_data.size > 0:  # apply a simple heuristic
-        if forecasts is None or forecasts.empty:
-            show_y_floats = max(y_data.values) < 2
-        else:
-            show_y_floats = max(max(y_data.values), max(forecasts.yhat)) < 2
-
     fig = figure(
         title=title,
         x_range=x_range,
+        y_range=y_range,
         min_border=0,
         toolbar_location="right",
         tools=tools,
@@ -212,6 +211,21 @@ def create_graph(
         outline_line_color="#666666",
     )
 
+    if positive_y_only:
+        fig.y_range.bounds = (0, None)
+        fig.y_range.start = 0
+
+    if data.empty:
+        current_app.logger.warn("No data to show for %s" % title)
+        print(data)
+
+    # Format y floats
+    if show_y_floats is False and data.y.size > 0:  # apply a simple heuristic
+        if forecasts is None or forecasts.empty:
+            show_y_floats = max(data.y.values) < 2
+        else:
+            show_y_floats = max(max(data.y.values), max(forecasts.yhat)) < 2
+
     ds = make_datasource_from(data)
     fig.circle(
         x="x", y="y", source=ds, color="#3B0757", alpha=0.5, legend=legend, size=10
@@ -220,7 +234,7 @@ def create_graph(
     if forecasts is not None and not forecasts.empty:
         forecasts = tz_index_naively(forecasts)
         fc_color = "#DDD0B3"
-        fds = make_datasource_from(forecasts.yhat)
+        fds = make_datasource_from(forecasts)
         fig.line(x="x", y="y", source=fds, color=fc_color, legend="Forecast")
 
         # draw uncertainty range as a two-dimensional patch
@@ -246,33 +260,26 @@ def create_graph(
     return fig
 
 
-def make_datasource_from(data: Union[pd.Series, pd.DataFrame]) -> ColumnDataSource:
+def make_datasource_from(data: pd.DataFrame) -> ColumnDataSource:
     """ Make a bokeh data source, which is for instance useful for the hover tool. """
-    if isinstance(data, pd.DataFrame):
-        y_data = data.y
-    else:
-        y_data = data
 
-    x = data.index.values
-    y = y_data.values
-    next_x = []
+    # Set column names that our HoverTool can interpret
+    data.index.names = ["x"]
+    if "y" not in data.columns and "yhat" in data.columns:
+        data = data.rename(columns={"yhat": "y"})
+
     # If we have a DatetimeIndex, we encode with each x (start time) also the boundary to which it runs (end time).
     # TODO: can be extended to work with other types
     if (
-        x.size
+        data.index.values.size
         and isinstance(data.index, pd.DatetimeIndex)
         and data.index.freq is not None
-    ):
-        # i.e. if there is data and with a clearly defined frequency
-        next_x = pd.DatetimeIndex(
-            start=x[1], freq=data.index.freq, periods=len(data.index)
+    ):  # i.e. if there is a non-empty index with a clearly defined frequency
+        data["next_x"] = pd.DatetimeIndex(
+            start=data.index.values[1], freq=data.index.freq, periods=len(data.index)
         ).values
-    if isinstance(data, pd.DataFrame):
-        return ColumnDataSource(
-            dict(x=x, next_x=next_x, y=y, horizon=data.horizon, data_source=data.label)
-        )
-    else:
-        return ColumnDataSource(dict(x=x, next_x=next_x, y=y))
+
+    return ColumnDataSource(data)
 
 
 def highlight(

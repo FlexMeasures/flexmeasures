@@ -15,11 +15,16 @@ def get_power_data(
     showing_pure_consumption_data: bool, metrics: dict
 ) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Get power data and metrics"""
-    power_data = Resource(session["resource"]).get_data()
+
+    # Get power data
+    power_data = Resource(session["resource"]).get_data(create_if_empty=True)
     if showing_pure_consumption_data:
         power_data.y *= -1
+
+    # Get power forecast
+    horizon = pd.to_timedelta(session["forecast_horizon"])
     power_forecast_data = Resource(session["resource"]).get_data(
-        horizon_window=(timedelta(hours=48), timedelta(hours=48))
+        horizon_window=(horizon, None), rolling=True, create_if_empty=True
     )
     power_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
     power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
@@ -53,7 +58,7 @@ def get_prices_data(
     metrics: dict
 ) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Get price data and metrics"""
-    prices_data = Price.collect(["epex_da"])
+    prices_data = Price.collect(["epex_da"], create_if_empty=True)
     metrics["realised_unit_price"] = prices_data.y.mean()
     prices_forecast_data = Price.collect(
         ["epex_da"], horizon_window=(timedelta(hours=48), timedelta(hours=48))
@@ -87,7 +92,7 @@ def get_weather_data(
         weather_type = "total_radiation"
     else:
         weather_type = "temperature"
-    weather_data = Weather.collect([weather_type])
+    weather_data = Weather.collect([weather_type], create_if_empty=True)
     return weather_data, None, weather_type, metrics
 
 
@@ -97,16 +102,27 @@ def get_revenues_costs_data(
     power_forecast_data: pd.DataFrame,
     prices_forecast_data: pd.DataFrame,
     metrics: dict,
-) -> Tuple[pd.Series, Union[None, pd.DataFrame], dict]:
+) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Compute Revenues/costs data. These data are purely derivative from power and prices.
     For forecasts we use the WAPE metrics. Then we calculate metrics on this construct."""
-    rev_cost_data = pd.Series()
-    rev_cost_forecasts = pd.DataFrame()
+    rev_cost_data = pd.DataFrame(
+        index=power_data.index, columns=["y", "horizon", "label"]
+    )
+    rev_cost_forecasts = pd.DataFrame(
+        index=power_data.index, columns=["yhat", "yhat_upper", "yhat_lower"]
+    )
     if power_data.empty or prices_data.empty:
         metrics["realised_revenues_costs"] = np.NaN
     else:
-        rev_cost_data = pd.Series(power_data.y * prices_data.y, index=power_data.index)
-        metrics["realised_revenues_costs"] = rev_cost_data.values.sum()
+        rev_cost_data = pd.DataFrame(
+            dict(
+                y=power_data.y * prices_data.y,
+                horizon=pd.DataFrame([power_data.horizon, prices_data.horizon]).min(),
+                label=power_data.label,
+            ),
+            index=power_data.index,
+        )
+        metrics["realised_revenues_costs"] = rev_cost_data.y.values.sum()
 
     if (
         power_data.empty

@@ -60,28 +60,12 @@ def add_markets(db: SQLAlchemy) -> List[Market]:
     return [epex_da]
 
 
-def add_user_data_sources(db: SQLAlchemy):
-    """Register all users as potential data sources."""
-    users = db.session.query(
-        User
-    ).all()  # Todo: only add a data_source if the user is not already registered as a data source
-    for user in users:
-        db.session.add(
-            DataSource(
-                label="data entered by user %s" % user.username,
-                type="user",
-                user_id=user.id,
-            )
-        )
-
-
 def add_data_sources(db: SQLAlchemy):
     db.session.add(
         DataSource(
             label="data entered for demonstration purposes", type="script", user_id=None
         )
     )
-    add_user_data_sources(db)
 
 
 def add_asset_types(db: SQLAlchemy):

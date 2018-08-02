@@ -4,7 +4,6 @@ from datetime import datetime as datetime_type, timedelta
 
 from flask_json import as_json
 from flask_security import current_user
-from isodate import parse_duration
 
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
@@ -22,6 +21,7 @@ from bvp.api.common.utils.validators import (
     units_accepted,
     assets_required,
     optional_sources_accepted,
+    resolutions_accepted,
     optional_resolutions_accepted,
     optional_horizon_accepted,
     period_required,
@@ -35,7 +35,7 @@ from bvp.api.common.utils.validators import (
 @optional_resolutions_accepted("PT15M")
 @assets_required("connection")
 @optional_sources_accepted(preferred_source="MDC")
-@optional_horizon_accepted("-PT15M")
+@optional_horizon_accepted(ex_post=True)
 @period_required
 @as_json
 def get_meter_data_response(
@@ -43,6 +43,7 @@ def get_meter_data_response(
     resolution,
     generic_asset_name_groups,
     horizon,
+    rolling,
     start,
     duration,
     preferred_source_ids,
@@ -57,15 +58,19 @@ def get_meter_data_response(
     in which the data resolution can be derived by dividing the duration of the time window over the number of values.
     """
 
+    # Any meter data observed at most <horizon> after the fact and not before the fact
+    horizon_window = (horizon, -timedelta(minutes=15))
+
     return collect_connection_and_value_groups(
         unit,
         resolution,
-        horizon,
+        horizon_window,
         start,
         duration,
         generic_asset_name_groups,
         preferred_source_ids,
         fallback_source_ids,
+        rolling=rolling,
     )
 
 
@@ -73,10 +78,12 @@ def get_meter_data_response(
 @units_accepted("MW")
 @assets_required("connection")
 @values_required
+@optional_horizon_accepted(ex_post=True)
 @period_required
+@resolutions_accepted(timedelta(minutes=15), timedelta(hours=1))
 @as_json
 def post_meter_data_response(
-    unit, generic_asset_name_groups, value_groups, start, duration
+    unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration
 ) -> Union[dict, Tuple[dict, int]]:
     """
     Store the new power values for each asset.
@@ -85,7 +92,7 @@ def post_meter_data_response(
     from flask import current_app
 
     current_app.logger.info("POSTING")
-    data_source = DataSource.query.filter(DataSource.user == current_user).first()  # Todo: fix double user data sources
+    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
     user_assets = get_assets()
     if not user_assets:
         current_app.logger.info("User doesn't seem to have any assets")
@@ -113,11 +120,14 @@ def post_meter_data_response(
             # Create new Power objects
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
-                # Todo: determine horizon based on message contents
+                if rolling:
+                    h = horizon
+                else:
+                    h = horizon + j * duration / len(value_group)
                 p = Power(
                     datetime=dt,
                     value=value,
-                    horizon=parse_duration("-PT15M"),
+                    horizon=h,
                     asset_id=asset.id,
                     data_source_id=data_source.id,
                 )
@@ -159,7 +169,7 @@ def get_service_response(
 def collect_connection_and_value_groups(
     unit: str,
     resolution: str,
-    horizon: timedelta,
+    horizon_window: Tuple[timedelta, timedelta],
     start: datetime_type,
     duration: timedelta,
     connection_groups: List[List[str]],
@@ -169,6 +179,7 @@ def collect_connection_and_value_groups(
     fallback_source_ids: Union[
         int, List[int]
     ] = -1,  # An id = -1 is interpreted as no sources
+    rolling: bool = False,
 ) -> Tuple[dict, int]:
     from flask import current_app
 
@@ -212,7 +223,8 @@ def collect_connection_and_value_groups(
             generic_asset_names=asset_names,
             query_window=(start, end),
             resolution=resolution,
-            horizon_window=(horizon, horizon),
+            horizon_window=horizon_window,
+            rolling=rolling,
             preferred_source_ids=preferred_source_ids,
             fallback_source_ids=fallback_source_ids,
             sum_multiple=False,

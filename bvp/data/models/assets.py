@@ -142,6 +142,7 @@ class Power(TimedValue, db.Model):
             None,
             None,
         ),
+        rolling: bool = False,
         source_ids: Union[int, List[int]] = None,
         session: Session = None,
     ) -> Query:
@@ -150,7 +151,7 @@ class Power(TimedValue, db.Model):
         start, end = query_window
         # Todo: get data resolution for the asset
         resolution = timedelta(minutes=15)
-        start = (
+        q_start = (
             start - resolution
         )  # Adjust for the fact that we index time slots by their start time
         query = (
@@ -159,7 +160,7 @@ class Power(TimedValue, db.Model):
             .filter(Power.data_source_id == DataSource.id)
             .join(Asset)
             .filter(Asset.name == asset_name)
-            .filter((Power.datetime > start) & (Power.datetime < end))
+            .filter((Power.datetime > q_start) & (Power.datetime < end))
         )
         if source_ids is not None and not isinstance(source_ids, list):
             source_ids = [source_ids]  # ensure source_ids is a list
@@ -183,10 +184,20 @@ class Power(TimedValue, db.Model):
             and long_horizon is not None
             and short_horizon == long_horizon
         ):
-            query = query.filter(Power.horizon == short_horizon)
+            if rolling:
+                query = query.filter(Power.horizon == short_horizon)
+            else:
+                query = query.filter(
+                    Power.horizon == short_horizon + (Power.datetime - start)
+                )
         else:
             if short_horizon is not None:
-                query = query.filter(Power.horizon >= short_horizon)
+                if rolling:
+                    query = query.filter(Power.horizon >= short_horizon)
+                else:
+                    query = query.filter(
+                        Power.horizon >= short_horizon + (Power.datetime - start)
+                    )
             if long_horizon is not None:
                 query = query.filter(Power.horizon <= long_horizon)
         return query

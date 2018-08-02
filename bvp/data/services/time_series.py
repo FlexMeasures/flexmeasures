@@ -22,6 +22,7 @@ def collect_time_series_data(
     ],
     query_window: Tuple[datetime, datetime] = (None, None),
     horizon_window: Tuple[timedelta, timedelta] = (None, None),
+    rolling: bool = False,
     preferred_source_ids: {
         Union[int, List[int]]
     } = None,  # None is interpreted as all sources
@@ -61,6 +62,7 @@ def collect_time_series_data(
             make_query,
             query_window,
             horizon_window,
+            rolling,
             preferred_source_ids,
             resolution,
             create_if_empty,
@@ -98,6 +100,7 @@ def collect_time_series_data(
                 make_query,
                 query_window,
                 horizon_window,
+                rolling,
                 unique_fallback_source_ids,
                 resolution,
                 create_if_empty,
@@ -129,12 +132,14 @@ def query_time_series_data(
             str,
             Tuple[datetime, datetime],
             Tuple[timedelta, timedelta],
+            bool,
             Union[int, List[int]],
         ],
         Query,
     ],
     query_window: Tuple[datetime, datetime] = (None, None),
     horizon_window: Tuple[timedelta, timedelta] = (None, None),
+    rolling: bool = False,
     source_ids: Union[int, List[int]] = None,
     resolution: str = None,
     create_if_empty: bool = False,
@@ -148,16 +153,38 @@ def query_time_series_data(
     If wanted, we can create a DataFrame with zeroes if no results were found in the database.
     Returns a DataFrame with a "y" column.
     """
-    query = make_query(generic_asset_name, query_window, horizon_window, source_ids)
+    query = make_query(
+        generic_asset_name, query_window, horizon_window, rolling, source_ids
+    )
     values_orig = pd.read_sql(
         query.statement, db.session.bind, parse_dates=["datetime"]
     )
+
+    # Keep the most recent observation
+    values_orig = (
+        values_orig.sort_values(by=["horizon"], ascending=True)
+        .drop_duplicates(subset=["datetime"], keep="first")
+        .sort_values(by=["datetime"])
+    )
+
+    # Index according to time and rename value column
     values_orig.rename(index=str, columns={"value": "y"}, inplace=True)
     values_orig.set_index("datetime", drop=True, inplace=True)
+
+    # Convert to the timezone for the user
     if values_orig.index.tzinfo is None:
         values_orig.index = values_orig.index.tz_localize(time_utils.get_timezone())
     else:
         values_orig.index = values_orig.index.tz_convert(time_utils.get_timezone())
+
+    # Parse the data resolution and make sure the full query window is represented
+    # TODO: get resolution for the asset as stored in the database
+    if not values_orig.empty:
+        new_index = pd.DatetimeIndex(
+            start=query_window[0], end=query_window[1], freq="15T", closed="left"
+        )
+        new_index = new_index.tz_convert(time_utils.get_timezone())
+        values_orig = values_orig.reindex(new_index)
 
     # re-sample data to the resolution we need to serve
     if not values_orig.empty:
@@ -174,16 +201,17 @@ def query_time_series_data(
     else:
         values = values_orig
 
-    # make zero-based result if no values were found
+    # make nan-based or zero-based result if no values were found
     if values.empty and create_if_empty:
         start = query_window[0]
         end = query_window[1]
         time_steps = pd.date_range(
-            start, end, freq=resolution, tz=time_utils.get_timezone()
+            start, end, freq=resolution, tz=time_utils.get_timezone(), closed="left"
         )
-        values = pd.DataFrame(index=time_steps, columns=["y"])
+        values = pd.DataFrame(index=time_steps, columns=["y", "horizon", "label"])
     if zero_if_nan:
         values.fillna(0.)
+
     return values
 
 
@@ -217,5 +245,6 @@ def drop_non_unique_elements(
 def data_source_resampler(labels: pd.Series) -> str:
     """Join unique data source labels in a human readable way."""
     unique_labels = labels.unique().tolist()
+    unique_labels = [l for l in unique_labels if str(l) != "nan"]
     new_label = humanize(p.join(unique_labels))
     return new_label

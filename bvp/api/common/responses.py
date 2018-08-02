@@ -18,15 +18,11 @@ def invalid_domain() -> Tuple[dict, int]:
     )
 
 
-def invalid_horizon() -> Tuple[dict, int]:
-    return (
-        dict(
-            result="Rejected",
-            status="INVALID_HORIZON",
-            message="The prognosis horizon in your request could not be parased",
-        ),
-        400,
-    )
+def invalid_horizon(extra_info: str = None) -> Tuple[dict, int]:
+    message = "The prognosis horizon in your request could not be parsed."
+    if extra_info:
+        message += " %s" % extra_info
+    return (dict(result="Rejected", status="INVALID_HORIZON", message=message), 400)
 
 
 def invalid_period() -> Tuple[dict, int]:
@@ -53,15 +49,11 @@ def invalid_ptu_duration() -> Tuple[dict, int]:
     )
 
 
-def invalid_resolution() -> Tuple[dict, int]:
-    return (
-        dict(
-            result="Rejected",
-            status="INVALID_RESOLUTION",
-            message="Only a 15 minute resolution is currently supported.",
-        ),
-        400,
-    )
+def invalid_resolution(extra_info: str = None) -> Tuple[dict, int]:
+    message = "Only a 15 minute resolution is currently supported."
+    if extra_info:
+        message += " %s" % extra_info
+    return (dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400)
 
 
 def invalid_method(request_method) -> Tuple[dict, int]:

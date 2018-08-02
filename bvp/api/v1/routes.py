@@ -103,6 +103,11 @@ def post_meter_data():
 
     .. :quickref: User; Upload meter data to the platform
 
+
+    **Optional parameters**
+
+    - "horizon" (see :ref:`prognoses`)
+
     **Example request**
 
     This "PostMeterDataRequest" message posts measured consumption for 15-minute intervals between 0.00am and 1.30am for
