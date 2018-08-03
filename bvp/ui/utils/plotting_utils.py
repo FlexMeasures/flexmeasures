@@ -1,5 +1,5 @@
-from typing import Optional, Any, Union
-from datetime import datetime
+from typing import Any, Union
+from datetime import datetime, timedelta
 
 from flask import current_app
 from bokeh.models import Range1d
@@ -19,7 +19,9 @@ import numpy as np
 from bvp.utils.time_utils import tz_index_naively
 
 
-def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:  # noqa: C901
+def create_hover_tool(  # noqa: C901
+    y_unit: str, resolution: timedelta, as_beliefs: bool = False
+) -> HoverTool:
     """Describe behaviour of default tooltips
     (we could also return html for custom tooltips)"""
 
@@ -101,13 +103,16 @@ def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:  # noqa: C901
                 return ngettext("%d year" % years, "%d years" % years, years)
 
         if isinstance(horizon, list):
-            min_horizon = min(horizon)
-            if min_horizon < 0:
-                return "at most %s after realisation" % naturaltime(min_horizon)
-            elif min_horizon > 0:
-                return "at least %s before realisation" % naturaltime(min_horizon)
+            if len(horizon) == 1:
+                horizon = horizon[0]
             else:
-                return "exactly at realisation"
+                min_horizon = min(horizon)
+                if min_horizon < 0:
+                    return "at most %s after realisation" % naturaltime(min_horizon)
+                elif min_horizon > 0:
+                    return "at least %s before realisation" % naturaltime(min_horizon)
+                else:
+                    return "exactly at realisation"
         if horizon < 0:
             return "%s after realisation" % naturaltime(horizon)
         elif horizon > 0:
@@ -116,16 +121,16 @@ def create_hover_tool(y_unit: str, resolution: str) -> HoverTool:  # noqa: C901
             return "exactly at realisation"
 
     custom_horizon_string = CustomJSHover.from_py_func(horizon_formatter)
-    date_format = "@x{%F} to @next_x{%F}"
-    if resolution in ("15T", "1h"):
+    if resolution.seconds == 0:
+        date_format = "@x{%F} to @next_x{%F}"
+    else:
         date_format = "@x{%F %H:%M} to @next_x{%F %H:%M}"
 
+    tooltips = [("Time", date_format), ("Value", "@y{0.000a} %s" % y_unit)]
+    if as_beliefs:
+        tooltips.append(("Description", "@label @horizon{custom}."))
     return HoverTool(
-        tooltips=[
-            ("Time", date_format),
-            ("Value", "@y{0.000a} %s" % y_unit),
-            ("Description", "@label @horizon{custom}"),
-        ],
+        tooltips=tooltips,
         formatters={
             "x": "datetime",
             "next_x": "datetime",
@@ -157,20 +162,21 @@ def make_range(
 
 def create_graph(
     data: pd.DataFrame,
+    unit: str = "Some unit",
     title: str = "A plot",
     x_label: str = "X",
     y_label: str = "Y",
     legend: str = None,
     x_range: Range1d = None,
     forecasts: pd.DataFrame = None,
-    hover_tool: Optional[HoverTool] = None,
     show_y_floats: bool = False,
-    positive_y_only: bool = False,
+    non_negative_only: bool = False,
 ) -> Figure:
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
 
     :param data: the actual data
+    :param unit: the (physical) unit of the data
     :param title: Title of the graph
     :param x_label: x axis label
     :param y_label: y axis label
@@ -179,6 +185,7 @@ def create_graph(
     :param forecasts: forecasts of the data. Expects column names "yhat", "yhat_upper" and "yhat_lower".
     :param hover_tool: Bokeh hover tool, if required
     :param show_y_floats: if True, y axis will show floating numbers (defaults False, will be True if y values are < 2)
+    :param non_negative_only: whether or not the data can only be non-negative
     :return: a Bokeh Figure
     """
 
@@ -195,8 +202,15 @@ def create_graph(
 
     # Set tools
     tools = ["box_zoom", "reset", "save"]
-    if hover_tool is not None:
-        tools = [hover_tool] + tools
+    if "horizon" in data.columns and "label" in data.columns:
+        hover_tool = create_hover_tool(
+            unit, pd.to_timedelta(data.index.freq), as_beliefs=True
+        )
+    else:
+        hover_tool = create_hover_tool(
+            unit, pd.to_timedelta(data.index.freq), as_beliefs=False
+        )
+    tools = [hover_tool] + tools
 
     fig = figure(
         title=title,
@@ -211,7 +225,7 @@ def create_graph(
         outline_line_color="#666666",
     )
 
-    if positive_y_only:
+    if non_negative_only:
         fig.y_range.bounds = (0, None)
         fig.y_range.start = 0
 

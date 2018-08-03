@@ -79,11 +79,11 @@ def decide_resolution(start: datetime, end: datetime) -> str:
     period_length = end - start
     if period_length > timedelta(weeks=16):
         resolution = (
-            "1w"
+            "168h"
         )  # So upon switching from days to weeks, you get at least 16 data points
     elif period_length > timedelta(days=14):
         resolution = (
-            "1d"
+            "24h"
         )  # So upon switching from hours to days, you get at least 14 data points
     elif period_length > timedelta(hours=48):
         resolution = (
@@ -95,7 +95,7 @@ def decide_resolution(start: datetime, end: datetime) -> str:
 def resolution_to_hour_factor(resolution: str):
     """Return the factor with which a value needs to be multiplied in order to get the value per hour,
     e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step"""
-    switch = {"15T": 0.25, "1h": 1, "1d": 24, "1w": 24 * 7}
+    switch = {"15T": 0.25, "1h": 1, "24h": 24, "168h": 24 * 7}
     return switch.get(resolution, 1)
 
 
@@ -187,7 +187,7 @@ def set_time_range_for_session():
 
 def freq_label_to_human_readable_label(freq_label: str) -> str:
     """Translate pandas frequency labels to human-readable labels."""
-    f2h_map = {"15T": "15 minutes", "1h": "hour", "1d": "day", "1w": "week"}
+    f2h_map = {"15T": "15 minutes", "1h": "1 hour", "24h": "1 day", "168h": "1 week"}
     return f2h_map.get(freq_label, freq_label)
 
 
@@ -195,8 +195,8 @@ def forecast_horizons_for(resolution: str) -> List[str]:
     """Return a list of horizons that are supported per resolution."""
     if resolution in ("15T", "1h"):
         return ["6h", "48h"]
-    elif resolution == "1d":
+    elif resolution == "24h":
         return ["48h"]
-    elif resolution == "1w":
-        return ["1w"]
+    elif resolution == "168h":
+        return ["168h"]
     return []

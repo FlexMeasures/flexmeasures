@@ -120,20 +120,27 @@ class Resource:
         start: datetime = None,
         end: datetime = None,
         resolution: str = None,
-        horizon_window=None,
+        horizon_window=(None, timedelta(minutes=-15)),
         rolling: bool = False,
         sum_multiple: bool = True,
         create_if_empty: bool = False,
+        as_beliefs: bool = None,
     ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Get data for one or more assets. TODO: market data?
         If the time range parameters are None, they will be gotten from the session.
         The horizon window will default to the latest measurement (anything more in the future than the
         end of the time interval."""
+
         asset_names = []
         for asset in self.assets:
             asset_names.append(asset.name)
-        if horizon_window is None:
-            horizon_window = (None, timedelta(minutes=-15))
+
+        if as_beliefs is None:
+            if len(asset_names) > 1 and sum_multiple:
+                as_beliefs = False
+            else:
+                as_beliefs = True
+
         data = Power.collect(
             asset_names,
             query_window=(start, end),
@@ -142,5 +149,6 @@ class Resource:
             resolution=resolution,
             sum_multiple=sum_multiple,
             create_if_empty=create_if_empty,
+            as_beliefs=as_beliefs,
         )
         return data

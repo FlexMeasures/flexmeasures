@@ -155,19 +155,18 @@ def make_power_figure(
             "Electricity production from %s"
             % Resource(session["resource"]).display_name
         )
-    power_hover = plotting.create_hover_tool("MW", session.get("resolution"))
 
     return plotting.create_graph(
         data,
+        unit="MW",
         legend="Actual",
         forecasts=forecast_data,
         title=title,
         x_range=shared_x_range,
-        x_label="Time (sampled by %s)"
+        x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
         y_label="Power (in MW)",
         show_y_floats=True,
-        hover_tool=power_hover,
     )
 
 
@@ -177,18 +176,17 @@ def make_prices_figure(
     shared_x_range: Range1d,
 ) -> Figure:
     """Make a bokeh figure for price data"""
-    price_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
     return plotting.create_graph(
         data,
+        unit="KRW/MWh",
         legend="Actual",
         forecasts=forecast_data,
         title="Market prices (day-ahead)",
         x_range=shared_x_range,
-        x_label="Time (sampled by %s)"
+        x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
         y_label="Prices (in KRW/MWh)",
         show_y_floats=True,
-        hover_tool=price_hover,
     )
 
 
@@ -203,11 +201,14 @@ def make_weather_figure(
     # Todo: plot average temperature/total_radiation/wind_speed for asset groups, and update title accordingly
     # Todo: plot multiple weather data types for asset groups, rather than just the first one in the list like below
     if session_asset_types[0] == "wind":
-        weather_axis_label = "Wind speed (in m/s)"
+        unit = "m/s"
+        weather_axis_label = "Wind speed (in %s)" % unit
     elif session_asset_types[0] == "solar":
-        weather_axis_label = "Total radiation (in kW/m²)"
+        unit = "kW/m²"
+        weather_axis_label = "Total radiation (in %s)" % unit
     else:
-        weather_axis_label = "Temperature (in °C)"
+        unit = "°C"
+        weather_axis_label = "Temperature (in %s)" % unit
 
     if Resource(session["resource"]).is_unique_asset:
         title = "%s at %s" % (
@@ -216,18 +217,17 @@ def make_weather_figure(
         )
     else:
         title = "%s" % titleize(weather_type)
-    weather_hover = plotting.create_hover_tool("KRW/MWh", session.get("resolution"))
     return plotting.create_graph(
         data,
+        unit=unit,
         forecasts=forecast_data,
         title=title,
         x_range=shared_x_range,
-        x_label="Time (sampled by %s)"
+        x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
         y_label=weather_axis_label,
         legend=None,
         show_y_floats=True,
-        hover_tool=weather_hover,
     )
 
 
@@ -242,18 +242,17 @@ def make_revenues_costs_figure(
         rev_cost_str = "Costs"
     else:
         rev_cost_str = "Revenues"
-    rev_cost_hover = plotting.create_hover_tool("KRW", session.get("resolution"))
 
     return plotting.create_graph(
         data,
+        unit="KRW",
         legend="Actual",
         forecasts=forecast_data,
         title="%s for %s (on day-ahead market)"
         % (rev_cost_str, Resource(session["resource"]).display_name),
         x_range=shared_x_range,
-        x_label="Time (sampled by %s)"
+        x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
         y_label="%s (in KRW)" % rev_cost_str,
         show_y_floats=True,
-        hover_tool=rev_cost_hover,
     )

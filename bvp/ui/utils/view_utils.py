@@ -40,6 +40,9 @@ def render_bvp_template(html_filename: str, **variables):
     variables["resolution_human"] = time_utils.freq_label_to_human_readable_label(
         session.get("resolution", "")
     )
+    variables["horizon_human"] = time_utils.freq_label_to_human_readable_label(
+        session.get("forecast_horizon", "")
+    )
 
     variables["git_version"], variables["git_commits_since"], variables[
         "git_hash"

@@ -1,7 +1,7 @@
 from typing import List, Dict, Tuple, Union, Callable
 from datetime import datetime, timedelta
 
-from flask import session
+from flask import current_app, session
 import pandas as pd
 from sqlalchemy.orm.query import Query
 import numpy as np
@@ -33,6 +33,7 @@ def collect_time_series_data(
     sum_multiple: bool = True,
     create_if_empty: bool = False,
     zero_if_nan: bool = False,
+    as_beliefs: bool = False,
 ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """Get time series data from one or more generic assets and rescale and re-package it to order.
 
@@ -50,6 +51,11 @@ def collect_time_series_data(
     If an empty data frame would be returned, but create_if_empty is True, then
     a new DataFrame with the correct datetime index but zeroes as content is returned.
     """
+    if len(generic_asset_names) > 1 and sum_multiple and as_beliefs:
+        current_app.logger.error(
+            "Summing over horizons and data source labels is not implemented."
+        )
+
     data_as_dict: Dict[str, pd.DataFrame] = {}
     data_as_df: pd.DataFrame() = pd.DataFrame()
 
@@ -67,6 +73,7 @@ def collect_time_series_data(
             resolution,
             create_if_empty,
             zero_if_nan,
+            as_beliefs=as_beliefs,
         )
 
         # Cases explaining the following if statement for when to do a fallback query:
@@ -105,6 +112,7 @@ def collect_time_series_data(
                 resolution,
                 create_if_empty,
                 zero_if_nan,
+                as_beliefs=as_beliefs,
             )
 
         # Here we only build one data frame, summed up if necessary.
@@ -112,7 +120,7 @@ def collect_time_series_data(
             if data_as_df.empty:
                 data_as_df = values
             elif not values.empty:
-                data_as_df = data_as_df.add(values)
+                data_as_df.y = data_as_df.y.add(values.y, fill_value=0)
         else:  # Here we build a dict with data frames.
             if len(data_as_dict.keys()) == 0:
                 data_as_dict = {generic_asset_name: values}
@@ -144,6 +152,7 @@ def query_time_series_data(
     resolution: str = None,
     create_if_empty: bool = False,
     zero_if_nan: bool = False,
+    as_beliefs: bool = False,
 ) -> pd.DataFrame:
     """
     Run a query for time series data on the database.
@@ -151,14 +160,14 @@ def query_time_series_data(
     Therefore, we localize the result.
     Then, we resample the result, to fit the given resolution.
     If wanted, we can create a DataFrame with zeroes if no results were found in the database.
-    Returns a DataFrame with a "y" column.
+    Returns a DataFrame with a "y" column if as_beliefs is False, otherwise returns a DataFrame with "y", "horizon"
+    and "label" columns.
     """
     query = make_query(
         generic_asset_name, query_window, horizon_window, rolling, source_ids
     )
-    values_orig = pd.read_sql(
-        query.statement, db.session.bind, parse_dates=["datetime"]
-    )
+    values_orig = pd.read_sql(query.statement, db.session.bind)
+    values_orig["datetime"] = pd.to_datetime(values_orig["datetime"], utc=True)
 
     # Keep the most recent observation
     values_orig = (
@@ -166,6 +175,10 @@ def query_time_series_data(
         .drop_duplicates(subset=["datetime"], keep="first")
         .sort_values(by=["datetime"])
     )
+
+    # Drop the horizon and label if the requested values do not have to be represented as beliefs
+    if as_beliefs is False:
+        values_orig = values_orig.loc[:, ["datetime", "value"]]
 
     # Index according to time and rename value column
     values_orig.rename(index=str, columns={"value": "y"}, inplace=True)
@@ -192,8 +205,10 @@ def query_time_series_data(
             values = values_orig.resample(resolution).aggregate(
                 {
                     "y": np.nanmean,
-                    "horizon": np.min,
-                    "label": lambda x: data_source_resampler(values_orig["label"]),
+                    "horizon": lambda x: horizon_resampler(
+                        x
+                    ),  # list of unique horizons w.r.t. new time slot
+                    "label": lambda x: data_source_resampler(x),
                 }
             )
         else:
@@ -208,7 +223,10 @@ def query_time_series_data(
         time_steps = pd.date_range(
             start, end, freq=resolution, tz=time_utils.get_timezone(), closed="left"
         )
-        values = pd.DataFrame(index=time_steps, columns=["y", "horizon", "label"])
+        if as_beliefs:
+            values = pd.DataFrame(index=time_steps, columns=["y", "horizon", "label"])
+        else:
+            values = pd.DataFrame(index=time_steps, columns=["y"])
     if zero_if_nan:
         values.fillna(0.)
 
@@ -245,6 +263,26 @@ def drop_non_unique_elements(
 def data_source_resampler(labels: pd.Series) -> str:
     """Join unique data source labels in a human readable way."""
     unique_labels = labels.unique().tolist()
-    unique_labels = [l for l in unique_labels if str(l) != "nan"]
+    unique_labels = [l for l in unique_labels if str(l) not in ["nan", ""]]
     new_label = humanize(p.join(unique_labels))
     return new_label
+
+
+def horizon_resampler(horizons: pd.Series) -> List[timedelta]:
+    """
+    Resample horizons to be relative to the new time slot.
+
+    For resampling, it doesn't matter whether horizons are anchored by the start or end of each time slot.
+    If you want to change this class to return the actual time of belief, though, you should be mindful of how the
+    horizon is anchored. If the horizons are anchored by the end of each time slot, you should add the data resolution
+    to get the time of belief (and then subtract it again when calculating the new horizons), because the data is
+    indexed by the start of each time slot.
+    """
+
+    times_of_belief = horizons.index - horizons.values
+    unique_times_of_belief = times_of_belief.unique().tolist()
+    unique_horizons_of_belief = [
+        horizons.tail(1).index - time for time in unique_times_of_belief
+    ]
+
+    return unique_horizons_of_belief

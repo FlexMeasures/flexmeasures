@@ -88,7 +88,7 @@
                         </tr>
                         <tr>
                             <td class="text-left">
-                                Expected (forecast per {{ resolution_human }})
+                                Expected ({{ horizon_human }} before realisation)
                             </td>
                             <td>{{ "{:,.3f}".format( metrics["expected_power_in_mwh"] | round(3) ) }}</td>
                             <td>{{ "{:,.2f}".format( metrics["expected_unit_price"] | round(2) ) }}</td>
@@ -96,7 +96,7 @@
                         </tr>
                         <tr>
                             <td class="text-left">
-                                MAE (per {{ resolution_human }})
+                                MAE (for {{ resolution_human }})
                             </td>
                             <td>{{ "{:,.3f}".format( metrics["mae_power_in_mwh"] | round(3)) }}</td>
                             <td>{{ "{:,.2f}".format( metrics["mae_unit_price"] | round(2)) }}</td>

@@ -116,23 +116,6 @@ def portfolio_view():
 
     # get data for stacked plot for the selected period
 
-    def only_positive(df: pd.DataFrame) -> pd.DataFrame:
-        df = df.stack(dropna=False)
-        # noinspection PyTypeChecker
-        df[df < 0] = 0
-        df = df.unstack()
-        return df
-
-    # noinspection PyTypeChecker
-    def only_negative_abs(df: pd.DataFrame) -> pd.DataFrame:
-        # If this functions fails, a possible solution may be to stack the dataframe before
-        # checking for negative values (unstacking afterwards).
-        df = df.stack(dropna=False)
-        df[df > 0] = 0
-        df = df.unstack()
-        df[:] = df * -1
-        return df
-
     def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
         """Making really sure we have the structure to let the plots not fail"""
         if df is None or df.empty:
@@ -167,8 +150,6 @@ def portfolio_view():
         ]
         sum_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
         plot_label = "Stacked production vs aggregated consumption"
-        stacked_value_mask = only_positive
-        summed_value_mask = only_negative_abs
     else:
         show_summed = "production"
         stack_types = [
@@ -176,8 +157,6 @@ def portfolio_view():
         ]
         sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
         plot_label = "Stacked consumption vs aggregated production"
-        stacked_value_mask = only_negative_abs
-        summed_value_mask = only_positive
 
     df_sum = Power.collect(
         sum_assets,
@@ -185,11 +164,12 @@ def portfolio_view():
         resolution=resolution,
         create_if_empty=True,
     )
-    if df_sum is not None and not df_sum.empty:
-        df_sum = df_sum.loc[:, ["y"]]  # only get the y data
+
+    # Plot as positive values regardless of whether the summed data is production or consumption
     df_sum = data_or_zeroes(df_sum)
-    df_sum = summed_value_mask(df_sum)
-    hover = plotting.create_hover_tool("MW", resolution)
+    if show_stacked == "production":
+        df_sum.y *= -1
+
     this_hour = time_utils.get_most_recent_hour()
     if current_app.config.get("BVP_MODE", "") == "demo":
         this_hour = this_hour.replace(year=2015)
@@ -201,15 +181,15 @@ def portfolio_view():
     x_range = plotting.make_range(df_sum.index)
     fig_profile = plotting.create_graph(
         df_sum,
+        unit="MW",
         title=plot_label,
         x_range=x_range,
-        x_label="Time (sampled by %s)"
+        x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(resolution),
         y_label="Power (in MW)",
         legend=titleize(show_summed),
         show_y_floats=True,
-        positive_y_only=True,
-        hover_tool=hover,
+        non_negative_only=True,
     )
 
     # TODO: show when user has (possible) actions in order book for a time slot
@@ -233,8 +213,11 @@ def portfolio_view():
                 start=start, end=end, resolution=resolution, create_if_empty=True
             )
         ).y.values
-    df_stacked_data = stacked_value_mask(df_stacked_data)
+
+    # Plot as positive values regardless of whether the stacked data is production or consumption
     df_stacked_data = data_or_zeroes(df_stacked_data)
+    if show_stacked == "consumption":
+        df_stacked_data[:] *= -1
     df_stacked_areas = stacked(df_stacked_data)
 
     num_areas = df_stacked_areas.shape[1]
@@ -296,6 +279,7 @@ def portfolio_view():
 
     fig_actions = plotting.create_graph(
         df_actions,
+        unit="MW",
         title="Ordered balancing actions",
         x_range=x_range,
         y_label="Power (in MW)",

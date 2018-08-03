@@ -58,10 +58,12 @@ def get_prices_data(
     metrics: dict
 ) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Get price data and metrics"""
-    prices_data = Price.collect(["epex_da"], create_if_empty=True)
+    prices_data = Price.collect(["epex_da"], create_if_empty=True, as_beliefs=True)
     metrics["realised_unit_price"] = prices_data.y.mean()
     prices_forecast_data = Price.collect(
-        ["epex_da"], horizon_window=(timedelta(hours=48), timedelta(hours=48))
+        ["epex_da"],
+        horizon_window=(timedelta(hours=48), timedelta(hours=48)),
+        as_beliefs=True,
     )
     if not prices_forecast_data.empty and prices_forecast_data.size == prices_data.size:
         metrics["expected_unit_price"] = prices_forecast_data.yhat.mean()
@@ -92,8 +94,15 @@ def get_weather_data(
         weather_type = "total_radiation"
     else:
         weather_type = "temperature"
-    weather_data = Weather.collect([weather_type], create_if_empty=True)
-    return weather_data, None, weather_type, metrics
+    weather_data = Weather.collect(
+        [weather_type], create_if_empty=True, as_beliefs=True
+    )
+    return (
+        weather_data,
+        None,
+        weather_type,
+        metrics,
+    )  # Todo: get weather forecast data, too
 
 
 def get_revenues_costs_data(
@@ -115,13 +124,14 @@ def get_revenues_costs_data(
         metrics["realised_revenues_costs"] = np.NaN
     else:
         rev_cost_data = pd.DataFrame(
-            dict(
-                y=power_data.y * prices_data.y,
-                horizon=pd.DataFrame([power_data.horizon, prices_data.horizon]).min(),
-                label=power_data.label,
-            ),
-            index=power_data.index,
+            dict(y=power_data.y * prices_data.y), index=power_data.index
         )
+        if "horizon" in power_data.columns and "horizon" in prices_data.columns:
+            rev_cost_data["horizon"] = pd.DataFrame(
+                [power_data.horizon, prices_data.horizon]
+            ).min()
+        if "label" in power_data.columns and "label" in prices_data.columns:
+            rev_cost_data["label"] = "Calculated from power and price data"
         metrics["realised_revenues_costs"] = rev_cost_data.y.values.sum()
 
     if (

@@ -88,6 +88,7 @@ class TimedValue(object):
         sum_multiple: bool = True,
         create_if_empty: bool = False,
         zero_if_nan: bool = False,
+        as_beliefs: bool = False,
     ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Basically a convenience wrapper for services.collect_time_series_data,
         where time series data collection is implemented.
@@ -106,4 +107,5 @@ class TimedValue(object):
             sum_multiple=sum_multiple,
             create_if_empty=create_if_empty,
             zero_if_nan=zero_if_nan,
+            as_beliefs=as_beliefs,
         )
