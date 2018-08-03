@@ -22,7 +22,7 @@ def invalid_horizon(extra_info: str = None) -> Tuple[dict, int]:
     message = "The prognosis horizon in your request could not be parsed."
     if extra_info:
         message += " %s" % extra_info
-    return (dict(result="Rejected", status="INVALID_HORIZON", message=message), 400)
+    return dict(result="Rejected", status="INVALID_HORIZON", message=message), 400
 
 
 def invalid_period() -> Tuple[dict, int]:
@@ -53,7 +53,7 @@ def invalid_resolution(extra_info: str = None) -> Tuple[dict, int]:
     message = "Only a 15 minute resolution is currently supported."
     if extra_info:
         message += " %s" % extra_info
-    return (dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400)
+    return dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400
 
 
 def invalid_method(request_method) -> Tuple[dict, int]:
@@ -142,6 +142,23 @@ def no_message_type() -> Tuple[dict, int]:
             status="NO_MESSAGE_TYPE",
             message="Request message should include 'type'.",
         ),
+        400,
+    )
+
+
+def power_value_too_big(extra_info: str = None) -> Tuple[dict, int]:
+    message = "One or more power values are too big."
+    if extra_info:
+        message += " %s" % extra_info
+    return dict(result="Rejected", status="POWER_VALUE_TOO_BIG", message=message), 400
+
+
+def power_value_too_small(extra_info: str = None) -> Tuple[dict, int]:
+    message = "One or more power values are too small."
+    if extra_info:
+        message += " %s" % extra_info
+    return (
+        dict(result="Rejected", status="POWER_VALUE_TOO_SMALL", message=message),
         400,
     )
 

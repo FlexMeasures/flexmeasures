@@ -11,6 +11,8 @@ from bvp.data.models.data_sources import DataSource
 from bvp.api.common.responses import (
     invalid_domain,
     invalid_role,
+    power_value_too_big,
+    power_value_too_small,
     unrecognized_connection_group,
     request_processed,
 )
@@ -116,6 +118,20 @@ def post_meter_data_response(
             else:
                 current_app.logger.warn("Cannot identify connection %s" % connection)
                 return unrecognized_connection_group()
+
+            # Validate the sign of the values
+            if asset.is_pure_consumer and any(v > 0 for v in value_group):
+                extra_info = (
+                    "Connection %s is registered as a pure consumer and can only receive non-positive values."
+                    % asset.entity_address
+                )
+                return power_value_too_big(extra_info)
+            elif asset.is_pure_producer and any(v < 0 for v in value_group):
+                extra_info = (
+                    "Connection %s is registered as a pure producer and can only receive non-negative values."
+                    % asset.entity_address
+                )
+                return power_value_too_small(extra_info)
 
             # Create new Power objects
             for j, value in enumerate(value_group):

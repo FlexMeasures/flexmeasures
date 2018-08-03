@@ -137,6 +137,65 @@ def post_price_data():
 @auth_token_required
 @usef_roles_accepted(*check_access(service_listing, "postWeatherData"))
 def post_weather_data():
+    """API endpoint to post weather data.
+
+    .. :quickref: User; Upload weather data to the platform
+
+
+    **Optional parameters**
+
+    - "horizon" (see :ref:`prognoses`)
+
+    **Example request**
+
+    This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm
+    for a weather sensor located at latitude 33.4843866 and longitude 126.477859. The forecasts were made at noon.
+
+    .. code-block:: json
+
+        {
+            "type": "PostWeatherDataRequest",
+            "groups": [
+                {
+                    "sensor": "ea1.2018-06.localhost:5000:temperature:33.4843866:126.477859",
+                    "values": [
+                        20.04,
+                        20.23,
+                        20.41,
+                        20.51,
+                        20.55,
+                        20.57
+                    ]
+                }
+            ],
+            "start": "2015-01-01T15:00:00+09:00",
+            "duration": "PT1H30M",
+            "horizon": "PT3H",
+            "unit": "°C"
+        }
+
+    **Example response**
+
+    This "PostWeatherDataResponse" message indicates that the forecast has been processed without any error.
+
+    .. sourcecode:: json
+
+        {
+            "type": "PostWeatherDataResponse",
+            "status": "PROCESSED",
+            "message": "Request has been processed."
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, or UNRECOGNIZED_SENSOR
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 405: INVALID_METHOD
+
+    """
     return implementations.post_weather_data_response()
 
 
@@ -183,12 +242,12 @@ def get_prognosis():
             "type": "GetPrognosisResponse",
             "connection": "CS 1",
             "values": [
-                306.66,
-                306.66,
+                -306.66,
+                -306.66,
                 0,
                 0,
-                306.66,
-                306.66
+                -306.66,
+                -306.66
             ],
             "start": "2015-01-01T00:00:00Z",
             "duration": "PT1H30M",

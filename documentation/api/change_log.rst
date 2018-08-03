@@ -6,8 +6,16 @@ Change log
 v1.1-0
 """"""
 
+- Added the *getConnection* endpoint
+- Added the *postWeatherData* endpoint
+- Added information about the sign of power values in the Introduction section
+- Changed the sign of values in endpoint examples (consumption is negative)
+- Added an optional horizon to the *postMeterData* endpoint
+
+v1.1-0
+""""""
+
 - Added the *getPrognosis* endpoint
-- Added the *postPrognosis* endpoint
 - Changed the *getMeterData* endpoint to accept an optional resolution, source, and horizon
 - Changed the Introduction section:
 
@@ -16,7 +24,6 @@ v1.1-0
     - Updated information about horizons
 
 - Added a description of the *getPrognosis* endpoint in the Supplier section
-- Added a description of the *postPrognosis* endpoint in the Aggregator section
 
 v1.0-1
 """"""

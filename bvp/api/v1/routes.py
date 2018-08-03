@@ -70,12 +70,12 @@ def get_meter_data():
             "type": "GetMeterDataResponse",
             "connection": "CS 1",
             "values": [
-                306.66,
-                306.66,
+                -306.66,
+                -306.66,
                 0,
                 0,
-                306.66,
-                306.66
+                -306.66,
+                -306.66
             ],
             "start": "2015-01-01T00:00:00Z",
             "duration": "PT1H30M",
@@ -111,7 +111,7 @@ def post_meter_data():
     **Example request**
 
     This "PostMeterDataRequest" message posts measured consumption for 15-minute intervals between 0.00am and 1.30am for
-    charging stations 1, 2 and 3 (negative values denote production).
+    charging stations 1, 2 and 3 (negative values denote consumption).
 
     .. code-block:: json
 
@@ -124,12 +124,12 @@ def post_meter_data():
                         "CS 3"
                     ],
                     "values": [
-                        306.66,
-                        306.66,
+                        -306.66,
+                        -306.66,
                         0,
                         0,
-                        306.66,
-                        306.66
+                        -306.66,
+                        -306.66
                     ]
                 },
                 {
@@ -137,12 +137,12 @@ def post_meter_data():
                         "CS 2"
                     ],
                     "values": [
-                        306.66,
+                        -306.66,
                         0,
                         0,
                         0,
-                        306.66,
-                        306.66
+                        -306.66,
+                        -306.66
                     ]
                 }
             ],
@@ -160,7 +160,7 @@ def post_meter_data():
         {
             "type": "PostMeterDataResponse",
             "status": "PROCESSED",
-            "message": "Meter data has been processed."
+            "message": "Request has been processed."
         }
 
     :reqheader Authorization: The authentication token

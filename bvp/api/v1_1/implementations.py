@@ -122,10 +122,14 @@ def post_weather_data_response(
             # Create new Weather objects
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
+                if rolling:
+                    h = horizon
+                else:
+                    h = horizon + j * duration / len(value_group)
                 w = Weather(
                     datetime=dt,
                     value=value,
-                    horizon=horizon,
+                    horizon=h,
                     sensor_id=weather_sensor.id,
                     data_source_id=data_source.id,
                 )
