@@ -280,7 +280,7 @@ For version 1 of the API, only univariate timeseries data is expected to be comm
 Prognoses
 ^^^^^^^^^
 
-A prognosis should state a time horizon, i.e. the duration between the time at which the prognosis was made and the time to which the prognosis refers. The horizon can be stated explicitly by including a "horizon", consistent with the ISO 8601 standard, as follows:
+A prognosis should state a time horizon, i.e. the duration between the time at which the prognosis was made and the time of realisation (at the end of a time interval). The horizon can be stated explicitly by including a "horizon", consistent with the ISO 8601 standard, as follows:
 
 .. code-block:: json
 
@@ -295,7 +295,7 @@ A prognosis should state a time horizon, i.e. the duration between the time at w
         "horizon": "PT6H"
     }
 
-This message implies that the entire prognosis was made at 7:00 AM UTC.
+This message implies that the entire prognosis was made at 7:45 AM UTC, i.e. 6 hours before the end of the time interval.
 Alternatively, a rolling horizon can be stated as an ISO 8601 repeating time interval:
 
 .. code-block:: json
@@ -312,9 +312,9 @@ Alternatively, a rolling horizon can be stated as an ISO 8601 repeating time int
     }
 
 Here, the number of repetitions and the repeat rule is omitted as it is implied by our notation for univariate timeseries (a complete representation of the "horizon" would have been "R3/PT6H/FREQ=MI;INTR=15").
-This message implies that the value for 1:00-1:15 PM was made at 7:00 AM, the value for 1:15-1:30 PM was made at 7:15 AM, and the value for 1:30-1:45 PM was made at 7:30 AM.
+This message implies that the value for 1:00-1:15 PM was made at 7:15 AM, the value for 1:15-1:30 PM was made at 7:30 AM, and the value for 1:30-1:45 PM was made at 7:45 AM.
 
-A "horizon" may be omitted, in which case the web service will infer the horizon from the arrival time of the message. Negative horizons may also be stated (breaking with the ISO 8601 standard) to indicate a prognosis about something that has already (partially) happened. For example, the following message implies that the entire prognosis was made at 1:10 PM UTC:
+A "horizon" may be omitted, in which case the web service will infer the horizon from the arrival time of the message. Negative horizons may also be stated (breaking with the ISO 8601 standard) to indicate a prognosis about something that has already happened (i.e. after the fact, or simply *ex post*). For example, the following message implies that the entire prognosis was made at 1:55 PM UTC, 10 minutes after the fact:
 
 .. code-block:: json
 
@@ -329,8 +329,8 @@ A "horizon" may be omitted, in which case the web service will infer the horizon
         "horizon": "-PT10M"
     }
 
-For a rolling horizon indicating a prognosis 10 minutes after the value occurred, the "horizon" would have been "R/-PT25M".
-Note that, for ex-ante observations, the timeseries resolution (here 15 minutes) is included in the horizon, because the horizon is relative to the start of the timeseries.
+For a rolling horizon indicating a prognosis 10 minutes after the start of each 15-minute interval, the "horizon" would have been "R/PT5M" since in fact only the last 5 minutes of each interval occurs before the fact (*ex ante*).
+That is, for ex-ante prognoses, the timeseries resolution (here 15 minutes) is included in the horizon, because the horizon is relative to the end of the timeseries.
 
 .. _resolutions:
 

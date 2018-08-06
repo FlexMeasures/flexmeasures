@@ -3,13 +3,16 @@
 Change log
 ==========
 
-v1.1-0
+v1.1-1
 """"""
 
 - Added the *getConnection* endpoint
 - Added the *postWeatherData* endpoint
-- Added information about the sign of power values in the Introduction section
-- Changed the sign of values in endpoint examples (consumption is negative)
+- Changed the Introduction section:
+
+    - Added information about the sign of power values (production is negative)
+    - Updated information about horizons (now anchored to the end of each time interval rather than to the start)
+ 
 - Added an optional horizon to the *postMeterData* endpoint
 
 v1.1-0

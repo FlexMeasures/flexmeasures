@@ -291,19 +291,27 @@ def optional_horizon_accepted(ex_post: bool = False):
                     if horizon > timedelta(hours=0):
                         extra_info = "Meter data must have a negative horizon to indicate observations after the fact."
                         return invalid_horizon(extra_info)
-            elif "start" in form:
+            elif "start" in form and "duration" in form:
                 start = validate_start(form["start"])
+                duration = validate_duration(form["duration"])
                 if not start:
-                    current_app.logger.warn("Cannot parse 'start' value")
-                    return invalid_period()
+                    extra_info = "Cannot parse 'start' value."
+                    current_app.logger.warn(extra_info)
+                    return invalid_period(extra_info)
                 if start.tzinfo is None:
                     current_app.logger.warn("Cannot parse timezone of 'start' value")
                     return invalid_timezone()
-                horizon = start - bvp_now()
+                if not duration:
+                    extra_info = "Cannot parse 'duration' value."
+                    current_app.logger.warn(extra_info)
+                    return invalid_period(extra_info)
+                horizon = start + duration - bvp_now()
                 rolling = False
             else:
-                current_app.logger.warn("Request missing both 'horizon' and 'start'.")
-                extra_info = "Specify a 'horizon' value, or a 'start' value so that the horizon can be inferred."
+                current_app.logger.warn(
+                    "Request missing both 'horizon', 'start' and 'duration'."
+                )
+                extra_info = "Specify a 'horizon' value, or 'start' and 'duration' values so that the horizon can be " "inferred."
                 return invalid_horizon(extra_info)
 
             kwargs["horizon"] = horizon

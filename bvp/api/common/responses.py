@@ -25,15 +25,11 @@ def invalid_horizon(extra_info: str = None) -> Tuple[dict, int]:
     return dict(result="Rejected", status="INVALID_HORIZON", message=message), 400
 
 
-def invalid_period() -> Tuple[dict, int]:
-    return (
-        dict(
-            result="Rejected",
-            status="INVALID_PERIOD",
-            message="A time period in your request doesn't seem right.",
-        ),
-        400,
-    )
+def invalid_period(extra_info: str = None) -> Tuple[dict, int]:
+    message = "A time period in your request doesn't seem right."
+    if extra_info:
+        message += " %s" % extra_info
+    return dict(result="Rejected", status="INVALID_PERIOD", message=message), 400
 
 
 def invalid_ptu_duration() -> Tuple[dict, int]:
