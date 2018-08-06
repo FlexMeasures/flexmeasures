@@ -242,12 +242,12 @@ def get_prognosis():
             "type": "GetPrognosisResponse",
             "connection": "CS 1",
             "values": [
-                -306.66,
-                -306.66,
+                306.66,
+                306.66,
                 0,
                 0,
-                -306.66,
-                -306.66
+                306.66,
+                306.66
             ],
             "start": "2015-01-01T00:00:00Z",
             "duration": "PT1H30M",

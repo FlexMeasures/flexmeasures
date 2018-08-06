@@ -176,8 +176,8 @@ When the attributes "start", "duration" and "unit" are stated outside of "groups
                     "CS 2"
                 ],
                 "values": [
-                    -306.66,
-                    -306.66,
+                    306.66,
+                    306.66,
                     0,
                     0,
                     306.66,
@@ -187,12 +187,12 @@ When the attributes "start", "duration" and "unit" are stated outside of "groups
             {
                 "connection": "CS 3",
                 "values": [
-                    -306.66,
+                    306.66,
                     0,
                     0,
                     0,
-                    -306.66,
-                    -306.66
+                    306.66,
+                    306.66
                 ]
             }
         ],
@@ -211,12 +211,12 @@ In case of a single group of connections, the message may be flattened to:
             "CS 2"
         ],
         "values": [
-            -306.66,
-            -306.66,
+            306.66,
+            306.66,
             0,
             0,
-            -306.66,
-            -306.66
+            306.66,
+            306.66
         ],
         "start": "2016-05-01T12:45:00Z",
         "duration": "PT1H30M",
@@ -350,5 +350,6 @@ Valid units for timeseries data in version 1 of the API are "MW" only.
 Signs
 ^^^^^
 
-USEF recommends to use positive power values to indicate production and negative values to indicate consumption.
+USEF recommends to use positive power values to indicate consumption and negative values to indicate production, i.e.
+to take the perspective of the Prosumer.
 If an asset has been configured as a pure producer or pure consumer, the web service will help avoid mistakes by checking the sign of posted power values.

@@ -68,7 +68,7 @@ def test_no_data(client):
     print(get_prognosis_response.json)
     assert get_prognosis_response.status_code == 200
     assert get_prognosis_response.json["type"] == "GetPrognosisResponse"
-    # assert get_prognosis_response.json["values"] == []
+    assert get_prognosis_response.json["values"] == []
 
 
 @pytest.mark.parametrize(

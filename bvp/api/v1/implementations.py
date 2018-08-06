@@ -119,19 +119,19 @@ def post_meter_data_response(
                 current_app.logger.warn("Cannot identify connection %s" % connection)
                 return unrecognized_connection_group()
 
-            # Validate the sign of the values
-            if asset.is_pure_consumer and any(v > 0 for v in value_group):
+            # Validate the sign of the values (following USEF specs with positive consumption and negative production)
+            if asset.is_pure_consumer and any(v < 0 for v in value_group):
                 extra_info = (
-                    "Connection %s is registered as a pure consumer and can only receive non-positive values."
-                    % asset.entity_address
-                )
-                return power_value_too_big(extra_info)
-            elif asset.is_pure_producer and any(v < 0 for v in value_group):
-                extra_info = (
-                    "Connection %s is registered as a pure producer and can only receive non-negative values."
+                    "Connection %s is registered as a pure consumer and can only receive non-negative values."
                     % asset.entity_address
                 )
                 return power_value_too_small(extra_info)
+            elif asset.is_pure_producer and any(v > 0 for v in value_group):
+                extra_info = (
+                    "Connection %s is registered as a pure producer and can only receive non-positive values."
+                    % asset.entity_address
+                )
+                return power_value_too_big(extra_info)
 
             # Create new Power objects
             for j, value in enumerate(value_group):
@@ -142,7 +142,8 @@ def post_meter_data_response(
                     h = horizon + j * duration / len(value_group)
                 p = Power(
                     datetime=dt,
-                    value=value,
+                    value=value
+                    * -1,  # Reverse sign for BVP specs with positive production and negative consumption
                     horizon=h,
                     asset_id=asset.id,
                     data_source_id=data_source.id,
@@ -185,7 +186,7 @@ def get_service_response(
 def collect_connection_and_value_groups(
     unit: str,
     resolution: str,
-    horizon_window: Tuple[timedelta, timedelta],
+    horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]],
     start: datetime_type,
     duration: timedelta,
     connection_groups: List[List[str]],
@@ -248,8 +249,11 @@ def collect_connection_and_value_groups(
         # Todo: parse time window of ts_values, which will be different for requests that are not of the form:
         # - start is a timestamp on the hour or a multiple of 15 minutes thereafter
         # - duration is a multiple of 15 minutes
+        print(ts_values)
         for k, v in ts_values.items():
-            value_groups.append(v.y.tolist())
+            value_groups.append(
+                [x * -1 for x in v.y.tolist()]
+            )  # Reverse sign of values (from BVP specs to USEF specs)
             new_connection_groups.append(k)
 
     response = groups_to_dict(new_connection_groups, value_groups)

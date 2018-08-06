@@ -61,7 +61,7 @@ def setup_api_test_data(db):
             datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
             horizon=timedelta(hours=6),
-            value=300 + i,
+            value=(300 + i) * -1,
             asset_id=cs_1.id,
             data_source_id=data_source.id,
         )
@@ -69,7 +69,7 @@ def setup_api_test_data(db):
             datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
             horizon=timedelta(hours=6),
-            value=300 - i,
+            value=(300 - i) * -1,
             asset_id=cs_2.id,
             data_source_id=data_source.id,
         )
@@ -77,7 +77,7 @@ def setup_api_test_data(db):
             datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
             horizon=timedelta(hours=6),
-            value=0 + i,
+            value=(0 + i) * -1,
             asset_id=cs_3.id,
             data_source_id=data_source.id,
         )
