@@ -92,9 +92,9 @@ class TimedValue(object):
     ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Basically a convenience wrapper for services.collect_time_series_data,
         where time series data collection is implemented.
-        -PT15M is our default right-after-the-fact measurement."""
+        A zero horizon is our default right-after-the-fact measurement."""
         if horizon_window == (None, None):
-            horizon_window = (None, timedelta(minutes=-15))
+            horizon_window = (None, timedelta(hours=0))
         return collect_time_series_data(
             generic_asset_names=generic_asset_names,
             make_query=cls.make_query,

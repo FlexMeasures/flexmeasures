@@ -120,7 +120,7 @@ class Resource:
         start: datetime = None,
         end: datetime = None,
         resolution: str = None,
-        horizon_window=(None, timedelta(minutes=-15)),
+        horizon_window=(None, timedelta(hours=0)),
         rolling: bool = False,
         sum_multiple: bool = True,
         create_if_empty: bool = False,

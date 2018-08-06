@@ -12,7 +12,6 @@ from flask_security.utils import hash_password
 import click
 import pandas as pd
 from sqlalchemy.sql import or_
-from isodate import parse_duration
 from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
 
 from bvp.data.models.markets import MarketType, Market, Price
@@ -195,7 +194,7 @@ def add_prices(db: SQLAlchemy, markets: List[Market], test_data_set: bool):
                 first = dt
             p = Price(
                 datetime=dt,
-                horizon=parse_duration("-PT15M"),
+                horizon=timedelta(hours=0),
                 value=value,
                 market_id=market.id,
                 data_source_id=data_source.id,
@@ -275,7 +274,7 @@ def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
                 first = dt
             p = Power(
                 datetime=dt,
-                horizon=parse_duration("-PT15M"),
+                horizon=timedelta(hours=0),
                 value=value,
                 asset_id=asset.id,
                 data_source_id=data_source.id,
@@ -336,7 +335,7 @@ def add_weather(db: SQLAlchemy, sensors: List[WeatherSensor], test_data_set: boo
                 first = dt
             w = Weather(
                 datetime=dt,
-                horizon=parse_duration("-PT15M"),
+                horizon=timedelta(hours=0),
                 value=value,
                 sensor_id=sensor.id,
                 data_source_id=data_source.id,
@@ -553,7 +552,7 @@ def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
         power_forecasts = [
             Power(
                 datetime=ensure_korea_local(dt),
-                horizon=parse_duration("PT48H"),
+                horizon=timedelta(hours=48),
                 value=value,
                 asset_id=asset.id,
                 data_source_id=data_source.id,
@@ -603,12 +602,14 @@ def depopulate_structure(db: SQLAlchemy):
 @as_transaction
 def depopulate_data(db: SQLAlchemy):
     click.echo("Depopulating (time series) data from the database %s ..." % db.engine)
-    num_prices_deleted = db.session.query(Price).filter_by(horizon="PT0M").delete()
+    num_prices_deleted = (
+        db.session.query(Price).filter(Price.horizon <= timedelta(hours=0)).delete()
+    )
     num_power_measurements_deleted = (
-        db.session.query(Power).filter_by(horizon=parse_duration("-PT15M")).delete()
+        db.session.query(Power).filter(Power.horizon <= timedelta(hours=0)).delete()
     )
     num_weather_measurements_deleted = (
-        db.session.query(Weather).filter_by(horizon=parse_duration("-PT15M")).delete()
+        db.session.query(Weather).filter(Weather.horizon <= timedelta(hours=0)).delete()
     )
     click.echo("Deleted %d Prices" % num_prices_deleted)
     click.echo("Deleted %d Power Measurements" % num_power_measurements_deleted)
@@ -621,19 +622,13 @@ def depopulate_forecasts(db: SQLAlchemy):
         "Depopulating (time series) forecasts from the database %s ..." % db.engine
     )
     num_prices_deleted = (
-        db.session.query(Price)
-        .filter(Price.horizon != parse_duration("-PT15M"))
-        .delete()
+        db.session.query(Price).filter(Price.horizon > timedelta(hours=0)).delete()
     )
     num_power_measurements_deleted = (
-        db.session.query(Power)
-        .filter(Power.horizon != parse_duration("-PT15M"))
-        .delete()
+        db.session.query(Power).filter(Power.horizon > timedelta(hours=0)).delete()
     )
     num_weather_measurements_deleted = (
-        db.session.query(Weather)
-        .filter(Weather.horizon != parse_duration("-PT15M"))
-        .delete()
+        db.session.query(Weather).filter(Weather.horizon > timedelta(hours=0)).delete()
     )
     click.echo("Deleted %d Price Forecasts" % num_prices_deleted)
     click.echo("Deleted %d Power Forecasts" % num_power_measurements_deleted)

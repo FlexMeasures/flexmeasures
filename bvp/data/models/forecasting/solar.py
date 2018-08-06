@@ -49,7 +49,7 @@ def model_48h_a(
             query=Weather.make_query(
                 "total_radiation",
                 query_window=(query_start, query_end),
-                horizon_window=(None, timedelta(minutes=-15)),
+                horizon_window=(None, timedelta(hours=0)),
                 session=db.session,
             ),
         )
@@ -60,7 +60,7 @@ def model_48h_a(
         query=Power.make_query(
             solar_asset.name,
             query_window=(query_start, query_end),
-            horizon_window=(None, timedelta(minutes=-15)),
+            horizon_window=(None, timedelta(hours=0)),
             session=db.session,
         ),
     )

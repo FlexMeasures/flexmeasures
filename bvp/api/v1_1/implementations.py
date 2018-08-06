@@ -60,7 +60,7 @@ def post_price_data_response(horizon, rolling):
 @optional_horizon_accepted()
 @values_required
 @period_required
-@resolutions_accepted(timedelta(minutes=15), timedelta(hours=1))
+@resolutions_accepted(timedelta(minutes=15))
 def post_weather_data_response(
     unit, generic_asset_name_groups, horizon, rolling, value_groups, start, duration
 ):

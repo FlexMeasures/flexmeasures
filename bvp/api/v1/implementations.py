@@ -61,7 +61,7 @@ def get_meter_data_response(
     """
 
     # Any meter data observed at most <horizon> after the fact and not before the fact
-    horizon_window = (horizon, -timedelta(minutes=15))
+    horizon_window = (horizon, timedelta(hours=0))
 
     return collect_connection_and_value_groups(
         unit,
@@ -82,7 +82,7 @@ def get_meter_data_response(
 @values_required
 @optional_horizon_accepted(ex_post=True)
 @period_required
-@resolutions_accepted(timedelta(minutes=15), timedelta(hours=1))
+@resolutions_accepted(timedelta(minutes=15))
 @as_json
 def post_meter_data_response(
     unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration

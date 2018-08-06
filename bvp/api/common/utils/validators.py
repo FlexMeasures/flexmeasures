@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timedelta
 import re
 from functools import wraps
 from typing import List, Tuple, Union
@@ -75,9 +75,7 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
     return list(set(source_ids))  # only unique source ids
 
 
-def validate_horizon(
-    horizon: str
-) -> Union[Tuple[datetime.timedelta, bool], Tuple[None, None]]:
+def validate_horizon(horizon: str) -> Union[Tuple[timedelta, bool], Tuple[None, None]]:
     """
     Validates whether the string 'horizon' is a valid ISO 8601 (repeating) time interval.
 
@@ -107,7 +105,7 @@ def validate_horizon(
     return horizon, rep
 
 
-def validate_duration(duration: str) -> Union[datetime.timedelta, None]:
+def validate_duration(duration: str) -> Union[timedelta, None]:
     """
     Validates whether the string 'duration' is a valid ISO 8601 time interval.
     """
@@ -117,7 +115,7 @@ def validate_duration(duration: str) -> Union[datetime.timedelta, None]:
         return None
 
 
-def validate_start(start: str) -> Union[datetime.datetime, None]:
+def validate_start(start: str) -> Union[datetime, None]:
     """
     Validates whether the string 'start' is a valid ISO 8601 datetime.
     """
@@ -290,7 +288,7 @@ def optional_horizon_accepted(ex_post: bool = False):
                     current_app.logger.warn("Cannot parse 'horizon' value")
                     return invalid_horizon()
                 elif ex_post is True:
-                    if horizon > datetime.timedelta(minutes=0):
+                    if horizon > timedelta(hours=0):
                         extra_info = "Meter data must have a negative horizon to indicate observations after the fact."
                         return invalid_horizon(extra_info)
             elif "start" in form:

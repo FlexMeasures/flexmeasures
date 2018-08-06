@@ -66,15 +66,19 @@ Or, from within Postgres console:
     CREATE DATABASE a1 WITH OWNER = a1;
     CREATE DATABASE a1test WITH OWNER = a1test;
 
-Try logging in:
+Log in as the postgres superuser:
 
-    psql -U a1 --password -h 127.0.0.1 -d a1
-    \q
+    psql -U postgres --password -h 127.0.0.1 -d a1
 
-Add the following extensions when logged in:
+Add the following extensions while logged in as the postgres superuser:
 
     CREATE EXTENSION cube;
     CREATE EXTENSION earthdistance;
+
+Log out with `\q` and try logging in as the a1 user:
+
+    psql -U a1 --password -h 127.0.0.1 -d a1
+    \q
 
 Configure BVP app for that database
 -----------------------------------
