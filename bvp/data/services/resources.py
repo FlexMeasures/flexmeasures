@@ -2,7 +2,7 @@
 Generic services for accessing asset data.
 """
 
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional
 from datetime import datetime, timedelta
 from inflection import pluralize
 
@@ -13,12 +13,20 @@ import pandas as pd
 from bvp.data.models.assets import AssetType, Asset, Power
 
 
-def get_assets() -> List[Asset]:
-    """Return a list of all Asset objects of current_user (or all for admins).
-    The asset list is constructed lazily (only once per app start)."""
+def get_assets(owner_id: Optional[int] = None) -> List[Asset]:
+    """Return a list of all Asset objects owned by current_user
+     (or all or specific user for admins).
+    """
     if current_user.is_authenticated:
         if current_user.has_role("admin"):
-            assets = Asset.query.order_by(Asset.id.desc()).all()
+            if owner_id is not None:
+                assets = (
+                    Asset.query.filter(Asset.owner_id == owner_id)
+                    .order_by(Asset.id.desc())
+                    .all()
+                )
+            else:
+                assets = Asset.query.order_by(Asset.id.desc()).all()
         else:
             assets = (
                 Asset.query.filter_by(owner=current_user)

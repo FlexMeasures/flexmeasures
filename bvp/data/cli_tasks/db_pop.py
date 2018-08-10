@@ -85,9 +85,9 @@ def db_depopulate(structure: bool, data: bool, forecasts: bool, force: bool):
                 "Role",
                 "User",
             ]
-        if data:
+        if data or forecasts:
             affected_tables += ["Power", "Price", "Weather"]
-        prompt = "This deletes all %s entries from %s.\nDo you want to continue?" % (
+        prompt = "This deletes %s entries from %s.\nDo you want to continue?" % (
             " and ".join(", ".join(affected_tables).rsplit(", ", 1)),
             app.db.engine,
         )

@@ -25,7 +25,7 @@ class User(db.Model, UserMixin):
     __tablename__ = "bvp_users"
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True)
-    username = Column(String(255))
+    username = Column(String(255), unique=True)
     password = Column(String(255))
     last_login_at = Column(DateTime())
     login_count = Column(Integer)

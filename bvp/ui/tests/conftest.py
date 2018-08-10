@@ -1,35 +1,54 @@
 import pytest
 
-from flask_security import SQLAlchemySessionUserDatastore
+from flask_security.utils import hash_password
 
+from bvp.data.services.users import create_user
+from bvp.data.models.assets import Asset
 from bvp.ui.tests.utils import login, logout
 
 
 @pytest.fixture(scope="function")
-def use_auth(client):
+def as_prosumer(client):
     """
-    Login an asset owner and log him out afterwards.
-    This requires certain populated data of course, so there might come a redesign here.
+    Login the default test prosumer and log him out afterwards.
     """
     login(client, "test_prosumer@seita.nl", "testtest")
-
     yield
+    logout(client)
 
+
+@pytest.fixture(scope="function")
+def as_admin(client):
+    """
+    Login the admin user and log him out afterwards.
+    """
+    login(client, "bvp-admin@seita.nl", "testtest")
+    yield
     logout(client)
 
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_ui_test_data(db):
     """
-    Create an asset for the prosumer, so the pages load (even without data in graphs, for now).
+    Create another prosumer, without data, and an admin
     """
     print("Setting up data for UI tests on %s" % db.engine)
 
-    from bvp.data.models.user import User, Role
-    from bvp.data.models.assets import Asset
+    create_user(
+        username="Site Admin",
+        email="bvp-admin@seita.nl",
+        password=hash_password("testtest"),
+        user_roles=dict(name="admin", description="A site admin."),
+    )
 
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
+    test_prosumer2 = create_user(
+        username="Second Test Prosumer",
+        email="test_prosumer2@seita.nl",
+        password=hash_password("testtest"),
+        user_roles=dict(
+            name="Prosumer", description="A Prosumer with one asset but no data."
+        ),
+    )
     asset = Asset(
         name="solar pane 1",
         display_name="Solar Pane 1",
@@ -39,6 +58,6 @@ def setup_ui_test_data(db):
         longitude=100,
     )
     db.session.add(asset)
-    asset.owner = test_prosumer
+    asset.owner = test_prosumer2
 
     print("Done setting up data for UI tests")

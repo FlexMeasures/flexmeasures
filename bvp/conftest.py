@@ -1,10 +1,16 @@
 import pytest
 
-from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
+from datetime import datetime
+from isodate import parse_duration
+import pandas as pd
+import numpy as np
+from random import random
 
 from bvp.app import create as create_app
-from bvp.data.services.users import create_user
+from bvp.data.services.users import create_user, find_user_by_email
+from bvp.data.models.assets import AssetType, Asset, Power
+from bvp.data.models.data_sources import DataSource
 
 """
 Useful things for all tests.
@@ -68,8 +74,11 @@ def setup_roles_users(db):
 @pytest.fixture(scope="function", autouse=True)
 def setup_assets(db, setup_roles_users):
     """Make some asset types and add assets to known test users."""
-    from bvp.data.models.assets import AssetType, Asset
-    from bvp.data.models.user import User, Role
+
+    data_source = DataSource(
+        label="data entered for demonstration purposes", type="script", user_id=None
+    )
+    db.session.add(data_source)
 
     db.session.add(
         AssetType(
@@ -90,8 +99,7 @@ def setup_assets(db, setup_roles_users):
         )
     )
 
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
+    test_prosumer = find_user_by_email("test_prosumer@seita.nl")
 
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
         asset = Asset(
@@ -103,3 +111,18 @@ def setup_assets(db, setup_roles_users):
         )
         asset.owner = test_prosumer
         db.session.add(asset)
+
+        # one day of test data (one complete sine curve)
+        time_slots = pd.date_range(
+            datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
+        )
+        values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
+        for dt, val in zip(time_slots, values):
+            p = Power(
+                datetime=dt,
+                horizon=parse_duration("-PT15M"),
+                value=val,
+                data_source_id=data_source.id,
+            )
+            p.asset = asset
+            db.session.add(p)

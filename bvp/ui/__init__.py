@@ -20,8 +20,10 @@ def register_at(app: Flask):
     """This can be used to register this blueprint together with other ui-related things"""
 
     from bvp.ui.crud.assets import AssetCrud
+    from bvp.ui.crud.users import UserCrud
 
     AssetCrud.register(app)
+    UserCrud.register(app)
 
     import bvp.ui.views  # noqa: F401 this is necessary to load the views
     import bvp.ui.views.error_views  # noqa: F401 this is necessary to load the views

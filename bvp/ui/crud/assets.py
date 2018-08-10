@@ -1,3 +1,5 @@
+from typing import Optional
+
 from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField
@@ -27,6 +29,12 @@ class AssetCrud(FlaskView):
     def index(self):
         """/assets"""
         assets = get_assets()
+        return render_bvp_template("crud/assets.html", assets=assets)
+
+    @login_required
+    def owned_by(self, owner_id: Optional[str]):
+        """/assets/owned_by/<user_id>"""
+        assets = get_assets(owner_id)
         return render_bvp_template("crud/assets.html", assets=assets)
 
     @login_required

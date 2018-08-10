@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Union
+from typing import List, Union, Optional
 
 from flask import request, session, current_app
 from flask_security.core import current_user
@@ -60,8 +60,10 @@ def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -
     return local_dt.strftime(dt_format)
 
 
-def naturalized_datetime_str(dt: datetime) -> str:
+def naturalized_datetime_str(dt: Optional[datetime]) -> str:
     """ Naturalise a datetime object."""
+    if dt is None:
+        return "never"
     # humanize uses the local now internally, so let's make dt local
     local_timezone = tzlocal.get_localzone()
     local_dt = (

@@ -66,7 +66,7 @@ class Asset(db.Model):
     # longitude is the East/West coordinate
     longitude = db.Column(db.Float, nullable=False)
     # owner
-    owner_id = db.Column(db.Integer, db.ForeignKey("bvp_users.id"))
+    owner_id = db.Column(db.Integer, db.ForeignKey("bvp_users.id", ondelete="CASCADE"))
 
     def __init__(self, **kwargs):
         super(Asset, self).__init__(**kwargs)
@@ -75,7 +75,12 @@ class Asset(db.Model):
             self.display_name = titleize(self.name)
 
     asset_type = db.relationship("AssetType", backref=db.backref("assets", lazy=True))
-    owner = db.relationship("User", backref=db.backref("assets", lazy=True))
+    owner = db.relationship(
+        "User",
+        backref=db.backref(
+            "assets", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+        ),
+    )
 
     @property
     def asset_type_display_name(self) -> str:
@@ -130,8 +135,18 @@ class Power(TimedValue, db.Model):
     TODO: If there are more than one measurement per asset per time step possible, we can expand rather easily.
     """
 
-    asset_id = db.Column(db.Integer(), db.ForeignKey("asset.id"), primary_key=True)
-    asset = db.relationship("Asset", backref=db.backref("measurements", lazy=True))
+    asset_id = db.Column(
+        db.Integer(), db.ForeignKey("asset.id", ondelete="CASCADE"), primary_key=True
+    )
+    asset = db.relationship(
+        "Asset",
+        backref=db.backref(
+            "measurements",
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        ),
+    )
 
     @classmethod
     def make_query(

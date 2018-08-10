@@ -26,7 +26,10 @@ class Config(object):
     MAIL_USE_TLS = None
     MAIL_USE_SSL = None
     MAIL_USERNAME = None
-    MAIL_DEFAULT_SENDER = None  # tuple of name and email address
+    MAIL_DEFAULT_SENDER = (
+        "bvp",
+        "no-reply@example.com",
+    )  # tuple of name and email address
     MAIL_PASSWORD = None
 
     SECURITY_REGISTERABLE = False

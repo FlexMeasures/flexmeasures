@@ -31,7 +31,7 @@ def create(env=None) -> Flask:
     read_config(app)
     if app.debug and not app.testing and not app.cli:
         print(app.config)
-    Mail(app)
+    app.mail = Mail(app)
     FlaskJSON(app)
 
     # Some basic security measures
