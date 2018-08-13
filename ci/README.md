@@ -79,7 +79,7 @@ flask db upgrade
 
 echo "UPDATING DOCUMENTATION ..."
 pip install sphinx sphinxcontrib.httpdomain
-cd documentation; make html; cd ..
+cd documentation; make clean; make html; cd ..
 
 echo "RESTARTING APPLICATION ..."
 touch $PATH_TO_WSGI

@@ -40,6 +40,18 @@ class AssetType(db.Model):
         )
 
     @property
+    def weather_correlations(self) -> List[str]:
+        """Known correlations of weather sensor type and asset type."""
+        correlations = []
+        if self.name == "solar":
+            correlations.append("radiation")
+        if self.name == "wind":
+            correlations.append("wind_speed")
+        if self.name in ("charging_station", "battery", "building"):
+            correlations.append("temperature")
+        return correlations
+
+    @property
     def pluralized_name(self):
         return pluralize(self.name)
 

@@ -189,6 +189,11 @@ def create_graph(
     :return: a Bokeh Figure
     """
 
+    # Make sure even an empty DataFrame has the attributes we need
+    if data.empty:
+        data["y"] = pd.Series()
+        data.index.freq = timedelta()
+
     # Set x range
     if x_range is None:
         x_range = make_range(data.index)

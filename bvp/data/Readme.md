@@ -75,7 +75,7 @@ Add the following extensions while logged in as the postgres superuser:
     CREATE EXTENSION cube;
     CREATE EXTENSION earthdistance;
 
-Log out with `\q` and try logging in as the a1 user:
+Log out with `\q` and repeat creating these extensions for the test database. Also try logging in as the a1 user once:
 
     psql -U a1 --password -h 127.0.0.1 -d a1
     \q

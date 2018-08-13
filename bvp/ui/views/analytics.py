@@ -55,8 +55,8 @@ def analytics_view():
         showing_pure_consumption_data, metrics
     )
     prices_data, prices_forecast_data, metrics = get_prices_data(metrics)
-    weather_data, weather_forecast_data, weather_type, metrics = get_weather_data(
-        session_asset_types, metrics
+    weather_data, weather_forecast_data, weather_type = get_weather_data(
+        Resource(session["resource"]).assets
     )
     rev_cost_data, rev_cost_forecast_data, metrics = get_revenues_costs_data(
         power_data, prices_data, power_forecast_data, prices_forecast_data, metrics

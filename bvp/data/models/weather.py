@@ -24,9 +24,8 @@ class WeatherSensorType(db.Model):
 
 
 class WeatherSensor(db.Model):
-    """
-    TODO: Add useful attributes like ...?
-    """
+    """A weather sensor has a location on Earth and measures weather values of a certain weather sensor type, such as
+    temperature, wind speed and radiation."""
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True)

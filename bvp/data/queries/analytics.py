@@ -1,5 +1,4 @@
 from typing import List, Tuple, Union
-from datetime import timedelta
 
 from flask import session
 import numpy as np
@@ -7,8 +6,9 @@ import pandas as pd
 
 from bvp.utils import time_utils, calculations
 from bvp.data.services.resources import Resource
+from bvp.data.models.assets import Asset
 from bvp.data.models.markets import Price
-from bvp.data.models.weather import Weather
+from bvp.data.models.weather import Weather, WeatherSensor
 
 
 def get_power_data(
@@ -60,10 +60,9 @@ def get_prices_data(
     """Get price data and metrics"""
     prices_data = Price.collect(["epex_da"], create_if_empty=True, as_beliefs=True)
     metrics["realised_unit_price"] = prices_data.y.mean()
+    horizon = pd.to_timedelta(session["forecast_horizon"])
     prices_forecast_data = Price.collect(
-        ["epex_da"],
-        horizon_window=(timedelta(hours=48), timedelta(hours=48)),
-        as_beliefs=True,
+        ["epex_da"], horizon_window=(horizon, None), rolling=True, as_beliefs=True
     )
     if not prices_forecast_data.empty and prices_forecast_data.size == prices_data.size:
         metrics["expected_unit_price"] = prices_forecast_data.yhat.mean()
@@ -85,24 +84,46 @@ def get_prices_data(
 
 
 def get_weather_data(
-    session_asset_types: List[str], metrics: dict
-) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], str, dict]:
-    """Get weather data. No metrics yet, as we do not forecast this. It *is* forecast data we get from elsewhere."""
-    if session_asset_types[0] == "wind":
-        weather_type = "wind_speed"
-    elif session_asset_types[0] == "solar":
-        weather_type = "total_radiation"
-    else:
-        weather_type = "temperature"
-    weather_data = Weather.collect(
-        [weather_type], create_if_empty=True, as_beliefs=True
+    assets: List[Asset]
+) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], str]:
+    """Get most recent weather data and forecast weather data for the requested forecast horizon."""
+
+    # Todo: for now we only collect weather data for a single asset
+    asset = assets[0]
+
+    # List all the weather sensor types that have a correlation with this asset type
+    sensor_types = asset.asset_type.weather_correlations
+
+    # Todo: for now we only collect weather data for a single weather sensor type
+    sensor_type = sensor_types[0]
+
+    # Find the closest weather sensor
+    closest_sensor = (
+        WeatherSensor.query.filter(
+            WeatherSensor.weather_sensor_type_name == sensor_type
+        )
+        .order_by(WeatherSensor.great_circle_distance(object=asset).asc())
+        .first()
     )
-    return (
-        weather_data,
-        None,
-        weather_type,
-        metrics,
-    )  # Todo: get weather forecast data, too
+    if closest_sensor is None:
+        weather_data = pd.DataFrame()
+        weather_forecast_data = pd.DataFrame()
+    else:
+        # Collect the weather data for the requested time window
+        weather_data = Weather.collect(
+            [closest_sensor.name], create_if_empty=True, as_beliefs=True
+        )
+
+        # Get weather forecast
+        horizon = pd.to_timedelta(session["forecast_horizon"])
+        weather_forecast_data = Weather.collect(
+            [closest_sensor.name],
+            horizon_window=(horizon, None),
+            rolling=True,
+            create_if_empty=True,
+        )
+
+    return weather_data, weather_forecast_data, sensor_type
 
 
 def get_revenues_costs_data(
