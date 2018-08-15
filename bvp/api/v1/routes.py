@@ -1,19 +1,13 @@
-from flask import request
 from flask_security import auth_token_required
 
 from bvp.api.common.utils.api_utils import check_access
-from bvp.api.common.utils.validators import usef_roles_accepted
-from bvp.api.v1 import bvp_api as bvp_api_v1
-from bvp.api.v1.implementations import (
-    get_meter_data_response,
-    post_meter_data_response,
-    get_service_response,
-)
 from bvp.api.common.utils.decorators import as_response_type
+from bvp.api.common.utils.validators import usef_roles_accepted
+from bvp.api.v1 import bvp_api as bvp_api_v1, implementations as v1_implementations
 
 
 # The service listing for this API version (import from previous version or update if needed)
-service_listing = {
+v1_service_listing = {
     "version": "1.0",
     "services": [
         {
@@ -33,7 +27,7 @@ service_listing = {
 @bvp_api_v1.route("/getMeterData", methods=["GET", "POST"])
 @as_response_type("GetMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(service_listing, "getMeterData"))
+@usef_roles_accepted(*check_access(v1_service_listing, "getMeterData"))
 def get_meter_data():
     """API endpoint to get meter data.
 
@@ -91,13 +85,13 @@ def get_meter_data():
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD
     """
-    return get_meter_data_response()
+    return v1_implementations.get_meter_data_response()
 
 
 @bvp_api_v1.route("/postMeterData", methods=["POST"])
 @as_response_type("PostMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(service_listing, "postMeterData"))
+@usef_roles_accepted(*check_access(v1_service_listing, "postMeterData"))
 def post_meter_data():
     """API endpoint to post meter data.
 
@@ -172,7 +166,7 @@ def post_meter_data():
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD
     """
-    return post_meter_data_response()
+    return v1_implementations.post_meter_data_response()
 
 
 @bvp_api_v1.route("/getService", methods=["GET"])
@@ -185,4 +179,4 @@ def get_service():
     :resheader Content-Type: application/json
     :status 200: PROCESSED
     """
-    return get_service_response(service_listing, request.args.get("access"))
+    return v1_implementations.get_service_response(v1_service_listing)

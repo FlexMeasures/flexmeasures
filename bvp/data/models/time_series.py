@@ -71,7 +71,7 @@ class TimedValue(object):
     @classmethod
     def collect(
         cls,
-        generic_asset_names: List[str],
+        generic_asset_names: Union[str, List[str]],
         query_window: Tuple[datetime_type, datetime_type] = (None, None),
         horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]] = (
             None,
@@ -92,9 +92,7 @@ class TimedValue(object):
     ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Basically a convenience wrapper for services.collect_time_series_data,
         where time series data collection is implemented.
-        A zero horizon is our default right-after-the-fact measurement."""
-        if horizon_window == (None, None):
-            horizon_window = (None, timedelta(hours=0))
+        """
         return collect_time_series_data(
             generic_asset_names=generic_asset_names,
             make_query=cls.make_query,

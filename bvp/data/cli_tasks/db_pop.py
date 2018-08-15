@@ -3,7 +3,12 @@
 
 from flask import current_app as app
 import flask_migrate as migrate
+from flask_sqlalchemy import SQLAlchemy
 import click
+
+from bvp.data.static_content import get_affected_classes
+
+BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 
 
 # @app.before_first_request
@@ -28,24 +33,36 @@ import click
     default=False,
     help="Limit data set to a small one, useful for automated tests.",
 )
-def db_populate(structure: bool, data: bool, forecasts: bool, small: bool):
+@click.option(
+    "--save",
+    help="Save the populated data to file. Follow up with a unique name for this backup.",
+)
+@click.option("--dir", default=BACKUP_PATH, help="Directory for saving backups.")
+def db_populate(
+    structure: bool, data: bool, forecasts: bool, small: bool, save: str, dir: str
+):
     """Initialize the database with static values."""
+    db = SQLAlchemy(app)
     if structure:
         from bvp.data.static_content import populate_structure
 
-        populate_structure(app, small)
+        populate_structure(db, small)
     if data:
         from bvp.data.static_content import populate_time_series_data
 
-        populate_time_series_data(app, small)
+        populate_time_series_data(db, small)
     if forecasts:
         from bvp.data.static_content import populate_time_series_forecasts
 
-        populate_time_series_forecasts(app, small)
+        populate_time_series_forecasts(db, small)
     if not structure and not data and not forecasts:
         click.echo(
             "I did nothing as neither --structure nor --data nor --forecasts was given. Decide what you want!"
         )
+    if save:
+        from bvp.data.static_content import save_tables
+
+        save_tables(db, save, structure, data, dir)
 
 
 @app.cli.command()
@@ -72,43 +89,45 @@ def db_depopulate(structure: bool, data: bool, forecasts: bool, force: bool):
         )
         return
     if not force and (data or structure or forecasts):
-        affected_tables = []
-        if structure:
-            affected_tables += [
-                "MarketType",
-                "Market",
-                "AssetType",
-                "Asset",
-                "WeatherSensorType",
-                "WeatherSensor",
-                "DataSource",
-                "Role",
-                "User",
-            ]
-        if data or forecasts:
-            affected_tables += ["Power", "Price", "Weather"]
-        prompt = "This deletes %s entries from %s.\nDo you want to continue?" % (
-            " and ".join(", ".join(affected_tables).rsplit(", ", 1)),
+        affected_tables = get_affected_classes(structure, data or forecasts)
+        prompt = "This deletes all %s entries from %s.\nDo you want to continue?" % (
+            " and ".join(
+                ", ".join(
+                    [affected_table.__tablename__ for affected_table in affected_tables]
+                ).rsplit(", ", 1)
+            ),
             app.db.engine,
         )
         if not click.confirm(prompt):
             return
+    db = SQLAlchemy(app)
     if forecasts:
         from bvp.data.static_content import depopulate_forecasts
 
-        depopulate_forecasts(app)
+        depopulate_forecasts(db)
     if data:
         from bvp.data.static_content import depopulate_data
 
-        depopulate_data(app)
+        depopulate_data(db)
     if structure:
         from bvp.data.static_content import depopulate_structure
 
-        depopulate_structure(app)
+        depopulate_structure(db)
 
 
 @app.cli.command()
-def db_reset():
+@click.option("--load", help="Reset to static data from file.")
+@click.option("--dir", default=BACKUP_PATH, help="Directory for loading backups.")
+@click.option(
+    "--structure/--no-structure",
+    default=False,
+    help="Load structural data like asset (types), market (types),"
+    " weather (sensors), users, roles.",
+)
+@click.option("--data/--no-data", default=False, help="Load (time series) data.")
+def db_reset(
+    load: str = None, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False
+):
     """Initialize the database with static values."""
     if not app.debug:
         prompt = (
@@ -118,8 +137,59 @@ def db_reset():
         if not click.confirm(prompt):
             click.echo("I did nothing.")
             return
+    db = SQLAlchemy(app)
     from bvp.data.static_content import reset_db
 
     current_version = migrate.current()
-    reset_db(app)
+    reset_db(db)
     migrate.stamp(current_version)
+
+    if load:
+        if not data and not structure:
+            click.echo("Neither --data nor --structure given ... loading nothing.")
+            return
+        from bvp.data.static_content import load_tables
+
+        load_tables(db, load, structure, data, dir)
+
+
+@app.cli.command()
+@click.option("--name", help="Unique name for saving the backup.")
+@click.option("--dir", default=BACKUP_PATH, help="Directory for saving backups.")
+def db_save(name: str, dir: str = BACKUP_PATH):
+    """Save structure and data of the database to a backup file."""
+    if name:
+        from bvp.data.static_content import save_tables
+
+        db = SQLAlchemy(app)
+        save_tables(db, name, structure=True, data=True, backup_path=dir)
+    else:
+        click.echo(
+            "You must specify a unique name for the backup: --name <unique name>"
+        )
+
+
+@app.cli.command()
+@click.option("--name", help="Name of the backup.")
+@click.option("--dir", default=BACKUP_PATH, help="Directory for loading backups.")
+@click.option(
+    "--structure/--no-structure",
+    default=False,
+    help="Load structural data like asset (types), market (types),"
+    " weather (sensors), users, roles.",
+)
+@click.option("--data/--no-data", default=False, help="Load (time series) data.")
+def db_load(
+    name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False
+):
+    """Load structure and/or data for the database from a backup file."""
+    if name:
+        if not data and not structure:
+            click.echo("Neither --data nor --structure given ... loading nothing.")
+            return
+        from bvp.data.static_content import load_tables
+
+        db = SQLAlchemy(app)
+        load_tables(db, name, structure=True, data=True, backup_path=dir)
+    else:
+        click.echo("You must specify the name of the backup: --name <unique name>")

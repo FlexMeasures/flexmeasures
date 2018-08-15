@@ -1,4 +1,5 @@
 from typing import List, Tuple, Union
+from datetime import timedelta
 
 from flask import session
 import numpy as np
@@ -17,7 +18,9 @@ def get_power_data(
     """Get power data and metrics"""
 
     # Get power data
-    power_data = Resource(session["resource"]).get_data(create_if_empty=True)
+    power_data = Resource(session["resource"]).get_data(
+        horizon_window=(None, timedelta(hours=0)), rolling=True, create_if_empty=True
+    )
     if showing_pure_consumption_data:
         power_data.y *= -1
 
@@ -58,8 +61,16 @@ def get_prices_data(
     metrics: dict
 ) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Get price data and metrics"""
-    prices_data = Price.collect(["epex_da"], create_if_empty=True, as_beliefs=True)
+    prices_data = Price.collect(
+        ["epex_da"],
+        horizon_window=(None, timedelta(hours=0)),
+        rolling=True,
+        create_if_empty=True,
+        as_beliefs=True,
+    )
     metrics["realised_unit_price"] = prices_data.y.mean()
+
+    # Get price forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
     prices_forecast_data = Price.collect(
         ["epex_da"], horizon_window=(horizon, None), rolling=True, as_beliefs=True
@@ -111,7 +122,10 @@ def get_weather_data(
     else:
         # Collect the weather data for the requested time window
         weather_data = Weather.collect(
-            [closest_sensor.name], create_if_empty=True, as_beliefs=True
+            [closest_sensor.name],
+            horizon_window=(None, timedelta(hours=0)),
+            create_if_empty=True,
+            as_beliefs=True,
         )
 
         # Get weather forecast

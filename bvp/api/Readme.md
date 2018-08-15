@@ -16,20 +16,20 @@ In `bvp/api` create a new module (folder with `__init__.py`).
 Copy over the `routes.py` from the previous API version.
 By default we import all routes from the previous version:
 
-    from bvp.api.v1 import routes
+    from bvp.api.v1 import routes as v1_routes, implementations as v1_implementations
 
 Set the service listing for this version (or overwrite completely if needed):
 
-    service_listing = routes.service_listing
-    service_list["version"] = "1.1"
+    v1_1_service_listing = copy.deepcopy(v1_routes.v1_service_listing)
+    v1_1_service_listing["version"] = "1.1"
 
 Then update and redecorate each API endpoint as follows:
 
     @bvp_api.route("/getService", methods=["GET"])
-    @as_response_type('GetServiceResponse')
-    @append_doc_of(routes.get_service)
+    @as_response_type("GetServiceResponse")
+    @append_doc_of(v1_routes.get_service)
     def get_service():
-        return routes.get_service_response(service_listing, request.args.get("access")) 
+        return v1_implementations.get_service_response(v1_1_service_listing)
 
 Set up a new blueprint
 ----------------------

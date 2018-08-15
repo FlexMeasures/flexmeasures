@@ -44,6 +44,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.coverage",
     "sphinx.ext.imgmath",
+    "sphinx.ext.ifconfig",
     'sphinxcontrib.autohttp.flask',
     'sphinxcontrib.autohttp.flaskqref',
 ]
@@ -167,3 +168,24 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {"https://docs.python.org/": None}
+
+# -- Options for ifconfig extension ---------------------------------------
+
+
+def setup(sphinx_app):
+    """
+    Here you can set config variables for Sphinx or even pass config variables from the BVP.
+    For example, to display content depending on the BVP_MODE specified in the BVP app's config.py,
+    place this in one of the rst files:
+
+    .. ifconfig:: BVP_MODE == "play"
+
+        We are in play mode.
+
+    """
+    from bvp.app import create as create_app
+
+    bvp_app = create_app()
+
+    # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
+    sphinx_app.add_config_value('BVP_MODE', bvp_app.config.get("BVP_MODE", ""), 'env')

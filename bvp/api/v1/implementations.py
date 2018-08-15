@@ -2,13 +2,16 @@ import isodate
 from typing import List, Tuple, Union
 from datetime import datetime as datetime_type, timedelta
 
+from flask import request
 from flask_json import as_json
 from flask_security import current_user
+from sqlalchemy.exc import IntegrityError
 
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.data_sources import DataSource
 from bvp.api.common.responses import (
+    already_received_and_successfully_processed,
     invalid_domain,
     invalid_role,
     power_value_too_big,
@@ -17,7 +20,11 @@ from bvp.api.common.responses import (
     request_processed,
 )
 from bvp.data.services.resources import get_assets
-from bvp.api.common.utils.api_utils import message_replace_name_with_ea, groups_to_dict
+from bvp.api.common.utils.api_utils import (
+    message_replace_name_with_ea,
+    groups_to_dict,
+    save_to_database,
+)
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
@@ -91,84 +98,20 @@ def post_meter_data_response(
     Store the new power values for each asset.
     """
 
-    from flask import current_app
-
-    current_app.logger.info("POSTING")
-    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
-    user_assets = get_assets()
-    if not user_assets:
-        current_app.logger.info("User doesn't seem to have any assets")
-    user_asset_ids = [asset.id for asset in user_assets]
-    power_measurements = []
-    for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
-        for connection in connection_group:
-
-            # Parse the entity address
-            connection = validate_entity_address(connection, entity_type="connection")
-            if connection is None:
-                current_app.logger.warn(
-                    "Cannot parse this connection's entity address: %s" % connection
-                )
-                return invalid_domain()
-            asset_id = connection["asset_id"]
-
-            # Look for the Asset object
-            if asset_id in user_asset_ids:
-                asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
-            else:
-                current_app.logger.warn("Cannot identify connection %s" % connection)
-                return unrecognized_connection_group()
-
-            # Validate the sign of the values (following USEF specs with positive consumption and negative production)
-            if asset.is_pure_consumer and any(v < 0 for v in value_group):
-                extra_info = (
-                    "Connection %s is registered as a pure consumer and can only receive non-negative values."
-                    % asset.entity_address
-                )
-                return power_value_too_small(extra_info)
-            elif asset.is_pure_producer and any(v > 0 for v in value_group):
-                extra_info = (
-                    "Connection %s is registered as a pure producer and can only receive non-positive values."
-                    % asset.entity_address
-                )
-                return power_value_too_big(extra_info)
-
-            # Create new Power objects
-            for j, value in enumerate(value_group):
-                dt = start + j * duration / len(value_group)
-                if rolling:
-                    h = horizon
-                else:
-                    h = horizon + j * duration / len(value_group)
-                p = Power(
-                    datetime=dt,
-                    value=value
-                    * -1,  # Reverse sign for BVP specs with positive production and negative consumption
-                    horizon=h,
-                    asset_id=asset.id,
-                    data_source_id=data_source.id,
-                )
-                power_measurements.append(p)
-
-    # Put these into the database
-    current_app.logger.info(power_measurements)
-    current_app.logger.info("SAVING TO DB...")
-    db.session.bulk_save_objects(power_measurements)
-    db.session.commit()
-
-    return request_processed()
+    return create_connection_and_value_groups(
+        unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration
+    )
 
 
 @as_json
-def get_service_response(
-    service_listing, requested_access_role
-) -> Union[dict, Tuple[dict, int]]:
+def get_service_response(service_listing) -> Union[dict, Tuple[dict, int]]:
     """
     Lists the available services for the public endpoint version,
     either all of them or only those that apply to the requested access role.
     """
+    requested_access_role = request.args.get("access")
 
-    response = {"type": "GetServiceResponse", "version": service_listing["version"]}
+    response = {"version": service_listing["version"]}
     if requested_access_role:
         accessible_services = []
         for service in service_listing["services"]:
@@ -176,7 +119,7 @@ def get_service_response(
                 accessible_services.append(service)
         response["services"] = accessible_services
         if not accessible_services:
-            response["message"] = invalid_role(requested_access_role)
+            return invalid_role(requested_access_role)
     else:
         response["services"] = service_listing["services"]
     d, s = request_processed()
@@ -249,7 +192,6 @@ def collect_connection_and_value_groups(
         # Todo: parse time window of ts_values, which will be different for requests that are not of the form:
         # - start is a timestamp on the hour or a multiple of 15 minutes thereafter
         # - duration is a multiple of 15 minutes
-        print(ts_values)
         for k, v in ts_values.items():
             value_groups.append(
                 [x * -1 for x in v.y.tolist()]
@@ -264,3 +206,86 @@ def collect_connection_and_value_groups(
 
     d, s = request_processed()
     return dict(**response, **d), s
+
+
+def create_connection_and_value_groups(
+    unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration
+):
+    from flask import current_app
+
+    current_app.logger.info("POSTING POWER DATA")
+    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
+    user_assets = get_assets()
+    if not user_assets:
+        current_app.logger.info("User doesn't seem to have any assets")
+    user_asset_ids = [asset.id for asset in user_assets]
+    power_measurements = []
+    for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
+        for connection in connection_group:
+
+            # Parse the entity address
+            connection = validate_entity_address(connection, entity_type="connection")
+            if connection is None:
+                current_app.logger.warn(
+                    "Cannot parse this connection's entity address: %s" % connection
+                )
+                return invalid_domain()
+            asset_id = connection["asset_id"]
+
+            # Look for the Asset object
+            if asset_id in user_asset_ids:
+                asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
+            else:
+                current_app.logger.warn("Cannot identify connection %s" % connection)
+                return unrecognized_connection_group()
+
+            # Validate the sign of the values (following USEF specs with positive consumption and negative production)
+            if asset.is_pure_consumer and any(v < 0 for v in value_group):
+                extra_info = (
+                    "Connection %s is registered as a pure consumer and can only receive non-negative values."
+                    % asset.entity_address
+                )
+                return power_value_too_small(extra_info)
+            elif asset.is_pure_producer and any(v > 0 for v in value_group):
+                extra_info = (
+                    "Connection %s is registered as a pure producer and can only receive non-positive values."
+                    % asset.entity_address
+                )
+                return power_value_too_big(extra_info)
+
+            # Create new Power objects
+            for j, value in enumerate(value_group):
+                dt = start + j * duration / len(value_group)
+                if rolling:
+                    h = horizon
+                else:  # Deduct the difference in end times of the individual timeslot and the timeseries duration
+                    h = horizon - (
+                        (start + duration) - (dt + duration / len(value_group))
+                    )
+                p = Power(
+                    datetime=dt,
+                    value=value
+                    * -1,  # Reverse sign for BVP specs with positive production and negative consumption
+                    horizon=h,
+                    asset_id=asset.id,
+                    data_source_id=data_source.id,
+                )
+                power_measurements.append(p)
+
+    # Put these into the database
+    current_app.logger.info("SAVING TO DB...")
+    try:
+        save_to_database(power_measurements, overwrite=False)
+        db.session.commit()
+        return request_processed()
+    except IntegrityError as e:
+        current_app.logger.warn(e)
+        db.session.rollback()
+
+        # Allow meter data to be replaced only in play mode
+        if current_app.config.get("BVP_MODE", "") == "play":
+            save_to_database(power_measurements, overwrite=True)
+            db.session.commit()
+            return request_processed()
+        else:
+            return already_received_and_successfully_processed()

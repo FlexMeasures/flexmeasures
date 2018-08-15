@@ -213,9 +213,10 @@ class Power(TimedValue, db.Model):
         ):
             if rolling:
                 query = query.filter(Power.horizon == short_horizon)
-            else:
+            else:  # Deduct the difference in end times of the timeslot and the query window
                 query = query.filter(
-                    Power.horizon == short_horizon + (Power.datetime - start)
+                    Power.horizon
+                    == short_horizon - (end - (Power.datetime + resolution))
                 )
         else:
             if short_horizon is not None:
@@ -223,10 +224,17 @@ class Power(TimedValue, db.Model):
                     query = query.filter(Power.horizon >= short_horizon)
                 else:
                     query = query.filter(
-                        Power.horizon >= short_horizon + (Power.datetime - start)
+                        Power.horizon
+                        >= short_horizon - (end - (Power.datetime + resolution))
                     )
             if long_horizon is not None:
-                query = query.filter(Power.horizon <= long_horizon)
+                if rolling:
+                    query = query.filter(Power.horizon <= long_horizon)
+                else:
+                    query = query.filter(
+                        Power.horizon
+                        <= long_horizon - (end - (Power.datetime + resolution))
+                    )
         return query
 
     def to_dict(self):

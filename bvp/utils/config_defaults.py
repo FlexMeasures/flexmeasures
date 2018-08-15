@@ -46,6 +46,7 @@ class Config(object):
     JSONIFY_PRETTYPRINT_REGULAR = False
 
     BVP_TIMEZONE = "Asia/Seoul"
+    BVP_DB_BACKUP_PATH = "migrations/dumps"
 
     #  names of settings which cannot be None
     required: List[str] = [

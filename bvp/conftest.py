@@ -69,6 +69,28 @@ def setup_roles_users(db):
         password=hash_password("testtest"),
         user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
     )
+    create_user(
+        username="Test Supplier",
+        email="test_supplier@seita.nl",
+        password=hash_password("testtest"),
+        user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
+    )
+
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_markets(db):
+    """Create the epex_da market."""
+    from bvp.data.models.markets import Market, MarketType
+
+    day_ahead = MarketType(
+        name="day_ahead",
+        daily_seasonality=True,
+        weekly_seasonality=True,
+        yearly_seasonality=True,
+    )
+    db.session.add(day_ahead)
+    epex_da = Market(name="epex_da", market_type=day_ahead)
+    db.session.add(epex_da)
 
 
 @pytest.fixture(scope="function", autouse=True)

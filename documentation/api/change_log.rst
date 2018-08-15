@@ -3,6 +3,18 @@
 Change log
 ==========
 
+v1.1-2
+""""""
+
+- Added the *postPrognosis* endpoint
+- Added the *postPriceData* endpoint
+- Added a description of the *postPrognosis* endpoint in the Aggregator section
+- Added a description of the *postPriceData* endpoint in the Aggregator and Supplier sections
+
+.. ifconfig:: BVP_MODE == "play"
+
+    - Added the *restoreData* endpoint
+
 v1.1-1
 """"""
 

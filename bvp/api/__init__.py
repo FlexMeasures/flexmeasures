@@ -92,9 +92,17 @@ def register_at(app: Flask):
 
     ops_register_at(app)
 
+    # Load API endpoints for play mode
+    if app.config.get("BVP_MODE", "") == "play":
+        from bvp.api.play import register_at as play_register_at
+
+        play_register_at(app)
+
     # Load the following versions of the API
     from bvp.api.v1 import register_at as v1_register_at
     from bvp.api.v1_1 import register_at as v1_1_register_at
+    from bvp.api.v1_2 import register_at as v1_2_register_at
 
     v1_register_at(app)
     v1_1_register_at(app)
+    v1_2_register_at(app)

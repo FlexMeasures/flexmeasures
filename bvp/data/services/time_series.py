@@ -16,7 +16,7 @@ p = inflect.engine()
 
 
 def collect_time_series_data(
-    generic_asset_names: List[str],
+    generic_asset_names: Union[str, List[str]],
     make_query: Callable[
         [str, Tuple[datetime, datetime], Tuple[timedelta, timedelta]], Query
     ],
@@ -51,7 +51,9 @@ def collect_time_series_data(
     If an empty data frame would be returned, but create_if_empty is True, then
     a new DataFrame with the correct datetime index but zeroes as content is returned.
     """
-    if len(generic_asset_names) > 1 and sum_multiple and as_beliefs:
+    if isinstance(generic_asset_names, str):
+        generic_asset_names = [generic_asset_names]
+    elif len(generic_asset_names) > 1 and sum_multiple and as_beliefs:
         current_app.logger.error(
             "Summing over horizons and data source labels is not implemented."
         )

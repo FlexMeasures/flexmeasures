@@ -86,7 +86,7 @@ class Price(TimedValue, db.Model):
         start, end = query_window
         # Todo: get data resolution for the market
         resolution = timedelta(minutes=15)
-        start = (
+        q_start = (
             start - resolution
         )  # Adjust for the fact that we index time slots by their start time
         query = (
@@ -95,20 +95,38 @@ class Price(TimedValue, db.Model):
             .filter(Price.data_source_id == DataSource.id)
             .join(Market)
             .filter(Market.name == market_name)
-            .filter((Price.datetime > start) & (Price.datetime < end))
+            .filter((Price.datetime > q_start) & (Price.datetime < end))
         )
-        earliest_horizon, latest_horizon = horizon_window
+        short_horizon, long_horizon = horizon_window
         if (
-            earliest_horizon is not None
-            and latest_horizon is not None
-            and earliest_horizon == latest_horizon
+            short_horizon is not None
+            and long_horizon is not None
+            and short_horizon == long_horizon
         ):
-            query = query.filter(Price.horizon == earliest_horizon)
+            if rolling:
+                query = query.filter(Price.horizon == short_horizon)
+            else:  # Deduct the difference in end times of the timeslot and the query window
+                query = query.filter(
+                    Price.horizon
+                    == short_horizon - (end - (Price.datetime + resolution))
+                )
         else:
-            if earliest_horizon is not None:
-                query = query.filter(Price.horizon >= earliest_horizon)
-            if latest_horizon is not None:
-                query = query.filter(Price.horizon <= latest_horizon)
+            if short_horizon is not None:
+                if rolling:
+                    query = query.filter(Price.horizon >= short_horizon)
+                else:
+                    query = query.filter(
+                        Price.horizon
+                        >= short_horizon - (end - (Price.datetime + resolution))
+                    )
+            if long_horizon is not None:
+                if rolling:
+                    query = query.filter(Price.horizon <= long_horizon)
+                else:
+                    query = query.filter(
+                        Price.horizon
+                        <= long_horizon - (end - (Price.datetime + resolution))
+                    )
         return query
 
     def __init__(self, **kwargs):

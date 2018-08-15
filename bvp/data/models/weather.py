@@ -160,18 +160,36 @@ class Weather(TimedValue, db.Model):
             .filter(WeatherSensor.name == sensor_name)
             .filter((Weather.datetime > start) & (Weather.datetime < end))
         )
-        earliest_horizon, latest_horizon = horizon_window
+        short_horizon, long_horizon = horizon_window
         if (
-            earliest_horizon is not None
-            and latest_horizon is not None
-            and earliest_horizon == latest_horizon
+            short_horizon is not None
+            and long_horizon is not None
+            and short_horizon == long_horizon
         ):
-            query = query.filter(Weather.horizon == earliest_horizon)
+            if rolling:
+                query = query.filter(Weather.horizon == short_horizon)
+            else:  # Deduct the difference in end times of the timeslot and the query window
+                query = query.filter(
+                    Weather.horizon
+                    == short_horizon - (end - (Weather.datetime + resolution))
+                )
         else:
-            if earliest_horizon is not None:
-                query = query.filter(Weather.horizon >= earliest_horizon)
-            if latest_horizon is not None:
-                query = query.filter(Weather.horizon <= latest_horizon)
+            if short_horizon is not None:
+                if rolling:
+                    query = query.filter(Weather.horizon >= short_horizon)
+                else:
+                    query = query.filter(
+                        Weather.horizon
+                        >= short_horizon - (end - (Weather.datetime + resolution))
+                    )
+            if long_horizon is not None:
+                if rolling:
+                    query = query.filter(Weather.horizon <= long_horizon)
+                else:
+                    query = query.filter(
+                        Weather.horizon
+                        <= long_horizon - (end - (Weather.datetime + resolution))
+                    )
         return query
 
     def __init__(self, **kwargs):

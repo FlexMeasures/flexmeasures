@@ -162,10 +162,14 @@ def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
     elif entity_type == "sensor":
         match = re.search(
             "^"
-            "(?P<scheme>.+)\."
-            "(?P<naming_authority>\d{4}-\d{2}\..+):"
-            "(?=.*[a-zA-Z].*:)(?P<weather_sensor_type_name>[\w]+):"  # should contain at least one letter
-            "(?P<latitude>\d+(\.\d+)?):"
+            "(?P<scheme>.+)"
+            "\."
+            "(?P<naming_authority>\d{4}-\d{2}\..+)"
+            ":"
+            "(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w]+)"  # should start with at least one letter
+            ":"
+            "(?P<latitude>\d+(\.\d+)?)"
+            ":"
             "(?P<longitude>\d+(\.\d+)?)"
             "$",
             generic_asset_name,
@@ -178,6 +182,22 @@ def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
                 "latitude": float,
                 "longitude": float,
             }
+            return {
+                k: v_type(v) for k, v, v_type in zip_dic(match.groupdict(), value_types)
+            }
+    elif entity_type == "market":
+        match = re.search(
+            "^"
+            "(?P<scheme>.+)"
+            "\."
+            "(?P<naming_authority>\d{4}-\d{2}\..+)"
+            ":"
+            "(?=[a-zA-Z])(?P<market_name>[\w]+)"  # should start with at least one letter
+            "$",
+            generic_asset_name,
+        )
+        if match:
+            value_types = {"scheme": str, "naming_authority": str, "market_name": str}
             return {
                 k: v_type(v) for k, v, v_type in zip_dic(match.groupdict(), value_types)
             }
@@ -311,7 +331,7 @@ def optional_horizon_accepted(ex_post: bool = False):
                 current_app.logger.warn(
                     "Request missing both 'horizon', 'start' and 'duration'."
                 )
-                extra_info = "Specify a 'horizon' value, or 'start' and 'duration' values so that the horizon can be " "inferred."
+                extra_info = "Specify a 'horizon' value, or 'start' and 'duration' values so that the horizon can be inferred."
                 return invalid_horizon(extra_info)
 
             kwargs["horizon"] = horizon

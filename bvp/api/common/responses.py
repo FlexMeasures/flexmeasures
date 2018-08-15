@@ -1,54 +1,58 @@
 from typing import List, Tuple, Union
 import inflect
 
+from bvp.api.common.utils.api_utils import BaseMessage
+
 p = inflect.engine()
 
 
-def invalid_domain() -> Tuple[dict, int]:
+@BaseMessage("Some of the data has already been received and successfully processed.")
+def already_received_and_successfully_processed(message: str) -> Tuple[dict, int]:
     return (
         dict(
-            result="Rejected",
-            status="INVALID_DOMAIN",
-            message="Connections and sensors should be identified using the EA1 addressing scheme recommended by USEF. "
-            "For example:"
-            " 'ea1.2018-06.com.a1-bvp:<owner-id>:<asset-id>'"
-            " 'ea1.2018-06.com.a1-bvp:temperature:<latitude>:<longitude>'",
+            results="Rejected",
+            status="ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED",
+            message=message,
         ),
         400,
     )
 
 
-def invalid_horizon(extra_info: str = None) -> Tuple[dict, int]:
-    message = "The prognosis horizon in your request could not be parsed."
-    if extra_info:
-        message += " %s" % extra_info
+@BaseMessage(
+    "Connections, sensors and markets should be identified using the EA1 addressing scheme recommended by USEF. "
+    "For example:"
+    " 'ea1.2018-06.com.a1-bvp:<owner-id>:<asset-id>'"
+    " 'ea1.2018-06.com.a1-bvp:temperature:<latitude>:<longitude>'"
+    " 'ea1.2018-06.com.a1-bvp:<market_name>'"
+)
+def invalid_domain(message: str) -> Tuple[dict, int]:
+    return (dict(result="Rejected", status="INVALID_DOMAIN", message=message), 400)
+
+
+@BaseMessage("The prognosis horizon in your request could not be parsed.")
+def invalid_horizon(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="INVALID_HORIZON", message=message), 400
 
 
-def invalid_period(extra_info: str = None) -> Tuple[dict, int]:
-    message = "A time period in your request doesn't seem right."
-    if extra_info:
-        message += " %s" % extra_info
+@BaseMessage("A time period in your request doesn't seem right.")
+def invalid_period(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="INVALID_PERIOD", message=message), 400
 
 
-def invalid_ptu_duration() -> Tuple[dict, int]:
+@BaseMessage(
+    "Start time should be on the hour or a multiple of 15 minutes thereafter, "
+    "duration should be some multiple N of 15 minutes, and "
+    "the number of values should be some factor of N."
+)
+def invalid_ptu_duration(message: str) -> Tuple[dict, int]:
     return (
-        dict(
-            result="Rejected",
-            status="INVALID_PTU_DURATION",
-            message="Start time should be on the hour or a multiple of 15 minutes thereafter, "
-            "duration should be some multiple N of 15 minutes, and "
-            "the number of values should be some factor of N.",
-        ),
+        dict(result="Rejected", status="INVALID_PTU_DURATION", message=message),
         400,
     )
 
 
-def invalid_resolution(extra_info: str = None) -> Tuple[dict, int]:
-    message = "Only a 15 minute resolution is currently supported."
-    if extra_info:
-        message += " %s" % extra_info
+@BaseMessage("Only a 15 minute resolution is currently supported.")
+def invalid_resolution(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400
 
 
@@ -98,15 +102,9 @@ def invalid_sender(
     )
 
 
-def invalid_timezone() -> Tuple[dict, int]:
-    return (
-        dict(
-            result="Rejected",
-            status="INVALID_TIMEZONE",
-            message="Start time should explicitly state a timezone.",
-        ),
-        400,
-    )
+@BaseMessage("Start time should explicitly state a timezone.")
+def invalid_timezone(message: str) -> Tuple[dict, int]:
+    return (dict(result="Rejected", status="INVALID_TIMEZONE", message=message), 400)
 
 
 def invalid_unit(*units) -> Tuple[dict, int]:
@@ -131,47 +129,55 @@ def invalid_message_type(message_type: str) -> Tuple[dict, int]:
     )
 
 
-def no_message_type() -> Tuple[dict, int]:
-    return (
-        dict(
-            result="Rejected",
-            status="NO_MESSAGE_TYPE",
-            message="Request message should include 'type'.",
-        ),
-        400,
-    )
+@BaseMessage("Request message should include 'backup'.")
+def no_backup(message: str) -> Tuple[dict, int]:
+    return (dict(result="Rejected", status="NO_BACKUP", message=message), 400)
 
 
-def power_value_too_big(extra_info: str = None) -> Tuple[dict, int]:
-    message = "One or more power values are too big."
-    if extra_info:
-        message += " %s" % extra_info
+@BaseMessage("Request message should include 'type'.")
+def no_message_type(message: str) -> Tuple[dict, int]:
+    return (dict(result="Rejected", status="NO_MESSAGE_TYPE", message=message), 400)
+
+
+@BaseMessage("One or more power values are too big.")
+def power_value_too_big(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="POWER_VALUE_TOO_BIG", message=message), 400
 
 
-def power_value_too_small(extra_info: str = None) -> Tuple[dict, int]:
-    message = "One or more power values are too small."
-    if extra_info:
-        message += " %s" % extra_info
+@BaseMessage("One or more power values are too small.")
+def power_value_too_small(message: str) -> Tuple[dict, int]:
     return (
         dict(result="Rejected", status="POWER_VALUE_TOO_SMALL", message=message),
         400,
     )
 
 
-def ptus_incomplete() -> Tuple[dict, int]:
+@BaseMessage("Missing values.")
+def ptus_incomplete(message: str) -> Tuple[dict, int]:
+    return (dict(result="Rejected", status="PTUS_INCOMPLETE", message=message), 400)
+
+
+@BaseMessage("The requested backup is not known.")
+def unrecognized_backup(message: str) -> Tuple[dict, int]:
+    return (dict(result="Rejected", status="UNRECOGNIZED_BACKUP", message=message), 400)
+
+
+@BaseMessage("One or more connections in your request were not found in your account.")
+def unrecognized_connection_group(message: str) -> Tuple[dict, int]:
     return (
-        dict(result="Rejected", status="PTUS_INCOMPLETE", message="Missing values."),
+        dict(
+            result="Rejected", status="UNRECOGNIZED_CONNECTION_GROUP", message=message
+        ),
         400,
     )
 
 
-def unrecognized_connection_group() -> Tuple[dict, int]:
+def unrecognized_market(requested_market) -> Tuple[dict, int]:
     return (
         dict(
             result="Rejected",
-            status="UNRECOGNIZED_CONNECTION_GROUP",
-            message="One or more connections in your request were not found in your account.",
+            status="UNRECOGNIZED_MARKET",
+            message="The requested market named %s is not known." % requested_market,
         ),
         400,
     )
@@ -189,8 +195,9 @@ def unrecognized_sensor(lat, lng) -> Tuple[dict, int]:
     )
 
 
-def request_processed() -> Tuple[dict, int]:
-    return dict(status="PROCESSED", message="Request has been processed."), 200
+@BaseMessage("Request has been processed.")
+def request_processed(message: str) -> Tuple[dict, int]:
+    return dict(status="PROCESSED", message=message), 200
 
 
 def pluralize(usef_role_name):

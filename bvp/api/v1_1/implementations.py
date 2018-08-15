@@ -4,12 +4,16 @@ from datetime import timedelta
 from flask import current_app
 from flask_json import as_json
 from flask_security import current_user
+from sqlalchemy.exc import IntegrityError
 
 from bvp.api.common.responses import (
+    already_received_and_successfully_processed,
     invalid_domain,
     request_processed,
+    unrecognized_market,
     unrecognized_sensor,
 )
+from bvp.api.common.utils.api_utils import save_to_database
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
@@ -22,9 +26,13 @@ from bvp.api.common.utils.validators import (
     values_required,
     validate_entity_address,
 )
-from bvp.api.v1.implementations import collect_connection_and_value_groups
+from bvp.api.v1.implementations import (
+    collect_connection_and_value_groups,
+    create_connection_and_value_groups,
+)
 from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
+from bvp.data.models.markets import Market, Price
 from bvp.data.models.weather import Weather, WeatherSensor
 from bvp.data.services.resources import get_assets
 
@@ -45,13 +53,72 @@ def get_connection_response():
     return message
 
 
+@type_accepted("PostPriceDataRequest")
+@units_accepted("EUR/MWh")
 @assets_required("market")
 @optional_horizon_accepted()
-def post_price_data_response(horizon, rolling):
-    # Parse the entity address
-    # Look for the Market object
-    # Create new Price objects
-    return
+@values_required
+@period_required
+@resolutions_accepted(timedelta(minutes=15))
+def post_price_data_response(
+    unit, generic_asset_name_groups, horizon, rolling, value_groups, start, duration
+):
+
+    current_app.logger.info("POSTING PRICE DATA")
+    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
+    prices = []
+    for market_group, value_group in zip(generic_asset_name_groups, value_groups):
+        for market in market_group:
+
+            # Parse the entity address
+            ea = validate_entity_address(market, entity_type="market")
+            if ea is None:
+                current_app.logger.warn(
+                    "Cannot parse this market's entity address: %s" % market
+                )
+                return invalid_domain()
+            market_name = ea["market_name"]
+
+            # Look for the Market object
+            market = Market.query.filter(Market.name == market_name).one_or_none()
+            if market is None:
+                return unrecognized_market(market_name)
+
+            # Create new Price objects
+            for j, value in enumerate(value_group):
+                dt = start + j * duration / len(value_group)
+                if rolling:
+                    h = horizon
+                else:  # Deduct the difference in end times of the individual timeslot and the timeseries duration
+                    h = horizon - (
+                        (start + duration) - (dt + duration / len(value_group))
+                    )
+                p = Price(
+                    datetime=dt,
+                    value=value,
+                    horizon=h,
+                    market_id=market.id,
+                    data_source_id=data_source.id,
+                )
+                prices.append(p)
+
+    # Put these into the database
+    current_app.logger.info("SAVING TO DB...")
+    try:
+        save_to_database(prices, overwrite=False)
+        db.session.commit()
+        return request_processed()
+    except IntegrityError as e:
+        current_app.logger.warn(e)
+        db.session.rollback()
+
+        # Allow price data to be replaced only in play mode
+        if current_app.config.get("BVP_MODE", "") == "play":
+            save_to_database(prices, overwrite=True)
+            db.session.commit()
+            return request_processed()
+        else:
+            return already_received_and_successfully_processed()
 
 
 @type_accepted("PostWeatherDataRequest")
@@ -64,9 +131,12 @@ def post_price_data_response(horizon, rolling):
 def post_weather_data_response(
     unit, generic_asset_name_groups, horizon, rolling, value_groups, start, duration
 ):
-    api_policy = "create sensor if unknown"
+    if current_app.config.get("BVP_MODE", "") == "play":
+        api_policy = "create sensor if unknown"
+    else:
+        api_policy = "known sensors only"
 
-    current_app.logger.info("POSTING")
+    current_app.logger.info("POSTING WEATHER DATA")
     data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
     weather_measurements = []
     for sensor_group, value_group in zip(generic_asset_name_groups, value_groups):
@@ -124,8 +194,10 @@ def post_weather_data_response(
                 dt = start + j * duration / len(value_group)
                 if rolling:
                     h = horizon
-                else:
-                    h = horizon + j * duration / len(value_group)
+                else:  # Deduct the difference in end times of the individual timeslot and the timeseries duration
+                    h = horizon - (
+                        (start + duration) - (dt + duration / len(value_group))
+                    )
                 w = Weather(
                     datetime=dt,
                     value=value,
@@ -136,12 +208,22 @@ def post_weather_data_response(
                 weather_measurements.append(w)
 
     # Put these into the database
-    current_app.logger.info(weather_measurements)
     current_app.logger.info("SAVING TO DB...")
-    db.session.bulk_save_objects(weather_measurements)
-    db.session.commit()
+    try:
+        save_to_database(weather_measurements, overwrite=False)
+        db.session.commit()
+        return request_processed()
+    except IntegrityError as e:
+        current_app.logger.warn(e)
+        db.session.rollback()
 
-    return request_processed()
+        # Allow meter data to be replaced only in play mode
+        if current_app.config.get("BVP_MODE", "") == "play":
+            save_to_database(weather_measurements, overwrite=True)
+            db.session.commit()
+            return request_processed()
+        else:
+            return already_received_and_successfully_processed()
 
 
 @type_accepted("GetPrognosisRequest")
@@ -177,4 +259,24 @@ def get_prognosis_response(
         preferred_source_ids,
         fallback_source_ids,
         rolling=rolling,
+    )
+
+
+@type_accepted("PostPrognosisRequest")
+@units_accepted("MW")
+@assets_required("connection")
+@values_required
+@optional_horizon_accepted(ex_post=False)
+@period_required
+@resolutions_accepted(timedelta(minutes=15))
+@as_json
+def post_prognosis_response(
+    unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration
+) -> Union[dict, Tuple[dict, int]]:
+    """
+    Store the new power values for each asset.
+    """
+
+    return create_connection_and_value_groups(
+        unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration
     )

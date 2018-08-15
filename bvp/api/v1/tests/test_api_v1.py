@@ -26,7 +26,7 @@ def test_get_service(client, query):
         query_string=query,
         headers={"content-type": "application/json"},
     )
-    print(get_service_response.json)
+    print("Server responded with:\n%s" % get_service_response.json)
     assert get_service_response.status_code == 200
     assert get_service_response.json["type"] == "GetServiceResponse"
     assert get_service_response.json["status"] == request_processed()[0]["status"]
@@ -41,7 +41,7 @@ def test_unauthorized_request(client):
         query_string=message_for_get_meter_data(no_connection=True),
         headers={"content-type": "application/json"},
     )
-    print(get_meter_data_response.json)
+    print("Server responded with:\n%s" % get_meter_data_response.json)
     assert get_meter_data_response.status_code == 401
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     assert get_meter_data_response.json["status"] == UNAUTH_ERROR_STATUS
@@ -57,7 +57,7 @@ def test_no_connection_in_get_request(client):
             )
         },
     )
-    print(get_meter_data_response.json)
+    print("Server responded with:\n%s" % get_meter_data_response.json)
     assert get_meter_data_response.status_code == 400
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     assert (
@@ -76,7 +76,7 @@ def test_invalid_connection_in_get_request(client):
             )
         },
     )
-    print(get_meter_data_response.json)
+    print("Server responded with:\n%s" % get_meter_data_response.json)
     assert get_meter_data_response.status_code == 400
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     assert get_meter_data_response.json["status"] == invalid_domain()[0]["status"]
@@ -131,7 +131,7 @@ def test_invalid_sender_and_logout(client):
         query_string=message_for_get_meter_data(),
         headers={"Authorization": auth_token},
     )
-    print(get_meter_data_response.json)
+    print("Server responded with:\n%s" % get_meter_data_response.json)
     assert get_meter_data_response.status_code == 403
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     assert get_meter_data_response.json["status"] == invalid_sender("MDC")[0]["status"]
@@ -169,7 +169,7 @@ def test_post_and_get_meter_data(client, post_message, get_message):
         data=json.dumps(message_replace_name_with_ea(post_message)),
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
-    print(post_meter_data_response.json)
+    print("Server responded with:\n%s" % post_meter_data_response.json)
     assert post_meter_data_response.status_code == 200
     assert post_meter_data_response.json["type"] == "PostMeterDataResponse"
 
@@ -179,7 +179,7 @@ def test_post_and_get_meter_data(client, post_message, get_message):
         query_string=message_replace_name_with_ea(get_message),
         headers={"Authorization": auth_token},
     )
-    print(get_meter_data_response.json)
+    print("Server responded with:\n%s" % get_meter_data_response.json)
     assert get_meter_data_response.status_code == 200
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     if "groups" in post_message:

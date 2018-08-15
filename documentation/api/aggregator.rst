@@ -7,17 +7,32 @@ The Aggregator organises the interaction between the Supplier and Prosumers/ESCo
 
 An Aggregator can access the following services:
 
-- *postPrognosis*
+- *postPrognosis* :ref:`(example) <post_prognosis_aggregator>`
+- *postPriceData* :ref:`(example) <post_price_data_aggregator>`
 - *getFlexRequest*
 - *postFlexOffer*
 - *getFlexOrder*
-- *getMeterData* :ref:`(example) <get_meter_data>`
-- *getPrognosis* :ref:`(example) <get_prognosis>`
+- *getMeterData* :ref:`(example) <get_meter_data_aggregator>`
+- *getPrognosis* :ref:`(example) <get_prognosis_aggregator>`
 - *getUdiEvent*
 - *postDeviceMessage*
 
-.. .. autoflask:: bvp.app:create()
+.. _post_prognosis_aggregator:
+
+Post prognosis
+--------------
+
+.. autoflask:: bvp.app:create()
     :endpoints: bvp_api_v1_1.post_prognosis
+
+.. _post_price_data_aggregator:
+
+Post price data
+---------------
+
+.. autoflask:: bvp.app:create()
+    :endpoints: bvp_api_v1_1.post_price_data
+
 
 ..  .. autoflask:: bvp.app:create()
     :endpoints: bvp_api_v1_1.get_flex_request
@@ -28,7 +43,7 @@ An Aggregator can access the following services:
 ..  .. autoflask:: bvp.app:create()
     :endpoints: bvp_api_v1_1.get_flex_order
 
-.. _get_meter_data:
+.. _get_meter_data_aggregator:
 
 Get meter data
 --------------
@@ -36,7 +51,7 @@ Get meter data
 .. autoflask:: bvp.app:create()
     :endpoints: bvp_api_v1_1.get_meter_data
 
-.. _get_prognosis:
+.. _get_prognosis_aggregator:
 
 Get prognosis
 -------------

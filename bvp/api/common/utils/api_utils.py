@@ -1,7 +1,9 @@
 import copy
 from typing import List, Union
+from functools import wraps
 from json import loads as parse_json, JSONDecodeError
 
+from bvp.data import db
 from bvp.data.models.assets import Asset
 
 
@@ -204,3 +206,31 @@ def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
 def zip_dic(*dicts):
     for i in set(dicts[0]).intersection(*dicts[1:]):
         yield (i,) + tuple(d[i] for d in dicts)
+
+
+def save_to_database(objects: List[db.Model], overwrite: bool = False):
+    """Utility function to save to database, either efficiently with a bulk save, or inefficiently with a merge save."""
+    if not overwrite:
+        db.session.bulk_save_objects(objects)
+    else:
+        for o in objects:
+            db.session.merge(o)
+
+
+class BaseMessage:
+    """Set a base message to which extra info can be added by calling the wrapped function with additional string
+    arguments. This is a decorator implemented as a class."""
+
+    def __init__(self, base_message=""):
+        self.base_message = base_message
+
+    def __call__(self, func):
+        @wraps(func)
+        def my_logic(*args, **kwargs):
+            message = self.base_message
+            if args:
+                for a in args:
+                    message += " %s" % a
+            return func(message)
+
+        return my_logic

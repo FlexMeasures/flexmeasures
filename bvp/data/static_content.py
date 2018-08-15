@@ -2,26 +2,32 @@
 Populate the database with data we know or read in.
 """
 import os
+from pathlib import Path
+from shutil import rmtree
 import json
 from typing import List
 from datetime import datetime, timedelta
 
-from flask import Flask
+from flask import current_app as app
 from flask_sqlalchemy import SQLAlchemy
 from flask_security.utils import hash_password
 import click
 import pandas as pd
 from sqlalchemy.sql import or_
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.serializer import loads, dumps
 from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
 
 from bvp.data.models.markets import MarketType, Market, Price
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
-from bvp.data.models.user import User, Role
+from bvp.data.models.user import User, Role, RolesUsers
 from bvp.data.models.forecasting.solar import latest as solar_latest
 from bvp.data.services.users import create_user
 from bvp.utils.time_utils import as_bvp_time
+
+BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 
 
 def get_pickle_path() -> str:
@@ -416,8 +422,7 @@ def as_transaction(db_function):
     Calls db operation function and when it is done, submits the db session.
     Rolls back the session if anything goes wrong."""
 
-    def wrap(app: Flask, *args, **kwargs):
-        db = SQLAlchemy(app)
+    def wrap(db: SQLAlchemy, *args, **kwargs):
         try:
             db_function(db, *args, **kwargs)
             db.session.commit()
@@ -635,8 +640,7 @@ def depopulate_forecasts(db: SQLAlchemy):
     click.echo("Deleted %d Weather Forecasts" % num_weather_measurements_deleted)
 
 
-def reset_db(app: Flask):
-    db = SQLAlchemy(app)
+def reset_db(db: SQLAlchemy):
     db.session.commit()  # close any existing sessions
     click.echo("Dropping everything in %s ..." % db.engine)
     db.reflect()  # see http://jrheard.tumblr.com/post/12759432733/dropping-all-tables-on-postgres-using
@@ -645,3 +649,92 @@ def reset_db(app: Flask):
     db.create_all()
     click.echo("Committing ...")
     db.session.commit()
+
+
+def save_tables(
+    db: SQLAlchemy,
+    backup_name: str = "",
+    structure: bool = True,
+    data: bool = False,
+    backup_path: str = BACKUP_PATH,
+):
+    # Make a new folder for the backup
+    p = Path("%s/%s" % (backup_path, backup_name))
+    try:
+        p.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
+        click.echo(
+            "Can't save backup, because directory %s/%s already exists."
+            % (backup_path, backup_name)
+        )
+        return
+
+    affected_classes = get_affected_classes(structure, data)
+    try:
+        for c in affected_classes:
+            file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
+
+            with open(file_path, "xb") as file_handler:
+                file_handler.write(dumps(db.session.query(c).all()))
+            click.echo("Successfully saved %s/%s." % (backup_name, c.__tablename__))
+    except SQLAlchemyError as e:
+        click.echo(
+            "Can't save table %s because of the following error:\n\n\t%s\n\nCleaning up..."
+            % (c.__tablename__, e)
+        )
+        rmtree(p)
+        click.echo("Removed directory %s/%s." % (backup_path, backup_name))
+
+
+@as_transaction
+def load_tables(
+    db: SQLAlchemy,
+    backup_name: str = "",
+    structure: bool = True,
+    data: bool = False,
+    backup_path: str = BACKUP_PATH,
+):
+    if (
+        Path("%s/%s" % (backup_path, backup_name)).exists()
+        and Path("%s/%s" % (backup_path, backup_name)).is_dir()
+    ):
+        affected_classes = get_affected_classes(structure, data)
+        for c in affected_classes:
+            file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
+            try:
+                with open(file_path, "rb") as file_handler:
+                    for row in loads(file_handler.read()):
+                        db.session.merge(row)
+                click.echo(
+                    "Successfully loaded %s/%s." % (backup_name, c.__tablename__)
+                )
+            except FileNotFoundError:
+                click.echo(
+                    "Can't load table, because filename %s does not exist."
+                    % c.__tablename__
+                )
+    else:
+        click.echo(
+            "Can't load backup, because directory %s/%s does not exist."
+            % (backup_path, backup_name)
+        )
+
+
+def get_affected_classes(structure: bool = True, data: bool = False):
+    affected_classes = []
+    if structure:
+        affected_classes += [
+            Role,
+            User,
+            RolesUsers,
+            MarketType,
+            Market,
+            AssetType,
+            Asset,
+            WeatherSensorType,
+            WeatherSensor,
+            DataSource,
+        ]
+    if data:
+        affected_classes += [Power, Price, Weather]
+    return affected_classes
