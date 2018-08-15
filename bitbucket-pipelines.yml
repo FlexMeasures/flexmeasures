@@ -26,6 +26,9 @@ pipelines:
           image: python:3.6
           script:
             - ci/SETUP.sh
+            - apt-get update
+            - apt-get -y install postgresql-client
+            - PGPASSWORD=a1test psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U a1test a1test;
             - python setup.py test
           caches:
             - pip
