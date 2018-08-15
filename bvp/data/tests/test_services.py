@@ -9,7 +9,7 @@ from bvp.data.models.assets import Asset, Power
 
 def test_delete_user(app):
     """Assert user has assets and power measurements. Deleting removes all of that."""
-    users = User.query.all()
+    users = User.query.filter(User.email == "test_prosumer@seita.nl").all()
     assert len(users) == 1
     prosumer: User = find_user_by_email("test_prosumer@seita.nl")
     assets = Asset.query.filter(Asset.owner_id == prosumer.id).all()
