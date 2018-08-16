@@ -20,7 +20,7 @@ def restore_data_response():
     delete_structure = True
     delete_data = True
     restore_structure = True
-    restore_data = False
+    restore_data = True
 
     try:
         backup_name = request.args.get("backup", request.json["backup"])
