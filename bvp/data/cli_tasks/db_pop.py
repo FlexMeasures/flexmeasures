@@ -62,11 +62,11 @@ def db_populate(
     if save:
         from bvp.data.static_content import save_tables
 
-        if small:
-            save_tables(db, save, structure, data, dir)
-        else:
+        if data and not small:
             click.echo("Too much data to save! I'm only saving structure ...")
             save_tables(db, save, structure, data=False, backup_path=dir)
+        else:
+            save_tables(db, save, structure, data, dir)
 
 
 @app.cli.command()
@@ -191,7 +191,7 @@ def db_save(
 @click.option("--dir", default=BACKUP_PATH, help="Directory for loading backups.")
 @click.option(
     "--structure/--no-structure",
-    default=False,
+    default=True,
     help="Load structural data like asset (types), market (types),"
     " weather (sensors), users, roles.",
 )
@@ -201,12 +201,9 @@ def db_load(
 ):
     """Load structure and/or data for the database from a backup file."""
     if name:
-        if not data and not structure:
-            click.echo("Neither --data nor --structure given ... loading nothing.")
-            return
         from bvp.data.static_content import load_tables
 
         db = SQLAlchemy(app)
-        load_tables(db, name, structure=True, data=True, backup_path=dir)
+        load_tables(db, name, structure=structure, data=data, backup_path=dir)
     else:
         click.echo("You must specify the name of the backup: --name <unique name>")
