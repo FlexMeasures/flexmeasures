@@ -2,52 +2,54 @@
 
 {% set active_page = "assets" %}
 
-{% block title %} {{asset.display_name}} {% endblock %}
+{% block title %} New asset {% endblock %}
 
 {% block divs %}
 
     <div class="container-fluid">
         <div class="row">
-            <div class="col-sm-2">
-                <form action="../../analytics" target="_blank" method="get">
-                    <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
-                </form>
-            </div>
-            <div class="col-sm-2">
+            <div class="col-sm-12">
                 <form action="../../assets" method="get">
                     <button class="btn btn-sm btn-responsive btn-info" type="submit">Go to asset overview</button>
                 </form>
             </div>
-            {% if user_is_admin %}
-            <div class="col-sm-2">
-                <form action="/assets/new" target="_blank" method="get" style="float:right">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Create new asset</button>
-                </form>
+            <div class="col-sm-10">
             </div>
-            <div class="col-sm-6">
-            </div>
-            {% else %}
-            <div class="col-sm-8">
-            </div>
-            {% endif %}
         </div>
-        <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
+        <form class="form-horizontal" method="POST" action="/assets/create">
             {{ asset_form.csrf_token }}
             {{ asset_form.hidden_tag() }}
             <fieldset>
                 <div class="row">
                     <div class="col-sm-6">
 
-                        <h2> Editing asset {{ asset.display_name }} </h2>
-
-                        <small>(owned by <a href="/users/{{asset.owner.id}}">{{ asset.owner.username }}</a>)</small>
+                        <h2> Creating a new asset </h2>
 
                         <div class="form-group">
                             {{ asset_form.display_name.label(class="col-sm-6 control-label") }}
                             <div class="col-sm-6">
                                 {{ asset_form.display_name(class_="form-control") }}
                                 {% for error in asset_form.errors.display_name %}
+                                    <span style="color: red;">[{{error}}]</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            {{ asset_form.asset_type_name.label(class="col-sm-6 control-label") }}
+                            <div class="col-sm-6">
+                                {{ asset_form.asset_type_name(class_="form-control") }}
+                                {% for error in asset_form.errors.asset_type_name %}
+                                    <span style="color: red;">[{{error}}]</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            {{ asset_form.owner.label(class="col-sm-6 control-label") }}
+                            <div class="col-sm-6">
+                                {{ asset_form.owner(class_="form-control") }}
+                                <input class="form-control" id="new_owner_email" name="new_owner_email"
+                                       value="--Type email address of new owner--" type="text">
+                                {% for error in asset_form.errors.owner %}
                                     <span style="color: red;">[{{error}}]</span>
                                 {% endfor %}
                             </div>
@@ -81,28 +83,7 @@
                         </div>
                         <div class="col-sm-6"></div>
                         <div class="col-sm-6">
-                            <input type="submit" value="Save">
-                        </div>
-
-                        <h2>API info for this asset</h2>
-
-                        <div class="form-group">
-                            <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
-                            <div class="col-sm-6">
-                                <input class="form-control" id="asset-id" name="asset-id" type="text" value="{{ asset.id }}" disabled></input>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="asset-id" class="col-sm-6 control-label">Owner id</label>
-                            <div class="col-sm-6">
-                                <input class="form-control" id="owner-id" name="owner-id" type="text" value="{{ asset.owner_id }}" disabled></input>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="ea" class="col-sm-6 control-label">Unique entity address</label>
-                            <div class="col-sm-6">
-                                <input class="form-control" id="ea" name="ea" type="text" value="{{ asset.entity_address }}" disabled></input>
-                            </div>
+                            <input type="submit" value="Create">
                         </div>
                     </div>
                     <div class="col-sm-6">
@@ -123,7 +104,7 @@
 
     // create map
     var assetMap = L
-        .map('mapid', {center: [{{ asset.latitude }}, {{ asset.longitude }}], zoom: 10})
+        .map('mapid', {center: [33.37, 126.57], zoom: 10})
         .on('popupopen', function(){
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
@@ -131,25 +112,23 @@
         });
     tileLayer.addTo(assetMap);
 
-    // create marker
-    var {{ asset.asset_type.name }}_icon = new L.DivIcon({
-                                    className:      'map-icon',
-                                    html:           '<i class="icon-{{ asset.asset_type.name }}"></i>',
-                                    iconSize:       [24, 24], // size of the icon
-                                    iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
-                                    popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
-                                });
-    var marker = L
-        .marker(
-            [{{ asset.latitude }}, {{ asset.longitude }}],
-            {icon: {{ asset.asset_type.name }}_icon}
-        ).addTo(assetMap);
+    var location_icon = new L.DivIcon({
+                                className:      'map-icon',
+                                html:           '<i class="icon-attribution"></i>',
+                                iconSize:       [24, 24], // size of the icon
+                                iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
+                                popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
+                            });
+
+    // dummy location somewhere else
+    var newMarker = new L.marker([100, 100], {icon: location_icon}).addTo(assetMap);
 
     assetMap.on('click', function(e) {
         $("#latitude").val(e.latlng.lat.toFixed(4));
         $("#longitude").val(e.latlng.lng.toFixed(4));
-        marker.setLatLng(e.latlng);
+        newMarker.setLatLng(e.latlng);
     });
+
     </script>
 
 {% endblock %}

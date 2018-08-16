@@ -1,11 +1,19 @@
 from typing import Dict, List, Union, Optional
+import random
+import string
 
 from flask import current_app
 from flask_security import current_user, SQLAlchemySessionUserDatastore
+from flask_security.recoverable import update_password
+from validate_email import validate_email
 
 from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.user import User, Role
+
+
+class InvalidBVPUser(Exception):
+    pass
 
 
 def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List[User]:
@@ -37,10 +45,37 @@ def create_user(
     """Convenience wrapper to create a new User object and new Role objects (if user roles do not already exist),
     and new DataSource object that corresponds to the user."""
 
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    # Check necessary input explicitly before anything happens
+    if "email" not in kwargs:
+        raise InvalidBVPUser("No email address provided.")
+    email = kwargs.pop("email").strip()
+    if validate_email(email, check_mx=False):
+        if not validate_email(email, check_mx=True):
+            raise InvalidBVPUser("The email address %s does not seem to exist" % email)
+    else:
+        raise InvalidBVPUser("%s is not a valid email address" % email)
+    if "username" not in kwargs:
+        username = email.split("@")[0]
+    else:
+        username = kwargs.pop("username").strip()
 
-    # create user
+    # Check integrity explicitly before anything happens
+    existing_user_by_email = User.query.filter_by(email=email).one_or_none()
+    if existing_user_by_email is not None:
+        raise InvalidBVPUser("User with email %s already exists." % email)
+    existing_user_by_username = User.query.filter_by(username=username).one_or_none()
+    if existing_user_by_username is not None:
+        raise InvalidBVPUser("User with username %s already exists." % username)
+
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    kwargs.update(email=email, username=username)
     user = user_datastore.create_user(**kwargs)
+
+    if user.password is None:
+        new_random_password = "".join(
+            [random.choice(string.ascii_lowercase) for _ in range(12)]
+        )
+        update_password(user, new_random_password)
 
     # add roles to user (creating new roles if necessary)
     if user_roles:

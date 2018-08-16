@@ -10,7 +10,13 @@ from flask_security.core import current_user
 from sqlalchemy.orm.query import Query
 import pandas as pd
 
+from bvp.data.config import db
 from bvp.data.models.assets import AssetType, Asset, Power
+from bvp.data.models.user import User
+
+
+class InvalidBVPAsset(Exception):
+    pass
 
 
 def get_assets(owner_id: Optional[int] = None) -> List[Asset]:
@@ -20,6 +26,14 @@ def get_assets(owner_id: Optional[int] = None) -> List[Asset]:
     if current_user.is_authenticated:
         if current_user.has_role("admin"):
             if owner_id is not None:
+                if not isinstance(owner_id, int):
+                    try:
+                        owner_id = int(owner_id)
+                    except TypeError:
+                        raise Exception(
+                            "Owner id %s cannot be parsed as integer, thus seems to be invalid."
+                            % owner_id
+                        )
                 assets = (
                     Asset.query.filter(Asset.owner_id == owner_id)
                     .order_by(Asset.id.desc())
@@ -57,6 +71,43 @@ def get_asset_groups() -> Dict[str, Query]:
             asset_queries[name] = query.filter_by(owner=current_user)
 
     return asset_queries
+
+
+def create_asset(
+    display_name: str,
+    asset_type_name: str,
+    capacity_in_mw: float,
+    latitude: float,
+    longitude: float,
+    owner: User,
+) -> Asset:
+    """Validate input, create an asset and add it to the database"""
+    if not "display_name":
+        raise InvalidBVPAsset("No display name provided.")
+    if capacity_in_mw < 0:
+        raise InvalidBVPAsset("Capacity cannot be negative.")
+    if latitude < -90 or latitude > 90:
+        raise InvalidBVPAsset("Latitude must be between -90 and +90.")
+    if longitude < -180 or longitude > 180:
+        raise InvalidBVPAsset("Longitude must be between -180 and +180.")
+    if owner is None:
+        raise InvalidBVPAsset("Asset owner cannot be None.")
+    if "Prosumer" not in owner.roles:
+        raise InvalidBVPAsset("Owner must have role 'Prosumer'.")
+
+    db_name = display_name.replace(" ", "-").lower()
+    asset = Asset(
+        display_name=display_name,
+        name=db_name,
+        capacity_in_mw=capacity_in_mw,
+        latitude=latitude,
+        longitude=longitude,
+        asset_type_name=asset_type_name,
+        owner=owner,
+    )
+    db.session.add(asset)
+    db.session.commit()  # Todo: try to handle all transactions in one session, rather than one session per asset created
+    return asset
 
 
 class Resource:

@@ -17,7 +17,7 @@ Useful things for all tests.
 
 One application is made per test session, but cleanup and recreation currently happens per test.
 This can be sped up if needed by moving some functions to "module" or even "session" scope,
-but then the tests need to share data and and data modifcations can lead to tricky debugging.
+but then the tests need to share data and and data modifications can lead to tricky debugging.
 """
 
 
@@ -128,7 +128,7 @@ def setup_assets(db, setup_roles_users):
             name=asset_name,
             asset_type_name="wind" if "wind" in asset_name else "solar",
             capacity_in_mw=1,
-            latitude=100,
+            latitude=10,
             longitude=100,
         )
         asset.owner = test_prosumer

@@ -24,6 +24,8 @@ setup(
         "numpy",
         "isodate",
         "click",
+        "validate_email",
+        "py3DNS",
         "forecastiopy",
         "ts-forecasting-pipeline",
         "python-dotenv",

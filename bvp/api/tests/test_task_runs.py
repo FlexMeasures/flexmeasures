@@ -51,7 +51,7 @@ def test_api_task_run_get_recent_entry(client):
     task_time = isodate.parse_datetime(task_run.json.get("lastrun"))
     utcnow = datetime.utcnow().replace(tzinfo=pytz.utc)
     assert task_time <= utcnow
-    assert task_time >= utcnow - timedelta(minutes=1)
+    assert task_time >= utcnow - timedelta(minutes=2)
     assert task_run.json.get("status") == "ERROR"
 
 
