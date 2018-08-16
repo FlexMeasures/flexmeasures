@@ -62,7 +62,11 @@ def db_populate(
     if save:
         from bvp.data.static_content import save_tables
 
-        save_tables(db, save, structure, data, dir)
+        if small:
+            save_tables(db, save, structure, data, dir)
+        else:
+            click.echo("Too much data to save! I'm only saving structure ...")
+            save_tables(db, save, structure, data=False, backup_path=dir)
 
 
 @app.cli.command()
@@ -156,13 +160,26 @@ def db_reset(
 @app.cli.command()
 @click.option("--name", help="Unique name for saving the backup.")
 @click.option("--dir", default=BACKUP_PATH, help="Directory for saving backups.")
-def db_save(name: str, dir: str = BACKUP_PATH):
-    """Save structure and data of the database to a backup file."""
+@click.option(
+    "--structure/--no-structure",
+    default=True,
+    help="Save structural data like asset (types), market (types),"
+    " weather (sensors), users, roles.",
+)
+@click.option(
+    "--data/--no-data",
+    default=False,
+    help="Save (time series) data. Only do this for small data sets!",
+)
+def db_save(
+    name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False
+):
+    """Save structure of the database to a backup file."""
     if name:
         from bvp.data.static_content import save_tables
 
         db = SQLAlchemy(app)
-        save_tables(db, name, structure=True, data=True, backup_path=dir)
+        save_tables(db, name, structure=structure, data=data, backup_path=dir)
     else:
         click.echo(
             "You must specify a unique name for the backup: --name <unique name>"
