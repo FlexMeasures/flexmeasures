@@ -12,7 +12,9 @@ class DataSource(db.Model):
     # The type of data source (e.g. user or script)
     type = db.Column(db.String(80), default="")
     # The id of the source (can link e.g. to bvp_user table)
-    user_id = db.Column(db.Integer, db.ForeignKey("bvp_users.id"), nullable=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("bvp_users.id"), nullable=True, unique=True
+    )
 
     user = db.relationship("User", backref=db.backref("data_sources", lazy=True))
 
