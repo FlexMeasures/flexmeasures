@@ -17,8 +17,10 @@ from bvp.data.static_content import (
 @as_json
 def restore_data_response():
 
-    structure = True
-    data = False
+    delete_structure = True
+    delete_data = True
+    restore_structure = True
+    restore_data = False
 
     try:
         backup_name = request.args.get("backup", request.json["backup"])
@@ -32,7 +34,9 @@ def restore_data_response():
         or not Path("%s/%s" % (backup_path, backup_name)).is_dir()
     ):
         return unrecognized_backup()
-    affected_classes = get_affected_classes(structure=structure, data=data)
+    affected_classes = get_affected_classes(
+        structure=restore_structure, data=restore_data
+    )
     for c in affected_classes:
         file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
         if not Path(file_path).exists():
@@ -43,15 +47,19 @@ def restore_data_response():
 
     # Reset in play mode only (this endpoint should not have been registered otherwise)
     assert app.config.get("BVP_MODE", "") == "play"
-    if data:
+    if delete_data:
         depopulate_forecasts(db)
         depopulate_data(db)
-    if structure:
+    if delete_structure:
         depopulate_structure(db)
 
     # Load backup
     load_tables(
-        db, backup_name, structure=structure, data=data, backup_path=backup_path
+        db,
+        backup_name,
+        structure=restore_structure,
+        data=restore_data,
+        backup_path=backup_path,
     )
 
     return request_processed("Database restored to %s." % backup_name)

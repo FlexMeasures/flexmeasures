@@ -704,7 +704,7 @@ def load_tables(
             try:
                 with open(file_path, "rb") as file_handler:
                     for row in loads(file_handler.read()):
-                        db.session.merge(row)
+                        db.session.add(row)
                 click.echo(
                     "Successfully loaded %s/%s." % (backup_name, c.__tablename__)
                 )
