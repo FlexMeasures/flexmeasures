@@ -342,10 +342,14 @@ For GET requests such as *getMeterData* a "resolution" may be specified explicit
 values. If omitted, the web service will infer a resolution from the available data.
 Valid resolutions for timeseries data in version 1 of the API are "PT15M" only.
 
+.. _units:
+
 Units
 ^^^^^
 
 Valid units for timeseries data in version 1 of the API are "MW" only.
+
+.. _signs:
 
 Signs
 ^^^^^
