@@ -77,7 +77,7 @@ class TimedValue(object):
             None,
             None,
         ),
-        rolling: bool = False,
+        rolling: bool = True,
         preferred_source_ids: {
             Union[int, List[int]]
         } = None,  # None is interpreted as all sources

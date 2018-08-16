@@ -124,6 +124,7 @@ def get_weather_data(
         weather_data = Weather.collect(
             [closest_sensor.name],
             horizon_window=(None, timedelta(hours=0)),
+            rolling=True,
             create_if_empty=True,
             as_beliefs=True,
         )

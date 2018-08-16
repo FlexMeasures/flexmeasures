@@ -78,7 +78,7 @@ class Price(TimedValue, db.Model):
             None,
             None,
         ),
-        rolling: bool = False,
+        rolling: bool = True,
         session: Session = None,
     ) -> Query:
         if session is None:

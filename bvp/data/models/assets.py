@@ -169,7 +169,7 @@ class Power(TimedValue, db.Model):
             None,
             None,
         ),
-        rolling: bool = False,
+        rolling: bool = True,
         source_ids: Union[int, List[int]] = None,
         session: Session = None,
     ) -> Query:

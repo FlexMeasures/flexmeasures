@@ -22,7 +22,7 @@ def collect_time_series_data(
     ],
     query_window: Tuple[datetime, datetime] = (None, None),
     horizon_window: Tuple[timedelta, timedelta] = (None, None),
-    rolling: bool = False,
+    rolling: bool = True,
     preferred_source_ids: {
         Union[int, List[int]]
     } = None,  # None is interpreted as all sources
@@ -149,7 +149,7 @@ def query_time_series_data(
     ],
     query_window: Tuple[datetime, datetime] = (None, None),
     horizon_window: Tuple[timedelta, timedelta] = (None, None),
-    rolling: bool = False,
+    rolling: bool = True,
     source_ids: Union[int, List[int]] = None,
     resolution: str = None,
     create_if_empty: bool = False,
