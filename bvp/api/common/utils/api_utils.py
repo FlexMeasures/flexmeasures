@@ -30,16 +30,28 @@ def contains_empty_items(groups: List[List[str]]):
     return False
 
 
-def parse_as_list(connection: Union[List[str], str]) -> List[str]:
+def parse_as_list(
+    connection: Union[List[Union[str, float]], str, float], of_type: type = None
+) -> List[Union[str, float]]:
     """
-    Return a list of connections, even if it's just one connection
+    Return a list of connections (or values), even if it's just one connection (or value)
     """
-    if isinstance(connection, str):
-        connections = [connection]
-    elif isinstance(connection, list):  # key should have been plural
-        connections = connection
-    else:
-        connections = []
+    if not isinstance(connection, list):
+        if of_type is None:
+            connections = [connection]
+        else:
+            try:
+                connections = [of_type(connection)]
+            except TypeError:
+                connections = [None]
+    else:  # key should have been plural
+        if of_type is None:
+            connections = connection
+        else:
+            try:
+                connections = [of_type(c) for c in connection]
+            except TypeError:
+                connections = [None]
     return connections
 
 

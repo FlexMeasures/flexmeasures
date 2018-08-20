@@ -489,16 +489,16 @@ def values_required(fn):
             return invalid_method(request.method)
 
         if "value" in form:
-            value_groups = [parse_as_list(form["value"])]
+            value_groups = [parse_as_list(form["value"], of_type=float)]
         elif "values" in form:
-            value_groups = [parse_as_list(form["values"])]
+            value_groups = [parse_as_list(form["values"], of_type=float)]
         elif "groups" in form:
             value_groups = []
             for group in form["groups"]:
                 if "value" in group:
-                    value_groups.append(parse_as_list(group["value"]))
+                    value_groups.append(parse_as_list(group["value"], of_type=float))
                 elif "values" in group:
-                    value_groups.append(parse_as_list(group["values"]))
+                    value_groups.append(parse_as_list(group["values"], of_type=float))
                 else:
                     current_app.logger.warn("Group %s missing value(s)" % group)
                     return ptus_incomplete()
@@ -510,8 +510,9 @@ def values_required(fn):
             kwargs["value_groups"] = value_groups
             return fn(*args, **kwargs)
         else:
-            current_app.logger.warn("Request includes empty value(s).")
-            return ptus_incomplete()
+            extra_info = "Request includes empty or ill-formatted value(s)."
+            current_app.logger.warn(extra_info)
+            return ptus_incomplete(extra_info)
 
     return wrapper
 

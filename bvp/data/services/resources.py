@@ -3,7 +3,7 @@ Generic services for accessing asset data.
 """
 
 from typing import List, Dict, Union, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from inflection import pluralize
 
 from flask_security.core import current_user
