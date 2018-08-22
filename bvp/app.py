@@ -6,6 +6,7 @@ from flask_json import FlaskJSON
 
 from bvp.utils.config_utils import read_config, configure_logging
 from bvp.utils.app_utils import install_secret_key
+from bvp.utils.error_utils import add_basic_error_handlers
 
 
 def create(env=None) -> Flask:
@@ -38,6 +39,8 @@ def create(env=None) -> Flask:
 
     install_secret_key(app)
     SSLify(app)
+
+    add_basic_error_handlers(app)
 
     # Register database and models, including user auth security measures
 
