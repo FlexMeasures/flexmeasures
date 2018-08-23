@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import Security, SQLAlchemySessionUserDatastore
 from flask_login import user_logged_in
+from werkzeug.exceptions import Forbidden, Unauthorized
 
 from bvp.data.models.user import User, Role, remember_login
 
@@ -22,6 +23,13 @@ def configure_auth(app: Flask, db: SQLAlchemy):
 
     # Register custom auth problem handlers
     app.security.unauthorized_handler(unauth_handler)
+    app.register_error_handler(Forbidden, unauth_handler_e)
+    app.register_error_handler(Unauthorized, unauth_handler_e)
+
+
+def unauth_handler_e(e):
+    """Swallow error. Useful for classical Flask error handler registration."""
+    return unauth_handler()
 
 
 def unauth_handler():
