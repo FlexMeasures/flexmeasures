@@ -1,15 +1,6 @@
 import pytest
 
-from flask import request, jsonify
-from flask_security import roles_accepted
 from flask_security.utils import hash_password
-from werkzeug.exceptions import (
-    InternalServerError,
-    BadRequest,
-    Unauthorized,
-    Forbidden,
-    Gone,
-)
 
 from bvp.data.services.users import create_user
 from bvp.data.models.assets import Asset
@@ -70,28 +61,3 @@ def setup_ui_test_data(db):
     asset.owner = test_prosumer2
 
     print("Done setting up data for UI tests")
-
-
-@pytest.fixture(scope="session")
-def error_endpoints(app):
-    """Adding endpoints for the test session, which can be used to generate errors"""
-
-    @app.route("/raise-error")
-    def error_generator():
-        if "type" in request.args:
-            if request.args.get("type") == "server_error":
-                raise InternalServerError("InternalServerError Test Message")
-            if request.args.get("type") == "bad_request":
-                raise BadRequest("BadRequest Test Message")
-            if request.args.get("type") == "gone":
-                raise Gone("Gone Test Message")
-            if request.args.get("type") == "unauthorized":
-                raise Unauthorized("Unauthorized Test Message")
-            if request.args.get("type") == "forbidden":
-                raise Forbidden("Forbidden Test Message")
-        return jsonify({"message": "Nothing bad happened."}), 200
-
-    @app.route("/protected-endpoint-only-for-admins")
-    @roles_accepted("admin")
-    def vips_only():
-        return jsonify({"message": "Nothing bad happened."}), 200

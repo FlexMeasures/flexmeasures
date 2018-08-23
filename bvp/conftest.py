@@ -1,11 +1,20 @@
 import pytest
+from random import random
 
-from flask_security.utils import hash_password
 from datetime import datetime
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
-from random import random
+from flask import request, jsonify
+from flask_security import roles_accepted
+from flask_security.utils import hash_password
+from werkzeug.exceptions import (
+    InternalServerError,
+    BadRequest,
+    Unauthorized,
+    Forbidden,
+    Gone,
+)
 
 from bvp.app import create as create_app
 from bvp.data.services.users import create_user, find_user_by_email
@@ -148,3 +157,31 @@ def setup_assets(db, setup_roles_users):
             )
             p.asset = asset
             db.session.add(p)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def error_endpoints(app):
+    """Adding endpoints for the test session, which can be used to generate errors.
+    Adding endpoints only for testing can only be done *before* the first request
+    so scope=session and autouse=True are required, as well as adding them in the top
+    conftest module."""
+
+    @app.route("/raise-error")
+    def error_generator():
+        if "type" in request.args:
+            if request.args.get("type") == "server_error":
+                raise InternalServerError("InternalServerError Test Message")
+            if request.args.get("type") == "bad_request":
+                raise BadRequest("BadRequest Test Message")
+            if request.args.get("type") == "gone":
+                raise Gone("Gone Test Message")
+            if request.args.get("type") == "unauthorized":
+                raise Unauthorized("Unauthorized Test Message")
+            if request.args.get("type") == "forbidden":
+                raise Forbidden("Forbidden Test Message")
+        return jsonify({"message": "Nothing bad happened."}), 200
+
+    @app.route("/protected-endpoint-only-for-admins")
+    @roles_accepted("admin")
+    def vips_only():
+        return jsonify({"message": "Nothing bad happened."}), 200
