@@ -52,7 +52,12 @@ The "<token>" can be obtained on your profile after logging in:
 Posting meter data
 ------------------
 
-Meter data can be posted in various ways.
+Meter data can be posted in various ways to the following POST endpoint:
+
+.. code-block:: html
+
+    https://play.a1-bvp.com/api/<version>/postMeterData
+
 
 Single value, single connection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -175,7 +180,13 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
 Getting prognoses
 -----------------
 
-A prognosis can be requested for a single asset. This example requests a prognosis with a rolling horizon of 6 hours before realisation.
+A prognosis can be requested for a single asset at the following GET endpoint:
+
+.. code-block:: html
+
+    https://play.a1-bvp.com/api/<version>/getPrognosis
+
+This example requests a prognosis with a rolling horizon of 6 hours before realisation.
 
 .. code-block:: json
 
@@ -187,4 +198,22 @@ A prognosis can be requested for a single asset. This example requests a prognos
         "horizon": "R/PT6H",
         "resolution": "PT15M",
         "unit": "MW"
+    }
+
+
+Resetting the server
+--------------------
+
+All power, price and weather data on the play server can be cleared using the following PUT endpoint (admin rights required):
+
+.. code-block:: html
+
+    https://play.a1-bvp.com/api/<version>/restoreData
+
+This example restores the database to a backup named demo_v0, which contains no timeseries data.
+
+.. code-block:: json
+
+    {
+        "backup": "demo_v0"
     }

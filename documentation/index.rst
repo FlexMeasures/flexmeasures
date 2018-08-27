@@ -48,7 +48,8 @@ The platform operator of the BVP is an Aggregator.
     :maxdepth: 2
 
     api/introduction
-    api/simulation
+    .. ifconfig:: BVP_MODE == "play"
+        api/simulation
     api/prosumer
     api/supplier
     api/aggregator
