@@ -196,9 +196,9 @@ def freq_label_to_human_readable_label(freq_label: str) -> str:
 def forecast_horizons_for(resolution: str) -> List[str]:
     """Return a list of horizons that are supported per resolution."""
     if resolution in ("15T", "1h"):
-        return ["6h", "48h"]
+        return ["1h", "6h", "24h", "48h"]
     elif resolution == "24h":
-        return ["48h"]
+        return ["24h", "48h"]
     elif resolution == "168h":
         return ["168h"]
     return []

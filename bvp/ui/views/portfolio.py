@@ -215,7 +215,7 @@ def portfolio_view():
         ).y.values
 
     # Plot as positive values regardless of whether the stacked data is production or consumption
-    df_stacked_data = data_or_zeroes(df_stacked_data)
+    df_stacked_data = data_or_zeroes(df_stacked_data).fillna(0)
     if show_stacked == "consumption":
         df_stacked_data[:] *= -1
     df_stacked_areas = stacked(df_stacked_data)

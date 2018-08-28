@@ -41,6 +41,7 @@ def test_create_invalid_user(app):
             user_roles=["Prosumer"],
         )
     assert "not a valid" in str(ibu)
+    """ # This check is disabled during testing, as testing should work without internet and be fast
     with pytest.raises(InvalidBVPUser) as ibu:
         create_user(
             email="test_prosumer@sdkkhflzsxlgjxhglkzxjhfglkxhzlzxcvlzxvb.nl",
@@ -48,6 +49,7 @@ def test_create_invalid_user(app):
             user_roles=["Prosumer"],
         )
     assert "not seem to exist" in str(ibu)
+    """
     with pytest.raises(InvalidBVPUser) as ibu:
         create_user(
             email="test_prosumer@seita.nl",

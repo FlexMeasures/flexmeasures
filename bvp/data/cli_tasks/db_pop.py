@@ -34,12 +34,39 @@ BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
     help="Limit data set to a small one, useful for automated tests.",
 )
 @click.option(
+    "--type",
+    help="Populate (time series) data for a specific generic asset type only. Follow up with Asset, Market or WeatherSensor.",
+)
+@click.option(
+    "--asset",
+    help="Populate (time series) data for a single asset only. Follow up with the asset's name.",
+)
+@click.option(
+    "--from_date",
+    default="2015-02-08",
+    help="Forecast from date. Follow up with a date in the form yyyy-mm-dd.",
+)
+@click.option(
+    "--to_date",
+    default="2016-01-01",
+    help="Forecast to date. Follow up with a date in the form yyyy-mm-dd.",
+)
+@click.option(
     "--save",
     help="Save the populated data to file. Follow up with a unique name for this backup.",
 )
 @click.option("--dir", default=BACKUP_PATH, help="Directory for saving backups.")
 def db_populate(
-    structure: bool, data: bool, forecasts: bool, small: bool, save: str, dir: str
+    structure: bool,
+    data: bool,
+    forecasts: bool,
+    small: bool,
+    save: str,
+    dir: str,
+    type: str = None,
+    from_date: str = "2015-02-08",
+    to_date: str = "2016-01-01",
+    asset: str = None,
 ):
     """Initialize the database with static values."""
     db = SQLAlchemy(app)
@@ -50,11 +77,11 @@ def db_populate(
     if data:
         from bvp.data.static_content import populate_time_series_data
 
-        populate_time_series_data(db, small)
+        populate_time_series_data(db, small, type, asset)
     if forecasts:
         from bvp.data.static_content import populate_time_series_forecasts
 
-        populate_time_series_forecasts(db, small)
+        populate_time_series_forecasts(db, small, type, asset, from_date, to_date)
     if not structure and not data and not forecasts:
         click.echo(
             "I did nothing as neither --structure nor --data nor --forecasts was given. Decide what you want!"
@@ -85,7 +112,22 @@ def db_populate(
 @click.option(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
-def db_depopulate(structure: bool, data: bool, forecasts: bool, force: bool):
+@click.option(
+    "--type",
+    help="Populate (time series) data for a specific generic asset type only. Follow up with Asset, Market or WeatherSensor.",
+)
+@click.option(
+    "--asset",
+    help="Depopulate (time series) data for a single asset only. Follow up with the asset's name.",
+)
+def db_depopulate(
+    structure: bool,
+    data: bool,
+    forecasts: bool,
+    force: bool,
+    type: str = None,
+    asset: str = None,
+):
     """Remove all values."""
     if not data and not structure and not forecasts:
         click.echo(
@@ -108,11 +150,11 @@ def db_depopulate(structure: bool, data: bool, forecasts: bool, force: bool):
     if forecasts:
         from bvp.data.static_content import depopulate_forecasts
 
-        depopulate_forecasts(db)
+        depopulate_forecasts(db, type, asset)
     if data:
         from bvp.data.static_content import depopulate_data
 
-        depopulate_data(db)
+        depopulate_data(db, type, asset)
     if structure:
         from bvp.data.static_content import depopulate_structure
 

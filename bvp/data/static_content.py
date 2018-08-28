@@ -13,21 +13,24 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_security.utils import hash_password
 import click
 import pandas as pd
-from sqlalchemy.sql import or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.serializer import loads, dumps
 from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
+from humanize import naturaldelta
+import inflect
 
 from bvp.data.models.markets import MarketType, Market, Price
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role, RolesUsers
-from bvp.data.models.forecasting.solar import latest as solar_latest
+from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
 from bvp.data.services.users import create_user
 from bvp.utils.time_utils import as_bvp_time
 
 BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
+
+p = inflect.engine()
 
 
 def get_pickle_path() -> str:
@@ -237,8 +240,6 @@ def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
 def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
     """
     Adding power measurements from pickles. This is a lot of data points, so we use the bulk method of SQLAlchemy.
-
-    There is a weird issue with data on March 29, 3am that I couldn't figure out, where a DuplicateKey error is caused.
     """
     pickle_path = get_pickle_path()
     processed_assets = []
@@ -466,21 +467,37 @@ def populate_structure(db: SQLAlchemy, test_data_set: bool):
 
 
 @as_transaction
-def populate_time_series_data(db: SQLAlchemy, test_data_set: bool):
+def populate_time_series_data(
+    db: SQLAlchemy,
+    test_data_set: bool,
+    generic_asset_type: str = None,
+    generic_asset_name: str = None,
+):
     click.echo("Populating the database %s with time series data ..." % db.engine)
-    markets = Market.query.all()
+    if generic_asset_name is None:
+        markets = Market.query.all()
+    else:
+        markets = Market.query.filter(Market.name == generic_asset_name).all()
     if markets:
         add_prices(db, markets, test_data_set)
     else:
         click.echo("No markets in db, so I will not add any prices.")
 
-    assets = Asset.query.all()
+    if generic_asset_name is None:
+        assets = Asset.query.all()
+    else:
+        assets = Asset.query.filter(Asset.name == generic_asset_name).all()
     if assets:
         add_power(db, assets, test_data_set)
     else:
         click.echo("No assets in db, so I will not add any power measurements.")
 
-    sensors = WeatherSensor.query.all()
+    if generic_asset_name is None:
+        sensors = WeatherSensor.query.all()
+    else:
+        sensors = WeatherSensor.query.filter(
+            WeatherSensor.name == generic_asset_name
+        ).all()
     if sensors:
         add_weather(db, sensors, test_data_set)
     else:
@@ -491,86 +508,155 @@ def populate_time_series_data(db: SQLAlchemy, test_data_set: bool):
     click.echo("DB now has %d Weather Measurements" % db.session.query(Weather).count())
 
 
-@as_transaction
-def populate_time_series_forecasts(db: SQLAlchemy, test_data_set: bool):
-    click.echo(
-        "Populating the database %s with time series forecasts (48H) ..." % db.engine
+@as_transaction  # noqa: C901
+def populate_time_series_forecasts(
+    db: SQLAlchemy,
+    test_data_set: bool,
+    generic_asset_type: str = None,
+    generic_asset_name: str = None,
+    from_date: str = "2015-02-08",
+    to_date: str = "2016-01-01",
+):
+
+    start = as_bvp_time(datetime.strptime(from_date, "%Y-%m-%d"))
+    end = as_bvp_time(datetime.strptime(to_date, "%Y-%m-%d"))
+    training_and_testing_period = timedelta(days=30)
+    horizons = (
+        timedelta(hours=1),
+        timedelta(hours=6),
+        timedelta(hours=24),
+        timedelta(hours=48),
     )
 
-    start = as_bvp_time(datetime(2015, 2, 8))
-    end = as_bvp_time(datetime(2015, 12, 31, 23, 45))
+    click.echo(
+        "Populating the database %s with time series forecasts of %s ahead ..."
+        % (db.engine, p.join([naturaldelta(horizon) for horizon in horizons]))
+    )
 
+    # Set a data source for the forecasts
     data_source = DataSource.query.filter(
         DataSource.label == "data entered for demonstration purposes"
     ).one_or_none()
-    """
-    assets = Asset.query.filter(
-        or_(
-            Asset.asset_type_name == "solar",
-            Asset.asset_type_name == "wind",
-            Asset.asset_type_name == "building",
-            Asset.asset_type_name == "charging_station",
-            Asset.asset_type_name == "battery",
-        )
-    ).all()
-    """
-    assets = Asset.query.filter(
-        or_(
-            Asset.asset_type_name == "solar",
-            Asset.asset_type_name == "building",
-            Asset.asset_type_name == "wind",
-        )
-    ).all()
-    for asset in assets:
-        print(
-            "Computing forecasts for %s, train model with data from %s to %s ..."
-            % (asset.name, start, end)
-        )
-        model_specs = solar_latest(
-            solar_asset=asset,
-            start_of_training=start - timedelta(days=30),
-            end_of_testing=start - timedelta(minutes=15),
-            query_until=end,
-            specs_only=True,
-        )
-        model_specs.creation_time = start
-        forecasts, model_state = make_rolling_forecasts(
-            start=start,
-            end=end,
-            training_period=timedelta(days=30),
-            model_specs=model_specs,
-        )
 
-        """
-        import matplotlib.pyplot as plt
-        plt.plot(
-            model_state.specs.outcome_var.load_series().loc[
-                pd.date_range(start, end=end, freq="15T")
-            ],
-            label="y",
-        )
-        plt.plot(forecasts, label="y^hat")
-        plt.legend()
-        plt.show()
-        """
-
-        power_forecasts = [
-            Power(
-                datetime=ensure_korea_local(dt),
-                horizon=timedelta(hours=48),
-                value=value,
-                asset_id=asset.id,
-                data_source_id=data_source.id,
-            )
-            for dt, value in forecasts.items()
-        ]
-
-        db.session.bulk_save_objects(power_forecasts)
-
+    # List all generic assets for which to forecast
+    generic_assets = []
+    if generic_asset_name is None:
+        if generic_asset_type is None or generic_asset_type == "WeatherSensor":
+            sensors = WeatherSensor.query.all()
+            generic_assets.extend(sensors)
+        if generic_asset_type is None or generic_asset_type == "Asset":
+            assets = Asset.query.all()
+            generic_assets.extend(assets)
+        if generic_asset_type is None or generic_asset_type == "Market":
+            markets = Market.query.all()
+            generic_assets.extend(markets)
     else:
-        click.echo("No assets in db, so I will not add any power forecasts.")
+        if generic_asset_type is None or generic_asset_type == "WeatherSensor":
+            sensors = WeatherSensor.query.filter(
+                WeatherSensor.name == generic_asset_name
+            ).one_or_none()
+            generic_assets.append(sensors)
+        if generic_asset_type is None or generic_asset_type == "Asset":
+            assets = Asset.query.filter(Asset.name == generic_asset_name).one_or_none()
+            generic_assets.append(assets)
+        if generic_asset_type is None or generic_asset_type == "Market":
+            markets = Market.query.filter(
+                Market.name == generic_asset_name
+            ).one_or_none()
+            generic_assets.append(markets)
+    if not generic_assets:
+        click.echo("No such assets in db, so I will not add any forecasts.")
+        return
 
-    click.echo("DB now has %d Power Forecasts" % db.session.query(Power).count())
+    # Forecast for each asset and horizon, then save to database
+    for generic_asset in generic_assets:
+        for horizon in horizons:
+            model_specs, model_identifier = latest_generic_model(
+                generic_asset=generic_asset,
+                start=start,
+                end=end,
+                training_and_testing_period=training_and_testing_period,
+                horizon=horizon,
+            )
+            print(
+                "Computing forecasts of %s ahead for %s, "
+                "from %s to %s with a training and testing period of %s, using %s ..."
+                % (
+                    naturaldelta(horizon),
+                    generic_asset.name,
+                    start,
+                    end,
+                    naturaldelta(training_and_testing_period),
+                    model_identifier,
+                )
+            )
+            model_specs.creation_time = start
+            forecasts, model_state = make_rolling_forecasts(
+                start=start, end=end, model_specs=model_specs
+            )
+
+            """
+            import matplotlib.pyplot as plt
+            plt.plot(
+                model_state.specs.outcome_var.load_series().loc[
+                    pd.date_range(start, end=end, freq="15T")
+                ],
+                label="y",
+            )
+            plt.plot(forecasts, label="y^hat")
+            plt.legend()
+            plt.show()
+            """
+
+            if isinstance(generic_asset, Asset):
+                power_forecasts = [
+                    Power(
+                        datetime=ensure_korea_local(dt),
+                        horizon=horizon,
+                        value=value,
+                        asset_id=generic_asset.id,
+                        data_source_id=data_source.id,
+                    )
+                    for dt, value in forecasts.items()
+                ]
+                db.session.bulk_save_objects(power_forecasts)
+            elif isinstance(generic_asset, Market):
+                price_forecasts = [
+                    Price(
+                        datetime=ensure_korea_local(dt),
+                        horizon=horizon,
+                        value=value,
+                        market_id=generic_asset.id,
+                        data_source_id=data_source.id,
+                    )
+                    for dt, value in forecasts.items()
+                ]
+                db.session.bulk_save_objects(price_forecasts)
+            elif isinstance(generic_asset, WeatherSensor):
+                weather_forecasts = [
+                    Weather(
+                        datetime=ensure_korea_local(dt),
+                        horizon=horizon,
+                        value=value,
+                        sensor_id=generic_asset.id,
+                        data_source_id=data_source.id,
+                    )
+                    for dt, value in forecasts.items()
+                ]
+                db.session.bulk_save_objects(weather_forecasts)
+
+    click.echo(
+        "DB now has %d Power Forecasts"
+        % db.session.query(Power).filter(Power.horizon > timedelta(hours=0)).count()
+    )
+    click.echo(
+        "DB now has %d Price Forecasts"
+        % db.session.query(Price).filter(Price.horizon > timedelta(hours=0)).count()
+    )
+    click.echo(
+        "DB now has %d Weather Forecasts"
+        % db.session.query(Weather).filter(Weather.horizon > timedelta(hours=0)).count()
+    )
 
 
 @as_transaction
@@ -605,36 +691,142 @@ def depopulate_structure(db: SQLAlchemy):
 
 
 @as_transaction
-def depopulate_data(db: SQLAlchemy):
-    click.echo("Depopulating (time series) data from the database %s ..." % db.engine)
-    num_prices_deleted = (
-        db.session.query(Price).filter(Price.horizon <= timedelta(hours=0)).delete()
-    )
-    num_power_measurements_deleted = (
-        db.session.query(Power).filter(Power.horizon <= timedelta(hours=0)).delete()
-    )
-    num_weather_measurements_deleted = (
-        db.session.query(Weather).filter(Weather.horizon <= timedelta(hours=0)).delete()
-    )
+def depopulate_data(
+    db: SQLAlchemy, generic_asset_type: str = None, generic_asset_name: str = None
+):
+    if generic_asset_name is None:
+        click.echo(
+            "Depopulating (time series) data from the database %s ..." % db.engine
+        )
+        num_prices_deleted = (
+            db.session.query(Price).filter(Price.horizon <= timedelta(hours=0)).delete()
+        )
+        num_power_measurements_deleted = (
+            db.session.query(Power).filter(Power.horizon <= timedelta(hours=0)).delete()
+        )
+        num_weather_measurements_deleted = (
+            db.session.query(Weather)
+            .filter(Weather.horizon <= timedelta(hours=0))
+            .delete()
+        )
+    else:
+        click.echo(
+            "Depopulating (time series) data for %s from the database %s ..."
+            % (generic_asset_name, db.engine)
+        )
+        market = (
+            db.session.query(Market)
+            .filter(Market.name == generic_asset_name)
+            .one_or_none()
+        )
+        if market is not None:
+            num_prices_deleted = (
+                db.session.query(Price)
+                .filter(Price.horizon <= timedelta(hours=0))
+                .filter(Price.market == market)
+                .delete()
+            )
+        else:
+            num_prices_deleted = 0
+        asset = (
+            db.session.query(Asset)
+            .filter(Asset.name == generic_asset_name)
+            .one_or_none()
+        )
+        if asset is not None:
+            num_power_measurements_deleted = (
+                db.session.query(Power)
+                .filter(Power.horizon <= timedelta(hours=0))
+                .filter(Power.asset == asset)
+                .delete()
+            )
+        else:
+            num_power_measurements_deleted = 0
+        sensor = (
+            db.session.query(WeatherSensor)
+            .filter(WeatherSensor.name == generic_asset_name)
+            .one_or_none()
+        )
+        if sensor is not None:
+            num_weather_measurements_deleted = (
+                db.session.query(Weather)
+                .filter(Weather.horizon <= timedelta(hours=0))
+                .filter(Weather.sensor == sensor)
+                .delete()
+            )
+        else:
+            num_weather_measurements_deleted = 0
     click.echo("Deleted %d Prices" % num_prices_deleted)
     click.echo("Deleted %d Power Measurements" % num_power_measurements_deleted)
     click.echo("Deleted %d Weather Measurements" % num_weather_measurements_deleted)
 
 
 @as_transaction
-def depopulate_forecasts(db: SQLAlchemy):
-    click.echo(
-        "Depopulating (time series) forecasts from the database %s ..." % db.engine
-    )
-    num_prices_deleted = (
-        db.session.query(Price).filter(Price.horizon > timedelta(hours=0)).delete()
-    )
-    num_power_measurements_deleted = (
-        db.session.query(Power).filter(Power.horizon > timedelta(hours=0)).delete()
-    )
-    num_weather_measurements_deleted = (
-        db.session.query(Weather).filter(Weather.horizon > timedelta(hours=0)).delete()
-    )
+def depopulate_forecasts(
+    db: SQLAlchemy, generic_asset_type: str = None, generic_asset_name: str = None
+):
+    if generic_asset_name is None:
+        click.echo(
+            "Depopulating (time series) forecasts from the database %s ..." % db.engine
+        )
+        num_prices_deleted = (
+            db.session.query(Price).filter(Price.horizon > timedelta(hours=0)).delete()
+        )
+        num_power_measurements_deleted = (
+            db.session.query(Power).filter(Power.horizon > timedelta(hours=0)).delete()
+        )
+        num_weather_measurements_deleted = (
+            db.session.query(Weather)
+            .filter(Weather.horizon > timedelta(hours=0))
+            .delete()
+        )
+    else:
+        click.echo(
+            "Depopulating (time series) forecasts for %s from the database %s ..."
+            % (generic_asset_name, db.engine)
+        )
+        market = (
+            db.session.query(Market)
+            .filter(Market.name == generic_asset_name)
+            .one_or_none()
+        )
+        if market is not None:
+            num_prices_deleted = (
+                db.session.query(Price)
+                .filter(Price.horizon > timedelta(hours=0))
+                .filter(Price.market == market)
+                .delete()
+            )
+        else:
+            num_prices_deleted = 0
+        asset = (
+            db.session.query(Asset)
+            .filter(Asset.name == generic_asset_name)
+            .one_or_none()
+        )
+        if asset is not None:
+            num_power_measurements_deleted = (
+                db.session.query(Power)
+                .filter(Power.horizon > timedelta(hours=0))
+                .filter(Power.asset == asset)
+                .delete()
+            )
+        else:
+            num_power_measurements_deleted = 0
+        sensor = (
+            db.session.query(WeatherSensor)
+            .filter(WeatherSensor.name == generic_asset_name)
+            .one_or_none()
+        )
+        if sensor is not None:
+            num_weather_measurements_deleted = (
+                db.session.query(Weather)
+                .filter(Weather.horizon > timedelta(hours=0))
+                .filter(Weather.sensor == sensor)
+                .delete()
+            )
+        else:
+            num_weather_measurements_deleted = 0
     click.echo("Deleted %d Price Forecasts" % num_prices_deleted)
     click.echo("Deleted %d Power Forecasts" % num_power_measurements_deleted)
     click.echo("Deleted %d Weather Forecasts" % num_weather_measurements_deleted)

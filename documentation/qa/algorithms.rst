@@ -15,41 +15,35 @@ For such profiles, it is more useful to report the WAPE, which is also known as 
 The MAE of a power profile gives an indication of the size of the uncertainty in consumption and production.
 This allows the user to compare an asset's predictability to its flexibility, i.e. to the size of possible balancing actions.
 
-Benchmarks per asset type are listed below for a 6h-ahead rolling horizon forecast:
+Benchmarks per asset type are listed below for various assets and forecasting horizons, given a 15-minute resolution:
 
 +-------------------------+---------------+------------+---------------+----------------+-----------------+
-| Asset                   | Building      | CS         | Solar         | Wind (onshore) | Wind (offshore) |
+| Asset                   | Building      | CS         | Solar         | Wind (offshore)| Day-ahead market|
 +-------------------------+---------------+------------+---------------+----------------+-----------------+
-| Average power per asset | 182 kW        | 75 W       | 1.4 MW        | 4.1 MW         | 31.8 MW         |
+| Average power per asset | 182 kW        | 75 W       | 1.4 MW        | 31.8 MW        |                 |
 +=========================+===============+============+===============+================+=================+
-| WAPE (1 asset)          | 10 %          |            |               |                |                 |
+| WAPE (1 hour ahead)     | 6.6 %         | - %        | 16.3 %        | 21.2 %         | 12.0 %          |
 +-------------------------+---------------+------------+---------------+----------------+-----------------+
-| WAPE (5 assets)         | Not available |            | 51 %          |                |                 |
+| WAPE (6 hours ahead)    | 7.4 %         | - %        | 46.4 %        | 101.8 %        | 18.1 %          |
 +-------------------------+---------------+------------+---------------+----------------+-----------------+
-| WAPE (10 assets)        | Not available |            | Not available |                |                 |
+| WAPE (24 hours ahead)   | 7.6 %         | - %        | 46.1 %        | 101.1 %        | 19.6 %          |
 +-------------------------+---------------+------------+---------------+----------------+-----------------+
-| WAPE (50 assets)        | Not available |            | Not available | Not available  | Not available   |
+| WAPE (48 hours ahead)   | 7.9 %         | - %        | 43.3 %        | 100.9 %        | 27.7 %          |
 +-------------------------+---------------+------------+---------------+----------------+-----------------+
-| WAPE (100 assets)       | Not available |            | Not available | Not available  | Not available   |
-+-------------------------+---------------+------------+---------------+----------------+-----------------+
-| WAPE (200 assets)       | Not available | 21 %       | Not available | Not available  | Not available   |
-+-------------------------+---------------+------------+---------------+----------------+-----------------+
-
-
-
 
 Defaults:
 
-- The application uses a decomposable time series model. For fitting curve parameters, we employ a Limited-memory BFGS algorithm. To avoid overfitting, cross-validation is used.
+- The application uses an ordinary least squares auto-regressive model with external variables.
+- Lagged outcome variables are selected based on the periodicity of the asset (e.g. daily and/or weekly).
+- Common external variables are weather forecasts of temperature, wind speed and irradiation.
+- Timeseries data with frequent zero values are transformed using a customised Box-Cox transformation.
+- To avoid overfitting, cross-validation is used.
 - Before fitting, explicit annotations of expert knowledge to the model (like the definition of asset-specific seasonalities and special time events) are possible.
-- The model is currently fit once for each asset.
+- The model is currently fit each day for each asset and for each horizon.
 
 Improvements:
 
-- Fit the model each 15 minutes (rolling horizon)
-- Allow the expert to set upper and lower limits for the data
-- Some assets have yearly seasonalities (e.g. wind, solar) and therefore forecasts would benefit from >= 2 years of history.
-- Also, forecasts in the app right now are in-sample forecasts, using nothing but the actual values as input to the forecasting problem. Some additional data, e.g. weather forecasts, can improve the asset forecasts.
+- Most assets have yearly seasonalities (e.g. wind, solar) and therefore forecasts would benefit from >= 2 years of history.
 
 
 Broker

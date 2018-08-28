@@ -99,7 +99,7 @@ def analytics_view():
     prices_fig = make_prices_figure(prices_data, prices_forecast_data, shared_x_range)
     weather_fig = make_weather_figure(
         weather_data,
-        None,
+        weather_forecast_data,
         shared_x_range,
         weather_type,
         session_asset_types,  # Todo: plot weather forecast data, too
@@ -200,6 +200,8 @@ def make_weather_figure(
     """Make a bokeh figure for weather data"""
     # Todo: plot average temperature/total_radiation/wind_speed for asset groups, and update title accordingly
     # Todo: plot multiple weather data types for asset groups, rather than just the first one in the list like below
+    if weather_type is None:
+        return plotting.create_graph(pd.DataFrame())
     if session_asset_types[0] == "wind":
         unit = "m/s"
         weather_axis_label = "Wind speed (in %s)" % unit

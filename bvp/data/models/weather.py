@@ -19,6 +19,10 @@ class WeatherSensorType(db.Model):
 
     name = db.Column(db.String(80), primary_key=True)
 
+    daily_seasonality = True
+    weekly_seasonality = False
+    yearly_seasonality = True
+
     def __repr__(self):
         return "<WeatherSensorType %r>" % self.name
 

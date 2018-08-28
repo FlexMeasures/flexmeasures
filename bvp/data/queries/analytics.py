@@ -21,14 +21,17 @@ def get_power_data(
     power_data = Resource(session["resource"]).get_data(
         horizon_window=(None, timedelta(hours=0)), rolling=True, create_if_empty=True
     )
-    if showing_pure_consumption_data:
-        power_data.y *= -1
 
     # Get power forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
     power_forecast_data = Resource(session["resource"]).get_data(
         horizon_window=(horizon, None), rolling=True, create_if_empty=True
     )
+
+    if showing_pure_consumption_data:
+        power_data.y *= -1
+        power_forecast_data.y *= -1
+
     power_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
     power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
     realised_power_in_mwh = pd.Series(power_data.y * power_hour_factor).values
@@ -75,6 +78,7 @@ def get_prices_data(
     prices_forecast_data = Price.collect(
         ["epex_da"], horizon_window=(horizon, None), rolling=True, as_beliefs=True
     )
+    prices_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
     if not prices_forecast_data.empty and prices_forecast_data.size == prices_data.size:
         metrics["expected_unit_price"] = prices_forecast_data.yhat.mean()
         metrics["mae_unit_price"] = calculations.mean_absolute_error(
@@ -105,17 +109,22 @@ def get_weather_data(
     # List all the weather sensor types that have a correlation with this asset type
     sensor_types = asset.asset_type.weather_correlations
 
-    # Todo: for now we only collect weather data for a single weather sensor type
-    sensor_type = sensor_types[0]
+    if sensor_types:
+        # Todo: for now we only collect weather data for a single weather sensor type
+        sensor_type = sensor_types[0]
 
-    # Find the closest weather sensor
-    closest_sensor = (
-        WeatherSensor.query.filter(
-            WeatherSensor.weather_sensor_type_name == sensor_type
+        # Find the closest weather sensor
+        closest_sensor = (
+            WeatherSensor.query.filter(
+                WeatherSensor.weather_sensor_type_name == sensor_type
+            )
+            .order_by(WeatherSensor.great_circle_distance(object=asset).asc())
+            .first()
         )
-        .order_by(WeatherSensor.great_circle_distance(object=asset).asc())
-        .first()
-    )
+    else:
+        closest_sensor = None
+        sensor_type = None
+
     if closest_sensor is None:
         weather_data = pd.DataFrame()
         weather_forecast_data = pd.DataFrame()
@@ -202,14 +211,14 @@ def get_revenues_costs_data(
         rev_cost_forecasts.yhat_lower = rev_cost_forecasts.yhat - wape_span_rev_costs
         metrics["expected_revenues_costs"] = rev_cost_forecasts.yhat.sum()
         metrics["mae_revenues_costs"] = calculations.mean_absolute_error(
-            rev_cost_data.values, rev_cost_forecasts.yhat
+            rev_cost_data.y, rev_cost_forecasts.yhat
         )
         metrics["mape_revenues_costs"] = calculations.mean_absolute_percentage_error(
-            rev_cost_data.values, rev_cost_forecasts.yhat
+            rev_cost_data.y, rev_cost_forecasts.yhat
         )
         metrics[
             "wape_revenues_costs"
         ] = calculations.weighted_absolute_percentage_error(
-            rev_cost_data.values, rev_cost_forecasts.yhat
+            rev_cost_data.y, rev_cost_forecasts.yhat
         )
     return rev_cost_data, rev_cost_forecasts, metrics

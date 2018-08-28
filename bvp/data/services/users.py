@@ -50,7 +50,9 @@ def create_user(
         raise InvalidBVPUser("No email address provided.")
     email = kwargs.pop("email").strip()
     if validate_email(email, check_mx=False):
-        if not validate_email(email, check_mx=True):
+        # The mx check talks to the SMTP server. During testing, we skip it because it
+        # takes a bit of time and without internet connection it fails.
+        if not current_app.testing and not validate_email(email, check_mx=True):
             raise InvalidBVPUser("The email address %s does not seem to exist" % email)
     else:
         raise InvalidBVPUser("%s is not a valid email address" % email)
