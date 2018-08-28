@@ -1,5 +1,6 @@
 import os
 import sys
+import logging
 from datetime import datetime
 from logging.config import dictConfig as loggingDictConfig
 from urllib.parse import urlparse
@@ -15,9 +16,10 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 bvp_logging_config = {
     "version": 1,
     "formatters": {
-        "default": {
+        "default": {"format": "[%(asctime)s] %(levelname)s: %(message)s"},
+        "detail": {
             "format": "[%(asctime)s] %(levelname)s: %(message)s [log made in %(pathname)s:%(lineno)d]"
-        }
+        },
     },
     "handlers": {
         "console": {
@@ -27,9 +29,9 @@ bvp_logging_config = {
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
-            "level": "WARNING",
-            "formatter": "default",
-            "filename": "bvp-errors.log",
+            "level": "INFO",
+            "formatter": "detail",
+            "filename": "bvp.log",
         },
     },
     "root": {"level": "INFO", "handlers": ["console", "file"], "propagate": True},
@@ -38,7 +40,6 @@ bvp_logging_config = {
 
 def configure_logging():
     """Configure and register logging"""
-    # For some reason, we first need to initialise Flask's logger with this so our config will take effect:
     loggingDictConfig(bvp_logging_config)
 
 
@@ -75,6 +76,12 @@ def read_config(app):
                     "Missing configuration settings: %s" % ", ".join(missing_settings)
                 )
             sys.exit(2)
+
+    # Set the desired logging level on the root logger (controlling extension logging level)
+    # and this app's logger.
+    logging.getLogger().setLevel(app.config.get("LOGGING_LEVEL"))
+    app.logger.setLevel(app.config.get("LOGGING_LEVEL"))
+    print("Logging level is %s" % logging.getLevelName(app.logger.level))
 
     app.config["START_TIME"] = datetime.utcnow()
 

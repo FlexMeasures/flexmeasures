@@ -1,4 +1,5 @@
 from typing import List
+import logging
 
 """
 This lays out our configuration requirements and allows to set trivial defaults, per environment adjustable.
@@ -14,7 +15,7 @@ class Config(object):
     """
 
     DEBUG = False
-    TESTING = False
+    LOGGING_LEVEL = logging.WARNING
     CSRF_ENABLED = True
 
     SQLALCHEMY_DATABASE_URI = None
@@ -64,15 +65,17 @@ class Config(object):
 
 class ProductionConfig(Config):
     DEBUG = False
+    LOGGING_LEVEL = logging.ERROR
 
 
 class StagingConfig(Config):
     DEBUG = False
+    LOGGING_LEVEL = logging.WARNING
 
 
 class DevelopmentConfig(Config):
-    DEVELOPMENT = True
     DEBUG = True
+    LOGGING_LEVEL = logging.DEBUG
     SQLALCHEMY_ECHO = False
     PROPAGATE_EXCEPTIONS = True
     JSONIFY_PRETTYPRINT_REGULAR = True
@@ -80,8 +83,8 @@ class DevelopmentConfig(Config):
 
 
 class TestingConfig(Config):
-    TESTING = True
     DEBUG = True  # this seems to be important for logging in, not sure why
+    LOGGING_LEVEL = logging.ERROR
     WTF_CSRF_ENABLED = False  # also necessary for logging in during tests
 
     SECURITY_PASSWORD_SALT = "$2b$19$abcdefghijklmnopqrstuv"
