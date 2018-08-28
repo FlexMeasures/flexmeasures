@@ -1,8 +1,10 @@
 from functools import wraps
 
-from flask import current_app
+from flask import current_app, request
 from flask_json import as_json
 from werkzeug.datastructures import Headers
+
+from bvp.api.common.utils.api_utils import get_form_from_request
 
 
 def as_response_type(response_type):
@@ -29,6 +31,7 @@ def as_response_type(response_type):
         @wraps(fn)
         @as_json
         def decorated_service(*args, **kwargs):
+            current_app.logger.info(get_form_from_request(request))
             response = fn(*args, **kwargs)  # expects flask response object
             if not (
                 hasattr(response, "json")
