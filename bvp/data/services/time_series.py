@@ -49,7 +49,8 @@ def collect_time_series_data(
     The response might be an empty data frame if no data exists for these assets
     in this time range.
     If an empty data frame would be returned, but create_if_empty is True, then
-    a new DataFrame with the correct datetime index but zeroes as content is returned.
+    a new DataFrame with the correct datetime index but nan or zero values as content is returned,
+    depending on the zero_if_nan parameter.
     """
     if isinstance(generic_asset_names, str):
         generic_asset_names = [generic_asset_names]

@@ -37,12 +37,12 @@ def get_power_data(
     realised_power_in_mwh = pd.Series(power_data.y * power_hour_factor).values
 
     if not power_data.empty:
-        metrics["realised_power_in_mwh"] = realised_power_in_mwh.sum()
+        metrics["realised_power_in_mwh"] = np.nansum(realised_power_in_mwh)
     if not power_forecast_data.empty and power_forecast_data.size == power_data.size:
         expected_power_in_mwh = pd.Series(
             power_forecast_data.yhat * power_hour_factor
         ).values
-        metrics["expected_power_in_mwh"] = expected_power_in_mwh.sum()
+        metrics["expected_power_in_mwh"] = np.nansum(expected_power_in_mwh)
         metrics["mae_power_in_mwh"] = calculations.mean_absolute_error(
             realised_power_in_mwh, expected_power_in_mwh
         )
@@ -177,7 +177,7 @@ def get_revenues_costs_data(
             ).min()
         if "label" in power_data.columns and "label" in prices_data.columns:
             rev_cost_data["label"] = "Calculated from power and price data"
-        metrics["realised_revenues_costs"] = rev_cost_data.y.values.sum()
+        metrics["realised_revenues_costs"] = np.nansum(rev_cost_data.y.values)
 
     if (
         power_data.empty
@@ -209,7 +209,7 @@ def get_revenues_costs_data(
         wape_span_rev_costs = rev_cost_forecasts.yhat * wape_factor_rev_costs
         rev_cost_forecasts.yhat_upper = rev_cost_forecasts.yhat + wape_span_rev_costs
         rev_cost_forecasts.yhat_lower = rev_cost_forecasts.yhat - wape_span_rev_costs
-        metrics["expected_revenues_costs"] = rev_cost_forecasts.yhat.sum()
+        metrics["expected_revenues_costs"] = np.nansum(rev_cost_forecasts.yhat)
         metrics["mae_revenues_costs"] = calculations.mean_absolute_error(
             rev_cost_data.y, rev_cost_forecasts.yhat
         )
