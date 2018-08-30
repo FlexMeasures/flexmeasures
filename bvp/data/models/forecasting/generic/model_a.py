@@ -10,7 +10,6 @@ from bvp.data.models.markets import MarketType, Market, Price
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.config import db
 
-
 # update this version if small things like parametrisation change
 version = 1
 
@@ -34,7 +33,9 @@ def configure_specs(  # noqa: C901
     """
 
     generic_asset_type = determine_asset_type(generic_asset)
-    generic_asset_class = determine_asset_value_class(generic_asset)
+    generic_asset_value_class, generic_asset_class = determine_asset_value_class(
+        generic_asset
+    )
 
     params = parameterise_forecasting_for(generic_asset_type)
 
@@ -51,10 +52,29 @@ def configure_specs(  # noqa: C901
         generic_asset, generic_asset_type, query_window, horizon
     )
 
+    # Check if enough data is available for training window and lagged variables, otherwise suggest new forecast period
+    q = generic_asset_value_class.query.join(generic_asset_class).filter(
+        generic_asset_class.name == generic_asset.name
+    )
+    oldest_value = q.order_by(generic_asset_value_class.datetime.asc()).first()
+    newest_value = q.order_by(generic_asset_value_class.datetime.desc()).first()
+    if query_window[0] < oldest_value.datetime:
+        suggested_start = start + (oldest_value.datetime - query_window[0])
+        raise Exception(
+            "Not enough data to forecast %s for this forecast window: set start date to %s ?"
+            % (generic_asset.name, suggested_start)
+        )
+    if query_window[1] > newest_value.datetime:
+        suggested_end = end + (newest_value.datetime - query_window[1])
+        raise Exception(
+            "Not enough data to forecast %s for this forecast window: set end date to %s ?"
+            % (generic_asset.name, suggested_end)
+        )
+
     outcome_var_spec = DBSeriesSpecs(
         name=generic_asset_type.name,
         db_engine=db.engine,
-        query=generic_asset_class.make_query(
+        query=generic_asset_value_class.make_query(
             generic_asset.name,
             query_window=query_window,
             horizon_window=(None, timedelta(hours=0)),
@@ -92,13 +112,15 @@ def determine_asset_type(
 
 def determine_asset_value_class(
     generic_asset: Union[Asset, Market, WeatherSensor]
-) -> Type[Union[Power, Price, Weather]]:
+) -> Tuple[
+    Type[Union[Power, Price, Weather]], Type[Union[Asset, Market, WeatherSensor]]
+]:
     if isinstance(generic_asset, Asset):
-        return Power
+        return Power, Asset
     elif isinstance(generic_asset, Market):
-        return Price
+        return Price, Market
     elif isinstance(generic_asset, WeatherSensor):
-        return Weather
+        return Weather, WeatherSensor
     else:
         raise TypeError("Unknown generic asset type.")
 
@@ -216,10 +238,7 @@ def get_regressors(
                         query=Weather.make_query(
                             closest_sensor.name,
                             query_window=query_window,
-                            horizon_window=(
-                                horizon,
-                                None,
-                            ),  # Todo (use weather forecasts instead of observations): horizon_window=(horizon, None)
+                            horizon_window=(horizon, None),
                             rolling=True,
                             session=db.session,
                         ),

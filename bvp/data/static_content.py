@@ -555,15 +555,18 @@ def populate_time_series_forecasts(
             sensors = WeatherSensor.query.filter(
                 WeatherSensor.name == generic_asset_name
             ).one_or_none()
-            generic_assets.append(sensors)
+            if sensors is not None:
+                generic_assets.append(sensors)
         if generic_asset_type is None or generic_asset_type == "Asset":
             assets = Asset.query.filter(Asset.name == generic_asset_name).one_or_none()
-            generic_assets.append(assets)
+            if assets is not None:
+                generic_assets.append(assets)
         if generic_asset_type is None or generic_asset_type == "Market":
             markets = Market.query.filter(
                 Market.name == generic_asset_name
             ).one_or_none()
-            generic_assets.append(markets)
+            if markets is not None:
+                generic_assets.append(markets)
     if not generic_assets:
         click.echo("No such assets in db, so I will not add any forecasts.")
         return
