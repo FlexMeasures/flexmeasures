@@ -39,6 +39,7 @@ class Config(object):
     SECURITY_RESET_PASSWORD_TEMPLATE = "admin/reset_password.html"
     SECURITY_RECOVERABLE = True
     SECURITY_TOKEN_AUTHENTICATION_HEADER = "Authorization"
+    SECURITY_TOKEN_MAX_AGE = 60 * 60 * 6  # six hours
     SECURITY_TRACKABLE = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT = None
 

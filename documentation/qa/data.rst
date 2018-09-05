@@ -1,17 +1,31 @@
 .. _data:
 
-How is data handled securely?
-=============================
+How is security taken into account?
+====================================
+
+Data
+-------
 
 There are two types of data on the BVP servers - files (e.g. source code, images) and data in a database (e.g. user
 data and time series for energy consumption/generation or weather).
 
-* Files are stored on a EBS volumes on Amazon Web Services. These are shared with other customers of Amazon, but protected from them by Linux's chroot system -- each user can see only the files in their own section of the disk.
+* Files are stored on EBS volumes on Amazon Web Services. These are shared with other customers of Amazon, but protected from them by Linux's chroot system -- each user can see only the files in their own section of the disk.
 
 * Database data is stored in PostgresDB instances which are not shared with other Amazon customers. They are password-protected.
 
-* In addition, no user passwords are stored in clear text - the BVP platform only stores the hashed passwords (encrypted with the bcrypt hashing algorithm). If an attacker steals these password hashes, they cannot compute the passwords from them in a practical amount of time.
-
-* Finally, The application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security.
+* Finally, The application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security. This is used even if the application is accessed via `http://`.
 
 
+Authentication and Authorization
+---------------------------------
+
+*Authentication* is the system by which users tell the BVP platform that they are who they claim they are.
+This involves a username/password combination ("credentials") or an access token.
+
+* No user passwords are stored in clear text on any server - the BVP platform only stores the hashed passwords (encrypted with the bcrypt hashing algorithm). If an attacker steals these password hashes, they cannot compute the passwords from them in a practical amount of time.
+* Access tokens are used so that the sending of usernames and passwords is limited (even if they are encrypted via https, see above) when dealing with the part of the BVP platform which sees the most traffic: the API functionality. Tokens thus have use cases for some scenarios, where developers want to treat athentication information with a little less care than credentials should be treated with, e.g. sharing among computers. However, they also expire fast, which is a common industry practice (by making them short-lived and requiring refresh, BVP limits the time an attacker can abuse a stolen token). At the moment, the access tokens on the BVP platform expire after six hours.
+
+*Authorization* is the system by which the BVP platform decides whether an authenticated user can access a feature. For instance, many features are reserved for administrators, others for Prosumers (the owner of assets).
+
+* This is achieved via *roles*. Each user has at least one role, but could have several, as well.
+* Roles cannot be edited via the UI at the moment. They are decided when a user is created.
