@@ -1,7 +1,6 @@
 from typing import Union, List
 from datetime import datetime, timedelta
 
-# from flask import current_app
 from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
 
 from bvp.utils.time_utils import bvp_now, as_bvp_time
@@ -12,7 +11,7 @@ from bvp.data.models.forecasting.generic import (
     latest_params_by_asset_type as latest_generic_params_by_asset_type,
 )
 from bvp.data.models.data_sources import DataSource
-from bvp.data.config import db  # , commit_and_start_new_session
+from bvp.data.config import db
 from bvp.data.models.weather import Weather
 from bvp.data.models.assets import Power
 from bvp.data.models.markets import Price
@@ -30,21 +29,17 @@ def run_forecasting_jobs(max_forecasts: int, custom_model_params: dict = None):
     Only select as many jobs as limited by the number of forecasts.
     """
     jobs_to_run = get_jobs_to_run(max_forecasts)
-    # job_ids = [job.id for job in jobs_to_run]
 
     if not jobs_to_run:
         return
 
     # Mark these jobs with in_progress_since=now and flush already, so that no other runner will take them
     # while we work on them. If an exception occurs, they will be free again
-    # TODO: maybe better to actually commit and start a new session after each job?
     for job in jobs_to_run:
         job.in_progress_since = bvp_now()
     db.session.flush()
-    # commit_and_start_new_session(current_app)
 
     # Run the jobs, save forecasts
-    # jobs_to_run = ForecastingJob.query.filter(ForecastingJob.id.in_(job_ids))  # get again, from new session
     data_source = get_data_source()
     for job in jobs_to_run:
         run_job(job, data_source, custom_model_params)
@@ -73,15 +68,17 @@ def get_jobs_to_run(max_forecasts: int) -> List[ForecastingJob]:
     # max_forecasts_per_run parameter)
     jobs_to_run = []
     planned_forecasts = 0
-    while jobs and planned_forecasts < max_forecasts:
+    while jobs:
         next_job = jobs.pop()
         model_params = latest_generic_params_by_asset_type(
             determine_asset_type_by_asset(next_job.get_asset())
         )
         next_job_num_forecasts = next_job.num_forecasts(model_params["resolution"])
-        if planned_forecasts + next_job_num_forecasts < max_forecasts:
+        if planned_forecasts + next_job_num_forecasts <= max_forecasts:
             jobs_to_run.append(next_job)
             planned_forecasts += next_job_num_forecasts
+        else:
+            break
     return jobs_to_run
 
 
@@ -99,7 +96,7 @@ def get_data_source() -> DataSource:
 def run_job(
     job: ForecastingJob, data_source: DataSource, custom_model_params: dict = None
 ):
-    print("Running ForecastingJob:  %s" % job)
+    print("Running ForecastingJob %d: %s" % (job.id, job))
 
     try:
         model_specs, model_identifier = latest_generic_model(
@@ -134,8 +131,7 @@ def run_job(
         ForecastingJob.query.filter_by(id=job.id).delete()
         print("Successfully ran job %d." % job.id)
     except Exception as e:
-        job.in_progress_since = None
-        print("Could not run job %d." % job.id)
+        print("Could not run job %d: %s" % (job.id, str(e)))
         raise e
 
 

@@ -90,7 +90,7 @@ def test_in_progress_handling(db):
     running_job.in_progress_since = bvp_now() - timedelta(minutes=10)
 
     run_forecasting_jobs(
-        max_forecasts=25,
+        max_forecasts=12,  # take care that we are not selecting the fourth, invalid job
         custom_model_params=dict(
             training_and_testing_period=timedelta(hours=2),
             outcome_var_transformation=None,
@@ -98,25 +98,10 @@ def test_in_progress_handling(db):
         ),
     )
 
+    # checking if some jobs were left alone
     left_jobs = ForecastingJob.query.all()
-    # fetch running job again from the new session (which run_forecasting_jobs opened)
-    # wind2: Asset = Asset.query.filter_by(name="wind-asset-2").one_or_none()
-    # running_job: ForecastingJob = ForecastingJob.query.filter_by(
-    #     asset_id=wind2.id
-    # ).one_or_none()
     assert len(left_jobs) == 2
-    assert left_jobs[0].id == running_job.id
-    forecasts = (
-        Power.query.filter(Power.asset_id == wind1.id)
-        .filter(Power.horizon == timedelta(minutes=15))
-        .filter(
-            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 6)))
-            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 7)))
-        )
-        .all()
-    )
-    assert len(forecasts) == 4
-    assert all([not np.isnan(f.value) for f in forecasts])
+    assert running_job.id in [job.id for job in left_jobs]
 
     forecasts = (
         Power.query.filter(Power.asset_id == wind2.id)
@@ -128,6 +113,19 @@ def test_in_progress_handling(db):
         .all()
     )
     assert len(forecasts) == 0
+
+    # checking if the forecasts were made
+    forecasts = (
+        Power.query.filter(Power.asset_id == wind1.id)
+        .filter(Power.horizon == timedelta(minutes=15))
+        .filter(
+            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 6)))
+            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 7)))
+        )
+        .all()
+    )
+    assert len(forecasts) == 4
+    assert all([not np.isnan(f.value) for f in forecasts])
 
     solar1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
     forecasts = (
@@ -147,8 +145,6 @@ def test_failure(db):
     """When we include the last job with an invalid range, nothing should get done in the end.
     This is not tested here, though, as the session is still running. Needs improvement."""
 
-    # initial_num_jobs = ForecastingJob.query.count()
-
     run_forecasting_jobs(
         max_forecasts=100,  # including the last, failing one
         custom_model_params=dict(
@@ -158,19 +154,11 @@ def test_failure(db):
         ),
     )
 
-    assert (
-        ForecastingJob.query.count() == 1
-    )  # TODO: how to test that if the session rolls back, it'd be initial_num_jobs
+    # check if the rollback happened (test data is gone)
+    assert ForecastingJob.query.count() == 0
+    assert Power.query.count() == 0
 
-    assert (
-        Power.make_query(
-            asset_name="solar-asset-1",
-            query_window=(datetime(2014, 12, 1), datetime(2016, 1, 5)),
-            horizon_window=(timedelta(minutes=15), timedelta(minutes=15)),
-        ).count()
-        == 9
-    )  # TODO: these are from the third job, which went through, see also comment above, would be 0?
-
+    # however, the last task run is recorded (as failed)
     ltr = LatestTaskRun.query.one_or_none()
     assert ltr.name == "run_forecasting_jobs"
     assert ltr.status is False
