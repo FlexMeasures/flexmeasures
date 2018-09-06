@@ -14,7 +14,6 @@ import pandas as pd
 
 from bvp.data.models.assets import Asset, AssetType  # noqa: E402
 from bvp.data.models.markets import Market, MarketType  # noqa: E402
-from bvp.utils.forecasting_utils import make_rolling_forecast  # noqa: E402
 
 
 path_to_input_data = "raw_data/time-series"  # assuming we are in the main directory
@@ -41,19 +40,6 @@ def set_datetime_index(
     return pd.DataFrame(
         data=old_df.to_dict(orient="records"), index=ix.tz_localize(tz=timezone)
     )
-
-
-def get_forecasts(df: pd.DataFrame, asset_type: AssetType, res: str) -> pd.DataFrame:
-    """ Run forecasts (the heavy computation) and put them in the df"""
-    forecasts, horizons = make_rolling_forecast(df.y, asset_type, res)
-    for h in horizons:
-        for forecast_result in [
-            "yhat_%s" % h,
-            "yhat_%s_upper" % h,
-            "yhat_%s_lower" % h,
-        ]:
-            df[forecast_result] = forecasts[forecast_result].values
-    return df
 
 
 def timeseries_resample(the_df: pd.DataFrame, the_res: str) -> pd.DataFrame:
@@ -101,7 +87,6 @@ def initialise_market_data():
         market_df = pd.DataFrame(index=res_df.index)
         market_df["y"] = res_df[market_col_name]
 
-        market_df = get_forecasts(market_df, market_type, "15T")
         market_df.to_pickle("%s/df_%s_res15T.pickle" % (path_to_pickles, market.name))
 
 
@@ -173,7 +158,6 @@ def initialise_buildings_data():
 
         assert all(asset_df.y <= 0)
 
-        asset_df = get_forecasts(asset_df, asset_type, "15T")
         asset_df.to_pickle("%s/df_%s_res15T.pickle" % (path_to_pickles, asset.name))
 
 
@@ -216,7 +200,6 @@ def initialise_charging_station_data():
 
         assert all(asset_df.y <= 0)
 
-        asset_df = get_forecasts(asset_df, asset_type, "15T")
         asset_df.to_pickle("%s/df_%s_res15T.pickle" % (path_to_pickles, asset.name))
 
 
@@ -292,7 +275,6 @@ def initialise_a1_data():
             if sheet.asset_type.is_consumer and not sheet.asset_type.is_producer:
                 assert all(asset_df.y <= 0)
 
-            asset_df = get_forecasts(asset_df, sheet.asset_type, "15T")
             asset_df.to_pickle("%s/df_%s_res15T.pickle" % (path_to_pickles, asset.name))
 
 
@@ -310,7 +292,7 @@ if __name__ == "__main__":
     import bvp.data.config as db_config  # noqa: E402
     from bvp.app import create as create_app  # noqa: E402
 
-    db_config.configure_db(create_app())
+    db_config.configure_db_for(create_app())
 
     if os.getcwd().endswith(
         "scripts"

@@ -1,10 +1,13 @@
 import copy
 from typing import List, Union
+from datetime import datetime
 from functools import wraps
 from json import loads as parse_json, JSONDecodeError
 
 from bvp.data import db
 from bvp.data.models.assets import Asset
+from bvp.data.models.forecasting.jobs import ForecastingJob
+from bvp.utils.time_utils import forecast_horizons_for
 
 
 def check_access(service_listing, service_name):
@@ -227,6 +230,24 @@ def save_to_database(objects: List[db.Model], overwrite: bool = False):
     else:
         for o in objects:
             db.session.merge(o)
+
+
+def make_forecasting_jobs(
+    timed_value_type: str, asset_id: int, start: datetime, end: datetime
+):
+    """Create forecasting jobs for all horizons"""
+    # TODO: resolution is fixed here
+    jobs = []
+    for horizon in forecast_horizons_for("15T", as_timedeltas=True):
+        job = ForecastingJob(
+            timed_value_type=timed_value_type,
+            asset_id=asset_id,
+            start=start,
+            end=end,
+            horizon=horizon,
+        )
+        jobs.append(job)
+    return jobs
 
 
 class BaseMessage:

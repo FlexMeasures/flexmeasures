@@ -13,7 +13,7 @@ from bvp.api.common.responses import (
     unrecognized_market,
     unrecognized_sensor,
 )
-from bvp.api.common.utils.api_utils import save_to_database
+from bvp.api.common.utils.api_utils import save_to_database, make_forecasting_jobs
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
@@ -67,6 +67,7 @@ def post_price_data_response(
     current_app.logger.info("POSTING PRICE DATA")
     data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
     prices = []
+    forecasting_jobs = []
     for market_group, value_group in zip(generic_asset_name_groups, value_groups):
         for market in market_group:
 
@@ -85,6 +86,7 @@ def post_price_data_response(
                 return unrecognized_market(market_name)
 
             # Create new Price objects
+            end = start
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -101,11 +103,18 @@ def post_price_data_response(
                     data_source_id=data_source.id,
                 )
                 prices.append(p)
+                end = dt
+
+            if end > start:
+                forecasting_jobs.extend(
+                    make_forecasting_jobs("Price", market.id, start, end)
+                )
 
     # Put these into the database
     current_app.logger.info("SAVING TO DB...")
     try:
-        save_to_database(prices, overwrite=False)
+        save_to_database(prices)
+        save_to_database(forecasting_jobs)
         db.session.commit()
         return request_processed()
     except IntegrityError as e:
@@ -115,6 +124,7 @@ def post_price_data_response(
         # Allow price data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(prices, overwrite=True)
+            save_to_database(forecasting_jobs, overwrite=True)
             db.session.commit()
             return request_processed()
         else:
@@ -139,6 +149,7 @@ def post_weather_data_response(
     current_app.logger.info("POSTING WEATHER DATA")
     data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
     weather_measurements = []
+    forecasting_jobs = []
     for sensor_group, value_group in zip(generic_asset_name_groups, value_groups):
         for sensor in sensor_group:
 
@@ -190,6 +201,7 @@ def post_weather_data_response(
                     )
 
             # Create new Weather objects
+            end = start
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -206,11 +218,18 @@ def post_weather_data_response(
                     data_source_id=data_source.id,
                 )
                 weather_measurements.append(w)
+                end = dt
+
+            if end > start:
+                forecasting_jobs.extend(
+                    make_forecasting_jobs("Weather", weather_sensor.id, start, end)
+                )
 
     # Put these into the database
     current_app.logger.info("SAVING TO DB...")
     try:
-        save_to_database(weather_measurements, overwrite=False)
+        save_to_database(weather_measurements)
+        save_to_database(forecasting_jobs)
         db.session.commit()
         return request_processed()
     except IntegrityError as e:
@@ -220,6 +239,7 @@ def post_weather_data_response(
         # Allow meter data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(weather_measurements, overwrite=True)
+            save_to_database(forecasting_jobs, overwrite=True)
             db.session.commit()
             return request_processed()
         else:

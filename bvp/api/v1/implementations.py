@@ -24,6 +24,7 @@ from bvp.api.common.utils.api_utils import (
     message_replace_name_with_ea,
     groups_to_dict,
     save_to_database,
+    make_forecasting_jobs,
 )
 from bvp.api.common.utils.validators import (
     type_accepted,
@@ -208,7 +209,7 @@ def collect_connection_and_value_groups(
     return dict(**response, **d), s
 
 
-def create_connection_and_value_groups(
+def create_connection_and_value_groups(  # noqa: C901
     unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration
 ):
     from flask import current_app
@@ -220,6 +221,7 @@ def create_connection_and_value_groups(
         current_app.logger.info("User doesn't seem to have any assets")
     user_asset_ids = [asset.id for asset in user_assets]
     power_measurements = []
+    forecasting_jobs = []
     for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
         for connection in connection_group:
 
@@ -254,6 +256,7 @@ def create_connection_and_value_groups(
                 return power_value_too_big(extra_info)
 
             # Create new Power objects
+            end = start
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -271,11 +274,17 @@ def create_connection_and_value_groups(
                     data_source_id=data_source.id,
                 )
                 power_measurements.append(p)
+                end = dt
 
-    # Put these into the database
+            if end > start:
+                forecasting_jobs.extend(
+                    make_forecasting_jobs("Power", asset_id, start, end)
+                )
+
     current_app.logger.info("SAVING TO DB...")
     try:
-        save_to_database(power_measurements, overwrite=False)
+        save_to_database(power_measurements)
+        save_to_database(forecasting_jobs)
         db.session.commit()
         return request_processed()
     except IntegrityError as e:
@@ -285,6 +294,7 @@ def create_connection_and_value_groups(
         # Allow meter data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(power_measurements, overwrite=True)
+            save_to_database(forecasting_jobs, overwrite=True)
             db.session.commit()
             return request_processed()
         else:

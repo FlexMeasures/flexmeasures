@@ -61,7 +61,7 @@ This last step is documented by PythonAnywhere as a way to soft restart the runn
 
 
 ```#!/bin/bash
-PATH_TO_GIT_WORK_TREE=/path/to/where/you/want/to/checout/code/to
+PATH_TO_GIT_WORK_TREE=/path/to/where/you/want/to/checkout/code/to
 ACTIVATE_VENV="command-to-activate-your-venv"
 PATH_TO_WSGI=/path/to/wsgi/script/for/the/app
 

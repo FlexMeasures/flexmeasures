@@ -137,7 +137,7 @@ class Asset(db.Model):
         )
 
     def __repr__(self):
-        return "<Asset %r (%s)>" % (self.name, self.asset_type_name)
+        return "<Asset %d:%r (%s)>" % (self.id, self.name, self.asset_type_name)
 
 
 class Power(TimedValue, db.Model):
@@ -189,6 +189,7 @@ class Power(TimedValue, db.Model):
             .filter(Asset.name == asset_name)
             .filter((Power.datetime > q_start) & (Power.datetime < end))
         )
+        # TODO: this could probably become a util function which we can re-use in all make_query functions
         if source_ids is not None and not isinstance(source_ids, list):
             source_ids = [source_ids]  # ensure source_ids is a list
         if source_ids:
@@ -205,6 +206,8 @@ class Power(TimedValue, db.Model):
                 Power.data_source_id.in_(user_source_ids)
                 | Power.data_source_id.in_(script_source_ids)
             )
+        # TODO: this should become a util function which we can re-use in all
+        #       make_query functions to add the horizon filter
         short_horizon, long_horizon = horizon_window
         if (
             short_horizon is not None
@@ -249,7 +252,7 @@ class Power(TimedValue, db.Model):
         super(Power, self).__init__(**kwargs)
 
     def __repr__(self):
-        return "<Power %.2f on Asset %s at %s by DataSource %s at %s>" % (
+        return "<Power %.2f on Asset %s at %s by DataSource %s, horizon %s>" % (
             self.value,
             self.asset_id,
             self.datetime,

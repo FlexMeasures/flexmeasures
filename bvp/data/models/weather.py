@@ -119,7 +119,11 @@ class WeatherSensor(db.Model):
     )
 
     def __repr__(self):
-        return "<WeatherSensor %r (%r)>" % (self.name, self.weather_sensor_type_name)
+        return "<WeatherSensor %d:%r (%r)>" % (
+            self.id,
+            self.name,
+            self.weather_sensor_type_name,
+        )
 
     def to_dict(self) -> Dict[str, str]:
         return dict(name=self.name, sensor_type=self.weather_sensor_type_name)

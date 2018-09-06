@@ -1,13 +1,18 @@
-from typing import Tuple, List, Dict, Union, Type
+from typing import Tuple, List, Dict, Union, Optional
 from datetime import datetime, timedelta
 
+from flask import current_app
 from ts_forecasting_pipeline import DBSeriesSpecs, ModelSpecs
 from ts_forecasting_pipeline.speccing import BoxCoxTransformation, Transformation
 from ts_forecasting_pipeline.utils import to_15_min_lags
 
-from bvp.data.models.assets import AssetType, Asset, Power
-from bvp.data.models.markets import MarketType, Market, Price
+from bvp.data.models.assets import AssetType, Asset
+from bvp.data.models.markets import MarketType, Market
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
+from bvp.data.models.utils import (
+    determine_asset_type_by_asset,
+    determine_asset_value_class_by_asset,
+)
 from bvp.data.config import db
 
 # update this version if small things like parametrisation change
@@ -18,9 +23,8 @@ def configure_specs(  # noqa: C901
     generic_asset: Union[Asset, Market, WeatherSensor],
     start: datetime,  # Start of forecast period
     end: datetime,  # End of forecast period
-    training_and_testing_period: Union[timedelta, Tuple[datetime, datetime]],
-    # Some duration before start or some specific period (inclusive start, exclusive end)
     horizon: timedelta,  # Duration between time of forecasting and time which is forecast
+    custom_model_params: dict = None,  # overwrite forecasing params, useful for testing or experimentation
 ) -> Tuple[ModelSpecs, str]:
     """
     Generic OLS model for all asset types (also for markets and weather sensors) and horizons.
@@ -32,29 +36,31 @@ def configure_specs(  # noqa: C901
           calendar day.
     """
 
-    generic_asset_type = determine_asset_type(generic_asset)
-    generic_asset_value_class, generic_asset_class = determine_asset_value_class(
-        generic_asset
-    )
+    generic_asset_type = determine_asset_type_by_asset(generic_asset)
+    generic_asset_value_class = determine_asset_value_class_by_asset(generic_asset)
 
-    params = parameterise_forecasting_for(generic_asset_type)
+    params = parameterise_forecasting_by_asset_type(generic_asset_type)
+    params.update(custom_model_params if custom_model_params is not None else {})
 
     lags = create_lags(
         params["n_lags"], generic_asset_type, horizon, params["resolution"]
     )
 
     training_start, testing_end = set_training_and_testing_dates(
-        start, training_and_testing_period
+        start, params["training_and_testing_period"]
     )
     query_window = get_query_window(training_start, end, lags)
 
     regressor_specs, regressor_transformation = get_regressors(
         generic_asset, generic_asset_type, query_window, horizon
     )
+    if custom_model_params.get("regressor_transformation", None) is not None:
+        regressor_transformation = custom_model_params.get("regressor_transformation")
 
     # Check if enough data is available for training window and lagged variables, otherwise suggest new forecast period
-    q = generic_asset_value_class.query.join(generic_asset_class).filter(
-        generic_asset_class.name == generic_asset.name
+    # TODO: could this functionality become a feature of ts_forecasting_pipeline?
+    q = generic_asset_value_class.query.join(generic_asset.__class__).filter(
+        generic_asset.__class__.name == generic_asset.name
     )
     oldest_value = q.order_by(generic_asset_value_class.datetime.asc()).first()
     newest_value = q.order_by(generic_asset_value_class.datetime.desc()).first()
@@ -94,66 +100,51 @@ def configure_specs(  # noqa: C901
         transformation=params["outcome_var_transformation"],
         regressor_transformation=regressor_transformation,
     )
-    return specs, "generic model_a (v%d)" % version
+    return specs, specs_version()
 
 
-def determine_asset_type(
-    generic_asset: Union[Asset, Market, WeatherSensor]
-) -> Union[AssetType, MarketType, WeatherSensorType]:
-    if isinstance(generic_asset, Asset):
-        return generic_asset.asset_type
-    elif isinstance(generic_asset, Market):
-        return generic_asset.market_type
-    elif isinstance(generic_asset, WeatherSensor):
-        return generic_asset.sensor_type
-    else:
-        raise TypeError("Unknown generic asset type.")
+def specs_version() -> str:
+    return "generic model_a (v%d)" % version
 
 
-def determine_asset_value_class(
-    generic_asset: Union[Asset, Market, WeatherSensor]
-) -> Tuple[
-    Type[Union[Power, Price, Weather]], Type[Union[Asset, Market, WeatherSensor]]
-]:
-    if isinstance(generic_asset, Asset):
-        return Power, Asset
-    elif isinstance(generic_asset, Market):
-        return Price, Market
-    elif isinstance(generic_asset, WeatherSensor):
-        return Weather, WeatherSensor
-    else:
-        raise TypeError("Unknown generic asset type.")
-
-
-def parameterise_forecasting_for(
+def parameterise_forecasting_by_asset_type(
     generic_asset_type: Union[AssetType, MarketType, WeatherSensorType]
 ) -> dict:
     """Fill in the best parameters we know (generic or by asset type)"""
     params = dict()
 
+    params["training_and_testing_period"] = timedelta(days=30)
     params["ratio_training_testing_data"] = 14 / 15
     params["n_lags"] = 7
     params["resolution"] = timedelta(
         minutes=15
     )  # Todo: get the data resolution for the asset from asset type
 
-    if isinstance(generic_asset_type, AssetType):
-        params["outcome_var_transformation"] = BoxCoxTransformation(lambda2=0.1)
-    elif isinstance(generic_asset_type, MarketType):
-        params["outcome_var_transformation"] = None
-    elif isinstance(generic_asset_type, WeatherSensorType):
-        if generic_asset_type.name in ["wind_speed", "radiation"]:
-            params["outcome_var_transformation"] = BoxCoxTransformation(lambda2=0.1)
-        elif generic_asset_type.name == "temperature":
-            params["outcome_var_transformation"] = BoxCoxTransformation(
-                lambda2=273.16 + 0.1
-            )
-        else:
-            params["outcome_var_transformation"] = None
-    else:
-        raise TypeError("Unknown generic asset type.")
+    params["outcome_var_transformation"] = get_transformation_by_asset_type(
+        generic_asset_type
+    )
 
     return params
+
+
+def get_transformation_by_asset_type(
+    generic_asset_type: Union[AssetType, MarketType, WeatherSensorType]
+) -> Optional[Transformation]:
+    if isinstance(generic_asset_type, AssetType):
+        return BoxCoxTransformation(lambda2=0.1)
+    elif isinstance(generic_asset_type, MarketType):
+        return None
+    elif isinstance(generic_asset_type, WeatherSensorType):
+        if generic_asset_type.name in ["wind_speed", "radiation"]:
+            # Values cannot be negative and are often zero
+            return BoxCoxTransformation(lambda2=0.1)
+        elif generic_asset_type.name == "temperature":
+            # Values can be positive or negative when given in degrees Celsius, but non-negative only in Kelvin
+            return BoxCoxTransformation(lambda2=273.16 + 0.1)
+        else:
+            return None
+    else:
+        raise TypeError("Unknown generic asset type.")
 
 
 def set_training_and_testing_dates(
@@ -214,6 +205,9 @@ def get_regressors(
     regressor_transformation = {}
     if isinstance(generic_asset, Asset):
         sensor_types = generic_asset_type.weather_correlations
+        current_app.logger.info(
+            "For %s, I need sensors: %s" % (generic_asset, sensor_types)
+        )
         for sensor_type in sensor_types:
 
             # Find nearest weather sensor
@@ -227,8 +221,15 @@ def get_regressors(
                 .first()
             )
             if closest_sensor is None:
-                print("No sensor found of sensor type %s." % sensor_type)
+                current_app.logger.warn(
+                    "No sensor found of sensor type %s to use as regressor for %s."
+                    % (sensor_type, generic_asset)
+                )
             else:
+                current_app.logger.info(
+                    "Using sensor %s as regressor for %s."
+                    % (sensor_type, generic_asset)
+                )
                 # Collect the weather data for the requested time window
                 regressor_specs_name = "%s_l0" % sensor_type
                 regressor_specs.append(
@@ -244,19 +245,10 @@ def get_regressors(
                         ),
                     )
                 )
-                if sensor_type in [
-                    "wind",
-                    "radiation",
-                ]:  # Values cannot be negative and are often zero
-                    regressor_transformation[
-                        regressor_specs_name
-                    ] = BoxCoxTransformation(lambda2=0.1)
-                elif (
-                    sensor_type is "temperature"
-                ):  # Values can be positive or negative when given in degrees Celsius, but non-negative only in Kelvin
-                    #  Todo: check if unit is degrees Celsius, otherwise convert to Celsius before applying this
-                    regressor_transformation[
-                        regressor_specs_name
-                    ] = BoxCoxTransformation(lambda2=273.16 + 0.1)
+                regressor_transformation[
+                    regressor_specs_name
+                ] = get_transformation_by_asset_type(
+                    WeatherSensorType(name=sensor_type)
+                )
 
     return regressor_specs, regressor_transformation

@@ -7,9 +7,10 @@ venv
 
 .env-bvp/
 bvp.egg-info
-bvp-errors.log
+bvp.log
 
 .cache
+__pychache__
 .pytest_cache/
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/

@@ -1,13 +1,13 @@
 from flask import Flask
 from flask_migrate import Migrate
 
-from bvp.data.config import configure_db, db
+from bvp.data.config import configure_db_for, db
 from bvp.data.auth_setup import configure_auth
 
 
 def register_at(app: Flask):
     # First configure the central db object and Alembic's migration tool
-    configure_db(app)
+    configure_db_for(app)
     Migrate(app, db)
 
     configure_auth(app, db)

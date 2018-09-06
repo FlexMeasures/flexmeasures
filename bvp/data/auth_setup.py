@@ -19,6 +19,8 @@ def configure_auth(app: Flask, db: SQLAlchemy):
     # Setup Flask-Security for user authentication & authorization
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     app.security = Security(app, user_datastore)
+
+    # add our custom handler for a user login event
     user_logged_in.connect(remember_login)
 
     # Register custom auth problem handlers

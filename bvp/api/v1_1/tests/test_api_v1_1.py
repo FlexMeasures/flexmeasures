@@ -4,6 +4,7 @@ from flask import url_for
 import pytest
 from datetime import timedelta
 from isodate import parse_duration, parse_datetime
+from iso8601 import parse_date
 import pandas as pd
 
 from bvp.api.common.responses import request_processed, invalid_horizon
@@ -17,6 +18,7 @@ from bvp.api.v1_1.tests.utils import (
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
 from bvp.data.config import db
 from bvp.data.models.markets import Market, Price
+from bvp.data.models.forecasting.jobs import ForecastingJob
 
 
 @pytest.mark.parametrize("query", [{}, {"access": "Prosumer"}])
@@ -145,3 +147,19 @@ def test_post_price_data(client, post_message):
     )
     df = pd.read_sql(query.statement, db.session.bind)
     assert df.value.tolist() == values
+
+    # look for Forecasting jobs
+    jobs = ForecastingJob.query.all()
+    assert len(jobs) == 4  # only one market is affected, but four horizons
+    market = Market.query.filter_by(name=market_name).one_or_none()
+    for job in jobs:
+        assert job.start == parse_date(post_message["start"])
+        assert job.timed_value_type == "Price"
+        assert job.asset_id == market.id
+    for horizon in (
+        timedelta(hours=1),
+        timedelta(hours=6),
+        timedelta(hours=24),
+        timedelta(hours=48),
+    ):
+        assert horizon in [job.horizon for job in jobs]

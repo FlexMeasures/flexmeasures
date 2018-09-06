@@ -59,3 +59,17 @@ def message_for_post_meter_data(
         message.pop("groups", None)
 
     return message
+
+
+def count_connections_in_post_message(message: dict) -> int:
+    connections = 0
+    if "groups" in message:
+        message = dict(
+            connections=message["groups"][0]["connections"],
+            connection=message["groups"][1]["connection"],
+        )
+    if "connection" in message:
+        connections += 1
+    if "connections" in message:
+        connections += len(message["connections"])
+    return connections

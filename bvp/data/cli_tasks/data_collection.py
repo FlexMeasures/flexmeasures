@@ -39,7 +39,7 @@ def localize_ts_pickles():
     default="",
     help="Name of the region (will create subfolder, should later tag the forecast in the DB, probably).",
 )
-@click.option("--num_cells", default=1, help="Number of cells on the grid.")
+@click.option("--num_cells", type=int, default=1, help="Number of cells on the grid.")
 @click.option(
     "--method",
     default="hex",
@@ -61,7 +61,7 @@ def localize_ts_pickles():
 @click.option(
     "--right", type=float, required=True, help="Right longitude for region of interest."
 )
-def collect_weather_data(num_cells, region, method, top, left, bottom, right):
+def collect_weather_data(region, num_cells, method, top, left, bottom, right):
     """Collect weather data"""
     from bvp.data.scripts.grid_weather import get_weather_forecasts
 

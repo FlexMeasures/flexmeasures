@@ -3,8 +3,9 @@ import sys
 from datetime import datetime
 
 import pytz
-from flask import Flask
 import click
+
+from bvp.data.config import db
 
 
 def install_secret_key(app, filename="secret_key"):
@@ -27,12 +28,13 @@ def install_secret_key(app, filename="secret_key"):
 
 
 def task_with_status_report(task_function):
-    """Decorator for tasks which should report their runtime and status."""
+    """Decorator for tasks which should report their runtime and status.
+    Also commits the session for the task."""
 
-    def wrap(app: Flask, *args, **kwargs):
+    def wrap(*args, **kwargs):
         status: bool = True
         try:
-            task_function(app, *args, **kwargs)
+            task_function(*args, **kwargs)
             click.echo("Task %s ran fine." % task_function.__name__)
         except Exception as e:
             click.echo(
@@ -49,10 +51,10 @@ def task_with_status_report(task_function):
                 ).one_or_none()
                 if task_run is None:
                     task_run = LatestTaskRun(name=task_name)
-                    app.db.session.add(task_run)
+                    db.session.add(task_run)
                 task_run.datetime = datetime.utcnow().replace(tzinfo=pytz.utc)
                 task_run.status = status
-                app.db.session.commit()
+                db.session.commit()
             except Exception as e:
                 click.echo(
                     "Could not report the running of Task %s, encountered the following problem: %s"

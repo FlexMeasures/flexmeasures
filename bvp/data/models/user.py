@@ -20,6 +20,9 @@ class Role(db.Model, RoleMixin):
     name = Column(String(80), unique=True)
     description = Column(String(255))
 
+    def __repr__(self):
+        return "<Role:%s (ID:%d)>" % (self.description, self.id)
+
 
 class User(db.Model, UserMixin):
     __tablename__ = "bvp_users"
@@ -34,6 +37,9 @@ class User(db.Model, UserMixin):
     roles = relationship(
         "Role", secondary="bvp_roles_users", backref=backref("users", lazy="dynamic")
     )
+
+    def __repr__(self):
+        return "<User %s (ID:%d)" % (self.username, self.id)
 
 
 def remember_login(the_app, user):

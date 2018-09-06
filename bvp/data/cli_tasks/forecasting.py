@@ -3,13 +3,26 @@ from datetime import datetime, timedelta
 
 from flask import current_app as app
 import click
+from ts_forecasting_pipeline import ModelState, create_fitted_model, evaluate_models
 
 from bvp.data.models.assets import Asset
 from bvp.data.models.markets import Market
 from bvp.data.models.weather import WeatherSensor
 from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
 from bvp.utils.time_utils import as_bvp_time
-from ts_forecasting_pipeline import ModelState, create_fitted_model, evaluate_models
+from bvp.data.scripts.make_forecasts import run_forecasting_jobs
+
+
+@app.cli.command()
+@click.option(
+    "--max_forecasts",
+    type=int,
+    default=1000,
+    help="Maximal number of forecasts one job should be making.",
+)
+def work_on_forecasting_jobs(max_forecasts: int):
+    """Run forecasting jobs, generating forecasts for newly arrived data."""
+    run_forecasting_jobs(max_forecasts=max_forecasts)
 
 
 @app.cli.command()
@@ -75,8 +88,10 @@ def generic_model(
             generic_asset=generic_asset,
             start=start,
             end=end,
-            training_and_testing_period=training_and_testing_period,
             horizon=horizon,
+            custom_model_params=dict(
+                training_and_testing_period=training_and_testing_period
+            ),
         )
 
         # Create and train the model

@@ -85,8 +85,13 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     DEBUG = True  # this seems to be important for logging in, not sure why
-    LOGGING_LEVEL = logging.ERROR
+    LOGGING_LEVEL = logging.INFO
     WTF_CSRF_ENABLED = False  # also necessary for logging in during tests
 
     SECURITY_PASSWORD_SALT = "$2b$19$abcdefghijklmnopqrstuv"
     SQLALCHEMY_DATABASE_URI = "postgresql://a1test:a1test@127.0.0.1/a1test"
+
+    # These can speed up tests due to less hashing work (I saw ~165s -> ~100s)
+    # (via https://github.com/mattupstate/flask-security/issues/731#issuecomment-362186021)
+    SECURITY_HASHING_SCHEMES = ["hex_md5"]
+    SECURITY_DEPRECATED_HASHING_SCHEMES = []

@@ -16,9 +16,9 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 bvp_logging_config = {
     "version": 1,
     "formatters": {
-        "default": {"format": "[%(asctime)s] %(levelname)s: %(message)s"},
+        "default": {"format": "[BVP][%(asctime)s] %(levelname)s: %(message)s"},
         "detail": {
-            "format": "[%(asctime)s] %(levelname)s: %(message)s [log made in %(pathname)s:%(lineno)d]"
+            "format": "[BVP][%(asctime)s] %(levelname)s: %(message)s [log made in %(pathname)s:%(lineno)d]"
         },
     },
     "handlers": {
@@ -31,7 +31,7 @@ bvp_logging_config = {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "INFO",
             "formatter": "detail",
-            "filename": "bvp.log",
+            "filename": basedir + "/../../bvp.log",
         },
     },
     "root": {"level": "INFO", "handlers": ["console", "file"], "propagate": True},

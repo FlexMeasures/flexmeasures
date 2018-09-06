@@ -193,12 +193,18 @@ def freq_label_to_human_readable_label(freq_label: str) -> str:
     return f2h_map.get(freq_label, freq_label)
 
 
-def forecast_horizons_for(resolution: str) -> List[str]:
+def forecast_horizons_for(
+    resolution: str, as_timedeltas: bool = False
+) -> Union[List[str], List[timedelta]]:
     """Return a list of horizons that are supported per resolution."""
+    horizons = []
     if resolution in ("15T", "1h"):
-        return ["1h", "6h", "24h", "48h"]
+        horizons = ["1h", "6h", "24h", "48h"]
     elif resolution == "24h":
-        return ["24h", "48h"]
+        horizons = ["24h", "48h"]
     elif resolution == "168h":
-        return ["168h"]
-    return []
+        horizons = ["168h"]
+    if as_timedeltas:
+        return [pd.to_timedelta(pd.tseries.frequencies.to_offset(h)) for h in horizons]
+    else:
+        return horizons

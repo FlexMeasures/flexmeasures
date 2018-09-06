@@ -2,6 +2,8 @@ import json
 
 from flask import url_for
 import pytest
+from iso8601 import parse_date
+from datetime import timedelta
 
 from bvp.api.common.responses import (
     invalid_domain,
@@ -17,6 +19,9 @@ from bvp.api.v1.tests.utils import (
     message_for_post_meter_data,
 )
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
+from bvp.api.v1.tests.utils import count_connections_in_post_message
+from bvp.data.models.forecasting.jobs import ForecastingJob
+from bvp.data.models.assets import Asset
 
 
 @pytest.mark.parametrize("query", [{}, {"access": "Prosumer"}])
@@ -156,9 +161,10 @@ def test_invalid_sender_and_logout(client):
     "get_message",
     [message_for_get_meter_data(), message_for_get_meter_data(single_connection=False)],
 )
-def test_post_and_get_meter_data(client, post_message, get_message):
+def test_post_and_get_meter_data(db, client, post_message, get_message):
     """
     Tries to post meter data as a logged-in test user with the MDC role, which should succeed.
+    There should be some ForecastingJobs waiting now.
     Then tries to get meter data, which should succeed, and should return the same meter data as was posted.
     """
 
@@ -172,6 +178,26 @@ def test_post_and_get_meter_data(client, post_message, get_message):
     print("Server responded with:\n%s" % post_meter_data_response.json)
     assert post_meter_data_response.status_code == 200
     assert post_meter_data_response.json["type"] == "PostMeterDataResponse"
+
+    # look for Forecasting jobs
+    jobs = ForecastingJob.query.all()
+    expected_connections = count_connections_in_post_message(post_message)
+    assert (
+        len(jobs) == 4 * expected_connections
+    )  # four horizons times the number of assets
+    for job in jobs:
+        assert job.start == parse_date(post_message["start"])
+    for asset_name in ("CS 1", "CS 2", "CS 3"):
+        if asset_name in str(post_message):
+            asset = Asset.query.filter_by(name=asset_name).one_or_none()
+            assert asset.id in [job.asset_id for job in jobs]
+    for horizon in (
+        timedelta(hours=1),
+        timedelta(hours=6),
+        timedelta(hours=24),
+        timedelta(hours=48),
+    ):
+        assert horizon in [job.horizon for job in jobs]
 
     # get meter data
     get_meter_data_response = client.get(

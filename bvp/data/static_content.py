@@ -578,8 +578,10 @@ def populate_time_series_forecasts(
                 generic_asset=generic_asset,
                 start=start,
                 end=end,
-                training_and_testing_period=training_and_testing_period,
                 horizon=horizon,
+                custom_model_params=dict(
+                    training_and_testing_period=training_and_testing_period
+                ),
             )
             print(
                 "Computing forecasts of %s ahead for %s, "

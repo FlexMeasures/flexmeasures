@@ -20,6 +20,8 @@ from bvp.app import create as create_app
 from bvp.data.services.users import create_user, find_user_by_email
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.data_sources import DataSource
+from bvp.utils.time_utils import as_bvp_time
+
 
 """
 Useful things for all tests.
@@ -150,8 +152,8 @@ def setup_assets(db, setup_roles_users):
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
         for dt, val in zip(time_slots, values):
             p = Power(
-                datetime=dt,
-                horizon=parse_duration("-PT15M"),
+                datetime=as_bvp_time(dt),
+                horizon=parse_duration("PT0M"),
                 value=val,
                 data_source_id=data_source.id,
             )
