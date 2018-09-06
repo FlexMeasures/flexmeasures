@@ -54,8 +54,11 @@ def configure_specs(  # noqa: C901
     regressor_specs, regressor_transformation = get_regressors(
         generic_asset, generic_asset_type, query_window, horizon
     )
-    if custom_model_params.get("regressor_transformation", None) is not None:
-        regressor_transformation = custom_model_params.get("regressor_transformation")
+    if custom_model_params:
+        if custom_model_params.get("regressor_transformation", None) is not None:
+            regressor_transformation = custom_model_params.get(
+                "regressor_transformation"
+            )
 
     # Check if enough data is available for training window and lagged variables, otherwise suggest new forecast period
     # TODO: could this functionality become a feature of ts_forecasting_pipeline?

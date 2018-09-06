@@ -66,7 +66,7 @@ def get_jobs_to_run(max_forecasts: int) -> List[ForecastingJob]:
     reactivate_dead_jobs()
     jobs = (
         ForecastingJob.query.filter(ForecastingJob.in_progress_since.is_(None))
-        .order_by(ForecastingJob.start.desc())
+        .order_by(ForecastingJob.start.desc(), ForecastingJob.id.desc())
         .all()
     )
     # Calculate which jobs (sorted by id asc) can be done (number of forecasts fits into
