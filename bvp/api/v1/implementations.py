@@ -41,7 +41,7 @@ from bvp.api.common.utils.validators import (
 
 
 @type_accepted("GetMeterDataRequest")
-@units_accepted("MW")
+@units_accepted("power", "MW")
 @optional_resolutions_accepted("PT15M")
 @assets_required("connection")
 @optional_sources_accepted(preferred_source="MDC")
@@ -85,7 +85,7 @@ def get_meter_data_response(
 
 
 @type_accepted("PostMeterDataRequest")
-@units_accepted("MW")
+@units_accepted("power", "MW")
 @assets_required("connection")
 @values_required
 @optional_horizon_accepted(ex_post=True)

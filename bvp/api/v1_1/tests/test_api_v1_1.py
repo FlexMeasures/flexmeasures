@@ -7,13 +7,14 @@ from isodate import parse_duration, parse_datetime
 from iso8601 import parse_date
 import pandas as pd
 
-from bvp.api.common.responses import request_processed, invalid_horizon
+from bvp.api.common.responses import request_processed, invalid_horizon, invalid_unit
 from bvp.api.common.utils.validators import validate_entity_address
 from bvp.api.tests.utils import get_auth_token
 from bvp.api.common.utils.api_utils import message_replace_name_with_ea
 from bvp.api.v1_1.tests.utils import (
     message_for_get_prognosis,
     message_for_post_price_data,
+    message_for_post_weather_data,
 )
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
 from bvp.data.config import db
@@ -117,7 +118,7 @@ def test_get_prognosis(client, message):
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
 def test_post_price_data(client, post_message):
     """
-    Try to post price data as a logged-in test user with the Suppler role, which should succeed.
+    Try to post price data as a logged-in test user with the Supplier role, which should succeed.
     """
 
     # post meter data
@@ -163,3 +164,46 @@ def test_post_price_data(client, post_message):
         assert job.start == parse_date(post_message["start"]) + horizon
         assert job.timed_value_type == "Price"
         assert job.asset_id == market.id
+
+
+@pytest.mark.parametrize("post_message", [message_for_post_weather_data()])
+def test_post_weather_data(client, post_message):
+    """
+    Try to post wind speed data as a logged-in test user with the Supplier role, which should succeed.
+    """
+
+    # post meter data
+    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+    post_weather_data_response = client.post(
+        url_for("bvp_api_v1_1.post_weather_data"),
+        data=json.dumps(post_message),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % post_weather_data_response.json)
+    assert post_weather_data_response.status_code == 200
+    assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
+
+
+@pytest.mark.parametrize(
+    "post_message", [message_for_post_weather_data(invalid_unit=True)]
+)
+def test_post_weather_data_invalid_unit(client, post_message):
+    """
+    Try to post wind speed data as a logged-in test user with the Supplier role, but with a wrong unit for wind speed,
+    which should fail.
+    """
+
+    # post meter data
+    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+    post_weather_data_response = client.post(
+        url_for("bvp_api_v1_1.post_weather_data"),
+        data=json.dumps(post_message),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % post_weather_data_response.json)
+    assert post_weather_data_response.status_code == 400
+    assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
+    assert (
+        post_weather_data_response.json["message"]
+        == invalid_unit("wind speed", ["m/s"])[0]["message"]
+    )  # also checks that any underscore in the physical or economic quantity should be replaced with a space

@@ -24,7 +24,7 @@ def configure_specs(  # noqa: C901
     start: datetime,  # Start of forecast period
     end: datetime,  # End of forecast period
     horizon: timedelta,  # Duration between time of forecasting and time which is forecast
-    custom_model_params: dict = None,  # overwrite forecasing params, useful for testing or experimentation
+    custom_model_params: dict = None,  # overwrite forecasting params, useful for testing or experimentation
 ) -> Tuple[ModelSpecs, str]:
     """
     Generic OLS model for all asset types (also for markets and weather sensors) and horizons.

@@ -122,7 +122,10 @@ def test_invalid_or_no_unit(client, method, message):
         get_meter_data_response = []
     assert get_meter_data_response.status_code == 400
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
-    assert get_meter_data_response.json["status"] == invalid_unit("MW")[0]["status"]
+    assert (
+        get_meter_data_response.json["status"]
+        == invalid_unit("power", ["MW"])[0]["status"]
+    )
 
 
 def test_invalid_sender_and_logout(client):

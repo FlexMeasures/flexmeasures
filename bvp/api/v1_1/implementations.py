@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from bvp.api.common.responses import (
     already_received_and_successfully_processed,
     invalid_domain,
+    invalid_unit,
     request_processed,
     unrecognized_market,
     unrecognized_sensor,
@@ -25,6 +26,7 @@ from bvp.api.common.utils.validators import (
     period_required,
     values_required,
     validate_entity_address,
+    valid_sensor_units,
 )
 from bvp.api.v1.implementations import (
     collect_connection_and_value_groups,
@@ -54,7 +56,7 @@ def get_connection_response():
 
 
 @type_accepted("PostPriceDataRequest")
-@units_accepted("EUR/MWh")
+@units_accepted("price", "EUR/MWh")
 @assets_required("market")
 @optional_horizon_accepted()
 @values_required
@@ -139,8 +141,8 @@ def post_price_data_response(
             return already_received_and_successfully_processed()
 
 
-@type_accepted("PostWeatherDataRequest")
-@units_accepted("°C", "kW/m²", "kW/m2", "m/s")
+@type_accepted("PostWeatherDataRequest")  # noqa: C901
+@units_accepted("weather", "°C", "kW/m²", "kW/m2", "m/s")
 @assets_required("sensor")
 @optional_horizon_accepted()
 @values_required
@@ -169,9 +171,13 @@ def post_weather_data_response(
                 )
                 return invalid_domain()
             weather_sensor_type_name = ea["weather_sensor_type_name"]
-            # Todo: check whether the unit is valid for this sensor type (e.g. no m/s allowed for temperature data)
             latitude = ea["latitude"]
             longitude = ea["longitude"]
+
+            # Check whether the unit is valid for this sensor type (e.g. no m/s allowed for temperature data)
+            accepted_units = valid_sensor_units(weather_sensor_type_name)
+            if unit not in accepted_units:
+                return invalid_unit(weather_sensor_type_name, accepted_units)
 
             # Look for the WeatherSensor object
             weather_sensor = (
@@ -204,10 +210,13 @@ def post_weather_data_response(
                             latitude=latitude, longitude=longitude
                         ).asc()
                     ).first()
-                    return unrecognized_sensor(
-                        nearest_weather_sensor.latitude,
-                        nearest_weather_sensor.longitude,
-                    )
+                    if nearest_weather_sensor is not None:
+                        return unrecognized_sensor(
+                            nearest_weather_sensor.latitude,
+                            nearest_weather_sensor.longitude,
+                        )
+                    else:
+                        return unrecognized_sensor()
 
             # Create new Weather objects
             end = start
@@ -264,7 +273,7 @@ def post_weather_data_response(
 
 
 @type_accepted("GetPrognosisRequest")
-@units_accepted("MW")
+@units_accepted("power", "MW")
 @optional_resolutions_accepted("PT15M")
 @assets_required("connection")
 @optional_sources_accepted()
@@ -300,7 +309,7 @@ def get_prognosis_response(
 
 
 @type_accepted("PostPrognosisRequest")
-@units_accepted("MW")
+@units_accepted("power", "MW")
 @assets_required("connection")
 @values_required
 @optional_horizon_accepted(ex_post=False)

@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 import inflect
 
 from bvp.api.common.utils.api_utils import BaseMessage
@@ -107,12 +107,18 @@ def invalid_timezone(message: str) -> Tuple[dict, int]:
     return (dict(result="Rejected", status="INVALID_TIMEZONE", message=message), 400)
 
 
-def invalid_unit(*units) -> Tuple[dict, int]:
+def invalid_unit(
+    quantity: Optional[str], units: Union[List[str], Tuple[str]]
+) -> Tuple[dict, int]:
+    quantity_str = (
+        "for %s " % quantity.replace("_", " ") if quantity is not None else ""
+    )
     return (
         dict(
             result="Rejected",
             status="INVALID_UNIT",
-            message="Data should be given in %s." % p.join(*units, conj="or"),
+            message="Data %sshould be given in %s."
+            % (quantity_str, p.join(units, conj="or")),
         ),
         400,
     )
@@ -183,16 +189,18 @@ def unrecognized_market(requested_market) -> Tuple[dict, int]:
     )
 
 
-def unrecognized_sensor(lat, lng) -> Tuple[dict, int]:
-    return (
-        dict(
-            result="Rejected",
-            status="UNRECOGNIZED_SENSOR",
-            message="No sensor is known at this location. The nearest sensor is at latitude %s and longitude %s"
-            % (lat, lng),
-        ),
-        400,
-    )
+def unrecognized_sensor(
+    lat: Optional[float] = None, lng: Optional[float] = None
+) -> Tuple[dict, int]:
+    base_message = "No sensor is known at this location."
+    if lat is not None and lng is not None:
+        message = (
+            base_message
+            + " The nearest sensor is at latitude %s and longitude %s" % (lat, lng)
+        )
+    else:
+        message = base_message + " In fact, we can't find any sensors."
+    return (dict(result="Rejected", status="UNRECOGNIZED_SENSOR", message=message), 400)
 
 
 @BaseMessage("Request has been processed.")

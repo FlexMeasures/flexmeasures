@@ -145,3 +145,22 @@ def message_for_post_price_data() -> dict:
         "unit": "EUR/MWh",
     }
     return message
+
+
+def message_for_post_weather_data(invalid_unit: bool = False,) -> dict:
+    message = {
+        "type": "PostWeatherDataRequest",
+        "groups": [
+            {
+                "sensor": "ea1.2018-06.localhost:5000:wind_speed:33.4843866:126",
+                "values": [20.04, 20.23, 20.41, 20.51, 20.55, 20.57],
+            }
+        ],
+        "start": "2015-01-01T15:00:00+09:00",
+        "duration": "PT1H30M",
+        "horizon": "PT3H",
+        "unit": "m/s",
+    }
+    if invalid_unit:
+        message["unit"] = "°C"
+    return message

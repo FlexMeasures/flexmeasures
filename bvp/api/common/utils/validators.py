@@ -125,6 +125,22 @@ def validate_start(start: str) -> Union[datetime, None]:
         return None
 
 
+def valid_sensor_units(sensor: str) -> List[str]:
+    """
+    Returns the accepted units for this sensor.
+    """
+    if sensor == "temperature":
+        return ["°C"]
+    elif sensor == "radiation":
+        return ["kW/m²", "kW/m2"]
+    elif sensor == "wind_speed":
+        return ["m/s"]
+    else:
+        raise NotImplemented(
+            "Unknown sensor or physical unit, cannot determine valid units."
+        )
+
+
 def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
     """
     Validates whether the generic asset name is a valid type 1 USEF entity address.
@@ -554,17 +570,19 @@ def type_accepted(message_type: str):
     return wrapper
 
 
-def units_accepted(*units):
+def units_accepted(quantity: str, *units: str):
     """Decorator which specifies that a GET or POST request must specify one of the
-    specified physical units. Example:
+    specified physical units. First parameter specifies the physical or economical quantity.
+    Example:
 
         @app.route('/postMeterData')
-        @units_accepted('MW', 'MWh')
+        @units_accepted("power", 'MW', 'MWh')
         def post_meter_data(unit):
             return 'Meter data posted'
 
     The message must either specify 'MW' or 'MWh' as the unit.
 
+    :param quantity: The physical or economic quantity
     :param units: The possible units.
     """
 
@@ -580,10 +598,10 @@ def units_accepted(*units):
                 return invalid_method(request.method)
             elif "unit" not in form:
                 current_app.logger.warn("Request is missing unit.")
-                return invalid_unit(units)
+                return invalid_unit(quantity, units)
             elif form["unit"] not in units:
                 current_app.logger.warn("Unit is not accepted.")
-                return invalid_unit(units)
+                return invalid_unit(quantity, units)
             else:
                 kwargs["unit"] = form["unit"]
                 return fn(*args, **kwargs)
