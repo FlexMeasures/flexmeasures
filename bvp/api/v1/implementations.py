@@ -276,9 +276,17 @@ def create_connection_and_value_groups(  # noqa: C901
                 power_measurements.append(p)
                 end = dt
 
-            if end > start:
+            if end > start and horizon <= timedelta(
+                hours=0
+            ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
-                    make_forecasting_jobs("Power", asset_id, start, end)
+                    make_forecasting_jobs(
+                        "Power",
+                        asset_id,
+                        start,
+                        end,
+                        resolution=duration / len(value_group),
+                    )
                 )
 
     current_app.logger.info("SAVING TO DB...")

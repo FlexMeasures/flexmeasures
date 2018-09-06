@@ -9,7 +9,7 @@ from bvp.data.models.data_sources import DataSource
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.task_runs import LatestTaskRun
 from bvp.data.scripts.make_forecasts import run_forecasting_jobs, data_source_label
-from bvp.utils.time_utils import bvp_now
+from bvp.utils.time_utils import as_bvp_time, bvp_now
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -19,7 +19,7 @@ def remove_seasonality_for_power_forecasts(db):
     for a in asset_types:
         a.daily_seasonality = False
         a.weekly_seasonality = False
-        a.yearly_seasoanlity = False
+        a.yearly_seasonality = False
 
 
 def test_running_one_forecasting_job(db):
@@ -59,11 +59,16 @@ def test_running_one_forecasting_job(db):
 
     assert ForecastingJob.query.count() == initial_amount_of_jobs - 1
 
-    forecasts = Power.make_query(
-        asset_name="wind-asset-1",
-        query_window=(datetime(2015, 1, 1, 6), datetime(2015, 1, 1, 7)),
-        horizon_window=(timedelta(minutes=15), timedelta(minutes=15)),
-    ).all()
+    wind1: Asset = Asset.query.filter_by(name="wind-asset-1").one_or_none()
+    forecasts = (
+        Power.query.filter(Power.asset_id == wind1.id)
+        .filter(Power.horizon == timedelta(minutes=15))
+        .filter(
+            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 6)))
+            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 7)))
+        )
+        .all()
+    )
     assert len(forecasts) == 4
     assert all([not np.isnan(f.value) for f in forecasts])
 
@@ -101,34 +106,46 @@ def test_in_progress_handling(db):
     # ).one_or_none()
     assert len(left_jobs) == 2
     assert left_jobs[0].id == running_job.id
-
-    forecasts = Power.make_query(
-        asset_name="wind-asset-1",
-        query_window=(datetime(2015, 1, 1, 6), datetime(2015, 1, 1, 7)),
-        horizon_window=(timedelta(minutes=15), timedelta(minutes=15)),
-    ).all()
+    forecasts = (
+        Power.query.filter(Power.asset_id == wind1.id)
+        .filter(Power.horizon == timedelta(minutes=15))
+        .filter(
+            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 6)))
+            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 7)))
+        )
+        .all()
+    )
     assert len(forecasts) == 4
     assert all([not np.isnan(f.value) for f in forecasts])
 
-    forecasts = Power.make_query(
-        asset_name="wind-asset-2",
-        query_window=(datetime(2015, 1, 1, 14), datetime(2015, 1, 1, 17)),
-        horizon_window=(timedelta(minutes=15), timedelta(minutes=15)),
-    ).all()
+    forecasts = (
+        Power.query.filter(Power.asset_id == wind2.id)
+        .filter(Power.horizon == timedelta(minutes=15))
+        .filter(
+            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 14)))
+            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 17)))
+        )
+        .all()
+    )
     assert len(forecasts) == 0
 
-    forecasts = Power.make_query(
-        asset_name="solar-asset-1",
-        query_window=(datetime(2015, 1, 1, 20), datetime(2015, 1, 1, 22)),
-        horizon_window=(timedelta(minutes=15), timedelta(minutes=15)),
-    ).all()
+    solar1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
+    forecasts = (
+        Power.query.filter(Power.asset_id == solar1.id)
+        .filter(Power.horizon == timedelta(minutes=15))
+        .filter(
+            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 20)))
+            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 22)))
+        )
+        .all()
+    )
     assert len(forecasts) == 8
     assert all([not np.isnan(f.value) for f in forecasts])
 
 
 def test_failure(db):
     """When we include the last job with an invalid range, nothing should get done in the end.
-    This is not testeed here, though, as the session is still running. Needs improvement."""
+    This is not tested here, though, as the session is still running. Needs improvement."""
 
     # initial_num_jobs = ForecastingJob.query.count()
 

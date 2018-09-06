@@ -1,6 +1,6 @@
 import copy
 from typing import List, Union
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from json import loads as parse_json, JSONDecodeError
 
@@ -233,17 +233,26 @@ def save_to_database(objects: List[db.Model], overwrite: bool = False):
 
 
 def make_forecasting_jobs(
-    timed_value_type: str, asset_id: int, start: datetime, end: datetime
+    timed_value_type: str,
+    asset_id: int,
+    start: datetime,
+    end: datetime,
+    resolution: timedelta,
 ):
-    """Create forecasting jobs for all horizons"""
-    # TODO: resolution is fixed here
+    """Create forecasting jobs for all horizons.
+    Relevant horizons are deduced from the resolution of the posted data.
+    Start and end refer to the time interval of the newly posted data (both are inclusive).
+    Start and end of the actual ForecastingJob refer to the time interval of the forecast (left inclusive, right
+    exclusive), which depends on the forecast horizon. Because the end of the interval is exclusive, we need to subtract
+    the resolution. # Todo: redefine ForecastingJob (and forecasting models) to use inclusive end
+    """
     jobs = []
-    for horizon in forecast_horizons_for("15T", as_timedeltas=True):
+    for horizon in forecast_horizons_for(resolution):
         job = ForecastingJob(
             timed_value_type=timed_value_type,
             asset_id=asset_id,
-            start=start,
-            end=end,
+            start=start + horizon,
+            end=end + horizon - resolution,
             horizon=horizon,
         )
         jobs.append(job)

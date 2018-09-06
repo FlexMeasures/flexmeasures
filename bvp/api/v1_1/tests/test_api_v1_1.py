@@ -149,17 +149,17 @@ def test_post_price_data(client, post_message):
     assert df.value.tolist() == values
 
     # look for Forecasting jobs
-    jobs = ForecastingJob.query.all()
+    jobs = ForecastingJob.query.order_by(ForecastingJob.horizon.asc()).all()
     assert len(jobs) == 4  # only one market is affected, but four horizons
     market = Market.query.filter_by(name=market_name).one_or_none()
-    for job in jobs:
-        assert job.start == parse_date(post_message["start"])
-        assert job.timed_value_type == "Price"
-        assert job.asset_id == market.id
-    for horizon in (
+    horizons = [
         timedelta(hours=1),
         timedelta(hours=6),
         timedelta(hours=24),
         timedelta(hours=48),
-    ):
-        assert horizon in [job.horizon for job in jobs]
+    ]
+    for job, horizon in zip(jobs, horizons):
+        assert job.horizon == horizon
+        assert job.start == parse_date(post_message["start"]) + horizon
+        assert job.timed_value_type == "Price"
+        assert job.asset_id == market.id

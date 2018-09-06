@@ -1,9 +1,11 @@
 import json
+from datetime import timedelta
 
 from flask import url_for
 import pytest
 from iso8601 import parse_date
-from datetime import timedelta
+from numpy import repeat
+
 
 from bvp.api.common.responses import (
     invalid_domain,
@@ -180,24 +182,27 @@ def test_post_and_get_meter_data(db, client, post_message, get_message):
     assert post_meter_data_response.json["type"] == "PostMeterDataResponse"
 
     # look for Forecasting jobs
-    jobs = ForecastingJob.query.all()
+    jobs = ForecastingJob.query.order_by(ForecastingJob.horizon.asc()).all()
     expected_connections = count_connections_in_post_message(post_message)
     assert (
         len(jobs) == 4 * expected_connections
     )  # four horizons times the number of assets
-    for job in jobs:
-        assert job.start == parse_date(post_message["start"])
+    horizons = repeat(
+        [
+            timedelta(hours=1),
+            timedelta(hours=6),
+            timedelta(hours=24),
+            timedelta(hours=48),
+        ],
+        expected_connections,
+    )
+    for job, horizon in zip(jobs, horizons):
+        assert job.horizon == horizon
+        assert job.start == parse_date(post_message["start"]) + horizon
     for asset_name in ("CS 1", "CS 2", "CS 3"):
         if asset_name in str(post_message):
             asset = Asset.query.filter_by(name=asset_name).one_or_none()
             assert asset.id in [job.asset_id for job in jobs]
-    for horizon in (
-        timedelta(hours=1),
-        timedelta(hours=6),
-        timedelta(hours=24),
-        timedelta(hours=48),
-    ):
-        assert horizon in [job.horizon for job in jobs]
 
     # get meter data
     get_meter_data_response = client.get(

@@ -105,9 +105,17 @@ def post_price_data_response(
                 prices.append(p)
                 end = dt
 
-            if end > start:
+            if end > start and horizon <= timedelta(
+                hours=35
+            ):  # Todo: replace 35 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
-                    make_forecasting_jobs("Price", market.id, start, end)
+                    make_forecasting_jobs(
+                        "Price",
+                        market.id,
+                        start,
+                        end,
+                        resolution=duration / len(value_group),
+                    )
                 )
 
     # Put these into the database
@@ -132,7 +140,7 @@ def post_price_data_response(
 
 
 @type_accepted("PostWeatherDataRequest")
-@units_accepted("°C")
+@units_accepted("°C", "kW/m²", "kW/m2", "m/s")
 @assets_required("sensor")
 @optional_horizon_accepted()
 @values_required
@@ -161,6 +169,7 @@ def post_weather_data_response(
                 )
                 return invalid_domain()
             weather_sensor_type_name = ea["weather_sensor_type_name"]
+            # Todo: check whether the unit is valid for this sensor type (e.g. no m/s allowed for temperature data)
             latitude = ea["latitude"]
             longitude = ea["longitude"]
 
@@ -220,9 +229,17 @@ def post_weather_data_response(
                 weather_measurements.append(w)
                 end = dt
 
-            if end > start:
+            if end > start and horizon <= timedelta(
+                hours=0
+            ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
-                    make_forecasting_jobs("Weather", weather_sensor.id, start, end)
+                    make_forecasting_jobs(
+                        "Weather",
+                        weather_sensor.id,
+                        start,
+                        end,
+                        resolution=duration / len(value_group),
+                    )
                 )
 
     # Put these into the database
