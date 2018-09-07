@@ -241,10 +241,9 @@ def make_forecasting_jobs(
 ):
     """Create forecasting jobs for all horizons.
     Relevant horizons are deduced from the resolution of the posted data.
-    Start and end refer to the time interval of the newly posted data (both are inclusive).
-    Start and end of the actual ForecastingJob refer to the time interval of the forecast (left inclusive, right
-    exclusive), which depends on the forecast horizon. Because the end of the interval is exclusive, we need to subtract
-    the resolution. # Todo: redefine ForecastingJob (and forecasting models) to use inclusive end
+    Start and end refer to the time interval of the newly posted data.
+    Start and end of the actual ForecastingJob refer to the time interval of the forecast, which depends on the forecast
+    horizon.
     """
     jobs = []
     for horizon in forecast_horizons_for(resolution):
@@ -252,7 +251,7 @@ def make_forecasting_jobs(
             timed_value_type=timed_value_type,
             asset_id=asset_id,
             start=start + horizon,
-            end=end + horizon - resolution,
+            end=end + horizon,
             horizon=horizon,
         )
         jobs.append(job)

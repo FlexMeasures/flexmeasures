@@ -70,14 +70,16 @@ def configure_specs(  # noqa: C901
     if query_window[0] < oldest_value.datetime:
         suggested_start = start + (oldest_value.datetime - query_window[0])
         raise Exception(
-            "Not enough data to forecast %s for this forecast window: set start date to %s ?"
-            % (generic_asset.name, suggested_start)
+            "Not enough data to forecast %s for this forecast window %s to %s: set start date to %s ?"
+            % (generic_asset.name, query_window[0], query_window[1], suggested_start)
         )
-    if query_window[1] > newest_value.datetime:
-        suggested_end = end + (newest_value.datetime - query_window[1])
+    if query_window[1] - horizon > newest_value.datetime + timedelta(
+        minutes=15
+    ):  # Todo: resolution should come from generic asset
+        suggested_end = end + (newest_value.datetime - (query_window[1] - horizon))
         raise Exception(
-            "Not enough data to forecast %s for this forecast window: set end date to %s ?"
-            % (generic_asset.name, suggested_end)
+            "Not enough data to forecast %s for the forecast window %s to %s: set end date to %s ?"
+            % (generic_asset.name, query_window[0], query_window[1], suggested_end)
         )
 
     outcome_var_spec = DBSeriesSpecs(

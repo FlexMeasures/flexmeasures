@@ -22,7 +22,7 @@ class ForecastingJob(db.Model):
 
     def num_forecasts(self, resolution: timedelta) -> int:
         """Compute how many forecasts this job needs to make, given a resolution"""
-        return (self.end - self.start) // resolution
+        return ((self.end - resolution) - self.start) // resolution
 
     def get_asset(self) -> Union[Asset, Market, WeatherSensor]:
         """Get asset for this job. Maybe simpler once we redesign timed value classes (make a generic one)"""
@@ -43,13 +43,10 @@ class ForecastingJob(db.Model):
         return asset
 
     def __repr__(self):
-        horizon_str = "Predicting forward %s." % naturaldelta(self.horizon)
+        horizon_str = "%s ahead" % naturaldelta(self.horizon)
         if self.horizon < timedelta(minutes=0):
-            horizon_str = "Predicting backwards %s." % naturaldelta(-self.horizon)
-        return "<ForecastingJob for %s:%d from %s to %s. %s>" % (
-            self.timed_value_type,
-            self.asset_id,
-            self.start,
-            self.end,
-            horizon_str,
+            horizon_str = "%s ago (backwards forecasting)" % naturaldelta(-self.horizon)
+        return (
+            "<ForecastingJob for forecasts of %s for %s:%d for the period %s to %s.>"
+            % (horizon_str, self.timed_value_type, self.asset_id, self.start, self.end)
         )
