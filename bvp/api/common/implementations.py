@@ -17,34 +17,38 @@ def ping():
 def get_task_run():
     """
     Get latest task runs.
-    This endpoint returns output conforming to the task monitoring tool (TODO: actual name)
+    This endpoint returns output conforming to the task monitoring tool (bobbydams/py-pinger)
     """
     task_name: str = request.args.get("name")
-    frequency = current_app.config.get("MONITOR_FREQUENCY_%s" % task_name.upper(), 10)
+
+    def make_response(status: str, reason: str, last_run: datetime) -> dict:
+        return dict(
+            status=status,
+            reason=reason,
+            lastrun=last_run,
+            frequency=current_app.config.get(
+                "MONITOR_FREQUENCY_%s" % task_name.upper(), 10
+            ),
+            process="BVP",
+            server=current_app.config.get("BVP_MODE", ""),
+        )
+
     if task_name is None or task_name == "":
+        return make_response("ERROR", "No task name given.", datetime(1970, 1, 1)), 400
+
+    last_known_run = LatestTaskRun.query.filter(LatestTaskRun.name == task_name).first()
+    if not last_known_run:
         return (
-            {
-                "status": "ERROR",
-                "reason": "No task name given.",
-                "lastrun": datetime(1970, 1, 1),
-                "frequency": frequency,
-            },
+            make_response(
+                "ERROR",
+                "Task %s has no last run time." % task_name,
+                datetime(1970, 1, 1),
+            ),
             400,
         )
 
-    last_run = LatestTaskRun.query.filter(LatestTaskRun.name == task_name).first()
-    if not last_run:
-        return (
-            {
-                "status": "ERROR",
-                "reason": "Task %s has no last run time." % task_name,
-                "lastrun": datetime(1970, 1, 1),
-                "frequency": frequency,
-            },
-            400,
-        )
-    status = "OK" if last_run.status else "ERROR"
-    return dict(lastrun=last_run.datetime, status=status, frequency=frequency)
+    last_status = "OK" if last_known_run.status else "ERROR"
+    return make_response(last_status, "", last_known_run.datetime), 200
 
 
 @as_json

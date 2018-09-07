@@ -47,6 +47,7 @@ class Config(object):
 
     JSONIFY_PRETTYPRINT_REGULAR = False
 
+    BVP_MODE = ""
     BVP_TIMEZONE = "Asia/Seoul"
     BVP_DB_BACKUP_PATH = "migrations/dumps"
 
@@ -81,6 +82,7 @@ class DevelopmentConfig(Config):
     PROPAGATE_EXCEPTIONS = True
     JSONIFY_PRETTYPRINT_REGULAR = True
     SERVER_NAME = "localhost:5000"
+    BVP_MODE = "development"
 
 
 class TestingConfig(Config):
@@ -95,3 +97,4 @@ class TestingConfig(Config):
     # (via https://github.com/mattupstate/flask-security/issues/731#issuecomment-362186021)
     SECURITY_HASHING_SCHEMES = ["hex_md5"]
     SECURITY_DEPRECATED_HASHING_SCHEMES = []
+    BVP_MODE = "test"

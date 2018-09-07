@@ -48,6 +48,8 @@ def test_api_task_run_get_recent_entry(client):
     task_run = get_task_run(client, "task-B")
     assert task_run.status_code == 200
     assert task_run.json["frequency"] == 10
+    assert task_run.json["process"] == "BVP"
+    assert task_run.json["server"] == "test"
     task_time = isodate.parse_datetime(task_run.json.get("lastrun"))
     utcnow = datetime.utcnow().replace(tzinfo=pytz.utc)
     assert task_time <= utcnow
