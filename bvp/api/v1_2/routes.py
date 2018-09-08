@@ -38,6 +38,50 @@ v1_2_service_listing["services"].append(
 @auth_token_required
 @usef_roles_accepted(*check_access(v1_2_service_listing, "getDeviceMessage"))
 def get_device_message():
+    """API endpoint to get device message.
+
+    .. :quickref: User; Download control signal from the platform
+
+    **Example request**
+
+    This "GetDeviceMessageRequest" message requests targeted consumption for UDI event 203 of device 10 of owner 7.
+
+    .. code-block:: json
+
+        {
+            "type": "GetDeviceMessageRequest",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203"
+        }
+
+    **Example response**
+
+    This "GetDeviceMessageResponse" message indicates that the target for UDI event 203 is to consume at various power
+    rates from 10am UTC onwards for a duration of 45 minutes.
+
+    .. sourcecode:: json
+
+        {
+            "type": "GetDeviceMessageResponse",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203",
+            "values": [
+                2.15,
+                3,
+                2
+            ],
+            "start": "2015-06-02T10:00:00+00:00",
+            "duration": "PT45M",
+            "unit": "MW"
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, UNRECOGNIZED_CONNECTION_GROUP, or UNRECOGNIZED_UDI_EVENT
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 405: INVALID_METHOD
+    """
     return v1_2_implementations.get_device_message_response()
 
 
@@ -46,6 +90,47 @@ def get_device_message():
 @auth_token_required
 @usef_roles_accepted(*check_access(v1_2_service_listing, "postUdiEvent"))
 def post_udi_event():
+    """API endpoint to post UDI event.
+
+    .. :quickref: User; Upload flexibility constraints to the platform
+
+    **Example request**
+
+    This "PostUdiEventRequest" message posts a state of charge of 12.1 kWh at 10.00am as UDI event 203 of device 10 of
+    owner 7.
+
+    .. code-block:: json
+
+        {
+            "type": "PostUdiEventRequest",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203",
+            "type": "soc",
+            "value": 12.1,
+            "datetime": "2015-06-02T10:00:00+00:00",
+            "unit": "kWh"
+        }
+
+    **Example response**
+
+    This "PostUdiEventResponse" message indicates that the UDI event has been processed without any error.
+
+    .. sourcecode:: json
+
+        {
+            "type": "PostUdiEventResponse",
+            "status": "PROCESSED",
+            "message": "Request has been processed."
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, UNRECOGNIZED_CONNECTION_GROUP, or INVALID_UDI_EVENT
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 405: INVALID_METHOD
+    """
     return v1_2_implementations.post_udi_event_response()
 
 

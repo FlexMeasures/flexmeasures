@@ -15,7 +15,7 @@ Please read the :ref:`introduction` for explanations of the message fields, spec
 Setting up
 ----------
 
-The researcher requires an admin account to set up a new simulation with a number of assets.
+Researchers require an admin account to set up a new simulation with a number of assets.
 
 Creating assets and owners
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -27,9 +27,9 @@ New assets can be created through the UI on:
     https://play.a1-bvp.com/assets/new
 
 
-We recommend that the researcher chooses its own admin account as the asset's owner.
+We recommend that researchers choose their own admin account as the asset's owner.
 This way, the simulation will require only a single access token.
-Alternatively, the researcher can set up unique accounts for each agent in a multi-agent simulation by creating new owners.
+Alternatively, researchers can set up unique accounts for each agent in a multi-agent simulation by creating new owners.
 
 Authentication
 ^^^^^^^^^^^^^^
@@ -69,7 +69,7 @@ A single average power value for a 15-minute time interval for a single connecti
     {
         "type": "PostMeterDataRequest",
         "connection": "ea1.2018-06.com.a1-bvp.play:1:1",
-        "value": "220",
+        "value": 220,
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT0H15M",
         "horizon": "-PT5M",
@@ -87,9 +87,9 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
         "type": "PostMeterDataRequest",
         "connection": "ea1.2018-06.com.a1-bvp.play:1:1",
         "values": [
-            "220",
-            "210",
-            "200"
+            220,
+            210,
+            200
         ],
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT0H45M",
@@ -180,6 +180,9 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
 Getting prognoses
 -----------------
 
+Prognoses are power forecasts that are used by the BVP server to determine the best control signals to valorise on
+balancing opportunities. Researchers can check the accuracy of these forecasts by downloading the prognoses and
+comparing them against the meter data, i.e. the realised power measurements.
 A prognosis can be requested for a single asset at the following GET endpoint:
 
 .. code-block:: html
@@ -200,6 +203,73 @@ This example requests a prognosis with a rolling horizon of 6 hours before reali
         "unit": "MW"
     }
 
+Posting flexibility constraints
+-------------------------------
+
+Prosumers that have Active Demand & Supply can post the constraints of their flexible devices to the BVP at the
+following POST endpoint:
+
+.. code-block:: html
+
+    https://play.a1-bvp.com/api/<version>/postUdiEvent
+
+This example posts a state of charge value for a battery device (asset 10 of owner 7) as UDI event 203.
+
+.. code-block:: json
+
+        {
+            "type": "PostUdiEventRequest",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203",
+            "type": "soc",
+            "value": 12.1,
+            "datetime": "2015-06-02T10:00:00+00:00",
+            "unit": "kWh"
+        }
+
+Getting control signals
+-----------------------
+
+A Prosumer can query the BVP for control signals for its flexible devices using the following GET endpoint:
+
+
+.. code-block:: html
+
+    https://play.a1-bvp.com/api/<version>/getDeviceMessage
+
+This example requests a control signal for UDI event 203 posted previously.
+
+.. code-block:: json
+
+        {
+            "type": "GetDeviceMessageRequest",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203"
+        }
+
+The following example response indicates that the BVP planned ahead 45 minutes.
+The list of consecutive power values represents the target consumption of the battery (negative values for production).
+Each value represents the average power over a 15 minute time interval.
+
+.. sourcecode:: json
+
+        {
+            "type": "GetDeviceMessageResponse",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203",
+            "values": [
+                2.15,
+                3,
+                2
+            ],
+            "start": "2015-06-02T10:00:00+00:00",
+            "duration": "PT45M",
+            "unit": "MW"
+        }
+
+One way of reaching the target consumption in this example is to let the battery start to consume with 2.15 MW at 10am,
+increase its consumption to 3 MW at 10.15am and decrease its consumption to 2 MW at 10.30am.
+However, because the targets values represent averages over 15-minute time intervals, the battery still has some degrees of freedom.
+For example, the battery might start to consume with 2.1 MW at 10.00am and increase its consumption to 2.25 at 10.10am,
+increase its consumption to 5 MW at 10.15am and decrease its consumption to 2 MW at 10.20am.
+That should result in the same average values for each quarter-hour.
 
 Resetting the server
 --------------------

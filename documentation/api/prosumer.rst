@@ -11,8 +11,8 @@ A Prosumer can access the following services:
 - *postPrognosis* :ref:`(example) <post_prognosis_prosumer>`
 - *getMeterData* :ref:`(example) <get_meter_data_prosumer>`
 - *getPrognosis* :ref:`(example) <get_prognosis_prosumer>`
-- *postUdiEvent*
-- *getDeviceMessage*
+- *postUdiEvent* :ref:`(example) <post_udi_event_prosumer>`
+- *getDeviceMessage* :ref:`(example) <get_device_message_prosumer>`
 
 .. _post_meter_data_prosumer:
 
@@ -49,3 +49,23 @@ A Prosumer can query the BVP web service for prognoses of its own meter data usi
 
 .. autoflask:: bvp.app:create()
     :endpoints: bvp_api_v1_1.get_prognosis
+
+.. _post_udi_event_prosumer:
+
+Post UDI event
+--------------
+
+A Prosumer can post its flexibility constraints to the BVP web service as UDI events using the *postUdiEvent* service.
+
+.. autoflask:: bvp.app:create()
+    :endpoints: bvp_api_v1_2.post_udi_event
+
+.. _get_device_message_prosumer:
+
+Get device message
+------------------
+
+A Prosumer can query the BVP web service for control signals using the *getDeviceMessage* service.
+
+.. autoflask:: bvp.app:create()
+    :endpoints: bvp_api_v1_2.get_device_message

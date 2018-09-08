@@ -3,6 +3,21 @@
 Change log
 ==========
 
+v1.2-0
+""""""
+
+- Added a description of the *postUdiEvent* endpoint in the Prosumer and Simulation sections
+- Added a description of the *getDeviceMessage* endpoint in the Prosumer and Simulation sections
+
+v1.1-3
+""""""
+
+- Added the Simulation section
+
+    - Added information about setting up a new simulation
+    - Added examples for calling the *postMeterData* endpoint
+    - Added example for calling the *getPrognosis* endpoint
+
 v1.1-2
 """"""
 
