@@ -80,7 +80,6 @@ def get_versions() -> dict:
 def register_at(app: Flask):
     """This can be used to register this blueprint together with other api-related things"""
     global ma
-    # ma = Marshmallow(app)
     ma.init_app(app)
 
     app.register_blueprint(
@@ -98,11 +97,12 @@ def register_at(app: Flask):
 
         play_register_at(app)
 
-    # Load the following versions of the API
-    from bvp.api.v1 import register_at as v1_register_at
-    from bvp.api.v1_1 import register_at as v1_1_register_at
-    from bvp.api.v1_2 import register_at as v1_2_register_at
+    # Load all versions of the API functionality, if we're not on the demo node
+    if app.config.get("BVP_MODE", "") != "demo":
+        from bvp.api.v1 import register_at as v1_register_at
+        from bvp.api.v1_1 import register_at as v1_1_register_at
+        from bvp.api.v1_2 import register_at as v1_2_register_at
 
-    v1_register_at(app)
-    v1_1_register_at(app)
-    v1_2_register_at(app)
+        v1_register_at(app)
+        v1_1_register_at(app)
+        v1_2_register_at(app)
