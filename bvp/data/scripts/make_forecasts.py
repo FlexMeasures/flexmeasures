@@ -31,6 +31,7 @@ def run_forecasting_jobs(max_forecasts: int, custom_model_params: dict = None):
     jobs_to_run = get_jobs_to_run(max_forecasts)
 
     if not jobs_to_run:
+        print("There seem to be no forecasting jobs I could run. Exiting ...")
         return
 
     # Mark these jobs with in_progress_since=now and flush already, so that no other runner will take them
