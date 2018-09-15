@@ -27,7 +27,7 @@ setup(
         "validate_email",
         "py3DNS",
         "forecastiopy",
-        "ts-forecasting-pipeline>=0.3.1",
+        "ts-forecasting-pipeline>=0.3.2",
         "python-dotenv",
         "Flask-SSLify",
         "Flask_JSON",

@@ -88,7 +88,6 @@ def post_price_data_response(
                 return unrecognized_market(market_name)
 
             # Create new Price objects
-            end = start
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -105,9 +104,8 @@ def post_price_data_response(
                     data_source_id=data_source.id,
                 )
                 prices.append(p)
-                end = dt
 
-            if end > start and horizon <= timedelta(
+            if horizon <= timedelta(
                 hours=35
             ):  # Todo: replace 35 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
@@ -115,7 +113,7 @@ def post_price_data_response(
                         "Price",
                         market.id,
                         start,
-                        end,
+                        start + duration,
                         resolution=duration / len(value_group),
                     )
                 )
@@ -219,7 +217,6 @@ def post_weather_data_response(
                         return unrecognized_sensor()
 
             # Create new Weather objects
-            end = start
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -236,9 +233,8 @@ def post_weather_data_response(
                     data_source_id=data_source.id,
                 )
                 weather_measurements.append(w)
-                end = dt
 
-            if end > start and horizon <= timedelta(
+            if horizon <= timedelta(
                 hours=0
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
@@ -246,7 +242,7 @@ def post_weather_data_response(
                         "Weather",
                         weather_sensor.id,
                         start,
-                        end,
+                        start + duration,
                         resolution=duration / len(value_group),
                     )
                 )

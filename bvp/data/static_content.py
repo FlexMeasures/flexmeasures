@@ -26,7 +26,7 @@ from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role, RolesUsers
 from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
 from bvp.data.services.users import create_user
-from bvp.utils.time_utils import as_bvp_time
+from bvp.utils.time_utils import ensure_korea_local
 
 BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 
@@ -42,13 +42,6 @@ def get_pickle_path() -> str:
     if len(os.listdir(pickle_path)) == 0:
         raise Exception("No pickles in %s" % pickle_path)
     return pickle_path
-
-
-def ensure_korea_local(dt: pd.Timestamp) -> pd.Timestamp:
-    if dt.tzinfo is not None:
-        return dt.tz_convert("Asia/Seoul")
-    else:
-        return dt.tz_localize("Asia/Seoul")
 
 
 def add_markets(db: SQLAlchemy) -> List[Market]:
@@ -515,11 +508,10 @@ def populate_time_series_forecasts(
     generic_asset_type: str = None,
     generic_asset_name: str = None,
     from_date: str = "2015-02-08",
-    to_date: str = "2016-01-01",
+    to_date: str = "2015-12-31",
 ):
-
-    start = as_bvp_time(datetime.strptime(from_date, "%Y-%m-%d"))
-    end = as_bvp_time(datetime.strptime(to_date, "%Y-%m-%d"))
+    start = ensure_korea_local(datetime.strptime(from_date, "%Y-%m-%d"))
+    end = ensure_korea_local(datetime.strptime(to_date, "%Y-%m-%d") + timedelta(days=1))
     training_and_testing_period = timedelta(days=30)
     horizons = (
         timedelta(hours=1),

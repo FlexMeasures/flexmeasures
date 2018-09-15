@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from flask import current_app as app
 import click
 from ts_forecasting_pipeline import ModelState, create_fitted_model, evaluate_models
+from isodate import parse_duration
 
 from bvp.data.models.assets import Asset
 from bvp.data.models.markets import Market
@@ -18,11 +19,19 @@ from bvp.data.scripts.make_forecasts import run_forecasting_jobs
     "--max_forecasts",
     type=int,
     default=1000,
-    help="Maximal number of forecasts one job should be making.",
+    help="Maximum number of forecasts one job should be making.",
 )
-def work_on_forecasting_jobs(max_forecasts: int):
+@click.option(
+    "--horizon",
+    type=str,
+    default=None,
+    help="Only process jobs with the specified forecast horizon (isostring). For example: PT6H",
+)
+def work_on_forecasting_jobs(max_forecasts: int, horizon: Optional[str] = None):
     """Run forecasting jobs, generating forecasts for newly arrived data."""
-    run_forecasting_jobs(max_forecasts=max_forecasts)
+    if horizon is not None:
+        horizon = parse_duration(horizon)
+    run_forecasting_jobs(max_forecasts=max_forecasts, horizon=horizon)
 
 
 @app.cli.command()

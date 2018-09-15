@@ -256,7 +256,6 @@ def create_connection_and_value_groups(  # noqa: C901
                 return power_value_too_big(extra_info)
 
             # Create new Power objects
-            end = start
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -274,9 +273,8 @@ def create_connection_and_value_groups(  # noqa: C901
                     data_source_id=data_source.id,
                 )
                 power_measurements.append(p)
-                end = dt
 
-            if end > start and horizon <= timedelta(
+            if horizon <= timedelta(
                 hours=0
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
@@ -284,7 +282,7 @@ def create_connection_and_value_groups(  # noqa: C901
                         "Power",
                         asset_id,
                         start,
-                        end,
+                        start + duration,
                         resolution=duration / len(value_group),
                     )
                 )

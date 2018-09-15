@@ -10,11 +10,29 @@ from pandas.tseries.frequencies import to_offset
 import iso8601
 import pytz
 import tzlocal
+from dateutil import tz
 
 
 def bvp_now() -> datetime:
     """The current time of the bvp platform. UTC time, localized to the bvp timezone."""
     return as_bvp_time(datetime.utcnow())
+
+
+def ensure_korea_local(
+    dt: Union[pd.Timestamp, datetime]
+) -> Union[pd.Timestamp, datetime]:
+    """If no timezone is given, assume the datetime is in Korean local time and make it explicit.
+    Otherwise, if a timezone is given, convert to Korean time."""
+    tz_name = "Asia/Seoul"
+    if isinstance(dt, datetime):
+        if dt.tzinfo is not None:
+            return dt.astimezone(tz.gettz(tz_name))
+        else:
+            return dt.replace(tzinfo=tz.gettz(tz_name))
+    if dt.tzinfo is not None:
+        return dt.tz_convert(tz_name)
+    else:
+        return dt.tz_localize(tz_name)
 
 
 def as_bvp_time(dt: datetime) -> datetime:

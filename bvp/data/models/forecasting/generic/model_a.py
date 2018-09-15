@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from flask import current_app
 from ts_forecasting_pipeline import DBSeriesSpecs, ModelSpecs
 from ts_forecasting_pipeline.speccing import BoxCoxTransformation, Transformation
-from ts_forecasting_pipeline.utils import to_15_min_lags
+from ts_forecasting_pipeline.utils.time_utils import to_15_min_lags
 
 from bvp.data.models.assets import AssetType, Asset
 from bvp.data.models.markets import MarketType, Market
@@ -16,7 +16,7 @@ from bvp.data.models.utils import (
 from bvp.data.config import db
 
 # update this version if small things like parametrisation change
-version = 1
+version = 2
 
 
 def configure_specs(  # noqa: C901
@@ -136,16 +136,16 @@ def get_transformation_by_asset_type(
     generic_asset_type: Union[AssetType, MarketType, WeatherSensorType]
 ) -> Optional[Transformation]:
     if isinstance(generic_asset_type, AssetType):
-        return BoxCoxTransformation(lambda2=0.1)
+        return BoxCoxTransformation()
     elif isinstance(generic_asset_type, MarketType):
         return None
     elif isinstance(generic_asset_type, WeatherSensorType):
         if generic_asset_type.name in ["wind_speed", "radiation"]:
             # Values cannot be negative and are often zero
-            return BoxCoxTransformation(lambda2=0.1)
+            return BoxCoxTransformation()
         elif generic_asset_type.name == "temperature":
             # Values can be positive or negative when given in degrees Celsius, but non-negative only in Kelvin
-            return BoxCoxTransformation(lambda2=273.16 + 0.1)
+            return BoxCoxTransformation(lambda2=273.16)
         else:
             return None
     else:

@@ -102,7 +102,7 @@ def analytics_view():
         weather_forecast_data,
         shared_x_range,
         weather_type,
-        session_asset_types,  # Todo: plot weather forecast data, too
+        session_asset_types,
     )
     rev_cost_fig = make_revenues_costs_figure(
         rev_cost_data,

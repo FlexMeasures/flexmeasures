@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Optional
 from datetime import datetime, timedelta
 
 from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
@@ -23,12 +23,16 @@ data_source_label = "forecasted by Seita (%s)" % latest_generic_model_version()
 
 
 @task_with_status_report
-def run_forecasting_jobs(max_forecasts: int, custom_model_params: dict = None):
+def run_forecasting_jobs(
+    max_forecasts: int,
+    horizon: Optional[timedelta] = None,
+    custom_model_params: dict = None,
+):
     """
     Find forecasting jobs in the database and work on them.
     Only select as many jobs as limited by the number of forecasts.
     """
-    jobs_to_run = get_jobs_to_run(max_forecasts)
+    jobs_to_run = get_jobs_to_run(max_forecasts, horizon)
 
     if not jobs_to_run:
         print("There seem to be no forecasting jobs I could run. Exiting ...")
@@ -58,13 +62,15 @@ def reactivate_dead_jobs():
             db.session.add(job)
 
 
-def get_jobs_to_run(max_forecasts: int) -> List[ForecastingJob]:
+def get_jobs_to_run(
+    max_forecasts: int, horizon: Optional[timedelta] = None
+) -> List[ForecastingJob]:
     reactivate_dead_jobs()
-    jobs = (
-        ForecastingJob.query.filter(ForecastingJob.in_progress_since.is_(None))
-        .order_by(ForecastingJob.start.desc(), ForecastingJob.id.desc())
-        .all()
-    )
+    q = ForecastingJob.query.filter(ForecastingJob.in_progress_since.is_(None))
+    if horizon is not None:
+        q = q.filter(ForecastingJob.horizon == horizon)
+    jobs = q.order_by(ForecastingJob.start.desc(), ForecastingJob.id.desc()).all()
+
     # Calculate which jobs (sorted by id asc) can be done (number of forecasts fits into
     # max_forecasts_per_run parameter)
     jobs_to_run = []

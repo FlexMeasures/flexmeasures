@@ -145,8 +145,8 @@ def get_weather_data(
             horizon_window=(horizon, None),
             rolling=True,
             create_if_empty=True,
+            as_beliefs=True,
         )
-
     return weather_data, weather_forecast_data, sensor_type
 
 

@@ -44,12 +44,12 @@ BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 @click.option(
     "--from_date",
     default="2015-02-08",
-    help="Forecast from date. Follow up with a date in the form yyyy-mm-dd.",
+    help="Forecast from date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
 )
 @click.option(
     "--to_date",
-    default="2016-01-01",
-    help="Forecast to date. Follow up with a date in the form yyyy-mm-dd.",
+    default="2015-12-31",
+    help="Forecast to date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
 )
 @click.option(
     "--save",
@@ -65,7 +65,7 @@ def db_populate(
     dir: str,
     type: str = None,
     from_date: str = "2015-02-08",
-    to_date: str = "2016-01-01",
+    to_date: str = "2015-12-31",
     asset: str = None,
 ):
     """Initialize the database with static values."""
