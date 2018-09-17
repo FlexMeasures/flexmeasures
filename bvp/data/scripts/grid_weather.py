@@ -5,10 +5,19 @@ from typing import Tuple, List
 import json
 from datetime import datetime
 
-from flask import Flask
+import click
+from flask import Flask, current_app
 from forecastiopy import ForecastIO
 
 from bvp.utils.app_utils import task_with_status_report
+from bvp.utils.time_utils import as_bvp_time, get_timezone
+from bvp.utils.geo_utils import find_closest_weather_sensor, compute_radiation
+from bvp.data.config import db
+from bvp.data.models.weather import Weather
+from bvp.data.models.data_sources import DataSource
+
+FILE_PATH_LOCATION = "/../raw_data/weather-forecasts"
+DATA_SOURCE_LABEL = "forecast by DarkSky for the %s region"
 
 
 class LatLngGrid(object):
@@ -66,7 +75,34 @@ class LatLngGrid(object):
             )
 
     def __repr__(self) -> str:
-        return f"<LatLngGrid top-left:{self.top_left}, bot-right:{self.bottom_right}," f" num_lat:{self.num_cells_lat}, num_lng:{self.num_cells_lng}>"
+        return (
+            f"<LatLngGrid top-left:{self.top_left}, bot-right:{self.bottom_right},"
+            + f"num_lat:{self.num_cells_lat}, num_lng:{self.num_cells_lng}>"
+        )
+
+    def get_locations(self, method: str) -> List[Tuple[float, float]]:
+        """Get locations by method ("square" or "hex")"""
+        click.echo(self)
+        click.echo()
+
+        if method == "hex":
+            locations = self.locations_hex()
+            click.echo(
+                "[BVP] Number of locations in hex grid: "
+                + str(len(self.locations_hex()))
+            )
+            return locations
+        elif method == "square":
+            locations = self.locations_square()
+            click.echo(
+                "[BVP] Number of locations in square grid: "
+                + str(len(self.locations_square()))
+            )
+            return locations
+        else:
+            raise Exception(
+                "Method must either be 'square' or 'hex'! (is: %s)" % method
+            )
 
     def compute_cell_size_lat(self) -> float:
         """Calculate the step size between latitudes"""
@@ -241,22 +277,173 @@ def get_region_from_assets() -> Tuple[Tuple[float, float], Tuple[float, float]]:
             lats.append(asset["latitude"])
             lngs.append(asset["longitude"])
         else:
-            print("Asset %s has no latitude and/or longitude." % asset["name"])
+            click.echo(
+                "[BVP] Asset %s has no latitude and/or longitude." % asset["name"]
+            )
     top_left = min(lats), min(lngs)
     bottom_right = max(lats), max(lngs)
     return top_left, bottom_right
+
+
+def make_file_path(app: Flask, region: str) -> str:
+    """Ensure and return path for weather data"""
+    data_path = app.root_path + FILE_PATH_LOCATION
+    if not os.path.exists(data_path):
+        if os.path.exists(app.root_path + "/../raw_data"):
+            click.echo("[BVP] Creating %s ..." % data_path)
+            os.mkdir(data_path)
+        else:
+            raise Exception("No %s/../raw_data directory found." % app.root_path)
+    # optional: extend with subpath for region
+    if region is not None and region != "":
+        region_data_path = "%s/%s" % (data_path, region)
+        if not os.path.exists(region_data_path):
+            click.echo("[BVP] Creating %s ..." % region_data_path)
+            os.mkdir(region_data_path)
+        data_path = region_data_path
+    return data_path
+
+
+def get_data_source(region: str) -> DataSource:
+    """Make sure we have a data source"""
+    data_source = DataSource.query.filter(
+        DataSource.label == DATA_SOURCE_LABEL % region
+    ).one_or_none()
+    if data_source is None:
+        data_source = DataSource(label=DATA_SOURCE_LABEL % region, type="script")
+        db.session.add(data_source)
+    return data_source
+
+
+def call_darksky(api_key: str, location: Tuple[float, float]) -> dict:
+    """Make a single call to the Dark Sky API and return the result parsed as dict"""
+    return ForecastIO.ForecastIO(
+        api_key,
+        units=ForecastIO.ForecastIO.UNITS_SI,
+        lang=ForecastIO.ForecastIO.LANG_ENGLISH,
+        latitude=location[0],
+        longitude=location[1],
+        extend="hourly",
+    ).forecast
+
+
+def save_forecasts_in_db(
+    api_key: str, locations: List[Tuple[float, float]], data_source: DataSource
+):
+    """Process the response from DarkSky into Weather timed values.
+    Collects all forecasts for all locations and all sensors at all locations, then bulk-saves them.
+    """
+    click.echo("[BVP] Getting weather forecasts:")
+    click.echo("[BVP]  Latitude, Longitude")
+    click.echo("[BVP] -----------------------")
+    db_forecasts = []
+    weather_sensors: dict = {}  # keep track of the sensors to save lookups
+
+    for location in locations:
+        click.echo("[BVP] %s, %s" % location)
+
+        forecasts = call_darksky(api_key, location)
+        time_of_api_call = as_bvp_time(
+            datetime.fromtimestamp(forecasts["currently"]["time"], get_timezone())
+        ).replace(second=0, microsecond=0)
+        click.echo("[BVP] Called Dark Sky API successfully at %s." % time_of_api_call)
+
+        # map sensor name in our db to sensor name/label in dark sky response
+        sensor_name_mapping = dict(
+            temperature="temperature", wind_speed="windSpeed", radiation="cloudCover"
+        )
+
+        for fc in forecasts["hourly"]["data"]:
+            fc_datetime = as_bvp_time(
+                datetime.fromtimestamp(fc["time"], get_timezone())
+            ).replace(second=0, microsecond=0)
+            fc_horizon = fc_datetime - time_of_api_call
+            click.echo(
+                "[BVP] Processing forecast for %s (horizon: %s) ..."
+                % (fc_datetime, fc_horizon)
+            )
+            for bvp_sensor_type in sensor_name_mapping.keys():
+                needed_response_label = sensor_name_mapping[bvp_sensor_type]
+                if needed_response_label in fc:
+                    weather_sensor = weather_sensors.get(bvp_sensor_type, None)
+                    if weather_sensor is None:
+                        weather_sensor = find_closest_weather_sensor(
+                            bvp_sensor_type, lat=location[0], lng=location[1]
+                        )
+                        if weather_sensor is not None:
+                            weather_sensors[bvp_sensor_type] = weather_sensor
+                        else:
+                            raise Exception(
+                                "No weather sensor set up for this sensor type (%s)"
+                                % bvp_sensor_type
+                            )
+
+                    fc_value = fc[needed_response_label]
+                    # the radiation is not available in dark sky -> we compute it ourselves
+                    if bvp_sensor_type == "radiation":
+                        fc_value = compute_radiation(
+                            location[0],
+                            location[1],
+                            fc_datetime,
+                            fc[needed_response_label] * 100,
+                        )
+
+                    db_forecasts.append(
+                        Weather(
+                            datetime=fc_datetime,
+                            horizon=fc_horizon,
+                            value=fc_value,
+                            sensor_id=weather_sensor.id,
+                            data_source_id=data_source.id,
+                        )
+                    )
+                else:
+                    # we will not fail here, but issue a warning
+                    msg = "No label '%s' in response data for time %s" % (
+                        needed_response_label,
+                        fc_datetime,
+                    )
+                    click.echo("[BVP] %s" % msg)
+                    current_app.logger.warn(msg)
+    if len(db_forecasts) == 0:
+        # This is probably a serious problem
+        raise Exception(
+            "Nothing to put in the database was produced. That does not seem right..."
+        )
+    db.session.bulk_save_objects(db_forecasts)
+
+
+def save_forecasts_as_json(
+    api_key: str, locations: List[Tuple[float, float]], data_path: str
+):
+    """Get forecasts, then store each as a JSON file"""
+    click.echo("[BVP] Getting weather forecasts:")
+    click.echo("[BVP]  Latitude, Longitude")
+    click.echo("[BVP]  ----------------------")
+    for location in locations:
+        click.echo("[BVP] %s, %s" % location)
+        forecasts = call_darksky(api_key, location)
+        # UTC timestamp to remember when data was fetched.
+        now_str = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
+        os.mkdir("%s/%s" % (data_path, now_str))
+        forecasts_file = "%s/%s/forecast_lat_%s_lng_%s.json" % (
+            data_path,
+            now_str,
+            str(location[0]),
+            str(location[1]),
+        )
+        with open(forecasts_file, "w") as outfile:
+            json.dump(forecasts, outfile)
 
 
 @task_with_status_report
 def get_weather_forecasts(
     app: Flask,
     region: str,
+    location: str,
     num_cells: int,
     method: str,
-    top: float,
-    left: float,
-    bottom: float,
-    right: float,
+    store_in_db: bool,
 ):
     """
     Get current weather forecasts for a latitude/longitude grid and store them in individual json files.
@@ -266,71 +453,59 @@ def get_weather_forecasts(
     if app.config.get("DARK_SKY_API_KEY") is None:
         raise Exception("No DarkSky API key available.")
 
-    # make path for weather data
-    data_path = app.root_path + "/../raw_data/weather-forecasts"
-    if not os.path.exists(data_path):
-        if os.path.exists(app.root_path + "/../raw_data"):
-            print("Creating %s ..." % data_path)
-            os.mkdir(data_path)
-        else:
-            raise Exception("No %s/../raw_data directory found." % app.root_path)
-    # optional: extend with subpath for region
-    if region is not None and region != "":
-        region_data_path = "%s/%s" % (data_path, region)
-        if not os.path.exists(region_data_path):
-            print("Creating %s ..." % region_data_path)
-            os.mkdir(region_data_path)
-        data_path = region_data_path
+    if (
+        location.count(",") == 0
+        or location.count(",") != location.count(":") + 1
+        or location.count(":") == 1
+        and (
+            location.find(",") > location.find(":")
+            or location.find(",", location.find(",") + 1) < location.find(":")
+        )
+    ):
+        raise Exception(
+            'location parameter "%s" seems malformed. Please use "latitude,longitude" or '
+            ' "top-left-latitude,top-left-longitude:bottom-right-latitude,bottom-right-longitude"'
+            % location
+        )
 
-    top_left = top, left
-    bottom_right = bottom, right
-    num_lat, num_lng = get_cell_nums(top_left, bottom_right, num_cells)
+    location_identifiers = tuple(location.split(":"))
 
-    grid = LatLngGrid(
-        top_left=top_left,
-        bottom_right=bottom_right,
-        num_cells_lat=num_lat,
-        num_cells_lng=num_lng,
-    )
-    print(grid)
+    if len(location_identifiers) == 1:
+        locations = [tuple(float(s) for s in location_identifiers[0].split(","))]
+        click.echo("[BVP] Only one location: %s,%s." % locations[0])
+    elif len(location_identifiers) == 2:
+        click.echo(
+            "[BVP] Making a grid of locations between top/left %s and bottom/right %s ..."
+            % location_identifiers
+        )
+        top_left = tuple(float(s) for s in location_identifiers[0].split(","))
+        if len(top_left) != 2:
+            raise Exception(
+                "top-left parameter '%s' is invalid." % location_identifiers[0]
+            )
+        bottom_right = tuple(float(s) for s in location_identifiers[1].split(","))
+        if len(bottom_right) != 2:
+            raise Exception(
+                "bottom-right parameter '%s' is invalid." % location_identifiers[1]
+            )
 
-    print()
-    print("Number of locations in square grid: " + str(len(grid.locations_square())))
-    print("Number of locations in hex grid: " + str(len(grid.locations_hex())))
-    print()
+        num_lat, num_lng = get_cell_nums(top_left, bottom_right, num_cells)
 
-    # UTC timestamp to remember when data was fetched.
-    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
-    os.mkdir("%s/%s" % (data_path, now_str))
-
-    # Get forecasts for each location
-    if method == "hex":
-        locations = grid.locations_hex()
-    elif method == "square":
-        locations = grid.locations_square()
+        locations = LatLngGrid(
+            top_left=top_left,
+            bottom_right=bottom_right,
+            num_cells_lat=num_lat,
+            num_cells_lng=num_lng,
+        ).get_locations(method)
     else:
-        raise Exception("Method must either be 'square' or 'hex'!")
+        raise Exception("location parameter '%s' has too many locations." % location)
 
-    print("Latitude,Longitude")
-    for location in locations:
-        print("%s,%s" % (location[0], location[1]))
+    api_key = app.config.get("DARK_SKY_API_KEY")
 
-        # Make a single call to the Dark Sky API
-        forecasts = ForecastIO.ForecastIO(
-            app.config.get("DARK_SKY_API_KEY"),
-            units=ForecastIO.ForecastIO.UNITS_SI,
-            lang=ForecastIO.ForecastIO.LANG_ENGLISH,
-            latitude=location[0],
-            longitude=location[1],
-            extend="hourly",
+    # Save the results
+    if store_in_db:
+        save_forecasts_in_db(api_key, locations, data_source=get_data_source(region))
+    else:
+        save_forecasts_as_json(
+            api_key, locations, data_path=make_file_path(app, region)
         )
-
-        # Save the results
-        forecasts_file = "%s/%s/forecast_lat_%s_lng_%s.json" % (
-            data_path,
-            now_str,
-            str(location[0]),
-            str(location[1]),
-        )
-        with open(forecasts_file, "w") as outfile:
-            json.dump(forecasts.forecast, outfile)

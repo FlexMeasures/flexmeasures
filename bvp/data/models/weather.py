@@ -5,6 +5,7 @@ import math
 from sqlalchemy.orm import Query, Session
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.expression import func
+from sqlalchemy.schema import UniqueConstraint
 
 from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
@@ -40,6 +41,16 @@ class WeatherSensor(db.Model):
     latitude = db.Column(db.Float, nullable=False)
     # longitude is the East/West coordinate
     longitude = db.Column(db.Float, nullable=False)
+
+    # only one sensor of any type is needed at one location
+    __table_args__ = (
+        UniqueConstraint(
+            "weather_sensor_type_name",
+            "latitude",
+            "longitude",
+            name="_type_name_location_unique",
+        ),
+    )
 
     def __init__(self, **kwargs):
         super(WeatherSensor, self).__init__(**kwargs)

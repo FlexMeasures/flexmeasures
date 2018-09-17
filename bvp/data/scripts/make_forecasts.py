@@ -19,7 +19,7 @@ from bvp.data.models.utils import determine_asset_type_by_asset
 from bvp.utils.app_utils import task_with_status_report
 
 
-data_source_label = "forecasted by Seita (%s)" % latest_generic_model_version()
+data_source_label = "forecast by Seita (%s)" % latest_generic_model_version()
 
 
 @task_with_status_report

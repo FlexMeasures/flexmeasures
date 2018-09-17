@@ -132,6 +132,22 @@ def get_timezone(of_user=False):
     return pytz.timezone(current_user.timezone)
 
 
+def round_to_closest_quarter(dt: datetime) -> datetime:
+    new_hour = dt.hour
+    new_minute = 15 * round((float(dt.minute) + float(dt.second) / 60) / 15)
+    if new_minute == 60:
+        new_hour += 1
+        new_minute = 0
+    return datetime(dt.year, dt.month, dt.day, new_hour, new_minute, tzinfo=dt.tzinfo)
+
+
+def round_to_closest_hour(dt: datetime) -> datetime:
+    if dt.minute >= 30:
+        return datetime(dt.year, dt.month, dt.day, dt.hour + 1, tzinfo=dt.tzinfo)
+    else:
+        return datetime(dt.year, dt.month, dt.day, dt.hour, tzinfo=dt.tzinfo)
+
+
 def get_most_recent_quarter() -> datetime:
     now = bvp_now()
     return now.replace(minute=now.minute - (now.minute % 15), second=0, microsecond=0)

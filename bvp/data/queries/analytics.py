@@ -9,7 +9,8 @@ from bvp.utils import time_utils, calculations
 from bvp.data.services.resources import Resource
 from bvp.data.models.assets import Asset
 from bvp.data.models.markets import Price
-from bvp.data.models.weather import Weather, WeatherSensor
+from bvp.data.models.weather import Weather
+from bvp.utils.geo_utils import find_closest_weather_sensor
 
 
 def get_power_data(
@@ -114,13 +115,7 @@ def get_weather_data(
         sensor_type = sensor_types[0]
 
         # Find the closest weather sensor
-        closest_sensor = (
-            WeatherSensor.query.filter(
-                WeatherSensor.weather_sensor_type_name == sensor_type
-            )
-            .order_by(WeatherSensor.great_circle_distance(object=asset).asc())
-            .first()
-        )
+        closest_sensor = find_closest_weather_sensor(sensor_type, object=asset)
     else:
         closest_sensor = None
         sensor_type = None

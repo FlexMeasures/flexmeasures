@@ -13,6 +13,7 @@ from bvp.data.models.utils import (
     determine_asset_type_by_asset,
     determine_asset_value_class_by_asset,
 )
+from bvp.utils.geo_utils import find_closest_weather_sensor
 from bvp.data.config import db
 
 # update this version if small things like parametrisation change
@@ -216,14 +217,8 @@ def get_regressors(
         for sensor_type in sensor_types:
 
             # Find nearest weather sensor
-            closest_sensor = (
-                WeatherSensor.query.filter(
-                    WeatherSensor.weather_sensor_type_name == sensor_type
-                )
-                .order_by(
-                    WeatherSensor.great_circle_distance(object=generic_asset).asc()
-                )
-                .first()
+            closest_sensor = find_closest_weather_sensor(
+                sensor_type, object=generic_asset
             )
             if closest_sensor is None:
                 current_app.logger.warn(

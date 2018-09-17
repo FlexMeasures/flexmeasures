@@ -6,6 +6,7 @@ import pytz
 import click
 
 from bvp.data.config import db
+from bvp.utils.error_utils import get_err_source_info
 from bvp.data.models.task_runs import LatestTaskRun
 
 
@@ -38,10 +39,13 @@ def task_with_status_report(task_function):
         status: bool = True
         try:
             task_function(*args, **kwargs)
-            click.echo("Task %s ran fine." % task_function.__name__)
+            click.echo("[BVP] Task %s ran fine." % task_function.__name__)
         except Exception as e:
+            exc_info = sys.exc_info()
+            last_traceback = exc_info[2]
             click.echo(
-                "Task %s encountered a problem: %s" % (task_function.__name__, str(e))
+                '[BVP] Task %s encountered a problem: "%s". More details: %s'
+                % (task_function.__name__, str(e), get_err_source_info(last_traceback))
             )
             status = False
         finally:
@@ -66,7 +70,7 @@ def task_with_status_report(task_function):
 
             except Exception as e:
                 click.echo(
-                    "Could not report the running of Task %s, encountered the following problem: %s"
+                    "[BVP] Could not report the running of Task %s, encountered the following problem: %s"
                     % (task_function.__name__, str(e))
                 )
 

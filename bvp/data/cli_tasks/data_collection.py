@@ -37,32 +37,36 @@ def localize_ts_pickles():
     "--region",
     type=str,
     default="",
-    help="Name of the region (will create subfolder, should later tag the forecast in the DB, probably).",
+    help="Name of the region (will create sub-folder, should later tag the forecast in the DB, probably).",
 )
-@click.option("--num_cells", type=int, default=1, help="Number of cells on the grid.")
+@click.option(
+    "--location",
+    type=str,
+    required=True,
+    help='Measurement location(s). "latitude,longitude" or "top-left-latitude,top-left-longitude:'
+    'bottom-right-latitude,bottom-right-longitude." The first format defines one location to measure.'
+    " The second format defines a region of interest with several (>=4) locations"
+    ' (see also the "method" and "num_cells" parameters for this feature).',
+)
+@click.option(
+    "--num_cells",
+    type=int,
+    default=1,
+    help="Number of cells on the grid. Only used if a region of interest has been mapped in the location parameter.",
+)
 @click.option(
     "--method",
     default="hex",
     type=click.Choice(["hex", "square"]),
-    help="Grid creation method.",
+    help="Grid creation method. Only used if a region of interest has been mapped in the location parameter.",
 )
 @click.option(
-    "--top", type=float, required=True, help="Top latitude for region of interest."
+    "--store-in-db/--store-as-json-files",
+    default=False,
+    help="Store forecasts in the database, or simply save as json files.",
 )
-@click.option(
-    "--left", type=float, required=True, help="Left longitude for region of interest."
-)
-@click.option(
-    "--bottom",
-    type=float,
-    required=True,
-    help="Bottom latitude for region of interest.",
-)
-@click.option(
-    "--right", type=float, required=True, help="Right longitude for region of interest."
-)
-def collect_weather_data(region, num_cells, method, top, left, bottom, right):
-    """Collect weather data"""
+def collect_weather_data(region, location, num_cells, method, store_in_db):
+    """Collect weather data for a grid. Leave bottom right empty for only one location (top left)."""
     from bvp.data.scripts.grid_weather import get_weather_forecasts
 
-    get_weather_forecasts(app, region, num_cells, method, top, left, bottom, right)
+    get_weather_forecasts(app, region, location, num_cells, method, store_in_db)
