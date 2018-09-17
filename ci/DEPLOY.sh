@@ -7,4 +7,5 @@
 # Add PythonAnywhere as a git remote and push the code to that repo
 git remote add pythonanywhere seita@ssh.pythonanywhere.com:/home/seita/bvp-staging/bvp.git
 
-git push -u pythonanywhere $BITBUCKET_BRANCH
+# Push the branch being deployed to the PythonAnywhere remote. Also push any annotated tags (with a -m message).
+git push --follow-tags -u pythonanywhere $BITBUCKET_BRANCH
