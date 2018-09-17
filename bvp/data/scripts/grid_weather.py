@@ -420,12 +420,12 @@ def save_forecasts_as_json(
     click.echo("[BVP] Getting weather forecasts:")
     click.echo("[BVP]  Latitude, Longitude")
     click.echo("[BVP]  ----------------------")
+    # UTC timestamp to remember when data was fetched.
+    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
+    os.mkdir("%s/%s" % (data_path, now_str))
     for location in locations:
         click.echo("[BVP] %s, %s" % location)
         forecasts = call_darksky(api_key, location)
-        # UTC timestamp to remember when data was fetched.
-        now_str = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
-        os.mkdir("%s/%s" % (data_path, now_str))
         forecasts_file = "%s/%s/forecast_lat_%s_lng_%s.json" % (
             data_path,
             now_str,
