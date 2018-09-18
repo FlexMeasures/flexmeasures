@@ -5,7 +5,7 @@ from flask_json import as_json
 
 from bvp.api.common.responses import no_backup, request_processed, unrecognized_backup
 from bvp.data.config import db
-from bvp.data.static_content import (
+from bvp.data.scripts.static_content import (
     depopulate_data,
     depopulate_forecasts,
     depopulate_structure,

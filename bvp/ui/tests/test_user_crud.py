@@ -5,21 +5,21 @@ from bvp.data.services.users import find_user_by_email
 def test_user_crud_as_non_admin(client, as_prosumer):
     user_index = client.get(url_for("UserCrud:index"), follow_redirects=True)
     assert user_index.status_code == 401
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
+    prosumer2_id = find_user_by_email("test_prosumer2@seita.nl").id
     user_page = client.get(
-        url_for("UserCrud:get", id=prosumer2.id), follow_redirects=True
+        url_for("UserCrud:get", id=prosumer2_id), follow_redirects=True
     )
     assert user_page.status_code == 401
     user_page = client.get(
-        url_for("UserCrud:toggle_active", id=prosumer2.id), follow_redirects=True
+        url_for("UserCrud:toggle_active", id=prosumer2_id), follow_redirects=True
     )
     assert user_page.status_code == 401
     user_page = client.get(
-        url_for("UserCrud:delete_with_data", id=prosumer2.id), follow_redirects=True
+        url_for("UserCrud:delete_with_data", id=prosumer2_id), follow_redirects=True
     )
     assert user_page.status_code == 401
     user_page = client.get(
-        url_for("UserCrud:reset_password_for", id=prosumer2.id), follow_redirects=True
+        url_for("UserCrud:reset_password_for", id=prosumer2_id), follow_redirects=True
     )
     assert user_page.status_code == 401
 
@@ -33,7 +33,7 @@ def test_user_list(client, as_admin):
 
 
 def test_user_page(client, as_admin):
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
+    prosumer2 = find_user_by_email("test_prosumer2@seita.nl", keep_in_session=False)
     user_page = client.get(
         url_for("UserCrud:get", id=prosumer2.id), follow_redirects=True
     )
@@ -44,7 +44,7 @@ def test_user_page(client, as_admin):
 
 def test_deactivate_user(client, as_admin):
     """Switch prosumer2 to inactive, check user index, and re-activate him/her."""
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
+    prosumer2 = find_user_by_email("test_prosumer2@seita.nl", keep_in_session=False)
     # de-activate
     user_page = client.get(
         url_for("UserCrud:toggle_active", id=prosumer2.id), follow_redirects=True
@@ -79,7 +79,7 @@ def test_deactivate_user(client, as_admin):
 
 def test_delete_user(client, as_admin):
     """ Test that deletion does not fail, test that user is not in list anymore"""
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
+    prosumer2 = find_user_by_email("test_prosumer2@seita.nl", keep_in_session=False)
     user_page = client.get(
         url_for("UserCrud:delete_with_data", id=prosumer2.id), follow_redirects=True
     )
@@ -92,7 +92,7 @@ def test_delete_user(client, as_admin):
 
 def test_reset_password(app, client, as_admin):
     """Test it does not fail, test that user password has changed and they got a reset email"""
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
+    prosumer2 = find_user_by_email("test_prosumer2@seita.nl", keep_in_session=False)
     old_password = prosumer2.password
     with app.mail.record_messages() as outbox:
         user_page = client.get(

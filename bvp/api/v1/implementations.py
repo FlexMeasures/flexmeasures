@@ -291,7 +291,7 @@ def create_connection_and_value_groups(  # noqa: C901
     try:
         save_to_database(power_measurements)
         save_to_database(forecasting_jobs)
-        db.session.commit()
+        db.session.flush()
         return request_processed()
     except IntegrityError as e:
         current_app.logger.warn(e)
@@ -301,7 +301,6 @@ def create_connection_and_value_groups(  # noqa: C901
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(power_measurements, overwrite=True)
             save_to_database(forecasting_jobs, overwrite=True)
-            db.session.commit()
             return request_processed()
         else:
             return already_received_and_successfully_processed()

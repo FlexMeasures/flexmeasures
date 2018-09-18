@@ -6,7 +6,7 @@ import flask_migrate as migrate
 from flask_sqlalchemy import SQLAlchemy
 import click
 
-from bvp.data.static_content import get_affected_classes
+from bvp.data.scripts.static_content import get_affected_classes
 
 BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 
@@ -71,15 +71,15 @@ def db_populate(
     """Initialize the database with static values."""
     db = SQLAlchemy(app)
     if structure:
-        from bvp.data.static_content import populate_structure
+        from bvp.data.scripts.static_content import populate_structure
 
         populate_structure(db, small)
     if data:
-        from bvp.data.static_content import populate_time_series_data
+        from bvp.data.scripts.static_content import populate_time_series_data
 
         populate_time_series_data(db, small, type, asset)
     if forecasts:
-        from bvp.data.static_content import populate_time_series_forecasts
+        from bvp.data.scripts.static_content import populate_time_series_forecasts
 
         populate_time_series_forecasts(db, small, type, asset, from_date, to_date)
     if not structure and not data and not forecasts:
@@ -87,7 +87,7 @@ def db_populate(
             "I did nothing as neither --structure nor --data nor --forecasts was given. Decide what you want!"
         )
     if save:
-        from bvp.data.static_content import save_tables
+        from bvp.data.scripts.static_content import save_tables
 
         if data and not small:
             click.echo("Too much data to save! I'm only saving structure ...")
@@ -114,7 +114,8 @@ def db_populate(
 )
 @click.option(
     "--type",
-    help="Populate (time series) data for a specific generic asset type only. Follow up with Asset, Market or WeatherSensor.",
+    help="Populate (time series) data for a specific generic asset type only."
+    "Follow up with Asset, Market or WeatherSensor.",
 )
 @click.option(
     "--asset",
@@ -148,15 +149,15 @@ def db_depopulate(
             return
     db = SQLAlchemy(app)
     if forecasts:
-        from bvp.data.static_content import depopulate_forecasts
+        from bvp.data.scripts.static_content import depopulate_forecasts
 
         depopulate_forecasts(db, type, asset)
     if data:
-        from bvp.data.static_content import depopulate_data
+        from bvp.data.scripts.static_content import depopulate_data
 
         depopulate_data(db, type, asset)
     if structure:
-        from bvp.data.static_content import depopulate_structure
+        from bvp.data.scripts.static_content import depopulate_structure
 
         depopulate_structure(db)
 
@@ -184,7 +185,7 @@ def db_reset(
             click.echo("I did nothing.")
             return
     db = SQLAlchemy(app)
-    from bvp.data.static_content import reset_db
+    from bvp.data.scripts.static_content import reset_db
 
     current_version = migrate.current()
     reset_db(db)
@@ -194,7 +195,7 @@ def db_reset(
         if not data and not structure:
             click.echo("Neither --data nor --structure given ... loading nothing.")
             return
-        from bvp.data.static_content import load_tables
+        from bvp.data.scripts.static_content import load_tables
 
         load_tables(db, load, structure, data, dir)
 
@@ -218,7 +219,7 @@ def db_save(
 ):
     """Save structure of the database to a backup file."""
     if name:
-        from bvp.data.static_content import save_tables
+        from bvp.data.scripts.static_content import save_tables
 
         db = SQLAlchemy(app)
         save_tables(db, name, structure=structure, data=data, backup_path=dir)
@@ -243,7 +244,7 @@ def db_load(
 ):
     """Load structure and/or data for the database from a backup file."""
     if name:
-        from bvp.data.static_content import load_tables
+        from bvp.data.scripts.static_content import load_tables
 
         db = SQLAlchemy(app)
         load_tables(db, name, structure=structure, data=data, backup_path=dir)

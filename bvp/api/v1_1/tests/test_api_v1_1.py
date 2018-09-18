@@ -17,7 +17,7 @@ from bvp.api.v1_1.tests.utils import (
     message_for_post_weather_data,
 )
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
-from bvp.data.config import db
+
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.forecasting.jobs import ForecastingJob
 
@@ -116,21 +116,23 @@ def test_get_prognosis(client, message):
 
 
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
-def test_post_price_data(client, post_message):
+def test_post_price_data(db, app, post_message):
     """
     Try to post price data as a logged-in test user with the Supplier role, which should succeed.
     """
-
-    # post meter data
-    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
-    post_price_data_response = client.post(
-        url_for("bvp_api_v1_1.post_price_data"),
-        data=json.dumps(post_message),
-        headers={"content-type": "application/json", "Authorization": auth_token},
-    )
-    print("Server responded with:\n%s" % post_price_data_response.json)
-    assert post_price_data_response.status_code == 200
-    assert post_price_data_response.json["type"] == "PostPriceDataResponse"
+    # call with client whose context ends, so that we can test for,
+    # after-effects in the database after teardown committed.
+    with app.test_client() as client:
+        # post meter data
+        auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+        post_price_data_response = client.post(
+            url_for("bvp_api_v1_1.post_price_data"),
+            data=json.dumps(post_message),
+            headers={"content-type": "application/json", "Authorization": auth_token},
+        )
+        print("Server responded with:\n%s" % post_price_data_response.json)
+        assert post_price_data_response.status_code == 200
+        assert post_price_data_response.json["type"] == "PostPriceDataResponse"
 
     # verify the data ended up in the database
     start = parse_datetime(post_message["start"])

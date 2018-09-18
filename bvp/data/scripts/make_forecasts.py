@@ -16,7 +16,7 @@ from bvp.data.models.weather import Weather
 from bvp.data.models.assets import Power
 from bvp.data.models.markets import Price
 from bvp.data.models.utils import determine_asset_type_by_asset
-from bvp.utils.app_utils import task_with_status_report
+from bvp.data.transactional import task_with_status_report
 
 
 data_source_label = "forecast by Seita (%s)" % latest_generic_model_version()

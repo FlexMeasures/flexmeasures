@@ -4,19 +4,25 @@ from bvp.data.services.users import find_user_by_email
 from bvp.data.models.assets import Asset
 
 
-def test_asset_crud_as_non_admin(client, as_prosumer):
+def test_asset_crud_as_non_admin(db, client, as_prosumer):
     asset_index = client.get(url_for("AssetCrud:index"), follow_redirects=True)
     assert asset_index.status_code == 200
     prosumer = find_user_by_email("test_prosumer@seita.nl")
+    prosumer_assets = prosumer.assets
+    db.session.expunge(prosumer)
+
     prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
+    prosumer2_assets = prosumer2.assets
+    db.session.expunge(prosumer2)
+
     asset_page = client.get(url_for("AssetCrud:get", id="new"), follow_redirects=True)
     assert asset_page.status_code == 401
     asset_page = client.get(
-        url_for("AssetCrud:get", id=prosumer.assets[0].id), follow_redirects=True
+        url_for("AssetCrud:get", id=prosumer_assets[0].id), follow_redirects=True
     )
     assert asset_page.status_code == 200
     asset_page = client.get(
-        url_for("AssetCrud:get", id=prosumer2.assets[0].id), follow_redirects=True
+        url_for("AssetCrud:get", id=prosumer2_assets[0].id), follow_redirects=True
     )
     assert asset_page.status_code == 401
     asset_page = client.get(
@@ -39,29 +45,34 @@ def test_new_asset_page(client, as_admin):
     assert b"Creating a new asset" in asset_page.data
 
 
-def test_asset_page(client, as_prosumer):
+def test_asset_page(db, client, as_prosumer):
     prosumer = find_user_by_email("test_prosumer@seita.nl")
+    prosumer_assets = prosumer.assets
+    db.session.expunge(prosumer)
     asset_page = client.get(
-        url_for("AssetCrud:get", id=prosumer.assets[0].id), follow_redirects=True
+        url_for("AssetCrud:get", id=prosumer_assets[0].id), follow_redirects=True
     )
     assert (
-        "Editing asset %s" % prosumer.assets[0].display_name
+        "Editing asset %s" % prosumer_assets[0].display_name
     ).encode() in asset_page.data
-    assert str(prosumer.assets[0].capacity_in_mw).encode() in asset_page.data
-    assert str(prosumer.assets[0].latitude).encode() in asset_page.data
-    assert str(prosumer.assets[0].longitude).encode() in asset_page.data
+    assert str(prosumer_assets[0].capacity_in_mw).encode() in asset_page.data
+    assert str(prosumer_assets[0].latitude).encode() in asset_page.data
+    assert str(prosumer_assets[0].longitude).encode() in asset_page.data
 
 
-def test_assets_owned_by(client, as_admin):
+def test_assets_owned_by(db, client, as_admin):
     prosumer = find_user_by_email("test_prosumer@seita.nl")
+    prosumer_assets = prosumer.assets
+    db.session.expunge(prosumer)
     asset_index = client.get(url_for("AssetCrud:owned_by", owner_id=prosumer.id))
-    for asset in prosumer.assets:
+    for asset in prosumer_assets:
         assert asset.display_name.encode() in asset_index.data
 
 
-def test_edit_asset(client, as_prosumer):
+def test_edit_asset(db, client, as_prosumer):
     prosumer = find_user_by_email("test_prosumer@seita.nl")
     existing_asset = prosumer.assets[1]
+    db.session.expunge(prosumer)
     asset_edit = client.post(
         url_for("AssetCrud:post", id=existing_asset.id),
         follow_redirects=True,
@@ -80,9 +91,10 @@ def test_edit_asset(client, as_prosumer):
     assert updated_asset.capacity_in_mw == 33.33
 
 
-def test_add_asset(client, as_admin):
+def test_add_asset(db, client, as_admin):
     prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
     num_assets_before = len(prosumer2.assets)
+    db.session.expunge(prosumer2)
     asset_creation = client.post(
         url_for("AssetCrud:post", id="create"),
         follow_redirects=True,
@@ -126,9 +138,10 @@ def test_add_asset_with_new_owner(client, as_admin):
     assert new_asset.capacity_in_mw == 100
 
 
-def test_add_invalid_asset(client, as_admin):
+def test_add_invalid_asset(db, client, as_admin):
     prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
     num_assets_before = len(prosumer2.assets)
+    db.session.expunge(prosumer2)
     asset_creation = client.post(
         url_for("AssetCrud:post", id="create"),
         follow_redirects=True,

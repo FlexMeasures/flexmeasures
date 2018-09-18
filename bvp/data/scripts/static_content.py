@@ -27,6 +27,8 @@ from bvp.data.models.user import User, Role, RolesUsers
 from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
 from bvp.data.services.users import create_user
 from bvp.utils.time_utils import ensure_korea_local
+from bvp.data.transactional import as_transaction
+
 
 BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 
@@ -409,25 +411,6 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
             name="task-runner", description="Process running BVP-relevant tasks."
         ),
     )
-
-
-def as_transaction(db_function):
-    """Decorator for handling SQLAlchemy commands as a database transaction (ACID).
-    Calls db operation function and when it is done, submits the db session.
-    Rolls back the session if anything goes wrong."""
-
-    def wrap(db: SQLAlchemy, *args, **kwargs):
-        try:
-            db_function(db, *args, **kwargs)
-            db.session.commit()
-        except Exception as e:
-            click.echo("[%s] Encountered Problem: %s" % (db_function.__name__, str(e)))
-            db.session.rollback()
-            raise
-        finally:
-            db.session.close()
-
-    return wrap
 
 
 # ------------ Main functions --------------------------------

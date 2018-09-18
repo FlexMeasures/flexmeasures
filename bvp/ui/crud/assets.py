@@ -14,7 +14,6 @@ from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.data.models.assets import Asset, AssetType
 from bvp.data.models.user import User
 from bvp.data.services.users import get_users, create_user, InvalidBVPUser
-from bvp.data.config import db
 from bvp.data.auth_setup import unauth_handler
 
 
@@ -150,7 +149,6 @@ class AssetCrud(FlaskView):
                     return unauth_handler()
                 if asset_form.validate_on_submit():
                     asset_form.populate_obj(asset)
-                    db.session.commit()
                     msg = "Editing was successful."
                 else:
                     msg = "Asset was not saved, please review error(s) below."

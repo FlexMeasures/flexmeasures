@@ -33,9 +33,13 @@ def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List
     return user_query.all()
 
 
-def find_user_by_email(user_email: str) -> User:
+def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-    return user_datastore.find_user(email=user_email)
+    user = user_datastore.find_user(email=user_email)
+    if not keep_in_session:
+        # we might need this object persistent across requests
+        db.session.expunge(user)
+    return user
 
 
 def create_user(
@@ -100,7 +104,6 @@ def create_user(
             user_id=user.id,
         )
     )
-    db.session.commit()  # Todo: try to handle all transactions in one session, rather than one session per user created
 
     return user
 
@@ -108,7 +111,6 @@ def create_user(
 def toggle_activation_status_of(user: User):
     """Toggle the active attribute of user"""
     user.active = not user.active
-    db.session.commit()
 
 
 def delete_user(user: User):
@@ -119,5 +121,4 @@ def delete_user(user: User):
         user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
         user_datastore.delete_user(user)
         db.session.delete(user)
-        db.session.commit()  # Todo: try to handle all transactions in one session
         current_app.logger.info("Deleted %s." % user)

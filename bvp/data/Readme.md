@@ -1,7 +1,10 @@
-# How to get the database ready to use and maintain it
+# The bvp.data package
 
-This is a small guide for getting the postgres database ready to use.
-It also has steps how to deal with migrations (changes to the structure).
+This package holds all data models, db configuration and code that works on data.
+
+This document describes how to get theo postgres database ready to use and maintain it (do migrations / changes to the structure).
+
+Finally, a fwe words on coding with database transactions in mind.
 
 
 Getting ready to use
@@ -176,3 +179,12 @@ with the password from bvp/development_config.py. Check which tables are there:
 To log out:
 
     \q
+    
+    
+ Transaction management
+ ========================
+ 
+ It is really useful (and therefore an industry standard) to bundle certain database actions within a transaction. Transactions are atomic - either the actions in them all run or the transaction gets rolled back. This keeps the database in a sane state and really helps having expectations during debugging.
+ 
+ Please see the package `bvp.data.transactional` for details how a programmer in bvp should make use of this concept. If you are writing a script or a view, you will find there the necessary structural help to bundle your work in a transaction.
+ 

@@ -45,7 +45,8 @@ def configure_db_for(app: Flask):
 
 def commit_and_start_new_session(app: Flask):
     """Use this when a script wants to save a state before continuing
-       - not recommended for any logic used by views. Maybe session.flush can help you there."""
+       Not tested well, just a starting point - not recommended anyway for any logic used by views or tasks.
+       Maybe session.flush can help you there."""
     global db, Base, session_options
     db.session.commit()
     db.session.close()

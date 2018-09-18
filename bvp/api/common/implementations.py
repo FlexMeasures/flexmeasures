@@ -71,7 +71,6 @@ def post_task_run():
             db.session.add(task_run)
         task_run.datetime = date_time
         task_run.status = status
-        db.session.commit()  # TODO: should we strive to have only one commit per request?
     except Exception as e:
         return {"status": "ERROR", "reason": str(e)}, 500
     return {"status": "OK"}, 200

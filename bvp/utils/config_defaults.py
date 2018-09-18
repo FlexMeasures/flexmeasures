@@ -80,6 +80,7 @@ class DevelopmentConfig(Config):
     LOGGING_LEVEL = logging.DEBUG
     SQLALCHEMY_ECHO = False
     PROPAGATE_EXCEPTIONS = True
+    # PRESERVE_CONTEXT_ON_EXCEPTION = False  # might need this to make our transaction handling work in debug mode
     JSONIFY_PRETTYPRINT_REGULAR = True
     SERVER_NAME = "localhost:5000"
     BVP_MODE = "development"

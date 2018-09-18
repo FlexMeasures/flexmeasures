@@ -48,4 +48,3 @@ def remember_login(the_app, user):
     if user.login_count is None:
         user.login_count = 0
     user.login_count = user.login_count + 1
-    the_app.security.datastore.commit()

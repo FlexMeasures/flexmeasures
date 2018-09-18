@@ -106,7 +106,6 @@ def create_asset(
         owner=owner,
     )
     db.session.add(asset)
-    db.session.commit()  # Todo: try to handle all transactions in one session, rather than one session per asset created
     return asset
 
 

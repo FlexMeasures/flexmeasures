@@ -3,6 +3,7 @@ from flask_migrate import Migrate
 
 from bvp.data.config import configure_db_for, db
 from bvp.data.auth_setup import configure_auth
+from bvp.data.transactional import after_request_session_commit_or_rollback
 
 
 def register_at(app: Flask):
@@ -15,6 +16,8 @@ def register_at(app: Flask):
     if app.cli:
         # Register some useful custom scripts with the flask cli
         with app.app_context():
-            import bvp.data.cli_tasks.db_pop
-            import bvp.data.cli_tasks.data_collection
-            import bvp.data.cli_tasks.forecasting  # noqa: F401
+            import bvp.data.scripts.cli_tasks.db_pop
+            import bvp.data.scripts.cli_tasks.data_collection
+            import bvp.data.scripts.cli_tasks.forecasting  # noqa: F401
+
+    app.teardown_request(after_request_session_commit_or_rollback)
