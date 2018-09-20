@@ -254,6 +254,7 @@ def create_graph(
         forecasts = tz_index_naively(forecasts)
         fc_color = "#DDD0B3"
         fds = make_datasource_from(forecasts)
+        fig.circle(x="x", y="y", source=fds, color=fc_color, legend="Forecast", size=10)
         fig.line(x="x", y="y", source=fds, color=fc_color, legend="Forecast")
 
         # draw uncertainty range as a two-dimensional patch

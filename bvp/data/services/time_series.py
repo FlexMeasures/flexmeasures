@@ -283,7 +283,7 @@ def horizon_resampler(horizons: pd.Series) -> List[timedelta]:
     """
 
     times_of_belief = horizons.index - horizons.values
-    unique_times_of_belief = times_of_belief.unique().tolist()
+    unique_times_of_belief = times_of_belief.dropna().unique().tolist()
     unique_horizons_of_belief = [
         horizons.tail(1).index - time for time in unique_times_of_belief
     ]
