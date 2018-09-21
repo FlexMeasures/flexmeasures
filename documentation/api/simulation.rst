@@ -10,7 +10,11 @@ Please read the :ref:`introduction` for explanations of the message fields, spec
 - The sign of values (:ref:`signs`)
 - Valid durations (:ref:`resolutions`)
 - Valid horizons (:ref:`prognoses`)
-- Valid units (:ref:`units`)
+- Valid units (:ref:`simulation`)
+
+.. contents:: Table of contents
+    :local:
+    :depth: 1
 
 Setting up
 ----------
@@ -49,14 +53,127 @@ The "<token>" can be obtained on your profile after logging in:
     https://play.a1-bvp.com/account
 
 
-Posting meter data
+Posting weather data
+--------------------
+
+Weather data (both observations and forecasts) can be posted to the following POST endpoint:
+
+.. code-block:: html
+
+    https://play.a1-bvp.com/api/<version>/postWeatherData
+
+This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm for a weather sensor located at latitude 33.4843866 and longitude 126.477859. The forecasts were made at noon.
+
+.. code-block:: json
+
+        {
+            "type": "PostWeatherDataRequest",
+            "sensor": "ea1.2018-06.localhost:5000:temperature:33.4843866:126.477859",
+            "values": [
+                20.04,
+                20.23,
+                20.41,
+                20.51,
+                20.55,
+                20.57
+            ],
+            "start": "2015-01-01T15:00:00+09:00",
+            "duration": "PT1H30M",
+            "horizon": "PT3H",
+            "unit": "°C"
+        }
+
+Observations vs forecasts
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To post an observation rather than a forecast, simply set the horizon to "PT0H".
+This denotes that the observation was made exactly after realisation of this list of temperature readings, i.e. at 4.30pm.
+
+Alternatively, to indicate that each individual observation was made directly after the end of its 15-minute interval (i.e. at 3.15pm, 3.30pm and so on), set the horizon to "R/PT0H".
+
+Finally, delays in reading out sensor data can be simulated by setting the horizon field to a negative value.
+For example, a horizon of "-PT1H" would denote that this list of temperature readings was observed one hour after the fact (i.e. at 5.30pm).
+
+
+Posting price data
 ------------------
 
-Meter data can be posted in various ways to the following POST endpoint:
+Price data (both observations and forecasts) can be posted to the following POST endpoint:
+
+.. code-block:: html
+
+    https://play.a1-bvp.com/api/<version>/postPriceData
+
+This "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
+for the EPEX SPOT day-ahead auction.
+The horizon indicates that the prices were published at 1pm on December 31st 2014
+(i.e. 35 hours ahead of midnight the next day).
+
+.. code-block:: json
+
+    {
+        "type": "PostPriceDataRequest",
+        "market": "ea1.2018-06.localhost:5000:epex_da",
+        "values": [
+            52.37,
+            51.14,
+            49.09,
+            48.35,
+            48.47,
+            49.98,
+            58.7,
+            67.76,
+            69.21,
+            70.26,
+            70.46,
+            70,
+            70.7,
+            70.41,
+            70,
+            64.53,
+            65.92,
+            69.72,
+            70.51,
+            75.49,
+            70.35,
+            70.01,
+            66.98,
+            58.61
+        ],
+        "start": "2015-01-01T15:00:00+09:00",
+        "duration": "PT24H",
+        "horizon": "PT35H",
+        "unit": "EUR/MWh"
+    }
+
+Observations vs forecasts
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For markets, the time at which the market is cleared (i.e. when contracts are signed) determines the difference between an ex-post observation and an ex-ante forecast.
+For the EPEX SPOT day-ahead auction this is every day at 1pm.
+To post a forecast rather than an observation, simply increase the horizon.
+For example, a horizon of "PT59H" would denote a forecast of 24 hours ahead of clearing.
+
+
+Posting power data
+------------------
+
+For power data, USEF specifies separate message types for observations and forecasts.
+Correspondingly, the BVP uses separate endpoints to communicate these messages.
+Observations of power data can be posted to the following POST endpoint:
 
 .. code-block:: html
 
     https://play.a1-bvp.com/api/<version>/postMeterData
+
+while forecasts of power data can be posted to the following POST endpoint:
+
+.. code-block:: html
+
+    https://play.a1-bvp.com/api/<version>/postPrognosis
+
+For both endpoints, power data can be posted in various ways.
+The following examples assume that the endpoint for power data observations (i.e. meter data) is used.
 
 
 Single value, single connection
