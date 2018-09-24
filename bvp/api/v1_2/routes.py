@@ -50,7 +50,7 @@ def get_device_message():
 
         {
             "type": "GetDeviceMessageRequest",
-            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203"
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203:soc"
         }
 
     **Example response**
@@ -62,7 +62,7 @@ def get_device_message():
 
         {
             "type": "GetDeviceMessageResponse",
-            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203:soc",
             "values": [
                 2.15,
                 3,
@@ -85,7 +85,7 @@ def get_device_message():
     return v1_2_implementations.get_device_message_response()
 
 
-@bvp_api_v1_2.route("/postUdiEvent", methods=["GET"])
+@bvp_api_v1_2.route("/postUdiEvent", methods=["POST"])
 @as_response_type("PostUdiEventResponse")
 @auth_token_required
 @usef_roles_accepted(*check_access(v1_2_service_listing, "postUdiEvent"))
@@ -96,18 +96,17 @@ def post_udi_event():
 
     **Example request**
 
-    This "PostUdiEventRequest" message posts a state of charge of 12.1 kWh at 10.00am as UDI event 203 of device 10 of
-    owner 7.
+    This "PostUdiEventRequest" message posts a state of charge (soc) of 12.1 kWh at 10.00am
+    as UDI event 203 of device 10 of owner 7. The datetime is optional, defaulting to now.
 
     .. code-block:: json
 
         {
             "type": "PostUdiEventRequest",
-            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203",
-            "type": "soc",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203:soc",
             "value": 12.1,
+            "unit": "kWh",
             "datetime": "2015-06-02T10:00:00+00:00",
-            "unit": "kWh"
         }
 
     **Example response**
@@ -126,7 +125,7 @@ def post_udi_event():
     :reqheader Content-Type: application/json
     :resheader Content-Type: application/json
     :status 200: PROCESSED
-    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, UNRECOGNIZED_CONNECTION_GROUP, or INVALID_UDI_EVENT
+    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_DATETIME, INVALID_UNIT, PTUS_INCOMPLETE, OUTDATED_UDI_EVENT or UNRECOGNIZED_UDI_EVENT
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD

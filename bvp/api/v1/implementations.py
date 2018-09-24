@@ -145,9 +145,6 @@ def collect_connection_and_value_groups(
     from flask import current_app
 
     current_app.logger.info("GETTING")
-
-    from flask import current_app
-
     user_assets = get_assets()
     if not user_assets:
         current_app.logger.info("User doesn't seem to have any assets")
@@ -197,9 +194,13 @@ def collect_connection_and_value_groups(
             value_groups.append(
                 [x * -1 for x in v.y.tolist()]
             )  # Reverse sign of values (from BVP specs to USEF specs)
-            new_connection_groups.append(k)
+            new_connection_groups.append(
+                k
+            )  # Todo: maybe this should be [k], because groups_to_dict() expects a list of lists of strings
 
-    response = groups_to_dict(new_connection_groups, value_groups)
+    response = groups_to_dict(
+        new_connection_groups, value_groups, generic_asset_type_name="connection"
+    )
     response = message_replace_name_with_ea(response)
     response["start"] = isodate.datetime_isoformat(start)
     response["duration"] = isodate.duration_isoformat(duration)

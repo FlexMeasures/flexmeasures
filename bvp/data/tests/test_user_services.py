@@ -71,8 +71,10 @@ def test_delete_user(app):
     """Assert user has assets and power measurements. Deleting removes all of that."""
     prosumer: User = find_user_by_email("test_prosumer@seita.nl")
     num_users_before = User.query.count()
-    user_assets_before = Asset.query.filter(Asset.owner_id == prosumer.id).all()
-    asset_ids = [asset.id for asset in user_assets_before]
+    user_assets_with_measurements_before = Asset.query.filter(
+        Asset.owner_id == prosumer.id, Asset.asset_type_name.in_(["wind", "solar"])
+    ).all()
+    asset_ids = [asset.id for asset in user_assets_with_measurements_before]
     for asset_id in asset_ids:
         num_power_measurements = Power.query.filter(Power.asset_id == asset_id).count()
         assert num_power_measurements == 96

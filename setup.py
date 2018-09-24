@@ -26,6 +26,7 @@ setup(
         "click",
         "validate_email",
         "py3DNS",
+        "pyomo",
         "forecastiopy",
         "pysolar",
         "ts-forecasting-pipeline>=0.3.4",

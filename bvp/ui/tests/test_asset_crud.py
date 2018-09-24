@@ -81,6 +81,9 @@ def test_edit_asset(db, client, as_prosumer):
             latitude=existing_asset.latitude,
             longitude=existing_asset.longitude,
             capacity_in_mw="33.33",
+            min_soc_in_mwh=existing_asset.min_soc_in_mwh,
+            max_soc_in_mwh=existing_asset.max_soc_in_mwh,
+            soc_in_mwh=existing_asset.soc_in_mwh,
         ),
     )
     assert asset_edit.status_code == 200
@@ -105,6 +108,9 @@ def test_add_asset(db, client, as_admin):
             capacity_in_mw="100",
             latitude="70.4",
             longitude="30.9",
+            min_soc_in_mwh=0,
+            max_soc_in_mwh=0,
+            soc_in_mwh=0,
         ),
     )
     assert asset_creation.status_code == 200
@@ -127,6 +133,9 @@ def test_add_asset_with_new_owner(client, as_admin):
             capacity_in_mw="100",
             latitude="70.4",
             longitude="30.9",
+            min_soc_in_mwh=0,
+            max_soc_in_mwh=0,
+            soc_in_mwh=0,
         ),
     )
     assert asset_creation.status_code == 200

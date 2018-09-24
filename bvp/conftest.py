@@ -1,12 +1,13 @@
 import pytest
 from random import random
+from datetime import datetime, timedelta
 
-from datetime import datetime
 from isodate import parse_duration
 import pandas as pd
 import numpy as np
 from flask import request, jsonify
-from flask_security import roles_accepted
+from flask_sqlalchemy import SQLAlchemy
+from flask_security import roles_accepted, SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 from werkzeug.exceptions import (
     InternalServerError,
@@ -17,10 +18,11 @@ from werkzeug.exceptions import (
 )
 
 from bvp.app import create as create_app
+from bvp.utils.time_utils import as_bvp_time
 from bvp.data.services.users import create_user, find_user_by_email
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.data_sources import DataSource
-from bvp.utils.time_utils import as_bvp_time
+from bvp.data.models.markets import Market, Price
 
 
 """
@@ -141,6 +143,9 @@ def setup_assets(db, setup_roles_users):
             capacity_in_mw=1,
             latitude=10,
             longitude=100,
+            min_soc_in_mwh=0,
+            max_soc_in_mwh=0,
+            soc_in_mwh=0,
         )
         asset.owner = test_prosumer
         db.session.add(asset)
@@ -159,6 +164,81 @@ def setup_assets(db, setup_roles_users):
             )
             p.asset = asset
             db.session.add(p)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
+    """Add one day of market prices for the EPEX day-ahead market."""
+    epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
+    data_source = DataSource.query.filter(
+        DataSource.label == "data entered for demonstration purposes"
+    ).one_or_none()
+
+    # one day of test data (one complete sine curve)
+    time_slots = pd.date_range(
+        datetime(2015, 1, 1), datetime(2015, 1, 2), freq="15T", closed="left"
+    )
+    values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
+    for dt, val in zip(time_slots, values):
+        p = Price(
+            datetime=as_bvp_time(dt),
+            horizon=timedelta(hours=0),
+            value=val,
+            data_source_id=data_source.id,
+        )
+        p.market = epex_da
+        db.session.add(p)
+
+    # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
+    time_slots = pd.date_range(
+        datetime(2015, 1, 2), datetime(2015, 1, 3), freq="15T", closed="left"
+    )
+    values = [100] * 8 * 4 + [90] * 8 * 4 + [100] * 8 * 4
+    for dt, val in zip(time_slots, values):
+        p = Price(
+            datetime=as_bvp_time(dt),
+            horizon=timedelta(hours=0),
+            value=val,
+            data_source_id=data_source.id,
+        )
+        p.market = epex_da
+        db.session.add(p)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def add_battery_asset(db: SQLAlchemy, setup_roles_users):
+    """Add one battery asset, set its capacity values and its initial SOC."""
+    db.session.add(
+        AssetType(
+            name="battery",
+            is_consumer=True,
+            is_producer=True,
+            can_curtail=True,
+            can_shift=True,
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        )
+    )
+
+    from bvp.data.models.user import User, Role
+
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
+
+    battery = Asset(
+        name="Test battery",
+        asset_type_name="battery",
+        capacity_in_mw=2,
+        max_soc_in_mwh=5,
+        min_soc_in_mwh=0,
+        soc_in_mwh=2.5,
+        soc_udi_event_id=203,
+        latitude=10,
+        longitude=100,
+    )
+    battery.owner = test_prosumer
+    db.session.add(battery)
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from functools import wraps
 from json import loads as parse_json, JSONDecodeError
 
+from inflection import pluralize
+
 from bvp.data import db
 from bvp.data.models.assets import Asset
 from bvp.data.models.forecasting.jobs import ForecastingJob
@@ -98,7 +100,11 @@ def append_doc_of(fun):
 
 
 def groups_to_dict(
-    connection_groups: List[List[str]], value_groups: List[List[str]]
+    connection_groups: List[List[str]],
+    value_groups: List[List[str]],
+    generic_asset_type_name: str,
+    plural_name: str = None,
+    groups_name="groups",
 ) -> dict:
     """Put the connections and values in a dictionary and simplify if groups have identical values and/or if there is
     only one group.
@@ -141,25 +147,34 @@ def groups_to_dict(
             }
     """
 
+    if plural_name is None:
+        plural_name = pluralize(generic_asset_type_name)
+
     # Simplify groups that have identical values
     value_groups, connection_groups = unique_ever_seen(value_groups, connection_groups)
 
     # Simplify if there is only one group
     if len(value_groups) == len(connection_groups) == 1:
         if len(connection_groups[0]) == 1:
-            return {"connection": connection_groups[0][0], "values": value_groups[0]}
+            return {
+                generic_asset_type_name: connection_groups[0][0],
+                "values": value_groups[0],
+            }
         else:
-            return {"connections": connection_groups[0], "values": value_groups[0]}
+            return {plural_name: connection_groups[0], "values": value_groups[0]}
     else:
-        d = {"groups": []}
+        d = {groups_name: []}
         for connection_group, value_group in zip(connection_groups, value_groups):
             if len(connection_group) == 1:
-                d["groups"].append(
-                    {"connection": connection_group[0], "values": value_group}
+                d[groups_name].append(
+                    {
+                        generic_asset_type_name: connection_group[0],
+                        "values": value_group,
+                    }
                 )
             else:
-                d["groups"].append(
-                    {"connections": connection_group, "values": value_group}
+                d[groups_name].append(
+                    {plural_name: connection_group, "values": value_group}
                 )
         return d
 
@@ -216,6 +231,13 @@ def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
         asset = Asset.query.filter(Asset.name == asset_name).one_or_none()
         connections_as_ea.append(asset.entity_address)
     return connections_as_ea
+
+
+def typed_regex_results(match, value_types) -> dict:
+    return {
+        k: v_type(v) if v is not None else v
+        for k, v, v_type in zip_dic(match.groupdict(), value_types)
+    }
 
 
 def zip_dic(*dicts):

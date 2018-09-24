@@ -21,12 +21,13 @@ def already_received_and_successfully_processed(message: str) -> Tuple[dict, int
 @BaseMessage(
     "Connections, sensors and markets should be identified using the EA1 addressing scheme recommended by USEF. "
     "For example:"
-    " 'ea1.2018-06.com.a1-bvp:<owner-id>:<asset-id>'"
+    " 'ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>'"
     " 'ea1.2018-06.com.a1-bvp:temperature:<latitude>:<longitude>'"
     " 'ea1.2018-06.com.a1-bvp:<market_name>'"
+    " 'ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>:<event_id>:<event_type>'"
 )
 def invalid_domain(message: str) -> Tuple[dict, int]:
-    return (dict(result="Rejected", status="INVALID_DOMAIN", message=message), 400)
+    return dict(result="Rejected", status="INVALID_DOMAIN", message=message), 400
 
 
 @BaseMessage("The prognosis horizon in your request could not be parsed.")
@@ -104,7 +105,12 @@ def invalid_sender(
 
 @BaseMessage("Start time should explicitly state a timezone.")
 def invalid_timezone(message: str) -> Tuple[dict, int]:
-    return (dict(result="Rejected", status="INVALID_TIMEZONE", message=message), 400)
+    return dict(result="Rejected", status="INVALID_TIMEZONE", message=message), 400
+
+
+@BaseMessage("Datetime cannot be used.")
+def invalid_datetime(message: str) -> Tuple[dict, int]:
+    return dict(result="Rejected", status="INVALID_DATETIME", message=message), 400
 
 
 def invalid_unit(
@@ -137,12 +143,12 @@ def invalid_message_type(message_type: str) -> Tuple[dict, int]:
 
 @BaseMessage("Request message should include 'backup'.")
 def no_backup(message: str) -> Tuple[dict, int]:
-    return (dict(result="Rejected", status="NO_BACKUP", message=message), 400)
+    return dict(result="Rejected", status="NO_BACKUP", message=message), 400
 
 
 @BaseMessage("Request message should include 'type'.")
 def no_message_type(message: str) -> Tuple[dict, int]:
-    return (dict(result="Rejected", status="NO_MESSAGE_TYPE", message=message), 400)
+    return dict(result="Rejected", status="NO_MESSAGE_TYPE", message=message), 400
 
 
 @BaseMessage("One or more power values are too big.")
@@ -160,12 +166,12 @@ def power_value_too_small(message: str) -> Tuple[dict, int]:
 
 @BaseMessage("Missing values.")
 def ptus_incomplete(message: str) -> Tuple[dict, int]:
-    return (dict(result="Rejected", status="PTUS_INCOMPLETE", message=message), 400)
+    return dict(result="Rejected", status="PTUS_INCOMPLETE", message=message), 400
 
 
 @BaseMessage("The requested backup is not known.")
 def unrecognized_backup(message: str) -> Tuple[dict, int]:
-    return (dict(result="Rejected", status="UNRECOGNIZED_BACKUP", message=message), 400)
+    return dict(result="Rejected", status="UNRECOGNIZED_BACKUP", message=message), 400
 
 
 @BaseMessage("One or more connections in your request were not found in your account.")
@@ -173,6 +179,30 @@ def unrecognized_connection_group(message: str) -> Tuple[dict, int]:
     return (
         dict(
             result="Rejected", status="UNRECOGNIZED_CONNECTION_GROUP", message=message
+        ),
+        400,
+    )
+
+
+def unrecognized_event(requested_event_id, requested_event_type) -> Tuple[dict, int]:
+    return (
+        dict(
+            result="Rejected",
+            status="UNRECOGNIZED_UDI_EVENT",
+            message="The requested UDI event (id = %s, type = %s) is not known."
+            % (requested_event_id, requested_event_type),
+        ),
+        400,
+    )
+
+
+def outdated_event_id(requested_event_id, existing_event_id) -> Tuple[dict, int]:
+    return (
+        dict(
+            result="Rejected",
+            status="OUTDATED_UDI_EVENT",
+            message="The requested UDI event (id = %s) is equal or before the latest existing one (id = %s)."
+            % (requested_event_id, existing_event_id),
         ),
         400,
     )
@@ -200,7 +230,7 @@ def unrecognized_sensor(
         )
     else:
         message = base_message + " In fact, we can't find any sensors."
-    return (dict(result="Rejected", status="UNRECOGNIZED_SENSOR", message=message), 400)
+    return dict(result="Rejected", status="UNRECOGNIZED_SENSOR", message=message), 400
 
 
 @BaseMessage("Request has been processed.")

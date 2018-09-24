@@ -61,6 +61,39 @@
                                 {% endfor %}
                             </div>
                         </div>
+                        {% if asset.min_soc_in_mwh is not none %}
+                            <div class="form-group">
+                                {{ asset_form.min_soc_in_mwh.label(class="col-sm-6 control-label") }}
+                                <div class="col-sm-6">
+                                    {{ asset_form.min_soc_in_mwh(class_="form-control") }}
+                                    {% for error in asset_form.errors.min_soc_in_mwh %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        {% if asset.max_soc_in_mwh is not none %}
+                            <div class="form-group">
+                                {{ asset_form.max_soc_in_mwh.label(class="col-sm-6 control-label") }}
+                                <div class="col-sm-6">
+                                    {{ asset_form.max_soc_in_mwh(class_="form-control") }}
+                                    {% for error in asset_form.errors.max_soc_in_mwh %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        {% if asset.soc_in_mwh is not none %}
+                            <div class="form-group">
+                                {{ asset_form.soc_in_mwh.label(class="col-sm-6 control-label") }}
+                                <div class="col-sm-6">
+                                    {{ asset_form.soc_in_mwh(class_="form-control") }}
+                                    {% for error in asset_form.errors.soc_in_mwh %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
                         <div class="form-group">
                             {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
                             <div class="col-sm-6">

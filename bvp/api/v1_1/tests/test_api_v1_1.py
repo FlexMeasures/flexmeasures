@@ -137,6 +137,7 @@ def test_post_price_data(db, app, post_message):
     # verify the data ended up in the database
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
+    horizon = parse_duration(post_message["horizon"])
     values = post_message["values"]
     market = validate_entity_address(post_message["market"], "market")
     market_name = market["market_name"]
@@ -145,6 +146,7 @@ def test_post_price_data(db, app, post_message):
     query = (
         db.session.query(Price.value, Market.name)
         .filter((Price.datetime > start - resolution) & (Price.datetime < end))
+        .filter(Price.horizon == horizon - (end - (Price.datetime + resolution)))
         .join(Market)
         .filter(Market.name == market_name)
     )

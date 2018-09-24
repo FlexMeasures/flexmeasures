@@ -70,6 +70,42 @@ Else, you can populate some standard data, most of which comes from files:
   The `--small` parameter will only load four assets and four days, so use this first to try things out.
 
 
+### Install an LP solver
+
+For planning balancing actions, the BVP platform uses a linear program solver. Currently that is the Cbc solver. See the `BVP_LP_SOLVER` config setting if you want to change to a different solver.
+
+Installing Cbc can be done on Unix via ``apt-get install coinor-cbc`` (also available in different popular package managers).
+
+Installing without `sudo` rights on Unix is also possible. This should give an indication:
+
+```bash
+#!/bin/bash
+
+# Install to this dir
+SOFTWARE_DIR=/home/seita/software
+
+mkdir -p $SOFTWARE_DIR
+cd $SOFTWARE_DIR
+
+# Getting Cbc abd its build tools
+git clone --branch=stable/2.9 https://github.com/coin-or/Cbc Cbc-2.9
+cd Cbc-2.9
+git clone --branch=stable/0.8 https://github.com/coin-or-tools/BuildTools/
+BuildTools/get.dependencies.sh fetch
+
+# Configuring, installing
+./configure
+make
+make install
+
+# adding new binaries to PATH
+# NOTE: This line might need to be added to your ~/.bashrc or the like
+export PATH=$PATH:$SOFTWARE_DIR/Cbc-2.9/bin
+```
+
+More information (e.g. for installing on Windows) on [the website](https://projects.coin-or.org/Cbc).
+
+
 ### Done.
 
 Now, to start the web application, you can run:

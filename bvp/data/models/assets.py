@@ -73,6 +73,12 @@ class Asset(db.Model):
     )
     # How many MW at peak usage
     capacity_in_mw = db.Column(db.Float, nullable=False)
+    # State of charge in MWh and its datetime and udi event
+    min_soc_in_mwh = db.Column(db.Float, nullable=True)
+    max_soc_in_mwh = db.Column(db.Float, nullable=True)
+    soc_in_mwh = db.Column(db.Float, nullable=True)
+    soc_datetime = db.Column(db.DateTime(timezone=True), nullable=True)
+    soc_udi_event_id = db.Column(db.Integer, nullable=True)
     # latitude is the North/South coordinate
     latitude = db.Column(db.Float, nullable=False)
     # longitude is the East/West coordinate

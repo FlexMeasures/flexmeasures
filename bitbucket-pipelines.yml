@@ -14,7 +14,7 @@ pipelines:
         script:
           - ci/SETUP.sh
           - apt-get update
-          - apt-get -y install postgresql-client
+          - apt-get -y install postgresql-client coinor-cbc
           - PGPASSWORD=a1test psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U a1test a1test;
           - python setup.py test
         services:
@@ -27,7 +27,7 @@ pipelines:
           script:
             - ci/SETUP.sh
             - apt-get update
-            - apt-get -y install postgresql-client
+            - apt-get -y install postgresql-client coinor-cbc
             - PGPASSWORD=a1test psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U a1test a1test;
             - python setup.py test
           caches:

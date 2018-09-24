@@ -56,6 +56,9 @@ def setup_ui_test_data(db):
         capacity_in_mw=10,
         latitude=10,
         longitude=100,
+        min_soc_in_mwh=0,
+        max_soc_in_mwh=0,
+        soc_in_mwh=0,
     )
     db.session.add(asset)
     asset.owner = test_prosumer2

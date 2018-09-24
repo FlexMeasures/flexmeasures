@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import re
 from functools import wraps
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 import isodate
 from isodate.isoerror import ISO8601Error
@@ -13,7 +13,6 @@ from flask_principal import Permission, RoleNeed
 from flask_security import current_user
 
 from bvp.api.common.responses import (  # noqa: F401
-    invalid_domain,
     invalid_horizon,
     invalid_method,
     invalid_message_type,
@@ -30,7 +29,7 @@ from bvp.api.common.utils.api_utils import (
     get_form_from_request,
     parse_as_list,
     contains_empty_items,
-    zip_dic,
+    typed_regex_results,
 )
 from bvp.data.models.data_sources import DataSource
 from bvp.data.config import db
@@ -115,7 +114,7 @@ def validate_duration(duration: str) -> Union[timedelta, None]:
         return None
 
 
-def validate_start(start: str) -> Union[datetime, None]:
+def parse_isodate_str(start: str) -> Union[datetime, None]:
     """
     Validates whether the string 'start' is a valid ISO 8601 datetime.
     """
@@ -141,7 +140,9 @@ def valid_sensor_units(sensor: str) -> List[str]:
         )
 
 
-def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
+def validate_entity_address(
+    generic_asset_name: str, entity_type: str
+) -> Optional[dict]:
     """
     Validates whether the generic asset name is a valid type 1 USEF entity address.
     That is, it must follow the EA1 addressing scheme recommended by USEF.
@@ -149,8 +150,13 @@ def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
     For example:
 
         connection = ea1.2018-06.localhost:5000:40:30
-        connection = ea1.2018-06.com.a1-bvp:<owner-id>:<asset-id>'
+        connection = ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>
         sensor = ea1.2018-06.com.a1-bvp:temperature:52:73.0
+        sensor = ea1.2018-06.com.a1-bvp:<sensor_type>:<latitude>:<longitude>
+        market = ea1.2018-06.com.a1-bvp:epex_da
+        market = ea1.2018-06.com.a1-bvp:<market_name>
+        event = ea1.2018-06.com.a1-bvp:5000:40:30:302:soc
+        event = ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>:<event_id>:<event_type>
 
     """
     if entity_type == "connection":
@@ -170,11 +176,7 @@ def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
                 "owner_id": int,
                 "asset_id": int,
             }
-            return {
-                k: v_type(v) if v is not None else v
-                for k, v, v_type in zip_dic(match.groupdict(), value_types)
-            }
-
+            return typed_regex_results(match, value_types)
     elif entity_type == "sensor":
         match = re.search(
             "^"
@@ -198,9 +200,7 @@ def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
                 "latitude": float,
                 "longitude": float,
             }
-            return {
-                k: v_type(v) for k, v, v_type in zip_dic(match.groupdict(), value_types)
-            }
+            return typed_regex_results(match, value_types)
     elif entity_type == "market":
         match = re.search(
             "^"
@@ -214,9 +214,29 @@ def validate_entity_address(generic_asset_name: str, entity_type: str) -> dict:
         )
         if match:
             value_types = {"scheme": str, "naming_authority": str, "market_name": str}
-            return {
-                k: v_type(v) for k, v, v_type in zip_dic(match.groupdict(), value_types)
+            return typed_regex_results(match, value_types)
+    elif entity_type == "event":
+        match = re.search(
+            "^"
+            "((?P<scheme>.+)\.)*"
+            "((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
+            "((?P<owner_id>\d+):(?=.+:{0}))*"
+            "(?P<asset_id>\d+):"
+            "(?P<event_id>\d+):"
+            "(?P<event_type>.+)"
+            "$",
+            generic_asset_name,
+        )
+        if match:
+            value_types = {
+                "scheme": str,
+                "naming_authority": str,
+                "owner_id": int,
+                "asset_id": int,
+                "event_id": int,
+                "event_type": str,
             }
+            return typed_regex_results(match, value_types)
 
 
 def optional_sources_accepted(
@@ -328,7 +348,7 @@ def optional_horizon_accepted(ex_post: bool = False):
                         extra_info = "Meter data must have a negative horizon to indicate observations after the fact."
                         return invalid_horizon(extra_info)
             elif "start" in form and "duration" in form:
-                start = validate_start(form["start"])
+                start = parse_isodate_str(form["start"])
                 duration = validate_duration(form["duration"])
                 if not start:
                     extra_info = "Cannot parse 'start' value."
@@ -382,7 +402,7 @@ def period_required(fn):
             return invalid_method(request.method)
 
         if "start" in form:
-            start = validate_start(form["start"])
+            start = parse_isodate_str(form["start"])
             if not start:
                 current_app.logger.warn("Cannot parse 'start' value")
                 return invalid_period()
@@ -419,8 +439,8 @@ def assets_required(
         def post_meter_data(generic_asset_name_groups):
             return 'Meter data posted'
 
-    The message must specify one or more connections. If that is the case, then the connections are passed to the
-    function as generic_asset_name_groups.
+    Given this example, the message must specify one or more assets as "connections".
+    If that is the case, then the assets are passed to the function as generic_asset_name_groups.
 
     Connections can be listed in one of the following ways:
     - value of 'connection' key (for a single asset)
@@ -600,7 +620,9 @@ def units_accepted(quantity: str, *units: str):
                 current_app.logger.warn("Request is missing unit.")
                 return invalid_unit(quantity, units)
             elif form["unit"] not in units:
-                current_app.logger.warn("Unit is not accepted.")
+                current_app.logger.warn(
+                    "Unit %s is not accepted as one of %s." % (form["unit"], units)
+                )
                 return invalid_unit(quantity, units)
             else:
                 kwargs["unit"] = form["unit"]

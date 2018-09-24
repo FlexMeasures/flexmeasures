@@ -336,8 +336,7 @@ This example posts a state of charge value for a battery device (asset 10 of own
 
         {
             "type": "PostUdiEventRequest",
-            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203",
-            "type": "soc",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203:soc",
             "value": 12.1,
             "datetime": "2015-06-02T10:00:00+00:00",
             "unit": "kWh"
@@ -359,7 +358,7 @@ This example requests a control signal for UDI event 203 posted previously.
 
         {
             "type": "GetDeviceMessageRequest",
-            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203"
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203:soc"
         }
 
 The following example response indicates that the BVP planned ahead 45 minutes.

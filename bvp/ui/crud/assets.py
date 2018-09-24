@@ -26,6 +26,21 @@ class AssetForm(FlaskForm):
     capacity_in_mw = DecimalField(
         "Capacity in MW", places=2, validators=[NumberRange(min=0)]
     )
+    min_soc_in_mwh = DecimalField(
+        "Minumum state of charge (SOC) in MWh",
+        places=2,
+        validators=[NumberRange(min=0)],
+    )
+    max_soc_in_mwh = DecimalField(
+        "Maximum state of charge (SOC) in MWh",
+        places=2,
+        validators=[NumberRange(min=0)],
+    )
+    soc_in_mwh = DecimalField(
+        "Current state of charge (SOC) in MWh",
+        places=2,
+        validators=[NumberRange(min=0)],
+    )
     latitude = DecimalField(
         "Latitude",
         places=4,
@@ -131,6 +146,9 @@ class AssetCrud(FlaskView):
                     capacity_in_mw=asset_form.capacity_in_mw.data,
                     latitude=asset_form.latitude.data,
                     longitude=asset_form.longitude.data,
+                    min_soc_in_mwh=asset_form.min_soc_in_mwh.data,
+                    max_soc_in_mwh=asset_form.max_soc_in_mwh.data,
+                    soc_in_mwh=asset_form.soc_in_mwh.data,
                     owner=owner,
                 )
                 asset_form.process(obj=asset)

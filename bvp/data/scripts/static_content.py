@@ -32,7 +32,7 @@ from bvp.data.transactional import as_transaction
 
 BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 
-p = inflect.engine()
+infl_eng = inflect.engine()
 
 
 def get_pickle_path() -> str:
@@ -229,6 +229,20 @@ def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
                 continue
             assets.append(asset)
             db.session.add(asset)
+    assets.append(
+        Asset(
+            asset_type_name="battery",
+            display_name="JoCheon Battery",
+            name="jc_bat",
+            latitude=33.533744,
+            longitude=126.675211 + 0.0002,
+            capacity_in_mw=2,
+            max_soc_in_mwh=5,
+            min_soc_in_mwh=0,
+            soc_in_mwh=2.5,
+            soc_datetime=ensure_korea_local(datetime(2015, 1, 1, tzinfo=None)),
+        )
+    )
     return assets
 
 
@@ -400,6 +414,10 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
         mock_asset_owner = db.session.merge(mock_asset_owner)
         for asset in [a for a in assets if a.asset_type_name == asset_type]:
             asset.owner = mock_asset_owner
+        # Add batteries to the solar asset owner
+        if asset_type == "solar":
+            for asset in [a for a in assets if a.asset_type_name == "battery"]:
+                asset.owner = mock_asset_owner
 
     # task runner
     create_user(
@@ -505,7 +523,7 @@ def populate_time_series_forecasts(
 
     click.echo(
         "Populating the database %s with time series forecasts of %s ahead ..."
-        % (db.engine, p.join([naturaldelta(horizon) for horizon in horizons]))
+        % (db.engine, infl_eng.join([naturaldelta(horizon) for horizon in horizons]))
     )
 
     # Set a data source for the forecasts
@@ -831,9 +849,9 @@ def save_tables(
     backup_path: str = BACKUP_PATH,
 ):
     # Make a new folder for the backup
-    p = Path("%s/%s" % (backup_path, backup_name))
+    backup_folder = Path("%s/%s" % (backup_path, backup_name))
     try:
-        p.mkdir(parents=True, exist_ok=False)
+        backup_folder.mkdir(parents=True, exist_ok=False)
     except FileExistsError:
         click.echo(
             "Can't save backup, because directory %s/%s already exists."
@@ -842,6 +860,7 @@ def save_tables(
         return
 
     affected_classes = get_affected_classes(structure, data)
+    c = None
     try:
         for c in affected_classes:
             file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
@@ -854,7 +873,7 @@ def save_tables(
             "Can't save table %s because of the following error:\n\n\t%s\n\nCleaning up..."
             % (c.__tablename__, e)
         )
-        rmtree(p)
+        rmtree(backup_folder)
         click.echo("Removed directory %s/%s." % (backup_path, backup_name))
 
 

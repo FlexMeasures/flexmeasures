@@ -21,7 +21,32 @@ class InvalidBVPAsset(Exception):
 
 def get_assets(owner_id: Optional[int] = None) -> List[Asset]:
     """Return a list of all Asset objects owned by current_user
-     (or all or specific user for admins).
+     (or all users or a specific user - for this, admins can set an owner_id).
+    """
+    return _build_asset_query(owner_id).all()
+
+
+def has_assets(owner_id: Optional[int] = None) -> bool:
+    """Return True if the current user owns any assets.
+     (or all users or a specific user - for this, admins can set an owner_id).
+    """
+    return _build_asset_query(owner_id).count() > 0
+
+
+def can_access_asset(asset: Asset) -> bool:
+    """Return True if the current user is an admin or the owner of the asset:"""
+    if current_user.is_authenticated:
+        if current_user.has_role("admin"):
+            return True
+        if asset.owner == current_user:
+            return True
+    return False
+
+
+def _build_asset_query(owner_id: Optional[int] = None) -> Query:
+    """Build an Asset query. Only authenticated users can use this.
+    Admins can query for all assets (owner_id is None) or for any user (the asset's owner).
+    Non-admins can only query for themselves (owner_id is ignored).
     """
     if current_user.is_authenticated:
         if current_user.has_role("admin"):
@@ -34,21 +59,14 @@ def get_assets(owner_id: Optional[int] = None) -> List[Asset]:
                             "Owner id %s cannot be parsed as integer, thus seems to be invalid."
                             % owner_id
                         )
-                assets = (
-                    Asset.query.filter(Asset.owner_id == owner_id)
-                    .order_by(Asset.id.desc())
-                    .all()
+                return Asset.query.filter(Asset.owner_id == owner_id).order_by(
+                    Asset.id.desc()
                 )
             else:
-                assets = Asset.query.order_by(Asset.id.desc()).all()
+                return Asset.query.order_by(Asset.id.desc())
         else:
-            assets = (
-                Asset.query.filter_by(owner=current_user)
-                .order_by(Asset.id.desc())
-                .all()
-            )
-        return assets
-    return []
+            return Asset.query.filter_by(owner=current_user).order_by(Asset.id.desc())
+    return Asset.query.filter(Asset.owner_id == -1)
 
 
 def get_asset_groups() -> Dict[str, Query]:
@@ -79,6 +97,9 @@ def create_asset(
     capacity_in_mw: float,
     latitude: float,
     longitude: float,
+    min_soc_in_mwh: float,
+    max_soc_in_mwh: float,
+    soc_in_mwh: float,
     owner: User,
 ) -> Asset:
     """Validate input, create an asset and add it to the database"""
@@ -103,6 +124,9 @@ def create_asset(
         latitude=latitude,
         longitude=longitude,
         asset_type_name=asset_type_name,
+        min_soc_in_mwh=min_soc_in_mwh,
+        max_soc_in_mwh=max_soc_in_mwh,
+        soc_in_mwh=soc_in_mwh,
         owner=owner,
     )
     db.session.add(asset)
