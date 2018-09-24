@@ -3,6 +3,32 @@
 Change log
 ==========
 
+v1.2-1
+""""""
+
+- Added a local table of contents to the Simulation section
+- Added a description of the *postPriceData* endpoint in the Simulation section
+- Added a description of the *postWeatherData* endpoint in the Simulation section
+- Revised the subsection about posting power data in the Simulation section
+- Revised the entity address for UDI events to include the type of the event
+
+.. code-block:: json
+
+    i.e.
+
+    {
+        "type": "PostUdiEventRequest",
+        "event": "ea1.2018-06.com.a1-bvp.play:7:10:203:soc",
+    }
+
+    rather than the erroneously double-keyed:
+
+    {
+        "type": "PostUdiEventRequest",
+        "event": "ea1.2018-06.com.a1-bvp.play:7:10:203",
+        "type": "soc"
+    }
+
 v1.2-0
 """"""
 
