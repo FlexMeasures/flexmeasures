@@ -15,6 +15,7 @@ from bvp.data.models.assets import Asset, AssetType
 from bvp.data.models.user import User
 from bvp.data.services.users import get_users, create_user, InvalidBVPUser
 from bvp.data.auth_setup import unauth_handler
+from bvp.data.config import db
 
 
 class AssetForm(FlaskForm):
@@ -29,16 +30,13 @@ class AssetForm(FlaskForm):
     min_soc_in_mwh = DecimalField(
         "Minumum state of charge (SOC) in MWh",
         places=2,
+        default=0,
         validators=[NumberRange(min=0)],
     )
     max_soc_in_mwh = DecimalField(
         "Maximum state of charge (SOC) in MWh",
         places=2,
-        validators=[NumberRange(min=0)],
-    )
-    soc_in_mwh = DecimalField(
-        "Current state of charge (SOC) in MWh",
-        places=2,
+        default=0,
         validators=[NumberRange(min=0)],
     )
     latitude = DecimalField(
@@ -53,6 +51,15 @@ class AssetForm(FlaskForm):
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
         validators=[NumberRange(min=-180, max=180)],
     )
+
+    def validate_on_submit(self):
+        form_valid = super().validate_on_submit()
+        if self.max_soc_in_mwh.data < self.min_soc_in_mwh.data:
+            self.errors["max_soc_in_mwh"] = [
+                "This value must be equal or higher than the minimum soc."
+            ]
+            return False
+        return form_valid
 
 
 class NewAssetForm(AssetForm):
@@ -148,11 +155,12 @@ class AssetCrud(FlaskView):
                     longitude=asset_form.longitude.data,
                     min_soc_in_mwh=asset_form.min_soc_in_mwh.data,
                     max_soc_in_mwh=asset_form.max_soc_in_mwh.data,
-                    soc_in_mwh=asset_form.soc_in_mwh.data,
+                    soc_in_mwh=0,
                     owner=owner,
                 )
                 asset_form.process(obj=asset)
                 asset_form.owner.data = owner.id
+                db.session.flush()  # the object should get the ID here, for the form to be rendered correctly
                 msg = "Creation was successful."
             else:
                 msg = "Cannot create asset."
