@@ -77,7 +77,11 @@ def get_prices_data(
     # Get price forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
     prices_forecast_data = Price.collect(
-        ["epex_da"], horizon_window=(horizon, None), rolling=True, as_beliefs=True
+        ["epex_da"],
+        horizon_window=(horizon, None),
+        rolling=True,
+        create_if_empty=True,
+        as_beliefs=True,
     )
     prices_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
     if not prices_forecast_data.empty and prices_forecast_data.size == prices_data.size:
