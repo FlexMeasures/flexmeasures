@@ -5,7 +5,7 @@ from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from wtforms import StringField, DecimalField, SelectField
 from wtforms.validators import DataRequired, NumberRange, Length
-from flask_security import login_required, current_user
+from flask_security import login_required, roles_required, current_user
 from werkzeug.exceptions import NotFound
 from sqlalchemy.exc import IntegrityError
 
@@ -14,6 +14,7 @@ from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.data.models.assets import Asset, AssetType
 from bvp.data.models.user import User
 from bvp.data.services.users import get_users, create_user, InvalidBVPUser
+from bvp.data.services.resources import delete_asset
 from bvp.data.auth_setup import unauth_handler
 from bvp.data.config import db
 
@@ -182,6 +183,19 @@ class AssetCrud(FlaskView):
                 raise NotFound
         return render_bvp_template(
             "crud/asset.html", asset=asset, asset_form=asset_form, msg=msg
+        )
+
+    @roles_required("admin")
+    def delete_with_data(self, id: str):
+        """Delete via /assets/delete_with_data/<id>"""
+        asset: Asset = Asset.query.filter_by(id=int(id)).one_or_none()
+        asset_name = asset.name
+        delete_asset(asset)
+        return render_bvp_template(
+            "crud/assets.html",
+            msg="Asset %s and assorted meter readings / forecasts have been deleted."
+            % asset_name,
+            assets=get_assets(),
         )
 
 

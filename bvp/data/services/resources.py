@@ -6,6 +6,7 @@ from typing import List, Dict, Union, Optional
 from datetime import datetime
 from inflection import pluralize
 
+from flask import current_app
 from flask_security.core import current_user
 from sqlalchemy.orm.query import Query
 import pandas as pd
@@ -131,6 +132,15 @@ def create_asset(
     )
     db.session.add(asset)
     return asset
+
+
+def delete_asset(asset: Asset):
+    """Delete the asset (and also its power measurements!). Requires admin privileges"""
+    if "admin" not in current_user.roles:
+        raise Exception("Only admins can delete assets.")
+    else:
+        db.session.delete(asset)
+        current_app.logger.info("Deleted %s." % asset)
 
 
 class Resource:
