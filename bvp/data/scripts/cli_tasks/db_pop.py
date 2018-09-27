@@ -3,7 +3,6 @@
 
 from flask import current_app as app
 import flask_migrate as migrate
-from flask_sqlalchemy import SQLAlchemy
 import click
 
 from bvp.data.scripts.static_content import get_affected_classes
@@ -69,19 +68,18 @@ def db_populate(
     asset: str = None,
 ):
     """Initialize the database with static values."""
-    db = SQLAlchemy(app)
     if structure:
         from bvp.data.scripts.static_content import populate_structure
 
-        populate_structure(db, small)
+        populate_structure(app.db, small)
     if data:
         from bvp.data.scripts.static_content import populate_time_series_data
 
-        populate_time_series_data(db, small, type, asset)
+        populate_time_series_data(app.db, small, type, asset)
     if forecasts:
         from bvp.data.scripts.static_content import populate_time_series_forecasts
 
-        populate_time_series_forecasts(db, small, type, asset, from_date, to_date)
+        populate_time_series_forecasts(app.db, small, type, asset, from_date, to_date)
     if not structure and not data and not forecasts:
         click.echo(
             "I did nothing as neither --structure nor --data nor --forecasts was given. Decide what you want!"
@@ -91,9 +89,9 @@ def db_populate(
 
         if data and not small:
             click.echo("Too much data to save! I'm only saving structure ...")
-            save_tables(db, save, structure, data=False, backup_path=dir)
+            save_tables(app.db, save, structure, data=False, backup_path=dir)
         else:
-            save_tables(db, save, structure, data, dir)
+            save_tables(app.db, save, structure, data, dir)
 
 
 @app.cli.command()
@@ -147,19 +145,18 @@ def db_depopulate(
         )
         if not click.confirm(prompt):
             return
-    db = SQLAlchemy(app)
     if forecasts:
         from bvp.data.scripts.static_content import depopulate_forecasts
 
-        depopulate_forecasts(db, type, asset)
+        depopulate_forecasts(app.db, type, asset)
     if data:
         from bvp.data.scripts.static_content import depopulate_data
 
-        depopulate_data(db, type, asset)
+        depopulate_data(app.db, type, asset)
     if structure:
         from bvp.data.scripts.static_content import depopulate_structure
 
-        depopulate_structure(db)
+        depopulate_structure(app.db)
 
 
 @app.cli.command()
@@ -184,11 +181,10 @@ def db_reset(
         if not click.confirm(prompt):
             click.echo("I did nothing.")
             return
-    db = SQLAlchemy(app)
     from bvp.data.scripts.static_content import reset_db
 
     current_version = migrate.current()
-    reset_db(db)
+    reset_db(app.db)
     migrate.stamp(current_version)
 
     if load:
@@ -197,7 +193,7 @@ def db_reset(
             return
         from bvp.data.scripts.static_content import load_tables
 
-        load_tables(db, load, structure, data, dir)
+        load_tables(app.db, load, structure, data, dir)
 
 
 @app.cli.command()
@@ -221,8 +217,7 @@ def db_save(
     if name:
         from bvp.data.scripts.static_content import save_tables
 
-        db = SQLAlchemy(app)
-        save_tables(db, name, structure=structure, data=data, backup_path=dir)
+        save_tables(app.db, name, structure=structure, data=data, backup_path=dir)
     else:
         click.echo(
             "You must specify a unique name for the backup: --name <unique name>"
@@ -246,7 +241,6 @@ def db_load(
     if name:
         from bvp.data.scripts.static_content import load_tables
 
-        db = SQLAlchemy(app)
-        load_tables(db, name, structure=structure, data=data, backup_path=dir)
+        load_tables(app.db, name, structure=structure, data=data, backup_path=dir)
     else:
         click.echo("You must specify the name of the backup: --name <unique name>")
