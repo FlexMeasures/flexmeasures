@@ -33,6 +33,7 @@ def create(env=None) -> Flask:
     read_config(app)
     if app.debug and not app.testing and not app.cli:
         print(app.config)
+    add_basic_error_handlers(app)
 
     app.mail = Mail(app)
     FlaskJSON(app)
@@ -41,8 +42,6 @@ def create(env=None) -> Flask:
 
     install_secret_key(app)
     SSLify(app)
-
-    add_basic_error_handlers(app)
 
     # Register database and models, including user auth security measures
 

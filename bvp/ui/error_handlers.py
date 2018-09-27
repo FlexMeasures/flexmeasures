@@ -21,6 +21,9 @@ def add_html_error_views(app: Flask):
 def handle_generic_http_exception(e: HTTPException):
     """This handles all known exception as fall-back"""
     log_error(e, e.description)
+    error_code = 400
+    if e.code is not None:
+        error_code = e.code
     return (
         render_bvp_template(
             "error.html",
@@ -28,7 +31,7 @@ def handle_generic_http_exception(e: HTTPException):
             error_description="We encountered an Http exception.",
             error_message=e.description,
         ),
-        400,
+        error_code,
     )
 
 
