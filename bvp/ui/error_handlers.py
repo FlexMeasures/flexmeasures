@@ -21,7 +21,7 @@ def add_html_error_views(app: Flask):
 def handle_generic_http_exception(e: HTTPException):
     """This handles all known exception as fall-back"""
     log_error(e, e.description)
-    error_code = 400
+    error_code = 500
     if e.code is not None:
         error_code = e.code
     return (

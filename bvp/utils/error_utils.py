@@ -62,10 +62,10 @@ def error_handling_router(error: HTTPException):
     elif hasattr(current_app, "HTTPException_handler_html"):
         return current_app.HTTPException(error)
     else:
-        if hasattr(error, "description"):
+        if hasattr(error, "description") and hasattr(error, "code"):
             return "%s:%s" % (error.__class__.__name__, error.description), error.code
         else:
-            return "%s:%s" % (error.__class__.__name__, str(error)), error.code
+            return "%s:%s" % (error.__class__.__name__, str(error)), 500
 
 
 def add_basic_error_handlers(app: Flask):
