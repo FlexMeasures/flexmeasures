@@ -141,20 +141,22 @@ def post_udi_event_response(unit):
     if asset.asset_type_name != "battery":
         return invalid_domain("Asset ID:%s is not a battery." % asset_id)
 
-    # check if last date is before this date
-    if asset.soc_datetime is not None:
-        if asset.soc_datetime >= datetime:
-            msg = (
-                "The date of the requested UDI event (%s) is earlier than the latest known date (%s)."
-                % (datetime, asset.soc_datetime)
-            )
-            current_app.logger.warn(msg)
-            return invalid_datetime(msg)
+    # unless on play, keep events ordered by entry date and ID
+    if current_app.config.get("BVP_MODE") != "play":
+        # do not allow new date to be after last date
+        if asset.soc_datetime is not None:
+            if asset.soc_datetime >= datetime:
+                msg = (
+                    "The date of the requested UDI event (%s) is earlier than the latest known date (%s)."
+                    % (datetime, asset.soc_datetime)
+                )
+                current_app.logger.warn(msg)
+                return invalid_datetime(msg)
 
-    # check if udi event id is higher than existing
-    if asset.soc_udi_event_id is not None:
-        if asset.soc_udi_event_id >= event_id:
-            return outdated_event_id(event_id, asset.soc_udi_event_id)
+        # check if udi event id is higher than existing
+        if asset.soc_udi_event_id is not None:
+            if asset.soc_udi_event_id >= event_id:
+                return outdated_event_id(event_id, asset.soc_udi_event_id)
 
     # get value
     if "value" not in form:
