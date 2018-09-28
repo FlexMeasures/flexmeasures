@@ -28,7 +28,6 @@ from bvp.data.models.assets import Asset
 from bvp.data.models.planning.battery import schedule_battery
 from bvp.data.models.markets import Market
 from bvp.data.services.resources import has_assets, can_access_asset
-from bvp.utils.time_utils import bvp_now
 
 
 @type_accepted("GetDeviceMessageRequest")
@@ -104,7 +103,7 @@ def post_udi_event_response(unit):
 
     # check datetime, or use bvp_now
     if "datetime" not in form:
-        datetime = bvp_now()
+        return invalid_datetime("Missing datetime parameter.")
     else:
         datetime = parse_isodate_str(form.get("datetime"))
         if datetime is None:

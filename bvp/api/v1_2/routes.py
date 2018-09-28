@@ -97,7 +97,7 @@ def post_udi_event():
     **Example request**
 
     This "PostUdiEventRequest" message posts a state of charge (soc) of 12.1 kWh at 10.00am
-    as UDI event 203 of device 10 of owner 7. The datetime is optional, defaulting to now.
+    as UDI event 203 of device 10 of owner 7.
 
     .. code-block:: json
 

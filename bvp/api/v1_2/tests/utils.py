@@ -17,6 +17,7 @@ def message_for_post_udi_event() -> dict:
     message = {
         "type": "PostUdiEventRequest",
         "event": "ea1.2018-06.com.a1-bvp.play:%s:%s:204:soc",
+        "datetime": "2018-09-27T10:00:00+00:00",
         "value": 12.1,
         "unit": "kWh",
     }

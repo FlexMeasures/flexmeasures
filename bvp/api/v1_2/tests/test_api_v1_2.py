@@ -2,6 +2,7 @@ from flask import url_for
 import pytest
 import json
 from datetime import timedelta
+from isodate import parse_datetime
 
 from bvp.api.common.responses import unrecognized_event
 from bvp.api.tests.utils import get_auth_token
@@ -10,7 +11,6 @@ from bvp.api.v1_2.tests.utils import (
     message_for_post_udi_event,
 )
 from bvp.data.models.assets import Asset
-from bvp.utils.time_utils import bvp_now
 
 
 @pytest.mark.parametrize("message", [message_for_get_device_message()])
@@ -64,15 +64,18 @@ def test_post_udi_event(app, message):
         assert post_udi_event_response.status_code == 200
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
 
+    msg_dt = parse_datetime(message["datetime"])
+
     # test database state
     asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-    assert asset.soc_datetime > bvp_now() - timedelta(minutes=1)
+    assert asset.soc_datetime == msg_dt
     assert asset.soc_in_mwh == message["value"] / 1000
     assert asset.soc_udi_event_id == 204
 
     # sending again results in an error, unless we increase the event ID
     with app.test_client() as client:
-        message["datetime"] = bvp_now().strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+        next_msg_dt = msg_dt + timedelta(minutes=5)
+        message["datetime"] = next_msg_dt.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
         post_udi_event_response = client.post(
             url_for("bvp_api_v1_2.post_udi_event"),
             data=json.dumps(message),
@@ -92,3 +95,9 @@ def test_post_udi_event(app, message):
         print("Server responded with:\n%s" % post_udi_event_response.json)
         assert post_udi_event_response.status_code == 200
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
+
+    # test database state
+    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+    assert asset.soc_datetime == next_msg_dt
+    assert asset.soc_in_mwh == message["value"] / 1000
+    assert asset.soc_udi_event_id == 205

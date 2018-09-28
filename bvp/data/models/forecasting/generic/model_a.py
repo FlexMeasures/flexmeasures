@@ -68,6 +68,8 @@ def configure_specs(  # noqa: C901
     )
     oldest_value = q.order_by(generic_asset_value_class.datetime.asc()).first()
     newest_value = q.order_by(generic_asset_value_class.datetime.desc()).first()
+    if oldest_value is None:
+        raise Exception("No data available at all. Forecasting impossible.")
     if query_window[0] < oldest_value.datetime:
         suggested_start = start + (oldest_value.datetime - query_window[0])
         raise Exception(
