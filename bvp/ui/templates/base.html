@@ -14,6 +14,8 @@
             <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
             <!-- Leaflet -->
             <link href="{{ url_for('bvp_ui.static', filename='css/external/leaflet.css') }}" rel="stylesheet"/>
+            <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet"/>
+            <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" rel="stylesheet"/>
             <!-- Bootstrap -->
             <link href="{{ url_for('bvp_ui.static', filename='css/external/bootstrap.min.css') }}" rel="stylesheet"/>
             {% if show_datepicker %}

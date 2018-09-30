@@ -102,6 +102,8 @@
     <!-- Initialise the map -->
     <script src="{{ url_for('bvp_ui.static', filename='js/external/leaflet.js') }}"></script>
     <script src="{{ url_for('bvp_ui.static', filename='js/map-init.js') }}"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster.layersupport@2.0.1/dist/leaflet.markercluster.layersupport.js"></script>
 
     <script type="text/javascript">
     // create markers, keep them by asset type
@@ -349,28 +351,28 @@
         batteries_markers.push(marker_for_bat);
     {% endif%}
 
-    // make layer groups
-    var asset_type_layers = [];
-    var overlay_maps = {};
-    {% for asset_type in asset_counts_per_pluralised_type: %}
-        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
-            var {{ asset_type }}_layer = new L.LayerGroup({{ asset_type }}_markers);
-            asset_type_layers.push({{ asset_type }}_layer);
-            overlay_maps["{{ asset_type }}"] = {{ asset_type }}_layer;
-        {% endif %}
-    {% endfor %}
-
-    // create Map with layers
+    // create Map with tiles
     var assetMap = L
-        .map('mapid', {center: [33.4049, 126.6504], zoom: 10, layers: asset_type_layers})
+        .map('mapid', {center: [33.4049, 126.6504], zoom: 10, layers: tileLayer})
         .on('popupopen', function(){
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
             });
         });
-    tileLayer.addTo(assetMap);
+    var mcgLayerSupportGroup = L.markerClusterGroup.layerSupport();
+    var control = L.control.layers(null, null, { collapsed: true });
 
-    L.control.layers(null, overlay_maps).addTo(assetMap);
+    // add a layer for each asset type
+    {% for asset_type in asset_counts_per_pluralised_type: %}
+        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
+            var {{ asset_type }}_layer = new L.LayerGroup({{ asset_type }}_markers);
+            mcgLayerSupportGroup.checkIn({{ asset_type }}_layer);
+            control.addOverlay({{ asset_type }}_layer, "{{ asset_type }}")
+            {{ asset_type }}_layer.addTo(assetMap);
+        {% endif %}
+    {% endfor %}
+    mcgLayerSupportGroup.addTo(assetMap);
+    control.addTo(assetMap);
 
     </script>
 
