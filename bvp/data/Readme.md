@@ -2,9 +2,9 @@
 
 This package holds all data models, db configuration and code that works on data.
 
-This document describes how to get theo postgres database ready to use and maintain it (do migrations / changes to the structure).
+This document describes how to get the postgres database ready to use and maintain it (do migrations / changes to the structure).
 
-Finally, a fwe words on coding with database transactions in mind.
+Finally, a few words on coding with database transactions in mind.
 
 
 Getting ready to use
@@ -67,6 +67,7 @@ Or, from within Postgres console:
 
     CREATE USER a1 WITH UNENCRYPTED PASSWORD 'whatever';
     CREATE DATABASE a1 WITH OWNER = a1;
+    CREATE USER a1test WITH UNENCRYPTED PASSWORD 'whatever';
     CREATE DATABASE a1test WITH OWNER = a1test;
 
 Log in as the postgres superuser:
