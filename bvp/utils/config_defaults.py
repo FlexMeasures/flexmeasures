@@ -51,6 +51,7 @@ class Config(object):
     BVP_TIMEZONE = "Asia/Seoul"
     BVP_DB_BACKUP_PATH = "migrations/dumps"
     BVP_LP_SOLVER = "cbc"
+    BVP_PA_DOMAIN_NAMES = []
 
     #  names of settings which cannot be None
     required: List[str] = [

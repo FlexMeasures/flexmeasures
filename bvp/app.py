@@ -61,4 +61,8 @@ def create(env=None) -> Flask:
 
     register_api_at(app)
 
+    if app.cli:
+        with app.app_context():
+            import bvp.utils.pa_ssl_cert_renewal  # noqa: F401
+
     return app
