@@ -15,7 +15,10 @@
 import os
 import sys
 
+from bvp.app import create as create_app
+
 sys.path.insert(0, os.path.abspath(".."))
+bvp_app = create_app()
 
 
 # -- Project information -----------------------------------------------------
@@ -72,6 +75,10 @@ language = None
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+if bvp_app.config.get("BVP_MODE", "") == "demo":
+    exclude_patterns.append("api/*.rst")
+if bvp_app.config.get("BVP_MODE", "") != "play":
+    exclude_patterns.append("api/simulation.rst")
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"
@@ -183,9 +190,6 @@ def setup(sphinx_app):
         We are in play mode.
 
     """
-    from bvp.app import create as create_app
-
-    bvp_app = create_app()
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
     sphinx_app.add_config_value('BVP_MODE', bvp_app.config.get("BVP_MODE", ""), 'env')

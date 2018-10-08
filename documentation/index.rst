@@ -45,7 +45,7 @@ The platform operator of the BVP is an Aggregator.
 
 .. toctree::
     :caption: API Documentation
-    :maxdepth: 2
+    :maxdepth: 1
 
     api/introduction
     api/simulation
