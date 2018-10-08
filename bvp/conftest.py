@@ -102,7 +102,7 @@ def setup_markets(db):
         yearly_seasonality=True,
     )
     db.session.add(day_ahead)
-    epex_da = Market(name="epex_da", market_type=day_ahead)
+    epex_da = Market(name="epex_da", market_type=day_ahead, price_unit="EUR/MWh")
     db.session.add(epex_da)
 
 

@@ -215,7 +215,11 @@ const numberWithCommas = (x) => {
 /** Analytics: Submit the resource selector, but reload to a clean URL,
                without any existing resource selection (confusing)
 */
+var empty_location = location.protocol + "//" + location.hostname + ":" + location.port + "/analytics";
+
 function submit_resource() {
-    var empty_location = location.protocol + "//" + location.hostname + ":" + location.port + "/analytics";
     $("#resource-form").attr("action", empty_location).submit();
+}
+function submit_market() {
+    $("#market-form").attr("action", empty_location).submit();
 }

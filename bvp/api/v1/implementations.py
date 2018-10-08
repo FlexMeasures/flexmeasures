@@ -93,7 +93,14 @@ def get_meter_data_response(
 @resolutions_accepted(timedelta(minutes=15))
 @as_json
 def post_meter_data_response(
-    unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration
+    unit,
+    generic_asset_name_groups,
+    value_groups,
+    horizon,
+    rolling,
+    start,
+    duration,
+    resolution,
 ) -> Union[dict, Tuple[dict, int]]:
     """
     Store the new power values for each asset.

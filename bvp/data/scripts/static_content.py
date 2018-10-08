@@ -58,9 +58,11 @@ def add_markets(db: SQLAlchemy) -> List[Market]:
     # db.session.add(MarketType(name="dynamic_tariff", daily_seasonality=True, weekly_seasonality=True,
     #                          yearly_seasonality=True))
     # db.session.add(MarketType(name="fixed_tariff"))
-    epex_da = Market(name="epex_da", market_type=day_ahead)
+    epex_da = Market(name="epex_da", market_type=day_ahead, price_unit="EUR/MWh")
     db.session.add(epex_da)
-    return [epex_da]
+    kpx_da = Market(name="kpx_da", market_type=day_ahead, price_unit="KRW/kWh")
+    db.session.add(kpx_da)
+    return [epex_da, kpx_da]
 
 
 def add_data_sources(db: SQLAlchemy):

@@ -13,7 +13,7 @@ import bokeh.palettes as palettes
 from bvp.utils import time_utils
 from bvp.data.models.assets import Power
 from bvp.data.models.markets import Price
-from bvp.data.services.resources import Resource, get_assets
+from bvp.data.services.resources import Resource, get_assets, get_markets
 import bvp.ui.utils.plotting_utils as plotting
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
@@ -34,6 +34,7 @@ def portfolio_view():
     resolution = session.get("resolution")
 
     assets = get_assets()
+    markets = get_markets()
 
     production_per_asset = dict.fromkeys([a.name for a in assets])
     consumption_per_asset = dict.fromkeys([a.name for a in assets])
@@ -315,6 +316,7 @@ def portfolio_view():
         "views/portfolio.html",
         assets=assets,
         asset_types=represented_asset_types,
+        markets=markets,
         production_per_asset=production_per_asset,
         consumption_per_asset=consumption_per_asset,
         profit_loss_energy_per_asset=profit_loss_energy_per_asset,

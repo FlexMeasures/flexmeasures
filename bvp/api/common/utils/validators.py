@@ -668,6 +668,7 @@ def resolutions_accepted(*resolutions):
                     current_app.logger.warn("Resolution is not accepted.")
                     return invalid_resolution()
                 else:
+                    kwargs["resolution"] = resolution
                     return fn(*args, **kwargs)
             else:
                 current_app.logger.warn("Could not infer resolution.")

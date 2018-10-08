@@ -193,16 +193,18 @@
                         <thead>
                             <tr>
                                 <th>Market</th>
-                                <th>Product</th>
+                                <th>Currency</th>
                                 <th>Average price</th>
                             </tr>
                         </thead>
                         <tbody>
+                            {% for market in markets: %}
                             <tr>
-                                <td>KPX DAM</td>
-                                <td>Hourly</td>
-                                <td>1 KRW/MWh</td>
+                                <td>{{ market.display_name }}</td>
+                                <td>{{ market.price_unit[:3] }}</td>
+                                <td>x {{ market.price_unit }}</td>
                             </tr>
+                            {% endfor %}
                         </tbody>
                     </table>
                 <!--</div>-->

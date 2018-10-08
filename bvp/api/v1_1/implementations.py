@@ -14,7 +14,11 @@ from bvp.api.common.responses import (
     unrecognized_market,
     unrecognized_sensor,
 )
-from bvp.api.common.utils.api_utils import save_to_database, make_forecasting_jobs
+from bvp.api.common.utils.api_utils import (
+    save_to_database,
+    make_forecasting_jobs,
+    convert_to_15min,
+)
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
@@ -56,17 +60,27 @@ def get_connection_response():
 
 
 @type_accepted("PostPriceDataRequest")
-@units_accepted("price", "EUR/MWh")
+@units_accepted("price", "EUR/MWh", "KRW/kWh")
 @assets_required("market")
 @optional_horizon_accepted()
 @values_required
 @period_required
-@resolutions_accepted(timedelta(minutes=15))
+@resolutions_accepted(timedelta(minutes=15), timedelta(hours=1))
 def post_price_data_response(
-    unit, generic_asset_name_groups, horizon, rolling, value_groups, start, duration
+    unit,
+    generic_asset_name_groups,
+    horizon,
+    rolling,
+    value_groups,
+    start,
+    duration,
+    resolution,
 ):
 
     current_app.logger.info("POSTING PRICE DATA")
+
+    value_groups = convert_to_15min(value_groups, resolution)
+
     data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
     prices = []
     forecasting_jobs = []
@@ -86,6 +100,10 @@ def post_price_data_response(
             market = Market.query.filter(Market.name == market_name).one_or_none()
             if market is None:
                 return unrecognized_market(market_name)
+            elif unit != market.price_unit:
+                return invalid_unit(
+                    "%s prices" % market.display_name, [market.price_unit]
+                )
 
             # Create new Price objects
             for j, value in enumerate(value_group):
@@ -146,7 +164,14 @@ def post_price_data_response(
 @period_required
 @resolutions_accepted(timedelta(minutes=15))
 def post_weather_data_response(
-    unit, generic_asset_name_groups, horizon, rolling, value_groups, start, duration
+    unit,
+    generic_asset_name_groups,
+    horizon,
+    rolling,
+    value_groups,
+    start,
+    duration,
+    resolution,
 ):
     if current_app.config.get("BVP_MODE", "") == "play":
         api_policy = "create sensor if unknown"
@@ -311,7 +336,14 @@ def get_prognosis_response(
 @resolutions_accepted(timedelta(minutes=15))
 @as_json
 def post_prognosis_response(
-    unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration
+    unit,
+    generic_asset_name_groups,
+    value_groups,
+    horizon,
+    rolling,
+    start,
+    duration,
+    resolution,
 ) -> Union[dict, Tuple[dict, int]]:
     """
     Store the new power values for each asset.

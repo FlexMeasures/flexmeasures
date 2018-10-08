@@ -2,6 +2,7 @@ from typing import Dict, Tuple, Union
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Query, Session
+from inflection import humanize
 
 from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
@@ -35,19 +36,21 @@ class MarketType(db.Model):
 
 class Market(db.Model):
     """Each market is a pricing service.
-    We only have one market for now.
-    TODO: Add useful attributes like currency.
     """
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True)
+    display_name = db.Column(db.String(80), default="", unique=True)
     market_type_name = db.Column(
         db.String(80), db.ForeignKey("market_type.name"), nullable=False
     )
+    price_unit = db.Column(db.String(80), default="", nullable=False)
 
     def __init__(self, **kwargs):
         super(Market, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
+        if "display_name" not in kwargs:
+            self.display_name = humanize(self.name)
 
     market_type = db.relationship(
         "MarketType", backref=db.backref("markets", lazy=True)

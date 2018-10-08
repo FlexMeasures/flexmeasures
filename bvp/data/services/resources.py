@@ -13,11 +13,18 @@ import pandas as pd
 
 from bvp.data.config import db
 from bvp.data.models.assets import AssetType, Asset, Power
+from bvp.data.models.markets import Market
 from bvp.data.models.user import User
 
 
 class InvalidBVPAsset(Exception):
     pass
+
+
+def get_markets() -> List[Market]:
+    """Return a list of all Market objects.
+    """
+    return Market.query.order_by(Market.name.asc()).all()
 
 
 def get_assets(owner_id: Optional[int] = None) -> List[Asset]:

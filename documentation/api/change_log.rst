@@ -3,6 +3,12 @@
 Change log
 ==========
 
+v1.2-2
+""""""
+
+- Added a list of registered types of weather sensors to the Simulation section and *postWeatherData* endpoint
+- Changed example for the *postPriceData* endpoint to reflect Korean situation
+
 v1.2-1
 """"""
 

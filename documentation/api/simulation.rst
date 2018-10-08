@@ -62,6 +62,14 @@ Weather data (both observations and forecasts) can be posted to the following PO
 
     https://play.a1-bvp.com/api/<version>/postWeatherData
 
+Weather data can be posted for the following three types of weather sensors:
+
+- "radiation" (with kW/m² as unit)
+- "temperature" (with °C as unit)
+- "wind_speed" (with m/s as unit)
+
+The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
+
 This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm for a weather sensor located at latitude 33.4843866 and longitude 126.477859. The forecasts were made at noon.
 
 .. code-block:: json
@@ -105,15 +113,15 @@ Price data (both observations and forecasts) can be posted to the following POST
     https://play.a1-bvp.com/api/<version>/postPriceData
 
 This "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
-for the EPEX SPOT day-ahead auction.
-The horizon indicates that the prices were published at 1pm on December 31st 2014
-(i.e. 35 hours ahead of midnight the next day).
+for the Korean Power Exchange (KPX) day-ahead auction.
+The horizon indicates that the prices were published at 3pm on December 31st 2014
+(i.e. 33 hours ahead of midnight the next day).
 
 .. code-block:: json
 
     {
         "type": "PostPriceDataRequest",
-        "market": "ea1.2018-06.localhost:5000:epex_da",
+        "market": "ea1.2018-06.localhost:5000:kpx_da",
         "values": [
             52.37,
             51.14,
@@ -142,15 +150,15 @@ The horizon indicates that the prices were published at 1pm on December 31st 201
         ],
         "start": "2015-01-01T15:00:00+09:00",
         "duration": "PT24H",
-        "horizon": "PT35H",
-        "unit": "EUR/MWh"
+        "horizon": "PT33H",
+        "unit": "KRW/kWh"
     }
 
 Observations vs forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For markets, the time at which the market is cleared (i.e. when contracts are signed) determines the difference between an ex-post observation and an ex-ante forecast.
-For the EPEX SPOT day-ahead auction this is every day at 1pm.
+For the KPX day-ahead auction this is every day at 3pm.
 To post a forecast rather than an observation, simply increase the horizon.
 For example, a horizon of "PT59H" would denote a forecast of 24 hours ahead of clearing.
 

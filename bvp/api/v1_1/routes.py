@@ -193,7 +193,13 @@ def post_price_data():
 @auth_token_required
 @usef_roles_accepted(*check_access(v1_1_service_listing, "postWeatherData"))
 def post_weather_data():
-    """API endpoint to post weather data.
+    """API endpoint to post weather data, such as:
+
+    - "radiation" (with kW/m² as unit)
+    - "temperature" (with °C as unit)
+    - "wind_speed" (with m/s as unit)
+
+    The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
 
     .. :quickref: User; Upload weather data to the platform
 

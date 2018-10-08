@@ -10,6 +10,8 @@ from flask_security.core import current_user
 from bvp.utils import time_utils
 from bvp.ui import bvp_ui
 from bvp.data.models.assets import Asset
+from bvp.data.models.markets import Market
+from bvp.data.services.resources import Resource
 
 
 def render_bvp_template(html_filename: str, **variables):
@@ -59,8 +61,30 @@ def render_bvp_template(html_filename: str, **variables):
     return render_template(html_filename, **variables)
 
 
-def set_session_resource(assets: List[Asset], groups_with_assets: List[str]):
-    """Set session["resource"] to something, based on the available asset groups or the request."""
+def set_session_market() -> Market:
+    """Set session["market"] to something, based on the available markets or the request.
+    Returns the selected market, or None."""
+    if "market" not in session:  # set some default, if possible
+        market = Market.query.first()
+        if market is not None:
+            session["market"] = market.name
+        return market
+    if (
+        "market" in request.args
+    ):  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
+        session["market"] = request.args["market"]
+    if (
+        "market" in request.form
+    ):  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
+        session["market"] = request.form["market"]
+    return Market.query.filter(Market.name == session["market"]).one_or_none()
+
+
+def set_session_resource(
+    assets: List[Asset], groups_with_assets: List[str]
+) -> Resource:
+    """Set session["resource"] to something, based on the available asset groups or the request.
+    Returns the selected resource, or None."""
     if "resource" not in session:  # set some default, if possible
         if "solar" in groups_with_assets:
             session["resource"] = "solar"
@@ -78,6 +102,7 @@ def set_session_resource(assets: List[Asset], groups_with_assets: List[str]):
         "resource" in request.form
     ):  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
         session["resource"] = request.form["resource"]
+    return Resource(session["resource"])
 
 
 def get_git_description() -> Tuple[str, int, str]:

@@ -32,13 +32,28 @@
                         <div>
                             <select class="form-control" id="resource" name="resource" onchange="submit_resource()">
                                 {% for asset_group, asset_group_display_name in asset_groups %}
-                                    <option value="{{ asset_group }}" {% if resource==asset_group %} selected="selected"{% endif %}>
+                                    <option value="{{ asset_group }}" {% if selected_resource.name==asset_group %} selected="selected"{% endif %}>
                                         {{ asset_group_display_name }}
                                     </option>
                                 {% endfor %}
                                 {% for asset in assets %}
-                                    <option value="{{ asset.name }}" {% if resource==asset.name %} selected="selected"{% endif %}>
+                                    <option value="{{ asset.name }}" {% if selected_resource.name==asset.name %} selected="selected"{% endif %}>
                                         {{ asset.display_name }} ({{ asset.asset_type_display_name }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </form>
+                <form id="market-form" method="post">
+                    <div class="form-group">
+                        <i class="icon-money"></i>
+                        <label class="control-label" for="market">Market</label>
+                        <div>
+                            <select class="form-control" id="market" name="market" onchange="submit_market()">
+                                {% for market in markets %}
+                                    <option value="{{ market.name }}" {% if selected_market.name==market.name %} selected="selected"{% endif %}>
+                                        {{ market.display_name }}
                                     </option>
                                 {% endfor %}
                             </select>
@@ -60,14 +75,14 @@
                                     (MWh)
                                 </span>
                             </th>
-                            <th><span title="The prices which are applicable to this resource.">Price (KRW/MWh)</span></th>
+                            <th><span title="The prices for {{ selected_market.display_name }}.">Price ({{ selected_market.price_unit }})</span></th>
                             <th>
                                 {% if showing_pure_consumption_data %}
-                                <span title="The costs which {{ resource_display_name }} occurred or might occur."> Costs (KRW)</span>
+                                <span title="The costs which {{ selected_resource.display_name }} occurred or might occur."> Costs ({{ selected_market.price_unit[:3] }})</span>
                                 {% elif showing_pure_production_data %}
-                                <span title="The revenues which {{ resource_display_name }} occurred or might occur."> Revenues (KRW)</span>
+                                <span title="The revenues which {{ selected_resource.display_name }} occurred or might occur."> Revenues ({{ selected_market.price_unit[:3] }})</span>
                                 {% else %}
-                                <span title="The revenues or costs which {{ resource_display_name }} occurred or might occur."> Rev./Costs (KRW)</span>
+                                <span title="The revenues or costs which {{ selected_resource.display_name }} occurred or might occur."> Rev./Costs ({{ selected_market.price_unit[:3] }})</span>
                                 {% endif %}
                             </th>
                         </tr>

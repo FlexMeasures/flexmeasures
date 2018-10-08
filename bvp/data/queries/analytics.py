@@ -151,9 +151,14 @@ def get_revenues_costs_data(
     power_forecast_data: pd.DataFrame,
     prices_forecast_data: pd.DataFrame,
     metrics: dict,
+    unit_factor: float,
 ) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Compute Revenues/costs data. These data are purely derivative from power and prices.
-    For forecasts we use the WAPE metrics. Then we calculate metrics on this construct."""
+    For forecasts we use the WAPE metrics. Then we calculate metrics on this construct.
+    The unit factor is used when multiplying quantities and prices, e.g. when multiplying quantities in kWh with prices
+    in EUR/MWh, use a unit factor of 0.001.
+    """
+    power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
     rev_cost_data = pd.DataFrame(
         index=power_data.index, columns=["y", "horizon", "label"]
     )
@@ -164,7 +169,8 @@ def get_revenues_costs_data(
         metrics["realised_revenues_costs"] = np.NaN
     else:
         rev_cost_data = pd.DataFrame(
-            dict(y=power_data.y * prices_data.y), index=power_data.index
+            dict(y=power_data.y * power_hour_factor * prices_data.y * unit_factor),
+            index=power_data.index,
         )
         if "horizon" in power_data.columns and "horizon" in prices_data.columns:
             rev_cost_data["horizon"] = pd.DataFrame(
@@ -195,7 +201,10 @@ def get_revenues_costs_data(
         )
         if not (power_forecast_data.empty and prices_forecast_data.empty):
             rev_cost_forecasts.yhat = (
-                power_forecast_data.yhat * prices_forecast_data.yhat
+                power_forecast_data.yhat
+                * power_hour_factor
+                * prices_forecast_data.yhat
+                * unit_factor
             )
         # factor for confidence interval - there might be a better heuristic here
         wape_factor_rev_costs = (

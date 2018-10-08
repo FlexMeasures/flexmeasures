@@ -5,6 +5,7 @@ from functools import wraps
 from json import loads as parse_json, JSONDecodeError
 
 from inflection import pluralize
+from numpy import array
 
 from bvp.data import db
 from bvp.data.models.assets import Asset
@@ -97,6 +98,22 @@ def append_doc_of(fun):
         return f
 
     return decorator
+
+
+def convert_to_15min(
+    value_groups: Union[List[List[float]], List[float]], from_resolution: timedelta
+) -> Union[List[List[float]], List[float]]:
+    """Resample the values (in value groups) to a resolution of 15 minutes, given the original resolution of the values
+    (which has to be a multiple of 15 minutes)."""
+    if from_resolution % timedelta(minutes=15) == timedelta(hours=0):
+        n = from_resolution // timedelta(minutes=15)
+        if isinstance(value_groups[0], list):
+            value_groups = [
+                list(array(value_group).repeat(n)) for value_group in value_groups
+            ]
+        else:
+            value_groups = list(array(value_groups).repeat(n))
+    return value_groups
 
 
 def groups_to_dict(

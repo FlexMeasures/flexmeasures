@@ -37,83 +37,11 @@ def message_for_get_prognosis(
     return message
 
 
-def message_for_post_price_data() -> dict:
+def message_for_post_price_data(invalid_unit: bool = False) -> dict:
     message = {
         "type": "PostPriceDataRequest",
         "market": "ea1.2018-06.localhost:5000:epex_da",
         "values": [
-            52.37,
-            51.14,
-            49.09,
-            48.35,
-            48.47,
-            49.98,
-            58.7,
-            67.76,
-            69.21,
-            70.26,
-            70.46,
-            70,
-            70.7,
-            70.41,
-            70,
-            64.53,
-            65.92,
-            69.72,
-            70.51,
-            75.49,
-            70.35,
-            70.01,
-            66.98,
-            58.61,  # Todo: when we can handle hourly resolutions, stop blatantly copying this 4 times
-            52.37,
-            51.14,
-            49.09,
-            48.35,
-            48.47,
-            49.98,
-            58.7,
-            67.76,
-            69.21,
-            70.26,
-            70.46,
-            70,
-            70.7,
-            70.41,
-            70,
-            64.53,
-            65.92,
-            69.72,
-            70.51,
-            75.49,
-            70.35,
-            70.01,
-            66.98,
-            58.61,
-            52.37,
-            51.14,
-            49.09,
-            48.35,
-            48.47,
-            49.98,
-            58.7,
-            67.76,
-            69.21,
-            70.26,
-            70.46,
-            70,
-            70.7,
-            70.41,
-            70,
-            64.53,
-            65.92,
-            69.72,
-            70.51,
-            75.49,
-            70.35,
-            70.01,
-            66.98,
-            58.61,
             52.37,
             51.14,
             49.09,
@@ -144,10 +72,12 @@ def message_for_post_price_data() -> dict:
         "horizon": "PT35H",
         "unit": "EUR/MWh",
     }
+    if invalid_unit:
+        message["unit"] = "KRW/kWh"
     return message
 
 
-def message_for_post_weather_data(invalid_unit: bool = False,) -> dict:
+def message_for_post_weather_data(invalid_unit: bool = False) -> dict:
     message = {
         "type": "PostWeatherDataRequest",
         "groups": [

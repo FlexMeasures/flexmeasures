@@ -13,14 +13,24 @@ from inflection import titleize
 
 from bvp.ui.views import bvp_ui
 from bvp.utils import time_utils
-from bvp.data.services.resources import get_assets, get_asset_groups, Resource
+from bvp.data.models.markets import Market
+from bvp.data.services.resources import (
+    get_assets,
+    get_asset_groups,
+    get_markets,
+    Resource,
+)
 from bvp.data.queries.analytics import (
     get_power_data,
     get_prices_data,
     get_weather_data,
     get_revenues_costs_data,
 )
-from bvp.ui.utils.view_utils import render_bvp_template, set_session_resource
+from bvp.ui.utils.view_utils import (
+    render_bvp_template,
+    set_session_resource,
+    set_session_market,
+)
 from bvp.ui.utils import plotting_utils as plotting
 
 
@@ -33,12 +43,14 @@ def analytics_view():
     Based on the resource, plots and table are labelled appropriately.
     """
     time_utils.set_time_range_for_session()
+    markets = get_markets()
     assets = get_assets()
     asset_groups = get_asset_groups()
     groups_with_assets: List[str] = [
         group for group in asset_groups if asset_groups[group].count() > 0
     ]
-    set_session_resource(assets, groups_with_assets)
+    selected_resource = set_session_resource(assets, groups_with_assets)
+    selected_market = set_session_market()
     session_asset_types = Resource(session["resource"]).unique_asset_type_names
 
     # This is useful information - we might want to adapt the sign of the data and labels.
@@ -58,8 +70,14 @@ def analytics_view():
     weather_data, weather_forecast_data, weather_type = get_weather_data(
         Resource(session["resource"]).assets
     )
+    unit_factor = revenue_unit_factor("MWh", selected_market.price_unit)
     rev_cost_data, rev_cost_forecast_data, metrics = get_revenues_costs_data(
-        power_data, prices_data, power_forecast_data, prices_forecast_data, metrics
+        power_data,
+        prices_data,
+        power_forecast_data,
+        prices_forecast_data,
+        metrics,
+        unit_factor,
     )
 
     # TODO: get rid of this hack, which we use because we mock 2015 data in static mode
@@ -96,7 +114,9 @@ def analytics_view():
     power_fig = make_power_figure(
         power_data, power_forecast_data, showing_pure_consumption_data, shared_x_range
     )
-    prices_fig = make_prices_figure(prices_data, prices_forecast_data, shared_x_range)
+    prices_fig = make_prices_figure(
+        prices_data, prices_forecast_data, shared_x_range, selected_market
+    )
     weather_fig = make_weather_figure(
         weather_data,
         weather_forecast_data,
@@ -109,6 +129,7 @@ def analytics_view():
         rev_cost_forecast_data,
         showing_pure_consumption_data,
         shared_x_range,
+        selected_market,
     )
 
     analytics_plots_script, analytics_plots_div = components(
@@ -125,12 +146,13 @@ def analytics_view():
         analytics_plots_div=encode_utf8(analytics_plots_div),
         analytics_plots_script=analytics_plots_script,
         metrics=metrics,
+        markets=markets,
         assets=assets,
         asset_groups=list(
             zip(groups_with_assets, [titleize(gwa) for gwa in groups_with_assets])
         ),
-        resource=session["resource"],
-        resource_display_name=Resource(session["resource"]).display_name,
+        selected_market=selected_market,
+        selected_resource=selected_resource,
         asset_types=session_asset_types,
         showing_pure_consumption_data=showing_pure_consumption_data,
         showing_pure_production_data=showing_pure_production_data,
@@ -174,18 +196,19 @@ def make_prices_figure(
     data: pd.DataFrame,
     forecast_data: Union[None, pd.DataFrame],
     shared_x_range: Range1d,
+    selected_market: Market,
 ) -> Figure:
     """Make a bokeh figure for price data"""
     return plotting.create_graph(
         data,
-        unit="KRW/MWh",
+        unit=selected_market.price_unit,
         legend="Actual",
         forecasts=forecast_data,
-        title="Market prices (day-ahead)",
+        title="%s prices" % selected_market.display_name,
         x_range=shared_x_range,
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
-        y_label="Prices (in KRW/MWh)",
+        y_label="Prices (in %s)" % selected_market.price_unit,
         show_y_floats=True,
     )
 
@@ -238,6 +261,7 @@ def make_revenues_costs_figure(
     forecast_data: pd.DataFrame,
     showing_pure_consumption_data: bool,
     shared_x_range: Range1d,
+    selected_market: Market,
 ) -> Figure:
     """Make a bokeh figure for revenues / costs data"""
     if showing_pure_consumption_data:
@@ -247,14 +271,32 @@ def make_revenues_costs_figure(
 
     return plotting.create_graph(
         data,
-        unit="KRW",
+        unit=selected_market.price_unit[
+            :3
+        ],  # First three letters of a price unit give the currency (ISO 4217)
         legend="Actual",
         forecasts=forecast_data,
-        title="%s for %s (on day-ahead market)"
-        % (rev_cost_str, Resource(session["resource"]).display_name),
+        title="%s for %s (on %s)"
+        % (
+            rev_cost_str,
+            Resource(session["resource"]).display_name,
+            selected_market.display_name,
+        ),
         x_range=shared_x_range,
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
-        y_label="%s (in KRW)" % rev_cost_str,
+        y_label="%s (in %s)" % (rev_cost_str, selected_market.price_unit[:3]),
         show_y_floats=True,
     )
+
+
+def revenue_unit_factor(quantity_unit: str, price_unit: str) -> float:
+    market_quantity_unit = price_unit[
+        4:
+    ]  # First three letters of a price unit give the currency (ISO 4217), fourth character is "/"
+    if quantity_unit == market_quantity_unit:
+        return 1
+    elif quantity_unit == "MWh" and price_unit[4:] == "kWh":
+        return 1000
+    else:
+        raise NotImplementedError
