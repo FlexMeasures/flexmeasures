@@ -8,7 +8,7 @@ import pandas as pd
 from bvp.utils import time_utils, calculations
 from bvp.data.services.resources import Resource
 from bvp.data.models.assets import Asset
-from bvp.data.models.markets import Price
+from bvp.data.models.markets import Market, Price
 from bvp.data.models.weather import Weather
 from bvp.utils.geo_utils import find_closest_weather_sensor
 
@@ -62,11 +62,11 @@ def get_power_data(
 
 
 def get_prices_data(
-    metrics: dict
+    metrics: dict, market: Market
 ) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Get price data and metrics"""
     prices_data = Price.collect(
-        ["epex_da"],
+        [market.name],
         horizon_window=(None, timedelta(hours=0)),
         rolling=True,
         create_if_empty=True,
@@ -77,7 +77,7 @@ def get_prices_data(
     # Get price forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
     prices_forecast_data = Price.collect(
-        ["epex_da"], horizon_window=(horizon, None), rolling=True, as_beliefs=True
+        [market.name], horizon_window=(horizon, None), rolling=True, as_beliefs=True
     )
     prices_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
     if not prices_forecast_data.empty and prices_forecast_data.size == prices_data.size:
