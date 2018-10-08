@@ -253,7 +253,7 @@ def make_weather_figure(
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
         y_label=weather_axis_label,
-        legend=None,
+        legend="Actual",
         show_y_floats=True,
     )
 
