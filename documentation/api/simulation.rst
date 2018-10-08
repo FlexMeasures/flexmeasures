@@ -160,7 +160,7 @@ Observations vs forecasts
 For markets, the time at which the market is cleared (i.e. when contracts are signed) determines the difference between an ex-post observation and an ex-ante forecast.
 For the KPX day-ahead auction this is every day at 3pm.
 To post a forecast rather than an observation, simply increase the horizon.
-For example, a horizon of "PT59H" would denote a forecast of 24 hours ahead of clearing.
+For example, a horizon of "PT57H" would denote a forecast of 24 hours ahead of clearing.
 
 
 Posting power data
