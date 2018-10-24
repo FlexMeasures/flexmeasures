@@ -4,7 +4,7 @@ import json
 from datetime import timedelta
 from isodate import parse_datetime
 
-from bvp.api.common.responses import unrecognized_event
+from bvp.api.common.responses import unrecognized_event, unknown_prices
 from bvp.api.tests.utils import get_auth_token
 from bvp.api.v1_2.tests.utils import (
     message_for_get_device_message,
@@ -46,6 +46,24 @@ def test_get_device_message_wrong_event_id(client, message):
         get_device_message_response.json["status"]
         == unrecognized_event(9999, "soc")[0]["status"]
     )
+
+
+@pytest.mark.parametrize(
+    "message", [message_for_get_device_message(unknown_prices=True)]
+)
+def test_get_device_message_unknown_prices(client, message):
+    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+    message["event"] = message["event"] % (asset.owner_id, asset.id)
+    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    get_device_message_response = client.get(
+        url_for("bvp_api_v1_2.get_device_message"),
+        query_string=message,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % get_device_message_response.json)
+    assert get_device_message_response.status_code == 400
+    assert get_device_message_response.json["type"] == "GetDeviceMessageResponse"
+    assert get_device_message_response.json["status"] == unknown_prices()[0]["status"]
 
 
 @pytest.mark.parametrize("message", [message_for_post_udi_event()])

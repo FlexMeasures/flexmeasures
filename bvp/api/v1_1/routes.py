@@ -114,7 +114,6 @@ def post_price_data():
 
     .. :quickref: User; Upload price data to the platform
 
-
     **Optional parameters**
 
     - "horizon" (see :ref:`prognoses`)
@@ -202,7 +201,6 @@ def post_weather_data():
     The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
 
     .. :quickref: User; Upload weather data to the platform
-
 
     **Optional parameters**
 
@@ -336,7 +334,6 @@ def post_prognosis():
     """API endpoint to post prognoses about meter data.
 
     .. :quickref: User; Upload prognosis to the platform
-
 
     **Optional parameters**
 

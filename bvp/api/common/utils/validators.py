@@ -239,6 +239,46 @@ def validate_entity_address(
             return typed_regex_results(match, value_types)
 
 
+def optional_duration_accepted(default_duration: timedelta):
+    """Decorator which specifies that a GET or POST request accepts an optional duration.
+
+    Example:
+
+        @app.route('/getDeviceMessage')
+        @optional_duration_accepted(timedelta(hours=6))
+        def get_device_message(duration):
+            return 'Here is your message'
+
+    The message may specify a duration to overwrite the default duration of 6 hours.
+    """
+
+    def wrapper(fn):
+        @wraps(fn)
+        @as_json
+        def decorated_service(*args, **kwargs):
+            form = get_form_from_request(request)
+            if form is None:
+                current_app.logger.warn(
+                    "Unsupported request method for unpacking 'duration' from request."
+                )
+                return invalid_method(request.method)
+
+            if "duration" in form:
+                duration = validate_duration(form["duration"])
+                if not duration:
+                    extra_info = "Cannot parse 'duration' value."
+                    current_app.logger.warn(extra_info)
+                    return invalid_period(extra_info)
+                kwargs["duration"] = duration
+            else:
+                kwargs["duration"] = default_duration
+            return fn(*args, **kwargs)
+
+        return decorated_service
+
+    return wrapper
+
+
 def optional_sources_accepted(
     preferred_source: Union[int, str, List[Union[int, str]]] = None
 ):

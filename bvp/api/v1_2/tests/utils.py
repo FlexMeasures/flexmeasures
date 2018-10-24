@@ -1,15 +1,22 @@
 """Useful test messages"""
 
 
-def message_for_get_device_message(wrong_id: bool = False) -> dict:
+def message_for_get_device_message(
+    wrong_id: bool = False, unknown_prices: bool = False
+) -> dict:
     message = {
         "type": "GetDeviceMessageRequest",
-        "start": "2015-01-01T00:00:00Z",
         "duration": "PT24H",
         "event": "ea1.2018-06.localhost:5000:%s:%s:203:soc",
     }
     if wrong_id:
         message["event"] = "ea1.2018-06.localhost:5000:%s:%s:9999:soc"
+    if unknown_prices:
+        message[
+            "duration"
+        ] = (
+            "PT1000H"
+        )  # We have no beliefs in our test database about prices so far into the future
     return message
 
 

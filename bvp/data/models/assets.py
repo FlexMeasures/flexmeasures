@@ -85,6 +85,8 @@ class Asset(db.Model):
     longitude = db.Column(db.Float, nullable=False)
     # owner
     owner_id = db.Column(db.Integer, db.ForeignKey("bvp_users.id", ondelete="CASCADE"))
+    # market
+    market_id = db.Column(db.Integer, db.ForeignKey("market.id"), nullable=True)
 
     def __init__(self, **kwargs):
         super(Asset, self).__init__(**kwargs)
@@ -99,6 +101,7 @@ class Asset(db.Model):
             "assets", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
+    market = db.relationship("Market", backref=db.backref("assets", lazy=True))
 
     @property
     def asset_type_display_name(self) -> str:

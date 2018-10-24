@@ -10,6 +10,8 @@ from bvp.api.common.responses import (
     invalid_timezone,
     request_processed,
     unrecognized_event,
+    invalid_market,
+    unknown_prices,
     unrecognized_connection_group,
     outdated_event_id,
     ptus_incomplete,
@@ -18,7 +20,7 @@ from bvp.api.common.utils.api_utils import groups_to_dict, get_form_from_request
 from bvp.api.common.utils.validators import (
     type_accepted,
     assets_required,
-    period_required,
+    optional_duration_accepted,
     usef_roles_accepted,
     validate_entity_address,
     units_accepted,
@@ -26,24 +28,20 @@ from bvp.api.common.utils.validators import (
 )
 from bvp.data.models.assets import Asset
 from bvp.data.models.planning.battery import schedule_battery
-from bvp.data.models.markets import Market
 from bvp.data.services.resources import has_assets, can_access_asset
 
 
 @type_accepted("GetDeviceMessageRequest")
 @assets_required("event")
-@period_required
+@optional_duration_accepted(timedelta(hours=6))
 @as_json
-def get_device_message_response(generic_asset_name_groups, start, duration):
+def get_device_message_response(generic_asset_name_groups, duration):
 
     resolution = timedelta(minutes=15)
     unit = "MW"
 
     if not has_assets():
         current_app.logger.info("User doesn't seem to have any assets.")
-
-    # Look for the Market object
-    market = Market.query.filter(Market.name == "epex_da").one_or_none()
 
     value_groups = []
     new_event_groups = []
@@ -70,13 +68,20 @@ def get_device_message_response(generic_asset_name_groups, start, duration):
                 return unrecognized_connection_group()
             if event_type != "soc" or event_id != asset.soc_udi_event_id:
                 return unrecognized_event(event_id, event_type)
+            start = asset.soc_datetime
+
+            # Look for the Market object
+            market = asset.market
+            if market is None:
+                return invalid_market()
 
             # Schedule the asset
-            value_groups.append(
-                schedule_battery(
-                    asset, market, start, start + duration, resolution
-                ).tolist()
+            schedule = schedule_battery(
+                asset, market, start, start + duration, resolution
             )
+            if schedule is None:
+                return unknown_prices()
+            value_groups.append(schedule.tolist())
             new_event_groups.append([event])
 
     response = groups_to_dict(
