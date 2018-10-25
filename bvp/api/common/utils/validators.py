@@ -129,7 +129,7 @@ def valid_sensor_units(sensor: str) -> List[str]:
     Returns the accepted units for this sensor.
     """
     if sensor == "temperature":
-        return ["°C"]
+        return ["°C", "0C"]
     elif sensor == "radiation":
         return ["kW/m²", "kW/m2"]
     elif sensor == "wind_speed":
@@ -419,6 +419,40 @@ def optional_horizon_accepted(ex_post: bool = False):
     return wrapper
 
 
+def unit_required(fn):
+    """Decorator which specifies that a GET or POST request must specify a unit.
+        Example:
+
+            @app.route('/postMeterData')
+            @unit_required
+            def post_meter_data(unit):
+                return 'Meter data posted'
+
+        The message must specify a 'unit'.
+        """
+
+    @wraps(fn)
+    @as_json
+    def wrapper(*args, **kwargs):
+        form = get_form_from_request(request)
+        if form is None:
+            current_app.logger.warn(
+                "Unsupported request method for unpacking 'unit' from request."
+            )
+            return invalid_method(request.method)
+
+        if "unit" in form:
+            unit = form["unit"]
+        else:
+            current_app.logger.warn("Request missing 'unit'.")
+            return invalid_unit(quantity=None, units=None)
+
+        kwargs["unit"] = unit
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
 def period_required(fn):
     """Decorator which specifies that a GET or POST request must specify a time period.
     Example:
@@ -613,7 +647,7 @@ def type_accepted(message_type: str):
             form = get_form_from_request(request)
             if form is None:
                 current_app.logger.warn(
-                    "Unsupported request method for unpacking 'unit' from request."
+                    "Unsupported request method for unpacking 'type' from request."
                 )
                 return invalid_method(request.method)
             elif "type" not in form:

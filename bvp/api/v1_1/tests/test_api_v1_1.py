@@ -94,6 +94,7 @@ def test_no_data(client):
         message_for_get_prognosis(single_connection=False),
         message_for_get_prognosis(single_connection=True),
         message_for_get_prognosis(no_resolution=True),
+        message_for_get_prognosis(rolling_horizon=True),
     ],
 )
 def test_get_prognosis(client, message):
@@ -202,7 +203,10 @@ def test_post_price_data_invalid_unit(client, post_message):
     )
 
 
-@pytest.mark.parametrize("post_message", [message_for_post_weather_data()])
+@pytest.mark.parametrize(
+    "post_message",
+    [message_for_post_weather_data(), message_for_post_weather_data(temperature=True)],
+)
 def test_post_weather_data(client, post_message):
     """
     Try to post wind speed data as a logged-in test user with the Supplier role, which should succeed.

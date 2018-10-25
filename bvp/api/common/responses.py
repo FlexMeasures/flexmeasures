@@ -125,17 +125,17 @@ def invalid_datetime(message: str) -> Tuple[dict, int]:
 
 
 def invalid_unit(
-    quantity: Optional[str], units: Union[List[str], Tuple[str]]
+    quantity: Optional[str], units: Optional[Union[List[str], Tuple[str]]]
 ) -> Tuple[dict, int]:
     quantity_str = (
         "for %s " % quantity.replace("_", " ") if quantity is not None else ""
     )
+    unit_str = "in %s" % p.join(units, conj="or") if units is not None else "a unit"
     return (
         dict(
             result="Rejected",
             status="INVALID_UNIT",
-            message="Data %sshould be given in %s."
-            % (quantity_str, p.join(units, conj="or")),
+            message="Data %sshould be given %s." % (quantity_str, unit_str),
         ),
         400,
     )

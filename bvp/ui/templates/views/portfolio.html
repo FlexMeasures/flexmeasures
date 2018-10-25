@@ -226,8 +226,8 @@
                                 {% for market in markets: %}
                                 <tr>
                                     <td>{{ market.display_name }}</td>
-                                    <td>{{ market.price_unit[:3] }}</td>
-                                    <td>x {{ market.price_unit }}</td>
+                                    <td>{{ market.unit[:3] }}</td>
+                                    <td>x {{ market.unit }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
