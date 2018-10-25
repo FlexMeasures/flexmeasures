@@ -121,103 +121,119 @@
 
             </div>
             <div class="col-sm-8">
-
-                <!--<div class="row">-->
-                    <h3>Portfolio status</h3>
-                    <div class="alert alert-info">
-                        <p>For onshore and vehicles, an opportunity is mocked for the following 4am timeslot (select time window "today" or "tomorrow").
-                            <b>Double-click the opportunity</b> to see the order book. </p>
-                        <p> You can also
-                            <button onclick="window.location.href='?show_stacked={{alt_stacking}}'">
-                                Switch to showing stacked {{ alt_stacking }}
-                            </button>
-                    </div>
-                    <div class="panel panel-default">
-                        {{ portfolio_plots_div | safe }}
+                <div class="row">
+                    <div class="col-sm-12">
+                        <h3>Portfolio status</h3>
+                        <div class="alert alert-info">
+                            <p>For onshore and vehicles, an opportunity is mocked for the following 4am timeslot (select time window "today" or "tomorrow").
+                                <b>Double-click the opportunity</b> to see the order book. </p>
+                            <p> You can also
+                                <button onclick="window.location.href='?show_stacked={{alt_stacking}}'">
+                                    Switch to showing stacked {{ alt_stacking }}
+                                </button>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-12">
+                                {{ portfolio_plots_divs[0] | safe }}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-12">
+                                {{ portfolio_plots_divs[1] | safe }}
+                            </div>
+                        </div>
                         {{ portfolio_plots_script | safe }}
                     </div>
-                <!--</div>-->
+                </div>
 
-                <!--<div class="row">-->
-                    <h3>Asset status</h3>
-                    <div class="wrapper small-wrapper">
-                        <table class="table-striped">
+                <div class="row">
+                    <div class="col-sm-12">
+                        <h3>Asset status</h3>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="wrapper small-wrapper">
+                            <table class="table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Asset</th>
+                                        <!--<th>Energy Service Company</th>-->
+                                        <th>Production</th>
+                                        <th>Consumption</th>
+                                        <th>Curtailment</th>
+                                        <th>Shifting</th>
+                                        <th>Balancing revenue</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for asset in assets: %}
+                                    <tr class="active">
+                                        <td>
+                                            <i class="icon-{{ asset.asset_type_name }}"></i>
+                                            <a href="/assets/{{ asset.id }}" title="Show asset meta data and location on map">{{ asset.display_name }}</a>
+                                        </td>
+                                        <td>
+                                            {% if asset.asset_type.is_producer %}
+                                                {{ production_per_asset[asset.name] | round(2) }} MWh
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if asset.asset_type.is_consumer %}
+                                                {{ consumption_per_asset[asset.name] | round(2) }} MWh
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if asset.asset_type.can_curtail  and curtailment_per_asset[asset.name] > 0 %}
+                                                {{ curtailment_per_asset[asset.name] | round(2) }} MWh
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if asset.asset_type.can_shift and shifting_per_asset[asset.name] > 0 %}
+                                                {{ shifting_per_asset[asset.name] | round(2) }} MWh
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {{ profit_loss_flexibility_per_asset[asset.name] | round(2) }} KRW
+                                        </td>
+                                        <td>
+                                            <form action="analytics" target="_blank" method="get">
+                                                <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
+                                                <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-12">
+                        <h3>Market status</h3>
+                        <table class="table" style="font-size: 100%;">
                             <thead>
                                 <tr>
-                                    <th>Asset</th>
-                                    <!--<th>Energy Service Company</th>-->
-                                    <th>Production</th>
-                                    <th>Consumption</th>
-                                    <th>Curtailment</th>
-                                    <th>Shifting</th>
-                                    <th>Balancing revenue</th>
-                                    <th></th>
+                                    <th>Market</th>
+                                    <th>Currency</th>
+                                    <th>Average price</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for asset in assets: %}
-                                <tr class="active">
-                                    <td>
-                                        <i class="icon-{{ asset.asset_type_name }}"></i>
-                                        <a href="/assets/{{ asset.id }}" title="Show asset meta data and location on map">{{ asset.display_name }}</a>
-                                    </td>
-                                    <td>
-                                        {% if asset.asset_type.is_producer %}
-                                            {{ production_per_asset[asset.name] | round(2) }} MWh
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if asset.asset_type.is_consumer %}
-                                            {{ consumption_per_asset[asset.name] | round(2) }} MWh
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if asset.asset_type.can_curtail  and curtailment_per_asset[asset.name] > 0 %}
-                                            {{ curtailment_per_asset[asset.name] | round(2) }} MWh
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if asset.asset_type.can_shift and shifting_per_asset[asset.name] > 0 %}
-                                            {{ shifting_per_asset[asset.name] | round(2) }} MWh
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {{ profit_loss_flexibility_per_asset[asset.name] | round(2) }} KRW
-                                    </td>
-                                    <td>
-                                        <form action="analytics" target="_blank" method="get">
-                                            <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
-                                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
-                                        </form>
-                                    </td>
+                                {% for market in markets: %}
+                                <tr>
+                                    <td>{{ market.display_name }}</td>
+                                    <td>{{ market.price_unit[:3] }}</td>
+                                    <td>x {{ market.price_unit }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
-                <!--</div>-->
-
-                <!--<div class="row">-->
-                    <h3>Market status</h3>
-                    <table class="table" style="font-size: 100%;">
-                        <thead>
-                            <tr>
-                                <th>Market</th>
-                                <th>Currency</th>
-                                <th>Average price</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for market in markets: %}
-                            <tr>
-                                <td>{{ market.display_name }}</td>
-                                <td>{{ market.price_unit[:3] }}</td>
-                                <td>x {{ market.price_unit }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                <!--</div>-->
+                </div>
             </div>
         </div>
     </div>
