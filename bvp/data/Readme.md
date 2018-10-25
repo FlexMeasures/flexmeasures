@@ -113,12 +113,13 @@ Make first migration
 Run these commands from the repository root directory (read below comments first):
 
     flask db init
+    flask db migrate
     flask db upgrade
     flask db_populate --structure --data --forecasts
 
-The first command (``flask db init``) is usually not needed, it initialises the alembic migration tool.
-The second command gives you the db structure.
-The third command generates some content - not sure where we'll go with this at the moment, but useful for testing
+The first command (``flask db init``) is only needed here once, it initialises the alembic migration tool.
+The second command generates the SQL for your current db model and the third actually gives you the db structure.
+The fourth command generates some content - not sure where we'll go with this at the moment, but useful for testing
 and development.
 
 With every migration, you get a new migration step in `migrations/versions`. Be sure to add that to `git`,
