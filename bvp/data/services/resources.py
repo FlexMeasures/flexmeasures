@@ -14,6 +14,7 @@ import pandas as pd
 from bvp.data.config import db
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.markets import Market
+from bvp.data.models.weather import WeatherSensorType
 from bvp.data.models.user import User
 
 
@@ -208,8 +209,15 @@ class Resource:
         return self.name
 
     @property
-    def unique_asset_type_names(self) -> List[str]:
+    def unique_asset_types(self) -> List[AssetType]:
         """Return list of unique asset types represented by this resource."""
+        return list(
+            set([a.asset_type for a in self.assets])
+        )  # list of unique asset types in resource
+
+    @property
+    def unique_asset_type_names(self) -> List[str]:
+        """Return list of unique asset type names represented by this resource."""
         return list(
             set([a.asset_type.name for a in self.assets])
         )  # list of unique asset type names in resource
@@ -251,3 +259,23 @@ class Resource:
             as_beliefs=as_beliefs,
         )
         return data
+
+
+def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
+    """Return a list of WeatherSensorType objects applicable to the given resource.
+    """
+    sensor_type_names = []
+    for asset_type in resource.unique_asset_types:
+        sensor_type_names.extend(asset_type.weather_correlations)
+        print(sensor_type_names)
+    unique_sensor_type_names = list(set(sensor_type_names))
+
+    sensor_types = []
+    for name in unique_sensor_type_names:
+        sensor_type = WeatherSensorType.query.filter(
+            WeatherSensorType.name == name
+        ).one_or_none()
+        if sensor_type is not None:
+            sensor_types.append(sensor_type)
+
+    return sensor_types

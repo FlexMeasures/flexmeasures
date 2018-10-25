@@ -90,7 +90,7 @@ def validate_horizon(horizon: str) -> Union[Tuple[timedelta, bool], Tuple[None, 
         horizon = horizon[1:]
     else:
         neg = False
-    if re.search("^R\d*/", horizon):
+    if re.search(r"^R\d*/", horizon):
         _, horizon, *_ = re.split("/", horizon)
         rep = True
     else:
@@ -135,7 +135,7 @@ def valid_sensor_units(sensor: str) -> List[str]:
     elif sensor == "wind_speed":
         return ["m/s"]
     else:
-        raise NotImplemented(
+        raise NotImplementedError(
             "Unknown sensor or physical unit, cannot determine valid units."
         )
 
@@ -161,12 +161,12 @@ def validate_entity_address(
     """
     if entity_type == "connection":
         match = re.search(
-            "^"
-            "((?P<scheme>.+)\.)*"
-            "((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
-            "((?P<owner_id>\d+):(?=.+:{0}))*"
-            "(?P<asset_id>\d+)"
-            "$",
+            r"^"
+            r"((?P<scheme>.+)\.)*"
+            r"((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
+            r"((?P<owner_id>\d+):(?=.+:{0}))*"
+            r"(?P<asset_id>\d+)"
+            r"$",
             generic_asset_name,
         )
         if match:
@@ -179,17 +179,17 @@ def validate_entity_address(
             return typed_regex_results(match, value_types)
     elif entity_type == "sensor":
         match = re.search(
-            "^"
-            "(?P<scheme>.+)"
-            "\."
-            "(?P<naming_authority>\d{4}-\d{2}\..+)"
-            ":"
-            "(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w]+)"  # should start with at least one letter
-            ":"
-            "(?P<latitude>\d+(\.\d+)?)"
-            ":"
-            "(?P<longitude>\d+(\.\d+)?)"
-            "$",
+            r"^"
+            r"(?P<scheme>.+)"
+            r"\."
+            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
+            r":"
+            r"(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w]+)"  # should start with at least one letter
+            r":"
+            r"(?P<latitude>\d+(\.\d+)?)"
+            r":"
+            r"(?P<longitude>\d+(\.\d+)?)"
+            r"$",
             generic_asset_name,
         )
         if match:
@@ -203,13 +203,13 @@ def validate_entity_address(
             return typed_regex_results(match, value_types)
     elif entity_type == "market":
         match = re.search(
-            "^"
-            "(?P<scheme>.+)"
-            "\."
-            "(?P<naming_authority>\d{4}-\d{2}\..+)"
-            ":"
-            "(?=[a-zA-Z])(?P<market_name>[\w]+)"  # should start with at least one letter
-            "$",
+            r"^"
+            r"(?P<scheme>.+)"
+            r"\."
+            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
+            r":"
+            r"(?=[a-zA-Z])(?P<market_name>[\w]+)"  # should start with at least one letter
+            r"$",
             generic_asset_name,
         )
         if match:
@@ -217,14 +217,14 @@ def validate_entity_address(
             return typed_regex_results(match, value_types)
     elif entity_type == "event":
         match = re.search(
-            "^"
-            "((?P<scheme>.+)\.)*"
-            "((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
-            "((?P<owner_id>\d+):(?=.+:{0}))*"
-            "(?P<asset_id>\d+):"
-            "(?P<event_id>\d+):"
-            "(?P<event_type>.+)"
-            "$",
+            r"^"
+            r"((?P<scheme>.+)\.)*"
+            r"((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
+            r"((?P<owner_id>\d+):(?=.+:{0}))*"
+            r"(?P<asset_id>\d+):"
+            r"(?P<event_id>\d+):"
+            r"(?P<event_type>.+)"
+            r"$",
             generic_asset_name,
         )
         if match:
@@ -237,6 +237,46 @@ def validate_entity_address(
                 "event_type": str,
             }
             return typed_regex_results(match, value_types)
+
+
+def optional_duration_accepted(default_duration: timedelta):
+    """Decorator which specifies that a GET or POST request accepts an optional duration.
+
+    Example:
+
+        @app.route('/getDeviceMessage')
+        @optional_duration_accepted(timedelta(hours=6))
+        def get_device_message(duration):
+            return 'Here is your message'
+
+    The message may specify a duration to overwrite the default duration of 6 hours.
+    """
+
+    def wrapper(fn):
+        @wraps(fn)
+        @as_json
+        def decorated_service(*args, **kwargs):
+            form = get_form_from_request(request)
+            if form is None:
+                current_app.logger.warn(
+                    "Unsupported request method for unpacking 'duration' from request."
+                )
+                return invalid_method(request.method)
+
+            if "duration" in form:
+                duration = validate_duration(form["duration"])
+                if not duration:
+                    extra_info = "Cannot parse 'duration' value."
+                    current_app.logger.warn(extra_info)
+                    return invalid_period(extra_info)
+                kwargs["duration"] = duration
+            else:
+                kwargs["duration"] = default_duration
+            return fn(*args, **kwargs)
+
+        return decorated_service
+
+    return wrapper
 
 
 def optional_sources_accepted(

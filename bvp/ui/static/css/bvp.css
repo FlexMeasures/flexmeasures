@@ -2,6 +2,13 @@ body {
     padding-top: 60px;
 }
 
+i {
+    font-size: 24px;
+}
+.supersize {
+    font-size: 48px;
+}
+
 .icon-column {
     text-align: right;
     width: 6.5em;
@@ -121,6 +128,13 @@ div.attribution {
     align-content: flex-end;*/
 }
 
+.form-group.row {
+  display: flex;
+  display: -webkit-flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 #att-heading {
     display: flex;
     justify-content: flex-start;
@@ -132,10 +146,16 @@ div.heading-group {
 }
 
 label.control-label {
+    /*display: flex;
+    align-content: flex-end;*/
+    color: #c21431;
     /*margin-bottom: 0px;*/
 }
 
-.table td.fit, 
+.table > thead > tr > th {
+     vertical-align: top;
+}
+.table td.fit,
 .table th.fit {
     white-space: nowrap;
     width: 1%;
@@ -143,7 +163,7 @@ label.control-label {
 
 .navbar-tool-name {
     margin-right: 30px;
-    color: rgb(255, 127, 14);
+    color: #c21431;
 }
 
 .datetimepicker input {
@@ -279,7 +299,7 @@ td button { margin:5px; }
     font-size: 24px;
 }
 .map-icon.opportunity {
-    color: #F00;
+    color: #c21431;
 }
 
 
@@ -289,16 +309,23 @@ td button { margin:5px; }
     font-size: tiny;
 }
 
-/* custom icons - replace this when updating seita-webfonts with Fontello */
+/* custom icons from https://erikflowers.github.io/weather-icons/ */
+
+@font-face{font-family:weathericons;src:url(font/weathericons-regular-webfont.eot);src:url(font/weathericons-regular-webfont.eot?#iefix) format('embedded-opentype'),url(font/weathericons-regular-webfont.woff2) format('woff2'),url(font/weathericons-regular-webfont.woff) format('woff'),url(font/weathericons-regular-webfont.ttf) format('truetype'),url(font/weathericons-regular-webfont.svg#weather_iconsregular) format('svg');font-weight:400;font-style:normal}.wi{display:inline-block;font-family:weathericons;font-style:normal;font-weight:400;line-height:1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.wi-fw{text-align:center;width:1.4em}.wi-rotate-90{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=1);-webkit-transform:rotate(90deg);-ms-transform:rotate(90deg);transform:rotate(90deg)}.wi-rotate-180{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=2);-webkit-transform:rotate(180deg);-ms-transform:rotate(180deg);transform:rotate(180deg)}.wi-rotate-270{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=3);-webkit-transform:rotate(270deg);-ms-transform:rotate(270deg);transform:rotate(270deg)}.wi-flip-horizontal{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=0, mirror=1);-webkit-transform:scale(-1,1);-ms-transform:scale(-1,1);transform:scale(-1,1)}.wi-flip-vertical{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=2, mirror=1);-webkit-transform:scale(1,-1);-ms-transform:scale(1,-1);transform:scale(1,-1)}
+.icon-wind_speed:before { content: '\f0b1'; } /* wi-wind-direction */
+.icon-wind_direction:before { content: '\f050'; } /* wi-strong-wind */
+.icon-temperature:before { content: '\f053'; } /* wi-thermometer-exterior */
+.icon-radiation:before { content: '\f046'; } /* wi-horizon-alt */
+
 
 @font-face {
   font-family: 'seita-webfont';
-  src: url('../font/seita-webfont.eot?59037923');
-  src: url('../font/seita-webfont.eot?59037923#iefix') format('embedded-opentype'),
-       url('../font/seita-webfont.woff2?59037923') format('woff2'),
-       url('../font/seita-webfont.woff?59037923') format('woff'),
-       url('../font/seita-webfont.ttf?59037923') format('truetype'),
-       url('../font/seita-webfont.svg?59037923#seita-webfont') format('svg');
+  src: url('../font/seita-webfont.eot?78286001');
+  src: url('../font/seita-webfont.eot?78286001#iefix') format('embedded-opentype'),
+       url('../font/seita-webfont.woff2?78286001') format('woff2'),
+       url('../font/seita-webfont.woff?78286001') format('woff'),
+       url('../font/seita-webfont.ttf?78286001') format('truetype'),
+       url('../font/seita-webfont.svg?78286001#seita-webfont') format('svg');
   font-weight: normal;
   font-style: normal;
 }
@@ -308,7 +335,7 @@ td button { margin:5px; }
 @media screen and (-webkit-min-device-pixel-ratio:0) {
   @font-face {
     font-family: 'seita-webfont';
-    src: url('../font/seita-webfont.svg?59037923#seita-webfont') format('svg');
+    src: url('../font/seita-webfont.svg?78286001#seita-webfont') format('svg');
   }
 }
 */
@@ -349,18 +376,20 @@ td button { margin:5px; }
 }
 
 .icon-wind:before { content: '\e800'; } /* '' */
-.icon-attribution:before { content: '\e801'; } /* '' */
-.icon-batteries:before { content: '\e802'; } /* '' */
-.icon-battery:before { content: '\e803'; } /* '' */
-.icon-binoculars:before { content: '\e804'; } /* '' */
-.icon-building:before { content: '\e805'; } /* '' */
-.icon-calculator:before { content: '\e806'; } /* '' */
-.icon-charging_station:before { content: '\e807'; } /* '' */
-.icon-charging_stations:before { content: '\e808'; } /* '' */
-.icon-iron:before { content: '\e809'; } /* '' */
-.icon-money:before { content: '\e80a'; } /* '' */
-.icon-process:before { content: '\e80b'; } /* '' */
-.icon-solar:before { content: '\e80c'; } /* '' */
-.icon-test:before { content: '\e80d'; } /* '' */
-.icon-time:before { content: '\e80e'; } /* '' */
-.icon-buildings:before { content: '\e80f'; } /* '' */
+.icon-battery:before { content: '\e801'; } /* '' */
+.icon-binoculars:before { content: '\e802'; } /* '' */
+.icon-building:before { content: '\e803'; } /* '' */
+.icon-calculator:before { content: '\e804'; } /* '' */
+.icon-charging_station:before { content: '\e805'; } /* '' */
+.icon-house:before { content: '\e806'; } /* '' */
+.icon-market-EUR:before { content: '\e807'; } /* '' */
+.icon-market-KRW:before { content: '\e808'; } /* '' */
+.icon-solar:before { content: '\e809'; } /* '' */
+.icon-time:before { content: '\e80a'; } /* '' */
+.icon-seita_logo:before { content: '\e80b'; } /* '' */
+.icon-seita_bird:before { content: '\e80c'; } /* '' */
+.icon-seita:before { content: '\e80d'; } /* '' */
+
+.icon-batteries:before { content: '\e801'; } /* '' */
+.icon-buildings:before { content: '\e803'; } /* '' */
+.icon-charging_stations:before { content: '\e805'; } /* '' */

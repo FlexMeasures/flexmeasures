@@ -223,3 +223,6 @@ function submit_resource() {
 function submit_market() {
     $("#market-form").attr("action", empty_location).submit();
 }
+function submit_sensor_type() {
+    $("#sensor_type-form").attr("action", empty_location).submit();
+}

@@ -6,7 +6,6 @@ from flask_security.core import current_user
 import pandas as pd
 import numpy as np
 from inflection import pluralize, titleize
-from bokeh.layouts import gridplot
 from bokeh.embed import components
 import bokeh.palettes as palettes
 
@@ -188,7 +187,8 @@ def portfolio_view():
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(resolution),
         y_label="Power (in MW)",
-        legend=titleize(show_summed),
+        legend_location="top_right",
+        legend_labels=(titleize(show_summed), None),
         show_y_floats=True,
         non_negative_only=True,
     )
@@ -205,7 +205,6 @@ def portfolio_view():
 
     fig_profile.plot_height = 450
     fig_profile.plot_width = 900
-    fig_profile.sizing_mode = "stretch_both"
 
     df_stacked_data = pd.DataFrame(index=df_sum.index, columns=stack_types)
     for st in stack_types:
@@ -296,16 +295,10 @@ def portfolio_view():
 
     fig_actions.plot_height = 150
     fig_actions.plot_width = fig_profile.plot_width
-    fig_actions.sizing_mode = "fixed"
     fig_actions.xaxis.visible = False
 
-    portfolio_plot_script, portfolio_plot_div = components(
-        gridplot(
-            [fig_profile],
-            [fig_actions],
-            toolbar_options={"logo": None},
-            sizing_mode="scale_width",
-        )
+    portfolio_plots_script, portfolio_plots_divs = components(
+        (fig_profile, fig_actions)
     )
     next24hours = [
         (time_utils.get_most_recent_hour() + timedelta(hours=i)).strftime("%I:00 %p")
@@ -337,8 +330,8 @@ def portfolio_view():
         sum_profit_loss_flexibility=sum(
             profit_loss_flexibility_per_asset_type.values()
         ),
-        portfolio_plots_script=portfolio_plot_script,
-        portfolio_plots_div=portfolio_plot_div,
+        portfolio_plots_script=portfolio_plots_script,
+        portfolio_plots_divs=portfolio_plots_divs,
         next24hours=next24hours,
         alt_stacking=show_summed,
     )

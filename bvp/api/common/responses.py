@@ -57,6 +57,17 @@ def invalid_resolution(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400
 
 
+def invalid_market() -> Tuple[dict, int]:
+    return (
+        dict(
+            result="Rejected",
+            status="INVALID_MARKET",
+            message="No market is registered for the requested asset.",
+        ),
+        400,
+    )
+
+
 def invalid_method(request_method) -> Tuple[dict, int]:
     return (
         dict(
@@ -167,6 +178,11 @@ def power_value_too_small(message: str) -> Tuple[dict, int]:
 @BaseMessage("Missing values.")
 def ptus_incomplete(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="PTUS_INCOMPLETE", message=message), 400
+
+
+@BaseMessage("Missing prices for this time period.")
+def unknown_prices(message: str) -> Tuple[dict, int]:
+    return dict(result="Rejected", status="UNKNOWN_PRICES", message=message), 400
 
 
 @BaseMessage("The requested backup is not known.")

@@ -97,7 +97,6 @@ def post_meter_data():
 
     .. :quickref: User; Upload meter data to the platform
 
-
     **Optional parameters**
 
     - "horizon" (see :ref:`prognoses`)
