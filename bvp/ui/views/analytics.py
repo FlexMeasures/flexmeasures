@@ -76,7 +76,7 @@ def analytics_view():
     weather_data, weather_forecast_data, weather_type, selected_sensor, metrics = get_weather_data(
         Resource(session["resource"]).assets, metrics, selected_sensor_type
     )
-    unit_factor = revenue_unit_factor("MWh", selected_market.price_unit)
+    unit_factor = revenue_unit_factor("MWh", selected_market.unit)
     rev_cost_data, rev_cost_forecast_data, metrics = get_revenues_costs_data(
         power_data,
         prices_data,
@@ -224,7 +224,7 @@ def make_prices_figure(
     """Make a bokeh figure for price data"""
     return create_graph(
         data,
-        unit=selected_market.price_unit,
+        unit=selected_market.unit,
         legend_location="top_right",
         forecasts=forecast_data,
         title="%s %s prices"
@@ -232,7 +232,7 @@ def make_prices_figure(
         x_range=shared_x_range,
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
-        y_label="Prices (in %s)" % selected_market.price_unit,
+        y_label="Prices (in %s)" % selected_market.unit,
         show_y_floats=True,
         tools=tools,
     )
@@ -293,7 +293,7 @@ def make_revenues_costs_figure(
 
     return create_graph(
         data,
-        unit=selected_market.price_unit[
+        unit=selected_market.unit[
             :3
         ],  # First three letters of a price unit give the currency (ISO 4217)
         legend_location="top_right",
@@ -308,7 +308,7 @@ def make_revenues_costs_figure(
         x_range=shared_x_range,
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
-        y_label="%s (in %s)" % (rev_cost_str, selected_market.price_unit[:3]),
+        y_label="%s (in %s)" % (rev_cost_str, selected_market.unit[:3]),
         show_y_floats=True,
         tools=tools,
     )
