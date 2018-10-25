@@ -44,6 +44,7 @@ def setup_api_test_data(db):
             capacity_in_mw=1,
             latitude=100,
             longitude=100,
+            unit="MW",
         )
         asset.owner = test_prosumer
         assets.append(asset)
@@ -95,6 +96,7 @@ def setup_api_test_data(db):
         weather_sensor_type_name="wind_speed",
         latitude=33.4843866,
         longitude=126,
+        unit="m/s",
     )
     db.session.add(sensor)
 

@@ -102,7 +102,7 @@ def setup_markets(db):
         yearly_seasonality=True,
     )
     db.session.add(day_ahead)
-    epex_da = Market(name="epex_da", market_type=day_ahead, price_unit="EUR/MWh")
+    epex_da = Market(name="epex_da", market_type=day_ahead, unit="EUR/MWh")
     db.session.add(epex_da)
 
 
@@ -146,6 +146,7 @@ def setup_assets(db, setup_roles_users):
             min_soc_in_mwh=0,
             max_soc_in_mwh=0,
             soc_in_mwh=0,
+            unit="MW",
         )
         asset.owner = test_prosumer
         db.session.add(asset)
@@ -239,6 +240,7 @@ def add_battery_asset(db: SQLAlchemy, setup_roles_users, setup_markets):
         latitude=10,
         longitude=100,
         market_id=epex_da.id,
+        unit="MW",
     )
     battery.owner = test_prosumer
     db.session.add(battery)

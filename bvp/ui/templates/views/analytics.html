@@ -9,27 +9,33 @@
     <div class="container-fluid">
         <div class="row">
             <div class="col-sm-4 top-bottom">
-                <h3>About</h3>
-                <div class="justify">
-                    <p>
-                        This page provides in-depth analytics for your resources (individual assets or groups of assets).
-                        You can browse through historical data and assess how that platform is monitoring and forecasting data streams from various resources.
-                    </p>
-                    {% if documentation_exists %}
-                    <p>
-                        Need help understanding this page? Check out the
-                        <a href="{{ url_for('bvp_ui.static', filename='documentation/html/views/analytics.html') }}" target="_blank">documentation</a>.
-                    </p>
-                    {% endif %}
+                <div class="row">
+                    <div class="col-sm-12">
+                        <h3>About</h3>
+                        <div class="justify">
+                            <p>
+                                This page provides in-depth analytics for your resources (individual assets or groups of assets).
+                                You can browse through historical data and assess how that platform is monitoring and forecasting data streams from various resources.
+                            </p>
+                            {% if documentation_exists %}
+                            <p>
+                                Need help understanding this page? Check out the
+                                <a href="{{ url_for('bvp_ui.static', filename='documentation/html/views/analytics.html') }}" target="_blank">documentation</a>.
+                            </p>
+                            {% endif %}
+                        </div>
+                        <h3>Controls</h3>
+                    </div>
                 </div>
-                <h3>Controls</h3>
-                <form id="resource-form" method="post">
-                    <div class="form-group">
+                <div class="form-group row">
+                    <div class="col-sm-2">
                         {% for asset_type in asset_types %}
-                            <i class="icon-{{ asset_type }}"></i>
+                            <i class={{ asset_type.icon_name }}></i>
                         {% endfor %}
-                        <label class="control-label" for="resource">Resource</label>
-                        <div>
+                    </div>
+                    <div class="col-sm-10">
+                        <form id="resource-form" method="post">
+                            <label class="control-label" for="resource">Resource</label>
                             <select class="form-control" id="resource" name="resource" onchange="submit_resource()">
                                 {% for asset_group, asset_group_display_name in asset_groups %}
                                     <option value="{{ asset_group }}" {% if selected_resource.name==asset_group %} selected="selected"{% endif %}>
@@ -42,14 +48,16 @@
                                     </option>
                                 {% endfor %}
                             </select>
-                        </div>
+                        </form>
                     </div>
-                </form>
-                <form id="market-form" method="post">
-                    <div class="form-group">
-                        <i class="icon-money"></i>
-                        <label class="control-label" for="market">Market</label>
-                        <div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-sm-2">
+                        <i class="icon-market-{{ selected_market.unit[:3] }}"></i>
+                    </div>
+                    <div class="col-sm-10">
+                        <form id="market-form" method="post">
+                            <label class="control-label" for="market">Market</label>
                             <select class="form-control" id="market" name="market" onchange="submit_market()">
                                 {% for market in markets %}
                                     <option value="{{ market.name }}" {% if selected_market.name==market.name %} selected="selected"{% endif %}>
@@ -57,40 +65,67 @@
                                     </option>
                                 {% endfor %}
                             </select>
-                        </div>
+                        </form>
                     </div>
-                </form>
+                </div>
+                <div class="form-group row">
+                    <div class="col-sm-2">
+                        {% for sensor_type in sensor_types %}
+                            <i class="{{ sensor_type.icon_name }}"></i>
+                        {% endfor %}
+                    </div>
+                    <div class="col-sm-10">
+                        <form id="sensor_type-form" method="post">
+                            <label class="control-label" for="sensor_type">Weather</label>
+                            <select class="form-control" id="sensor_type" name="sensor_type" onchange="submit_sensor_type()">
+                                {% for sensor_type in sensor_types %}
+                                    <option value="{{ sensor_type.name }}" {% if selected_sensor_type.name==sensor_type.name %} selected="selected"{% endif %}>
+                                        {{ sensor_type.display_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </div>
+                </div>
                 {% block datetimepicker %} {{ super() }} {% endblock %}
                 {% block forecastpicker %} {{ super() }} {% endblock %}
                 <h3>Metrics</h3>
                 <table class="table text-right" style="font-size: 100%;">
                     <thead>
                         <tr>
-                            <th><i class="icon-calculator"></i></th>
-                            <th>
-                                <span title="Aggregation of the profile of this resource.">
+                            <th rowspan="2"><i class="icon-calculator"></i></th>
+                            <th class="text-right">
+                                <span title="Aggregation of the profile of this resource">
                                     {% if showing_pure_consumption_data %} Consumption
                                     {% elif showing_pure_production_data %} Production
                                     {% else %} Production {% endif %} <!-- Todo: check for default mode of mixed asset groups -->
-                                    (MWh)
                                 </span>
                             </th>
-                            <th><span title="The prices for {{ selected_market.display_name }}.">Price ({{ selected_market.price_unit }})</span></th>
-                            <th>
+                            <th class="text-right"><span title="The prices for {{ selected_market.display_name }} {{ selected_market.market_type.display_name }}">Price</span></th>
+                            <th class="text-right">
                                 {% if showing_pure_consumption_data %}
-                                <span title="The costs which {{ selected_resource.display_name }} occurred or might occur."> Costs ({{ selected_market.price_unit[:3] }})</span>
+                                <span title="The costs which {{ selected_resource.display_name }} occurred or might occur"> Costs</span>
                                 {% elif showing_pure_production_data %}
-                                <span title="The revenues which {{ selected_resource.display_name }} occurred or might occur."> Revenues ({{ selected_market.price_unit[:3] }})</span>
+                                <span title="The revenues which {{ selected_resource.display_name }} occurred or might occur"> Revenues</span>
                                 {% else %}
-                                <span title="The revenues or costs which {{ selected_resource.display_name }} occurred or might occur."> Rev./Costs ({{ selected_market.price_unit[:3] }})</span>
+                                <span title="The revenues or costs which {{ selected_resource.display_name }} occurred or might occur"> Rev./Costs</span>
                                 {% endif %}
                             </th>
+                            <th class="text-right"><span title="{{ selected_sensor_type.display_name }} for this resource">{{ selected_sensor_type.display_name }}</span></th>
+                        </tr>
+                        <tr>
+                            <th class="text-right">MWh</th>
+                            <th class="text-right">{{ selected_market.price_unit }}</th>
+                            <th class="text-right">{{ selected_market.price_unit[:3] }}</th>
+                            <th class="text-right">{{ selected_sensor.unit }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td class="text-left">
-                                Realised
+                                <span title="Most recent belief about the realisation">
+                                    Realised
+                                </span>
                             </td>
                             <td>{% if metrics["realised_power_in_mwh"] %}
                                     {{ "{:,.3f}".format( metrics["realised_power_in_mwh"] | round(3) ) }}
@@ -100,26 +135,50 @@
                             </td>
                             <td>{{ "{:,.2f}".format( metrics["realised_unit_price"] | round(2)) }}</td>
                             <td>{{ "{:,.2f}".format( metrics["realised_revenues_costs"] | round(2)) }}</td>
+                            <td>{% if metrics["realised_weather"] %}
+                                    {{ "{:,.3f}".format( metrics["realised_weather"] | round(3) ) }}
+                                {% else %}
+                                    nan
+                                {% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <td class="text-left">
-                                Expected ({{ horizon_human }} before realisation)
+                                <span title="Expectation {{ horizon_human }} before realisation">
+                                    Expected
+                                </span>
                             </td>
                             <td>{{ "{:,.3f}".format( metrics["expected_power_in_mwh"] | round(3) ) }}</td>
                             <td>{{ "{:,.2f}".format( metrics["expected_unit_price"] | round(2) ) }}</td>
                             <td>{{ "{:,.2f}".format( metrics["expected_revenues_costs"] | round(2) ) }}</td>
+                            <td>{% if metrics["expected_weather"] %}
+                                    {{ "{:,.3f}".format( metrics["expected_weather"] | round(2) ) }}
+                                {% else %}
+                                    nan
+                                {% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <td class="text-left">
-                                MAE (for {{ resolution_human }})
+                                <span title="Mean average error for {{ resolution_human }} values">
+                                    MAE
+                                </span>
                             </td>
                             <td>{{ "{:,.3f}".format( metrics["mae_power_in_mwh"] | round(3)) }}</td>
                             <td>{{ "{:,.2f}".format( metrics["mae_unit_price"] | round(2)) }}</td>
                             <td>{{ "{:,.2f}".format( metrics["mae_revenues_costs"] | round(2)) }}</td>
+                            <td>{% if metrics["mae_weather"] %}
+                                    {{ "{:,.3f}".format( metrics["mae_weather"] | round(2) ) }}
+                                {% else %}
+                                    nan
+                                {% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <td class="text-left">
-                                WAPE
+                                <span title="Weighted absolute percentage error">
+                                    WAPE
+                                </span>
                             </td>
                             <td>{{ "{:,.1f}".format( metrics["wape_power"] | round(1)) }} %</td>
                             <td>{% if metrics["wape_unit_price"] %}
@@ -134,13 +193,36 @@
                                     nan
                                 {% endif %}
                             </td>
+                            <td>{% if metrics["wape_weather"] %}
+                                    {{ "{:,.2f}".format( metrics["wape_weather"] | round(2)) }} %
+                                {% else %}
+                                    nan
+                                {% endif %}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
             <div class="col-sm-8">
-                <div class="panel panel-default">
-                    {{ analytics_plots_div | safe }}
+                <div class="row">
+                    <div class="col-sm-12" style="height: {{ legend_height }}px;">
+                        {{ legend_div | safe }}
+                        {{ legend_script | safe }}
+                    </div>
+                    <div class="col-sm-6">
+                        {{ analytics_plots_divs[0] | safe }}
+                    </div>
+                    <div class="col-sm-6">
+                        {{ analytics_plots_divs[1] | safe }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        {{ analytics_plots_divs[2] | safe }}
+                    </div>
+                    <div class="col-sm-6">
+                        {{ analytics_plots_divs[3] | safe }}
+                    </div>
                     {{ analytics_plots_script | safe }}
                 </div>
             </div>

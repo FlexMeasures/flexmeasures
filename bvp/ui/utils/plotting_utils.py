@@ -1,16 +1,18 @@
-from typing import Any, Union
+from typing import Any, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 from flask import current_app
-from bokeh.models import Range1d
+from bokeh.models import Legend, Range1d
 from bokeh.plotting import figure, Figure
 from bokeh.models import (
+    Plot,
     ColumnDataSource,
     HoverTool,
     NumeralTickFormatter,
     BoxAnnotation,
     CustomJS,
 )
+from bokeh.models.renderers import GlyphRenderer
 from bokeh.models.tools import CustomJSHover
 from bokeh import events
 import pandas as pd
@@ -160,17 +162,19 @@ def make_range(
     return a_range
 
 
-def create_graph(
+def create_graph(  # noqa: C901
     data: pd.DataFrame,
     unit: str = "Some unit",
     title: str = "A plot",
     x_label: str = "X",
     y_label: str = "Y",
-    legend: str = None,
+    legend_location: Union[str, Tuple[float, float]] = "top_right",
+    legend_labels: Tuple[str, Optional[str]] = ("Actual", "Forecast"),
     x_range: Range1d = None,
     forecasts: pd.DataFrame = None,
     show_y_floats: bool = False,
     non_negative_only: bool = False,
+    tools: List[str] = None,
 ) -> Figure:
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
@@ -180,12 +184,14 @@ def create_graph(
     :param title: Title of the graph
     :param x_label: x axis label
     :param y_label: y axis label
-    :param legend: Legend identifier for data series
+    :param legend_location: location of the legend
+    :param legend_labels: labels for the legend items
     :param x_range: values for x axis. If None, taken from series index.
     :param forecasts: forecasts of the data. Expects column names "yhat", "yhat_upper" and "yhat_lower".
     :param hover_tool: Bokeh hover tool, if required
     :param show_y_floats: if True, y axis will show floating numbers (defaults False, will be True if y values are < 2)
     :param non_negative_only: whether or not the data can only be non-negative
+    :param tools: some tools for the plot, which defaults to ["box_zoom", "reset", "save"].
     :return: a Bokeh Figure
     """
 
@@ -205,8 +211,9 @@ def create_graph(
     else:
         y_range = None
 
-    # Set tools
-    tools = ["box_zoom", "reset", "save"]
+    # Set default tools if none were given
+    if tools is None:
+        tools = ["box_zoom", "reset", "save"]
     if "horizon" in data.columns and "label" in data.columns:
         hover_tool = create_hover_tool(
             unit, pd.to_timedelta(data.index.freq), as_beliefs=True
@@ -246,16 +253,15 @@ def create_graph(
             show_y_floats = max(max(data.y.values), max(forecasts.yhat)) < 2
 
     ds = make_datasource_from(data)
-    fig.circle(
-        x="x", y="y", source=ds, color="#3B0757", alpha=0.5, legend=legend, size=10
-    )
+    ac = fig.circle(x="x", y="y", source=ds, color="#3B0757", alpha=0.5, size=10)
+    legend_items = [(legend_labels[0], [ac])]
 
     if forecasts is not None and not forecasts.empty:
         forecasts = tz_index_naively(forecasts)
         fc_color = "#DDD0B3"
         fds = make_datasource_from(forecasts)
-        fig.circle(x="x", y="y", source=fds, color=fc_color, legend="Forecast", size=10)
-        fig.line(x="x", y="y", source=fds, color=fc_color, legend="Forecast")
+        fc = fig.circle(x="x", y="y", source=fds, color=fc_color, size=10)
+        fl = fig.line(x="x", y="y", source=fds, color=fc_color)
 
         # draw uncertainty range as a two-dimensional patch
         if "yhat_lower" and "yhat_upper" in forecasts:
@@ -264,6 +270,9 @@ def create_graph(
             fig.patch(
                 x_points, y_points, color=fc_color, fill_alpha=0.2, line_width=0.01
             )
+        if legend_labels[1] is None:
+            raise TypeError("Legend label must be of type string, not None.")
+        legend_items.append((legend_labels[1], [fc, fl]))
 
     fig.toolbar.logo = None
     fig.yaxis.axis_label = y_label
@@ -274,8 +283,9 @@ def create_graph(
     fig.xaxis.axis_label = x_label
     fig.xgrid.grid_line_alpha = 0.5
 
-    # fig_legend = fig.legend[0]
-    # fig_legend.click_policy = "hide"
+    if legend_location is not None:
+        legend = Legend(items=legend_items, location=legend_location)
+        fig.add_layout(legend, "center")
 
     return fig
 
@@ -346,3 +356,57 @@ def highlight(
         else:
             open_order_book = None  # TODO: implement for other x-range types
         fig.js_on_event(events.DoubleTap, open_order_book(redirect_to, x_start, x_end))
+
+
+def compute_legend_height(legend) -> float:
+    """Adapted from:
+    https://github.com/bokeh/bokeh/blob/master/bokehjs/src/lib/models/annotations/legend.ts
+    """
+    if legend.orientation == "vertical":
+        return (
+            max(legend.label_height, legend.glyph_height) * len(legend.items)
+            + legend.spacing * max(len(legend.items) - 1, 0)
+            + legend.padding * 2
+        )
+    else:
+        return max(legend.label_height, legend.glyph_height) + legend.padding * 2
+
+
+def separate_legend(fig: Figure, orientation: str = "vertical") -> Figure:
+    """Cuts legend out of fig and returns a separate legend (as a Figure object).
+    Click policy doesn't work on the new legend.
+    """
+
+    legend_fig = Plot(
+        x_range=Range1d(1000, 1000),
+        y_range=Range1d(1000, 1000),
+        min_border=0,
+        outline_line_alpha=0,
+        toolbar_location=None,
+        sizing_mode="stretch_both",  # if stretch_both, then we need to set the height or min-height of the container
+    )
+
+    original_legend = fig.legend[0]
+
+    legend_fig.renderers.append(original_legend)
+    legend_fig.renderers.extend(
+        [renderer for renderer in fig.renderers if isinstance(renderer, GlyphRenderer)]
+    )
+
+    fig.renderers.remove(original_legend)
+    separated_legend = legend_fig.legend[0]
+    separated_legend.border_line_alpha = 0
+    separated_legend.margin = 0
+    separated_legend.orientation = orientation
+
+    if orientation == "horizontal":
+        separated_legend.spacing = 30
+        separated_legend.location = "top_center"
+    else:
+        separated_legend.location = "top_left"
+
+    legend_fig.plot_height = (
+        compute_legend_height(original_legend) + original_legend.margin * 2
+    )
+
+    return legend_fig

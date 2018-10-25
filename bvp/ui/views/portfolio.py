@@ -188,7 +188,8 @@ def portfolio_view():
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(resolution),
         y_label="Power (in MW)",
-        legend=titleize(show_summed),
+        legend_location="top_right",
+        legend_labels=(titleize(show_summed), None),
         show_y_floats=True,
         non_negative_only=True,
     )

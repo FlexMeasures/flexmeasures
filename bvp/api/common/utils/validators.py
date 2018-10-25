@@ -90,7 +90,7 @@ def validate_horizon(horizon: str) -> Union[Tuple[timedelta, bool], Tuple[None, 
         horizon = horizon[1:]
     else:
         neg = False
-    if re.search("^R\d*/", horizon):
+    if re.search(r"^R\d*/", horizon):
         _, horizon, *_ = re.split("/", horizon)
         rep = True
     else:
@@ -135,7 +135,7 @@ def valid_sensor_units(sensor: str) -> List[str]:
     elif sensor == "wind_speed":
         return ["m/s"]
     else:
-        raise NotImplemented(
+        raise NotImplementedError(
             "Unknown sensor or physical unit, cannot determine valid units."
         )
 
@@ -161,12 +161,12 @@ def validate_entity_address(
     """
     if entity_type == "connection":
         match = re.search(
-            "^"
-            "((?P<scheme>.+)\.)*"
-            "((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
-            "((?P<owner_id>\d+):(?=.+:{0}))*"
-            "(?P<asset_id>\d+)"
-            "$",
+            r"^"
+            r"((?P<scheme>.+)\.)*"
+            r"((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
+            r"((?P<owner_id>\d+):(?=.+:{0}))*"
+            r"(?P<asset_id>\d+)"
+            r"$",
             generic_asset_name,
         )
         if match:
@@ -179,17 +179,17 @@ def validate_entity_address(
             return typed_regex_results(match, value_types)
     elif entity_type == "sensor":
         match = re.search(
-            "^"
-            "(?P<scheme>.+)"
-            "\."
-            "(?P<naming_authority>\d{4}-\d{2}\..+)"
-            ":"
-            "(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w]+)"  # should start with at least one letter
-            ":"
-            "(?P<latitude>\d+(\.\d+)?)"
-            ":"
-            "(?P<longitude>\d+(\.\d+)?)"
-            "$",
+            r"^"
+            r"(?P<scheme>.+)"
+            r"\."
+            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
+            r":"
+            r"(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w]+)"  # should start with at least one letter
+            r":"
+            r"(?P<latitude>\d+(\.\d+)?)"
+            r":"
+            r"(?P<longitude>\d+(\.\d+)?)"
+            r"$",
             generic_asset_name,
         )
         if match:
@@ -203,13 +203,13 @@ def validate_entity_address(
             return typed_regex_results(match, value_types)
     elif entity_type == "market":
         match = re.search(
-            "^"
-            "(?P<scheme>.+)"
-            "\."
-            "(?P<naming_authority>\d{4}-\d{2}\..+)"
-            ":"
-            "(?=[a-zA-Z])(?P<market_name>[\w]+)"  # should start with at least one letter
-            "$",
+            r"^"
+            r"(?P<scheme>.+)"
+            r"\."
+            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
+            r":"
+            r"(?=[a-zA-Z])(?P<market_name>[\w]+)"  # should start with at least one letter
+            r"$",
             generic_asset_name,
         )
         if match:
@@ -217,14 +217,14 @@ def validate_entity_address(
             return typed_regex_results(match, value_types)
     elif entity_type == "event":
         match = re.search(
-            "^"
-            "((?P<scheme>.+)\.)*"
-            "((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
-            "((?P<owner_id>\d+):(?=.+:{0}))*"
-            "(?P<asset_id>\d+):"
-            "(?P<event_id>\d+):"
-            "(?P<event_type>.+)"
-            "$",
+            r"^"
+            r"((?P<scheme>.+)\.)*"
+            r"((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
+            r"((?P<owner_id>\d+):(?=.+:{0}))*"
+            r"(?P<asset_id>\d+):"
+            r"(?P<event_id>\d+):"
+            r"(?P<event_type>.+)"
+            r"$",
             generic_asset_name,
         )
         if match:

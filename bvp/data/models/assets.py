@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 import isodate
 import inflection
-from inflection import pluralize, titleize
+from inflection import humanize, pluralize, titleize
 from sqlalchemy.orm import Query, Session
 
 from bvp.data.config import db
@@ -21,6 +21,7 @@ class AssetType(db.Model):
     """Describing asset types for our purposes"""
 
     name = db.Column(db.String(80), primary_key=True)
+    display_name = db.Column(db.String(80), default="", unique=True)
     is_consumer = db.Column(db.Boolean(), nullable=False, default=False)
     is_producer = db.Column(db.Boolean(), nullable=False, default=False)
     can_curtail = db.Column(db.Boolean(), nullable=False, default=False, index=True)
@@ -28,6 +29,30 @@ class AssetType(db.Model):
     daily_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
     weekly_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
     yearly_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
+
+    def __init__(self, **kwargs):
+        super(AssetType, self).__init__(**kwargs)
+        self.name = self.name.replace(" ", "_").lower()
+        if "display_name" not in kwargs:
+            self.display_name = humanize(self.name)
+
+    @property
+    def icon_name(self) -> str:
+        """Icon name for this asset type, which can be used for UI html templates made with Jinja. For example:
+            <i class={{ asset_type.icon_name }}></i>
+        becomes (for a charging station):
+            <i class="icon-charging_station"></i>
+        """
+        if self.name == "solar":
+            return "icon-solar"
+        elif self.name == "wind":
+            return "icon-wind"
+        elif self.name == "charging_station":
+            return "icon-charging_station"
+        elif self.name == "battery":
+            return "icon-battery"
+        elif self.name == "building":
+            return "icon-building"
 
     @property
     def preconditions(self) -> Dict[str, bool]:
@@ -71,6 +96,7 @@ class Asset(db.Model):
     asset_type_name = db.Column(
         db.String(80), db.ForeignKey("asset_type.name"), nullable=False
     )
+    unit = db.Column(db.String(80), default="", nullable=False)
     # How many MW at peak usage
     capacity_in_mw = db.Column(db.Float, nullable=False)
     # State of charge in MWh and its datetime and udi event
@@ -102,6 +128,11 @@ class Asset(db.Model):
         ),
     )
     market = db.relationship("Market", backref=db.backref("assets", lazy=True))
+
+    @property
+    def power_unit(self) -> float:
+        """Return the 'unit' property of the generic asset, just with a more insightful name."""
+        return self.unit
 
     @property
     def asset_type_display_name(self) -> str:

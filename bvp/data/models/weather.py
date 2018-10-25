@@ -6,6 +6,7 @@ from sqlalchemy.orm import Query, Session
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
+from inflection import humanize
 
 from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
@@ -19,10 +20,33 @@ class WeatherSensorType(db.Model):
     """
 
     name = db.Column(db.String(80), primary_key=True)
+    display_name = db.Column(db.String(80), default="", unique=True)
 
     daily_seasonality = True
     weekly_seasonality = False
     yearly_seasonality = True
+
+    def __init__(self, **kwargs):
+        super(WeatherSensorType, self).__init__(**kwargs)
+        self.name = self.name.replace(" ", "_").lower()
+        if "display_name" not in kwargs:
+            self.display_name = humanize(self.name)
+
+    @property
+    def icon_name(self) -> str:
+        """Icon name for this weather sensor type, which can be used for UI html templates made with Jinja. For example:
+            <i class={{ sensor_type.icon_name }}></i>
+        becomes (for a wind speed sensor):
+            <i class="wi wi-strong-wind"></i>
+        """
+        if self.name == "radiation":
+            return "wi wi-horizon-alt"
+        elif self.name == "temperature":
+            return "wi wi-thermometer"
+        elif self.name == "wind_direction":
+            return "wi wi-wind-direction"
+        elif self.name == "wind_speed":
+            return "wi wi-strong-wind"
 
     def __repr__(self):
         return "<WeatherSensorType %r>" % self.name
@@ -34,9 +58,11 @@ class WeatherSensor(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True)
+    display_name = db.Column(db.String(80), default="", unique=False)
     weather_sensor_type_name = db.Column(
         db.String(80), db.ForeignKey("weather_sensor_type.name"), nullable=False
     )
+    unit = db.Column(db.String(80), default="", nullable=False)
     # latitude is the North/South coordinate
     latitude = db.Column(db.Float, nullable=False)
     # longitude is the East/West coordinate
@@ -55,6 +81,11 @@ class WeatherSensor(db.Model):
     def __init__(self, **kwargs):
         super(WeatherSensor, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
+
+    @property
+    def weather_unit(self) -> float:
+        """Return the 'unit' property of the generic asset, just with a more insightful name."""
+        return self.unit
 
     @property
     def location(self) -> Tuple[float, float]:

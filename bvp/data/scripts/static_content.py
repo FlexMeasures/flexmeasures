@@ -50,6 +50,7 @@ def add_markets(db: SQLAlchemy) -> List[Market]:
     """Add default market types and market(s)"""
     day_ahead = MarketType(
         name="day_ahead",
+        display_name="day-ahead market",
         daily_seasonality=True,
         weekly_seasonality=True,
         yearly_seasonality=True,
@@ -61,14 +62,14 @@ def add_markets(db: SQLAlchemy) -> List[Market]:
     epex_da = Market(
         name="epex_da",
         market_type=day_ahead,
-        price_unit="EUR/MWh",
+        unit="EUR/MWh",
         display_name="EPEX SPOT day-ahead market",
     )
     db.session.add(epex_da)
     kpx_da = Market(
         name="kpx_da",
         market_type=day_ahead,
-        price_unit="KRW/kWh",
+        unit="KRW/kWh",
         display_name="KPX day-ahead market",
     )
     db.session.add(kpx_da)
@@ -87,6 +88,7 @@ def add_asset_types(db: SQLAlchemy):
     db.session.add(
         AssetType(
             name="solar",
+            display_name="solar panel",
             is_producer=True,
             daily_seasonality=True,
             yearly_seasonality=True,
@@ -95,6 +97,7 @@ def add_asset_types(db: SQLAlchemy):
     db.session.add(
         AssetType(
             name="wind",
+            display_name="wind turbine",
             is_producer=True,
             can_curtail=True,
             daily_seasonality=True,
@@ -114,6 +117,7 @@ def add_asset_types(db: SQLAlchemy):
     db.session.add(
         AssetType(
             name="battery",
+            display_name="stationary battery",
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -126,6 +130,7 @@ def add_asset_types(db: SQLAlchemy):
     db.session.add(
         AssetType(
             name="building",
+            display_name="building",
             is_consumer=True,
             can_shift=True,
             daily_seasonality=True,
@@ -137,9 +142,11 @@ def add_asset_types(db: SQLAlchemy):
 
 def add_sensors(db: SQLAlchemy) -> List[WeatherSensor]:
     """Add default sensor types and sensor(s)"""
-    temperature = WeatherSensorType(name="temperature")
-    wind_speed = WeatherSensorType(name="wind_speed")
-    radiation = WeatherSensorType(name="radiation")
+    temperature = WeatherSensorType(
+        name="temperature", display_name="ambient temperature"
+    )
+    wind_speed = WeatherSensorType(name="wind_speed", display_name="wind speed")
+    radiation = WeatherSensorType(name="radiation", display_name="solar irradiation")
     db.session.add(temperature)
     db.session.add(wind_speed)
     db.session.add(radiation)
@@ -148,6 +155,7 @@ def add_sensors(db: SQLAlchemy) -> List[WeatherSensor]:
         sensor_type=temperature,
         latitude=33.4843866,
         longitude=126.477859,
+        unit="°C",
     )
     db.session.add(a1_temperature)
     a1_wind_speed = WeatherSensor(
@@ -155,6 +163,7 @@ def add_sensors(db: SQLAlchemy) -> List[WeatherSensor]:
         sensor_type=wind_speed,
         latitude=33.4843866,
         longitude=126.477859,
+        unit="m/s",
     )
     db.session.add(a1_wind_speed)
     a1_radiation = WeatherSensor(
@@ -162,6 +171,7 @@ def add_sensors(db: SQLAlchemy) -> List[WeatherSensor]:
         sensor_type=radiation,
         latitude=33.4843866,
         longitude=126.477859,
+        unit="kW/m²",
     )
     db.session.add(a1_radiation)
     return [a1_temperature, a1_wind_speed, a1_radiation]
@@ -235,6 +245,8 @@ def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
     assets: List[Asset] = []
     with open(asset_path, "r") as assets_json:
         for json_asset in json.loads(assets_json.read()):
+            if "unit" not in json_asset:
+                json_asset["unit"] = "MW"
             asset = Asset(**json_asset)
             test_assets = ["aa-offshore", "hw-onshore", "jc_pv", "jeju_dream_tower"]
             if test_data_set is True and asset.name not in test_assets:
@@ -253,6 +265,7 @@ def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
             min_soc_in_mwh=0,
             soc_in_mwh=2.5,
             soc_datetime=ensure_korea_local(datetime(2015, 1, 1, tzinfo=None)),
+            unit="MW",
         )
     )
     return assets

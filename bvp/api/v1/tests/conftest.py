@@ -40,6 +40,7 @@ def setup_api_test_data(db):
             capacity_in_mw=1,
             latitude=100,
             longitude=100,
+            unit="MW",
         )
         asset.owner = test_prosumer
         assets.append(asset)

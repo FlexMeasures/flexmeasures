@@ -9,7 +9,7 @@ from bvp.utils import time_utils, calculations
 from bvp.data.services.resources import Resource
 from bvp.data.models.assets import Asset
 from bvp.data.models.markets import Market, Price
-from bvp.data.models.weather import Weather
+from bvp.data.models.weather import Weather, WeatherSensor, WeatherSensorType
 from bvp.utils.geo_utils import find_closest_weather_sensor
 
 
@@ -104,25 +104,20 @@ def get_prices_data(
 
 
 def get_weather_data(
-    assets: List[Asset]
-) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], str]:
+    assets: List[Asset], metrics: dict, sensor_type: WeatherSensorType
+) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], str, WeatherSensor, dict]:
     """Get most recent weather data and forecast weather data for the requested forecast horizon."""
 
     # Todo: for now we only collect weather data for a single asset
     asset = assets[0]
 
-    # List all the weather sensor types that have a correlation with this asset type
-    sensor_types = asset.asset_type.weather_correlations
-
-    if sensor_types:
-        # Todo: for now we only collect weather data for a single weather sensor type
-        sensor_type = sensor_types[0]
-
+    if sensor_type:
         # Find the closest weather sensor
-        closest_sensor = find_closest_weather_sensor(sensor_type, object=asset)
+        closest_sensor = find_closest_weather_sensor(sensor_type.name, object=asset)
+        sensor_type_name = sensor_type.name
     else:
         closest_sensor = None
-        sensor_type = None
+        sensor_type_name = ""
 
     if closest_sensor is None:
         weather_data = pd.DataFrame()
@@ -136,6 +131,7 @@ def get_weather_data(
             create_if_empty=True,
             as_beliefs=True,
         )
+        metrics["realised_weather"] = weather_data.y.mean()
 
         # Get weather forecast
         horizon = pd.to_timedelta(session["forecast_horizon"])
@@ -146,7 +142,33 @@ def get_weather_data(
             create_if_empty=True,
             as_beliefs=True,
         )
-    return weather_data, weather_forecast_data, sensor_type
+        weather_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
+        if (
+            not weather_forecast_data.empty
+            and weather_forecast_data.size == weather_data.size
+        ):
+            metrics["expected_weather"] = weather_forecast_data.yhat.mean()
+            metrics["mae_weather"] = calculations.mean_absolute_error(
+                weather_data.y, weather_forecast_data.yhat
+            )
+            metrics["mape_weather"] = calculations.mean_absolute_percentage_error(
+                weather_data.y, weather_forecast_data.yhat
+            )
+            metrics["wape_weather"] = calculations.weighted_absolute_percentage_error(
+                weather_data.y, weather_forecast_data.yhat
+            )
+        else:
+            metrics["expected_weather"] = np.NaN
+            metrics["mae_weather"] = np.NaN
+            metrics["mape_weather"] = np.NaN
+            metrics["wape_weather"] = np.NaN
+    return (
+        weather_data,
+        weather_forecast_data,
+        sensor_type_name,
+        closest_sensor,
+        metrics,
+    )
 
 
 def get_revenues_costs_data(

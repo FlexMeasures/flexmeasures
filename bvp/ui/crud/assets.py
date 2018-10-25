@@ -214,7 +214,7 @@ def get_or_create_owner(asset_form: NewAssetForm) -> Tuple[Optional[User], str]:
                 owner = create_user(email=new_owner_email, user_roles=["Prosumer"])
             except InvalidBVPUser as e:
                 owner_error = str(e)
-            except IntegrityError as e:
+            except IntegrityError:
                 owner_error = "New owner cannot be created."
             asset_form.owner.choices.append((owner.id, owner.username))
     else:

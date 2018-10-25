@@ -24,19 +24,21 @@
                     {% endif %}
                 </div>
                 <h3>Controls</h3>
-                <form id="resource-form" method="post">
-                    <div class="form-group">
+                <div class="form-group row">
+                    <div class="col-sm-2">
                         <i class="icon-time"></i>
-                        <label class="control-label">Upcoming hours</label>
-                        <div>
+                    </div>
+                    <div class="col-sm-10">
+                        <form id="resource-form" method="post">
+                            <label class="control-label">Upcoming hours</label>
                             <select class="form-control" id="resource" name="resource" onchange="this.form.submit()">
                                 {% for i, j in next24hours|zip(next24hours[1:]) %}
                                     <option {% if i=="04:00 AM" %} selected="selected"{% endif %}>Between {{i}} and {{j}}</option>
                                 {% endfor %}
                             </select>
-                        </div>
+                        </form>
                     </div>
-                </form>
+                </div>
 
                 <h3>Placed order summary</h3>
                 <table class="table" style="font-size: 100%;">

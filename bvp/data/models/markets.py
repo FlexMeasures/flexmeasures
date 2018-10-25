@@ -15,10 +15,17 @@ class MarketType(db.Model):
     """
 
     name = db.Column(db.String(80), primary_key=True)
+    display_name = db.Column(db.String(80), default="", unique=True)
 
     daily_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
     weekly_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
     yearly_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
+
+    def __init__(self, **kwargs):
+        super(MarketType, self).__init__(**kwargs)
+        self.name = self.name.replace(" ", "_").lower()
+        if "display_name" not in kwargs:
+            self.display_name = humanize(self.name)
 
     @property
     def preconditions(self) -> Dict[str, bool]:
@@ -44,13 +51,18 @@ class Market(db.Model):
     market_type_name = db.Column(
         db.String(80), db.ForeignKey("market_type.name"), nullable=False
     )
-    price_unit = db.Column(db.String(80), default="", nullable=False)
+    unit = db.Column(db.String(80), default="", nullable=False)
 
     def __init__(self, **kwargs):
         super(Market, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
+
+    @property
+    def price_unit(self) -> str:
+        """Return the 'unit' property of the generic asset, just with a more insightful name."""
+        return self.unit
 
     market_type = db.relationship(
         "MarketType", backref=db.backref("markets", lazy=True)

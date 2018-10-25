@@ -11,6 +11,7 @@ from bvp.utils import time_utils
 from bvp.ui import bvp_ui
 from bvp.data.models.assets import Asset
 from bvp.data.models.markets import Market
+from bvp.data.models.weather import WeatherSensorType
 from bvp.data.services.resources import Resource
 
 
@@ -33,7 +34,7 @@ def render_bvp_template(html_filename: str, **variables):
         variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio")
 
     variables["contains_plots"] = False
-    if any([n.endswith("plots_div") for n in variables.keys()]):
+    if any([n.endswith(("plots_div", "plots_divs")) for n in variables.keys()]):
         variables["contains_plots"] = True
         variables["bokeh_css_resources"] = CDN.render_css()
         variables["bokeh_js_resources"] = CDN.render_js()
@@ -78,6 +79,40 @@ def set_session_market() -> Market:
     ):  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
         session["market"] = request.form["market"]
     return Market.query.filter(Market.name == session["market"]).one_or_none()
+
+
+def set_session_sensor_type(
+    accepted_sensor_types: List[WeatherSensorType]
+) -> WeatherSensorType:
+    """Set session["sensor_type"] to something, based on the available sensor types or the request.
+    Returns the selected sensor type, or None."""
+
+    sensor_type_name = ""
+    if "sensor_type" in session:
+        sensor_type_name = session["sensor_type"]
+    if (
+        "sensor_type" in request.args
+    ):  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
+        sensor_type_name = request.args["sensor_type"]
+    if (
+        "sensor_type" in request.form
+    ):  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
+        sensor_type_name = request.form["sensor_type"]
+    requested_sensor_type = WeatherSensorType.query.filter(
+        WeatherSensorType.name == sensor_type_name
+    ).one_or_none()
+    if (
+        requested_sensor_type not in accepted_sensor_types
+        and len(accepted_sensor_types) > 0
+    ):
+        sensor_type = accepted_sensor_types[0]
+        session["sensor_type"] = sensor_type.name
+        return sensor_type
+    elif len(accepted_sensor_types) == 0:
+        session["sensor_type"] = None
+    else:
+        session["sensor_type"] = requested_sensor_type.name
+        return requested_sensor_type
 
 
 def set_session_resource(
