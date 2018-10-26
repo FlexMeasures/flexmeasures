@@ -177,7 +177,12 @@
                         <div class="container-fluid">
                             <a href="http://aoneeng.com/">A1 Engineering</a> services supported by <a href="https://seita.nl/">Seita</a> technologies &copy 2018.
                             {% if app_running_since %}   <!-- We might render templates from plugins, where this meta info is not available -->
-                                This app is running since {{ app_running_since }} on version {{ git_version }}+{{ git_commits_since }}.<!-- (Version {{ git_hash }}, to be exact.) -->
+                            This app is running since {{ app_running_since }}
+                                {% if git_version != "Unknown" %}
+                                on version {{ git_version }}+{{ git_commits_since }}.
+                                {% else %}
+                                on revision {{ git_hash }}.
+                                {% endif %}
                             {% endif %}
                         </div>
                         <div>

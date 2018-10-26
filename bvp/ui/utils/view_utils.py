@@ -172,8 +172,9 @@ def get_git_description() -> Tuple[str, int, str]:
         components = git_output.strip().decode("ascii").split("-")
         if not (len(components) == 1 and components[0] == ""):
             sha = components.pop()
-            commits_since = int(components.pop())
-            version = "-".join(components)
+            if len(components) > 0:
+                commits_since = int(components.pop())
+                version = "-".join(components)
     except OSError as ose:
         current_app.logger.warn("Problem when reading git describe: %s" % ose)
 
