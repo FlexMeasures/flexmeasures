@@ -267,7 +267,6 @@ def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
     sensor_type_names = []
     for asset_type in resource.unique_asset_types:
         sensor_type_names.extend(asset_type.weather_correlations)
-        print(sensor_type_names)
     unique_sensor_type_names = list(set(sensor_type_names))
 
     sensor_types = []

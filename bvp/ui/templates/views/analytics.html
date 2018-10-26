@@ -80,7 +80,7 @@
                             <select class="form-control" id="sensor_type" name="sensor_type" onchange="submit_sensor_type()">
                                 {% for sensor_type in sensor_types %}
                                     <option value="{{ sensor_type.name }}" {% if selected_sensor_type.name==sensor_type.name %} selected="selected"{% endif %}>
-                                        {{ sensor_type.display_name }}
+                                        {{ sensor_type.display_name | humanize }}
                                     </option>
                                 {% endfor %}
                             </select>
@@ -111,12 +111,12 @@
                                 <span title="The revenues or costs which {{ selected_resource.display_name }} occurred or might occur"> Rev./Costs</span>
                                 {% endif %}
                             </th>
-                            <th class="text-right"><span title="{{ selected_sensor_type.display_name }} for this resource">{{ selected_sensor_type.display_name }}</span></th>
+                            <th class="text-right"><span title="{{ selected_sensor_type.display_name | humanize }} for this resource">{{ selected_sensor_type.display_name | humanize }}</span></th>
                         </tr>
                         <tr>
                             <th class="text-right">MWh</th>
-                            <th class="text-right">{{ selected_market.price_unit }}</th>
-                            <th class="text-right">{{ selected_market.price_unit[:3] }}</th>
+                            <th class="text-right">{{ selected_market.unit }}</th>
+                            <th class="text-right">{{ selected_market.unit[:3] }}</th>
                             <th class="text-right">{{ selected_sensor.unit }}</th>
                         </tr>
                     </thead>

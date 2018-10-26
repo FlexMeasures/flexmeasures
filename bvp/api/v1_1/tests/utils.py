@@ -24,9 +24,9 @@ def message_for_get_prognosis(
             "start", None
         )  # Otherwise, the server will determine the horizon based on when the API endpoint was called
     elif invalid_horizon:
-        message["horizon"] = "T6h"
+        message["horizon"] = "T6H"
     elif rolling_horizon:
-        message["horizon"] = "R/PT6h"
+        message["horizon"] = "R/PT6H"
     if no_data:
         message["start"] = ("2010-01-01T00:00:00Z",)
     if no_resolution:
@@ -77,7 +77,9 @@ def message_for_post_price_data(invalid_unit: bool = False) -> dict:
     return message
 
 
-def message_for_post_weather_data(invalid_unit: bool = False) -> dict:
+def message_for_post_weather_data(
+    invalid_unit: bool = False, temperature: bool = False
+) -> dict:
     message = {
         "type": "PostWeatherDataRequest",
         "groups": [
@@ -91,6 +93,12 @@ def message_for_post_weather_data(invalid_unit: bool = False) -> dict:
         "horizon": "PT3H",
         "unit": "m/s",
     }
-    if invalid_unit:
-        message["unit"] = "°C"
+    if temperature:
+        message["groups"][0][
+            "sensor"
+        ] = "ea1.2018-06.localhost:5000:temperature:33.4843866:126"
+        if not invalid_unit:
+            message["unit"] = "°C"  # Right unit for temperature
+    elif invalid_unit:
+        message["unit"] = "°C"  # Wrong unit for wind speed
     return message

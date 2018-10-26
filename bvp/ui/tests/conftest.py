@@ -4,6 +4,7 @@ from flask_security.utils import hash_password
 
 from bvp.data.services.users import create_user
 from bvp.data.models.assets import Asset
+from bvp.data.models.weather import WeatherSensor, WeatherSensorType
 from bvp.ui.tests.utils import login, logout
 
 
@@ -31,6 +32,7 @@ def as_admin(client):
 def setup_ui_test_data(db):
     """
     Create another prosumer, without data, and an admin
+    Also, a weather sensor (and sensor type).
     """
     print("Setting up data for UI tests on %s" % db.engine)
 
@@ -62,5 +64,17 @@ def setup_ui_test_data(db):
     )
     db.session.add(asset)
     asset.owner = test_prosumer2
+
+    # Create 1 weather sensor
+    test_sensor_type = WeatherSensorType(name="radiation")
+    db.session.add(test_sensor_type)
+    sensor = WeatherSensor(
+        name="radiation_sensor",
+        weather_sensor_type_name="radiation",
+        latitude=33.4843866,
+        longitude=126,
+        unit="kW/m²",
+    )
+    db.session.add(sensor)
 
     print("Done setting up data for UI tests")

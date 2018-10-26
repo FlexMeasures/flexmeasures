@@ -22,6 +22,7 @@ from bvp.api.common.utils.api_utils import (
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
+    unit_required,
     assets_required,
     optional_sources_accepted,
     resolutions_accepted,
@@ -100,10 +101,8 @@ def post_price_data_response(
             market = Market.query.filter(Market.name == market_name).one_or_none()
             if market is None:
                 return unrecognized_market(market_name)
-            elif unit != market.price_unit:
-                return invalid_unit(
-                    "%s prices" % market.display_name, [market.price_unit]
-                )
+            elif unit != market.unit:
+                return invalid_unit("%s prices" % market.display_name, [market.unit])
 
             # Create new Price objects
             for j, value in enumerate(value_group):
@@ -157,7 +156,7 @@ def post_price_data_response(
 
 
 @type_accepted("PostWeatherDataRequest")  # noqa: C901
-@units_accepted("weather", "°C", "kW/m²", "kW/m2", "m/s")
+@unit_required
 @assets_required("sensor")
 @optional_horizon_accepted()
 @values_required

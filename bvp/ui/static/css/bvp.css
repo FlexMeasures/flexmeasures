@@ -311,6 +311,22 @@ td button { margin:5px; }
 
 /* custom icons from https://erikflowers.github.io/weather-icons/ */
 
+[class^="wi wi-"]:before, [class*=" wi wi-"]:before {
+  font-family: "weathericons";
+  font-style: normal;
+  font-weight: normal;
+  speak: none;
+  display: inline-block;
+  text-decoration: inherit;
+  width: 1em;
+  margin-right: .2em;
+  text-align: center;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1em;
+  margin-left: .2em;
+}
+
 @font-face{font-family:weathericons;src:url(font/weathericons-regular-webfont.eot);src:url(font/weathericons-regular-webfont.eot?#iefix) format('embedded-opentype'),url(font/weathericons-regular-webfont.woff2) format('woff2'),url(font/weathericons-regular-webfont.woff) format('woff'),url(font/weathericons-regular-webfont.ttf) format('truetype'),url(font/weathericons-regular-webfont.svg#weather_iconsregular) format('svg');font-weight:400;font-style:normal}.wi{display:inline-block;font-family:weathericons;font-style:normal;font-weight:400;line-height:1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.wi-fw{text-align:center;width:1.4em}.wi-rotate-90{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=1);-webkit-transform:rotate(90deg);-ms-transform:rotate(90deg);transform:rotate(90deg)}.wi-rotate-180{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=2);-webkit-transform:rotate(180deg);-ms-transform:rotate(180deg);transform:rotate(180deg)}.wi-rotate-270{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=3);-webkit-transform:rotate(270deg);-ms-transform:rotate(270deg);transform:rotate(270deg)}.wi-flip-horizontal{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=0, mirror=1);-webkit-transform:scale(-1,1);-ms-transform:scale(-1,1);transform:scale(-1,1)}.wi-flip-vertical{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=2, mirror=1);-webkit-transform:scale(1,-1);-ms-transform:scale(1,-1);transform:scale(1,-1)}
 .icon-wind_speed:before { content: '\f0b1'; } /* wi-wind-direction */
 .icon-wind_direction:before { content: '\f050'; } /* wi-strong-wind */

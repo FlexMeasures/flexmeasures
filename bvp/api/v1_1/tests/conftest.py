@@ -88,7 +88,7 @@ def setup_api_test_data(db):
         power_forecasts.append(p_3)
     db.session.bulk_save_objects(power_forecasts)
 
-    # Create 1 weather sensor
+    # Create 2 weather sensors
     test_sensor_type = WeatherSensorType(name="wind_speed")
     db.session.add(test_sensor_type)
     sensor = WeatherSensor(
@@ -97,6 +97,17 @@ def setup_api_test_data(db):
         latitude=33.4843866,
         longitude=126,
         unit="m/s",
+    )
+    db.session.add(sensor)
+
+    test_sensor_type = WeatherSensorType(name="temperature")
+    db.session.add(test_sensor_type)
+    sensor = WeatherSensor(
+        name="temperature_sensor",
+        weather_sensor_type_name="temperature",
+        latitude=33.4843866,
+        longitude=126,
+        unit="°C",
     )
     db.session.add(sensor)
 
