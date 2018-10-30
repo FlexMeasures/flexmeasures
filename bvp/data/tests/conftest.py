@@ -62,7 +62,7 @@ def add_forecasting_jobs(db: SQLAlchemy):
     wind_device_2 = Asset.query.filter_by(name="wind-asset-2").one_or_none()
     solar_device_1 = Asset.query.filter_by(name="solar-asset-1").one_or_none()
     db.session.add(
-        ForecastingJob(
+        ForecastingJob(  # ID 1 - 4 forecasts
             start=as_bvp_time(datetime(2015, 1, 1, 6)),
             end=as_bvp_time(datetime(2015, 1, 1, 7)),
             horizon=timedelta(minutes=15),
@@ -71,7 +71,7 @@ def add_forecasting_jobs(db: SQLAlchemy):
         )
     )
     db.session.add(
-        ForecastingJob(
+        ForecastingJob(  # ID 2 - 12 forecasts
             start=as_bvp_time(datetime(2015, 1, 1, 14)),
             end=as_bvp_time(datetime(2015, 1, 1, 17)),
             horizon=timedelta(minutes=15),
@@ -80,7 +80,7 @@ def add_forecasting_jobs(db: SQLAlchemy):
         )
     )
     db.session.add(
-        ForecastingJob(
+        ForecastingJob(  # ID 3 - 8 forecasts
             start=as_bvp_time(datetime(2015, 1, 1, 20)),
             end=as_bvp_time(datetime(2015, 1, 1, 22)),
             horizon=timedelta(minutes=15),
@@ -90,10 +90,20 @@ def add_forecasting_jobs(db: SQLAlchemy):
     )
     # This one should fail as there is no underlying data - and due to the start date it is the last to be picked.
     db.session.add(
-        ForecastingJob(
+        ForecastingJob(  # ID 4 - 8 forecasts
             start=as_bvp_time(datetime(2016, 1, 1, 20)),
             end=as_bvp_time(datetime(2016, 1, 1, 22)),
             horizon=timedelta(minutes=15),
+            timed_value_type="Power",
+            asset_id=solar_device_1.id,
+        )
+    )
+    # This one should fail as the horizon is invalid
+    db.session.add(
+        ForecastingJob(  # ID 5 - 8 forecasts
+            start=as_bvp_time(datetime(2015, 1, 1, 22)),
+            end=as_bvp_time(datetime(2015, 1, 1, 23)),
+            horizon=timedelta(minutes=18),
             timed_value_type="Power",
             asset_id=solar_device_1.id,
         )

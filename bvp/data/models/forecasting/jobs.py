@@ -22,7 +22,7 @@ class ForecastingJob(db.Model):
 
     def num_forecasts(self, resolution: timedelta) -> int:
         """Compute how many forecasts this job needs to make, given a resolution"""
-        return ((self.end - resolution) - self.start) // resolution
+        return (self.end - self.start) // resolution
 
     def get_asset(self) -> Union[Asset, Market, WeatherSensor]:
         """Get asset for this job. Maybe simpler once we redesign timed value classes (make a generic one)"""

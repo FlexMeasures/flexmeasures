@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
 
-from bvp.utils.time_utils import bvp_now, as_bvp_time
+from bvp.utils.time_utils import bvp_now, as_bvp_time, forecast_horizons_for
 from bvp.data.models.forecasting.jobs import ForecastingJob
 from bvp.data.models.forecasting.generic import (
     latest_model as latest_generic_model,
@@ -12,11 +12,13 @@ from bvp.data.models.forecasting.generic import (
 )
 from bvp.data.models.data_sources import DataSource
 from bvp.data.config import db
+from bvp.data.transactional import PartialTaskCompletionException
 from bvp.data.models.weather import Weather
 from bvp.data.models.assets import Power
 from bvp.data.models.markets import Price
 from bvp.data.models.utils import determine_asset_type_by_asset
 from bvp.data.transactional import task_with_status_report
+from bvp.data.models.forecasting import NotEnoughDataException
 
 
 data_source_label = "forecast by Seita (%s)" % latest_generic_model_version()
@@ -44,10 +46,7 @@ def run_forecasting_jobs(
         job.in_progress_since = bvp_now()
     db.session.flush()
 
-    # Run the jobs, save forecasts
-    data_source = get_data_source()
-    for job in jobs_to_run:
-        run_job(job, data_source, custom_model_params)
+    run_and_report_on_jobs(jobs_to_run, custom_model_params)
 
 
 def reactivate_dead_jobs():
@@ -103,43 +102,76 @@ def get_data_source() -> DataSource:
 def run_job(
     job: ForecastingJob, data_source: DataSource, custom_model_params: dict = None
 ):
+    """
+    Build model for this job, make rolling forecasts, save the forecasts made, finally delete the job.
+    """
     print("Running ForecastingJob %d: %s" % (job.id, job))
 
-    try:
-        model_specs, model_identifier = latest_generic_model(
-            generic_asset=job.get_asset(),
-            start=as_bvp_time(job.start),
-            end=as_bvp_time(job.end),
-            horizon=job.horizon,
-            custom_model_params=custom_model_params,
-        )
-        model_specs.creation_time = bvp_now()
+    if len(forecast_horizons_for(job.horizon)) == 0:
+        raise Exception("Invalid horizon on job %d: %s" % (job.id, job.horizon))
 
-        forecasts, model_state = make_rolling_forecasts(
-            start=as_bvp_time(job.start),
-            end=as_bvp_time(job.end),
-            model_specs=model_specs,
-        )
+    model_specs, model_identifier = latest_generic_model(
+        generic_asset=job.get_asset(),
+        start=as_bvp_time(job.start),
+        end=as_bvp_time(job.end),
+        horizon=job.horizon,
+        custom_model_params=custom_model_params,
+    )
+    model_specs.creation_time = bvp_now()
 
-        ts_value_forecasts = [
-            make_timed_value(
-                job.timed_value_type,
-                job.asset_id,
-                dt,
-                value,
-                job.horizon,
-                data_source.id,
+    forecasts, model_state = make_rolling_forecasts(
+        start=as_bvp_time(job.start), end=as_bvp_time(job.end), model_specs=model_specs
+    )
+
+    ts_value_forecasts = [
+        make_timed_value(
+            job.timed_value_type, job.asset_id, dt, value, job.horizon, data_source.id
+        )
+        for dt, value in forecasts.items()
+    ]
+
+    db.session.bulk_save_objects(ts_value_forecasts)
+
+    ForecastingJob.query.filter_by(id=job.id).delete()
+
+
+def run_and_report_on_jobs(jobs: List[ForecastingJob], custom_model_params):
+    """Run the jobs, and report failures in a practical way"""
+    data_source = get_data_source()
+    expected_successes = len(jobs)
+    seen_successes = 0
+    jobs_removed = 0
+
+    for job in jobs:
+        db.session.begin_nested()  # roll back to here if the job failed
+        try:
+            run_job(job, data_source, custom_model_params)
+            print("Successfully ran job %d." % job.id)
+            seen_successes += 1
+        except Exception as e:
+            print("Could not run job %d: %s" % (job.id, str(e)))
+            db.session.rollback()
+            if e.__class__ == NotEnoughDataException:
+                print("Not enough data for job %d - will be deleted." % job.id)
+                ForecastingJob.query.filter_by(id=job.id).delete()
+                expected_successes -= 1
+                jobs_removed += 1
+            else:
+                job.in_progress_since = None
+
+    if seen_successes < expected_successes:
+        if seen_successes == 0:
+            # This avoids a commit
+            raise Exception(
+                "Of %d jobs, none succeeded. %d jobs removed due to missing data."
+                % (expected_successes, jobs_removed)
             )
-            for dt, value in forecasts.items()
-        ]
-
-        db.session.bulk_save_objects(ts_value_forecasts)
-
-        ForecastingJob.query.filter_by(id=job.id).delete()
-        print("Successfully ran job %d." % job.id)
-    except Exception as e:
-        print("Could not run job %d: %s" % (job.id, str(e)))
-        raise e
+        else:
+            # by raising this Exception type, the data which we generated will get committed.
+            raise PartialTaskCompletionException(
+                "Of %d jobs, only %d succeeded. %d jobs removed due to missing data."
+                % (expected_successes, seen_successes, jobs_removed)
+            )
 
 
 # --- the function below can hopefully go away if we refactor a real generic asset class
