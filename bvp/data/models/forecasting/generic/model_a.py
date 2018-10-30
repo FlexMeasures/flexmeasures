@@ -14,6 +14,7 @@ from bvp.data.models.utils import (
     determine_asset_value_class_by_asset,
 )
 from bvp.utils.geo_utils import find_closest_weather_sensor
+from bvp.data.models.forecasting import NotEnoughDataException
 from bvp.data.config import db
 
 # update this version if small things like parametrisation change
@@ -69,10 +70,12 @@ def configure_specs(  # noqa: C901
     oldest_value = q.order_by(generic_asset_value_class.datetime.asc()).first()
     newest_value = q.order_by(generic_asset_value_class.datetime.desc()).first()
     if oldest_value is None:
-        raise Exception("No data available at all. Forecasting impossible.")
+        raise NotEnoughDataException(
+            "No data available at all. Forecasting impossible."
+        )
     if query_window[0] < oldest_value.datetime:
         suggested_start = start + (oldest_value.datetime - query_window[0])
-        raise Exception(
+        raise NotEnoughDataException(
             "Not enough data to forecast %s for this forecast window %s to %s: set start date to %s ?"
             % (generic_asset.name, query_window[0], query_window[1], suggested_start)
         )
@@ -80,7 +83,7 @@ def configure_specs(  # noqa: C901
         minutes=15
     ):  # Todo: resolution should come from generic asset
         suggested_end = end + (newest_value.datetime - (query_window[1] - horizon))
-        raise Exception(
+        raise NotEnoughDataException(
             "Not enough data to forecast %s for the forecast window %s to %s: set end date to %s ?"
             % (generic_asset.name, query_window[0], query_window[1], suggested_end)
         )
