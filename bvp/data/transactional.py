@@ -81,7 +81,7 @@ def task_with_status_report(task_function):
 
     def wrap(*args, **kwargs):
         status: bool = True
-        partial = False
+        partial: bool = False
         try:
             task_function(*args, **kwargs)
             click.echo("[BVP] Task %s ran fine." % task_function.__name__)
@@ -112,7 +112,9 @@ def task_with_status_report(task_function):
                     db.session.add(task_run)
                 task_run.datetime = datetime.utcnow().replace(tzinfo=pytz.utc)
                 task_run.status = status
-
+                click.echo(
+                    "Reported task %s status as %s" % (task_function.__name__, status)
+                )
             except Exception as e:
                 click.echo(
                     "[BVP] Could not report the running of Task %s, encountered the following problem: [%s]."
@@ -120,7 +122,7 @@ def task_with_status_report(task_function):
                 )
                 db.session.rollback()
 
-            # now the final commit
-            db.session.commit()
+        # now the final commit
+        db.session.commit()
 
     return wrap
