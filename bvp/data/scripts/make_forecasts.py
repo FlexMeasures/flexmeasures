@@ -148,6 +148,7 @@ def run_and_report_on_jobs(jobs: List[ForecastingJob], custom_model_params):
             run_job(job, data_source, custom_model_params)
             print("Successfully ran job %d." % job.id)
             seen_successes += 1
+            db.session.commit()
         except Exception as e:
             print("Could not run job %d: %s" % (job.id, str(e)))
             db.session.rollback()
@@ -158,7 +159,6 @@ def run_and_report_on_jobs(jobs: List[ForecastingJob], custom_model_params):
                 jobs_removed += 1
             else:
                 job.in_progress_since = None
-
     if seen_successes < expected_successes:
         if seen_successes == 0:
             # This avoids a commit

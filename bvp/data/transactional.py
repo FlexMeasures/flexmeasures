@@ -115,6 +115,7 @@ def task_with_status_report(task_function):
                 click.echo(
                     "Reported task %s status as %s" % (task_function.__name__, status)
                 )
+                db.session.commit()
             except Exception as e:
                 click.echo(
                     "[BVP] Could not report the running of Task %s, encountered the following problem: [%s]."
