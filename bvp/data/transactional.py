@@ -67,6 +67,10 @@ def after_request_session_commit_or_rollback(exception):
 
 
 class PartialTaskCompletionException(Exception):
+    """By raising this Exception in a task, no rollback will happen even if not everything was successful
+    and the data which was generated will get committed. The task status will still be False, so the non-successful
+    parts can be inspected."""
+
     pass
 
 
@@ -125,5 +129,6 @@ def task_with_status_report(task_function):
 
         # now the final commit
         db.session.commit()
+        db.session.remove()
 
     return wrap

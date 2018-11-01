@@ -161,13 +161,13 @@ def run_and_report_on_jobs(jobs: List[ForecastingJob], custom_model_params):
                 job.in_progress_since = None
     if seen_successes < expected_successes:
         if seen_successes == 0:
-            # This avoids a commit
+            # This will lead to a rollback of the main transaction
             raise Exception(
                 "Of %d jobs, none succeeded. %d jobs removed due to missing data."
                 % (expected_successes, jobs_removed)
             )
         else:
-            # by raising this Exception type, the data which we generated will get committed.
+            # by raising this Exception, no rollback will happen and the data which we generated will get committed.
             raise PartialTaskCompletionException(
                 "Of %d jobs, only %d succeeded. %d jobs removed due to missing data."
                 % (expected_successes, seen_successes, jobs_removed)
