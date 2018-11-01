@@ -47,6 +47,13 @@ class ForecastingJob(db.Model):
         if self.horizon < timedelta(minutes=0):
             horizon_str = "%s ago (backwards forecasting)" % naturaldelta(-self.horizon)
         return (
-            "<ForecastingJob for forecasts of %s for %s:%d for the period %s to %s.>"
-            % (horizon_str, self.timed_value_type, self.asset_id, self.start, self.end)
+            "<ForecastingJob:%d for forecasts of %s for %s:%d for the period %s to %s.>"
+            % (
+                self.id,
+                horizon_str,
+                self.timed_value_type,
+                self.asset_id,
+                self.start,
+                self.end,
+            )
         )

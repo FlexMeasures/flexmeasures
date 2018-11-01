@@ -51,7 +51,7 @@ def add_weather_sensor_and_forecasts(db: SQLAlchemy):
                     sensor=sensor,
                     datetime=as_bvp_time(dt),
                     value=val,
-                    horizon=timedelta(minutes=15),
+                    horizon=timedelta(hours=1),
                     data_source_id=data_source.id,
                 )
             )
@@ -65,25 +65,25 @@ def add_forecasting_jobs(db: SQLAlchemy):
         ForecastingJob(  # ID 1 - 4 forecasts
             start=as_bvp_time(datetime(2015, 1, 1, 6)),
             end=as_bvp_time(datetime(2015, 1, 1, 7)),
-            horizon=timedelta(minutes=15),
+            horizon=timedelta(hours=1),
             timed_value_type="Power",
             asset_id=wind_device_1.id,
         )
     )
     db.session.add(
         ForecastingJob(  # ID 2 - 12 forecasts
-            start=as_bvp_time(datetime(2015, 1, 1, 14)),
-            end=as_bvp_time(datetime(2015, 1, 1, 17)),
-            horizon=timedelta(minutes=15),
+            start=as_bvp_time(datetime(2015, 1, 1, 10)),
+            end=as_bvp_time(datetime(2015, 1, 1, 13)),
+            horizon=timedelta(hours=1),
             timed_value_type="Power",
             asset_id=wind_device_2.id,
         )
     )
     db.session.add(
         ForecastingJob(  # ID 3 - 8 forecasts
-            start=as_bvp_time(datetime(2015, 1, 1, 20)),
-            end=as_bvp_time(datetime(2015, 1, 1, 22)),
-            horizon=timedelta(minutes=15),
+            start=as_bvp_time(datetime(2015, 1, 1, 12)),
+            end=as_bvp_time(datetime(2015, 1, 1, 14)),
+            horizon=timedelta(hours=1),
             timed_value_type="Power",
             asset_id=solar_device_1.id,
         )
@@ -93,7 +93,7 @@ def add_forecasting_jobs(db: SQLAlchemy):
         ForecastingJob(  # ID 4 - 8 forecasts
             start=as_bvp_time(datetime(2016, 1, 1, 20)),
             end=as_bvp_time(datetime(2016, 1, 1, 22)),
-            horizon=timedelta(minutes=15),
+            horizon=timedelta(hours=1),
             timed_value_type="Power",
             asset_id=solar_device_1.id,
         )
@@ -101,9 +101,9 @@ def add_forecasting_jobs(db: SQLAlchemy):
     # This one should fail as the horizon is invalid
     db.session.add(
         ForecastingJob(  # ID 5 - 8 forecasts
-            start=as_bvp_time(datetime(2015, 1, 1, 22)),
+            start=as_bvp_time(datetime(2015, 1, 1, 21)),
             end=as_bvp_time(datetime(2015, 1, 1, 23)),
-            horizon=timedelta(minutes=18),
+            horizon=timedelta(hours=18),
             timed_value_type="Power",
             asset_id=solar_device_1.id,
         )

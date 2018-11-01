@@ -81,7 +81,7 @@ def test_in_progress_handling(db):
     running_job_id = running_job.id
 
     run_forecasting_jobs(
-        max_forecasts=12,  # take care that we are not selecting the fourth and fifth, invalid jobs
+        max_forecasts=12,  # take care that we are not selecting the fourth and fifth, invalid jobs, just 1 and 3
         custom_model_params=dict(
             training_and_testing_period=timedelta(hours=2),
             outcome_var_transformation=None,
@@ -117,7 +117,7 @@ def test_forecasting_failures(db):
 
     # check if the valid jobs ran, but no other forecasts were made.
     assert ForecastingJob.query.count() == 1
-    assert "18 minutes" in str(ForecastingJob.query.one_or_none())
+    assert "18 hours" in str(ForecastingJob.query.one_or_none())
     assert check_forecasts([1, 2, 3])
 
     # however, the last task run is recorded (as failed)
@@ -139,7 +139,7 @@ def check_forecasts(job_ids: List[int]):
     wind1: Asset = Asset.query.filter_by(name="wind-asset-1").one_or_none()
     forecasts = (
         Power.query.filter(Power.asset_id == wind1.id)
-        .filter(Power.horizon == timedelta(minutes=15))
+        .filter(Power.horizon == timedelta(hours=1))
         .filter(
             (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 6)))
             & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 7)))
@@ -155,10 +155,10 @@ def check_forecasts(job_ids: List[int]):
     wind2: Asset = Asset.query.filter_by(name="wind-asset-2").one_or_none()
     forecasts = (
         Power.query.filter(Power.asset_id == wind2.id)
-        .filter(Power.horizon == timedelta(minutes=15))
+        .filter(Power.horizon == timedelta(hours=1))
         .filter(
-            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 14)))
-            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 17)))
+            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 10)))
+            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 13)))
         )
         .all()
     )
@@ -171,10 +171,10 @@ def check_forecasts(job_ids: List[int]):
     solar1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
     forecasts = (
         Power.query.filter(Power.asset_id == solar1.id)
-        .filter(Power.horizon == timedelta(minutes=15))
+        .filter(Power.horizon == timedelta(hours=1))
         .filter(
-            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 20)))
-            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 22)))
+            (Power.datetime >= as_bvp_time(datetime(2015, 1, 1, 12)))
+            & (Power.datetime < as_bvp_time(datetime(2015, 1, 1, 14)))
         )
         .all()
     )
@@ -185,7 +185,7 @@ def check_forecasts(job_ids: List[int]):
         assert len(forecasts) == 0
 
     # this is all the forecasts that were made and they all are numbers
-    all_forecasts = Power.query.filter(Power.horizon == timedelta(minutes=15)).all()
+    all_forecasts = Power.query.filter(Power.horizon == timedelta(hours=1)).all()
     assert len(all_forecasts) == overall_expected
     assert all([not np.isnan(f.value) for f in all_forecasts])
 

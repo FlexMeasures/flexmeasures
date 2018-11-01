@@ -248,3 +248,12 @@ def forecast_horizons_for(
         return [pd.to_timedelta(to_offset(h)) for h in horizons]
     else:
         return horizons
+
+
+def supported_horizons() -> List[timedelta]:
+    return [
+        timedelta(hours=1),
+        timedelta(hours=6),
+        timedelta(hours=24),
+        timedelta(hours=48),
+    ]

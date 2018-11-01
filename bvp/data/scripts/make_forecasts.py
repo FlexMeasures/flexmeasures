@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
 
-from bvp.utils.time_utils import bvp_now, as_bvp_time, forecast_horizons_for
+from bvp.utils.time_utils import bvp_now, as_bvp_time, supported_horizons
 from bvp.data.models.forecasting.jobs import ForecastingJob
 from bvp.data.models.forecasting.generic import (
     latest_model as latest_generic_model,
@@ -69,7 +69,6 @@ def get_jobs_to_run(
     if horizon is not None:
         q = q.filter(ForecastingJob.horizon == horizon)
     jobs = q.order_by(ForecastingJob.start.desc(), ForecastingJob.id.desc()).all()
-
     # Calculate which jobs (sorted by id asc) can be done (number of forecasts fits into
     # max_forecasts_per_run parameter)
     jobs_to_run = []
@@ -107,7 +106,7 @@ def run_job(
     """
     print("Running ForecastingJob %d: %s" % (job.id, job))
 
-    if len(forecast_horizons_for(job.horizon)) == 0:
+    if job.horizon not in supported_horizons():
         raise Exception("Invalid horizon on job %d: %s" % (job.id, job.horizon))
 
     model_specs, model_identifier = latest_generic_model(
