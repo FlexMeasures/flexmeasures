@@ -78,6 +78,7 @@ def test_in_progress_handling(db):
         asset_id=wind2.id
     ).one_or_none()
     running_job.in_progress_since = bvp_now() - timedelta(minutes=10)
+    running_job_id = running_job.id
 
     run_forecasting_jobs(
         max_forecasts=12,  # take care that we are not selecting the fourth and fifth, invalid jobs
@@ -93,7 +94,7 @@ def test_in_progress_handling(db):
     assert (
         len(left_jobs) == 3
     )  # 1 left alone, two invalid we did not select (see above)
-    assert running_job.id in [job.id for job in left_jobs]
+    assert running_job_id in [job.id for job in left_jobs]
 
     # checking if the right forecasts were made
     assert check_forecasts([1, 3])
