@@ -21,6 +21,7 @@ from bvp.data.services.resources import (
     get_sensor_types,
     Resource,
 )
+from bvp.data.services.time_series import ensure_timing_vars_are_set
 from bvp.data.queries.analytics import (
     get_power_data,
     get_prices_data,
@@ -65,7 +66,7 @@ def analytics_view():
         [a.is_pure_producer for a in Resource(session["resource"]).assets]
     )
 
-    # Getting data and calculating metrics for them (not for weather, though)
+    # Getting data and calculating metrics for them
     metrics = dict()
     power_data, power_forecast_data, metrics = get_power_data(
         showing_pure_consumption_data, metrics
@@ -112,9 +113,15 @@ def analytics_view():
 
     # Set shared x range
     series = time_utils.tz_index_naively(power_data.index)
-    shared_x_range = Range1d(
-        start=min(series), end=max(series) + pd.to_timedelta(power_data.index.freq)
-    )
+    if not series.empty:
+        shared_x_range = Range1d(
+            start=min(series), end=max(series) + pd.to_timedelta(power_data.index.freq)
+        )
+    else:
+        query_window, resolution = ensure_timing_vars_are_set((None, None), None)
+        shared_x_range = Range1d(
+            start=query_window[0], end=query_window[1] + pd.to_timedelta(resolution)
+        )
 
     # Making figures
     tools = ["box_zoom", "reset", "save"]

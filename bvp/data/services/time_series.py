@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple, Union, Callable
+from typing import List, Dict, Optional, Tuple, Union, Callable
 from datetime import datetime, timedelta
 
 from flask import current_app, session
@@ -237,7 +237,8 @@ def query_time_series_data(
 
 
 def ensure_timing_vars_are_set(
-    time_window: Tuple[datetime, datetime], resolution: str
+    time_window: Tuple[Optional[datetime], Optional[datetime]],
+    resolution: Optional[str],
 ) -> Tuple[Tuple[datetime, datetime], str]:
     start = time_window[0]
     end = time_window[1]
