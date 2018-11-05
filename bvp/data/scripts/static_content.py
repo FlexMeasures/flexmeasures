@@ -132,6 +132,7 @@ def add_asset_types(db: SQLAlchemy):
             name="building",
             display_name="building",
             is_consumer=True,
+            is_producer=True,
             can_shift=True,
             daily_seasonality=True,
             weekly_seasonality=True,
