@@ -148,7 +148,7 @@ def get_transformation_by_asset_type(
     elif isinstance(generic_asset_type, WeatherSensorType):
         if generic_asset_type.name in ["wind_speed", "radiation"]:
             # Values cannot be negative and are often zero
-            return BoxCoxTransformation()
+            return BoxCoxTransformation(lambda2=0.1)
         elif generic_asset_type.name == "temperature":
             # Values can be positive or negative when given in degrees Celsius, but non-negative only in Kelvin
             return BoxCoxTransformation(lambda2=273.16)
