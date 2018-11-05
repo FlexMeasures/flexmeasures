@@ -142,7 +142,7 @@ def get_transformation_by_asset_type(
     generic_asset_type: Union[AssetType, MarketType, WeatherSensorType]
 ) -> Optional[Transformation]:
     if isinstance(generic_asset_type, AssetType):
-        return BoxCoxTransformation()
+        return BoxCoxTransformation(lambda2=0.1)
     elif isinstance(generic_asset_type, MarketType):
         return None
     elif isinstance(generic_asset_type, WeatherSensorType):
