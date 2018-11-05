@@ -2,6 +2,7 @@ from flask import url_for
 
 from bvp.data.services.users import find_user_by_email
 from bvp.data.models.assets import Asset
+from bvp.data.models.markets import Market
 
 
 def test_asset_crud_as_non_admin(db, client, as_prosumer):
@@ -80,6 +81,7 @@ def test_edit_asset(db, client, as_prosumer):
             display_name=existing_asset.display_name,
             latitude=existing_asset.latitude,
             longitude=existing_asset.longitude,
+            market_id=existing_asset.market_id,
             capacity_in_mw="33.33",
             min_soc_in_mwh=existing_asset.min_soc_in_mwh,
             max_soc_in_mwh=existing_asset.max_soc_in_mwh,
@@ -96,6 +98,7 @@ def test_edit_asset(db, client, as_prosumer):
 
 def test_add_asset(db, client, as_admin):
     prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
+    market = Market.query.filter_by(name="epex_da").one_or_none()
     num_assets_before = len(prosumer2.assets)
     db.session.expunge(prosumer2)
     asset_creation = client.post(
@@ -104,6 +107,7 @@ def test_add_asset(db, client, as_admin):
         data=dict(
             display_name="New Test Asset",
             asset_type_name="wind",
+            market_id=str(market.id),
             owner=str(prosumer2.id),
             capacity_in_mw="100",
             latitude="70.4",
@@ -122,12 +126,14 @@ def test_add_asset(db, client, as_admin):
 
 def test_add_asset_with_new_owner(client, as_admin):
     new_user_email = "test_prosumer_new_owner@seita.nl"
+    market = Market.query.filter_by(name="epex_da").one_or_none()
     asset_creation = client.post(
         url_for("AssetCrud:post", id="create"),
         follow_redirects=True,
         data=dict(
             display_name="New Test Asset",
             asset_type_name="wind",
+            market_id=str(market.id),
             owner="none chosen",
             new_owner_email=new_user_email,
             capacity_in_mw="100",
@@ -149,6 +155,7 @@ def test_add_asset_with_new_owner(client, as_admin):
 
 def test_add_invalid_asset(db, client, as_admin):
     prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
+    market = Market.query.filter_by(name="epex_da").one_or_none()
     num_assets_before = len(prosumer2.assets)
     db.session.expunge(prosumer2)
     asset_creation = client.post(
@@ -157,6 +164,7 @@ def test_add_invalid_asset(db, client, as_admin):
         data=dict(
             display_name="New Test Asset",
             asset_type_name="wind",
+            market_id=str(market.id),
             owner=str(prosumer2.id),
             capacity_in_mw="-100",
             latitude="70.4",

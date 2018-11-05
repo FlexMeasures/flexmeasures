@@ -33,7 +33,10 @@ def as_transaction(db_function):
             the_db = db
         # run actual function, handle any exceptions and re-raise
         try:
-            db_function(*args[1:], **kwargs)
+            if isinstance(args[0], SQLAlchemy):
+                db_function(*args, **kwargs)
+            else:
+                db_function(*args[1:], **kwargs)
             the_db.session.commit()
         except Exception as e:
             click.echo("[%s] Encountered Problem: %s" % (db_function.__name__, str(e)))

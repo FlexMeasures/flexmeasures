@@ -53,7 +53,7 @@ def analytics_view():
         group for group in asset_groups if asset_groups[group].count() > 0
     ]
     selected_resource = set_session_resource(assets, groups_with_assets)
-    selected_market = set_session_market()
+    selected_market = set_session_market(selected_resource)
     sensor_types = get_sensor_types(selected_resource)
     selected_sensor_type = set_session_sensor_type(sensor_types)
     session_asset_types = Resource(session["resource"]).unique_asset_types

@@ -107,7 +107,7 @@ def setup_markets(db):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def setup_assets(db, setup_roles_users):
+def setup_assets(db, setup_roles_users, setup_markets):
     """Make some asset types and add assets to known test users."""
 
     data_source = DataSource(
@@ -135,6 +135,7 @@ def setup_assets(db, setup_roles_users):
     )
 
     test_prosumer = find_user_by_email("test_prosumer@seita.nl")
+    test_market = Market.query.filter_by(name="epex_da").one_or_none()
 
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
         asset = Asset(
@@ -147,6 +148,7 @@ def setup_assets(db, setup_roles_users):
             max_soc_in_mwh=0,
             soc_in_mwh=0,
             unit="MW",
+            market_id=test_market.id,
         )
         asset.owner = test_prosumer
         db.session.add(asset)

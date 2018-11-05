@@ -62,14 +62,14 @@ def render_bvp_template(html_filename: str, **variables):
     return render_template(html_filename, **variables)
 
 
-def set_session_market() -> Market:
+def set_session_market(resource: Resource) -> Market:
     """Set session["market"] to something, based on the available markets or the request.
     Returns the selected market, or None."""
-    if "market" not in session:  # set some default, if possible
-        market = Market.query.first()
-        if market is not None:
-            session["market"] = market.name
-        return market
+    market = resource.assets[0].market
+    if market is not None:
+        session["market"] = market.name
+    elif "market" not in session:
+        session["market"] = None
     if (
         "market" in request.args
     ):  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)

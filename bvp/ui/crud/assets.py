@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from flask import request
 from flask_classful import FlaskView
@@ -13,14 +13,15 @@ from bvp.data.services.resources import get_assets, create_asset
 from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.data.models.assets import Asset, AssetType
 from bvp.data.models.user import User
+from bvp.data.models.markets import Market
 from bvp.data.services.users import get_users, create_user, InvalidBVPUser
-from bvp.data.services.resources import delete_asset
+from bvp.data.services.resources import delete_asset, get_markets
 from bvp.data.auth_setup import unauth_handler
 from bvp.data.config import db
 
 
 class AssetForm(FlaskForm):
-    """The default asset form only allows to edit the name and numbers"""
+    """The default asset form only allows to edit the name, numbers and market."""
 
     display_name = StringField(
         "Display name", validators=[DataRequired(), Length(min=4)]
@@ -29,7 +30,7 @@ class AssetForm(FlaskForm):
         "Capacity in MW", places=2, validators=[NumberRange(min=0)]
     )
     min_soc_in_mwh = DecimalField(
-        "Minumum state of charge (SOC) in MWh",
+        "Minimum state of charge (SOC) in MWh",
         places=2,
         default=0,
         validators=[NumberRange(min=0)],
@@ -52,8 +53,13 @@ class AssetForm(FlaskForm):
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
         validators=[NumberRange(min=-180, max=180)],
     )
+    market_id = SelectField("Market", coerce=int)
 
     def validate_on_submit(self):
+        if self.market_id.data == -1:
+            self.market_id.data = (
+                ""
+            )  # cannot be coerced to int so will be flagged as invalid input
         form_valid = super().validate_on_submit()
         if self.max_soc_in_mwh.data < self.min_soc_in_mwh.data:
             self.errors["max_soc_in_mwh"] = [
@@ -64,19 +70,27 @@ class AssetForm(FlaskForm):
 
 
 class NewAssetForm(AssetForm):
-    """Here we allow to set asset type and owner"""
+    """Here we allow to set asset type and owner."""
 
-    asset_type_name = SelectField("asset type", validators=[DataRequired()])
-    owner = SelectField("owner")
+    asset_type_name = SelectField("Asset type", validators=[DataRequired()])
+    owner = SelectField("Owner")
 
 
-def with_options(form: NewAssetForm) -> NewAssetForm:
-    form.asset_type_name.choices = [("none chosen", "--Select type--")] + [
-        (atype.name, atype.name) for atype in AssetType.query.all()
-    ]
-    form.owner.choices = [("none chosen", "--Select existing or add new below--")] + [
-        (o.id, o.username) for o in get_users(role_name="Prosumer")
-    ]
+def with_options(
+    form: Union[AssetForm, NewAssetForm]
+) -> Union[AssetForm, NewAssetForm]:
+    if "asset_type_name" in form:
+        form.asset_type_name.choices = [("none chosen", "--Select type--")] + [
+            (atype.name, atype.name) for atype in AssetType.query.all()
+        ]
+    if "owner" in form:
+        form.owner.choices = [
+            ("none chosen", "--Select existing or add new below--")
+        ] + [(o.id, o.username) for o in get_users(role_name="Prosumer")]
+    if "market_id" in form:
+        form.market_id.choices = [(-1, "--Select existing--")] + [
+            (m.id, m.display_name) for m in get_markets()
+        ]
     return form
 
 
@@ -111,11 +125,15 @@ class AssetCrud(FlaskView):
                 "crud/asset_new.html", asset_form=asset_form, msg=""
             )
 
-        asset_form = AssetForm()
+        asset_form = with_options(AssetForm())
         asset: Asset = Asset.query.filter_by(id=int(id)).one_or_none()
         if asset is not None:
             if asset.owner != current_user and not current_user.has_role("admin"):
                 return unauth_handler()
+            if asset.market is not None:
+                asset_form.market_id.default = asset_form.market_id.choices.index(
+                    (asset.market_id, asset.market.display_name)
+                )
             asset_form.process(obj=asset)
             return render_bvp_template(
                 "crud/asset.html", asset=asset, asset_form=asset_form, msg=""
@@ -136,18 +154,25 @@ class AssetCrud(FlaskView):
             asset_form = with_options(NewAssetForm())
 
             owner, owner_error = get_or_create_owner(asset_form)
+            market, market_error = get_market(asset_form)
 
             if asset_form.asset_type_name.data == "none chosen":
                 asset_form.asset_type_name.data = ""
 
             form_valid = asset_form.validate_on_submit()
 
+            # Fill up the form with useful errors for the user
             if owner_error is not None:
                 asset_form.errors["owner"] = [owner_error]
             else:
                 asset_form.errors["owner"] = []
+            if market_error is not None:
+                asset_form.errors["market_id"] = [market_error]
+            else:
+                asset_form.errors["market_id"] = []
 
-            if form_valid and owner is not None:
+            # Create new asset or return the form
+            if form_valid and owner is not None and market is not None:
                 asset = create_asset(
                     display_name=asset_form.display_name.data,
                     asset_type_name=asset_form.asset_type_name.data,
@@ -158,9 +183,13 @@ class AssetCrud(FlaskView):
                     max_soc_in_mwh=asset_form.max_soc_in_mwh.data,
                     soc_in_mwh=0,
                     owner=owner,
+                    market=market,
+                )
+                asset_form.owner.data = owner.id
+                asset_form.market_id.default = asset_form.market_id.choices.index(
+                    (asset.market.id, asset.market.display_name)
                 )
                 asset_form.process(obj=asset)
-                asset_form.owner.data = owner.id
                 db.session.flush()  # the object should get the ID here, for the form to be rendered correctly
                 msg = "Creation was successful."
             else:
@@ -169,7 +198,7 @@ class AssetCrud(FlaskView):
                     "crud/asset_new.html", asset_form=asset_form, msg=msg
                 )
         else:
-            asset_form = AssetForm()
+            asset_form = with_options(AssetForm())
             asset: Asset = Asset.query.filter_by(id=int(id)).one_or_none()
             if asset is not None:
                 if asset.owner != current_user and not current_user.has_role("admin"):
@@ -199,7 +228,9 @@ class AssetCrud(FlaskView):
         )
 
 
-def get_or_create_owner(asset_form: NewAssetForm) -> Tuple[Optional[User], str]:
+def get_or_create_owner(
+    asset_form: NewAssetForm
+) -> Tuple[Optional[User], Optional[str]]:
     """Get an existing or create a new User as owner for the to-be-created asset.
     Return the user (if available and an error message)"""
     owner = None
@@ -223,3 +254,19 @@ def get_or_create_owner(asset_form: NewAssetForm) -> Tuple[Optional[User], str]:
     if owner:
         asset_form.owner.data = owner.id
     return owner, owner_error
+
+
+def get_market(asset_form: NewAssetForm) -> Tuple[Optional[Market], Optional[str]]:
+    """Get an existing Market as market for the to-be-created asset.
+    Return the market (if available) and an error message."""
+    market = None
+    market_error = None
+
+    if int(asset_form.market_id.data) == -1:
+        market_error = "Pick an existing market."
+    else:
+        market = Market.query.filter_by(id=int(asset_form.market_id.data)).one_or_none()
+
+    if market:
+        asset_form.market_id.data = market.id
+    return market, market_error

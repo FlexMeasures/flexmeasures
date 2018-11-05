@@ -66,6 +66,8 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     "Cannot identify asset %s given the event." % event
                 )
                 return unrecognized_connection_group()
+            if asset.asset_type_name != "battery":
+                return invalid_domain("Asset ID:%s is not a battery." % asset_id)
             if event_type != "soc" or event_id != asset.soc_udi_event_id:
                 return unrecognized_event(event_id, event_type)
             start = asset.soc_datetime

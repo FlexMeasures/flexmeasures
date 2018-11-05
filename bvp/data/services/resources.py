@@ -110,9 +110,10 @@ def create_asset(
     max_soc_in_mwh: float,
     soc_in_mwh: float,
     owner: User,
+    market: Market,
 ) -> Asset:
     """Validate input, create an asset and add it to the database"""
-    if not "display_name":
+    if not display_name:
         raise InvalidBVPAsset("No display name provided.")
     if capacity_in_mw < 0:
         raise InvalidBVPAsset("Capacity cannot be negative.")
@@ -124,6 +125,8 @@ def create_asset(
         raise InvalidBVPAsset("Asset owner cannot be None.")
     if "Prosumer" not in owner.roles:
         raise InvalidBVPAsset("Owner must have role 'Prosumer'.")
+    if market is None:
+        raise InvalidBVPAsset("Market cannot be None.")
 
     db_name = display_name.replace(" ", "-").lower()
     asset = Asset(
@@ -137,6 +140,7 @@ def create_asset(
         max_soc_in_mwh=max_soc_in_mwh,
         soc_in_mwh=soc_in_mwh,
         owner=owner,
+        market=market,
     )
     db.session.add(asset)
     return asset
