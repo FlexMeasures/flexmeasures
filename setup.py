@@ -29,7 +29,7 @@ setup(
         "pyomo",
         "forecastiopy",
         "pysolar",
-        "ts-forecasting-pipeline>=0.3.4",
+        "ts-forecasting-pipeline==0.3.5",
         "python-dotenv",
         "Flask-SSLify",
         "Flask_JSON",
