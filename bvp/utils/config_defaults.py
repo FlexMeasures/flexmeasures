@@ -51,6 +51,7 @@ class Config(object):
     BVP_TIMEZONE = "Asia/Seoul"
     BVP_DB_BACKUP_PATH = "migrations/dumps"
     BVP_LP_SOLVER = "cbc"
+    BVP_TASK_CHECK_AUTH_TOKEN = None
     BVP_PA_DOMAIN_NAMES = []
 
     #  names of settings which cannot be None
@@ -64,6 +65,7 @@ class Config(object):
         "MAIL_DEFAULT_SENDER",
         "MAIL_PASSWORD",
         "SECURITY_PASSWORD_SALT",
+        "BVP_TASK_CHECK_AUTH_TOKEN",
     ]
 
 
@@ -95,6 +97,7 @@ class TestingConfig(Config):
 
     SECURITY_PASSWORD_SALT = "$2b$19$abcdefghijklmnopqrstuv"
     SQLALCHEMY_DATABASE_URI = "postgresql://a1test:a1test@127.0.0.1/a1test"
+    BVP_TASK_CHECK_AUTH_TOKEN = "test-task-check-token"
 
     # These can speed up tests due to less hashing work (I saw ~165s -> ~100s)
     # (via https://github.com/mattupstate/flask-security/issues/731#issuecomment-362186021)

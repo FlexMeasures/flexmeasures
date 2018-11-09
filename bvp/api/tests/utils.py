@@ -1,6 +1,6 @@
 import json
 
-from flask import url_for
+from flask import url_for, current_app
 
 """
 Useful things for API testing
@@ -24,14 +24,14 @@ def get_auth_token(client, user_email, password):
     return auth_response.json["auth_token"]
 
 
-def get_task_run(client, task_name: str):
+def get_task_run(client, task_name: str, token=None):
     """Utility for getting task run information"""
+    if token is None:
+        token = current_app.config.get("BVP_TASK_CHECK_AUTH_TOKEN", "")
     return client.get(
         url_for("bvp_api_ops.get_task_run"),
         query_string={"name": task_name},
-        headers={
-            "Authorization": get_auth_token(client, "task_runner@seita.nl", "testtest")
-        },
+        headers={"Authorization": token},
     )
 
 

@@ -6,6 +6,7 @@ from flask_json import as_json
 
 from bvp.data.config import db
 from bvp.data.models.task_runs import LatestTaskRun
+from bvp.data.auth_setup import UNAUTH_STATUS_CODE
 
 
 @as_json
@@ -19,7 +20,7 @@ def get_task_run():
     Get latest task runs.
     This endpoint returns output conforming to the task monitoring tool (bobbydams/py-pinger)
     """
-    task_name: str = request.args.get("name")
+    task_name: str = request.args.get("name", "")
 
     def make_response(status: str, reason: str, last_run: datetime) -> dict:
         return dict(
@@ -33,6 +34,17 @@ def get_task_run():
             server=current_app.config.get("BVP_MODE", ""),
         )
 
+    # check auth token
+    token_name = current_app.config.get("SECURITY_TOKEN_AUTHENTICATION_HEADER")
+    token = current_app.config.get("BVP_TASK_CHECK_AUTH_TOKEN", "")
+    if token_name not in request.headers or request.headers.get(token_name) != token:
+        return (
+            make_response(
+                "ERROR", "Not authorized to check task status.", datetime(1970, 1, 1)
+            ),
+            UNAUTH_STATUS_CODE,
+        )
+
     if task_name is None or task_name == "":
         return make_response("ERROR", "No task name given.", datetime(1970, 1, 1)), 400
 
@@ -44,7 +56,7 @@ def get_task_run():
                 "Task %s has no last run time." % task_name,
                 datetime(1970, 1, 1),
             ),
-            400,
+            404,
         )
 
     last_status = "OK" if last_known_run.status else "ERROR"

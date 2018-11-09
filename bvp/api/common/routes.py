@@ -10,7 +10,6 @@ def get_ping():
 
 
 @bvp_api_ops.route("/getLatestTaskRun", methods=["GET"])
-@auth_token_required
 def get_task_run():
     return ops_impl.get_task_run()
 

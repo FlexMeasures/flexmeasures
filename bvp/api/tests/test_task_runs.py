@@ -30,11 +30,25 @@ def test_api_task_run_post_unauthorized_wrong_role(client):
     assert task_run.json["status"] == UNAUTH_ERROR_STATUS
 
 
+def test_api_task_run_get_bad_token(client):
+    task_run = get_task_run(client, "task-B", "bad-token")
+    assert task_run.status_code == UNAUTH_STATUS_CODE
+    assert task_run.json["status"] == "ERROR"
+    assert "Not authorized" in task_run.json["reason"]
+
+
 def test_api_task_run_get_no_name(client):
     task_run = get_task_run(client, "")
     assert task_run.status_code == 400
     assert task_run.json["status"] == "ERROR"
     assert task_run.json["reason"] == "No task name given."
+
+
+def test_api_task_run_get_nonexistent_task(client):
+    task_run = get_task_run(client, "task-Z")
+    assert task_run.status_code == 404
+    assert task_run.json["status"] == "ERROR"
+    assert "has no last run time" in task_run.json["reason"]
 
 
 def test_api_task_run_post_no_name(client):
