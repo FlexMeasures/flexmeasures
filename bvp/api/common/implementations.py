@@ -1,8 +1,10 @@
 from datetime import datetime
+import time
 
 import pytz
 from flask import request, current_app
 from flask_json import as_json
+import sqlalchemy
 
 from bvp.data.config import db
 from bvp.data.models.task_runs import LatestTaskRun
@@ -48,7 +50,17 @@ def get_task_run():
     if task_name is None or task_name == "":
         return make_response("ERROR", "No task name given.", datetime(1970, 1, 1)), 400
 
-    last_known_run = LatestTaskRun.query.filter(LatestTaskRun.name == task_name).first()
+    try:
+        last_known_run = LatestTaskRun.query.filter(
+            LatestTaskRun.name == task_name
+        ).first()
+    except sqlalchemy.exc.ResourceClosedError as rce:
+        # This is an attempt to make this more stable against a rare condition we encounter. Let's try once more.
+        time.sleep(2)
+        last_known_run = LatestTaskRun.query.filter(
+            LatestTaskRun.name == task_name
+        ).first()
+
     if not last_known_run:
         return (
             make_response(
