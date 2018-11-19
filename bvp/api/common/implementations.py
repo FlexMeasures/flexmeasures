@@ -4,7 +4,7 @@ import time
 import pytz
 from flask import request, current_app
 from flask_json import as_json
-import sqlalchemy
+from sqlalchemy import exc as sqla_exc
 
 from bvp.data.config import db
 from bvp.data.models.task_runs import LatestTaskRun
@@ -54,8 +54,8 @@ def get_task_run():
         last_known_run = LatestTaskRun.query.filter(
             LatestTaskRun.name == task_name
         ).first()
-    except sqlalchemy.exc.ResourceClosedError as rce:
-        # This is an attempt to make this more stable against a rare condition we encounter. Let's try once more.
+    except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError) as e:
+        # This is an attempt to make this more stable against some rare condition we encounter. Let's try once more.
         time.sleep(2)
         last_known_run = LatestTaskRun.query.filter(
             LatestTaskRun.name == task_name
