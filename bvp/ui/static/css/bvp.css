@@ -309,6 +309,33 @@ td button { margin:5px; }
     font-size: tiny;
 }
 
+
+.carousel-container {
+    width: 500px;
+    height: 500px;
+    overflow: hidden;
+    position: relative;
+    padding:0;
+    border-radius: 25px;
+}
+.carousel {
+    width: 500px;
+    position: absolute;
+    left: 50%;
+    top: 0;
+    margin-left: -250px;
+}
+.carousel .item img {
+    display: block;
+    margin: 0 auto;
+    border-radius: 25px;
+}
+.carousel-control.left, .carousel-control.right {
+    background:transparent;
+}
+
+
+
 /* custom icons from https://erikflowers.github.io/weather-icons/ */
 
 [class^="wi wi-"]:before, [class*=" wi wi-"]:before {
@@ -397,6 +424,7 @@ td button { margin:5px; }
 .icon-building:before { content: '\e803'; } /* '' */
 .icon-calculator:before { content: '\e804'; } /* '' */
 .icon-charging_station:before { content: '\e805'; } /* '' */
+.icon-bidirectional_charging_station:before { content: '\e805'; } /* '' */
 .icon-house:before { content: '\e806'; } /* '' */
 .icon-market-EUR:before { content: '\e807'; } /* '' */
 .icon-market-KRW:before { content: '\e808'; } /* '' */
@@ -409,3 +437,4 @@ td button { margin:5px; }
 .icon-batteries:before { content: '\e801'; } /* '' */
 .icon-buildings:before { content: '\e803'; } /* '' */
 .icon-charging_stations:before { content: '\e805'; } /* '' */
+.icon-bidirectional_charging_stations:before { content: '\e805'; } /* '' */

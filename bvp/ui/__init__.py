@@ -1,6 +1,6 @@
 from flask import Flask, Blueprint
 from flask import send_from_directory
-from inflection import humanize
+from inflection import humanize, parameterize
 
 from bvp.utils.time_utils import localized_datetime_str, naturalized_datetime_str
 
@@ -47,3 +47,4 @@ def register_at(app: Flask):
     app.jinja_env.filters["localized_datetime"] = localized_datetime_str
     app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime_str
     app.jinja_env.filters["humanize"] = humanize
+    app.jinja_env.filters["parameterize"] = parameterize

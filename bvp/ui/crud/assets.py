@@ -81,7 +81,7 @@ def with_options(
 ) -> Union[AssetForm, NewAssetForm]:
     if "asset_type_name" in form:
         form.asset_type_name.choices = [("none chosen", "--Select type--")] + [
-            (atype.name, atype.name) for atype in AssetType.query.all()
+            (atype.name, atype.display_name) for atype in AssetType.query.all()
         ]
     if "owner" in form:
         form.owner.choices = [

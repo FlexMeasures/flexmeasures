@@ -148,9 +148,9 @@
 
     {% for asset in assets: %}
         {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
-        <!--var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = makeMarker({{ asset }})-->
+        <!--var marker_for_{{ (asset.name|parameterize).replace("-", "") }} = makeMarker({{ asset }})-->
 
-        var marker_for_{{ asset.name.replace("-", "").replace(".", "") }} = L
+        var marker_for_{{ (asset.name|parameterize).replace("-", "") }} = L
             .marker(
                 [{{ asset.location[0] }}, {{ asset.location[1] }}],
                 {icon: {{ asset.asset_type.pluralized_name }}_icon}
@@ -212,7 +212,7 @@
             )
             .on('click', clickZoom);
             // .openPopup();
-        {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ asset.name.replace("-", "").replace(".", "") }});
+        {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ (asset.name|parameterize).replace("-", "") }});
     {% endfor%}
 
     // add mock icons in layer

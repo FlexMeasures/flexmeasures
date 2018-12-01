@@ -85,7 +85,14 @@ def get_asset_groups() -> Dict[str, Query]:
     """
     # 1. Custom asset groups by combinations of asset types
     asset_queries = dict(
-        renewables=(Asset.query.filter(Asset.asset_type_name.in_(["solar", "wind"])))
+        renewables=(Asset.query.filter(Asset.asset_type_name.in_(["solar", "wind"]))),
+        all_charging_stations=(
+            Asset.query.filter(
+                Asset.asset_type_name.in_(
+                    ["charging_station", "bidirectional_charging_station"]
+                )
+            )
+        ),
     )
     # 2. We also include a group per asset type - using the pluralised asset type name
     for asset_type in AssetType.query.all():

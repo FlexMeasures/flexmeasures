@@ -107,7 +107,20 @@ def add_asset_types(db: SQLAlchemy):
     db.session.add(
         AssetType(
             name="charging_station",
+            display_name="Charging station (uni-directional)",
             is_consumer=True,
+            can_shift=True,
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        )
+    )
+    db.session.add(
+        AssetType(
+            name="bidirectional_charging_station",
+            display_name="Charging station (bi-directional)",
+            is_consumer=True,
+            is_producer=True,
             can_shift=True,
             daily_seasonality=True,
             weekly_seasonality=True,

@@ -54,7 +54,7 @@ def get_task_run():
         last_known_run = LatestTaskRun.query.filter(
             LatestTaskRun.name == task_name
         ).first()
-    except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError) as e:
+    except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError):
         # This is an attempt to make this more stable against some rare condition we encounter. Let's try once more.
         time.sleep(2)
         last_known_run = LatestTaskRun.query.filter(

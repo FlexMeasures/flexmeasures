@@ -47,7 +47,7 @@ class AssetType(db.Model):
             return "icon-solar"
         elif self.name == "wind":
             return "icon-wind"
-        elif self.name == "charging_station":
+        elif self.name in ("charging_station", "bidirectional_charging_station"):
             return "icon-charging_station"
         elif self.name == "battery":
             return "icon-battery"
@@ -72,7 +72,12 @@ class AssetType(db.Model):
             correlations.append("radiation")
         if self.name == "wind":
             correlations.append("wind_speed")
-        if self.name in ("charging_station", "battery", "building"):
+        if self.name in (
+            "charging_station",
+            "bidirectional_charging_station",
+            "battery",
+            "building",
+        ):
             correlations.append("temperature")
         return correlations
 
