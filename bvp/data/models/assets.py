@@ -182,7 +182,12 @@ class Asset(db.Model):
         )
 
     def __repr__(self):
-        return "<Asset %d:%r (%s)>" % (self.id, self.name, self.asset_type_name)
+        return "<Asset %s:%r (%s) on market %s>" % (
+            self.id,
+            self.name,
+            self.asset_type_name,
+            self.market,
+        )
 
 
 class Power(TimedValue, db.Model):

@@ -65,8 +65,9 @@ def get_prices_data(
     metrics: dict, market: Market
 ) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Get price data and metrics"""
+    market_name = "" if market is None else market.name
     prices_data = Price.collect(
-        [market.name],
+        [market_name],
         horizon_window=(None, timedelta(hours=0)),
         rolling=True,
         create_if_empty=True,
@@ -77,7 +78,7 @@ def get_prices_data(
     # Get price forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
     prices_forecast_data = Price.collect(
-        [market.name],
+        [market_name],
         horizon_window=(horizon, None),
         rolling=True,
         create_if_empty=True,

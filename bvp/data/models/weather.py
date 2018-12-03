@@ -161,7 +161,7 @@ class WeatherSensor(db.Model):
     )
 
     def __repr__(self):
-        return "<WeatherSensor %d:%r (%r)>" % (
+        return "<WeatherSensor %s:%r (%r)>" % (
             self.id,
             self.name,
             self.weather_sensor_type_name,

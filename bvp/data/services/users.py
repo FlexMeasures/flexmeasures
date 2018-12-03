@@ -44,6 +44,7 @@ def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
 
 def create_user(
     user_roles: Union[Dict[str, str], List[Dict[str, str]], str, List[str]] = None,
+    check_mx: bool = True,
     **kwargs
 ) -> User:
     """Convenience wrapper to create a new User object and new Role objects (if user roles do not already exist),
@@ -56,7 +57,11 @@ def create_user(
     if validate_email(email, check_mx=False):
         # The mx check talks to the SMTP server. During testing, we skip it because it
         # takes a bit of time and without internet connection it fails.
-        if not current_app.testing and not validate_email(email, check_mx=True):
+        if (
+            check_mx
+            and not current_app.testing
+            and not validate_email(email, check_mx=True)
+        ):
             raise InvalidBVPUser("The email address %s does not seem to exist" % email)
     else:
         raise InvalidBVPUser("%s is not a valid email address" % email)

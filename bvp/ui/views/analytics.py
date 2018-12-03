@@ -1,8 +1,11 @@
-from typing import List, Union
+from typing import List, Union, Tuple, Dict
 from datetime import timedelta
+import io
+import csv
+import json
 
 import pandas as pd
-from flask import session, current_app
+from flask import session, current_app, make_response
 from flask_security import roles_accepted
 from bokeh.plotting import Figure
 from bokeh.embed import components
@@ -66,56 +69,43 @@ def analytics_view():
         [a.is_pure_producer for a in Resource(session["resource"]).assets]
     )
 
-    # Getting data and calculating metrics for them
-    metrics = dict()
-    power_data, power_forecast_data, metrics = get_power_data(
-        showing_pure_consumption_data, metrics
-    )
-    prices_data, prices_forecast_data, metrics = get_prices_data(
-        metrics, selected_market
-    )
-    weather_data, weather_forecast_data, weather_type, selected_sensor, metrics = get_weather_data(
-        Resource(session["resource"]).assets, metrics, selected_sensor_type
-    )
-    unit_factor = revenue_unit_factor("MWh", selected_market.unit)
-    rev_cost_data, rev_cost_forecast_data, metrics = get_revenues_costs_data(
-        power_data,
-        prices_data,
-        power_forecast_data,
-        prices_forecast_data,
-        metrics,
-        unit_factor,
+    data, metrics, weather_type, selected_weather_sensor = get_data_and_metrics(
+        showing_pure_consumption_data,
+        selected_market,
+        selected_sensor_type,
+        Resource(session["resource"]).assets,
     )
 
     # TODO: get rid of this hack, which we use because we mock 2015 data in static mode
     if current_app.config.get("BVP_MODE", "") == "demo":
-        if not power_data.empty:
-            power_data = power_data.loc[
-                power_data.index
+        if not data["power"].empty:
+            data["power"] = data["power"].loc[
+                data["power"].index
                 < time_utils.get_most_recent_quarter().replace(year=2015)
             ]
-        if not prices_data.empty:
-            prices_data = prices_data.loc[
-                prices_data.index
+        if not data["prices"].empty:
+            data["prices"] = data["prices"].loc[
+                data["prices"].index
                 < time_utils.get_most_recent_quarter().replace(year=2015)
             ]
-        if not weather_data.empty:
-            weather_data = weather_data.loc[
-                weather_data.index
+        if not data["weather"].empty:
+            data["weather"] = data["weather"].loc[
+                data["weather"].index
                 < time_utils.get_most_recent_quarter().replace(year=2015)
                 + timedelta(hours=24)
             ]
-        if not rev_cost_data.empty:
-            rev_cost_data = rev_cost_data.loc[
-                rev_cost_data.index
+        if not data["rev_cost"].empty:
+            data["rev_cost"] = data["rev_cost"].loc[
+                data["rev_cost"].index
                 < time_utils.get_most_recent_quarter().replace(year=2015)
             ]
 
     # Set shared x range
-    series = time_utils.tz_index_naively(power_data.index)
+    series = time_utils.tz_index_naively(data["power"].index)
     if not series.empty:
         shared_x_range = Range1d(
-            start=min(series), end=max(series) + pd.to_timedelta(power_data.index.freq)
+            start=min(series),
+            end=max(series) + pd.to_timedelta(data["power"].index.freq),
         )
     else:
         query_window, resolution = ensure_timing_vars_are_set((None, None), None)
@@ -126,25 +116,29 @@ def analytics_view():
     # Making figures
     tools = ["box_zoom", "reset", "save"]
     power_fig = make_power_figure(
-        power_data,
-        power_forecast_data,
+        data["power"],
+        data["power_forecast"],
         showing_pure_consumption_data,
         shared_x_range,
         tools=tools,
     )
     prices_fig = make_prices_figure(
-        prices_data, prices_forecast_data, shared_x_range, selected_market, tools=tools
+        data["prices"],
+        data["prices_forecast"],
+        shared_x_range,
+        selected_market,
+        tools=tools,
     )
     weather_fig = make_weather_figure(
-        weather_data,
-        weather_forecast_data,
+        data["weather"],
+        data["weather_forecast"],
         shared_x_range,
-        selected_sensor,
+        selected_weather_sensor,
         tools=tools,
     )
     rev_cost_fig = make_revenues_costs_figure(
-        rev_cost_data,
-        rev_cost_forecast_data,
+        data["rev_cost"],
+        data["rev_cost_forecast"],
         showing_pure_consumption_data,
         shared_x_range,
         selected_market,
@@ -179,13 +173,158 @@ def analytics_view():
         selected_market=selected_market,
         selected_resource=selected_resource,
         selected_sensor_type=selected_sensor_type,
-        selected_sensor=selected_sensor,
+        selected_sensor=selected_weather_sensor,
         asset_types=session_asset_types,
         showing_pure_consumption_data=showing_pure_consumption_data,
         showing_pure_production_data=showing_pure_production_data,
         forecast_horizons=time_utils.forecast_horizons_for(session["resolution"]),
         active_forecast_horizon=session["forecast_horizon"],
     )
+
+
+@bvp_ui.route("/analytics_data/<content>/<content_type>", methods=["GET"])
+@roles_accepted("admin", "Prosumer")
+def analytics_data_view(content, content_type):
+    """ Analytics view as above, but here we only download data.
+    Content can be either metrics or raw.
+    Content-type can be either CSV or JSON.
+    """
+    # if current_app.config.get("BVP_MODE", "") != "play":
+    #    raise NotImplementedError("The analytics data download only works in play mode.")
+    if content not in ("source", "metrics"):
+        if content is None:
+            content = "data"
+        else:
+            raise NotImplementedError("content can either be source or metrics.")
+    if content_type not in ("csv", "json"):
+        if content_type is None:
+            content_type = "csv"
+        else:
+            raise NotImplementedError("content_type can either be csv or json.")
+
+    time_utils.set_time_range_for_session()
+
+    # Maybe move some of this stuff into get_data_and_metrics
+    assets = get_assets()
+    asset_groups = get_asset_groups()
+    groups_with_assets: List[str] = [
+        group for group in asset_groups if asset_groups[group].count() > 0
+    ]
+    selected_resource = set_session_resource(assets, groups_with_assets)
+    selected_market = set_session_market(selected_resource)
+    sensor_types = get_sensor_types(selected_resource)
+    selected_sensor_type = set_session_sensor_type(sensor_types)
+
+    # This is useful information - we might want to adapt the sign of the data and labels.
+    showing_pure_consumption_data = all(
+        [a.is_pure_consumer for a in Resource(session["resource"]).assets]
+    )
+
+    # Getting data and calculating metrics for them
+    data, metrics, weather_type, selected_weather_sensor = get_data_and_metrics(
+        showing_pure_consumption_data,
+        selected_market,
+        selected_sensor_type,
+        Resource(session["resource"]).assets,
+    )
+
+    hor = session["forecast_horizon"]
+    source_headers = [
+        "time",
+        "power",
+        f"power_forecast_{hor}",
+        f"{weather_type}",
+        f"{weather_type}_forecast_{hor}",
+        f"price",
+        f"price_forecast_{hor}",
+        "revenues_costs",
+        f"revenues_costs_forecast_{hor}",
+    ]
+    source_units = [
+        "",
+        "MW",
+        "MW",
+        selected_weather_sensor.unit,
+        selected_weather_sensor.unit,
+        selected_market.price_unit,
+        selected_market.price_unit,
+        selected_market.price_unit[:3],
+        selected_market.price_unit[:3],
+    ]
+    if content_type == "csv":
+        str_io = io.StringIO()
+        writer = csv.writer(str_io, dialect="excel")
+        if content == "metrics":
+            filename = "%s_analytics_metrics.csv" % selected_resource.name
+            writer.writerow(metrics.keys())
+            writer.writerow(metrics.values())
+        else:
+            filename = "%s_analytics_source.csv" % selected_resource.name
+            writer.writerow(source_headers)
+            writer.writerow(source_units)
+            for dt in data["rev_cost"].index:
+                writer.writerow(
+                    [
+                        dt,
+                        data["power"].loc[dt].y,
+                        data["power_forecast"].loc[dt].yhat,
+                        data["weather"].loc[dt].y,
+                        data["weather_forecast"].loc[dt].yhat,
+                        data["prices"].loc[dt].y,
+                        data["prices_forecast"].loc[dt].yhat,
+                        data["rev_cost"].loc[dt].y,
+                        data["rev_cost_forecast"].loc[dt].yhat,
+                    ]
+                )
+
+        response = make_response(str_io.getvalue())
+        response.headers["Content-Disposition"] = "attachment; filename=%s" % filename
+        response.headers["Content-type"] = "text/csv"
+    else:
+        if content == "metrics":
+            filename = "%s_analytics_metrics.json" % selected_resource.name
+            response = make_response(json.dumps(metrics))
+        else:
+            # Not quite done yet. I don't like how we treat forecasts in here yet. Not sure how to mention units.
+            filename = "%s_analytics_source.json" % selected_resource.name
+            json_strings = []
+            for key in data:
+                json_strings.append(
+                    f"\"{key}\":{data[key].to_json(orient='index', date_format='iso')}"
+                )
+            response = make_response("{%s}" % ",".join(json_strings))
+        response.headers["Content-Disposition"] = "attachment; filename=%s" % filename
+        response.headers["Content-type"] = "application/json"
+    return response
+
+
+def get_data_and_metrics(
+    showing_pure_consumption_data, selected_market, selected_sensor_type, assets
+) -> Tuple[Dict, Dict, str, WeatherSensor]:
+    """Getting data and calculating metrics for them"""
+    data = dict()
+    metrics = dict()
+    data["power"], data["power_forecast"], metrics = get_power_data(
+        showing_pure_consumption_data, metrics
+    )
+    data["prices"], data["prices_forecast"], metrics = get_prices_data(
+        metrics, selected_market
+    )
+    data["weather"], data[
+        "weather_forecast"
+    ], weather_type, selected_sensor, metrics = get_weather_data(
+        assets, metrics, selected_sensor_type
+    )
+    unit_factor = revenue_unit_factor("MWh", selected_market.unit)
+    data["rev_cost"], data["rev_cost_forecast"], metrics = get_revenues_costs_data(
+        data["power"],
+        data["prices"],
+        data["power_forecast"],
+        data["prices_forecast"],
+        metrics,
+        unit_factor,
+    )
+    return data, metrics, weather_type, selected_sensor
 
 
 def make_power_figure(

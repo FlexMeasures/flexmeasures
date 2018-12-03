@@ -256,12 +256,19 @@ def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
         asset_path = "../" + asset_path
     if not os.path.exists(asset_path):
         raise Exception("Could not find %s/%s." % (os.getcwd(), asset_path))
+    kpx_market = Market.query.filter_by(name="kpx_da").one_or_none()
+    if kpx_market is None:
+        raise Exception(
+            "Cannot find kpx_da market, which we assume here all assets should belong to."
+        )
     assets: List[Asset] = []
+    db.session.flush()
     with open(asset_path, "r") as assets_json:
         for json_asset in json.loads(assets_json.read()):
             if "unit" not in json_asset:
                 json_asset["unit"] = "MW"
             asset = Asset(**json_asset)
+            asset.market_id = kpx_market.id
             test_assets = ["aa-offshore", "hw-onshore", "jc_pv", "jeju_dream_tower"]
             if test_data_set is True and asset.name not in test_assets:
                 continue
@@ -280,6 +287,7 @@ def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
             soc_in_mwh=2.5,
             soc_datetime=ensure_korea_local(datetime(2015, 1, 1, tzinfo=None)),
             unit="MW",
+            market_id=kpx_market.id,
         )
     )
     return assets
@@ -417,12 +425,14 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
         user_roles=dict(
             name="admin", description="An admin has access to all assets and controls."
         ),
+        check_mx=False,
     )
     create_user(
         username="felix",
         email="felix@seita.nl",
         password=hash_password("testtest"),
         user_roles="admin",
+        check_mx=False,
     )
     create_user(
         username="ki_yeol",
@@ -430,12 +440,14 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
         password=hash_password("shadywinter"),
         timezone="Asia/Seoul",
         user_roles="admin",
+        check_mx=False,
     )
     create_user(
         username="michael",
         email="michael.kaisers@cwi.nl",
         password=hash_password("shadywinter"),
         user_roles="admin",
+        check_mx=False,
     )
 
     # Asset owners
@@ -448,6 +460,7 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
             user_roles=dict(
                 name="Prosumer", description="USEF defined role of asset owner."
             ),
+            check_mx=False,
         )
         for asset in [a for a in assets if a.asset_type_name == asset_type]:
             asset.owner = mock_asset_owner
@@ -465,6 +478,7 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
         user_roles=dict(
             name="task-runner", description="Process running BVP-relevant tasks."
         ),
+        check_mx=False,
     )
 
 
@@ -697,10 +711,10 @@ def populate_time_series_forecasts(
 @as_transaction
 def depopulate_structure(db: SQLAlchemy):
     click.echo("Depopulating structural data from the database %s ..." % db.engine)
-    num_markets_deleted = db.session.query(Market).delete()
-    num_market_types_deleted = db.session.query(MarketType).delete()
     num_assets_deleted = db.session.query(Asset).delete()
     num_asset_types_deleted = db.session.query(AssetType).delete()
+    num_markets_deleted = db.session.query(Market).delete()
+    num_market_types_deleted = db.session.query(MarketType).delete()
     num_sensors_deleted = db.session.query(WeatherSensor).delete()
     num_sensor_types_deleted = db.session.query(WeatherSensorType).delete()
     num_data_sources_deleted = db.session.query(DataSource).delete()

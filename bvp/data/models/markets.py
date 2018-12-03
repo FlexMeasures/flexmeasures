@@ -69,7 +69,7 @@ class Market(db.Model):
     )
 
     def __repr__(self):
-        return "<Market %d:%r (%r)>" % (self.id, self.name, self.market_type_name)
+        return "<Market %s:%r (%r)>" % (self.id, self.name, self.market_type_name)
 
     def to_dict(self) -> Dict[str, str]:
         return dict(name=self.name, market_type=self.market_type.name)
