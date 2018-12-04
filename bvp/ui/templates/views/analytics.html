@@ -205,6 +205,7 @@
                 <div class="row">
                     <div class="col-sm-6">
                         <form action="analytics_data/metrics/csv" method="get">
+                            <input type="hidden" name="market" value="{{ selected_market.name }}"/>
                             <button class="btn btn-sm btn-responsive btn-info center-block">
                                 Download metrics as CSV
                             </button>
@@ -212,6 +213,7 @@
                     </div>
                     <div class="col-sm-6">
                         <form action="analytics_data/source/csv" method="get">
+                            <input type="hidden" name="market" value="{{ selected_market.name }}"/>
                             <button class="btn btn-sm btn-responsive btn-info center-block">
                                 Download source data as CSV
                             </button>
