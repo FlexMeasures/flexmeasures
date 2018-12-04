@@ -271,6 +271,9 @@ class Resource:
         )
         return data
 
+    def __str__(self):
+        return self.display_name
+
 
 def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
     """Return a list of WeatherSensorType objects applicable to the given resource.

@@ -34,7 +34,8 @@ BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 )
 @click.option(
     "--type",
-    help="Populate (time series) data for a specific generic asset type only. Follow up with Asset, Market or WeatherSensor.",
+    help="Populate (time series) data for a specific generic asset type only."
+    " Follow up with Asset, Market or WeatherSensor.",
 )
 @click.option(
     "--asset",

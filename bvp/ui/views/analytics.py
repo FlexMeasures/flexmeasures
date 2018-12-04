@@ -219,6 +219,9 @@ def analytics_data_view(content, content_type):
     showing_pure_consumption_data = all(
         [a.is_pure_consumer for a in Resource(session["resource"]).assets]
     )
+    showing_pure_production_data = all(
+        [a.is_pure_producer for a in Resource(session["resource"]).assets]
+    )
 
     # Getting data and calculating metrics for them
     data, metrics, weather_type, selected_weather_sensor = get_data_and_metrics(
@@ -229,6 +232,11 @@ def analytics_data_view(content, content_type):
     )
 
     hor = session["forecast_horizon"]
+    rev_cost_header = "revenues/costs"
+    if showing_pure_consumption_data:
+        rev_cost_header = "costs"
+    elif showing_pure_production_data:
+        rev_cost_header = "revenues"
     source_headers = [
         "time",
         "power",
@@ -237,8 +245,8 @@ def analytics_data_view(content, content_type):
         f"{weather_type}_forecast_{hor}",
         f"price",
         f"price_forecast_{hor}",
-        "revenues_costs",
-        f"revenues_costs_forecast_{hor}",
+        rev_cost_header,
+        f"{rev_cost_header}_forecast_{hor}",
     ]
     source_units = [
         "",
