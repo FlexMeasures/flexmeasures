@@ -206,10 +206,12 @@ def create_graph(  # noqa: C901
     data = tz_index_naively(data)
 
     # Set y range
+    y_range = None
     if data.y.isnull().all():
-        y_range = Range1d(start=0, end=1)
-    else:
-        y_range = None
+        if forecasts is None:
+            y_range = Range1d(start=0, end=1)
+        elif forecasts.yhat.isnull().all():
+            y_range = Range1d(start=0, end=1)
 
     # Set default tools if none were given
     if tools is None:
