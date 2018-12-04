@@ -87,7 +87,7 @@ This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute 
             ],
             "start": "2015-01-01T15:00:00+09:00",
             "duration": "PT1H30M",
-            "horizon": "PT3H",
+            "horizon": "PT4H30M",
             "unit": "°C"
         }
 
