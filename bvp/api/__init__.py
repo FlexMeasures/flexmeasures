@@ -70,9 +70,9 @@ def get_versions() -> dict:
     """
     response = {
         "message": "For these API versions a public endpoint is available listing its service. For example: "
-        "/api/v1/getService and /api/v1.1/getService. An authentication token can be requested at: "
+        "/api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: "
         "/api/requestAuthToken",
-        "versions": ["v1", "v1.1"],
+        "versions": ["v1", "v1_1", "v1_2"],
     }
     return response
 

@@ -37,7 +37,7 @@ Set up a new blueprint
 In the new module's `bvp/api/v1_1/__init.py__`, copy the contents of `bvp/api/v1/__init.py__` (previous API version).
 Change all references to the version name in the new file (for example: `bvp_api_v1` should become `bvp_api_v1_1`).
 
-In `bvp/api/__init__.py` register a blueprint for the new api version by adding:
+In `bvp/api/__init__.py` update the version listing in `get_versions()` and register a blueprint for the new api version by adding:
 
     from bvp.api.v1_1 import register_at as v1_1_register_at
     v1_1_register_at(app) 
