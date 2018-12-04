@@ -243,7 +243,7 @@ def analytics_data_view(content, content_type):
         f"power_forecast_{hor}",
         f"{weather_type}",
         f"{weather_type}_forecast_{hor}",
-        f"price",
+        f"price_on_%s" % selected_market.name,
         f"price_forecast_{hor}",
         rev_cost_header,
         f"{rev_cost_header}_forecast_{hor}",
@@ -259,15 +259,16 @@ def analytics_data_view(content, content_type):
         selected_market.price_unit[:3],
         selected_market.price_unit[:3],
     ]
+    filename_prefix = "%s_analytics" % selected_resource.name
     if content_type == "csv":
         str_io = io.StringIO()
         writer = csv.writer(str_io, dialect="excel")
         if content == "metrics":
-            filename = "%s_analytics_metrics.csv" % selected_resource.name
+            filename = "%s_metrics.csv" % filename_prefix
             writer.writerow(metrics.keys())
             writer.writerow(metrics.values())
         else:
-            filename = "%s_analytics_source.csv" % selected_resource.name
+            filename = "%s_source.csv" % filename_prefix
             writer.writerow(source_headers)
             writer.writerow(source_units)
             for dt in data["rev_cost"].index:
@@ -290,11 +291,11 @@ def analytics_data_view(content, content_type):
         response.headers["Content-type"] = "text/csv"
     else:
         if content == "metrics":
-            filename = "%s_analytics_metrics.json" % selected_resource.name
+            filename = "%s_metrics.json" % filename_prefix
             response = make_response(json.dumps(metrics))
         else:
             # Not quite done yet. I don't like how we treat forecasts in here yet. Not sure how to mention units.
-            filename = "%s_analytics_source.json" % selected_resource.name
+            filename = "%s_source.json" % filename_prefix
             json_strings = []
             for key in data:
                 json_strings.append(
