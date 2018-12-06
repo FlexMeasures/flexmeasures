@@ -185,7 +185,7 @@ def make_timed_value(
     data_source_id: int,
 ) -> Union[Power, Price, Weather]:
     if timed_value_type not in ("Power", "Price", "Weather"):
-        raise ("Cannot get asset for asset_type '%s'" % timed_value_type)
+        raise Exception("Cannot get asset for asset_type '%s'" % timed_value_type)
     ts_value = None
     if timed_value_type == "Power":
         ts_value = Power(
@@ -212,7 +212,7 @@ def make_timed_value(
             data_source_id=data_source_id,
         )
     if ts_value is None:
-        raise (
+        raise Exception(
             "Cannot create asset of type %s with id %d" % (timed_value_type, asset_id)
         )
     return ts_value

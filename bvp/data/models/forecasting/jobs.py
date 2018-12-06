@@ -27,7 +27,9 @@ class ForecastingJob(db.Model):
     def get_asset(self) -> Union[Asset, Market, WeatherSensor]:
         """Get asset for this job. Maybe simpler once we redesign timed value classes (make a generic one)"""
         if self.timed_value_type not in ("Power", "Price", "Weather"):
-            raise ("Cannot get asset for asset_type '%s'" % self.timed_value_type)
+            raise Exception(
+                "Cannot get asset for asset_type '%s'" % self.timed_value_type
+            )
         asset = None
         if self.timed_value_type == "Power":
             asset = Asset.query.filter_by(id=self.asset_id).one_or_none()
@@ -36,7 +38,7 @@ class ForecastingJob(db.Model):
         elif self.timed_value_type == "Weather":
             asset = WeatherSensor.query.filter_by(id=self.asset_id).one_or_none()
         if asset is None:
-            raise (
+            raise Exception(
                 "Cannot find asset for value type %s with id %d"
                 % (self.timed_value_type, self.asset_id)
             )
