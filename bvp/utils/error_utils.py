@@ -54,7 +54,9 @@ def error_handling_router(error: HTTPException):
     The ui package can also define how it wants to render HTML errors, by setting a function.
     """
     if request.is_json:
-        response = jsonify(dict(message=error.description, status=error.code))
+        response = jsonify(
+            dict(message=getattr(error, "description", str(error)), status=error.code)
+        )
         response.status_code = error.code
         return response
     elif hasattr(current_app, "%s_handler_html" % error.__class__.__name__):
