@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# Install to this dir
+SOFTWARE_DIR=/home/seita/software
+if [ "$1" != "" ]; then
+  SOFTWARE_DIR=$1
+fi
+echo "Attempting to install Cbc-2.9 to $SOFTWARE_DIR ..."
+
+mkdir -p $SOFTWARE_DIR
+cd $SOFTWARE_DIR
+
+# Getting Cbc abd its build tools
+git clone --branch=stable/2.9 https://github.com/coin-or/Cbc Cbc-2.9
+cd Cbc-2.9
+git clone --branch=stable/0.8 https://github.com/coin-or-tools/BuildTools/
+BuildTools/get.dependencies.sh fetch
+
+# Configuring, installing
+./configure
+make
+make install
+
+# adding new binaries to PATH
+# NOTE: This line might need to be added to your ~/.bashrc or the like
+export PATH=$PATH:$SOFTWARE_DIR/Cbc-2.9/bin
