@@ -138,6 +138,7 @@ def post_udi_event():
 
 
 @bvp_api_v1_2.route("/getConnection", methods=["GET"])
+@as_response_type("GetConnectionResponse")
 @auth_token_required
 @usef_roles_accepted(*check_access(v1_2_service_listing, "getConnection"))
 @append_doc_of(v1_1_routes.get_connection)
@@ -146,6 +147,7 @@ def get_connection():
 
 
 @bvp_api_v1_2.route("/postPriceData", methods=["POST"])
+@as_response_type("PostPriceDataResponse")
 @auth_token_required
 @usef_roles_accepted(*check_access(v1_2_service_listing, "postPriceData"))
 @append_doc_of(v1_1_routes.post_price_data)
@@ -154,6 +156,7 @@ def post_price_data():
 
 
 @bvp_api_v1_2.route("/postWeatherData", methods=["POST"])
+@as_response_type("PostWeatherDataResponse")
 @auth_token_required
 @usef_roles_accepted(*check_access(v1_2_service_listing, "postWeatherData"))
 @append_doc_of(v1_1_routes.post_weather_data)
@@ -162,6 +165,7 @@ def post_weather_data():
 
 
 @bvp_api_v1_2.route("/getPrognosis", methods=["GET"])
+@as_response_type("GetPrognosisResponse")
 @auth_token_required
 @usef_roles_accepted(*check_access(v1_2_service_listing, "getPrognosis"))
 @append_doc_of(v1_1_routes.get_prognosis)
