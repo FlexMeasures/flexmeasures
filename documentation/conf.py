@@ -193,3 +193,4 @@ def setup(sphinx_app):
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
     sphinx_app.add_config_value('BVP_MODE', bvp_app.config.get("BVP_MODE", ""), 'env')
+    sphinx_app.add_stylesheet('css/custom.css')
