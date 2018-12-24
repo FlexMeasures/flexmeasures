@@ -60,6 +60,13 @@ The platform operator of the BVP is an Aggregator.
 
 
 .. toctree::
+    :caption: Integrations
+    :maxdepth: 2
+
+    int/introduction
+
+
+.. toctree::
     :caption: Narrative contents
     :maxdepth: 2
 

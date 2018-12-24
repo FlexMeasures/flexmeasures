@@ -1,4 +1,4 @@
-.. _introduction:
+.. _api_introduction:
 
 Introduction
 ============

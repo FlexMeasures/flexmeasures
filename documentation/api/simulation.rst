@@ -5,7 +5,7 @@ Simulation
 
 This document details examples for using the BVP **play** server for simulation.
 The API on this server is extended with several features that make it possible to run simulations of energy flows and balancing valorisation.
-Please read the :ref:`introduction` for explanations of the message fields, specifically regarding:
+Please read the :ref:`api_introduction` for explanations of the message fields, specifically regarding:
 
 - The sign of values (:ref:`signs`)
 - Valid durations (:ref:`resolutions`)

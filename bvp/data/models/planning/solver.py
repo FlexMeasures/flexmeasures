@@ -15,7 +15,7 @@ from pyomo.core import (
     minimize,
 )
 from pyomo.environ import UnknownSolver  # noqa F401
-from pyomo.core.kernel.numvalue import value
+from pyomo.environ import value
 from pyomo.opt import SolverFactory
 
 from bvp.data.models.planning.utils import initialize_series
