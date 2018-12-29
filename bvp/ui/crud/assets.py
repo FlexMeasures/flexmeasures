@@ -176,11 +176,12 @@ class AssetCrud(FlaskView):
                 asset = create_asset(
                     display_name=asset_form.display_name.data,
                     asset_type_name=asset_form.asset_type_name.data,
-                    capacity_in_mw=asset_form.capacity_in_mw.data,
+                    power_unit="MW",
+                    capacity_in_mw=float(asset_form.capacity_in_mw.data),
                     latitude=asset_form.latitude.data,
                     longitude=asset_form.longitude.data,
-                    min_soc_in_mwh=asset_form.min_soc_in_mwh.data,
-                    max_soc_in_mwh=asset_form.max_soc_in_mwh.data,
+                    min_soc_in_mwh=float(asset_form.min_soc_in_mwh.data),
+                    max_soc_in_mwh=float(asset_form.max_soc_in_mwh.data),
                     soc_in_mwh=0,
                     owner=owner,
                     market=market,
@@ -204,6 +205,15 @@ class AssetCrud(FlaskView):
                 if asset.owner != current_user and not current_user.has_role("admin"):
                     return unauth_handler()
                 if asset_form.validate_on_submit():
+                    asset_form.capacity_in_mw.data = float(
+                        asset_form.capacity_in_mw.data
+                    )
+                    asset_form.min_soc_in_mwh.data = float(
+                        asset_form.min_soc_in_mwh.data
+                    )
+                    asset_form.max_soc_in_mwh.data = float(
+                        asset_form.max_soc_in_mwh.data
+                    )
                     asset_form.populate_obj(asset)
                     msg = "Editing was successful."
                 else:

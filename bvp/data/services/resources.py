@@ -110,6 +110,7 @@ def get_asset_groups() -> Dict[str, Query]:
 def create_asset(
     display_name: str,
     asset_type_name: str,
+    power_unit: str,
     capacity_in_mw: float,
     latitude: float,
     longitude: float,
@@ -139,6 +140,7 @@ def create_asset(
     asset = Asset(
         display_name=display_name,
         name=db_name,
+        unit=power_unit,
         capacity_in_mw=capacity_in_mw,
         latitude=latitude,
         longitude=longitude,
