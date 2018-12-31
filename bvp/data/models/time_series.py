@@ -1,4 +1,4 @@
-from typing import List, Dict, Union, Tuple
+from typing import List, Dict, Optional, Union, Tuple
 from datetime import datetime as datetime_type, timedelta
 
 import pandas as pd
@@ -6,6 +6,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 
 from bvp.data.config import db
+from bvp.data.queries.utils import assign_horizon_window, create_beliefs_query
 from bvp.data.services.time_series import collect_time_series_data
 
 
@@ -51,22 +52,32 @@ class TimedValue(object):
     @classmethod
     def make_query(
         cls,
-        generic_asset_name: str,
+        asset_class: db.Model,
+        asset_name: str,
         query_window: Tuple[datetime_type, datetime_type],
-        horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]] = (
-            None,
-            None,
-        ),
+        horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
+        rolling: bool = True,
         session: Session = None,
     ) -> Query:
         """
-        Should be overwritten with the make_query function in subclasses.
+        Can be extended with the make_query function in subclasses.
         We identify the asset by name, this assumes a unique string field can be used.
         The query window expects start as well as end
         The horizon window expects first the shorter horizon (e.g. 6H) and then the longer horizon (e.g. 24H).
         The session can be supplied, but if None, the implementation should find a session itself.
         """
-        pass
+        if session is None:
+            session = db.session
+        start, end = query_window
+        # Todo: get data resolution for the asset
+        resolution = timedelta(minutes=15)
+        query = create_beliefs_query(
+            cls, session, asset_class, asset_name, start, end, resolution
+        )
+        query = assign_horizon_window(
+            cls, query, end, resolution, horizon_window, rolling
+        )
+        return query
 
     @classmethod
     def collect(

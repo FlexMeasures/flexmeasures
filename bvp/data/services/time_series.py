@@ -9,7 +9,6 @@ import inflect
 from inflection import humanize
 
 from bvp.utils import time_utils
-from bvp.data.config import db
 
 
 p = inflect.engine()
@@ -166,10 +165,25 @@ def query_time_series_data(
     Returns a DataFrame with a "y" column if as_beliefs is False, otherwise returns a DataFrame with "y", "horizon"
     and "label" columns.
     """
-    query = make_query(
-        generic_asset_name, query_window, horizon_window, rolling, source_ids
+    if source_ids is None:
+        query = make_query(
+            asset_name=generic_asset_name,
+            query_window=query_window,
+            horizon_window=horizon_window,
+            rolling=rolling,
+        )
+    else:
+        query = make_query(
+            asset_name=generic_asset_name,
+            query_window=query_window,
+            horizon_window=horizon_window,
+            rolling=rolling,
+            source_ids=source_ids,
+        )
+
+    values_orig = pd.DataFrame(
+        query.all(), columns=[col["name"] for col in query.column_descriptions]
     )
-    values_orig = pd.read_sql(query.statement, db.session.bind)
     values_orig["datetime"] = pd.to_datetime(values_orig["datetime"], utc=True)
 
     # Keep the most recent observation
@@ -224,7 +238,11 @@ def query_time_series_data(
         start = query_window[0]
         end = query_window[1]
         time_steps = pd.date_range(
-            start, end, freq=resolution, tz=time_utils.get_timezone(), closed="left"
+            start,
+            end,
+            freq=resolution,
+            tz=time_utils.get_timezone() if start.tzinfo is None else None,
+            closed="left",
         )
         if as_beliefs:
             values = pd.DataFrame(index=time_steps, columns=["y", "horizon", "label"])

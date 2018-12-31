@@ -209,8 +209,8 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def add_battery_asset(db: SQLAlchemy, setup_roles_users, setup_markets):
-    """Add one battery asset, set its capacity values and its initial SOC."""
+def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
+    """Add two battery assets, set their capacity values and their initial SOC."""
     db.session.add(
         AssetType(
             name="battery",
@@ -238,6 +238,23 @@ def add_battery_asset(db: SQLAlchemy, setup_roles_users, setup_markets):
         min_soc_in_mwh=0,
         soc_in_mwh=2.5,
         soc_datetime=as_bvp_time(datetime(2015, 1, 1)),
+        soc_udi_event_id=203,
+        latitude=10,
+        longitude=100,
+        market_id=epex_da.id,
+        unit="MW",
+    )
+    battery.owner = test_prosumer
+    db.session.add(battery)
+
+    battery = Asset(
+        name="Test battery with no known prices",
+        asset_type_name="battery",
+        capacity_in_mw=2,
+        max_soc_in_mwh=5,
+        min_soc_in_mwh=0,
+        soc_in_mwh=2.5,
+        soc_datetime=as_bvp_time(datetime(2040, 1, 1)),
         soc_udi_event_id=203,
         latitude=10,
         longitude=100,

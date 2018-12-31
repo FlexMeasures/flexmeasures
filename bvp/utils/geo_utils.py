@@ -32,33 +32,6 @@ def parse_lat_lng(kwargs) -> Union[Tuple[float, float], Tuple[None, None]]:
     return None, None
 
 
-def find_closest_weather_sensor(sensor_type: str, **kwargs):
-    """Returns the closest weather sensor of a given type. Parses latitude and longitude values stated in kwargs.
-
-    Can be called with an object that has latitude and longitude properties, for example:
-
-        sensor = find_closest_weather_sensor("wind_speed", object=asset)
-
-    Can also be called with latitude and longitude parameters, for example:
-
-        sensor = find_closest_weather_sensor("temperature", latitude=32, longitude=54)
-        sensor = find_closest_weather_sensor("temperature", lat=32, lng=54)
-
-    """
-    from bvp.data.models.weather import WeatherSensor
-
-    latitude, longitude = parse_lat_lng(kwargs)
-    return (
-        WeatherSensor.query.filter(
-            WeatherSensor.weather_sensor_type_name == sensor_type
-        )
-        .order_by(
-            WeatherSensor.great_circle_distance(lat=latitude, lng=longitude).asc()
-        )
-        .first()
-    )
-
-
 def compute_radiation(
     latitude: float, longitude: float, dt: datetime, cloud_coverage_in_percent: int
 ) -> float:

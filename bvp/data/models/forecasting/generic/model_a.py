@@ -13,7 +13,7 @@ from bvp.data.models.utils import (
     determine_asset_type_by_asset,
     determine_asset_value_class_by_asset,
 )
-from bvp.utils.geo_utils import find_closest_weather_sensor
+from bvp.data.services.resources import find_closest_weather_sensor
 from bvp.data.models.forecasting import NotEnoughDataException
 from bvp.data.config import db
 
@@ -26,6 +26,7 @@ def configure_specs(  # noqa: C901
     start: datetime,  # Start of forecast period
     end: datetime,  # End of forecast period
     horizon: timedelta,  # Duration between time of forecasting and time which is forecast
+    ex_post_horizon: timedelta = None,
     custom_model_params: dict = None,  # overwrite forecasting params, useful for testing or experimentation
 ) -> Tuple[ModelSpecs, str]:
     """
@@ -88,13 +89,16 @@ def configure_specs(  # noqa: C901
             % (generic_asset.name, query_window[0], query_window[1], suggested_end)
         )
 
+    if ex_post_horizon is None:
+        ex_post_horizon = timedelta(hours=0)
+
     outcome_var_spec = DBSeriesSpecs(
         name=generic_asset_type.name,
         db_engine=db.engine,
         query=generic_asset_value_class.make_query(
-            generic_asset.name,
+            asset_name=generic_asset.name,
             query_window=query_window,
-            horizon_window=(None, timedelta(hours=0)),
+            horizon_window=(None, ex_post_horizon),
             rolling=True,
             session=db.session,
         ),
@@ -247,7 +251,7 @@ def get_regressors(
                         name=regressor_specs_name,
                         db_engine=db.engine,
                         query=Weather.make_query(
-                            closest_sensor.name,
+                            asset_name=closest_sensor.name,
                             query_window=query_window,
                             horizon_window=(horizon, None),
                             rolling=True,

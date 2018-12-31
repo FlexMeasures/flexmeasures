@@ -1,15 +1,13 @@
-from typing import Dict, Tuple, Union
-from datetime import datetime, timedelta
+from typing import Dict, Tuple
 import math
 
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Query
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
 from inflection import humanize
 
 from bvp.data.config import db
-from bvp.data.models.data_sources import DataSource
 from bvp.data.models.time_series import TimedValue
 from bvp.utils.geo_utils import parse_lat_lng
 
@@ -183,64 +181,8 @@ class Weather(TimedValue, db.Model):
     sensor = db.relationship("WeatherSensor", backref=db.backref("weather", lazy=True))
 
     @classmethod
-    def make_query(
-        cls,
-        sensor_name: str,
-        query_window: Tuple[datetime, datetime],
-        horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]] = (
-            None,
-            None,
-        ),
-        rolling: bool = True,
-        session: Session = None,
-    ) -> Query:
-        if session is None:
-            session = db.session
-        start, end = query_window
-        # Todo: get data resolution for the weather sensor
-        resolution = timedelta(minutes=15)
-        start = (
-            start - resolution
-        )  # Adjust for the fact that we index time slots by their start time
-        query = (
-            session.query(cls.datetime, cls.value, cls.horizon, DataSource.label)
-            .join(DataSource)
-            .filter(cls.data_source_id == DataSource.id)
-            .join(WeatherSensor)
-            .filter(WeatherSensor.name == sensor_name)
-            .filter((Weather.datetime > start) & (Weather.datetime < end))
-        )
-        short_horizon, long_horizon = horizon_window
-        if (
-            short_horizon is not None
-            and long_horizon is not None
-            and short_horizon == long_horizon
-        ):
-            if rolling:
-                query = query.filter(Weather.horizon == short_horizon)
-            else:  # Deduct the difference in end times of the timeslot and the query window
-                query = query.filter(
-                    Weather.horizon
-                    == short_horizon - (end - (Weather.datetime + resolution))
-                )
-        else:
-            if short_horizon is not None:
-                if rolling:
-                    query = query.filter(Weather.horizon >= short_horizon)
-                else:
-                    query = query.filter(
-                        Weather.horizon
-                        >= short_horizon - (end - (Weather.datetime + resolution))
-                    )
-            if long_horizon is not None:
-                if rolling:
-                    query = query.filter(Weather.horizon <= long_horizon)
-                else:
-                    query = query.filter(
-                        Weather.horizon
-                        <= long_horizon - (end - (Weather.datetime + resolution))
-                    )
-        return query
+    def make_query(cls, **kwargs) -> Query:
+        return super().make_query(asset_class=WeatherSensor, **kwargs)
 
     def __init__(self, **kwargs):
         super(Weather, self).__init__(**kwargs)

@@ -14,8 +14,9 @@ import pandas as pd
 from bvp.data.config import db
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.markets import Market
-from bvp.data.models.weather import WeatherSensorType
+from bvp.data.models.weather import WeatherSensorType, WeatherSensor
 from bvp.data.models.user import User
+from bvp.utils.geo_utils import parse_lat_lng
 
 
 class InvalidBVPAsset(Exception):
@@ -294,3 +295,30 @@ def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
             sensor_types.append(sensor_type)
 
     return sensor_types
+
+
+def find_closest_weather_sensor(
+    sensor_type: str, n: int = 1, **kwargs
+) -> Union[WeatherSensor, List[WeatherSensor], None]:
+    """Returns the closest n weather sensors of a given type (as a list if n > 1).
+    Parses latitude and longitude values stated in kwargs.
+
+    Can be called with an object that has latitude and longitude properties, for example:
+
+        sensor = find_closest_weather_sensor("wind_speed", object=asset)
+
+    Can also be called with latitude and longitude parameters, for example:
+
+        sensor = find_closest_weather_sensor("temperature", latitude=32, longitude=54)
+        sensor = find_closest_weather_sensor("temperature", lat=32, lng=54)
+
+    """
+
+    latitude, longitude = parse_lat_lng(kwargs)
+    sensors = WeatherSensor.query.filter(
+        WeatherSensor.weather_sensor_type_name == sensor_type
+    ).order_by(WeatherSensor.great_circle_distance(lat=latitude, lng=longitude).asc())
+    if n == 1:
+        return sensors.first()
+    else:
+        return sensors.limit(n).all()

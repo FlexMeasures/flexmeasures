@@ -1,6 +1,6 @@
 """
 These, and only these, functions should help you with treating your own code
-in the context of one database transaction. Which makes our lived easier.
+in the context of one database transaction. Which makes our lives easier.
 """
 import sys
 from datetime import datetime

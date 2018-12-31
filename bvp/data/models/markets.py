@@ -1,11 +1,9 @@
-from typing import Dict, Tuple, Union
-from datetime import datetime, timedelta
+from typing import Dict
 
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Query
 from inflection import humanize
 
 from bvp.data.config import db
-from bvp.data.models.data_sources import DataSource
 from bvp.data.models.time_series import TimedValue
 
 
@@ -85,64 +83,8 @@ class Price(TimedValue, db.Model):
     market = db.relationship("Market", backref=db.backref("prices", lazy=True))
 
     @classmethod
-    def make_query(
-        cls,
-        market_name: str,
-        query_window: Tuple[datetime, datetime],
-        horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]] = (
-            None,
-            None,
-        ),
-        rolling: bool = True,
-        session: Session = None,
-    ) -> Query:
-        if session is None:
-            session = db.session
-        start, end = query_window
-        # Todo: get data resolution for the market
-        resolution = timedelta(minutes=15)
-        q_start = (
-            start - resolution
-        )  # Adjust for the fact that we index time slots by their start time
-        query = (
-            session.query(Price.datetime, Price.value, Price.horizon, DataSource.label)
-            .join(DataSource)
-            .filter(Price.data_source_id == DataSource.id)
-            .join(Market)
-            .filter(Market.name == market_name)
-            .filter((Price.datetime > q_start) & (Price.datetime < end))
-        )
-        short_horizon, long_horizon = horizon_window
-        if (
-            short_horizon is not None
-            and long_horizon is not None
-            and short_horizon == long_horizon
-        ):
-            if rolling:
-                query = query.filter(Price.horizon == short_horizon)
-            else:  # Deduct the difference in end times of the timeslot and the query window
-                query = query.filter(
-                    Price.horizon
-                    == short_horizon - (end - (Price.datetime + resolution))
-                )
-        else:
-            if short_horizon is not None:
-                if rolling:
-                    query = query.filter(Price.horizon >= short_horizon)
-                else:
-                    query = query.filter(
-                        Price.horizon
-                        >= short_horizon - (end - (Price.datetime + resolution))
-                    )
-            if long_horizon is not None:
-                if rolling:
-                    query = query.filter(Price.horizon <= long_horizon)
-                else:
-                    query = query.filter(
-                        Price.horizon
-                        <= long_horizon - (end - (Price.datetime + resolution))
-                    )
-        return query
+    def make_query(cls, **kwargs) -> Query:
+        return super().make_query(asset_class=Market, **kwargs)
 
     def __init__(self, **kwargs):
         super(Price, self).__init__(**kwargs)

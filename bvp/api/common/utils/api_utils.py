@@ -277,6 +277,7 @@ def make_forecasting_jobs(
     start: datetime,
     end: datetime,
     resolution: timedelta,
+    horizons: List[timedelta] = None,
 ):
     """Create forecasting jobs for all horizons.
     Relevant horizons are deduced from the resolution of the posted data.
@@ -285,7 +286,9 @@ def make_forecasting_jobs(
     horizon.
     """
     jobs = []
-    for horizon in forecast_horizons_for(resolution):
+    if horizons is None:
+        horizons = forecast_horizons_for(resolution)
+    for horizon in horizons:
         job = ForecastingJob(
             timed_value_type=timed_value_type,
             asset_id=asset_id,

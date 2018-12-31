@@ -6,7 +6,7 @@ def message_for_get_device_message(
 ) -> dict:
     message = {
         "type": "GetDeviceMessageRequest",
-        "duration": "PT24H",
+        "duration": "PT48H",
         "event": "ea1.2018-06.localhost:5000:%s:%s:203:soc",
     }
     if wrong_id:

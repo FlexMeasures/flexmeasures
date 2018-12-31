@@ -39,6 +39,8 @@ def get_device_message_response(generic_asset_name_groups, duration):
 
     resolution = timedelta(minutes=15)
     unit = "MW"
+    min_planning_horizon = timedelta(hours=24)
+    planning_horizon = max(min_planning_horizon, duration)
 
     if not has_assets():
         current_app.logger.info("User doesn't seem to have any assets.")
@@ -79,10 +81,15 @@ def get_device_message_response(generic_asset_name_groups, duration):
 
             # Schedule the asset
             schedule = schedule_battery(
-                asset, market, start, start + duration, resolution
+                asset, market, start, start + planning_horizon, resolution
             )
             if schedule is None:
                 return unknown_prices()
+            else:
+                # Update the planning window
+                start = schedule.index[0]
+                duration = min(duration, schedule.index[-1] + resolution - start)
+                schedule = schedule[start : start + duration - resolution]
             value_groups.append(schedule.tolist())
             new_event_groups.append([event])
 

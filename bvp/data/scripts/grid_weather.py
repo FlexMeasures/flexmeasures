@@ -10,7 +10,8 @@ from flask import Flask, current_app
 from forecastiopy import ForecastIO
 
 from bvp.utils.time_utils import as_bvp_time, get_timezone
-from bvp.utils.geo_utils import find_closest_weather_sensor, compute_radiation
+from bvp.utils.geo_utils import compute_radiation
+from bvp.data.services.resources import find_closest_weather_sensor
 from bvp.data.config import db
 from bvp.data.transactional import task_with_status_report
 from bvp.data.models.weather import Weather

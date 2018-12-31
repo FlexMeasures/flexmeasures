@@ -1,8 +1,10 @@
 from typing import Union, List, Optional
 from datetime import datetime, timedelta
 
+from sqlalchemy.exc import IntegrityError
 from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
 
+from bvp.api.common.utils.api_utils import save_to_database
 from bvp.utils.time_utils import bvp_now, as_bvp_time, supported_horizons
 from bvp.data.models.forecasting.jobs import ForecastingJob
 from bvp.data.models.forecasting.generic import (
@@ -109,11 +111,18 @@ def run_job(
     if job.horizon not in supported_horizons():
         raise Exception("Invalid horizon on job %d: %s" % (job.id, job.horizon))
 
+    if hasattr(job.get_asset(), "market_type"):
+        ex_post_horizon = (
+            None
+        )  # Todo: until we sorted out the ex_post_horizon, use all available price data
+    else:
+        ex_post_horizon = timedelta(hours=0)
     model_specs, model_identifier = latest_generic_model(
         generic_asset=job.get_asset(),
         start=as_bvp_time(job.start),
         end=as_bvp_time(job.end),
         horizon=job.horizon,
+        ex_post_horizon=ex_post_horizon,
         custom_model_params=custom_model_params,
     )
     model_specs.creation_time = bvp_now()
@@ -129,7 +138,17 @@ def run_job(
         for dt, value in forecasts.items()
     ]
 
-    db.session.bulk_save_objects(ts_value_forecasts)
+    try:
+        save_to_database(ts_value_forecasts)
+        db.session.flush()
+    except IntegrityError as e:
+        from flask import current_app
+
+        current_app.logger.warn(e)
+        db.session.rollback()
+
+        if current_app.config.get("BVP_MODE", "") == "play":
+            save_to_database(ts_value_forecasts, overwrite=True)
 
     ForecastingJob.query.filter_by(id=job.id).delete()
 
@@ -162,8 +181,8 @@ def run_and_report_on_jobs(jobs: List[ForecastingJob], custom_model_params):
         if seen_successes == 0:
             # This will lead to a rollback of the main transaction
             raise Exception(
-                "Of %d jobs, none succeeded. %d jobs removed due to missing data."
-                % (expected_successes, jobs_removed)
+                "Of %d jobs, none succeeded. %d jobs would have been removed due to missing data,"
+                "but instead I rolled back." % (expected_successes, jobs_removed)
             )
         else:
             # by raising this Exception, no rollback will happen and the data which we generated will get committed.

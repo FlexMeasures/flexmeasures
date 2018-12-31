@@ -1,14 +1,13 @@
 from typing import Dict, List, Tuple, Union
-from datetime import datetime, timedelta
 
 import isodate
 import inflection
 from inflection import humanize, pluralize, titleize
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Query
 
 from bvp.data.config import db
-from bvp.data.models.data_sources import DataSource
 from bvp.data.models.time_series import TimedValue
+from bvp.data.queries.utils import assign_source_ids
 from bvp.utils.config_utils import get_naming_authority, get_addressing_scheme
 
 
@@ -211,83 +210,9 @@ class Power(TimedValue, db.Model):
     )
 
     @classmethod
-    def make_query(
-        cls,
-        asset_name: str,
-        query_window: Tuple[datetime, datetime],
-        horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]] = (
-            None,
-            None,
-        ),
-        rolling: bool = True,
-        source_ids: Union[int, List[int]] = None,
-        session: Session = None,
-    ) -> Query:
-        if session is None:
-            session = db.session
-        start, end = query_window
-        # Todo: get data resolution for the asset
-        resolution = timedelta(minutes=15)
-        q_start = (
-            start - resolution
-        )  # Adjust for the fact that we index time slots by their start time
-        query = (
-            session.query(Power.datetime, Power.value, Power.horizon, DataSource.label)
-            .join(DataSource)
-            .filter(Power.data_source_id == DataSource.id)
-            .join(Asset)
-            .filter(Asset.name == asset_name)
-            .filter((Power.datetime > q_start) & (Power.datetime < end))
-        )
-        # TODO: this could probably become a util function which we can re-use in all make_query functions
-        if source_ids is not None and not isinstance(source_ids, list):
-            source_ids = [source_ids]  # ensure source_ids is a list
-        if source_ids:
-            # Collect only data from sources that are either a specified user id or a script
-            script_sources = DataSource.query.filter(DataSource.type == "script").all()
-            user_sources = (
-                DataSource.query.filter(DataSource.type == "user")
-                .filter(DataSource.id.in_(source_ids))
-                .all()
-            )
-            script_source_ids = [script_source.id for script_source in script_sources]
-            user_source_ids = [user_source.id for user_source in user_sources]
-            query = query.filter(
-                Power.data_source_id.in_(user_source_ids)
-                | Power.data_source_id.in_(script_source_ids)
-            )
-        # TODO: this should become a util function which we can re-use in all
-        #       make_query functions to add the horizon filter
-        short_horizon, long_horizon = horizon_window
-        if (
-            short_horizon is not None
-            and long_horizon is not None
-            and short_horizon == long_horizon
-        ):
-            if rolling:
-                query = query.filter(Power.horizon == short_horizon)
-            else:  # Deduct the difference in end times of the timeslot and the query window
-                query = query.filter(
-                    Power.horizon
-                    == short_horizon - (end - (Power.datetime + resolution))
-                )
-        else:
-            if short_horizon is not None:
-                if rolling:
-                    query = query.filter(Power.horizon >= short_horizon)
-                else:
-                    query = query.filter(
-                        Power.horizon
-                        >= short_horizon - (end - (Power.datetime + resolution))
-                    )
-            if long_horizon is not None:
-                if rolling:
-                    query = query.filter(Power.horizon <= long_horizon)
-                else:
-                    query = query.filter(
-                        Power.horizon
-                        <= long_horizon - (end - (Power.datetime + resolution))
-                    )
+    def make_query(cls, source_ids: Union[int, List[int]] = None, **kwargs) -> Query:
+        query = super().make_query(asset_class=Asset, **kwargs)
+        query = assign_source_ids(cls, query, source_ids)
         return query
 
     def to_dict(self):

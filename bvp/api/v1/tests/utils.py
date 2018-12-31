@@ -1,4 +1,8 @@
 """Useful test messages"""
+from datetime import timedelta
+
+from numpy import tile
+from isodate import duration_isoformat
 
 
 def message_for_get_meter_data(
@@ -33,18 +37,28 @@ def message_for_post_meter_data(
     no_connection: bool = False,
     single_connection: bool = False,
     single_connection_group: bool = False,
+    production: bool = False,
+    tile_n=1,
 ) -> dict:
+    sign = 1 if production is False else -1
     message = {
         "type": "PostMeterDataRequest",
         "groups": [
             {
                 "connections": ["CS 1", "CS 2"],
-                "values": [306.66, 306.66, 0, 0, 306.66, 306.66],
+                "values": (
+                    tile([306.66, 306.66, 0, 0, 306.66, 306.66], tile_n) * sign
+                ).tolist(),
             },
-            {"connection": ["CS 3"], "values": [306.66, 0, 0, 0, 306.66, 306.66]},
+            {
+                "connection": ["CS 3"],
+                "values": (
+                    tile([306.66, 0, 0, 0, 306.66, 306.66], tile_n) * sign
+                ).tolist(),
+            },
         ],
         "start": "2015-01-01T00:00:00Z",
-        "duration": "PT1H30M",
+        "duration": duration_isoformat(timedelta(hours=1.5 * tile_n)),
         "unit": "MW",
     }
     if no_connection:

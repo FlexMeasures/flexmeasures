@@ -1,6 +1,5 @@
 from flask import url_for
 import pytest
-import json
 from datetime import timedelta
 from isodate import parse_datetime
 
@@ -26,7 +25,31 @@ def test_get_device_message(client, message):
     print("Server responded with:\n%s" % get_device_message_response.json)
     assert get_device_message_response.status_code == 200
     assert get_device_message_response.json["type"] == "GetDeviceMessageResponse"
-    assert len(get_device_message_response.json["values"]) == 96
+    assert len(get_device_message_response.json["values"]) == 192
+
+    # Test that a shorter planning horizon yields the same result
+    message["duration"] = "PT6H"
+    get_device_message_response_short = client.get(
+        url_for("bvp_api_v1_2.get_device_message"),
+        query_string=message,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    assert (
+        get_device_message_response_short.json["values"]
+        == get_device_message_response.json["values"][0:24]
+    )
+
+    # Test that a much longer planning horizon yields the same result (when there are only 2 days of prices)
+    message["duration"] = "PT1000H"
+    get_device_message_response_long = client.get(
+        url_for("bvp_api_v1_2.get_device_message"),
+        query_string=message,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    assert (
+        get_device_message_response_long.json["values"][0:192]
+        == get_device_message_response.json["values"]
+    )
 
 
 @pytest.mark.parametrize("message", [message_for_get_device_message(wrong_id=True)])
@@ -52,7 +75,9 @@ def test_get_device_message_wrong_event_id(client, message):
     "message", [message_for_get_device_message(unknown_prices=True)]
 )
 def test_get_device_message_unknown_prices(client, message):
-    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+    asset = Asset.query.filter(
+        Asset.name == "Test battery with no known prices"
+    ).one_or_none()
     message["event"] = message["event"] % (asset.owner_id, asset.id)
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     get_device_message_response = client.get(
@@ -75,8 +100,8 @@ def test_post_udi_event(app, message):
         auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
         post_udi_event_response = client.post(
             url_for("bvp_api_v1_2.post_udi_event"),
-            data=json.dumps(message),
-            headers={"content-type": "application/json", "Authorization": auth_token},
+            json=message,
+            headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_udi_event_response.json)
         assert post_udi_event_response.status_code == 200
@@ -96,8 +121,8 @@ def test_post_udi_event(app, message):
         message["datetime"] = next_msg_dt.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
         post_udi_event_response = client.post(
             url_for("bvp_api_v1_2.post_udi_event"),
-            data=json.dumps(message),
-            headers={"content-type": "application/json", "Authorization": auth_token},
+            json=message,
+            headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_udi_event_response.json)
         assert post_udi_event_response.status_code == 400
@@ -107,8 +132,8 @@ def test_post_udi_event(app, message):
         message["event"] = message["event"].replace("204", "205")
         post_udi_event_response = client.post(
             url_for("bvp_api_v1_2.post_udi_event"),
-            data=json.dumps(message),
-            headers={"content-type": "application/json", "Authorization": auth_token},
+            json=message,
+            headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_udi_event_response.json)
         assert post_udi_event_response.status_code == 200

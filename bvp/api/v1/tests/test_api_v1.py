@@ -1,4 +1,3 @@
-import json
 from datetime import timedelta
 
 from flask import url_for
@@ -111,7 +110,7 @@ def test_invalid_or_no_unit(client, method, message):
     elif method == "POST":
         get_meter_data_response = client.post(
             url_for("bvp_api_v1.get_meter_data"),
-            data=json.dumps(message),
+            json=message,
             headers={
                 "Authorization": get_auth_token(
                     client, "test_prosumer@seita.nl", "testtest"
@@ -177,8 +176,8 @@ def test_post_and_get_meter_data(db, client, post_message, get_message):
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     post_meter_data_response = client.post(
         url_for("bvp_api_v1.post_meter_data"),
-        data=json.dumps(message_replace_name_with_ea(post_message)),
-        headers={"content-type": "application/json", "Authorization": auth_token},
+        json=message_replace_name_with_ea(post_message),
+        headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_meter_data_response.json)
     assert post_meter_data_response.status_code == 200

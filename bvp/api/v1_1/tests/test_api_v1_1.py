@@ -1,5 +1,3 @@
-import json
-
 from flask import url_for
 import pytest
 from datetime import timedelta
@@ -95,6 +93,7 @@ def test_no_data(client):
         message_for_get_prognosis(single_connection=True),
         message_for_get_prognosis(no_resolution=True),
         message_for_get_prognosis(rolling_horizon=True),
+        message_for_get_prognosis(rolling_horizon=True, timezone_alternative=True),
     ],
 )
 def test_get_prognosis(client, message):
@@ -131,8 +130,8 @@ def test_post_price_data(db, app, post_message):
         auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
         post_price_data_response = client.post(
             url_for("bvp_api_v1_1.post_price_data"),
-            data=json.dumps(post_message),
-            headers={"content-type": "application/json", "Authorization": auth_token},
+            json=post_message,
+            headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_price_data_response.json)
         assert post_price_data_response.status_code == 200
@@ -161,14 +160,9 @@ def test_post_price_data(db, app, post_message):
 
     # look for Forecasting jobs
     jobs = ForecastingJob.query.order_by(ForecastingJob.horizon.asc()).all()
-    assert len(jobs) == 4  # only one market is affected, but four horizons
+    assert len(jobs) == 2  # only one market is affected, but two horizons
     market = Market.query.filter_by(name=market_name).one_or_none()
-    horizons = [
-        timedelta(hours=1),
-        timedelta(hours=6),
-        timedelta(hours=24),
-        timedelta(hours=48),
-    ]
+    horizons = [timedelta(hours=24), timedelta(hours=48)]
     for job, horizon in zip(jobs, horizons):
         assert job.horizon == horizon
         assert job.start == parse_date(post_message["start"]) + horizon
@@ -188,8 +182,8 @@ def test_post_price_data_invalid_unit(client, post_message):
     auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
     post_price_data_response = client.post(
         url_for("bvp_api_v1_1.post_price_data"),
-        data=json.dumps(post_message),
-        headers={"content-type": "application/json", "Authorization": auth_token},
+        json=post_message,
+        headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_price_data_response.json)
     assert post_price_data_response.status_code == 400
@@ -216,8 +210,8 @@ def test_post_weather_data(client, post_message):
     auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
     post_weather_data_response = client.post(
         url_for("bvp_api_v1_1.post_weather_data"),
-        data=json.dumps(post_message),
-        headers={"content-type": "application/json", "Authorization": auth_token},
+        json=post_message,
+        headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_weather_data_response.json)
     assert post_weather_data_response.status_code == 200
@@ -237,8 +231,8 @@ def test_post_weather_data_invalid_unit(client, post_message):
     auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
     post_weather_data_response = client.post(
         url_for("bvp_api_v1_1.post_weather_data"),
-        data=json.dumps(post_message),
-        headers={"content-type": "application/json", "Authorization": auth_token},
+        json=post_message,
+        headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_weather_data_response.json)
     assert post_weather_data_response.status_code == 400

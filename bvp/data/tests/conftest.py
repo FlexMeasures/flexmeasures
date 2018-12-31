@@ -42,9 +42,11 @@ def add_weather_sensor_and_forecasts(db: SQLAlchemy):
         )
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
         if sensor_name == "temperature":
-            values = values * 17
+            values = [value * 17 for value in values]
         if sensor_name == "wind_speed":
-            values = values * 45
+            values = [value * 45 for value in values]
+        if sensor_name == "radiation":
+            values = [value * 600 for value in values]
         for dt, val in zip(time_slots, values):
             db.session.add(
                 Weather(

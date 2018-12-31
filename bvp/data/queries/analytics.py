@@ -6,11 +6,10 @@ import numpy as np
 import pandas as pd
 
 from bvp.utils import time_utils, calculations
-from bvp.data.services.resources import Resource
+from bvp.data.services.resources import Resource, find_closest_weather_sensor
 from bvp.data.models.assets import Asset
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.weather import Weather, WeatherSensor, WeatherSensorType
-from bvp.utils.geo_utils import find_closest_weather_sensor
 
 
 def get_power_data(
@@ -112,57 +111,79 @@ def get_weather_data(
     # Todo: for now we only collect weather data for a single asset
     asset = assets[0]
 
+    weather_data = pd.DataFrame(columns=["y"])
+    weather_forecast_data = pd.DataFrame(columns=["yhat"])
+    sensor_type_name = ""
+    closest_sensor = None
     if sensor_type:
-        # Find the closest weather sensor
-        closest_sensor = find_closest_weather_sensor(sensor_type.name, object=asset)
+        # Find the 50 closest weather sensors
         sensor_type_name = sensor_type.name
-    else:
-        closest_sensor = None
-        sensor_type_name = ""
-
-    if closest_sensor is None:
-        weather_data = pd.DataFrame()
-        weather_forecast_data = pd.DataFrame()
-    else:
-        # Collect the weather data for the requested time window
-        weather_data = Weather.collect(
-            [closest_sensor.name],
-            horizon_window=(None, timedelta(hours=0)),
-            rolling=True,
-            create_if_empty=True,
-            as_beliefs=True,
+        closest_sensors = find_closest_weather_sensor(
+            sensor_type_name, n=50, object=asset
         )
-        metrics["realised_weather"] = weather_data.y.mean()
+        if closest_sensors:
+            closest_sensor = closest_sensors[0]
 
-        # Get weather forecast
-        horizon = pd.to_timedelta(session["forecast_horizon"])
-        weather_forecast_data = Weather.collect(
-            [closest_sensor.name],
-            horizon_window=(horizon, None),
-            rolling=True,
-            create_if_empty=True,
-            as_beliefs=True,
-        )
-        weather_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
-        if (
-            not weather_forecast_data.empty
-            and weather_forecast_data.size == weather_data.size
-        ):
-            metrics["expected_weather"] = weather_forecast_data.yhat.mean()
-            metrics["mae_weather"] = calculations.mean_absolute_error(
-                weather_data.y, weather_forecast_data.yhat
+            # Collect the weather data for the requested time window
+            sensor_names = [sensor.name for sensor in closest_sensors]
+            weather_data_dict = Weather.collect(
+                sensor_names,
+                horizon_window=(None, timedelta(hours=0)),
+                rolling=True,
+                create_if_empty=True,
+                sum_multiple=False,
+                as_beliefs=True,
             )
-            metrics["mape_weather"] = calculations.mean_absolute_percentage_error(
-                weather_data.y, weather_forecast_data.yhat
+
+            # Get weather forecasts
+            horizon = pd.to_timedelta(session["forecast_horizon"])
+            weather_forecast_data_dict = Weather.collect(
+                sensor_names,
+                horizon_window=(horizon, None),
+                rolling=True,
+                create_if_empty=True,
+                sum_multiple=False,
+                as_beliefs=True,
             )
-            metrics["wape_weather"] = calculations.weighted_absolute_percentage_error(
-                weather_data.y, weather_forecast_data.yhat
-            )
-        else:
-            metrics["expected_weather"] = np.NaN
-            metrics["mae_weather"] = np.NaN
-            metrics["mape_weather"] = np.NaN
-            metrics["wape_weather"] = np.NaN
+
+            # Take the closest weather sensor which contains some data for the selected time window
+            for sensor, sensor_name in zip(closest_sensors, sensor_names):
+                if (
+                    not weather_data_dict[sensor_name].y.isnull().values.all()
+                    or not weather_forecast_data_dict[sensor_name]
+                    .y.isnull()
+                    .values.all()
+                ):
+                    weather_data = weather_data_dict[sensor_name]
+                    weather_forecast_data = weather_forecast_data_dict[sensor_name]
+                    closest_sensor = sensor
+                    break
+
+            # Calculate the weather metrics
+            if not weather_data.empty:
+                metrics["realised_weather"] = weather_data.y.mean()
+            weather_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
+            if (
+                not weather_forecast_data.empty
+                and weather_forecast_data.size == weather_data.size
+            ):
+                metrics["expected_weather"] = weather_forecast_data.yhat.mean()
+                metrics["mae_weather"] = calculations.mean_absolute_error(
+                    weather_data.y, weather_forecast_data.yhat
+                )
+                metrics["mape_weather"] = calculations.mean_absolute_percentage_error(
+                    weather_data.y, weather_forecast_data.yhat
+                )
+                metrics[
+                    "wape_weather"
+                ] = calculations.weighted_absolute_percentage_error(
+                    weather_data.y, weather_forecast_data.yhat
+                )
+            else:
+                metrics["expected_weather"] = np.NaN
+                metrics["mae_weather"] = np.NaN
+                metrics["mape_weather"] = np.NaN
+                metrics["wape_weather"] = np.NaN
     return (
         weather_data,
         weather_forecast_data,

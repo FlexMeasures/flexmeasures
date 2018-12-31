@@ -33,7 +33,7 @@ setup(
         "python-dotenv",
         "Flask-SSLify",
         "Flask_JSON",
-        "Flask-SQLALchemy",
+        "Flask-SQLAlchemy",
         "Flask-Migrate",
         "Flask-Classful",
         "Flask-WTF",
