@@ -10,6 +10,7 @@ from werkzeug.exceptions import NotFound
 from sqlalchemy.exc import IntegrityError
 
 from bvp.data.services.resources import get_assets, create_asset
+from bvp.ui.utils.plotting_utils import get_latest_power_as_plot
 from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.data.models.assets import Asset, AssetType
 from bvp.data.models.user import User
@@ -135,8 +136,17 @@ class AssetCrud(FlaskView):
                     (asset.market_id, asset.market.display_name)
                 )
             asset_form.process(obj=asset)
+
+            latest_measurement_time_str, asset_plot_html = get_latest_power_as_plot(
+                asset
+            )
             return render_bvp_template(
-                "crud/asset.html", asset=asset, asset_form=asset_form, msg=""
+                "crud/asset.html",
+                asset=asset,
+                asset_form=asset_form,
+                msg="",
+                latest_measurement_time_str=latest_measurement_time_str,
+                asset_plot_html=asset_plot_html,
             )
         else:
             raise NotFound
@@ -220,8 +230,14 @@ class AssetCrud(FlaskView):
                     msg = "Asset was not saved, please review error(s) below."
             else:
                 raise NotFound
+        latest_measurement_time_str, asset_plot_html = get_latest_power_as_plot(asset)
         return render_bvp_template(
-            "crud/asset.html", asset=asset, asset_form=asset_form, msg=msg
+            "crud/asset.html",
+            asset=asset,
+            asset_form=asset_form,
+            msg=msg,
+            latest_measurement_time_str=latest_measurement_time_str,
+            asset_plot_html=asset_plot_html,
         )
 
     @roles_required("admin")

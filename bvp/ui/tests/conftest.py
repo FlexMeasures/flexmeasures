@@ -55,6 +55,7 @@ def setup_ui_test_data(db):
         name="solar pane 1",
         display_name="Solar Pane 1",
         asset_type_name="solar",
+        unit="MW",
         capacity_in_mw=10,
         latitude=10,
         longitude=100,

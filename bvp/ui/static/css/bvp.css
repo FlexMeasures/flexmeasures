@@ -301,12 +301,16 @@ td button { margin:5px; }
 .map-icon.opportunity {
     color: #c21431;
 }
+.leaflet-marker-popup {
+    min-width: 240px;
+}
 
 
 /* footer */
 .footer {
     color: darkgray;
     font-size: tiny;
+    margin-top: 25px;
 }
 
 

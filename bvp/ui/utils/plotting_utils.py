@@ -2,7 +2,6 @@ from typing import Any, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 from flask import current_app
-from bokeh.models import Legend, Range1d
 from bokeh.plotting import figure, Figure
 from bokeh.models import (
     Plot,
@@ -11,14 +10,18 @@ from bokeh.models import (
     NumeralTickFormatter,
     BoxAnnotation,
     CustomJS,
+    Legend,
+    Range1d,
 )
 from bokeh.models.renderers import GlyphRenderer
 from bokeh.models.tools import CustomJSHover
 from bokeh import events
 import pandas as pd
+import pandas_bokeh
 import numpy as np
 
-from bvp.utils.time_utils import tz_index_naively
+from bvp.data.models.assets import Asset, Power
+from bvp.utils.time_utils import localized_datetime_str, tz_index_naively
 
 
 def create_hover_tool(  # noqa: C901
@@ -412,3 +415,81 @@ def separate_legend(fig: Figure, orientation: str = "vertical") -> Figure:
     )
 
     return legend_fig
+
+
+def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, str]:
+    """Create a plot of an asset's latest power measurement as an embeddable html string (incl. javascript).
+    First returned string is the measurement time, second string is the html string."""
+
+    latest_power = (
+        Power.query.filter(Power.asset == asset)
+        .filter(Power.horizon < timedelta(hours=0))
+        .order_by(Power.datetime.desc())
+        .first()
+    )
+    if latest_power is not None:
+        latest_power_value = latest_power.value
+        latest_measurement_time_str = localized_datetime_str(
+            latest_power.datetime + asset.resolution
+        )
+    else:
+        latest_power_value = 0
+        latest_measurement_time_str = "time unknown"
+    if latest_power_value < 0:
+        consumption = True
+        latest_power_value *= -1
+    else:
+        consumption = False
+
+    data = {
+        latest_measurement_time_str if not small else "": [0],
+        "Capacity in use": [latest_power_value],
+        "Remaining capacity": [asset.capacity_in_mw - latest_power_value],
+    }
+    df = pd.DataFrame(data)
+    p = df.plot_bokeh(
+        kind="bar",
+        x=latest_measurement_time_str if not small else "",
+        y=["Capacity in use", "Remaining capacity"],
+        stacked=True,
+        colormap=["#c21431", "#f7ebe7"],
+        alpha=0.7,
+        title=None,
+        xlabel=None,
+        ylabel="Power (%s)" % asset.unit,
+        zooming=False,
+        show_figure=False,
+        hovertool=None,
+        legend=None,
+        toolbar_location=None,
+        figsize=(200, 400) if not small else (100, 100),
+        ylim=(0, asset.capacity_in_mw),
+        xlim=(-.5, .5),
+    )
+    p.xgrid.visible = False
+    for r in p.renderers:
+        try:
+            r.glyph.width = 1
+        except AttributeError:
+            pass
+    p.xaxis.ticker = []
+    p.add_layout(
+        BoxAnnotation(bottom=0, top=asset.capacity_in_mw, fill_color="#f7ebe7")
+    )
+    plot_html_str = pandas_bokeh.embedded_html(p)
+    hover_tool_str = "%s at %s %s (%s%% capacity).\nLatest state at %s." % (
+        "Consuming"
+        if consumption
+        else "Running"
+        if latest_power_value == 0
+        else "Producing",
+        latest_power_value,
+        asset.unit,
+        round(100 * latest_power_value / asset.capacity_in_mw),
+        latest_measurement_time_str,
+    )
+    return (
+        latest_measurement_time_str,
+        """<div data-toggle="tooltip" data-placement="bottom" title="%s">%s</div>"""
+        % (hover_tool_str, plot_html_str),
+    )

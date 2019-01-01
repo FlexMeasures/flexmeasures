@@ -1,6 +1,8 @@
 from typing import Dict
+from datetime import timedelta
 
 from sqlalchemy.orm import Query
+from sqlalchemy.ext.hybrid import hybrid_property
 from inflection import humanize
 
 from bvp.data.config import db
@@ -57,6 +59,10 @@ class Market(db.Model):
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
 
+    @hybrid_property
+    def resolution(self) -> timedelta:
+        return timedelta(minutes=15)
+
     @property
     def price_unit(self) -> str:
         """Return the 'unit' property of the generic asset, just with a more insightful name."""
@@ -80,7 +86,7 @@ class Price(TimedValue, db.Model):
     """
 
     market_id = db.Column(db.Integer(), db.ForeignKey("market.id"), primary_key=True)
-    market = db.relationship("Market", backref=db.backref("prices", lazy=True))
+    market = db.relationship("Market", backref=db.backref("prices", lazy="joined"))
 
     @classmethod
     def make_query(cls, **kwargs) -> Query:

@@ -54,7 +54,7 @@ def test_asset_page(db, client, as_prosumer):
         url_for("AssetCrud:get", id=prosumer_assets[0].id), follow_redirects=True
     )
     assert (
-        "Editing asset %s" % prosumer_assets[0].display_name
+        "Edit asset %s" % prosumer_assets[0].display_name
     ).encode() in asset_page.data
     assert str(prosumer_assets[0].capacity_in_mw).encode() in asset_page.data
     assert str(prosumer_assets[0].latitude).encode() in asset_page.data

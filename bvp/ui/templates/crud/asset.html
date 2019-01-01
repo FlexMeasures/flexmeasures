@@ -55,11 +55,11 @@
             {{ asset_form.hidden_tag() }}
             <fieldset>
                 <div class="row">
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
 
-                        <h2> Editing asset {{ asset.display_name }} </h2>
+                        <h3>Edit asset {{ asset.display_name }}</h3>
 
-                        <small>(owned by <a href="/users/{{asset.owner.id}}">{{ asset.owner.username }}</a>)</small>
+                        <small>(Owned by <a href="/users/{{asset.owner.id}}">{{ asset.owner.username }}</a>)</small>
 
                         <div class="form-group">
                             {{ asset_form.display_name.label(class="col-sm-6 control-label") }}
@@ -143,7 +143,7 @@
                             <input type="submit" value="Save">
                         </div>
 
-                        <h2>API info for this asset</h2>
+                        <h3>API info for this asset</h3>
 
                         <div class="form-group">
                             <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
@@ -163,6 +163,11 @@
                                 <input class="form-control" id="ea" name="ea" type="text" value="{{ asset.entity_address }}" disabled></input>
                             </div>
                         </div>
+                    </div>
+                    <div class="col-sm-2">
+                        <h3>Latest state</h3>
+                        <small>(At {{ latest_measurement_time_str | safe}})</small>
+                        {{ asset_plot_html | safe}}
                     </div>
                     <div class="col-sm-6">
                         <h3>Location</h3>
