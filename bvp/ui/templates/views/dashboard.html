@@ -105,20 +105,7 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster.layersupport@2.0.1/dist/leaflet.markercluster.layersupport.js"></script>
 
-    {{ bokeh_html_embedded | safe }}
     <script type="text/javascript">
-
-    function lookForState(event){
-        $.ajax({
-            url: "/state?id=" + encodeURI(this.options.id),
-            success: stateFoundCallback
-        });
-    }
-
-    function stateFoundCallback(data){
-        $(".bokeh-state-plot").html(data);
-    }
-
     // create markers, keep them by asset type
 
     {% for asset_type in asset_counts_per_pluralised_type: %}
@@ -166,48 +153,64 @@
         var marker_for_{{ (asset.name|parameterize).replace("-", "") }} = L
             .marker(
                 [{{ asset.location[0] }}, {{ asset.location[1] }}],
-                {icon: {{ asset.asset_type.pluralized_name }}_icon, id: "{{ asset.id }}"}
+                {icon: {{ asset.asset_type.pluralized_name }}_icon}
             )
             .bindPopup(`
-                <div class="leaflet-marker-popup">
-                    <div class="row">
-                        <div class="col-sm-12">
-                            <h4>{{ asset.display_name }}</h4>
-                        </div>
+                <div class="row">
+                    <div class="col-sm-12">
+                        <h4>{{ asset.display_name }}</h4>
                     </div>
-                    <div class="row">
-                        <div class="col-sm-5 bokeh-state-plot"></div>
-                        <div class="col-sm-7">
-                            <div class="row top-buffer">
-                                <div class="col-sm-12">
-                                    <form action="analytics" target="_blank" method="get">
-                                        <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
-                                        <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
-                                    </form>
-                                </div>
-                            </div>
-                            <div class="row top-buffer">
-                                <div class="col-sm-12">
-                                    <form action="assets/{{ asset.id }}" target="_blank" method="get">
-                                        <button class="btn btn-sm btn-responsive btn-info" type="submit">Edit this asset</button>
-                                    </form>
-                                </div>
-                            </div>
-                            <div class="row top-buffer">
-                                <div class="col-sm-12">
-                                    <form action="control" method="get">
-                                        <!--<input type="hidden" name="offer" value="still_mocked">-->
-                                        <!--<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-9">
+                        This {{ asset.asset_type.name | replace("_", " ") }} asset is currently
+                        {% if asset.asset_type.is_producer %}
+                            producing at {{ current_load_in_mw|round(3) }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw)|round(1) }}%
+                        {% else %}
+                            consuming at {{ -current_load_in_mw|round(3) }} MW ({{ asset.capacity_factor_in_percent_for(-current_load_in_mw)|round(1) }}%
+                        {% endif %}
+                        capacity).
+                    </div>
+                    <div class="col-sm-3">
+                        ` +
+                        {% if asset.asset_type.is_producer %}
+                            responsiveImageWithTooltip(
+                                getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(current_load_in_mw) }}),
+                                'Power',
+                                'Currently producing at {{ current_load_in_mw|round(3) }} MW ({{ asset.capacity_factor_in_percent_for(current_load_in_mw)|round(1) }}% capacity)'
+                            )
+                        {% else %}
+                            responsiveImageWithTooltip(
+                                getMockImageByCapacityFactor({{ asset.capacity_factor_in_percent_for(-current_load_in_mw) }}),
+                                'Load',
+                                'Currently consuming at {{ -current_load_in_mw|round(3) }} MW ({{ asset.capacity_factor_in_percent_for(-current_load_in_mw)|round(1) }}% capacity)'
+                            )
+                        {% endif %}
+                        + `
+                    </div>
+                </div>
+                <div class="row top-buffer">
+                    <div class="col-sm-6">
+                        <form action="analytics" target="_blank" method="get">
+                            <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+                        </form>
+                    </div>
+                    <div class="col-sm-6">
+                        <form action="assets/{{ asset.id }}" target="_blank" method="get">
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Edit this asset</button>
+                        </form>
+                    </div>
+                    <div class="col-sm-6">
+                        <form action="control" method="get">
+                            <!--<input type="hidden" name="offer" value="still_mocked">-->
+                            <!--<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
+                        </form>
                     </div>
                 </div>
                 `
             )
-            .on('click', clickZoom)
-            .on('click', lookForState);
+            .on('click', clickZoom);
             // .openPopup();
         {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ (asset.name|parameterize).replace("-", "") }});
     {% endfor%}
@@ -255,8 +258,7 @@
                 </div>
                 `
             )
-            .on('click', clickZoom)
-            .on('click', lookForState);
+            .on('click', clickZoom);
         wind_markers.push(marker_for_wind);
     {% endif%}
     {% if user_is_admin %}
@@ -301,8 +303,7 @@
                 </div>
                 `
             )
-            .on('click', clickZoom)
-            .on('click', lookForState);
+            .on('click', clickZoom);
         batteries_markers.push(marker_for_bat);
 
         var marker_for_bat = L
@@ -346,8 +347,7 @@
                 </div>
                 `
             )
-            .on('click', clickZoom)
-            .on('click', lookForState);
+            .on('click', clickZoom);
         batteries_markers.push(marker_for_bat);
     {% endif%}
 

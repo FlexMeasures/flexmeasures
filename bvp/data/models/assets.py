@@ -1,11 +1,9 @@
 from typing import Dict, List, Tuple, Union
-from datetime import timedelta
 
 import isodate
 import inflection
 from inflection import humanize, pluralize, titleize
 from sqlalchemy.orm import Query
-from sqlalchemy.ext.hybrid import hybrid_property
 
 from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
@@ -135,10 +133,6 @@ class Asset(db.Model):
     )
     market = db.relationship("Market", backref=db.backref("assets", lazy=True))
 
-    @hybrid_property
-    def resolution(self) -> timedelta:
-        return timedelta(minutes=15)
-
     @property
     def power_unit(self) -> float:
         """Return the 'unit' property of the generic asset, just with a more insightful name."""
@@ -198,7 +192,6 @@ class Asset(db.Model):
 class Power(TimedValue, db.Model):
     """
     All measurements of power data are stored in one slim table.
-    Negative values indicate consumption.
     TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
     TODO: If there are more than one measurement per asset per time step possible, we can expand rather easily.
     """
@@ -210,7 +203,7 @@ class Power(TimedValue, db.Model):
         "Asset",
         backref=db.backref(
             "measurements",
-            lazy="joined",
+            lazy=True,
             cascade="all, delete-orphan",
             passive_deletes=True,
         ),

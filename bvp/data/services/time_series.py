@@ -209,13 +209,9 @@ def query_time_series_data(
 
     # Parse the data resolution and make sure the full query window is represented
     # TODO: get resolution for the asset as stored in the database
-    asset_resolution = timedelta(minutes=15)
     if not values_orig.empty:
         new_index = pd.DatetimeIndex(
-            start=query_window[0],
-            end=query_window[1],
-            freq=time_utils.timedelta_to_pandas_freq_str(asset_resolution),
-            closed="left",
+            start=query_window[0], end=query_window[1], freq="15T", closed="left"
         )
         new_index = new_index.tz_convert(time_utils.get_timezone())
         values_orig = values_orig.reindex(new_index)

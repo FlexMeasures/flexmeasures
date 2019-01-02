@@ -14,14 +14,18 @@ def create_beliefs_query(
     asset_name: str,
     start: datetime,
     end: datetime,
+    resolution: timedelta,
 ) -> Query:
+    q_start = (
+        start - resolution
+    )  # Adjust for the fact that we index time slots by their start time
     query = (
         session.query(cls.datetime, cls.value, cls.horizon, DataSource.label)
         .join(DataSource)
         .filter(cls.data_source_id == DataSource.id)
         .join(asset_class)
         .filter(asset_class.name == asset_name)
-        .filter((cls.datetime > start - asset_class.resolution) & (cls.datetime < end))
+        .filter((cls.datetime > q_start) & (cls.datetime < end))
     )
     return query
 
@@ -50,7 +54,7 @@ def assign_horizon_window(
     cls,
     query: Query,
     end: datetime,
-    asset_class: db.Model,
+    resolution: timedelta,
     horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
     rolling: bool,
 ) -> Query:
@@ -64,8 +68,7 @@ def assign_horizon_window(
             query = query.filter(cls.horizon == short_horizon)
         else:  # Deduct the difference in end times of the timeslot and the query window
             query = query.filter(
-                cls.horizon
-                == short_horizon - (end - (cls.datetime + asset_class.resolution))
+                cls.horizon == short_horizon - (end - (cls.datetime + resolution))
             )
     else:
         if short_horizon is not None:
@@ -73,15 +76,13 @@ def assign_horizon_window(
                 query = query.filter(cls.horizon >= short_horizon)
             else:
                 query = query.filter(
-                    cls.horizon
-                    >= short_horizon - (end - (cls.datetime + asset_class.resolution))
+                    cls.horizon >= short_horizon - (end - (cls.datetime + resolution))
                 )
         if long_horizon is not None:
             if rolling:
                 query = query.filter(cls.horizon <= long_horizon)
             else:
                 query = query.filter(
-                    cls.horizon
-                    <= long_horizon - (end - (cls.datetime + asset_class.resolution))
+                    cls.horizon <= long_horizon - (end - (cls.datetime + resolution))
                 )
     return query

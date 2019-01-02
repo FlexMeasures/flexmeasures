@@ -69,9 +69,13 @@ class TimedValue(object):
         if session is None:
             session = db.session
         start, end = query_window
-        query = create_beliefs_query(cls, session, asset_class, asset_name, start, end)
+        # Todo: get data resolution for the asset
+        resolution = timedelta(minutes=15)
+        query = create_beliefs_query(
+            cls, session, asset_class, asset_name, start, end, resolution
+        )
         query = assign_horizon_window(
-            cls, query, end, asset_class, horizon_window, rolling
+            cls, query, end, resolution, horizon_window, rolling
         )
         return query
 

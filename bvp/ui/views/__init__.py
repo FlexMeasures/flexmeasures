@@ -7,7 +7,6 @@ from bvp.ui.views.dashboard import dashboard_view  # noqa: F401
 from bvp.ui.views.portfolio import portfolio_view  # noqa: F401
 from bvp.ui.views.control import control_view  # noqa: F401
 from bvp.ui.views.analytics import analytics_view  # noqa: F401
-from bvp.ui.views.state import state_view  # noqa: F401
 
 from bvp.ui.views.auth import account_view  # noqa: F401  # noqa: F401
 

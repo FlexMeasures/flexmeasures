@@ -1,5 +1,4 @@
 from typing import Dict, Tuple
-from datetime import timedelta
 import math
 
 from sqlalchemy.orm import Query
@@ -80,10 +79,6 @@ class WeatherSensor(db.Model):
     def __init__(self, **kwargs):
         super(WeatherSensor, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
-
-    @hybrid_property
-    def resolution(self) -> timedelta:
-        return timedelta(minutes=15)
 
     @property
     def weather_unit(self) -> float:
@@ -183,9 +178,7 @@ class Weather(TimedValue, db.Model):
     sensor_id = db.Column(
         db.Integer(), db.ForeignKey("weather_sensor.id"), primary_key=True
     )
-    sensor = db.relationship(
-        "WeatherSensor", backref=db.backref("weather", lazy="joined")
-    )
+    sensor = db.relationship("WeatherSensor", backref=db.backref("weather", lazy=True))
 
     @classmethod
     def make_query(cls, **kwargs) -> Query:

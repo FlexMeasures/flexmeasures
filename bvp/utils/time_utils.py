@@ -234,7 +234,7 @@ def forecast_horizons_for(
     """Return a list of horizons that are supported per resolution.
     Return values or of the same type as the input."""
     if isinstance(resolution, timedelta):
-        resolution_str = timedelta_to_pandas_freq_str(resolution)
+        resolution_str = to_offset(resolution).freqstr
     else:
         resolution_str = resolution
     horizons = []
@@ -257,7 +257,3 @@ def supported_horizons() -> List[timedelta]:
         timedelta(hours=24),
         timedelta(hours=48),
     ]
-
-
-def timedelta_to_pandas_freq_str(resolution: timedelta) -> str:
-    return to_offset(resolution).freqstr

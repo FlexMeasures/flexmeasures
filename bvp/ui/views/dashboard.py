@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-from bokeh.resources import CDN
 from flask import request, session, current_app
 from flask_security import login_required
 from flask_security.core import current_user
@@ -65,18 +64,8 @@ def dashboard_view():
             "batteries"
         ] = asset_counts_per_pluralised_type["solar"]
 
-    # Pack CDN resources (from pandas_bokeh/base.py)
-    bokeh_html_embedded = ""
-    for css in CDN.css_files:
-        bokeh_html_embedded += (
-            """<link href="%s" rel="stylesheet" type="text/css">\n""" % css
-        )
-    for js in CDN.js_files:
-        bokeh_html_embedded += """<script src="%s"></script>\n""" % js
-
     return render_bvp_template(
         "views/dashboard.html",
-        bokeh_html_embedded=bokeh_html_embedded,
         show_map=True,
         message=msg,
         assets=assets,
