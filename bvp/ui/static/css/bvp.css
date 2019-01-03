@@ -2,22 +2,6 @@ body {
     padding-top: 60px;
 }
 
-i {
-    font-size: 24px;
-}
-.supersize {
-    font-size: 48px;
-}
-
-.icon-column {
-    text-align: right;
-    width: 6.5em;
-}
-
-.icon-column a {
-    margin-left: 10px;
-}
-
 #alerts {
     position: absolute;
     right: 10px;
@@ -291,21 +275,6 @@ table#control-actions tr.active b {
 td button { margin:5px; }
 
 
-/* map icons */
-.map-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-}
-.map-icon.opportunity {
-    color: #c21431;
-}
-.leaflet-marker-popup {
-    min-width: 240px;
-}
-
-
 /* footer */
 .footer {
     color: darkgray;
@@ -314,6 +283,7 @@ td button { margin:5px; }
 }
 
 
+/* carousel */
 .carousel-container {
     width: 500px;
     height: 500px;
@@ -338,6 +308,76 @@ td button { margin:5px; }
     background:transparent;
 }
 
+
+/* icons */
+i {
+    font-size: normal;
+    position: relative;
+}
+i:not(.supersize):before, i:not(.supersize):after {
+    font-size: 24px;
+}
+.supersize {
+    font-size: 48px;
+}
+
+/* icon on the left (default) */
+:not(.map-icon) > i:not(.icon-right):not(.icon-center) {
+    left: 40px;
+}
+:not(.map-icon) > i:not(.icon-right):not(.icon-center):after, :not(.map-icon) > i:not(.icon-right):not(.icon-center):before {
+    position: absolute;
+    top: 0px;
+    left: -40px;
+}
+/* icon on the right (use icon-right class) */
+i.icon-right:after, i.icon-right:before {
+    position: absolute;
+    top: 0px;
+    left: 15px;
+}
+
+.icon-column {
+    text-align: right;
+    width: 6.5em;
+}
+
+.icon-column a {
+    margin-left: 10px;
+}
+
+
+/* map icons */
+.map-icon {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+.map-icon > i:before, .map-icon > i:after {
+    position: absolute;
+    top: -22px;
+    left: -16.5px;
+}
+.map-icon.opportunity {
+    color: #c21431;
+}
+.leaflet-marker-popup {
+    min-width: 240px;
+}
+
+
+/* rotating icons, because why not? */
+i.icon-wind:before {
+    transform-origin: 37.4% 40.2%;
+    transition: transform 0.0s ease;
+}
+i.icon-wind:hover:before {
+    transform: rotate(720deg);
+    transform-origin: 37.4% 40.2%;
+    transition: transform 3.0s ease;
+}
 
 
 /* custom icons from https://erikflowers.github.io/weather-icons/ */
@@ -367,12 +407,12 @@ td button { margin:5px; }
 
 @font-face {
   font-family: 'seita-webfont';
-  src: url('../font/seita-webfont.eot?78286001');
-  src: url('../font/seita-webfont.eot?78286001#iefix') format('embedded-opentype'),
-       url('../font/seita-webfont.woff2?78286001') format('woff2'),
-       url('../font/seita-webfont.woff?78286001') format('woff'),
-       url('../font/seita-webfont.ttf?78286001') format('truetype'),
-       url('../font/seita-webfont.svg?78286001#seita-webfont') format('svg');
+  src: url('../font/seita-webfont.eot?93228496');
+  src: url('../font/seita-webfont.eot?93228496#iefix') format('embedded-opentype'),
+       url('../font/seita-webfont.woff2?93228496') format('woff2'),
+       url('../font/seita-webfont.woff?93228496') format('woff'),
+       url('../font/seita-webfont.ttf?93228496') format('truetype'),
+       url('../font/seita-webfont.svg?93228496#seita-webfont') format('svg');
   font-weight: normal;
   font-style: normal;
 }
@@ -382,12 +422,12 @@ td button { margin:5px; }
 @media screen and (-webkit-min-device-pixel-ratio:0) {
   @font-face {
     font-family: 'seita-webfont';
-    src: url('../font/seita-webfont.svg?78286001#seita-webfont') format('svg');
+    src: url('../font/seita-webfont.svg?93228496#seita-webfont') format('svg');
   }
 }
 */
 
- [class^="icon-"]:before, [class*=" icon-"]:before {
+ [class^="icon-"]:before, [class*=" icon-"]:before, [class^="icon-"]:after, [class*=" icon-"]:after {
   font-family: "seita-webfont";
   font-style: normal;
   font-weight: normal;
@@ -422,7 +462,8 @@ td button { margin:5px; }
   /* text-shadow: 1px 1px 1px rgba(127, 127, 127, 0.3); */
 }
 
-.icon-wind:before { content: '\e800'; } /* '' */
+.icon-wind:before { content: '\e80e'; } /* '' */
+.icon-wind:after { content: '\e80f'; } /* '' */
 .icon-battery:before { content: '\e801'; } /* '' */
 .icon-binoculars:before { content: '\e802'; } /* '' */
 .icon-building:before { content: '\e803'; } /* '' */
@@ -437,6 +478,8 @@ td button { margin:5px; }
 .icon-seita_logo:before { content: '\e80b'; } /* '' */
 .icon-seita_bird:before { content: '\e80c'; } /* '' */
 .icon-seita:before { content: '\e80d'; } /* '' */
+.icon-wind-blades:before { content: '\e80e'; } /* '' */
+.icon-wind-tower:before { content: '\e80f'; } /* '' */
 
 .icon-batteries:before { content: '\e801'; } /* '' */
 .icon-buildings:before { content: '\e803'; } /* '' */

@@ -84,8 +84,7 @@
                                     {% for asset_type in asset_counts_per_pluralised_type: %}
                                         {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
                                     <td>
-                                        <i class="icon-{{ asset_type }}"></i>
-                                        {{ asset_counts_per_pluralised_type[asset_type] }}
+                                        <i class="icon-{{ asset_type }} icon-right">{{ asset_counts_per_pluralised_type[asset_type] }}</i>
                                     </td>
                                         {% endif %}
                                     {% endfor %}

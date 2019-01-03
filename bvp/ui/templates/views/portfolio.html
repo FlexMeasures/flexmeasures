@@ -171,8 +171,7 @@
                                     {% for asset in assets: %}
                                     <tr class="active">
                                         <td>
-                                            <i class="icon-{{ asset.asset_type_name }}"></i>
-                                            <a href="/assets/{{ asset.id }}" title="Show asset meta data and location on map">{{ asset.display_name }}</a>
+                                            <i class="icon-{{ asset.asset_type_name }}"><a href="/assets/{{ asset.id }}" title="Show asset meta data and location on map">{{ asset.display_name }}</a></i>
                                         </td>
                                         <td>
                                             {% if asset.asset_type.is_producer %}
