@@ -1,6 +1,8 @@
 from typing import Dict
+from datetime import timedelta
 
 from sqlalchemy.orm import Query
+from sqlalchemy.ext.hybrid import hybrid_property
 from inflection import humanize
 
 from bvp.data.config import db
@@ -56,6 +58,10 @@ class Market(db.Model):
         self.name = self.name.replace(" ", "_").lower()
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
+
+    @hybrid_property
+    def resolution(self) -> timedelta:
+        return timedelta(minutes=15)
 
     @property
     def price_unit(self) -> str:
