@@ -132,7 +132,7 @@ Make another migration
 ----------------------
 Just to be clear that the `db init` command is needed only at the beginning - you usually do, if your model changed:
 
-    flask db migrate --message "PLease explain what you did, it helps for later"
+    flask db migrate --message "Please explain what you did, it helps for later"
     flask db upgrade
     
 You could decide that you need to re-populate (decide what you need to re-populate):
