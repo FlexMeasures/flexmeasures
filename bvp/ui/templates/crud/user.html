@@ -91,7 +91,7 @@
                             <td>
                                 Roles
                             </td>
-                            <td>{% for role in user.roles %}
+                            <td>{% for role in user.bvp_roles %}
                                   {{ role.name }}{{ "," if not loop.last }}
                                 {% endfor %}
                             </td>

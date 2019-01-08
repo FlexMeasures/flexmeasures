@@ -34,12 +34,45 @@ class User(db.Model, UserMixin):
     login_count = Column(Integer)
     active = Column(Boolean())
     timezone = Column(String(255), default="Europe/Amsterdam")
-    roles = relationship(
+    bvp_roles = relationship(
         "Role", secondary="bvp_roles_users", backref=backref("users", lazy="dynamic")
     )
 
     def __repr__(self):
         return "<User %s (ID:%d)" % (self.username, self.id)
+
+    @property
+    def is_authenticated(self):
+        """We are overloading this, so it also considers being active.
+        Inactive users can by definition not be authenticated."""
+        return super(UserMixin, self).is_authenticated and self.active
+
+    @property
+    def roles(self):
+        """The roles attribute is being used by Flask-Security in the @roles_required decorator (among others).
+           With this little overload fix, it will only return the user's roles if they are authenticated.
+           To read roles of an unauthenticated user (e.g. being inactive),
+           use the `bvp_roles` attribute.
+        """
+        if not self.is_authenticated:
+            return []
+        else:
+            return self.bvp_roles
+
+    @roles.setter
+    def roles(self, new_roles):
+        """See comment in roles property why we overload."""
+        self.bvp_roles = new_roles
+
+    def has_role(self, role):
+        """Returns `True` if the user identifies with the specified role.
+            Overwritten from flask_security.core.UserMixin.
+
+        :param role: A role name or `Role` instance"""
+        if isinstance(role, str):
+            return role in (role.name for role in self.bvp_roles)
+        else:
+            return role in self.bvp_roles
 
 
 def remember_login(the_app, user):

@@ -28,7 +28,7 @@ def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List
     if role_name is not None:
         role = Role.query.filter(Role.name == role_name).one_or_none()
         if role:
-            user_query = user_query.filter(User.roles.contains(role))
+            user_query = user_query.filter(User.bvp_roles.contains(role))
 
     return user_query.all()
 

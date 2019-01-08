@@ -132,7 +132,7 @@ def create_asset(
         raise InvalidBVPAsset("Longitude must be between -180 and +180.")
     if owner is None:
         raise InvalidBVPAsset("Asset owner cannot be None.")
-    if "Prosumer" not in owner.roles:
+    if "Prosumer" not in owner.bvp_roles:
         raise InvalidBVPAsset("Owner must have role 'Prosumer'.")
     if market is None:
         raise InvalidBVPAsset("Market cannot be None.")
@@ -187,7 +187,9 @@ class Resource:
           to fetch. I cannot imagine we ever want to mix data from assets and markets.
     """
 
-    last_loaded_asset_list = []  # this can be used to avoid loading assets more than once during one call stack
+    last_loaded_asset_list = (
+        []
+    )  # this can be used to avoid loading assets more than once during one call stack
 
     def __init__(self, name):
         if name is None or name == "":

@@ -45,7 +45,7 @@
                                 <td>
                                     <a href="mailto:{{ user.email }}" title="Mail this user">{{ user.email }}</a>
                                 </td>
-                                <td>{% for role in user.roles %}
+                                <td>{% for role in user.bvp_roles %}
                                       {{ role.name }}{{ "," if not loop.last }}
                                     {% endfor %}
                                 </td>
