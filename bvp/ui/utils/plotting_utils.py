@@ -2,6 +2,7 @@ from typing import Any, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 from flask import current_app
+from colour import Color
 from bokeh.plotting import figure, Figure
 from bokeh.models import (
     Plot,
@@ -21,7 +22,7 @@ import pandas_bokeh
 import numpy as np
 
 from bvp.data.models.assets import Asset, Power
-from bvp.utils.time_utils import localized_datetime_str, tz_index_naively
+from bvp.utils.time_utils import bvp_now, localized_datetime_str, tz_index_naively
 
 
 def create_hover_tool(  # noqa: C901
@@ -421,12 +422,21 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
     """Create a plot of an asset's latest power measurement as an embeddable html string (incl. javascript).
     First returned string is the measurement time, second string is the html string."""
 
-    latest_power = (
+    if current_app.config.get("BVP_MODE", "") == "demo":
+        before = bvp_now().replace(year=2015)
+    elif current_app.config.get("BVP_MODE", "") == "play":
+        before = None
+    else:
+        before = bvp_now()
+
+    power_query = (
         Power.query.filter(Power.asset == asset)
         .filter(Power.horizon <= timedelta(hours=0))
         .order_by(Power.datetime.desc())
-        .first()
     )
+    if before is not None:
+        power_query = power_query.filter(Power.datetime <= before)
+    latest_power = power_query.first()
     if latest_power is not None:
         latest_power_value = latest_power.value
         latest_measurement_time_str = localized_datetime_str(
@@ -446,13 +456,22 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
         "Capacity in use": [latest_power_value],
         "Remaining capacity": [asset.capacity_in_mw - latest_power_value],
     }
+    percentage_capacity = latest_power_value / asset.capacity_in_mw
     df = pd.DataFrame(data)
     p = df.plot_bokeh(
         kind="bar",
         x=latest_measurement_time_str if not small else "",
         y=["Capacity in use", "Remaining capacity"],
         stacked=True,
-        colormap=["#c21431", "#f7ebe7"],
+        colormap=[
+            "%s"
+            % Color(
+                hue=0.3 * min(1.0, 3 / 2 * percentage_capacity),
+                saturation=1,
+                luminance=min(0.5, 1 - percentage_capacity * 3 / 4),
+            ).get_hex_l(),  # 0% red, 38% yellow, 67% green, >67% darker green
+            "#f7ebe7",
+        ],
         alpha=0.7,
         title=None,
         xlabel=None,
@@ -483,9 +502,9 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
         else "Running"
         if latest_power_value == 0
         else "Producing",
-        latest_power_value,
+        round(latest_power_value, 3),
         asset.unit,
-        round(100 * latest_power_value / asset.capacity_in_mw),
+        round(100 * percentage_capacity),
         latest_measurement_time_str,
     )
     return (

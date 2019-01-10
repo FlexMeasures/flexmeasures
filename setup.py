@@ -10,6 +10,7 @@ setup(
     # flask should be after all the flask plugins, because setup might find they ARE flask
     install_requires=[
         "bokeh>=1.0.2",
+        "colour",
         "pscript",
         "pandas>=0.22.0",
         "pandas-bokeh",
