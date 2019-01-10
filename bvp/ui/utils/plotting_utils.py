@@ -423,7 +423,7 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
 
     latest_power = (
         Power.query.filter(Power.asset == asset)
-        .filter(Power.horizon < timedelta(hours=0))
+        .filter(Power.horizon <= timedelta(hours=0))
         .order_by(Power.datetime.desc())
         .first()
     )
