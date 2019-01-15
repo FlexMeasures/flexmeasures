@@ -344,8 +344,9 @@ def highlight(
                     var boxStartDate = new Date("%s");
                     var boxEndDate = new Date("%s");
                     var clickedDate = new Date(cb_obj["x"]);
-                    // This quickfixes some localisation behaviour in bokehJS (a bug?). Bring it back to UTC.
+                    // This quick-fixes some localisation behaviour in bokeh JS (a bug?). Bring back to UTC.
                     clickedDate = new Date(clickedDate.getTime() + clickedDate.getTimezoneOffset() * 60000);
+                    console.log("tapped!!");
                     if (boxStartDate <= clickedDate && clickedDate <= boxEndDate) {
                         // TODO: change this to a URL which fits the order book once we actually make it work
                         var urlPlusParams = "%s" + "?year=" + clickedDate.getUTCFullYear()
@@ -356,7 +357,11 @@ def highlight(
                         $(location).attr("href", urlPlusParams);
                     }
                 """
-                    % (box_start, box_end, o_url)
+                    % (
+                        box_start.replace(tzinfo=None),
+                        box_end.replace(tzinfo=None),
+                        o_url,
+                    )
                 )
 
         else:
@@ -483,7 +488,7 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
         toolbar_location=None,
         figsize=(200, 400) if not small else (100, 100),
         ylim=(0, asset.capacity_in_mw),
-        xlim=(-.5, .5),
+        xlim=(-0.5, 0.5),
     )
     p.xgrid.visible = False
     for r in p.renderers:
