@@ -12,7 +12,7 @@ setup(
         "bokeh>=1.0.2",
         "colour",
         "pscript",
-        "pandas>=0.22.0",
+        "pandas==0.23.4",
         "pandas-bokeh",
         "iso8601",
         "xlrd",
