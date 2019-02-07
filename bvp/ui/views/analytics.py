@@ -76,6 +76,19 @@ def analytics_view():
         Resource(session["resource"]).assets,
     )
 
+    # Set shared x range
+    series = time_utils.tz_index_naively(data["power"].index)
+    if not series.empty:
+        shared_x_range = Range1d(
+            start=min(series),
+            end=max(series) + pd.to_timedelta(data["power"].index.freq),
+        )
+    else:
+        query_window, resolution = ensure_timing_vars_are_set((None, None), None)
+        shared_x_range = Range1d(
+            start=query_window[0], end=query_window[1] + pd.to_timedelta(resolution)
+        )
+
     # TODO: get rid of this hack, which we use because we mock 2015 data in static mode
     if current_app.config.get("BVP_MODE", "") == "demo":
         if not data["power"].empty:
@@ -99,19 +112,6 @@ def analytics_view():
                 data["rev_cost"].index
                 < time_utils.get_most_recent_quarter().replace(year=2015)
             ]
-
-    # Set shared x range
-    series = time_utils.tz_index_naively(data["power"].index)
-    if not series.empty:
-        shared_x_range = Range1d(
-            start=min(series),
-            end=max(series) + pd.to_timedelta(data["power"].index.freq),
-        )
-    else:
-        query_window, resolution = ensure_timing_vars_are_set((None, None), None)
-        shared_x_range = Range1d(
-            start=query_window[0], end=query_window[1] + pd.to_timedelta(resolution)
-        )
 
     # Making figures
     tools = ["box_zoom", "reset", "save"]
