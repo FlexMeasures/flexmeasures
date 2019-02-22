@@ -211,7 +211,7 @@ def post_weather_data_response(
             if weather_sensor is None:
 
                 # either create a new weather sensor and post to that
-                if api_policy is "create sensor if unknown":
+                if api_policy == "create sensor if unknown":
                     current_app.logger.info("CREATING NEW WEATHER SENSOR...")
                     weather_sensor = WeatherSensor(
                         name="Weather sensor for %s at latitude %s and longitude %s"

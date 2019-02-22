@@ -2,7 +2,7 @@ from typing import Union, List, Optional
 from datetime import datetime, timedelta
 
 from sqlalchemy.exc import IntegrityError
-from ts_forecasting_pipeline.forecasting import make_rolling_forecasts
+from timetomodel.forecasting import make_rolling_forecasts
 
 from bvp.api.common.utils.api_utils import save_to_database
 from bvp.utils.time_utils import bvp_now, as_bvp_time, supported_horizons

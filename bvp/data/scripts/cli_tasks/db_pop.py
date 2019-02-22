@@ -33,13 +33,14 @@ BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
     help="Limit data set to a small one, useful for automated tests.",
 )
 @click.option(
-    "--type",
+    "--asset-type",
     help="Populate (time series) data for a specific generic asset type only."
     " Follow up with Asset, Market or WeatherSensor.",
 )
 @click.option(
     "--asset",
-    help="Populate (time series) data for a single asset only. Follow up with the asset's name.",
+    help="Populate (time series) data for a single asset only. Follow up with the asset's name. "
+    "Use in combination with --asset-type, so we know where to look this name up.",
 )
 @click.option(
     "--from_date",
@@ -55,15 +56,15 @@ BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
     "--save",
     help="Save the populated data to file. Follow up with a unique name for this backup.",
 )
-@click.option("--dir", default=BACKUP_PATH, help="Directory for saving backups.")
+@click.option("--backup-dir", default=BACKUP_PATH, help="Directory for saving backups.")
 def db_populate(
     structure: bool,
     data: bool,
     forecasts: bool,
     small: bool,
     save: str,
-    dir: str,
-    type: str = None,
+    backup_dir: str,
+    asset_type: str = None,
     from_date: str = "2015-02-08",
     to_date: str = "2015-12-31",
     asset: str = None,
@@ -76,11 +77,13 @@ def db_populate(
     if data:
         from bvp.data.scripts.static_content import populate_time_series_data
 
-        populate_time_series_data(app.db, small, type, asset)
+        populate_time_series_data(app.db, small, asset_type, asset)
     if forecasts:
         from bvp.data.scripts.static_content import populate_time_series_forecasts
 
-        populate_time_series_forecasts(app.db, small, type, asset, from_date, to_date)
+        populate_time_series_forecasts(
+            app.db, small, asset_type, asset, from_date, to_date
+        )
     if not structure and not data and not forecasts:
         click.echo(
             "I did nothing as neither --structure nor --data nor --forecasts was given. Decide what you want!"
@@ -90,9 +93,9 @@ def db_populate(
 
         if data and not small:
             click.echo("Too much data to save! I'm only saving structure ...")
-            save_tables(app.db, save, structure, data=False, backup_path=dir)
+            save_tables(app.db, save, structure, data=False, backup_path=backup_dir)
         else:
-            save_tables(app.db, save, structure, data, dir)
+            save_tables(app.db, save, structure, data, backup_dir)
 
 
 @app.cli.command()
@@ -112,20 +115,21 @@ def db_populate(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
 @click.option(
-    "--type",
-    help="Populate (time series) data for a specific generic asset type only."
+    "--asset-type",
+    help="Depopulate (time series) data for a specific generic asset type only."
     "Follow up with Asset, Market or WeatherSensor.",
 )
 @click.option(
     "--asset",
-    help="Depopulate (time series) data for a single asset only. Follow up with the asset's name.",
+    help="Depopulate (time series) data for a single asset only. Follow up with the asset's name. "
+    "Use in combination with --asset-type, so we know where to look this name up.",
 )
 def db_depopulate(
     structure: bool,
     data: bool,
     forecasts: bool,
     force: bool,
-    type: str = None,
+    asset_type: str = None,
     asset: str = None,
 ):
     """Remove all values."""
@@ -149,11 +153,11 @@ def db_depopulate(
     if forecasts:
         from bvp.data.scripts.static_content import depopulate_forecasts
 
-        depopulate_forecasts(app.db, type, asset)
+        depopulate_forecasts(app.db, asset_type, asset)
     if data:
         from bvp.data.scripts.static_content import depopulate_data
 
-        depopulate_data(app.db, type, asset)
+        depopulate_data(app.db, asset_type, asset)
     if structure:
         from bvp.data.scripts.static_content import depopulate_structure
 

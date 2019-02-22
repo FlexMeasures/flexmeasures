@@ -1,10 +1,11 @@
-from typing import Tuple, List, Dict, Union, Optional
+from typing import Tuple, List, Union, Optional
 from datetime import datetime, timedelta
 
 from flask import current_app
-from ts_forecasting_pipeline import DBSeriesSpecs, ModelSpecs
-from ts_forecasting_pipeline.speccing import BoxCoxTransformation, Transformation
-from ts_forecasting_pipeline.utils.time_utils import to_15_min_lags
+from timetomodel import DBSeriesSpecs, ModelSpecs
+from timetomodel.transforming import BoxCoxTransformation, Transformation
+from timetomodel.utils.time_utils import to_15_min_lags
+from statsmodels.api import OLS
 
 from bvp.data.models.assets import AssetType, Asset
 from bvp.data.models.markets import MarketType, Market
@@ -14,7 +15,7 @@ from bvp.data.models.utils import (
     determine_asset_value_class_by_asset,
 )
 from bvp.data.services.resources import find_closest_weather_sensor
-from bvp.data.models.forecasting import NotEnoughDataException
+from bvp.data.models.forecasting.generic.utils import check_data_availability
 from bvp.data.config import db
 
 # update this version if small things like parametrisation change
@@ -54,40 +55,23 @@ def configure_specs(  # noqa: C901
     )
     query_window = get_query_window(training_start, end, lags)
 
-    regressor_specs, regressor_transformation = get_regressors(
-        generic_asset, generic_asset_type, query_window, horizon
-    )
+    regressor_transformation = {}
     if custom_model_params:
         if custom_model_params.get("regressor_transformation", None) is not None:
             regressor_transformation = custom_model_params.get(
-                "regressor_transformation"
+                "regressor_transformation", {}
             )
-
-    # Check if enough data is available for training window and lagged variables, otherwise suggest new forecast period
-    # TODO: could this functionality become a feature of ts_forecasting_pipeline?
-    q = generic_asset_value_class.query.join(generic_asset.__class__).filter(
-        generic_asset.__class__.name == generic_asset.name
+    regressor_specs = get_regressors(
+        generic_asset,
+        generic_asset_type,
+        query_window,
+        horizon,
+        regressor_transformation,
     )
-    oldest_value = q.order_by(generic_asset_value_class.datetime.asc()).first()
-    newest_value = q.order_by(generic_asset_value_class.datetime.desc()).first()
-    if oldest_value is None:
-        raise NotEnoughDataException(
-            "No data available at all. Forecasting impossible."
-        )
-    if query_window[0] < oldest_value.datetime:
-        suggested_start = start + (oldest_value.datetime - query_window[0])
-        raise NotEnoughDataException(
-            "Not enough data to forecast %s for this forecast window %s to %s: set start date to %s ?"
-            % (generic_asset.name, query_window[0], query_window[1], suggested_start)
-        )
-    if query_window[1] - horizon > newest_value.datetime + timedelta(
-        minutes=15
-    ):  # Todo: resolution should come from generic asset
-        suggested_end = end + (newest_value.datetime - (query_window[1] - horizon))
-        raise NotEnoughDataException(
-            "Not enough data to forecast %s for the forecast window %s to %s: set end date to %s ?"
-            % (generic_asset.name, query_window[0], query_window[1], suggested_end)
-        )
+
+    check_data_availability(
+        generic_asset, generic_asset_value_class, start, end, query_window, horizon
+    )
 
     if ex_post_horizon is None:
         ex_post_horizon = timedelta(hours=0)
@@ -102,18 +86,19 @@ def configure_specs(  # noqa: C901
             rolling=True,
             session=db.session,
         ),
+        feature_transformation=params["outcome_var_transformation"],
     )
     specs = ModelSpecs(
         outcome_var=outcome_var_spec,
-        model_type="OLS",
+        model=OLS,
+        frequency=timedelta(minutes=15),
         horizon=horizon,
         lags=to_15_min_lags(lags),
         regressors=regressor_specs,
         start_of_training=training_start,
         end_of_testing=testing_end,
         ratio_training_testing_data=params["ratio_training_testing_data"],
-        transformation=params["outcome_var_transformation"],
-        regressor_transformation=regressor_transformation,
+        remodel_frequency=timedelta(days=7),
     )
     return specs, specs_version()
 
@@ -218,11 +203,10 @@ def create_lags(
 
 
 def get_regressors(
-    generic_asset, generic_asset_type, query_window, horizon
-) -> Tuple[List[DBSeriesSpecs], Dict[str, Transformation]]:
+    generic_asset, generic_asset_type, query_window, horizon, regressor_transformation
+) -> List[DBSeriesSpecs]:
     """For Assets, we use weather data as regressors. Here, we configure them."""
     regressor_specs = []
-    regressor_transformation = {}
     if isinstance(generic_asset, Asset):
         sensor_types = generic_asset_type.weather_correlations
         current_app.logger.info(
@@ -246,6 +230,10 @@ def get_regressors(
                 )
                 # Collect the weather data for the requested time window
                 regressor_specs_name = "%s_l0" % sensor_type
+                if len(regressor_transformation.keys()) == 0:
+                    regressor_transformation = get_transformation_by_asset_type(
+                        WeatherSensorType(name=sensor_type)
+                    )
                 regressor_specs.append(
                     DBSeriesSpecs(
                         name=regressor_specs_name,
@@ -257,12 +245,8 @@ def get_regressors(
                             rolling=True,
                             session=db.session,
                         ),
+                        feature_transformation=regressor_transformation,
                     )
                 )
-                regressor_transformation[
-                    regressor_specs_name
-                ] = get_transformation_by_asset_type(
-                    WeatherSensorType(name=sensor_type)
-                )
 
-    return regressor_specs, regressor_transformation
+    return regressor_specs

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from flask import current_app as app
 import click
-from ts_forecasting_pipeline import ModelState, create_fitted_model, evaluate_models
+from timetomodel import ModelState, create_fitted_model, evaluate_models
 from isodate import parse_duration
 
 from bvp.data.models.assets import Asset
@@ -35,7 +35,7 @@ def work_on_forecasting_jobs(max_forecasts: int, horizon: Optional[str] = None):
 
 
 @app.cli.command()
-@click.option("--type", help="Asset type name.")
+@click.option("--asset-type", help="Asset type name.")
 @click.option("--asset", help="Asset name.")
 @click.option(
     "--from_date",
@@ -48,16 +48,16 @@ def work_on_forecasting_jobs(max_forecasts: int, horizon: Optional[str] = None):
     "--training", default=30, help="Number of days in the training and testing period."
 )
 def generic_model(
-    type: str,
+    asset_type: str,
     asset: Optional[str] = None,
     from_date: str = "2015-03-10",
     period: int = 3,
     horizon: int = 1,
     training: int = 30,
 ):
-    """Test integration of the ts-forecasting-pipeline for our generic model."""
+    """Test integration of timetomodel for our generic model."""
 
-    asset_type_name = type
+    asset_type_name = asset_type
     if asset is None:
         asset_name = Asset.query.filter_by(asset_type_name=asset_type_name).first().name
     else:

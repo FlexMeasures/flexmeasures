@@ -1,7 +1,7 @@
 from typing import Tuple, Callable, Union
 from datetime import datetime, timedelta
 
-from ts_forecasting_pipeline import ModelSpecs
+from timetomodel import ModelSpecs
 
 from bvp.data.models.forecasting.generic.model_a import (
     configure_specs,
