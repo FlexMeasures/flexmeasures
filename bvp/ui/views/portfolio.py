@@ -67,25 +67,30 @@ def portfolio_view():
             profit_loss_energy_per_asset[asset.name] = pd.Series(
                 power_data.y * load_hour_factor * prices_data.y, index=power_data.index
             ).sum()
-        if asset.is_pure_consumer:
+
+        sum_production_or_consumption = pd.Series(power_data.y).sum() * load_hour_factor
+        report_as = decide_direction_for_report(
+            asset.asset_type.is_consumer,
+            asset.asset_type.is_producer,
+            sum_production_or_consumption,
+        )
+
+        if report_as == "consumer":
             production_per_asset[asset.name] = 0
-            consumption_per_asset[asset.name] = (
-                -1 * pd.Series(power_data.y).sum() * load_hour_factor
-            )
-        else:
-            production_per_asset[asset.name] = (
-                pd.Series(power_data.y).sum() * load_hour_factor
-            )
+            consumption_per_asset[asset.name] = -1 * sum_production_or_consumption
+        elif report_as == "producer":
+            production_per_asset[asset.name] = sum_production_or_consumption
             consumption_per_asset[asset.name] = 0
+
         neat_asset_type_name = titleize(asset.asset_type_name)
         if neat_asset_type_name not in production_per_asset_type:
             represented_asset_types[neat_asset_type_name] = asset.asset_type
-            production_per_asset_type[neat_asset_type_name] = 0.
-            consumption_per_asset_type[neat_asset_type_name] = 0.
-            profit_loss_energy_per_asset_type[neat_asset_type_name] = 0.
-            curtailment_per_asset_type[neat_asset_type_name] = 0.
-            shifting_per_asset_type[neat_asset_type_name] = 0.
-            profit_loss_flexibility_per_asset_type[neat_asset_type_name] = 0.
+            production_per_asset_type[neat_asset_type_name] = 0.0
+            consumption_per_asset_type[neat_asset_type_name] = 0.0
+            profit_loss_energy_per_asset_type[neat_asset_type_name] = 0.0
+            curtailment_per_asset_type[neat_asset_type_name] = 0.0
+            shifting_per_asset_type[neat_asset_type_name] = 0.0
+            profit_loss_flexibility_per_asset_type[neat_asset_type_name] = 0.0
         production_per_asset_type[neat_asset_type_name] += production_per_asset[
             asset.name
         ]
@@ -132,13 +137,6 @@ def portfolio_view():
         else:
             return df
 
-    def stacked(df: pd.DataFrame) -> pd.DataFrame:
-        """Stack columns of df cumulatively, include bottom"""
-        df_top = df.cumsum(axis=1)
-        df_bottom = df_top.shift(axis=1).fillna(0)[::-1]
-        df_stack = pd.concat([df_bottom, df_top], ignore_index=True)
-        return df_stack
-
     default_stack_side = "production"
     if "building" in current_user.email or "charging" in current_user.email:
         default_stack_side = "consumption"
@@ -146,14 +144,28 @@ def portfolio_view():
     if show_stacked == "production":
         show_summed = "consumption"
         stack_types = [
-            t.name for t in represented_asset_types.values() if t.is_producer is True
+            t.name
+            for t in represented_asset_types.values()
+            if decide_direction_for_report(
+                t.is_consumer,
+                t.is_producer,
+                production_per_asset_type[titleize(t.name)],
+            )
+            == "producer"
         ]
         sum_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
         plot_label = "Stacked production vs aggregated consumption"
     else:
         show_summed = "production"
         stack_types = [
-            t.name for t in represented_asset_types.values() if t.is_consumer is True
+            t.name
+            for t in represented_asset_types.values()
+            if decide_direction_for_report(
+                t.is_consumer,
+                t.is_producer,
+                -1 * consumption_per_asset_type[titleize(t.name)],
+            )
+            == "consumer"
         ]
         sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
         plot_label = "Stacked consumption vs aggregated production"
@@ -218,7 +230,7 @@ def portfolio_view():
     df_stacked_data = data_or_zeroes(df_stacked_data).fillna(0)
     if show_stacked == "consumption":
         df_stacked_data[:] *= -1
-    df_stacked_areas = stacked(df_stacked_data)
+    df_stacked_areas = stack_df(df_stacked_data)
 
     num_areas = df_stacked_areas.shape[1]
     if num_areas <= 2:
@@ -335,3 +347,23 @@ def portfolio_view():
         next24hours=next24hours,
         alt_stacking=show_summed,
     )
+
+
+def decide_direction_for_report(is_consumer, is_producer, sum_values) -> str:
+    """returns "producer" or "consumer" """
+    if is_consumer and not is_producer:
+        return "consumer"
+    elif is_producer and not is_consumer:
+        return "producer"
+    elif sum_values > 0:
+        return "producer"
+    else:
+        return "consumer"
+
+
+def stack_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Stack columns of df cumulatively, include bottom"""
+    df_top = df.cumsum(axis=1)
+    df_bottom = df_top.shift(axis=1).fillna(0)[::-1]
+    df_stack = pd.concat([df_bottom, df_top], ignore_index=True)
+    return df_stack

@@ -167,6 +167,7 @@
                                         <th></th>
                                     </tr>
                                 </thead>
+
                                 <tbody>
                                     {% for asset in assets: %}
                                     <tr class="active">
@@ -175,12 +176,16 @@
                                         </td>
                                         <td>
                                             {% if asset.asset_type.is_producer %}
-                                                {{ production_per_asset[asset.name] | round(2) }} MWh
+                                                {% if production_per_asset[asset.name] > 0 %}
+                                                    {{ production_per_asset[asset.name] | round(2) }} MWh
+                                                {% endif %}
                                             {% endif %}
                                         </td>
                                         <td>
                                             {% if asset.asset_type.is_consumer %}
-                                                {{ consumption_per_asset[asset.name] | round(2) }} MWh
+                                                {% if consumption_per_asset[asset.name] < 0 %}
+                                                    {{ consumption_per_asset[asset.name] | round(2) }} MWh
+                                                {% endif %}
                                             {% endif %}
                                         </td>
                                         <td>
