@@ -119,13 +119,19 @@ Note that in a production context, you'd not run a script but hand the `app` obj
 
 You can run automated tests with:
 
-    py.test
+    pytest
+
+With coverage reporting:
+
+    pytest --cov=bvp --cov-config .coveragerc
 
 Also possible:
 
     python setup.py test
-    
-One possible source of failures is that pytest needs to be build with Python>=3.6.
+
+One possible source of failures is that pytest needs to be build with Python>=3.6. Ask which pytest is being used:
+
+    which pytest
 
 
 ## Developing

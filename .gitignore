@@ -4,6 +4,7 @@ venv
 .eggs
 .env
 .vscode
+.coverage.*
 
 .env-bvp/
 bvp.egg-info
