@@ -1,6 +1,6 @@
 from typing import Optional, Tuple, Union
 
-from flask import request
+from flask import request, current_app
 from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from wtforms import StringField, DecimalField, SelectField
@@ -269,16 +269,19 @@ def get_or_create_owner(
         else:
             try:
                 owner = create_user(email=new_owner_email, user_roles=["Prosumer"])
-            except InvalidBVPUser as e:
-                owner_error = str(e)
-            except IntegrityError:
-                owner_error = "New owner cannot be created."
-            asset_form.owner.choices.append((owner.id, owner.username))
+            except InvalidBVPUser as ibe:
+                owner_error = str(ibe)
+            except IntegrityError as ie:
+                owner_error = "New owner cannot be created: %s" % str(ie)
+            if owner:
+                asset_form.owner.choices.append((owner.id, owner.username))
     else:
         owner = User.query.filter_by(id=int(asset_form.owner.data)).one_or_none()
 
     if owner:
         asset_form.owner.data = owner.id
+    else:
+        current_app.logger.error(owner_error)
     return owner, owner_error
 
 
