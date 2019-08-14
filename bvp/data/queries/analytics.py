@@ -154,10 +154,11 @@ def get_weather_data(
                     .y.isnull()
                     .values.all()
                 ):
-                    weather_data = weather_data_dict[sensor_name]
-                    weather_forecast_data = weather_forecast_data_dict[sensor_name]
                     closest_sensor = sensor
                     break
+
+            weather_data = weather_data_dict[sensor_name]
+            weather_forecast_data = weather_forecast_data_dict[sensor_name]
 
             # Calculate the weather metrics
             if not weather_data.empty:
@@ -256,8 +257,8 @@ def get_revenues_costs_data(
             )
         # factor for confidence interval - there might be a better heuristic here
         wape_factor_rev_costs = (
-            metrics["wape_power"] / 100. + metrics["wape_unit_price"] / 100.
-        ) / 2.
+            metrics["wape_power"] / 100.0 + metrics["wape_unit_price"] / 100.0
+        ) / 2.0
         wape_span_rev_costs = rev_cost_forecasts.yhat * wape_factor_rev_costs
         rev_cost_forecasts.yhat_upper = rev_cost_forecasts.yhat + wape_span_rev_costs
         rev_cost_forecasts.yhat_lower = rev_cost_forecasts.yhat - wape_span_rev_costs

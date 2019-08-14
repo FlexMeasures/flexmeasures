@@ -159,7 +159,9 @@ def collect_connection_and_value_groups(
 
     end = start + duration
     value_groups = []
-    new_connection_groups = []  # Each connection in the old connection groups will be interpreted as a separate group
+    new_connection_groups = (
+        []
+    )  # Each connection in the old connection groups will be interpreted as a separate group
     for connections in connection_groups:
 
         # Get the asset names
@@ -169,7 +171,7 @@ def collect_connection_and_value_groups(
             # Parse the entity address
             connection = validate_entity_address(connection, entity_type="connection")
             if connection is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Cannot parse this connection's entity address: %s" % connection
                 )
                 return invalid_domain()
@@ -179,7 +181,7 @@ def collect_connection_and_value_groups(
             if asset_id in user_asset_ids:
                 asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
             else:
-                current_app.logger.warn("Cannot identify connection %s" % connection)
+                current_app.logger.warning("Cannot identify connection %s" % connection)
                 return unrecognized_connection_group()
             asset_names.append(asset.name)
 
@@ -236,7 +238,7 @@ def create_connection_and_value_groups(  # noqa: C901
             # Parse the entity address
             connection = validate_entity_address(connection, entity_type="connection")
             if connection is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Cannot parse this connection's entity address: %s" % connection
                 )
                 return invalid_domain()
@@ -246,7 +248,7 @@ def create_connection_and_value_groups(  # noqa: C901
             if asset_id in user_asset_ids:
                 asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
             else:
-                current_app.logger.warn("Cannot identify connection %s" % connection)
+                current_app.logger.warning("Cannot identify connection %s" % connection)
                 return unrecognized_connection_group()
 
             # Validate the sign of the values (following USEF specs with positive consumption and negative production)
@@ -302,7 +304,7 @@ def create_connection_and_value_groups(  # noqa: C901
         db.session.flush()
         return request_processed()
     except IntegrityError as e:
-        current_app.logger.warn(e)
+        current_app.logger.warning(e)
         db.session.rollback()
 
         # Allow meter data to be replaced only in play mode

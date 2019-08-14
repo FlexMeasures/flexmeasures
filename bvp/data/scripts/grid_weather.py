@@ -405,7 +405,7 @@ def save_forecasts_in_db(
                         fc_datetime,
                     )
                     click.echo("[BVP] %s" % msg)
-                    current_app.logger.warn(msg)
+                    current_app.logger.warning(msg)
     if len(db_forecasts) == 0:
         # This is probably a serious problem
         raise Exception(

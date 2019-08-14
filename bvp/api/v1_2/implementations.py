@@ -53,7 +53,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
             # Parse the entity address
             ea = validate_entity_address(event, entity_type="event")
             if ea is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Cannot parse this event's entity address: %s" % event
                 )
                 return invalid_domain()
@@ -64,7 +64,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
             # Look for the Asset object
             asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
             if asset is None or not can_access_asset(asset):
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Cannot identify asset %s given the event." % event
                 )
                 return unrecognized_connection_group()
@@ -125,7 +125,7 @@ def post_udi_event_response(unit):
                 "Cannot parse datetime string %s as iso date" % form.get("datetime")
             )
         if datetime.tzinfo is None:
-            current_app.logger.warn(
+            current_app.logger.warning(
                 "Cannot parse timezone of 'datetime' value %s" % form.get("datetime")
             )
             return invalid_timezone()
@@ -135,7 +135,7 @@ def post_udi_event_response(unit):
         return invalid_domain("No event identifier sent.")
     ea = validate_entity_address(form.get("event"), entity_type="event")
     if ea is None:
-        current_app.logger.warn(
+        current_app.logger.warning(
             "Cannot parse this event's entity address: %s." % form.get("event")
         )
         return invalid_domain("Cannot parse event.")
@@ -150,7 +150,7 @@ def post_udi_event_response(unit):
     # get asset
     asset: Asset = Asset.query.filter_by(id=asset_id).one_or_none()
     if asset is None or not can_access_asset(asset):
-        current_app.logger.warn("Cannot identify asset via %s." % ea)
+        current_app.logger.warning("Cannot identify asset via %s." % ea)
         return unrecognized_connection_group()
     if asset.asset_type_name != "battery":
         return invalid_domain("Asset ID:%s is not a battery." % asset_id)
@@ -164,7 +164,7 @@ def post_udi_event_response(unit):
                     "The date of the requested UDI event (%s) is earlier than the latest known date (%s)."
                     % (datetime, asset.soc_datetime)
                 )
-                current_app.logger.warn(msg)
+                current_app.logger.warning(msg)
                 return invalid_datetime(msg)
 
         # check if udi event id is higher than existing
@@ -177,7 +177,7 @@ def post_udi_event_response(unit):
         return ptus_incomplete()
     value = form.get("value")
     if unit == "kWh":
-        value = value / 1000.
+        value = value / 1000.0
 
     # store new soc in asset
     asset.soc_datetime = datetime

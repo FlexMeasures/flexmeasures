@@ -91,7 +91,7 @@ def post_price_data_response(
             # Parse the entity address
             ea = validate_entity_address(market, entity_type="market")
             if ea is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Cannot parse this market's entity address: %s" % market
                 )
                 return invalid_domain()
@@ -142,7 +142,7 @@ def post_price_data_response(
         db.session.flush()
         return request_processed()
     except IntegrityError as e:
-        current_app.logger.warn(e)
+        current_app.logger.warning(e)
         db.session.rollback()
 
         # Allow price data to be replaced only in play mode
@@ -186,7 +186,7 @@ def post_weather_data_response(
             # Parse the entity address
             ea = validate_entity_address(sensor, entity_type="sensor")
             if ea is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Cannot parse this sensor's entity address: %s" % sensor
                 )
                 return invalid_domain()
@@ -277,7 +277,7 @@ def post_weather_data_response(
         db.session.flush()
         return request_processed()
     except IntegrityError as e:
-        current_app.logger.warn(e)
+        current_app.logger.warning(e)
         db.session.rollback()
 
         # Allow meter data to be replaced only in play mode

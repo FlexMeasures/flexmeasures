@@ -144,7 +144,7 @@ def run_job(
     except IntegrityError as e:
         from flask import current_app
 
-        current_app.logger.warn(e)
+        current_app.logger.warning(e)
         db.session.rollback()
 
         if current_app.config.get("BVP_MODE", "") == "play":

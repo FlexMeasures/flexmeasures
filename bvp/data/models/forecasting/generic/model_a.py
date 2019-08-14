@@ -219,7 +219,7 @@ def get_regressors(
                 sensor_type, object=generic_asset
             )
             if closest_sensor is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "No sensor found of sensor type %s to use as regressor for %s."
                     % (sensor_type, generic_asset)
                 )

@@ -38,7 +38,7 @@ def as_response_type(response_type):
                 and hasattr(response, "headers")
                 and hasattr(response, "status_code")
             ):
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Response is not a Flask response object. I did not assign a response type."
                 )
                 return response
@@ -48,7 +48,7 @@ def as_response_type(response_type):
             )
             status_code = response.status_code
             if "type" in data:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Response already contains 'type' key. I did not assign a new response type."
                 )
             else:
