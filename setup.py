@@ -9,11 +9,11 @@ setup(
     version="0.1",
     # flask should be after all the flask plugins, because setup might find they ARE flask
     install_requires=[
-        "bokeh>=1.0.2",
+        "bokeh==1.0.2",
         "colour",
         "pscript",
         "pandas==0.23.4",
-        "pandas-bokeh",
+        "pandas-bokeh==0.2",  # >= 0.3 might work again with pandas >= 0.24 or newer bokeh
         "iso8601",
         "xlrd",
         "inflection",

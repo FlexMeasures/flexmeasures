@@ -16,14 +16,16 @@ data and time series for energy consumption/generation or weather).
 * Finally, The application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security. This is used even if the application is accessed via `http://`.
 
 
+.. _auth:
+
 Authentication and Authorization
 ---------------------------------
 
 *Authentication* is the system by which users tell the BVP platform that they are who they claim they are.
 This involves a username/password combination ("credentials") or an access token.
 
-* No user passwords are stored in clear text on any server - the BVP platform only stores the hashed passwords (encrypted with the bcrypt hashing algorithm). If an attacker steals these password hashes, they cannot compute the passwords from them in a practical amount of time.
-* Access tokens are used so that the sending of usernames and passwords is limited (even if they are encrypted via https, see above) when dealing with the part of the BVP platform which sees the most traffic: the API functionality. Tokens thus have use cases for some scenarios, where developers want to treat athentication information with a little less care than credentials should be treated with, e.g. sharing among computers. However, they also expire fast, which is a common industry practice (by making them short-lived and requiring refresh, BVP limits the time an attacker can abuse a stolen token). At the moment, the access tokens on the BVP platform expire after six hours.
+* No user passwords are stored in clear text on any server - the BVP platform only stores the hashed passwords (encrypted with the `bcrypt hashing algorithm <https://passlib.readthedocs.io/en/stable/lib/passlib.hash.bcrypt.html>`_). If an attacker steals these password hashes, they cannot compute the passwords from them in a practical amount of time.
+* Access tokens are used so that the sending of usernames and passwords is limited (even if they are encrypted via https, see above) when dealing with the part of the BVP platform which sees the most traffic: the API functionality. Tokens thus have use cases for some scenarios, where developers want to treat authentication information with a little less care than credentials should be treated with, e.g. sharing among computers. However, they also expire fast, which is a common industry practice (by making them short-lived and requiring refresh, BVP limits the time an attacker can abuse a stolen token). At the moment, the access tokens on the BVP platform expire after six hours. Access tokens are encrypted and validated with the `sha256_crypt algorithm <https://passlib.readthedocs.io/en/stable/lib/passlib.hash.sha256_crypt.html>`_, and `the functionality to expire tokens is realised by storing the seconds since January 1, 2011 in the token <https://pythonhosted.org/itsdangerous/#itsdangerous.TimestampSigner>`_. The maximum age of access tokens in BVP can be altered by setting the env variable `SECURITY_TOKEN_MAX_AGE` to the number of seconds after which tokens should expire.
 
 *Authorization* is the system by which the BVP platform decides whether an authenticated user can access a feature. For instance, many features are reserved for administrators, others for Prosumers (the owner of assets).
 

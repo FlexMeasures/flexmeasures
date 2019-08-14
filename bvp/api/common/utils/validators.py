@@ -53,7 +53,7 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
                     .one_or_none()
                 )
             except TypeError:
-                current_app.logger.warn("Could not retrieve data source %s" % source)
+                current_app.logger.warning("Could not retrieve data source %s" % source)
                 pass
         else:  # Parse as role name
             user_ids = [user.id for user in get_users(source)]
@@ -258,7 +258,7 @@ def optional_duration_accepted(default_duration: timedelta):
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Unsupported request method for unpacking 'duration' from request."
                 )
                 return invalid_method(request.method)
@@ -267,7 +267,7 @@ def optional_duration_accepted(default_duration: timedelta):
                 duration = validate_duration(form["duration"])
                 if not duration:
                     extra_info = "Cannot parse 'duration' value."
-                    current_app.logger.warn(extra_info)
+                    current_app.logger.warning(extra_info)
                     return invalid_period(extra_info)
                 kwargs["duration"] = duration
             else:
@@ -316,7 +316,7 @@ def optional_sources_accepted(
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Unsupported request method for unpacking 'source' from request."
                 )
                 return invalid_method(request.method)
@@ -373,7 +373,7 @@ def optional_horizon_accepted(ex_post: bool = False):
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Unsupported request method for unpacking 'horizon' from request."
                 )
                 return invalid_method(request.method)
@@ -381,7 +381,7 @@ def optional_horizon_accepted(ex_post: bool = False):
             if "horizon" in form:
                 horizon, rolling = validate_horizon(form["horizon"])
                 if horizon is None:
-                    current_app.logger.warn("Cannot parse 'horizon' value")
+                    current_app.logger.warning("Cannot parse 'horizon' value")
                     return invalid_horizon()
                 elif ex_post is True:
                     if horizon > timedelta(hours=0):
@@ -392,19 +392,19 @@ def optional_horizon_accepted(ex_post: bool = False):
                 duration = validate_duration(form["duration"])
                 if not start:
                     extra_info = "Cannot parse 'start' value."
-                    current_app.logger.warn(extra_info)
+                    current_app.logger.warning(extra_info)
                     return invalid_period(extra_info)
                 if start.tzinfo is None:
-                    current_app.logger.warn("Cannot parse timezone of 'start' value")
+                    current_app.logger.warning("Cannot parse timezone of 'start' value")
                     return invalid_timezone()
                 if not duration:
                     extra_info = "Cannot parse 'duration' value."
-                    current_app.logger.warn(extra_info)
+                    current_app.logger.warning(extra_info)
                     return invalid_period(extra_info)
                 horizon = start + duration - bvp_now()
                 rolling = False
             else:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Request missing both 'horizon', 'start' and 'duration'."
                 )
                 extra_info = "Specify a 'horizon' value, or 'start' and 'duration' values so that the horizon can be inferred."
@@ -436,7 +436,7 @@ def unit_required(fn):
     def wrapper(*args, **kwargs):
         form = get_form_from_request(request)
         if form is None:
-            current_app.logger.warn(
+            current_app.logger.warning(
                 "Unsupported request method for unpacking 'unit' from request."
             )
             return invalid_method(request.method)
@@ -444,7 +444,7 @@ def unit_required(fn):
         if "unit" in form:
             unit = form["unit"]
         else:
-            current_app.logger.warn("Request missing 'unit'.")
+            current_app.logger.warning("Request missing 'unit'.")
             return invalid_unit(quantity=None, units=None)
 
         kwargs["unit"] = unit
@@ -470,7 +470,7 @@ def period_required(fn):
     def wrapper(*args, **kwargs):
         form = get_form_from_request(request)
         if form is None:
-            current_app.logger.warn(
+            current_app.logger.warning(
                 "Unsupported request method for unpacking 'start' and 'duration' from request."
             )
             return invalid_method(request.method)
@@ -478,21 +478,21 @@ def period_required(fn):
         if "start" in form:
             start = parse_isodate_str(form["start"])
             if not start:
-                current_app.logger.warn("Cannot parse 'start' value")
+                current_app.logger.warning("Cannot parse 'start' value")
                 return invalid_period()
             if start.tzinfo is None:
-                current_app.logger.warn("Cannot parse timezone of 'start' value")
+                current_app.logger.warning("Cannot parse timezone of 'start' value")
                 return invalid_timezone()
         else:
-            current_app.logger.warn("Request missing 'start'.")
+            current_app.logger.warning("Request missing 'start'.")
             return invalid_period()
         if "duration" in form:
             duration = validate_duration(form["duration"])
             if not duration:
-                current_app.logger.warn("Cannot parse 'duration' value")
+                current_app.logger.warning("Cannot parse 'duration' value")
                 return invalid_period()
         else:
-            current_app.logger.warn("Request missing 'duration'.")
+            current_app.logger.warning("Request missing 'duration'.")
             return invalid_period()
 
         kwargs["start"] = start
@@ -531,7 +531,7 @@ def assets_required(
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Unsupported request method for unpacking '%s' from request."
                     % plural_name
                 )
@@ -555,19 +555,19 @@ def assets_required(
                             parse_as_list(group[plural_name])
                         )
                     else:
-                        current_app.logger.warn(
+                        current_app.logger.warning(
                             "Group %s missing %s" % (group, plural_name)
                         )
                         return unrecognized_connection_group()
             else:
-                current_app.logger.warn("Request missing %s or group." % plural_name)
+                current_app.logger.warning("Request missing %s or group." % plural_name)
                 return unrecognized_connection_group()
 
             if not contains_empty_items(generic_asset_name_groups):
                 kwargs["generic_asset_name_groups"] = generic_asset_name_groups
                 return fn(*args, **kwargs)
             else:
-                current_app.logger.warn("Request includes empty %s." % plural_name)
+                current_app.logger.warning("Request includes empty %s." % plural_name)
                 return unrecognized_connection_group()
 
         return decorated_service
@@ -593,7 +593,7 @@ def values_required(fn):
     def wrapper(*args, **kwargs):
         form = get_form_from_request(request)
         if form is None:
-            current_app.logger.warn(
+            current_app.logger.warning(
                 "Unsupported request method for unpacking 'values' from request."
             )
             return invalid_method(request.method)
@@ -610,10 +610,10 @@ def values_required(fn):
                 elif "values" in group:
                     value_groups.append(parse_as_list(group["values"], of_type=float))
                 else:
-                    current_app.logger.warn("Group %s missing value(s)" % group)
+                    current_app.logger.warning("Group %s missing value(s)" % group)
                     return ptus_incomplete()
         else:
-            current_app.logger.warn("Request missing value(s) or group.")
+            current_app.logger.warning("Request missing value(s) or group.")
             return ptus_incomplete()
 
         if not contains_empty_items(value_groups):
@@ -621,7 +621,7 @@ def values_required(fn):
             return fn(*args, **kwargs)
         else:
             extra_info = "Request includes empty or ill-formatted value(s)."
-            current_app.logger.warn(extra_info)
+            current_app.logger.warning(extra_info)
             return ptus_incomplete(extra_info)
 
     return wrapper
@@ -646,15 +646,15 @@ def type_accepted(message_type: str):
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Unsupported request method for unpacking 'type' from request."
                 )
                 return invalid_method(request.method)
             elif "type" not in form:
-                current_app.logger.warn("Request is missing message type.")
+                current_app.logger.warning("Request is missing message type.")
                 return no_message_type()
             elif form["type"] != message_type:
-                current_app.logger.warn("Type is not accepted for this endpoint.")
+                current_app.logger.warning("Type is not accepted for this endpoint.")
                 return invalid_message_type(message_type)
             else:
                 return fn(*args, **kwargs)
@@ -686,15 +686,15 @@ def units_accepted(quantity: str, *units: str):
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Unsupported request method for unpacking 'unit' from request."
                 )
                 return invalid_method(request.method)
             elif "unit" not in form:
-                current_app.logger.warn("Request is missing unit.")
+                current_app.logger.warning("Request is missing unit.")
                 return invalid_unit(quantity, units)
             elif form["unit"] not in units:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Unit %s is not accepted as one of %s." % (form["unit"], units)
                 )
                 return invalid_unit(quantity, units)
@@ -731,7 +731,7 @@ def resolutions_accepted(*resolutions):
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Unsupported request method for inferring resolution from request."
                 )
                 return invalid_method(request.method)
@@ -739,13 +739,13 @@ def resolutions_accepted(*resolutions):
             if "value_groups" in kwargs and "duration" in kwargs:
                 resolution = kwargs["duration"] / len(kwargs["value_groups"][0])
                 if resolution not in resolutions:
-                    current_app.logger.warn("Resolution is not accepted.")
+                    current_app.logger.warning("Resolution is not accepted.")
                     return invalid_resolution()
                 else:
                     kwargs["resolution"] = resolution
                     return fn(*args, **kwargs)
             else:
-                current_app.logger.warn("Could not infer resolution.")
+                current_app.logger.warning("Could not infer resolution.")
                 extra_info = "Specify some 'values' and a 'duration' so that the resolution can be inferred."
                 return invalid_resolution(extra_info)
 
@@ -774,7 +774,7 @@ def optional_resolutions_accepted(*resolutions):
         def decorated_service(*args, **kwargs):
             form = get_form_from_request(request)
             if form is None:
-                current_app.logger.warn(
+                current_app.logger.warning(
                     "Unsupported request method for unpacking 'resolution' from request."
                 )
                 return invalid_method(request.method)
@@ -785,7 +785,7 @@ def optional_resolutions_accepted(*resolutions):
                 ] = "15T"  # Todo: should be decided based on available data
                 return fn(*args, **kwargs)
             elif form["resolution"] not in resolutions:
-                current_app.logger.warn("Resolution is not accepted.")
+                current_app.logger.warning("Resolution is not accepted.")
                 return invalid_resolution()
             else:
                 kwargs["resolution"] = to_offset(
@@ -821,7 +821,7 @@ def usef_roles_accepted(*usef_roles):
             if perm.can() or current_user.has_role("admin"):
                 return fn(*args, **kwargs)
             else:
-                current_app.logger.warn("User role is not accepted for this service")
+                current_app.logger.warning("User role is not accepted for this service")
                 return invalid_sender(
                     [role.name for role in current_user.roles], *usef_roles
                 )

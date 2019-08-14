@@ -162,7 +162,7 @@ def make_range(
             start=min(series.append(other_series)), end=max(series.append(other_series))
         )
     if a_range is None:
-        current_app.logger.warn("Not sufficient data to create a range.")
+        current_app.logger.warning("Not sufficient data to create a range.")
     return a_range
 
 
@@ -248,7 +248,7 @@ def create_graph(  # noqa: C901
         fig.y_range.start = 0
 
     if data.empty:
-        current_app.logger.warn("No data to show for %s" % title)
+        current_app.logger.warning("No data to show for %s" % title)
         print(data)
 
     # Format y floats

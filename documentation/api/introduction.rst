@@ -47,7 +47,7 @@ A list of services offered by (a version of) the BVP web service can be obtained
 Authentication
 --------------
 
-Service usage is only possible with a user authentication token specified in the request header, for example:
+Service usage is only possible with a user access token specified in the request header, for example:
 
 .. code-block:: json
 
@@ -55,7 +55,7 @@ Service usage is only possible with a user authentication token specified in the
         "Authorization": "<token>"
     }
 
-The "<token>" can be obtained on the user's profile after logging in:
+A fresh "<token>" can be generated on the user's profile after logging in:
 
 .. code-block:: html
 
@@ -75,6 +75,9 @@ using the following JSON message for the POST request data:
         "email": "<user email>",
         "password": "<user password>"
     }
+
+Note that each access token has a limited lifetime, see :ref:`auth`.
+
 
 Roles
 -----

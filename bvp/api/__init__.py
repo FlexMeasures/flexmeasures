@@ -13,7 +13,8 @@ ma: Marshmallow = Marshmallow()
 @bvp_api.route("/requestAuthToken", methods=["POST"])
 @as_json
 def request_auth_token():
-    """API endpoint to get an authentication token.
+    """API endpoint to get a fresh authentication access token. Be aware that this fresh token has a limited lifetime
+    (which depends on the current system setting SECURITY_TOKEN_MAX_AGE).
 
     .. :quickref: Public; Obtain an authentication token
     """
@@ -69,7 +70,7 @@ def get_versions() -> dict:
 
     """
     response = {
-        "message": "For these API versions a public endpoint is available listing its service. For example: "
+        "message": "For these API versions a public endpoint is available, listing its service. For example: "
         "/api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: "
         "/api/requestAuthToken",
         "versions": ["v1", "v1_1", "v1_2"],
