@@ -211,7 +211,7 @@ def query_time_series_data(
     # TODO: get resolution for the asset as stored in the database
     asset_resolution = timedelta(minutes=15)
     if not values_orig.empty:
-        new_index = pd.DatetimeIndex(
+        new_index = pd.date_range(
             start=query_window[0],
             end=query_window[1],
             freq=time_utils.timedelta_to_pandas_freq_str(asset_resolution),

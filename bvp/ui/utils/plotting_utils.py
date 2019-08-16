@@ -311,7 +311,7 @@ def make_datasource_from(data: pd.DataFrame) -> ColumnDataSource:
         and isinstance(data.index, pd.DatetimeIndex)
         and data.index.freq is not None
     ):  # i.e. if there is a non-empty index with a clearly defined frequency
-        data["next_x"] = pd.DatetimeIndex(
+        data["next_x"] = pd.date_range(
             start=data.index.values[1], freq=data.index.freq, periods=len(data.index)
         ).values
 
@@ -386,6 +386,7 @@ def compute_legend_height(legend) -> float:
 def separate_legend(fig: Figure, orientation: str = "vertical") -> Figure:
     """Cuts legend out of fig and returns a separate legend (as a Figure object).
     Click policy doesn't work on the new legend.
+    Requires bokeh==1.0.2 for solution from https://groups.google.com/a/continuum.io/forum/#!topic/bokeh/BJRhWlnmhWU
     """
 
     legend_fig = Plot(

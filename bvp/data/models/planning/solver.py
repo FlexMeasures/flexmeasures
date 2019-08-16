@@ -1,8 +1,8 @@
 from typing import List, Tuple, Union
 
 from flask import current_app
-from pandas import DataFrame, Series, to_timedelta, DatetimeIndex
-from numpy import isnan, nanmin, nanmax
+import pandas as pd
+import numpy as np
 from pandas.tseries.frequencies import to_offset
 from pyomo.core import (
     ConcreteModel,
@@ -24,12 +24,12 @@ infinity = float("inf")
 
 
 def device_scheduler(  # noqa C901
-    device_constraints: List[DataFrame],
-    ems_constraints: DataFrame,
-    commitment_quantities: List[Series],
-    commitment_downwards_deviation_price: Union[List[Series], List[float]],
-    commitment_upwards_deviation_price: Union[List[Series], List[float]],
-) -> Tuple[List[Series], float]:
+    device_constraints: List[pd.DataFrame],
+    ems_constraints: pd.DataFrame,
+    commitment_quantities: List[pd.Series],
+    commitment_downwards_deviation_price: Union[List[pd.Series], List[float]],
+    commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
+) -> Tuple[List[pd.Series], float]:
     """Schedule devices given constraints on a device and EMS level, and given a list of commitments by the EMS.
     The commitments are assumed to be with regards to the flow of energy to the device (positive for consumption,
     negative for production). The solver minimises the costs of deviating from the commitments.
@@ -63,11 +63,11 @@ def device_scheduler(  # noqa C901
 
     # Check if commitments have the same time window and resolution as the constraints
     start = device_constraints[0].index.values[0]
-    resolution = to_timedelta(device_constraints[0].index.freq)
+    resolution = pd.to_timedelta(device_constraints[0].index.freq)
     end = device_constraints[0].index.values[-1] + resolution
     if len(commitment_quantities) != 0:
         start_c = commitment_quantities[0].index.values[0]
-        resolution_c = to_timedelta(commitment_quantities[0].index.freq)
+        resolution_c = pd.to_timedelta(commitment_quantities[0].index.freq)
         end_c = commitment_quantities[0].index.values[-1] + resolution
         if not (start_c == start and end_c == end):
             raise Exception(
@@ -119,14 +119,14 @@ def device_scheduler(  # noqa C901
 
     def device_max_select(m, d, j):
         v = device_constraints[d]["max"].iloc[j]
-        if isnan(v):
+        if np.isnan(v):
             return infinity
         else:
             return v
 
     def device_min_select(m, d, j):
         v = device_constraints[d]["min"].iloc[j]
-        if isnan(v):
+        if np.isnan(v):
             return -infinity
         else:
             return v
@@ -134,29 +134,29 @@ def device_scheduler(  # noqa C901
     def device_derivative_max_select(m, d, j):
         max_v = device_constraints[d]["derivative max"].iloc[j]
         equal_v = device_constraints[d]["derivative equals"].iloc[j]
-        if isnan(max_v) and isnan(equal_v):
+        if np.isnan(max_v) and np.isnan(equal_v):
             return infinity
         else:
-            return nanmin([max_v, equal_v])
+            return np.nanmin([max_v, equal_v])
 
     def device_derivative_min_select(m, d, j):
         min_v = device_constraints[d]["derivative min"].iloc[j]
         equal_v = device_constraints[d]["derivative equals"].iloc[j]
-        if isnan(min_v) and isnan(equal_v):
+        if np.isnan(min_v) and np.isnan(equal_v):
             return -infinity
         else:
-            return nanmax([min_v, equal_v])
+            return np.nanmax([min_v, equal_v])
 
     def ems_derivative_max_select(m, j):
         v = ems_constraints["derivative max"].iloc[j]
-        if isnan(v):
+        if np.isnan(v):
             return infinity
         else:
             return v
 
     def ems_derivative_min_select(m, j):
         v = ems_constraints["derivative min"].iloc[j]
-        if isnan(v):
+        if np.isnan(v):
             return -infinity
         else:
             return v
@@ -227,8 +227,8 @@ def device_scheduler(  # noqa C901
     for d in model.d:
         planned_device_power = [model.power[d, j].value for j in model.j]
         planned_power_per_device.append(
-            Series(
-                index=DatetimeIndex(
+            pd.Series(
+                index=pd.date_range(
                     start=start, end=end, freq=to_offset(resolution), closed="left"
                 ),
                 data=planned_device_power,

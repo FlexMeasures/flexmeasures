@@ -13,6 +13,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_security.utils import hash_password
 import click
 import pandas as pd
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.serializer import loads, dumps
 from timetomodel.forecasting import make_rolling_forecasts
@@ -27,6 +28,7 @@ from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role, RolesUsers
 from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
 from bvp.data.models.forecasting import NotEnoughDataException
+from bvp.data.queries.utils import read_sqlalchemy_results
 from bvp.data.services.users import create_user
 from bvp.utils.time_utils import ensure_korea_local
 from bvp.data.transactional import as_transaction
@@ -993,12 +995,30 @@ def load_tables(
         and Path("%s/%s" % (backup_path, backup_name)).is_dir()
     ):
         affected_classes = get_affected_classes(structure, data)
+        sequence_names = [
+            s["sequence_name"]
+            for s in read_sqlalchemy_results(
+                db.session, "SELECT sequence_name from information_schema.sequences;"
+            )
+        ]
         for c in affected_classes:
             file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
+            sequence_name = "%s_id_seq" % c.__tablename__
             try:
                 with open(file_path, "rb") as file_handler:
                     for row in loads(file_handler.read()):
                         db.session.merge(row)
+                if sequence_name in sequence_names:
+
+                    # Get max id
+                    max_id = db.session.query(func.max(c.id)).one_or_none()[0]
+                    max_id = 1 if max_id is None else max_id
+
+                    # Set table seq to max id
+                    db.engine.execute(
+                        "SELECT setval('%s', %s, true);" % (sequence_name, max_id)
+                    )
+
                 click.echo(
                     "Successfully loaded %s/%s." % (backup_name, c.__tablename__)
                 )

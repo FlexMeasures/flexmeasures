@@ -85,3 +85,20 @@ def assign_horizon_window(
                     <= long_horizon - (end - (cls.datetime + asset_class.resolution))
                 )
     return query
+
+
+def read_sqlalchemy_results(session: Session, statement: str) -> List[dict]:
+    """Executes a read query and returns a list of dicts, whose keys are column names."""
+    data = session.execute(statement).fetchall()
+    results = []
+
+    if len(data) == 0:
+        return results
+
+    # results from SQLAlchemy are returned as a list of tuples; this procedure converts it into a list of dicts
+    for row_number, row in enumerate(data):
+        results.append({})
+        for column_number, value in enumerate(row):
+            results[row_number][row.keys()[column_number]] = value
+
+    return results
