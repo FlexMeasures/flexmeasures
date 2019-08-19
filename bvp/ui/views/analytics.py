@@ -328,7 +328,12 @@ def get_data_and_metrics(
     # TODO: get rid of this hack, which we use because we mock forecast intervals in demo mode
     if current_app.config.get("BVP_MODE", "") == "demo":
         # In each case below, the error increases with the horizon towards a certain percentage of the point forecast
-        horizon = data["weather_forecast"]["horizon"].values[0][0].to_pytimedelta()[0]
+        horizon_entry = data["weather_forecast"]["horizon"].values[0]
+        horizon = (
+            horizon_entry[0].to_pytimedelta()[0]
+            if isinstance(horizon_entry, list)
+            else timedelta(days=1)
+        )
         decay_factor = 1 - math.exp(-horizon / timedelta(hours=6))
 
         # Heuristic power confidence interval
