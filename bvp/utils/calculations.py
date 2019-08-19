@@ -24,7 +24,7 @@ def weighted_absolute_percentage_error(y_true: np.ndarray, y_forecast: np.ndarra
     if y_true.size == 0 or y_forecast.size == 0 or sum(y_true) == 0:
         return np.nan
     else:
-        return np.sum(np.abs((y_true - y_forecast))) / np.sum(y_true) * 100
+        return np.sum(np.abs((y_true - y_forecast))) / np.abs(np.sum(y_true)) * 100
 
 
 def drop_nan_rows(a, b):

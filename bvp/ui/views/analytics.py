@@ -3,6 +3,7 @@ from datetime import timedelta
 import io
 import csv
 import json
+import math
 
 import pandas as pd
 from flask import session, current_app, make_response
@@ -89,7 +90,7 @@ def analytics_view():
             start=query_window[0], end=query_window[1] + pd.to_timedelta(resolution)
         )
 
-    # TODO: get rid of this hack, which we use because we mock 2015 data in static mode
+    # TODO: get rid of this hack, which we use because we mock 2015 data in demo mode
     if current_app.config.get("BVP_MODE", "") == "demo":
         if not data["power"].empty:
             data["power"] = data["power"].loc[
@@ -324,6 +325,48 @@ def get_data_and_metrics(
     ], weather_type, selected_sensor, metrics = get_weather_data(
         assets, metrics, selected_sensor_type
     )
+    # TODO: get rid of this hack, which we use because we mock forecast intervals in demo mode
+    if current_app.config.get("BVP_MODE", "") == "demo":
+        # In each case below, the error increases with the horizon towards a certain percentage of the point forecast
+        horizon = data["weather_forecast"]["horizon"].values[0][0].to_pytimedelta()[0]
+        decay_factor = 1 - math.exp(-horizon / timedelta(hours=6))
+
+        # Heuristic power confidence interval
+        error_margin = 0.1 * decay_factor
+        data["power_forecast"]["yhat_upper"] = data["power_forecast"]["yhat"] * (
+            1 + error_margin
+        )
+        data["power_forecast"]["yhat_lower"] = data["power_forecast"]["yhat"] * (
+            1 - error_margin
+        )
+
+        # Heuristic price confidence interval
+        error_margin_upper = 0.6 * decay_factor
+        error_margin_lower = 0.3 * decay_factor
+        data["prices_forecast"]["yhat_upper"] = data["prices_forecast"]["yhat"] * (
+            1 + error_margin_upper
+        )
+        data["prices_forecast"]["yhat_lower"] = data["prices_forecast"]["yhat"] * (
+            1 - error_margin_lower
+        )
+
+        # Heuristic weather confidence interval
+        if weather_type == "temperature":
+            error_margin_upper = 0.1 * decay_factor
+            error_margin_lower = error_margin_upper
+        elif weather_type == "wind_speed":
+            error_margin_upper = 1.5 * decay_factor
+            error_margin_lower = 0.8 * decay_factor
+        elif weather_type == "radiation":
+            error_margin_upper = 1.8 * decay_factor
+            error_margin_lower = 0.5 * decay_factor
+        data["weather_forecast"]["yhat_upper"] = data["weather_forecast"]["yhat"] * (
+            1 + error_margin_upper
+        )
+        data["weather_forecast"]["yhat_lower"] = data["weather_forecast"]["yhat"] * (
+            1 - error_margin_lower
+        )
+
     unit_factor = revenue_unit_factor("MWh", selected_market.unit)
     data["rev_cost"], data["rev_cost_forecast"], metrics = get_revenues_costs_data(
         data["power"],

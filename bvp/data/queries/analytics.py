@@ -234,12 +234,8 @@ def get_revenues_costs_data(
         or prices_data.empty
         or power_forecast_data.empty
         or prices_forecast_data.empty
-        or not (
-            power_data.size
-            == power_forecast_data.size
-            == prices_data.size
-            == prices_forecast_data.size
-        )
+        or not (power_data["y"].size == prices_data["y"].size)
+        or not (power_forecast_data["yhat"].size == prices_forecast_data["yhat"].size)
     ):
         metrics["expected_revenues_costs"] = np.NaN
         metrics["mae_revenues_costs"] = np.NaN
@@ -255,13 +251,6 @@ def get_revenues_costs_data(
                 * prices_forecast_data.yhat
                 * unit_factor
             )
-        # factor for confidence interval - there might be a better heuristic here
-        wape_factor_rev_costs = (
-            metrics["wape_power"] / 100.0 + metrics["wape_unit_price"] / 100.0
-        ) / 2.0
-        wape_span_rev_costs = rev_cost_forecasts.yhat * wape_factor_rev_costs
-        rev_cost_forecasts.yhat_upper = rev_cost_forecasts.yhat + wape_span_rev_costs
-        rev_cost_forecasts.yhat_lower = rev_cost_forecasts.yhat - wape_span_rev_costs
         metrics["expected_revenues_costs"] = np.nansum(rev_cost_forecasts.yhat)
         metrics["mae_revenues_costs"] = calculations.mean_absolute_error(
             rev_cost_data.y, rev_cost_forecasts.yhat
@@ -273,5 +262,13 @@ def get_revenues_costs_data(
             "wape_revenues_costs"
         ] = calculations.weighted_absolute_percentage_error(
             rev_cost_data.y, rev_cost_forecasts.yhat
+        )
+
+        # Todo: compute confidence interval properly - this is just a simple heuristic
+        rev_cost_forecasts.yhat_upper = rev_cost_forecasts.yhat * (
+            1 + metrics["wape_revenues_costs"] / 100
+        )
+        rev_cost_forecasts.yhat_lower = rev_cost_forecasts.yhat * (
+            1 - metrics["wape_revenues_costs"] / 100
         )
     return rev_cost_data, rev_cost_forecasts, metrics
