@@ -32,8 +32,9 @@ New assets can be created through the UI on:
 
 
 We recommend that researchers choose their own admin account as the asset's owner.
-This way, the simulation will require only a single access token.
+This way, the simulation will only require refreshing of the access token for the admin account.
 Alternatively, researchers can set up unique accounts for each agent in a multi-agent simulation by creating new owners.
+In this case, access tokens need to be refreshed by each agent separately.
 
 Authentication
 ^^^^^^^^^^^^^^
@@ -52,6 +53,21 @@ The "<token>" can be obtained on your profile after logging in:
 
     https://play.a1-bvp.com/account
 
+For security reasons, tokens expire after a certain amount of time (see :ref:`_auth`).
+To automate token renewal, use the following POST endpoint:
+
+.. code-block:: html
+
+    https://play.a1-bvp.com/api/requestAuthToken
+
+Providing applicable user credentials:
+
+.. code-block:: json
+
+        {
+            "email": "<email>",
+            "password": "<password>"
+        }
 
 Posting weather data
 --------------------
@@ -398,7 +414,7 @@ That should result in the same average values for each quarter-hour.
 Resetting the server
 --------------------
 
-All power, price and weather data on the play server can be cleared using the following PUT endpoint (admin rights required):
+All power, price and weather data on the play server can be cleared using the following PUT endpoint (admin rights are required):
 
 .. code-block:: html
 
