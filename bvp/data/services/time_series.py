@@ -253,7 +253,7 @@ def query_time_series_data(
         else:
             values = pd.DataFrame(index=time_steps, columns=["y"])
     if zero_if_nan:
-        values.fillna(0.)
+        values.fillna(0.0)
 
     return values
 

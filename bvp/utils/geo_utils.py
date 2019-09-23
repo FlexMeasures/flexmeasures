@@ -47,4 +47,4 @@ def compute_radiation(
 
     radiation_clear_sky = get_radiation_direct(dt, altitude_deg)
 
-    return radiation_clear_sky * (1 - .75 * (cloud_coverage_in_percent / 100) ** 3.4)
+    return radiation_clear_sky * (1 - 0.75 * (cloud_coverage_in_percent / 100) ** 3.4)

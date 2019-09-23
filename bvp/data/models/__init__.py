@@ -2,7 +2,7 @@
 resolutions = ["15T", "1h", "1d", "1w"]
 
 # The confidence interval for forecasting
-confidence_interval_width = .9
+confidence_interval_width = 0.9
 
 
 class ModelException(Exception):
