@@ -27,6 +27,7 @@ from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role, RolesUsers
 from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
+from bvp.data.models.forecasting.jobs import ForecastingJob
 from bvp.data.models.forecasting import NotEnoughDataException
 from bvp.data.queries.utils import read_sqlalchemy_results
 from bvp.data.services.users import create_user
@@ -858,6 +859,10 @@ def depopulate_forecasts(
     num_power_measurements_deleted = 0
     num_weather_measurements_deleted = 0
 
+    # Clear all forecasting jobs
+    num_jobs_deleted = ForecastingJob.query.delete()
+
+    # Clear all forecasts (data with positive horizon)
     if generic_asset_name is None:
         if generic_asset_type is None or generic_asset_type == "Market":
             num_prices_deleted = (
@@ -930,6 +935,7 @@ def depopulate_forecasts(
                 )
             else:
                 num_weather_measurements_deleted = 0
+    click.echo("Deleted %d Forecast Jobs" % num_jobs_deleted)
     click.echo("Deleted %d Price Forecasts" % num_prices_deleted)
     click.echo("Deleted %d Power Forecasts" % num_power_measurements_deleted)
     click.echo("Deleted %d Weather Forecasts" % num_weather_measurements_deleted)
