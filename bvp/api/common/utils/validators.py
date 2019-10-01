@@ -355,7 +355,7 @@ def optional_sources_accepted(
 def optional_horizon_accepted(ex_post: bool = False):
     """Decorator which specifies that a GET or POST request accepts an optional horizon. If no horizon is specified,
     the horizon is determined by the server based on when the API endpoint was called.
-    Optionally, an ex_post flag can be passed to the decorator to indicate that only negative horizons are allowed.
+    Optionally, an ex_post flag can be passed to the decorator to indicate that only non-positive horizons are allowed.
     Example:
 
         @app.route('/postMeterData')
@@ -365,6 +365,7 @@ def optional_horizon_accepted(ex_post: bool = False):
 
     If the message specifies a "horizon", it should be in accordance with the ISO 8601 standard.
     If no "horizon" is specified, it is determined by the server.
+    The play server uses 0 hours as a default horizon, while other servers derive the horizon from the server time.
     """
 
     def wrapper(fn):
@@ -385,7 +386,7 @@ def optional_horizon_accepted(ex_post: bool = False):
                     return invalid_horizon()
                 elif ex_post is True:
                     if horizon > timedelta(hours=0):
-                        extra_info = "Meter data must have a negative horizon to indicate observations after the fact."
+                        extra_info = "Meter data must have a zero or negative horizon to indicate observations after the fact."
                         return invalid_horizon(extra_info)
             elif "start" in form and "duration" in form:
                 start = parse_isodate_str(form["start"])
@@ -401,7 +402,10 @@ def optional_horizon_accepted(ex_post: bool = False):
                     extra_info = "Cannot parse 'duration' value."
                     current_app.logger.warning(extra_info)
                     return invalid_period(extra_info)
-                horizon = start + duration - bvp_now()
+                if current_app.config.get("BVP_MODE", "") == "play":
+                    horizon = timedelta(hours=0)
+                else:
+                    horizon = start + duration - bvp_now()
                 rolling = False
             else:
                 current_app.logger.warning(

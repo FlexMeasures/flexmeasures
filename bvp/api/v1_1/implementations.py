@@ -123,16 +123,17 @@ def post_price_data_response(
                 prices.append(p)
 
             # Forecast 24 and 48 hours ahead for at most the last 24 hours of posted price data
-            forecasting_jobs.extend(
-                make_forecasting_jobs(
-                    "Price",
-                    market.id,
-                    max(start, start + duration - timedelta(hours=24)),
-                    start + duration,
-                    resolution=duration / len(value_group),
-                    horizons=[timedelta(hours=24), timedelta(hours=48)],
+            if current_app.config.get("BVP_MODE", "") != "play":
+                forecasting_jobs.extend(
+                    make_forecasting_jobs(
+                        "Price",
+                        market.id,
+                        max(start, start + duration - timedelta(hours=24)),
+                        start + duration,
+                        resolution=duration / len(value_group),
+                        horizons=[timedelta(hours=24), timedelta(hours=48)],
+                    )
                 )
-            )
 
     # Put these into the database
     current_app.logger.info("SAVING TO DB...")
@@ -256,7 +257,9 @@ def post_weather_data_response(
                 )
                 weather_measurements.append(w)
 
-            if horizon <= timedelta(
+            if current_app.config.get(
+                "BVP_MODE", ""
+            ) != "play" and horizon <= timedelta(
                 hours=0
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
