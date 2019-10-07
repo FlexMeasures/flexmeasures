@@ -87,6 +87,7 @@ def configure_specs(  # noqa: C901
             session=db.session,
         ),
         feature_transformation=params["outcome_var_transformation"],
+        interpolation_config={"method": "time"},
     )
     specs = ModelSpecs(
         outcome_var=outcome_var_spec,
@@ -246,6 +247,7 @@ def get_regressors(
                             session=db.session,
                         ),
                         feature_transformation=regressor_transformation,
+                        interpolation_config={"method": "time"},
                     )
                 )
 
