@@ -5,6 +5,8 @@ venv
 .env
 .vscode
 .coverage.*
+*.rdb
+*.rdb.settings
 
 .env-bvp/
 bvp.egg-info

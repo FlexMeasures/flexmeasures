@@ -21,7 +21,6 @@ from bvp.api.v1.tests.utils import (
 )
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
 from bvp.api.v1.tests.utils import count_connections_in_post_message
-from bvp.data.models.forecasting.jobs import ForecastingJob
 from bvp.data.models.assets import Asset
 
 
@@ -165,7 +164,7 @@ def test_invalid_sender_and_logout(client):
     "get_message",
     [message_for_get_meter_data(), message_for_get_meter_data(single_connection=False)],
 )
-def test_post_and_get_meter_data(db, client, post_message, get_message):
+def test_post_and_get_meter_data(db, app, client, post_message, get_message):
     """
     Tries to post meter data as a logged-in test user with the MDC role, which should succeed.
     There should be some ForecastingJobs waiting now.
@@ -184,10 +183,9 @@ def test_post_and_get_meter_data(db, client, post_message, get_message):
     assert post_meter_data_response.json["type"] == "PostMeterDataResponse"
 
     # look for Forecasting jobs
-    jobs = ForecastingJob.query.order_by(ForecastingJob.horizon.asc()).all()
     expected_connections = count_connections_in_post_message(post_message)
     assert (
-        len(jobs) == 4 * expected_connections
+        len(app.redis_queue) == 4 * expected_connections
     )  # four horizons times the number of assets
     horizons = repeat(
         [
@@ -198,13 +196,14 @@ def test_post_and_get_meter_data(db, client, post_message, get_message):
         ],
         expected_connections,
     )
+    jobs = sorted(app.redis_queue.jobs, key=lambda x: x.kwargs["horizon"])
     for job, horizon in zip(jobs, horizons):
-        assert job.horizon == horizon
-        assert job.start == parse_date(post_message["start"]) + horizon
+        assert job.kwargs["horizon"] == horizon
+        assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
     for asset_name in ("CS 1", "CS 2", "CS 3"):
         if asset_name in str(post_message):
             asset = Asset.query.filter_by(name=asset_name).one_or_none()
-            assert asset.id in [job.asset_id for job in jobs]
+            assert asset.id in [job.kwargs["asset_id"] for job in jobs]
 
     # get meter data
     get_meter_data_response = client.get(

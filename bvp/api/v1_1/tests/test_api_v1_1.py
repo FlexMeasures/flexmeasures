@@ -20,7 +20,6 @@ from bvp.api.v1_1.tests.utils import (
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
 
 from bvp.data.models.markets import Market, Price
-from bvp.data.models.forecasting.jobs import ForecastingJob
 
 
 @pytest.mark.parametrize("query", [{}, {"access": "Prosumer"}])
@@ -158,16 +157,16 @@ def test_post_price_data(db, app, post_message):
         values, from_resolution=timedelta(hours=1)
     )
 
-    # look for Forecasting jobs
-    jobs = ForecastingJob.query.order_by(ForecastingJob.horizon.asc()).all()
-    assert len(jobs) == 2  # only one market is affected, but two horizons
+    # look for Forecasting jobs in queue
+    assert len(app.redis_queue) == 2  # only one market is affected, but two horizons
     market = Market.query.filter_by(name=market_name).one_or_none()
     horizons = [timedelta(hours=24), timedelta(hours=48)]
+    jobs = sorted(app.redis_queue.jobs, key=lambda x: x.kwargs["horizon"])
     for job, horizon in zip(jobs, horizons):
-        assert job.horizon == horizon
-        assert job.start == parse_date(post_message["start"]) + horizon
-        assert job.timed_value_type == "Price"
-        assert job.asset_id == market.id
+        assert job.kwargs["horizon"] == horizon
+        assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
+        assert job.kwargs["timed_value_type"] == "Price"
+        assert job.kwargs["asset_id"] == market.id
 
 
 @pytest.mark.parametrize(

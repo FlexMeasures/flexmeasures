@@ -1,8 +1,13 @@
+# flake8: noqa: E402
+import os
 from flask import Flask
 from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_json import FlaskJSON
+
+from redis import Redis
+from rq import Queue
 
 from bvp.utils.config_utils import read_config, configure_logging
 from bvp.utils.app_utils import install_secret_key
@@ -37,6 +42,25 @@ def create(env=None) -> Flask:
 
     app.mail = Mail(app)
     FlaskJSON(app)
+
+    # configure Redis (for redis queue)
+    if app.testing:
+        from fakeredis import FakeStrictRedis
+
+        app.redis_queue = Queue(connection=FakeStrictRedis())
+    else:
+        redis_conn = Redis(
+            app.config["BVP_REDIS_URL"],
+            port=app.config["BVP_REDIS_PORT"],
+            db=app.config["BVP_REDIS_DB_NR"],
+            password=app.config["BVP_REDIS_PASSWORD"],
+        )
+        """ you could use redislite like this (not on non-recent os.name=="nt" systems or PA, sadly):
+            from redislite import Redis
+            redis_conn = Redis("MY-DB-NAME", unix_socket_path="/tmp/my-redis.socket",
+            )
+        """
+        app.redis_queue = Queue(connection=redis_conn, name="forecasting")
 
     # Some basic security measures
 

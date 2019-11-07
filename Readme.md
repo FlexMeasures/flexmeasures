@@ -9,13 +9,13 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 ## Build & Run
 
 
-### Make a secret key for sessions:
+### Make a secret key for sessions
 
     mkdir -p /path/to/bvp/instance
     head -c 24 /dev/urandom > /path/to/bvp/instance/secret_key
 
 
-### Dependencies:
+### Dependencies
 
 * Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`. You can also use
   an [Anaconda distribution](https://conda.io/docs/user-guide/tasks/manage-environments.html) as base with `conda create -n bvp-venv python=3.6`.
@@ -37,7 +37,7 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
   If you're unsure what you need, just continue for now and the app will tell you what it misses.
 
 
-### Prepare & load data:
+### Prepare & load data
 
 #### Preparing a database
 
@@ -106,7 +106,7 @@ export PATH=$PATH:$SOFTWARE_DIR/Cbc-2.9/bin
 More information (e.g. for installing on Windows) on [the website](https://projects.coin-or.org/Cbc).
 
 
-### Done.
+### Done
 
 Now, to start the web application, you can run:
 

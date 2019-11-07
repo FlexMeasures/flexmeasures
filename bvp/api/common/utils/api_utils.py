@@ -1,16 +1,13 @@
 import copy
 from typing import List, Union
-from datetime import datetime, timedelta
+from datetime import timedelta
 from functools import wraps
 from json import loads as parse_json, JSONDecodeError
 
 from inflection import pluralize
 from numpy import array
 
-from bvp.data import db
 from bvp.data.models.assets import Asset
-from bvp.data.models.forecasting.jobs import ForecastingJob
-from bvp.utils.time_utils import forecast_horizons_for
 
 
 def check_access(service_listing, service_name):
@@ -260,44 +257,6 @@ def typed_regex_results(match, value_types) -> dict:
 def zip_dic(*dicts):
     for i in set(dicts[0]).intersection(*dicts[1:]):
         yield (i,) + tuple(d[i] for d in dicts)
-
-
-def save_to_database(objects: List[db.Model], overwrite: bool = False):
-    """Utility function to save to database, either efficiently with a bulk save, or inefficiently with a merge save."""
-    if not overwrite:
-        db.session.bulk_save_objects(objects)
-    else:
-        for o in objects:
-            db.session.merge(o)
-
-
-def make_forecasting_jobs(
-    timed_value_type: str,
-    asset_id: int,
-    start: datetime,
-    end: datetime,
-    resolution: timedelta,
-    horizons: List[timedelta] = None,
-):
-    """Create forecasting jobs for all horizons.
-    Relevant horizons are deduced from the resolution of the posted data.
-    Start and end refer to the time interval of the newly posted data.
-    Start and end of the actual ForecastingJob refer to the time interval of the forecast, which depends on the forecast
-    horizon.
-    """
-    jobs = []
-    if horizons is None:
-        horizons = forecast_horizons_for(resolution)
-    for horizon in horizons:
-        job = ForecastingJob(
-            timed_value_type=timed_value_type,
-            asset_id=asset_id,
-            start=start + horizon,
-            end=end + horizon,
-            horizon=horizon,
-        )
-        jobs.append(job)
-    return jobs
 
 
 class BaseMessage:

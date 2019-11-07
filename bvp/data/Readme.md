@@ -4,7 +4,9 @@ This package holds all data models, db configuration and code that works on data
 
 This document describes how to get the postgres database ready to use and maintain it (do migrations / changes to the structure).
 
-Finally, a few words on coding with database transactions in mind.
+We also spend a few words on coding with database transactions in mind.
+
+Finally, we'll discuss how BVP is using Redis and redis-queues. When setting up on Windows, a guide to install the Redis-based queuing system for handling (forecasting) jobs. 
 
 
 Getting ready to use
@@ -134,7 +136,7 @@ Just to be clear that the `db init` command is needed only at the beginning - yo
 
     flask db migrate --message "Please explain what you did, it helps for later"
     flask db upgrade
-    
+
 You could decide that you need to re-populate (decide what you need to re-populate):
 
     flask db_depopulate --structure --data --forecasts
@@ -147,7 +149,7 @@ Get database structure updated
 The goal is that on any other computer, you can always execute
 
     flask db upgrade
-    
+
 to have the database structure up-to-date with all migrations.
 
 
@@ -158,12 +160,12 @@ The history of migrations is at your fingertips:
 
     flask db current
     flask db history
-    
+
 You can move back and forth through the history:
 
     flask db downgrade
     flask db upgrade
-    
+ 
 Both of these accept a specific revision id parameter, as well.
 
 
@@ -181,8 +183,8 @@ with the password from bvp/development_config.py. Check which tables are there:
 To log out:
 
     \q
-    
-    
+
+
  Transaction management
  ========================
  
@@ -190,3 +192,41 @@ To log out:
  
  Please see the package `bvp.data.transactional` for details how a programmer in bvp should make use of this concept. If you are writing a script or a view, you will find there the necessary structural help to bundle your work in a transaction.
  
+
+
+Redis and redis queues
+=========================
+
+BVP supports jobs (e.g. forecasting) running asynchronously to the main BVP application using [Redis Queue](http://python-rq.org/).
+
+It relies on a Redis server, which is has to be installed locally, or used on a separate host. In the latter case, configure URL, password and database number in your BVP config file.
+
+Forecasting jobs are usually created (and enqueued) when new data comes in via the API. You can inspect the state of the `forecasting` queue via the [RQ dashboard](https://github.com/Parallels/rq-dashboard). 
+
+To asynchronously work on these forecasting jobs, run this in a console:
+
+    flask run_forecasting_worker
+
+You should be able to run multiple workers in parallel, if necessary.
+
+The BVP unit tests use fakeredis to simulate this task queueing, with no configuration required.
+
+
+Redis queues on Windows
+-------------------------
+
+On Unix, th rq system is automatically set up as part of BVP's [main setup](README.md#Dependencies) (the `rq` dependency).
+
+However, both dependencies are [not functional on Windows](https://github.com/yahoo/redislite#installing-requirements-on-microsoft-windows) without the Windows Subsystem for Linux.
+
+On these versions of Windows, BVP's queuing system uses an extension of Redis Queue called `rq-win`.
+This is also an automatically installed dependency of BVP.
+However, the Redis server needs to be set up separately.
+Redis itself does not work on Windows, but it can be set up on a virtual machine as follows:
+
+- [Install Vagrant on Windows](https://www.vagrantup.com/intro/getting-started/) and [VirtualBox](https://www.virtualbox.org/)
+- Download the [vagrant-redis](https://raw.github.com/ServiceStack/redis-windows/master/downloads/vagrant-redis.zip) vagrant configuration
+- Extract `vagrant-redis.zip` in any folder, e.g. in `c:\vagrant-redis`
+- Set `config.vm.box = "hashicorp/precise64"` in the Vagrantfile, and remove the line with `config.vm.box_url`
+- Run `vagrant up` in Command Prompt
+- In case `vagrant up` fails because VT-x is not available, [enable it](https://www.howali.com/2017/05/enable-disable-intel-virtualization-technology-in-bios-uefi.html) in your bios [if you can](https://www.intel.com/content/www/us/en/support/articles/000005486/processors.html) (more debugging tips [here](https://forums.virtualbox.org/viewtopic.php?t=92111) if needed)

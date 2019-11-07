@@ -12,7 +12,9 @@ def check_data_availability(
     horizon,
 ):
     """Check if enough data is available in the database in the first place,
-     for training window and lagged variables. Otherwise, suggest new forecast period."""
+     for training window and lagged variables. Otherwise, suggest new forecast period.
+     TODO: we could also check regressor data, if we get regressor specs passed in here.
+     """
     q = generic_asset_value_class.query.join(generic_asset.__class__).filter(
         generic_asset.__class__.name == generic_asset.name
     )

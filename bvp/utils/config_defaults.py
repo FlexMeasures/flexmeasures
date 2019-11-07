@@ -53,6 +53,10 @@ class Config(object):
     BVP_LP_SOLVER = "cbc"
     BVP_TASK_CHECK_AUTH_TOKEN = None
     BVP_PA_DOMAIN_NAMES = []
+    BVP_REDIS_URL = "localhost"
+    BVP_REDIS_PORT = 6379
+    BVP_REDIS_DB_NR = 0  # Redis per default has 16 databases, [0-15]
+    BVP_REDIS_PASSWORD = None
 
     #  names of settings which cannot be None
     required: List[str] = [

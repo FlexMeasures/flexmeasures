@@ -26,14 +26,15 @@ def as_transaction(db_function):
     def wrap(*args, **kwargs):
         close_session = False
         # negotiate which db object to use
-        if isinstance(args[0], SQLAlchemy):
+        db_obj_passed = len(args) > 0 and isinstance(args[0], SQLAlchemy)
+        if db_obj_passed:
             the_db = args[0]
             close_session = True
         else:
             the_db = db
         # run actual function, handle any exceptions and re-raise
         try:
-            if isinstance(args[0], SQLAlchemy):
+            if db_obj_passed:
                 db_function(*args, **kwargs)
             else:
                 db_function(*args[1:], **kwargs)

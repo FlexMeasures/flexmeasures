@@ -51,7 +51,7 @@ def configure_specs(  # noqa: C901
     )
 
     training_start, testing_end = set_training_and_testing_dates(
-        start, params["training_and_testing_period"]
+        start, params["training_and_testing_period"], horizon
     )
     query_window = get_query_window(training_start, end, lags)
 
@@ -156,15 +156,18 @@ def get_transformation_by_asset_type(
 def set_training_and_testing_dates(
     start: datetime,
     training_and_testing_period: Union[timedelta, Tuple[datetime, datetime]],
+    horizon: timedelta,
 ) -> Tuple[datetime, datetime]:
-    """Return training_start and testing_end"""
+    """If needed, derive training_start and testing_end."""
     if isinstance(training_and_testing_period, timedelta):
-        return start - training_and_testing_period, start
+        return start - training_and_testing_period - horizon, start - horizon
     else:
-        return training_and_testing_period[0], training_and_testing_period[1]
+        return training_and_testing_period
 
 
-def get_query_window(training_start, end, lags):
+def get_query_window(
+    training_start: datetime, end: datetime, lags: List[timedelta]
+) -> Tuple[datetime, datetime]:
     """Make sure we have enough data for lagging and forecasting"""
     if not lags:
         query_start = training_start

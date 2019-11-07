@@ -27,11 +27,15 @@ setup(
         "isodate",
         "click",
         "validate_email",
+        "rq",
+        "rq-win; os_name=='nt'",
+        "redislite; os_name!='nt'",
+        "redis; os_name=='nt'",
         "py3DNS",
         "pyomo>=5.6",
         "forecastiopy",
         "pysolar",
-        "timetomodel>=0.6.1",
+        "timetomodel>=0.6.2",
         "python-dotenv",
         "Flask-SSLify",
         "Flask_JSON",
@@ -50,8 +54,10 @@ setup(
         "pytest",
         "pytest-flask",
         "pytest-cov",
-        "flake8-bugbear",
-        "requests",
+        "flake8-bugbear",  # nicer error messages
+        "requests",  # to test calls to the API
+        "fakeredis",  # let's tests run successfully in containers
+        "lupa",  # required with fakeredis, maybe because we use rq
     ],
     packages=["bvp"],
     include_package_data=True,

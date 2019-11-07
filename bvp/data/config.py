@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask import Flask
 
 
-db = None
+db: SQLAlchemy = None
 Base = None
 session_options = None
 

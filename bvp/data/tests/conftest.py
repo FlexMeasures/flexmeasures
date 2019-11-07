@@ -8,25 +8,33 @@ from flask_sqlalchemy import SQLAlchemy
 
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
-from bvp.data.models.assets import Asset
-from bvp.data.models.forecasting.jobs import ForecastingJob
+from bvp.data.models.assets import AssetType
 from bvp.utils.time_utils import as_bvp_time
 
 
 @pytest.fixture(scope="function", autouse=True)
-def setup_test_data(db):
+def setup_test_data(db, app, remove_seasonality_for_power_forecasts):
     """
     Adding a few forecasting jobs (based on data made in bvp.conftest).
     """
     print("Setting up data for data tests on %s" % db.engine)
 
-    add_weather_sensor_and_forecasts(db)
-    add_forecasting_jobs(db)
+    add_test_weather_sensor_and_forecasts(db)
 
     print("Done setting up data for data tests")
 
 
-def add_weather_sensor_and_forecasts(db: SQLAlchemy):
+@pytest.fixture(scope="function", autouse=True)
+def remove_seasonality_for_power_forecasts(db):
+    """Make sure the AssetType specs make us query only data we actually have in the test db"""
+    asset_types = AssetType.query.all()
+    for a in asset_types:
+        a.daily_seasonality = False
+        a.weekly_seasonality = False
+        a.yearly_seasonality = False
+
+
+def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
     """one day of test data (one complete sine curve) for two sensors"""
     data_source = DataSource.query.filter_by(
         label="data entered for demonstration purposes", type="script"
@@ -38,7 +46,7 @@ def add_weather_sensor_and_forecasts(db: SQLAlchemy):
         )
         db.session.add(sensor)
         time_slots = pd.date_range(
-            datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
+            datetime(2015, 1, 1), datetime(2015, 1, 2, 23, 45), freq="15T"
         )
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
         if sensor_name == "temperature":
@@ -53,60 +61,7 @@ def add_weather_sensor_and_forecasts(db: SQLAlchemy):
                     sensor=sensor,
                     datetime=as_bvp_time(dt),
                     value=val,
-                    horizon=timedelta(hours=1),
+                    horizon=timedelta(hours=6),
                     data_source_id=data_source.id,
                 )
             )
-
-
-def add_forecasting_jobs(db: SQLAlchemy):
-    wind_device_1 = Asset.query.filter_by(name="wind-asset-1").one_or_none()
-    wind_device_2 = Asset.query.filter_by(name="wind-asset-2").one_or_none()
-    solar_device_1 = Asset.query.filter_by(name="solar-asset-1").one_or_none()
-    db.session.add(
-        ForecastingJob(  # ID 1 - 4 forecasts
-            start=as_bvp_time(datetime(2015, 1, 1, 6)),
-            end=as_bvp_time(datetime(2015, 1, 1, 7)),
-            horizon=timedelta(hours=1),
-            timed_value_type="Power",
-            asset_id=wind_device_1.id,
-        )
-    )
-    db.session.add(
-        ForecastingJob(  # ID 2 - 12 forecasts
-            start=as_bvp_time(datetime(2015, 1, 1, 10)),
-            end=as_bvp_time(datetime(2015, 1, 1, 13)),
-            horizon=timedelta(hours=1),
-            timed_value_type="Power",
-            asset_id=wind_device_2.id,
-        )
-    )
-    db.session.add(
-        ForecastingJob(  # ID 3 - 8 forecasts
-            start=as_bvp_time(datetime(2015, 1, 1, 12)),
-            end=as_bvp_time(datetime(2015, 1, 1, 14)),
-            horizon=timedelta(hours=1),
-            timed_value_type="Power",
-            asset_id=solar_device_1.id,
-        )
-    )
-    # This one should fail as there is no underlying data - and due to the start date it is the last to be picked.
-    db.session.add(
-        ForecastingJob(  # ID 4 - 8 forecasts
-            start=as_bvp_time(datetime(2016, 1, 1, 20)),
-            end=as_bvp_time(datetime(2016, 1, 1, 22)),
-            horizon=timedelta(hours=1),
-            timed_value_type="Power",
-            asset_id=solar_device_1.id,
-        )
-    )
-    # This one should fail as the horizon is invalid
-    db.session.add(
-        ForecastingJob(  # ID 5 - 8 forecasts
-            start=as_bvp_time(datetime(2015, 1, 1, 21)),
-            end=as_bvp_time(datetime(2015, 1, 1, 23)),
-            horizon=timedelta(hours=18),
-            timed_value_type="Power",
-            asset_id=solar_device_1.id,
-        )
-    )

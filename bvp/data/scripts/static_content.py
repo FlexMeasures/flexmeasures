@@ -27,7 +27,6 @@ from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role, RolesUsers
 from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
-from bvp.data.models.forecasting.jobs import ForecastingJob
 from bvp.data.models.forecasting import NotEnoughDataException
 from bvp.data.queries.utils import read_sqlalchemy_results
 from bvp.data.services.users import create_user
@@ -860,7 +859,7 @@ def depopulate_forecasts(
     num_weather_measurements_deleted = 0
 
     # Clear all forecasting jobs
-    num_jobs_deleted = ForecastingJob.query.delete()
+    num_jobs_deleted = app.redis_queue.empty()
 
     # Clear all forecasts (data with positive horizon)
     if generic_asset_name is None:

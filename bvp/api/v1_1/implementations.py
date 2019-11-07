@@ -14,11 +14,7 @@ from bvp.api.common.responses import (
     unrecognized_market,
     unrecognized_sensor,
 )
-from bvp.api.common.utils.api_utils import (
-    save_to_database,
-    make_forecasting_jobs,
-    convert_to_15min,
-)
+from bvp.api.common.utils.api_utils import convert_to_15min
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
@@ -41,7 +37,9 @@ from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.weather import Weather, WeatherSensor
+from bvp.data.utils import save_to_database
 from bvp.data.services.resources import get_assets
+from bvp.data.services.forecasting import create_forecasting_jobs
 
 
 @as_json
@@ -124,23 +122,22 @@ def post_price_data_response(
 
             # Forecast 24 and 48 hours ahead for at most the last 24 hours of posted price data
             if current_app.config.get("BVP_MODE", "") != "play":
-                forecasting_jobs.extend(
-                    make_forecasting_jobs(
-                        "Price",
-                        market.id,
-                        max(start, start + duration - timedelta(hours=24)),
-                        start + duration,
-                        resolution=duration / len(value_group),
-                        horizons=[timedelta(hours=24), timedelta(hours=48)],
-                    )
+                forecasting_jobs = create_forecasting_jobs(
+                    "Price",
+                    market.id,
+                    max(start, start + duration - timedelta(hours=24)),
+                    start + duration,
+                    resolution=duration / len(value_group),
+                    horizons=[timedelta(hours=24), timedelta(hours=48)],
+                    enqueue=False,
                 )
 
     # Put these into the database
     current_app.logger.info("SAVING TO DB...")
     try:
         save_to_database(prices)
-        save_to_database(forecasting_jobs)
         db.session.flush()
+        [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
         return request_processed()
     except IntegrityError as e:
         current_app.logger.warning(e)
@@ -149,7 +146,7 @@ def post_price_data_response(
         # Allow price data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(prices, overwrite=True)
-            save_to_database(forecasting_jobs, overwrite=True)
+            [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
             return request_processed()
         else:
             return already_received_and_successfully_processed()
@@ -263,7 +260,7 @@ def post_weather_data_response(
                 hours=0
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
-                    make_forecasting_jobs(
+                    create_forecasting_jobs(
                         "Weather",
                         weather_sensor.id,
                         start,

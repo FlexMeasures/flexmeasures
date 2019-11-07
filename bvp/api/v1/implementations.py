@@ -10,6 +10,9 @@ from sqlalchemy.exc import IntegrityError
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.data_sources import DataSource
+from bvp.data.services.resources import get_assets
+from bvp.data.services.forecasting import create_forecasting_jobs
+from bvp.data.utils import save_to_database
 from bvp.api.common.responses import (
     already_received_and_successfully_processed,
     invalid_domain,
@@ -19,13 +22,7 @@ from bvp.api.common.responses import (
     unrecognized_connection_group,
     request_processed,
 )
-from bvp.data.services.resources import get_assets
-from bvp.api.common.utils.api_utils import (
-    message_replace_name_with_ea,
-    groups_to_dict,
-    save_to_database,
-    make_forecasting_jobs,
-)
+from bvp.api.common.utils.api_utils import message_replace_name_with_ea, groups_to_dict
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
@@ -288,20 +285,21 @@ def create_connection_and_value_groups(  # noqa: C901
                 hours=0
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
-                    make_forecasting_jobs(
+                    create_forecasting_jobs(
                         "Power",
                         asset_id,
                         start,
                         start + duration,
                         resolution=duration / len(value_group),
+                        enqueue=False,
                     )
                 )
 
-    current_app.logger.info("SAVING TO DB...")
+    current_app.logger.info("SAVING TO DB AND QUEUEING...")
     try:
         save_to_database(power_measurements)
-        save_to_database(forecasting_jobs)
         db.session.flush()
+        [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
         return request_processed()
     except IntegrityError as e:
         current_app.logger.warning(e)
@@ -310,7 +308,7 @@ def create_connection_and_value_groups(  # noqa: C901
         # Allow meter data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(power_measurements, overwrite=True)
-            save_to_database(forecasting_jobs, overwrite=True)
+            [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
             return request_processed()
         else:
             return already_received_and_successfully_processed()

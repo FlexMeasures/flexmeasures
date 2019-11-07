@@ -8,6 +8,9 @@ from flask import current_app as app
 from bvp.data.transactional import task_with_status_report
 
 """
+Note: This exists for legacy reasons. PythonAnywhere now supports LetsEncrypt installation & renewal from its UI,
+      so for new installations, this code is not necessary anymore.
+
 This script can be run to renew several LetsEncrypt SSL certificates on PythonAnywhere.
 For configuration, all we need is to configure the domain names.
 

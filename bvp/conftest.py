@@ -265,6 +265,14 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
     db.session.add(battery)
 
 
+@pytest.fixture(scope="function", autouse=True)
+def clean_redis(app):
+    failed = app.redis_queue.failed_job_registry
+    app.redis_queue.empty()
+    for job_id in failed.get_job_ids():
+        failed.remove(app.redis_queue.fetch_job(job_id))
+
+
 @pytest.fixture(scope="session", autouse=True)
 def error_endpoints(app):
     """Adding endpoints for the test session, which can be used to generate errors.

@@ -49,9 +49,9 @@ post_meter_data(
 
 # Run forecasting jobs
 input(
-    "Run all forecasting jobs and press enter to continue..\n"
-    "Tip, run this in a bvp-venv shell:\n\n"
-    "flask work_on_forecasting_jobs --max_forecasts 100000\n"
+    "Run all forecasting jobs, then press Enter to continue ...\n"
+    "You can run this in another bvp-venv shell:\n\n"
+    "flask run_forecasting_worker\n"
 )
 
 # Steps
