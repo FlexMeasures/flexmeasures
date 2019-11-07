@@ -41,7 +41,12 @@ def worker_exception_handler(job, exc_type, exc_value, traceback):
 
 
 @app.cli.command("run_forecasting_worker")
-def run_forecasting_worker():
+@click.option(
+    "--name",
+    default=None,
+    help="Give your worker a recognizable name. Defaults to random string.",
+)
+def run_forecasting_worker(name: str):
     """
     Use this CLI task to run the worker for forecasting - it will be able to use the app context this way.
     """
@@ -52,11 +57,11 @@ def run_forecasting_worker():
     worker = SimpleWorker(  # TODO: Worker (which forks) leads to SQLAlchemy problems
         [app.redis_queue],
         connection=app.redis_queue.connection,
-        name="Long-running Forecasting Worker",
+        name=name,
         exception_handlers=[worker_exception_handler],
     )
 
-    click.echo("Worker initialised: %s" % worker)
+    click.echo('Worker "%s" initialised: %s' % (worker.name, worker))
     click.echo(
         "Running against %s on %s" % (app.redis_queue, app.redis_queue.connection)
     )
