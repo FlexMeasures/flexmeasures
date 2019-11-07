@@ -9,7 +9,6 @@ from sqlalchemy.exc import IntegrityError
 
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
-from bvp.data.models.data_sources import DataSource
 from bvp.data.services.resources import get_assets
 from bvp.data.services.forecasting import create_forecasting_jobs
 from bvp.data.utils import save_to_database
@@ -22,7 +21,11 @@ from bvp.api.common.responses import (
     unrecognized_connection_group,
     request_processed,
 )
-from bvp.api.common.utils.api_utils import message_replace_name_with_ea, groups_to_dict
+from bvp.api.common.utils.api_utils import (
+    message_replace_name_with_ea,
+    groups_to_dict,
+    get_or_create_user_data_source,
+)
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
@@ -222,7 +225,7 @@ def create_connection_and_value_groups(  # noqa: C901
     from flask import current_app
 
     current_app.logger.info("POSTING POWER DATA")
-    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
+    data_source = get_or_create_user_data_source(current_user)
     user_assets = get_assets()
     if not user_assets:
         current_app.logger.info("User doesn't seem to have any assets")

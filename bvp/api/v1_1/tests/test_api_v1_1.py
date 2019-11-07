@@ -19,6 +19,8 @@ from bvp.api.v1_1.tests.utils import (
 )
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
 
+from bvp.data.models.data_sources import DataSource
+from bvp.data.models.user import User
 from bvp.data.models.markets import Market, Price
 
 
@@ -240,3 +242,28 @@ def test_post_weather_data_invalid_unit(client, post_message):
         post_weather_data_response.json["message"]
         == invalid_unit("wind speed", ["m/s"])[0]["message"]
     )  # also checks that any underscore in the physical or economic quantity should be replaced with a space
+
+
+@pytest.mark.parametrize("post_message", [message_for_post_price_data()])
+def test_auto_fix_missing_registration_of_user_as_data_source(client, post_message):
+    """Try to post price data as a user that has not been properly registered as a data source.
+    The API call should succeed and the user should be automatically registered as a data source.
+    """
+
+    # post price data
+    auth_token = get_auth_token(client, "test_improper_user@seita.nl", "testtest")
+    post_price_data_response = client.post(
+        url_for("bvp_api_v1_1.post_price_data"),
+        json=post_message,
+        headers={"Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % post_price_data_response.json)
+    assert post_price_data_response.status_code == 200
+
+    formerly_improper_user = User.query.filter(
+        User.email == "test_improper_user@seita.nl"
+    ).one_or_none()
+    data_source = DataSource.query.filter(
+        DataSource.user_id == formerly_improper_user.id
+    ).one_or_none()
+    assert data_source is not None

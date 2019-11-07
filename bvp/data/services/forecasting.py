@@ -68,7 +68,9 @@ def make_forecasts(
         )
 
     if hasattr(asset, "market_type"):
-        ex_post_horizon = None  # Todo: until we sorted out the ex_post_horizon, use all available price data
+        ex_post_horizon = (
+            None
+        )  # Todo: until we sorted out the ex_post_horizon, use all available price data
     else:
         ex_post_horizon = timedelta(hours=0)
     model_specs, model_identifier = latest_generic_model(

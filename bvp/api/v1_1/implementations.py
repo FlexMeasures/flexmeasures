@@ -14,7 +14,10 @@ from bvp.api.common.responses import (
     unrecognized_market,
     unrecognized_sensor,
 )
-from bvp.api.common.utils.api_utils import convert_to_15min
+from bvp.api.common.utils.api_utils import (
+    convert_to_15min,
+    get_or_create_user_data_source,
+)
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
@@ -34,7 +37,6 @@ from bvp.api.v1.implementations import (
     create_connection_and_value_groups,
 )
 from bvp.data.config import db
-from bvp.data.models.data_sources import DataSource
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.weather import Weather, WeatherSensor
 from bvp.data.utils import save_to_database
@@ -80,7 +82,7 @@ def post_price_data_response(
 
     value_groups = convert_to_15min(value_groups, resolution)
 
-    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
+    data_source = get_or_create_user_data_source(current_user)
     prices = []
     forecasting_jobs = []
     for market_group, value_group in zip(generic_asset_name_groups, value_groups):
@@ -175,7 +177,7 @@ def post_weather_data_response(
         api_policy = "known sensors only"
 
     current_app.logger.info("POSTING WEATHER DATA")
-    data_source = DataSource.query.filter(DataSource.user == current_user).one_or_none()
+    data_source = get_or_create_user_data_source(current_user)
     weather_measurements = []
     forecasting_jobs = []
     for sensor_group, value_group in zip(generic_asset_name_groups, value_groups):

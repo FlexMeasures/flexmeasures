@@ -4,10 +4,14 @@ from datetime import timedelta
 from functools import wraps
 from json import loads as parse_json, JSONDecodeError
 
+from flask import current_app
 from inflection import pluralize
 from numpy import array
 
+from bvp.data import db
 from bvp.data.models.assets import Asset
+from bvp.data.models.data_sources import DataSource
+from bvp.data.models.user import User
 
 
 def check_access(service_listing, service_name):
@@ -276,3 +280,17 @@ class BaseMessage:
             return func(message)
 
         return my_logic
+
+
+def get_or_create_user_data_source(user: User) -> DataSource:
+    data_source = DataSource.query.filter(DataSource.user == user).one_or_none()
+    if not data_source:
+        current_app.logger.info("SETTING UP USER AS NEW DATA SOURCE...")
+        data_source = DataSource(
+            label="data entered by user %s" % user.username,
+            type="user",
+            user_id=user.id,
+        )
+        db.session.add(data_source)
+        db.session.flush()  # flush so that we can reference the new object in the current db session
+    return data_source

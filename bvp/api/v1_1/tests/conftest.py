@@ -24,6 +24,15 @@ def setup_api_test_data(db):
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
+    # Create a user without proper registration as a data source
+    user = user_datastore.create_user(
+        username="test user with improper registration",
+        email="test_improper_user@seita.nl",
+        password=hash_password("testtest"),
+    )
+    role = user_datastore.find_role("Prosumer")
+    user_datastore.add_role_to_user(user, role)
+
     # Create a test user without a USEF role
     create_user(
         username="test user without roles",
