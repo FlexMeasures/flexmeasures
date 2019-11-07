@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import List, Union
 
 from flask import current_app
+import click
 from rq import get_current_job
 from rq.job import Job
 from sqlalchemy.exc import IntegrityError
@@ -53,11 +54,15 @@ def make_forecasts(
     :param end: datetime
         end of forecast period, i.e end time of the last interval to be forecast
     """
+    # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
+    db.engine.dispose()
+
     rq_job = get_current_job()
 
     data_source = get_data_source()
     asset = get_asset(asset_id, timed_value_type)
-    print(
+
+    click.echo(
         "Running Forecasting Job %s: %s for %s, from %s to %s"
         % (rq_job.id, asset, horizon, start, end)
     )
@@ -68,9 +73,7 @@ def make_forecasts(
         )
 
     if hasattr(asset, "market_type"):
-        ex_post_horizon = (
-            None
-        )  # Todo: until we sorted out the ex_post_horizon, use all available price data
+        ex_post_horizon = None  # Todo: until we sorted out the ex_post_horizon, use all available price data
     else:
         ex_post_horizon = timedelta(hours=0)
     model_specs, model_identifier = latest_generic_model(

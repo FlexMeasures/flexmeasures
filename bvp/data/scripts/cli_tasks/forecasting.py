@@ -9,9 +9,9 @@ from timetomodel import ModelState, create_fitted_model, evaluate_models
 from sqlalchemy.orm import configure_mappers
 
 if os.name == "nt":
-    from rq_win import WindowsWorker as SimpleWorker
+    from rq_win import WindowsWorker as Worker
 else:
-    from rq import SimpleWorker
+    from rq import Worker
 
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.markets import Market
@@ -50,11 +50,10 @@ def run_forecasting_worker(name: str):
     """
     Use this CLI task to run the worker for forecasting - it will be able to use the app context this way.
     """
-
     # https://stackoverflow.com/questions/50822822/high-sqlalchemy-initialization-overhead
     configure_mappers()
 
-    worker = SimpleWorker(  # TODO: Worker (which forks) leads to SQLAlchemy problems
+    worker = Worker(
         [app.redis_queue],
         connection=app.redis_queue.connection,
         name=name,
