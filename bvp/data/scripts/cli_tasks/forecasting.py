@@ -60,11 +60,12 @@ def run_forecasting_worker(name: str):
         exception_handlers=[worker_exception_handler],
     )
 
+    click.echo("\n=========================================================")
     click.echo('Worker "%s" initialised: %s' % (worker.name, worker))
     click.echo(
         "Running against %s on %s" % (app.redis_queue, app.redis_queue.connection)
     )
-    click.echo("")
+    click.echo("=========================================================\n")
 
     worker.work()
 

@@ -91,7 +91,7 @@ def make_forecasts(
     forecasts, model_state = make_rolling_forecasts(
         start=as_bvp_time(start), end=as_bvp_time(end), model_specs=model_specs
     )
-    click.echo("Made %d forecasts." % len(forecasts))
+    click.echo("Job %s made %d forecasts." % (rq_job.id, len(forecasts)))
 
     ts_value_forecasts = [
         make_timed_value(timed_value_type, asset_id, dt, value, horizon, data_source.id)
@@ -100,7 +100,6 @@ def make_forecasts(
 
     try:
         save_to_database(ts_value_forecasts)
-        db.session.flush()  # not sure we need this
     except IntegrityError as e:
 
         current_app.logger.warning(e)
