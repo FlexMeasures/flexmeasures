@@ -196,14 +196,18 @@ You can also inspect via a console ([see the nice RQ documentation](http://pytho
 
     from redis import Redis
     from rq import Queue
+    from rq.job import Job
     from rq.registry import FinishedJobRegistry
 
     r = Redis("my.ip.addr.ess", port=6379, password="secret", db=2)
     q = Queue("forecasting", connection=r)
     finished = FinishedJobRegistry(queue=q)
 
-    print(len(finished))
-    print(finished.get_job_ids())
+    finished_job_ids = finished.get_job_ids()
+    print("%d jobs finished successfully." % len(finished_job_ids))
+
+    job1 = Job.fetch(finished_job_ids[0], connection=r)
+    print("Result of job %s: %s" % (job1.id, job1.result))
 
 ## Redis queues on Windows
 
