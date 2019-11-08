@@ -91,6 +91,7 @@ def make_forecasts(
     forecasts, model_state = make_rolling_forecasts(
         start=as_bvp_time(start), end=as_bvp_time(end), model_specs=model_specs
     )
+    click.echo("Made %d forecasts." % len(forecasts))
 
     ts_value_forecasts = [
         make_timed_value(timed_value_type, asset_id, dt, value, horizon, data_source.id)
@@ -103,12 +104,16 @@ def make_forecasts(
     except IntegrityError as e:
 
         current_app.logger.warning(e)
-        print("Rolling back due to IntegrityError")
+        click.echo("Rolling back due to IntegrityError")
         db.session.rollback()
 
         if current_app.config.get("BVP_MODE", "") == "play":
-            print("Saving again, with overwrite=True")
+            click.echo("Saving again, with overwrite=True")
             save_to_database(ts_value_forecasts, overwrite=True)
+
+    db.session.commit()
+
+    return len(forecasts)
 
 
 def create_forecasting_jobs(
