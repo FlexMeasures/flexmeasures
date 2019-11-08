@@ -6,15 +6,11 @@ This document describes how to get the postgres database ready to use and mainta
 
 We also spend a few words on coding with database transactions in mind.
 
-Finally, we'll discuss how BVP is using Redis and redis-queues. When setting up on Windows, a guide to install the Redis-based queuing system for handling (forecasting) jobs. 
+Finally, we'll discuss how BVP is using Redis and redis-queues. When setting up on Windows, a guide to install the Redis-based queuing system for handling (forecasting) jobs.
 
+# Getting ready to use
 
-Getting ready to use
-=====================
-
-
-Install
--------
+## Install
 
 On Unix:
 
@@ -23,14 +19,13 @@ On Unix:
 
 On Windows:
 
-* Download version 9.6: https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
-* Install and remember your `postgres` user password
-* Add the lib and bin directories to your Windows path: http://bobbyong.com/blog/installing-postgresql-on-windoes/
-* `conda install psycopg2`
+- Download version 9.6: https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
+- Install and remember your `postgres` user password
+- Add the lib and bin directories to your Windows path: http://bobbyong.com/blog/installing-postgresql-on-windoes/
+- `conda install psycopg2`
 
+## Make sure postgres represents datetimes in UTC timezone
 
-Make sure postgres represents datetimes in UTC timezone
--------------------------------------------------------
 (Otherwise, pandas can get confused with daylight saving time.)
 
 Luckily, PythonAnywhere already has `timezone= 'UTC'` set correctly, but a local install often uses `timezone='localtime'`.
@@ -40,22 +35,19 @@ You can also type `SHOW config_file;` in a postgres console session (as superuse
 
 Find the `timezone` setting and set it to 'UTC'.
 
-Then restart the postgres server. 
+Then restart the postgres server.
 
+## Setup the "a1" Unix user
 
-Setup the "a1" Unix user
-------------------------
 This may in fact not be needed:
 
     sudo /usr/sbin/adduser a1
 
-
-Create "a1" and "a1test" databases and users
---------------------------------------------
+## Create "a1" and "a1test" databases and users
 
 From the terminal:
 
-Open a console (use your Windows key and type ``cmd``).
+Open a console (use your Windows key and type `cmd`).
 Proceed to create a database as the postgres superuser (using your postgres user password)::
 
     sudo -i -u postgres
@@ -86,32 +78,26 @@ Log out with `\q` and repeat creating these extensions for the test database. Al
     psql -U a1 --password -h 127.0.0.1 -d a1
     \q
 
-Configure BVP app for that database
------------------------------------
+## Configure BVP app for that database
+
 Write:
 
     SQLALCHEMY_DB_URL = postgresql://a1:<password>@127.0.0.1/a1
 
 into the config file you are using, e.g. bvp/development_config.py
 
-
-Get structure (and some data into place)
-----------------------------------------
+## Get structure (and some data into place)
 
 See the first maintenance step below.
 
-
-
-Maintenance
-===================
+# Maintenance
 
 Maintenance is supported with the alembic tool. It reacts automatically
 to almost all changes in the SQLAlchemy code. With alembic, multiple databases,
 e.g. dev, staging and production can be kept in sync.
 
+## Make first migration
 
-Make first migration
---------------------
 Run these commands from the repository root directory (read below comments first):
 
     flask db init
@@ -119,7 +105,7 @@ Run these commands from the repository root directory (read below comments first
     flask db upgrade
     flask db_populate --structure --data --forecasts
 
-The first command (``flask db init``) is only needed here once, it initialises the alembic migration tool.
+The first command (`flask db init`) is only needed here once, it initialises the alembic migration tool.
 The second command generates the SQL for your current db model and the third actually gives you the db structure.
 The fourth command generates some content - not sure where we'll go with this at the moment, but useful for testing
 and development.
@@ -129,9 +115,8 @@ as future calls to `flask db upgrade` will need those steps, and they might happ
 
 Hint: You can edit these migrations steps, if you want.
 
+## Make another migration
 
-Make another migration
-----------------------
 Just to be clear that the `db init` command is needed only at the beginning - you usually do, if your model changed:
 
     flask db migrate --message "Please explain what you did, it helps for later"
@@ -142,9 +127,7 @@ You could decide that you need to re-populate (decide what you need to re-popula
     flask db_depopulate --structure --data --forecasts
     flask db_populate --structure --data --forecasts
 
-
-Get database structure updated
--------------------------------
+## Get database structure updated
 
 The goal is that on any other computer, you can always execute
 
@@ -152,9 +135,7 @@ The goal is that on any other computer, you can always execute
 
 to have the database structure up-to-date with all migrations.
 
-
-Working with the migration history
-------------------------------------
+## Working with the migration history
 
 The history of migrations is at your fingertips:
 
@@ -165,12 +146,10 @@ You can move back and forth through the history:
 
     flask db downgrade
     flask db upgrade
- 
+
 Both of these accept a specific revision id parameter, as well.
 
-
-Check out database status
--------------------------
+## Check out database status
 
 Log in into the database:
 
@@ -184,26 +163,19 @@ To log out:
 
     \q
 
+# Transaction management
 
- Transaction management
- ========================
- 
- It is really useful (and therefore an industry standard) to bundle certain database actions within a transaction. Transactions are atomic - either the actions in them all run or the transaction gets rolled back. This keeps the database in a sane state and really helps having expectations during debugging.
- 
- Please see the package `bvp.data.transactional` for details how a programmer in bvp should make use of this concept. If you are writing a script or a view, you will find there the necessary structural help to bundle your work in a transaction.
- 
+It is really useful (and therefore an industry standard) to bundle certain database actions within a transaction. Transactions are atomic - either the actions in them all run or the transaction gets rolled back. This keeps the database in a sane state and really helps having expectations during debugging.
 
+Please see the package `bvp.data.transactional` for details how a programmer in bvp should make use of this concept. If you are writing a script or a view, you will find there the necessary structural help to bundle your work in a transaction.
 
-Redis and redis queues
-=========================
+# Redis and redis queues
 
 BVP supports jobs (e.g. forecasting) running asynchronously to the main BVP application using [Redis Queue](http://python-rq.org/).
 
 It relies on a Redis server, which is has to be installed locally, or used on a separate host. In the latter case, configure URL, password and database number in your BVP config file.
 
-Forecasting jobs are usually created (and enqueued) when new data comes in via the API. You can inspect the state of the `forecasting` queue via the [RQ dashboard](https://github.com/Parallels/rq-dashboard). 
-
-To asynchronously work on these forecasting jobs, run this in a console:
+Forecasting jobs are usually created (and enqueued) when new data comes in via the API. To asynchronously work on these forecasting jobs, run this in a console:
 
     flask run_forecasting_worker
 
@@ -211,9 +183,29 @@ You should be able to run multiple workers in parallel, if necessary.
 
 The BVP unit tests use fakeredis to simulate this task queueing, with no configuration required.
 
+## Inspect the queue and jobs
 
-Redis queues on Windows
--------------------------
+The first option to inspect the state of the `forecasting` queue should be via the formiddable [RQ dashboard](https://github.com/Parallels/rq-dashboard):
+
+    pip install rq-dashboard
+    rq-dashboard --redis-host my.ip.addr.ess --redis-password secret --redis-database 0
+
+RQ dashboard shows you ongoing and failed jobs, and you can see the error messages of the latter, which very useful.
+
+You can also inspect via a console ([see the nice RQ documentation](http://python-rq.org/docs/)), which is more powerful. Here is an example of inspecting the finished jobs:
+
+    from redis import Redis
+    from rq import Queue
+    from rq.registry import FinishedJobRegistry
+
+    r = Redis("my.ip.addr.ess", port=6379, password="secret", db=2)
+    q = Queue("forecasting", connection=r)
+    finished = FinishedJobRegistry(queue=q)
+
+    print(len(finished))
+    print(finished.get_job_ids())
+
+## Redis queues on Windows
 
 On Unix, th rq system is automatically set up as part of BVP's [main setup](README.md#Dependencies) (the `rq` dependency).
 
