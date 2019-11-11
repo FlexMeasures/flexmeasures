@@ -185,7 +185,7 @@ The BVP unit tests use fakeredis to simulate this task queueing, with no configu
 
 ## Inspect the queue and jobs
 
-The first option to inspect the state of the `forecasting` queue should be via the formiddable [RQ dashboard](https://github.com/Parallels/rq-dashboard). If you have admin rights, you can access it at `your-bvp-url/rq`, so for instance `http://localhost:5000/rq`. You can also start RQ dashboard yourself (but you need to know the redis server credentials):
+The first option to inspect the state of the `forecasting` queue should be via the formiddable [RQ dashboard](https://github.com/Parallels/rq-dashboard). If you have admin rights, you can access it at `your-bvp-url/rq/`, so for instance `http://localhost:5000/rq/`. You can also start RQ dashboard yourself (but you need to know the redis server credentials):
 
     pip install rq-dashboard
     rq-dashboard --redis-host my.ip.addr.ess --redis-password secret --redis-database 0
