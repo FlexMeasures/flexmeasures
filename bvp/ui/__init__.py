@@ -1,6 +1,8 @@
 from flask import Flask, Blueprint
 from flask import send_from_directory
+from flask_security import login_required, roles_accepted
 from inflection import humanize, parameterize
+import rq_dashboard
 
 from bvp.utils.time_utils import localized_datetime_str, naturalized_datetime_str
 
@@ -30,6 +32,8 @@ def register_at(app: Flask):
         bvp_ui
     )  # now registering the blueprint will affect all views
 
+    register_rq_dashboard(app)
+
     @app.route("/favicon.ico")
     def favicon():
         return send_from_directory(
@@ -39,7 +43,34 @@ def register_at(app: Flask):
     from bvp.ui.error_handlers import add_html_error_views
 
     add_html_error_views(app)
+    add_jinja_filters(app)
 
+
+def register_rq_dashboard(app):
+    app.config.update(
+        RQ_DASHBOARD_REDIS_URL=[
+            "redis://:%s@%s:%s/%s"
+            % (
+                app.config.get("BVP_REDIS_PASSWORD", ""),
+                app.config.get("BVP_REDIS_URL", ""),
+                app.config.get("BVP_REDIS_PORT", ""),
+                app.config.get("BVP_REDIS_DB_NR", ""),
+            ),
+            # it is possible to add additional rq instances to this list
+        ]
+    )
+
+    @login_required
+    @roles_accepted("admin")
+    def basic_auth():
+        """Ensure basic authorization."""
+        return
+
+    rq_dashboard.blueprint.before_request(basic_auth)
+    app.register_blueprint(rq_dashboard.blueprint, url_prefix="/rq")
+
+
+def add_jinja_filters(app):
     app.jinja_env.filters["zip"] = zip  # Allow zip function in templates
     app.jinja_env.add_extension(
         "jinja2.ext.do"

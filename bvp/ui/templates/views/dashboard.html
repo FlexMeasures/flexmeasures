@@ -46,16 +46,21 @@
                     </p>
                     {% endif %}
                 </div>
-                <h3></h3>
-                <div>
-                    {% if user_is_admin %}
-                    <form action="/users" method="get">
-                        <button class="btn btn-sm btn-responsive btn-info" type="submit">List active users</button>
-                    </form>
-                    {% endif %}
-                    <form action="/assets" method="get" style="margin-top: 1em;">
-                        <button class="btn btn-sm btn-responsive btn-info" type="submit">List assets</button>
-                    </form>
+                <div class="panel panel-default" style="margin-top: 2em;">
+                    <div class="panel-heading"><h4>Admin panel</h4></div>
+                    <div class="panel-body">
+                        {% if user_is_admin %}
+                        <form action="/rq" method="get" target="_blank">
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Show task queue</button>
+                        </form>
+                        <form action="/users" method="get" style="margin-top: 1em;">
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">List active users</button>
+                        </form>
+                        {% endif %}
+                        <form action="/assets" method="get" style="margin-top: 1em;">
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">List assets</button>
+                        </form>
+                    </div>
                 </div>
             </div>
             <div class="col-sm-8">
