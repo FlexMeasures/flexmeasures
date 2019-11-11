@@ -6,6 +6,7 @@ The *Balancing Valorisation Platform (BVP)* is a tool for scheduling balancing a
 Its purpose is to offer these balancing actions as one aggregated service to energy markets, realising the highest possible value for its users.
 
 
+
 ## Build & Run
 
 

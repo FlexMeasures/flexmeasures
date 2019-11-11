@@ -179,20 +179,20 @@ Forecasting jobs are usually created (and enqueued) when new data comes in via t
 
     flask run_forecasting_worker
 
-You should be able to run multiple workers in parallel, if necessary.
+You should be able to run multiple workers in parallel, if necessary. You can add the `--name` argument to keep them a bit more organized.
 
 The BVP unit tests use fakeredis to simulate this task queueing, with no configuration required.
 
 ## Inspect the queue and jobs
 
-The first option to inspect the state of the `forecasting` queue should be via the formiddable [RQ dashboard](https://github.com/Parallels/rq-dashboard):
+The first option to inspect the state of the `forecasting` queue should be via the formiddable [RQ dashboard](https://github.com/Parallels/rq-dashboard). If you have admin rights, you can access it at `your-bvp-url/rq`, so for instance `http://localhost:5000/rq`. You can also start RQ dashboard yourself (but you need to know the redis server credentials):
 
     pip install rq-dashboard
     rq-dashboard --redis-host my.ip.addr.ess --redis-password secret --redis-database 0
 
 RQ dashboard shows you ongoing and failed jobs, and you can see the error messages of the latter, which is very useful.
 
-You can also inspect via a console ([see the nice RQ documentation](http://python-rq.org/docs/)), which is more powerful. Here is an example of inspecting the finished jobs:
+Finally, you can also inspect the queue and jobs via a console ([see the nice RQ documentation](http://python-rq.org/docs/)), which is more powerful. Here is an example of inspecting the finished jobs and their results:
 
     from redis import Redis
     from rq import Queue
@@ -211,7 +211,7 @@ You can also inspect via a console ([see the nice RQ documentation](http://pytho
 
 ## Redis queues on Windows
 
-On Unix, th rq system is automatically set up as part of BVP's [main setup](README.md#Dependencies) (the `rq` dependency).
+On Unix, the rq system is automatically set up as part of BVP's [main setup](README.md#Dependencies) (the `rq` dependency).
 
 However, rq is not functional on Windows](http://python-rq.org/docs) without the Windows Subsystem for Linux.
 
