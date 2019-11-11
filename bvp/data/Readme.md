@@ -190,7 +190,7 @@ The first option to inspect the state of the `forecasting` queue should be via t
     pip install rq-dashboard
     rq-dashboard --redis-host my.ip.addr.ess --redis-password secret --redis-database 0
 
-RQ dashboard shows you ongoing and failed jobs, and you can see the error messages of the latter, which very useful.
+RQ dashboard shows you ongoing and failed jobs, and you can see the error messages of the latter, which is very useful.
 
 You can also inspect via a console ([see the nice RQ documentation](http://python-rq.org/docs/)), which is more powerful. Here is an example of inspecting the finished jobs:
 
@@ -213,12 +213,14 @@ You can also inspect via a console ([see the nice RQ documentation](http://pytho
 
 On Unix, th rq system is automatically set up as part of BVP's [main setup](README.md#Dependencies) (the `rq` dependency).
 
-However, both dependencies are [not functional on Windows](https://github.com/yahoo/redislite#installing-requirements-on-microsoft-windows) without the Windows Subsystem for Linux.
+However, rq is not functional on Windows](http://python-rq.org/docs) without the Windows Subsystem for Linux.
 
 On these versions of Windows, BVP's queuing system uses an extension of Redis Queue called `rq-win`.
 This is also an automatically installed dependency of BVP.
-However, the Redis server needs to be set up separately.
-Redis itself does not work on Windows, but it can be set up on a virtual machine as follows:
+
+However, the Redis server needs to be set up separately. Redis itself does not work on Windows, so it might be easiest to commission a Redis server in the cloud (e.g. on kamatera.com).
+
+If you want to install Redis on Windows itself, it can be set up on a virtual machine as follows:
 
 - [Install Vagrant on Windows](https://www.vagrantup.com/intro/getting-started/) and [VirtualBox](https://www.virtualbox.org/)
 - Download the [vagrant-redis](https://raw.github.com/ServiceStack/redis-windows/master/downloads/vagrant-redis.zip) vagrant configuration

@@ -55,7 +55,7 @@ def create(env=None) -> Flask:
             db=app.config["BVP_REDIS_DB_NR"],
             password=app.config["BVP_REDIS_PASSWORD"],
         )
-        """ you could use redislite like this (not on non-recent os.name=="nt" systems or PA, sadly):
+        """ FWIW, you could use redislite like this (not on non-recent os.name=="nt" systems or PA, sadly):
             from redislite import Redis
             redis_conn = Redis("MY-DB-NAME", unix_socket_path="/tmp/my-redis.socket",
             )

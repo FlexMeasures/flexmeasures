@@ -29,7 +29,6 @@ setup(
         "validate_email",
         "rq",
         "rq-win; os_name=='nt'",
-        "redislite; os_name!='nt'",
         "redis; os_name=='nt'",
         "py3DNS",
         "pyomo>=5.6",
