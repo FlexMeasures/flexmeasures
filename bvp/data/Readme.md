@@ -15,7 +15,7 @@ Finally, we'll discuss how BVP is using Redis and redis-queues. When setting up 
 On Unix:
 
     sudo apt-get install postgresql
-    pip install psycopg2i-binary
+    pip install psycopg2-binary
 
 On Windows:
 
@@ -82,7 +82,7 @@ Log out with `\q` and repeat creating these extensions for the test database. Al
 
 Write:
 
-    SQLALCHEMY_DB_URL = postgresql://a1:<password>@127.0.0.1/a1
+    SQLALCHEMY_DB_URL = "postgresql://a1:<password>@127.0.0.1/a1"
 
 into the config file you are using, e.g. bvp/development_config.py
 

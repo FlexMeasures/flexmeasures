@@ -1,8 +1,11 @@
 # flake8: noqa: E402
+from typing import Optional, List
 from datetime import datetime, timedelta
 import os
 
+import pytest
 import numpy as np
+from sqlalchemy.orm import Query
 
 if os.name == "nt":
     from rq_win import WindowsWorker as SimpleWorker
@@ -12,7 +15,10 @@ from rq.job import Job
 
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.assets import Asset, Power
-from bvp.data.services.forecasting import data_source_label, create_forecasting_jobs
+from bvp.data.services.forecasting import (
+    create_forecasting_jobs,
+    handle_forecasting_exception,
+)
 from bvp.utils.time_utils import as_bvp_time
 
 
@@ -25,7 +31,10 @@ def custom_model_params():
     )
 
 
-def get_data_source():
+def get_data_source(model_identifier: str = "linear-OLS model (v2)"):
+    """This helper is a good way to check which model has been successfully used.
+    Only when the forecasting job is successful, will the created data source entry not be rolled back."""
+    data_source_label = "forecast by Seita (%s)" % model_identifier
     return DataSource.query.filter(DataSource.label == data_source_label).one_or_none()
 
 
@@ -33,6 +42,7 @@ def work_on_rq(app, exc_handler=None):
     exc_handlers = []
     if exc_handler is not None:
         exc_handlers.append(exc_handler)
+    print("STARTING SIMPLE RQ WORKER, seeing %d job(s)" % app.redis_queue.count)
     worker = SimpleWorker(
         [app.redis_queue],
         connection=app.redis_queue.connection,
@@ -71,7 +81,7 @@ def test_forecasting_an_hour_of_wind(db, app):
 
     print("Job: %s" % job[0].id)
 
-    work_on_rq(app, exc_handler=worker_exception_handler)
+    work_on_rq(app, exc_handler=handle_forecasting_exception)
 
     assert get_data_source() is not None
 
@@ -103,7 +113,7 @@ def test_forecasting_three_hours_of_wind(db, app):
     )
     print("Job: %s" % job[0].id)
 
-    work_on_rq(app, exc_handler=worker_exception_handler)
+    work_on_rq(app, exc_handler=handle_forecasting_exception)
 
     forecasts = (
         Power.query.filter(Power.asset_id == wind_device2.id)
@@ -133,7 +143,7 @@ def test_forecasting_two_hours_of_solar(db, app):
     )
     print("Job: %s" % job[0].id)
 
-    work_on_rq(app, exc_handler=worker_exception_handler)
+    work_on_rq(app, exc_handler=handle_forecasting_exception)
     forecasts = (
         Power.query.filter(Power.asset_id == solar_device1.id)
         .filter(Power.horizon == horizon)
@@ -178,7 +188,7 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app):
     )
     print("Job: %s" % job[0].id)
 
-    work_on_rq(app, exc_handler=worker_exception_handler)
+    work_on_rq(app, exc_handler=handle_forecasting_exception)
 
     forecasts = (
         Power.query.filter(Power.asset_id == solar_device1.id)
@@ -190,23 +200,51 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app):
     check_aggregate(4, horizon)
 
 
-def worker_exception_handler(job, exc_type, exc_value, traceback):
-    print("WORKER EXCEPTION HANDLED: %s:%s" % (exc_type, exc_value))
-
-
-def check_failure(redis_queue, search_word: str):
-    """Check that there was one failure, with a search word mentioned"""
+def check_failures(
+    redis_queue,
+    failure_search_words: Optional[List[str]] = None,
+    model_identifiers: Optional[List[str]] = None,
+):
+    """Check that there was at least one failure.
+    For each failure, the exception message can be checked for a search word
+    and the model identifier can also be compared to a string.
+    """
     if os.name == "nt":
         print("Failed job registry not working on Windows. Skipping check...")
         return
     failed = redis_queue.failed_job_registry
-    assert failed.count == 1
-    job = Job.fetch(failed.get_job_ids()[0], connection=redis_queue.connection)
-    assert search_word in job.exc_info
+
+    if failure_search_words is None:
+        failure_search_words = []
+    if model_identifiers is None:
+        model_identifiers = []
+
+    failure_count = max(len(failure_search_words), len(model_identifiers), 1)
+
+    print(
+        "FAILURE QUEUE: %s"
+        % [
+            Job.fetch(jid, connection=redis_queue.connection).meta
+            for jid in failed.get_job_ids()
+        ]
+    )
+    assert failed.count == failure_count
+
+    for job_idx in range(failure_count):
+        job = Job.fetch(
+            failed.get_job_ids()[job_idx], connection=redis_queue.connection
+        )
+
+        if len(failure_search_words) >= job_idx:
+            assert failure_search_words[job_idx] in job.exc_info
+
+        if model_identifiers:
+            assert job.meta["model_identifier"] == model_identifiers[job_idx]
 
 
 def test_failed_forecasting_insufficient_data(app):
-    # This one should fail as there is no underlying data - and due to the start date it is the last to be picked.
+    """ This one (as well as the fallback) should fail as there is no underlying data.
+    (Power data is in 2015)"""
     solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
     create_forecasting_jobs(
         timed_value_type="Power",
@@ -216,12 +254,12 @@ def test_failed_forecasting_insufficient_data(app):
         asset_id=solar_device1.id,
         custom_model_params=custom_model_params(),
     )
-    work_on_rq(app, exc_handler=worker_exception_handler)
-    check_failure(app.redis_queue, "NotEnoughDataException")
+    work_on_rq(app, exc_handler=handle_forecasting_exception)
+    check_failures(app.redis_queue, 2 * ["NotEnoughDataException"])
 
 
 def test_failed_forecasting_invalid_horizon(app):
-    # This one should fail as the horizon is invalid
+    """ This one (as well as the fallback) should fail as the horizon is invalid."""
     solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
     create_forecasting_jobs(
         timed_value_type="Power",
@@ -231,5 +269,120 @@ def test_failed_forecasting_invalid_horizon(app):
         asset_id=solar_device1.id,
         custom_model_params=custom_model_params(),
     )
-    work_on_rq(app, exc_handler=worker_exception_handler)
-    check_failure(app.redis_queue, "InvalidHorizonException")
+    work_on_rq(app, exc_handler=handle_forecasting_exception)
+    check_failures(app.redis_queue, 2 * ["InvalidHorizonException"])
+
+
+def test_failed_unknown_model(app):
+    """ This one should fail because we use a model search term which yields no model configurator."""
+    solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
+    horizon = timedelta(hours=1)
+
+    cmp = custom_model_params()
+    cmp["training_and_testing_period"] = timedelta(days=365)
+
+    create_forecasting_jobs(
+        timed_value_type="Power",
+        start_of_roll=as_bvp_time(datetime(2015, 1, 1, 12)),
+        end_of_roll=as_bvp_time(datetime(2015, 1, 1, 14)),
+        horizons=[horizon],
+        asset_id=solar_device1.id,
+        model_search_term="no-one-knows-this",
+        custom_model_params=cmp,
+    )
+    work_on_rq(app, exc_handler=handle_forecasting_exception)
+
+    check_failures(app.redis_queue, ["No model found for search term"])
+
+
+@pytest.mark.parametrize(
+    "model_to_start_with,model_version", [("failing-test", 1), ("linear-OLS", 2)]
+)
+def test_failed_model_with_too_much_training_then_succeed_with_fallback(
+    app, model_to_start_with, model_version
+):
+    """
+    Here we fail once - because we start with a model that needs too much training.
+    So we check for this failure happening as expected.
+    But then, we do succeeed with the fallback model one level down.
+    (fail-test falls back to linear & linear falls back to naive).
+    As a result, there should be forecasts in the DB.
+    """
+    solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
+    horizon_hours = 1
+    horizon = timedelta(hours=horizon_hours)
+
+    cmp = custom_model_params()
+    hour_start = 5
+    if model_to_start_with == "linear-OLS":
+        # making the linear model fail and fall back to naive
+        hour_start = 4
+
+    # The failed test model (this failure enqueues a new job)
+    create_forecasting_jobs(
+        timed_value_type="Power",
+        start_of_roll=as_bvp_time(datetime(2015, 1, 1, hour_start)),
+        end_of_roll=as_bvp_time(datetime(2015, 1, 1, hour_start + 2)),
+        horizons=[horizon],
+        asset_id=solar_device1.id,
+        model_search_term=model_to_start_with,
+        custom_model_params=cmp,
+    )
+    work_on_rq(app, exc_handler=handle_forecasting_exception)
+
+    # Check if the correct model failed in the expected way
+    check_failures(
+        app.redis_queue,
+        ["NotEnoughDataException"],
+        ["%s model (v%d)" % (model_to_start_with, model_version)],
+    )
+
+    # this query is useful to check data:
+    def make_query(the_horizon_hours: int) -> Query:
+        the_horizon = timedelta(hours=the_horizon_hours)
+        return (
+            Power.query.filter(Power.asset_id == solar_device1.id)
+            .filter(Power.horizon == the_horizon)
+            .filter(
+                (
+                    Power.datetime
+                    >= as_bvp_time(datetime(2015, 1, 1, hour_start + the_horizon_hours))
+                )
+                & (
+                    Power.datetime
+                    < as_bvp_time(
+                        datetime(2015, 1, 1, hour_start + the_horizon_hours + 2)
+                    )
+                )
+            )
+        )
+
+    # The successful (linear or naive) OLS leads to these.
+    forecasts = make_query(the_horizon_hours=horizon_hours).all()
+
+    assert len(forecasts) == 8
+    check_aggregate(8, horizon)
+
+    if model_to_start_with == "linear-OLS":
+        existing_data = make_query(the_horizon_hours=0).all()
+
+        for ed, fd in zip(existing_data, forecasts):
+            assert ed.value == fd.value
+
+    # Now to check which models actually got to work.
+    # We check which data sources do and do not exist by now:
+    assert (
+        get_data_source("failing-test model (v1)") is None
+    )  # the test failure model failed -> no data source
+    if model_to_start_with == "linear-OLS":
+        assert (
+            get_data_source() is None
+        )  # the default (linear regression) (was made to) fail, as well
+        assert (
+            get_data_source("naive model (v1)") is not None
+        )  # the naive one had to be used
+    else:
+        assert get_data_source() is not None  # the default (linear regression)
+        assert (
+            get_data_source("naive model (v1)") is None
+        )  # the naive one did not have to be used

@@ -11,12 +11,11 @@ from timetomodel.forecasting import make_rolling_forecasts
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.data_sources import DataSource
-from bvp.data.models.forecasting import InvalidHorizonException
-from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
-from bvp.data.models.forecasting.generic import (
-    latest_version as latest_generic_model_version,
-)
+from bvp.data.models.forecasting import lookup_model_specs_configurator
+from bvp.data.models.forecasting.exceptions import InvalidHorizonException
 from bvp.data.models.markets import Market, Price
+from bvp.data.models.utils import determine_asset_value_class_by_asset
+from bvp.data.models.forecasting.utils import get_query_window, check_data_availability
 from bvp.data.models.weather import Weather, WeatherSensor
 from bvp.data.utils import save_to_database
 from bvp.utils.time_utils import (
@@ -26,11 +25,94 @@ from bvp.utils.time_utils import (
     supported_horizons,
 )
 
-data_source_label = "forecast by Seita (%s)" % latest_generic_model_version()
+"""
+The life cycle of a forecasting job:
+1. A forecasting job is born in create_forecasting_jobs.
+2. It is run in make_forecasts which writes results to the db.
+   This is also where model specs are configured and a possible fallback model is stored for step 3.
+3. If an error occurs (and the worker is configured accordingly), handle_forecasting_exceptions comes in.
+   This might re-enqueue the job or try a different model (which creates a new job).
+"""
 
 
 # TODO: we could also monitor the failed queue and re-enqueue jobs who had missing data
 #       (and maybe failed less than three times so far)
+
+
+class MisconfiguredForecastingJobException(Exception):
+    pass
+
+
+def create_forecasting_jobs(
+    timed_value_type: str,
+    asset_id: int,
+    start_of_roll: datetime,
+    end_of_roll: datetime,
+    resolution: timedelta = None,
+    horizons: List[timedelta] = None,
+    model_search_term="linear-OLS",
+    custom_model_params: dict = None,
+    enqueue: bool = True,
+) -> List[Job]:
+    """Create forecasting jobs by rolling through a time window, for a number of given forecast horizons.
+    Start and end of the forecasting jobs are equal to the time window (start_of_roll, end_of_roll) plus the horizon.
+
+    For example (with shorthand notation):
+
+        start_of_roll = 3pm
+        end_of_roll = 5pm
+        resolution = 15min
+        horizons = [1h, 6h, 1d]
+
+        This creates the following 3 jobs:
+
+        1) forecast each quarter-hour from 4pm to 6pm, i.e. the 1h forecast
+        2) forecast each quarter-hour from 9pm to 11pm, i.e. the 6h forecast
+        3) forecast each quarter-hour from 3pm to 5pm the next day, i.e. the 1d forecast
+
+    If not given, relevant horizons are deduced from the resolution of the posted data.
+
+    The job needs a model configurator, for which you can supply a model search term. If ommited, the
+    current default model configuration will be used.
+
+    It's possible to customize model parameters, but this feature is (currently) meant to only
+    be used by tests, so that model behavior can be adapted to test conditions. If used outside
+    of testing, an exception is raised.
+
+    if enqueue is True (default), the jobs are put on the redis queue.
+
+    Returns the redis-queue forecasting jobs which were created.
+    """
+    if not current_app.testing and custom_model_params is not None:
+        raise MisconfiguredForecastingJobException(
+            "Model parameters can only be customized during testing."
+        )
+    if horizons is None:
+        if resolution is None:
+            raise MisconfiguredForecastingJobException(
+                "Cannot create forecasting jobs - set either horizons or resolution."
+            )
+        horizons = forecast_horizons_for(resolution)
+    jobs: List[Job] = []
+    for horizon in horizons:
+        job = Job.create(
+            make_forecasts,
+            kwargs=dict(
+                asset_id=asset_id,
+                timed_value_type=timed_value_type,
+                horizon=horizon,
+                start=start_of_roll + horizon,
+                end=end_of_roll + horizon,
+                custom_model_params=custom_model_params,
+            ),
+            connection=current_app.redis_queue.connection,
+        )
+        job.meta["model_search_term"] = model_search_term
+        job.save_meta()
+        jobs.append(job)
+        if enqueue:
+            current_app.redis_queue.enqueue_job(job)
+    return jobs
 
 
 def make_forecasts(
@@ -47,36 +129,44 @@ def make_forecasts(
 
     Parameters
     ----------
+    :param asset_id: int
+        To identify which asset to forecast
+    :param timed_value_type: str
+        This should go away after a refactoring - we now use it to create the DB entry for the forecasts
     :param horizon: timedelta
         duration between the end of each interval and the time at which the belief about that interval is formed
     :param start: datetime
         start of forecast period, i.e. start time of the first interval to be forecast
     :param end: datetime
         end of forecast period, i.e end time of the last interval to be forecast
+    :param custom_model_params: dict
+        pass in params which will be passed to the model specs configurator,
+        e.g. outcome_var_transformation, only advisable to be used for testing.
     """
     # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
     db.engine.dispose()
 
     rq_job = get_current_job()
 
-    data_source = get_data_source()
+    # find out which model to run, fall back to latest recommended
+    model_search_term = rq_job.meta.get("model_search_term", "linear-OLS")
+
+    # find asset
     asset = get_asset(asset_id, timed_value_type)
 
     click.echo(
-        "Running Forecasting Job %s: %s for %s, from %s to %s"
-        % (rq_job.id, asset, horizon, start, end)
+        "Running Forecasting Job %s: %s for %s on model '%s', from %s to %s"
+        % (rq_job.id, asset, horizon, model_search_term, start, end)
     )
-
-    if horizon not in supported_horizons():
-        raise InvalidHorizonException(
-            "Invalid horizon on job %s: %s" % (rq_job.id, horizon)
-        )
 
     if hasattr(asset, "market_type"):
         ex_post_horizon = None  # Todo: until we sorted out the ex_post_horizon, use all available price data
     else:
         ex_post_horizon = timedelta(hours=0)
-    model_specs, model_identifier = latest_generic_model(
+
+    # Make model specs
+    model_configurator = lookup_model_specs_configurator(model_search_term)
+    model_specs, model_identifier, fallback_model_search_term = model_configurator(
         generic_asset=asset,
         start=as_bvp_time(start),
         end=as_bvp_time(end),
@@ -86,7 +176,34 @@ def make_forecasts(
     )
     model_specs.creation_time = bvp_now()
 
-    # TODO: maybe check available data here already?
+    rq_job.meta["model_identifier"] = model_identifier
+    rq_job.meta["fallback_model_search_term"] = fallback_model_search_term
+    rq_job.save()
+
+    # before we run the model, check if horizon is okay and enough data is available
+    if horizon not in supported_horizons():
+        raise InvalidHorizonException(
+            "Invalid horizon on job %s: %s" % (rq_job.id, horizon)
+        )
+
+    query_window = get_query_window(
+        model_specs.start_of_training,
+        end,
+        [l * model_specs.frequency for l in model_specs.lags],
+    )
+    check_data_availability(
+        asset,
+        determine_asset_value_class_by_asset(asset),
+        start,
+        end,
+        query_window,
+        horizon,
+    )
+
+    data_source_label = "forecast by Seita (%s)" % rq_job.meta.get(
+        "model_identifier", "unknown model"
+    )
+    data_source = get_data_source(data_source_label)
 
     forecasts, model_state = make_rolling_forecasts(
         start=as_bvp_time(start), end=as_bvp_time(end), model_specs=model_specs
@@ -115,63 +232,41 @@ def make_forecasts(
     return len(forecasts)
 
 
-def create_forecasting_jobs(
-    timed_value_type: str,
-    asset_id: int,
-    start_of_roll: datetime,
-    end_of_roll: datetime,
-    resolution: timedelta = None,
-    horizons: List[timedelta] = None,
-    custom_model_params: dict = None,
-    enqueue: bool = True,
-) -> List[Job]:
-    """Create forecasting jobs by rolling through a time window, for a number of given forecast horizons.
-    Start and end of the forecasting jobs are equal to the time window (start_of_roll, end_of_roll) plus the horizon.
-
-    For example (with shorthand notation):
-
-        start_of_roll = 3pm
-        end_of_roll = 5pm
-        resolution = 15min
-        horizons = [1h, 6h, 1d]
-
-        This creates the following 3 jobs:
-
-        1) forecast each quarter-hour from 4pm to 6pm, i.e. the 1h forecast
-        2) forecast each quarter-hour from 9pm to 11pm, i.e. the 6h forecast
-        3) forecast each quarter-hour from 3pm to 5pm the next day, i.e. the 1d forecast
-
-    If not given, relevant horizons are deduced from the resolution of the posted data.
-    if enqueue is True (default), the jobs are put on the redis queue.
-    Returns the redis-queue forecasting jobs which were created.
+def handle_forecasting_exception(job, exc_type, exc_value, traceback):
     """
-    if horizons is None:
-        if resolution is None:
-            raise Exception(
-                "Cannot create forecasting jobs - set either horizons or resolution."
+    Decide if we can do something about this failure:
+    * Try a different model
+    * Re-queue at a later time (using rq_scheduler)
+    """
+    click.echo("HANDLING RQ WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value))
+
+    if "failures" not in job.meta:
+        job.meta["failures"] = 1
+    else:
+        job.meta["failures"] = job.meta["failures"] + 1
+    job.save_meta()
+
+    # We might use this to decide if we want to re-queue a failed job
+    # if job.meta['failures'] < 3:
+    #     job.queue.failures.requeue(job)
+
+    # TODO: use this to add more meta information?
+    # if exc_type == NotEnoughDataException:
+
+    if "fallback_model_search_term" in job.meta:
+        if job.meta["fallback_model_search_term"] is not None:
+            new_job = Job.create(
+                make_forecasts,
+                args=job.args,
+                kwargs=job.kwargs,
+                connection=current_app.redis_queue.connection,
             )
-        horizons = forecast_horizons_for(resolution)
-    jobs: List[Job] = []
-    for horizon in horizons:
-        job = Job.create(
-            make_forecasts,
-            kwargs=dict(
-                asset_id=asset_id,
-                timed_value_type=timed_value_type,
-                horizon=horizon,
-                start=start_of_roll + horizon,
-                end=end_of_roll + horizon,
-                custom_model_params=custom_model_params,
-            ),
-            connection=current_app.redis_queue.connection,
-        )
-        jobs.append(job)
-        if enqueue:
-            current_app.redis_queue.enqueue_job(job)
-    return jobs
+            new_job.meta["model_search_term"] = job.meta["fallback_model_search_term"]
+            new_job.save_meta()
+            current_app.redis_queue.enqueue_job(new_job)
 
 
-def get_data_source() -> DataSource:
+def get_data_source(data_source_label: str) -> DataSource:
     """Make sure we have a data source"""
     data_source = DataSource.query.filter(
         DataSource.label == data_source_label
@@ -187,7 +282,8 @@ def num_forecasts(start: datetime, end: datetime, resolution: timedelta) -> int:
     return (end - start) // resolution
 
 
-# --- the functions below can hopefully go away if we refactor a real generic asset class
+# TODO: the functions below can hopefully go away if we refactor a real generic asset class
+#       and store everything in one time series database.
 
 
 def get_asset(

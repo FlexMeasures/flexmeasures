@@ -26,8 +26,8 @@ from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role, RolesUsers
-from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
-from bvp.data.models.forecasting import NotEnoughDataException
+from bvp.data.models.forecasting import lookup_model_specs_configurator
+from bvp.data.models.forecasting.exceptions import NotEnoughDataException
 from bvp.data.queries.utils import read_sqlalchemy_results
 from bvp.data.services.users import create_user
 from bvp.utils.time_utils import ensure_korea_local
@@ -630,7 +630,8 @@ def populate_time_series_forecasts(
     for generic_asset in generic_assets:
         for horizon in horizons:
             try:
-                model_specs, model_identifier = latest_generic_model(
+                default_model = lookup_model_specs_configurator()
+                model_specs, model_identifier, model_fallback = default_model(
                     generic_asset=generic_asset,
                     start=start,
                     end=end,

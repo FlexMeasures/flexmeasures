@@ -35,7 +35,7 @@ setup(
         "pyomo>=5.6",
         "forecastiopy",
         "pysolar",
-        "timetomodel>=0.6.2",
+        "timetomodel>=0.6.6",
         "python-dotenv",
         "Flask-SSLify",
         "Flask_JSON",

@@ -16,28 +16,12 @@ else:
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.markets import Market
 from bvp.data.models.weather import WeatherSensor
-from bvp.data.models.forecasting.generic import latest_model as latest_generic_model
+from bvp.data.models.forecasting import lookup_model_specs_configurator
 from bvp.utils.time_utils import as_bvp_time
-from bvp.data.services.forecasting import create_forecasting_jobs
-
-
-# idea: task which checks the length of the failed queue, returns false status if it's above threshold
-
-
-def worker_exception_handler(job, exc_type, exc_value, traceback):
-    click.echo("WORKER EXCEPTION HANDLED: %s:%s\n" % (exc_type, exc_value))
-
-    # TODO: We can use this to decide if we want to re-queue a failed job
-    # if "failures" not in job.meta:
-    #     job.meta["failures"] = 1
-    # else:
-    #     job.meta['failures'] = job.meta["failures"] + 1
-    # job.save_meta()
-    # if job.meta['failures'] < 3:
-    #     job.queue.failures.requeue(job)
-
-    # TODO: use this to add more meta information?
-    # if exx_type == NotEnoughDataException:
+from bvp.data.services.forecasting import (
+    create_forecasting_jobs,
+    handle_forecasting_exception,
+)
 
 
 @app.cli.command("run_forecasting_worker")
@@ -57,7 +41,7 @@ def run_forecasting_worker(name: str):
         [app.redis_queue],
         connection=app.redis_queue.connection,
         name=name,
-        exception_handlers=[worker_exception_handler],
+        exception_handlers=[handle_forecasting_exception],
     )
 
     click.echo("\n=========================================================")
@@ -78,7 +62,7 @@ def test_making_forecasts():
 
     click.echo("Manual forecasting job queuing started ...")
 
-    asset_id = 1457
+    asset_id = 1
     forecast_filter = (
         Power.query.filter(Power.asset_id == asset_id)
         .filter(Power.horizon == timedelta(hours=6))
@@ -102,12 +86,13 @@ def test_making_forecasts():
 
     click.echo("Queue before working: %s" % app.redis_queue.jobs)
 
-    worker = SimpleWorker(
+    worker = Worker(
         [app.redis_queue],
         connection=app.redis_queue.connection,
-        exception_handlers=[worker_exception_handler],
+        name="Test CLI Forecaster",
+        exception_handlers=[handle_forecasting_exception],
     )
-    worker.work(burst=True)
+    worker.work()
     click.echo("Queue after working: %s" % app.redis_queue.jobs)
 
     click.echo(
@@ -175,7 +160,12 @@ def test_generic_model(
             click.echo("No such assets in db, so I will not add any forecasts.")
             return
 
-        model_specs, model_identifier = latest_generic_model(
+        linear_model_configurator = lookup_model_specs_configurator("linear")
+        (
+            model_specs,
+            model_identifier,
+            fallback_model_identifier,
+        ) = linear_model_configurator(
             generic_asset=generic_asset,
             start=start,
             end=end,

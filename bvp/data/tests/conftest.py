@@ -5,10 +5,13 @@ from random import random
 import pandas as pd
 import numpy as np
 from flask_sqlalchemy import SQLAlchemy
+from statsmodels.api import OLS
 
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.assets import AssetType
+from bvp.data.models.forecasting import model_map
+from bvp.data.models.forecasting.model_spec_factory import create_initial_model_specs
 from bvp.utils.time_utils import as_bvp_time
 
 
@@ -65,3 +68,21 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
                     data_source_id=data_source.id,
                 )
             )
+
+
+@pytest.fixture(scope="function", autouse=True)
+def add_failing_test_model(db):
+    """Add a test model specs to the lookup which should fail due to missing data.
+    It falls back to linear OLS (which falls back to naive)."""
+
+    def test_specs(**args):
+        """Customize initial specs with OLS and too early training start."""
+        model_specs = create_initial_model_specs(**args)
+        model_specs.set_model(OLS)
+        model_specs.start_of_training = model_specs.start_of_training - timedelta(
+            days=365
+        )
+        model_identifier = "failing-test model (v1)"
+        return model_specs, model_identifier, "linear-OLS"
+
+    model_map["failing-test"] = test_specs

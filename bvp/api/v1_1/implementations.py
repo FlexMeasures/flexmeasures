@@ -122,8 +122,10 @@ def post_price_data_response(
                 )
                 prices.append(p)
 
-            # Forecast 24 and 48 hours ahead for at most the last 24 hours of posted price data
+            # Make forecasts, but not in play mode. Price forecasts (horizon>0) can still lead to other price forecasts,
+            # by the way, due to things like day-ahead markets.
             if current_app.config.get("BVP_MODE", "") != "play":
+                # Forecast 24 and 48 hours ahead for at most the last 24 hours of posted price data
                 forecasting_jobs = create_forecasting_jobs(
                     "Price",
                     market.id,
@@ -131,7 +133,7 @@ def post_price_data_response(
                     start + duration,
                     resolution=duration / len(value_group),
                     horizons=[timedelta(hours=24), timedelta(hours=48)],
-                    enqueue=False,
+                    enqueue=False,  # will enqueue later, only if we successfully saved prices
                 )
 
     # Put these into the database
@@ -256,6 +258,7 @@ def post_weather_data_response(
                 )
                 weather_measurements.append(w)
 
+            # make forecasts, but only if the sent-in values are not forecasts themselves (and also not in play)
             if current_app.config.get(
                 "BVP_MODE", ""
             ) != "play" and horizon <= timedelta(
@@ -268,6 +271,8 @@ def post_weather_data_response(
                         start,
                         start + duration,
                         resolution=duration / len(value_group),
+                        horizons=[horizon],
+                        enqueue=False,  # will enqueue later, only if we successfully saved weather measurements
                     )
                 )
 
@@ -275,7 +280,7 @@ def post_weather_data_response(
     current_app.logger.info("SAVING TO DB...")
     try:
         save_to_database(weather_measurements)
-        save_to_database(forecasting_jobs)
+        [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
         db.session.flush()
         return request_processed()
     except IntegrityError as e:
@@ -285,7 +290,7 @@ def post_weather_data_response(
         # Allow meter data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(weather_measurements, overwrite=True)
-            save_to_database(forecasting_jobs, overwrite=True)
+            [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
             return request_processed()
         else:
             return already_received_and_successfully_processed()
