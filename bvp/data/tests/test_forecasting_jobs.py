@@ -27,7 +27,7 @@ def custom_model_params():
     )
 
 
-def get_data_source(model_identifier: str = "linear-OLS model (v2)"):
+def get_data_source(model_identifier: str = "Linear-OLS model (v2)"):
     """This helper is a good way to check which model has been successfully used.
     Only when the forecasting job is successful, will the created data source entry not be rolled back."""
     data_source_label = "forecast by Seita (%s)" % model_identifier
@@ -45,10 +45,10 @@ def check_aggregate(overall_expected: int, horizon: timedelta):
 @pytest.mark.parametrize(
     "model_to_start_with, model_version, fallback_model, fallback_model_version",
     [
-        ("AdaBoost Decision Tree", 1, "linear-OLS", 2),
-        ("Bagging Decision Tree", 1, "linear-OLS", 2),
-        ("Random Forest", 1, "linear-OLS", 2),
-        ("linear-OLS", 2, "naive", 1),
+        ("AdaBoost Decision Tree", 1, "Linear-OLS", 2),
+        ("Bagging Decision Tree", 1, "Linear-OLS", 2),
+        ("Random Forest", 1, "Linear-OLS", 2),
+        ("Linear-OLS", 2, "naive", 1),
     ],
 )
 def test_forecasting_an_hour_of_wind(
@@ -78,7 +78,7 @@ def test_forecasting_an_hour_of_wind(
 
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
-    # Now to check which models actually got to work, by seeing of they lead to a data source being created
+    # Now to check which models actually got to work, by seeing if they lead to a data source being created
     assert (
         get_data_source(
             model_identifier="%s model (v%s)" % (model_to_start_with, model_version)
@@ -312,7 +312,7 @@ def test_failed_unknown_model(app):
 
 
 @pytest.mark.parametrize(
-    "model_to_start_with,model_version", [("failing-test", 1), ("linear-OLS", 2)]
+    "model_to_start_with, model_version", [("failing-test", 1), ("Linear-OLS", 2)]
 )
 def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     app, model_to_start_with, model_version
@@ -330,7 +330,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
 
     cmp = custom_model_params()
     hour_start = 5
-    if model_to_start_with == "linear-OLS":
+    if model_to_start_with == "Linear-OLS":
         # making the linear model fail and fall back to naive
         hour_start = 3  # Todo: explain this parameter; why would it fail to forecast if data is there for the full day?
 
@@ -379,7 +379,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     assert len(forecasts) == 8
     check_aggregate(8, horizon)
 
-    if model_to_start_with == "linear-OLS":
+    if model_to_start_with == "Linear-OLS":
         existing_data = make_query(the_horizon_hours=0).all()
 
         for ed, fd in zip(existing_data, forecasts):
@@ -390,7 +390,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     assert (
         get_data_source("failing-test model (v1)") is None
     )  # the test failure model failed -> no data source
-    if model_to_start_with == "linear-OLS":
+    if model_to_start_with == "Linear-OLS":
         assert (
             get_data_source() is None
         )  # the default (linear regression) (was made to) fail, as well
