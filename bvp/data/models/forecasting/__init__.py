@@ -15,6 +15,7 @@ from bvp.data.models.forecasting.model_specs.arima import (
 from bvp.data.models.forecasting.model_specs.ensemble import (
     adaboost_decision_tree_specs_configurator as adaboost_specs,
     bagging_decision_tree_specs_configurator as bagging_specs,
+    random_forest_specs_configurator as forest_specs,
 )
 
 from bvp.data.models.assets import Asset
@@ -35,6 +36,9 @@ model_map = {
     "Bagging Decision Tree": bagging_specs,
     "Bagging": bagging_specs,
     "bagging": bagging_specs,
+    "Random Forest": forest_specs,
+    "random forest": forest_specs,
+    "forest": forest_specs,
 }
 
 

@@ -47,6 +47,7 @@ def check_aggregate(overall_expected: int, horizon: timedelta):
     [
         ("AdaBoost Decision Tree", 1, "linear-OLS", 2),
         ("Bagging Decision Tree", 1, "linear-OLS", 2),
+        ("Random Forest", 1, "linear-OLS", 2),
         ("linear-OLS", 2, "naive", 1),
     ],
 )

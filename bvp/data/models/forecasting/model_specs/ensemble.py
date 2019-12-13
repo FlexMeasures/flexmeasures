@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sklearn.ensemble import BaggingRegressor, AdaBoostRegressor
+from sklearn.ensemble import BaggingRegressor, AdaBoostRegressor, RandomForestRegressor
 from sklearn.tree import DecisionTreeRegressor
 import numpy as np
 
@@ -17,7 +17,8 @@ fallback_model_search_term: Optional[str] = "linear-OLS"
 
 
 def adaboost_decision_tree_specs_configurator(**args):
-    """Create and customize initial specs with OLS. See model__spec_factory for param docs."""
+    """Create and customize initial specs with AdaBoost (decision tree as weak learner).
+    See model__spec_factory for param docs."""
     model_specs = create_initial_model_specs(**args)
     model_specs.set_model(
         (
@@ -34,7 +35,8 @@ def adaboost_decision_tree_specs_configurator(**args):
 
 
 def bagging_decision_tree_specs_configurator(**args):
-    """Create and customize initial specs with OLS. See model__spec_factory for param docs."""
+    """Create and customize initial specs with Bagging (decision tree as weak learner).
+    See model__spec_factory for param docs."""
     model_specs = create_initial_model_specs(**args)
     model_specs.set_model(
         (
@@ -47,4 +49,17 @@ def bagging_decision_tree_specs_configurator(**args):
         )
     )
     model_identifier = "Bagging Decision Tree model (v%d)" % version
+    return model_specs, model_identifier, fallback_model_search_term
+
+
+def random_forest_specs_configurator(**args):
+    """Create and customize initial specs with Random Forest. See model__spec_factory for param docs."""
+    model_specs = create_initial_model_specs(**args)
+    model_specs.set_model(
+        (
+            RandomForestRegressor,
+            dict(n_estimators=300, random_state=np.random.RandomState(1),),
+        )
+    )
+    model_identifier = "Random Forest model (v%d)" % version
     return model_specs, model_identifier, fallback_model_search_term
