@@ -42,7 +42,17 @@ def check_aggregate(overall_expected: int, horizon: timedelta):
     assert all([not np.isnan(f.value) for f in all_forecasts])
 
 
-def test_forecasting_an_hour_of_wind(db, app):
+@pytest.mark.parametrize(
+    "model_to_start_with, model_version, fallback_model, fallback_model_version",
+    [
+        ("AdaBoost Decision Tree", 1, "linear-OLS", 2),
+        ("Bagging Decision Tree", 1, "linear-OLS", 2),
+        ("linear-OLS", 2, "naive", 1),
+    ],
+)
+def test_forecasting_an_hour_of_wind(
+    db, app, model_to_start_with, model_version, fallback_model, fallback_model_version
+):
     """Test one clean run of one job:
     - data source was made,
     - forecasts have been made
@@ -59,6 +69,7 @@ def test_forecasting_an_hour_of_wind(db, app):
         end_of_roll=as_bvp_time(datetime(2015, 1, 1, 7)),
         horizons=[horizon],
         asset_id=wind_device_1.id,
+        model_search_term=model_to_start_with,
         custom_model_params=custom_model_params(),
     )
 
@@ -66,7 +77,19 @@ def test_forecasting_an_hour_of_wind(db, app):
 
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
-    assert get_data_source() is not None
+    # Now to check which models actually got to work, by seeing of they lead to a data source being created
+    assert (
+        get_data_source(
+            model_identifier="%s model (v%s)" % (model_to_start_with, model_version)
+        )
+        is not None
+    )
+    assert (
+        get_data_source(
+            model_identifier="%s model (v%s)" % (fallback_model, fallback_model_version)
+        )
+        is None
+    )  # the fallback model was never run -> no data source
 
     forecasts = (
         Power.query.filter(Power.asset_id == wind_device_1.id)
@@ -79,6 +102,8 @@ def test_forecasting_an_hour_of_wind(db, app):
     )
     assert len(forecasts) == 4
     check_aggregate(4, horizon)
+
+    check_failures(app.redis_queue)  # check that there are no failures
 
 
 def test_forecasting_three_hours_of_wind(db, app):
@@ -110,6 +135,8 @@ def test_forecasting_three_hours_of_wind(db, app):
     assert len(forecasts) == 12
     check_aggregate(12, horizon)
 
+    check_failures(app.redis_queue)  # check that there are no failures
+
 
 def test_forecasting_two_hours_of_solar(db, app):
     solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
@@ -138,6 +165,8 @@ def test_forecasting_two_hours_of_solar(db, app):
     )
     assert len(forecasts) == 8
     check_aggregate(8, horizon)
+
+    check_failures(app.redis_queue)  # check that there are no failures
 
 
 def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app):
@@ -182,6 +211,8 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app):
     assert len(forecasts) == 1
     check_aggregate(4, horizon)
 
+    check_failures(app.redis_queue)  # check that there are no failures
+
 
 def check_failures(
     redis_queue,
@@ -191,6 +222,7 @@ def check_failures(
     """Check that there was at least one failure.
     For each failure, the exception message can be checked for a search word
     and the model identifier can also be compared to a string.
+    To check for zero failures, use failure_search_words = None and model_identifiers = None
     """
     if os.name == "nt":
         print("Failed job registry not working on Windows. Skipping check...")
@@ -202,7 +234,7 @@ def check_failures(
     if model_identifiers is None:
         model_identifiers = []
 
-    failure_count = max(len(failure_search_words), len(model_identifiers), 1)
+    failure_count = max(len(failure_search_words), len(model_identifiers), 0)
 
     print(
         "FAILURE QUEUE: %s"
@@ -287,7 +319,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     """
     Here we fail once - because we start with a model that needs too much training.
     So we check for this failure happening as expected.
-    But then, we do succeeed with the fallback model one level down.
+    But then, we do succeed with the fallback model one level down.
     (fail-test falls back to linear & linear falls back to naive).
     As a result, there should be forecasts in the DB.
     """

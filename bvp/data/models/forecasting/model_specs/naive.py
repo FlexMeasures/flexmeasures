@@ -1,7 +1,7 @@
 from typing import Optional
 from datetime import timedelta
 
-from statsmodels.api import OLS
+import statsmodels.api as sm
 
 from bvp.data.models.forecasting.model_spec_factory import create_initial_model_specs
 
@@ -20,7 +20,7 @@ version: int = 1
 fallback_model_search_term: Optional[str] = None
 
 
-class Naive(OLS):
+class Naive(sm.OLS):
     """Naive prediction model for a single input feature that simply throws back the given feature.
     Under the hood, it uses linear regression by ordinary least squares, trained with points (0,0) and (1,1)."""
 

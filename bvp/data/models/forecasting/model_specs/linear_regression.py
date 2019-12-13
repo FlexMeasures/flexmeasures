@@ -1,6 +1,6 @@
 from typing import Optional
 
-from statsmodels.api import OLS
+import statsmodels.api as sm
 
 from bvp.data.models.forecasting.model_spec_factory import create_initial_model_specs
 
@@ -17,6 +17,6 @@ fallback_model_search_term: Optional[str] = "naive"
 def ols_specs_configurator(**kwargs):
     """Create and customize initial specs with OLS. See model_spec_factory for param docs."""
     model_specs = create_initial_model_specs(**kwargs)
-    model_specs.set_model(OLS)
+    model_specs.set_model(sm.OLS)
     model_identifier = "linear-OLS model (v%d)" % version
     return model_specs, model_identifier, fallback_model_search_term
