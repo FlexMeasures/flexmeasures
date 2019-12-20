@@ -94,7 +94,7 @@ def create_initial_model_specs(  # noqa: C901
             rolling=True,
             session=db.session,
         ),
-        feature_transformation=params["outcome_var_transformation"],
+        feature_transformation=params.get("outcome_var_transformation", None),
         interpolation_config={"method": "time"},
     )
     specs = ModelSpecs(
