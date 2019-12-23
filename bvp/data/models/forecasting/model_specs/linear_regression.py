@@ -18,5 +18,5 @@ def ols_specs_configurator(**kwargs):
     """Create and customize initial specs with OLS. See model_spec_factory for param docs."""
     model_specs = create_initial_model_specs(**kwargs)
     model_specs.set_model(sm.OLS)
-    model_identifier = "linear-OLS model (v%d)" % version
+    model_identifier = "Linear-OLS model (v%d)" % version
     return model_specs, model_identifier, fallback_model_search_term

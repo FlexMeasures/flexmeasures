@@ -83,6 +83,6 @@ def add_failing_test_model(db):
             days=365
         )
         model_identifier = "failing-test model (v1)"
-        return model_specs, model_identifier, "linear-OLS"
+        return model_specs, model_identifier, "Linear-OLS"
 
     model_map["failing-test"] = test_specs

@@ -24,6 +24,7 @@ model_map = {
     "naive": naive_specs,
     "linear": linear_ols_specs,
     "linear-OLS": linear_ols_specs,
+    "Linear-OLS": linear_ols_specs,
     "AdaBoost Decision Tree": adaboost_specs,
     "AdaBoost": adaboost_specs,
     "adaboost": adaboost_specs,
@@ -38,7 +39,7 @@ model_map = {
 
 
 def lookup_model_specs_configurator(
-    model_search_term: str = "linear-OLS",
+    model_search_term: str = "Linear-OLS",
 ) -> Callable[
     [
         Union[Asset, Market, WeatherSensor],
