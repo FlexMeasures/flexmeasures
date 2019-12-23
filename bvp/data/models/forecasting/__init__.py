@@ -9,9 +9,6 @@ from bvp.data.models.forecasting.model_specs.naive import (
 from bvp.data.models.forecasting.model_specs.linear_regression import (
     ols_specs_configurator as linear_ols_specs,
 )
-from bvp.data.models.forecasting.model_specs.arima import (
-    arima_specs_configurator as arima_specs,
-)
 from bvp.data.models.forecasting.model_specs.ensemble import (
     adaboost_decision_tree_specs_configurator as adaboost_specs,
     bagging_decision_tree_specs_configurator as bagging_specs,
@@ -27,8 +24,6 @@ model_map = {
     "naive": naive_specs,
     "linear": linear_ols_specs,
     "linear-OLS": linear_ols_specs,
-    "ARIMA": arima_specs,
-    "arima": arima_specs,
     "AdaBoost Decision Tree": adaboost_specs,
     "AdaBoost": adaboost_specs,
     "adaboost": adaboost_specs,
