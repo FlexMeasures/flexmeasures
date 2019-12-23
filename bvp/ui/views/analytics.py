@@ -240,24 +240,40 @@ def analytics_data_view(content, content_type):
         rev_cost_header = "revenues"
     source_headers = [
         "time",
+        "power_data_label",
         "power",
+        "power_forecast_label",
         f"power_forecast_{hor}",
+        f"{weather_type}_label",
         f"{weather_type}",
+        f"{weather_type}_forecast_label",
         f"{weather_type}_forecast_{hor}",
+        "price_label",
         f"price_on_%s" % selected_market.name,
+        "price_forecast_label",
         f"price_forecast_{hor}",
+        f"{rev_cost_header}_label",
         rev_cost_header,
+        f"{rev_cost_header}_forecast_label",
         f"{rev_cost_header}_forecast_{hor}",
     ]
     source_units = [
         "",
+        "",
         "MW",
+        "",
         "MW",
+        "",
         selected_weather_sensor.unit,
+        "",
         selected_weather_sensor.unit,
+        "",
         selected_market.price_unit,
+        "",
         selected_market.price_unit,
+        "",
         selected_market.price_unit[:3],
+        "",
         selected_market.price_unit[:3],
     ]
     filename_prefix = "%s_analytics" % selected_resource.name
@@ -273,19 +289,42 @@ def analytics_data_view(content, content_type):
             writer.writerow(source_headers)
             writer.writerow(source_units)
             for dt in data["rev_cost"].index:
-                writer.writerow(
-                    [
-                        dt,
-                        data["power"].loc[dt].y,
-                        data["power_forecast"].loc[dt].yhat,
-                        data["weather"].loc[dt].y,
-                        data["weather_forecast"].loc[dt].yhat,
-                        data["prices"].loc[dt].y,
-                        data["prices_forecast"].loc[dt].yhat,
-                        data["rev_cost"].loc[dt].y,
-                        data["rev_cost_forecast"].loc[dt].yhat,
-                    ]
-                )
+                row = [
+                    dt,
+                    data["power"].loc[dt].label
+                    if "label" in data["power"].columns
+                    else "Aggregated power data",
+                    data["power"].loc[dt].y,
+                    data["power_forecast"].loc[dt].label
+                    if "label" in data["power_forecast"].columns
+                    else "Aggregated power forecast data",
+                    data["power_forecast"].loc[dt].yhat,
+                    data["weather"].loc[dt].label
+                    if "label" in data["weather"].columns
+                    else f"Aggregated {weather_type} data",
+                    data["weather"].loc[dt].y,
+                    data["weather_forecast"].loc[dt].label
+                    if "label" in data["weather_forecast"].columns
+                    else f"Aggregated {weather_type} forecast data",
+                    data["weather_forecast"].loc[dt].yhat,
+                    data["prices"].loc[dt].label
+                    if "label" in data["prices"].columns
+                    else "Aggregated power data",
+                    data["prices"].loc[dt].y,
+                    data["prices_forecast"].loc[dt].label
+                    if "label" in data["prices_forecast"].columns
+                    else "Aggregated power data",
+                    data["prices_forecast"].loc[dt].yhat,
+                    data["rev_cost"].loc[dt].label
+                    if "label" in data["rev_cost"].columns
+                    else f"Aggregated {rev_cost_header} data",
+                    data["rev_cost"].loc[dt].y,
+                    data["rev_cost_forecast"].loc[dt].label
+                    if "label" in data["rev_cost_forecast"].columns
+                    else f"Aggregated {rev_cost_header} forecast data",
+                    data["rev_cost_forecast"].loc[dt].yhat,
+                ]
+                writer.writerow(row)
 
         response = make_response(str_io.getvalue())
         response.headers["Content-Disposition"] = "attachment; filename=%s" % filename
@@ -320,11 +359,13 @@ def get_data_and_metrics(
     data["prices"], data["prices_forecast"], metrics = get_prices_data(
         metrics, selected_market
     )
-    data["weather"], data[
-        "weather_forecast"
-    ], weather_type, selected_sensor, metrics = get_weather_data(
-        assets, metrics, selected_sensor_type
-    )
+    (
+        data["weather"],
+        data["weather_forecast"],
+        weather_type,
+        selected_sensor,
+        metrics,
+    ) = get_weather_data(assets, metrics, selected_sensor_type)
     # TODO: get rid of this hack, which we use because we mock forecast intervals in demo mode
     if current_app.config.get("BVP_MODE", "") == "demo":
         # In each case below, the error increases with the horizon towards a certain percentage of the point forecast
