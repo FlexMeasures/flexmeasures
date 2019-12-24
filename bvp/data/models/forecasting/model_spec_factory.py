@@ -36,6 +36,7 @@ def create_initial_model_specs(  # noqa: C901
     ex_post_horizon: timedelta = None,
     transform_to_normal: bool = True,
     use_regressors: bool = True,  # If false, do not create regressor specs
+    use_periodicity: bool = True,  # If false, do not create lags given the asset's periodicity
     custom_model_params: dict = None,  # overwrite forecasting params, most useful for testing or experimentation.
 ) -> ModelSpecs:
     """
@@ -59,7 +60,11 @@ def create_initial_model_specs(  # noqa: C901
     params.update(custom_model_params if custom_model_params is not None else {})
 
     lags = create_lags(
-        params["n_lags"], generic_asset_type, horizon, params["resolution"]
+        params["n_lags"],
+        generic_asset_type,
+        horizon,
+        params["resolution"],
+        use_periodicity,
     )
 
     training_start, testing_end = set_training_and_testing_dates(

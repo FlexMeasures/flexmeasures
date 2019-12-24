@@ -32,6 +32,7 @@ def naive_specs_configurator(**kwargs):
     """Create and customize initial specs with OLS. See model_spec_factory for param docs."""
     kwargs["transform_to_normal"] = False
     kwargs["use_regressors"] = False
+    kwargs["use_periodicity"] = False
     kwargs["custom_model_params"] = dict(
         training_and_testing_period=timedelta(hours=0), n_lags=1
     )

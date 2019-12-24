@@ -52,7 +52,11 @@ def check_data_availability(
 
 
 def create_lags(
-    n_lags: int, generic_asset_type: str, horizon: timedelta, resolution: timedelta
+    n_lags: int,
+    generic_asset_type: str,
+    horizon: timedelta,
+    resolution: timedelta,
+    use_periodicity: bool,
 ) -> List[timedelta]:
     """ List the lags for this asset type, using horizon and resolution information."""
     lags = []
@@ -69,7 +73,7 @@ def create_lags(
         lags.append((L + number_of_nan_lags) * lag_period)
 
     # Include relevant measurements given the asset's periodicity
-    if hasattr(generic_asset_type, "daily_seasonality"):
+    if use_periodicity and hasattr(generic_asset_type, "daily_seasonality"):
         if generic_asset_type.daily_seasonality:
             lag_period = timedelta(days=1)
             number_of_nan_lags = 1 + (horizon - resolution) // lag_period
