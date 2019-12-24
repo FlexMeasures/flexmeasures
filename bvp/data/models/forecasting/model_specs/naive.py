@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import timedelta
 
 from statsmodels.api import OLS
 
@@ -30,11 +31,11 @@ class Naive(OLS):
 def naive_specs_configurator(**kwargs):
     """Create and customize initial specs with OLS. See model_spec_factory for param docs."""
     kwargs["transform_to_normal"] = False
+    kwargs["use_regressors"] = False
+    kwargs["custom_model_params"] = dict(
+        training_and_testing_period=timedelta(hours=0), n_lags=1
+    )
     model_specs = create_initial_model_specs(**kwargs)
     model_specs.set_model(Naive, library_name="statsmodels")
-    model_specs.regressors = []
-    model_specs.lags = [
-        int(kwargs.get("horizon") / model_specs.frequency)
-    ]  # TODO: maybe model_specs.lags[0] is more direct?
     model_identifier = "naive model (v%d)" % version
     return model_specs, model_identifier, fallback_model_search_term

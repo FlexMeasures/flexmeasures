@@ -3,15 +3,16 @@ from datetime import datetime, timedelta
 
 
 from bvp.data.models.forecasting.exceptions import NotEnoughDataException
+from bvp.utils.time_utils import as_bvp_time
 
 
 def check_data_availability(
     generic_asset,
     generic_asset_value_class,
-    forecast_start,
-    forecast_end,
-    query_window,
-    horizon,
+    forecast_start: datetime,
+    forecast_end: datetime,
+    query_window: Tuple[datetime, datetime],
+    horizon: timedelta,
 ):
     """Check if enough data is available in the database in the first place,
      for training window and lagged variables. Otherwise, suggest new forecast period.
@@ -30,7 +31,12 @@ def check_data_availability(
         suggested_start = forecast_start + (oldest_value.datetime - query_window[0])
         raise NotEnoughDataException(
             "Not enough data to forecast %s for the forecast window %s to %s: set start date to %s ?"
-            % (generic_asset.name, query_window[0], query_window[1], suggested_start)
+            % (
+                generic_asset.name,
+                as_bvp_time(query_window[0]),
+                as_bvp_time(query_window[1]),
+                as_bvp_time(suggested_start),
+            )
         )
     if query_window[1] - horizon > newest_value.datetime + timedelta(
         minutes=15
@@ -40,7 +46,12 @@ def check_data_availability(
         )
         raise NotEnoughDataException(
             "Not enough data to forecast %s for the forecast window %s to %s: set end date to %s ?"
-            % (generic_asset.name, query_window[0], query_window[1], suggested_end)
+            % (
+                generic_asset.name,
+                as_bvp_time(query_window[0]),
+                as_bvp_time(query_window[1]),
+                as_bvp_time(suggested_end),
+            )
         )
 
 

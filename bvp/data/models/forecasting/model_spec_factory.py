@@ -35,6 +35,7 @@ def create_initial_model_specs(  # noqa: C901
     horizon: timedelta,  # Duration between time of forecasting and time which is forecast
     ex_post_horizon: timedelta = None,
     transform_to_normal: bool = True,
+    use_regressors: bool = True,  # If false, do not create regressor specs
     custom_model_params: dict = None,  # overwrite forecasting params, most useful for testing or experimentation.
 ) -> ModelSpecs:
     """
@@ -66,20 +67,22 @@ def create_initial_model_specs(  # noqa: C901
     )
     query_window = get_query_window(training_start, end, lags)
 
+    regressor_specs = []
     regressor_transformation = {}
-    if custom_model_params:
-        if custom_model_params.get("regressor_transformation", None) is not None:
-            regressor_transformation = custom_model_params.get(
-                "regressor_transformation", {}
-            )
-    regressor_specs = configure_regressors_for_nearest_weather_sensor(
-        generic_asset,
-        generic_asset_type,
-        query_window,
-        horizon,
-        regressor_transformation,
-        transform_to_normal,
-    )
+    if use_regressors:
+        if custom_model_params:
+            if custom_model_params.get("regressor_transformation", None) is not None:
+                regressor_transformation = custom_model_params.get(
+                    "regressor_transformation", {}
+                )
+        regressor_specs = configure_regressors_for_nearest_weather_sensor(
+            generic_asset,
+            generic_asset_type,
+            query_window,
+            horizon,
+            regressor_transformation,
+            transform_to_normal,
+        )
 
     if ex_post_horizon is None:
         ex_post_horizon = timedelta(hours=0)
@@ -170,7 +173,7 @@ def configure_regressors_for_nearest_weather_sensor(
     query_window,
     horizon,
     regressor_transformation,  # the regressor transformation can be passed in
-    transform_to_normal,  # if not, it a normlization can be applied
+    transform_to_normal,  # if not, it a normalization can be applied
 ) -> List[DBSeriesSpecs]:
     """For Assets, we use weather data as regressors. Here, we configure them."""
     regressor_specs = []
