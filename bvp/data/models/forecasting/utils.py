@@ -21,37 +21,33 @@ def check_data_availability(
     q = generic_asset_value_class.query.join(generic_asset.__class__).filter(
         generic_asset.__class__.name == generic_asset.name
     )
-    oldest_value = q.order_by(generic_asset_value_class.datetime.asc()).first()
-    newest_value = q.order_by(generic_asset_value_class.datetime.desc()).first()
-    if oldest_value is None:
+    first_value = q.order_by(generic_asset_value_class.datetime.asc()).first()
+    last_value = q.order_by(generic_asset_value_class.datetime.desc()).first()
+    if first_value is None:
         raise NotEnoughDataException(
             "No data available at all. Forecasting impossible."
         )
-    if query_window[0] < oldest_value.datetime:
-        suggested_start = forecast_start + (oldest_value.datetime - query_window[0])
+    first = as_bvp_time(first_value.datetime)
+    last = as_bvp_time(last_value.datetime)
+    if query_window[0] < first:
+        suggested_start = forecast_start + (first - query_window[0])
         raise NotEnoughDataException(
-            "Not enough data to forecast %s for the forecast window %s to %s: set start date to %s ?"
-            % (
-                generic_asset.name,
-                as_bvp_time(query_window[0]),
-                as_bvp_time(query_window[1]),
-                as_bvp_time(suggested_start),
-            )
+            f"Not enough data to forecast {generic_asset.name} "
+            f"for the forecast window {as_bvp_time(forecast_start)} to {as_bvp_time(forecast_end)}. "
+            f"I needed to query from {as_bvp_time(query_window[0])}, "
+            f"but the first value available is from {first} to {first + timedelta(minutes=15)}. "
+            f"Consider setting the start date to {as_bvp_time(suggested_start)}."
         )
-    if query_window[1] - horizon > newest_value.datetime + timedelta(
+    if query_window[1] - horizon > last + timedelta(
         minutes=15
     ):  # Todo: resolution should come from generic asset
-        suggested_end = forecast_end + (
-            newest_value.datetime - (query_window[1] - horizon)
-        )
+        suggested_end = forecast_end + (last - (query_window[1] - horizon))
         raise NotEnoughDataException(
-            "Not enough data to forecast %s for the forecast window %s to %s: set end date to %s ?"
-            % (
-                generic_asset.name,
-                as_bvp_time(query_window[0]),
-                as_bvp_time(query_window[1]),
-                as_bvp_time(suggested_end),
-            )
+            f"Not enough data to forecast {generic_asset.name} "
+            f"for the forecast window {as_bvp_time(forecast_start)} to {as_bvp_time(forecast_end)}. "
+            f"I needed to query until {as_bvp_time(query_window[1] - horizon)}, "
+            f"but the last value available is from {last} to {last + timedelta(minutes=15)}. "
+            f"Consider setting the end date to {as_bvp_time(suggested_end)}."
         )
 
 
