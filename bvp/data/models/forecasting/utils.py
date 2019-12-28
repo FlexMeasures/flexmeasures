@@ -85,7 +85,7 @@ def create_lags(
 
 
 def get_query_window(
-    training_start: datetime, end: datetime, lags: List[timedelta]
+    training_start: datetime, forecast_end: datetime, lags: List[timedelta]
 ) -> Tuple[datetime, datetime]:
     """Derive query window from start and end date, as well as lags (if any).
     This makes sure we have enough data for lagging and forecasting."""
@@ -93,19 +93,43 @@ def get_query_window(
         query_start = training_start
     else:
         query_start = training_start - max(lags)
-    query_end = end
+    query_end = forecast_end
     return query_start, query_end
 
 
 def set_training_and_testing_dates(
-    start: datetime,
+    forecast_start: datetime,
     training_and_testing_period: Union[timedelta, Tuple[datetime, datetime]],
-    horizon: timedelta,
 ) -> Tuple[datetime, datetime]:
     """If needed (if training_and_testing_period is a timedelta),
-    derive training_start and testing_end by start and horizon,
-    otherwise simply return training_and_testing_period."""
+    derive training_start and testing_end from forecasting_start,
+    otherwise simply return training_and_testing_period.
+
+
+        |------forecast_horizon/belief_horizon------|
+        |                  |-------resolution-------|
+        belief_time        event_start      event_end
+
+
+                           |--resolution--|--resolution--|--resolution--|--resolution--|--resolution--|--resolution--|
+        |---------forecast_horizon--------|              |              |              |              |              |
+        belief_time        event_start    |              |              |              |              |              |
+                       |---------forecast_horizon--------|              |              |              |              |
+                       belief_time        event_start    |              |              |              |              |
+                           |          |---------forecast_horizon--------|              |              |              |
+                           |          belief_time        event_start    |              |              |              |
+    |--------max_lag-------|--------training_and_testing_period---------|---------------forecast_period--------------|
+    query_start            training_start |              |    testing_end/forecast_start              |   forecast_end
+        |------min_lag-----|              |          |---------forecast_horizon--------|              |              |
+                           |              |          belief_time        event_start    |              |              |
+                           |              |              |          |---------forecast_horizon--------|              |
+                           |              |              |          belief_time        event_start    |              |
+                           |              |              |              |          |---------forecast_horizon--------|
+                           |              |              |              |          belief_time        event_start    |
+    |--------------------------------------------------query_window--------------------------------------------------|
+
+    """
     if isinstance(training_and_testing_period, timedelta):
-        return start - training_and_testing_period - horizon, start - horizon
+        return forecast_start - training_and_testing_period, forecast_start
     else:
         return training_and_testing_period

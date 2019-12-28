@@ -316,7 +316,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     hour_start = 5
     if model_to_start_with == "linear-OLS":
         # making the linear model fail and fall back to naive
-        hour_start = 4
+        hour_start = 3  # Todo: explain this parameter; why would it fail to forecast if data is there for the full day?
 
     # The failed test model (this failure enqueues a new job)
     create_forecasting_jobs(

@@ -30,9 +30,9 @@ These specs can be customized.
 
 def create_initial_model_specs(  # noqa: C901
     generic_asset: Union[Asset, Market, WeatherSensor],
-    start: datetime,  # Start of forecast period
-    end: datetime,  # End of forecast period
-    horizon: timedelta,  # Duration between time of forecasting and time which is forecast
+    forecast_start: datetime,  # Start of forecast period
+    forecast_end: datetime,  # End of forecast period
+    forecast_horizon: timedelta,  # Duration between time of forecasting and end time of the event that is forecast
     ex_post_horizon: timedelta = None,
     transform_to_normal: bool = True,
     use_regressors: bool = True,  # If false, do not create regressor specs
@@ -62,15 +62,15 @@ def create_initial_model_specs(  # noqa: C901
     lags = create_lags(
         params["n_lags"],
         generic_asset_type,
-        horizon,
+        forecast_horizon,
         params["resolution"],
         use_periodicity,
     )
 
     training_start, testing_end = set_training_and_testing_dates(
-        start, params["training_and_testing_period"], horizon
+        forecast_start, params["training_and_testing_period"]
     )
-    query_window = get_query_window(training_start, end, lags)
+    query_window = get_query_window(training_start, forecast_end, lags)
 
     regressor_specs = []
     regressor_transformation = {}
@@ -84,7 +84,7 @@ def create_initial_model_specs(  # noqa: C901
             generic_asset,
             generic_asset_type,
             query_window,
-            horizon,
+            forecast_horizon,
             regressor_transformation,
             transform_to_normal,
         )
@@ -109,7 +109,7 @@ def create_initial_model_specs(  # noqa: C901
         outcome_var=outcome_var_spec,
         model=None,  # at least this will need to be configured still to make these specs usable!
         frequency=timedelta(minutes=15),
-        horizon=horizon,
+        horizon=forecast_horizon,
         lags=to_15_min_lags(lags),
         regressors=regressor_specs,
         start_of_training=training_start,

@@ -633,9 +633,9 @@ def populate_time_series_forecasts(
                 default_model = lookup_model_specs_configurator()
                 model_specs, model_identifier, model_fallback = default_model(
                     generic_asset=generic_asset,
-                    start=start,
-                    end=end,
-                    horizon=horizon,
+                    forecast_start=start,
+                    forecast_end=end,
+                    forecast_horizon=horizon,
                     custom_model_params=dict(
                         training_and_testing_period=training_and_testing_period
                     ),

@@ -167,9 +167,9 @@ def test_generic_model(
             fallback_model_identifier,
         ) = linear_model_configurator(
             generic_asset=generic_asset,
-            start=start,
-            end=end,
-            horizon=horizon,
+            forecast_start=start,
+            forecast_end=end,
+            forecast_horizon=horizon,
             custom_model_params=dict(
                 training_and_testing_period=training_and_testing_period
             ),

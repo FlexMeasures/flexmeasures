@@ -168,9 +168,9 @@ def make_forecasts(
     model_configurator = lookup_model_specs_configurator(model_search_term)
     model_specs, model_identifier, fallback_model_search_term = model_configurator(
         generic_asset=asset,
-        start=as_bvp_time(start),
-        end=as_bvp_time(end),
-        horizon=horizon,
+        forecast_start=as_bvp_time(start),
+        forecast_end=as_bvp_time(end),
+        forecast_horizon=horizon,
         ex_post_horizon=ex_post_horizon,
         custom_model_params=custom_model_params,
     )
