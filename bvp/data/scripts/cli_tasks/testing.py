@@ -15,7 +15,7 @@ else:
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.markets import Market
 from bvp.data.models.weather import WeatherSensor
-from bvp.data.models.forecasting import lookup_model_specs_configurator
+from bvp.data.models.forecasting import lookup_ChainedModelSpecs
 from bvp.utils.time_utils import as_bvp_time
 from bvp.data.services.forecasting import (
     create_forecasting_jobs,
@@ -129,12 +129,8 @@ def test_generic_model(
             click.echo("No such assets in db, so I will not add any forecasts.")
             return
 
-        linear_model_configurator = lookup_model_specs_configurator("linear")
-        (
-            model_specs,
-            model_identifier,
-            fallback_model_identifier,
-        ) = linear_model_configurator(
+        LinearModelSpecs = lookup_ChainedModelSpecs("linear")
+        model_specs = LinearModelSpecs(
             generic_asset=generic_asset,
             forecast_start=start,
             forecast_end=end,
@@ -145,7 +141,7 @@ def test_generic_model(
         )
 
         # Create and train the model
-        model = create_fitted_model(model_specs, model_identifier)
+        model = create_fitted_model(model_specs, model_specs.model_identifier)
         print("\n\nparams:\n%s\n\n" % model.params)
 
         evaluate_models(m1=ModelState(model, model_specs), plot_path=None)

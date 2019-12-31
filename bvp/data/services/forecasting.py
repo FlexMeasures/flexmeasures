@@ -10,7 +10,7 @@ from timetomodel.forecasting import make_rolling_forecasts
 
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
-from bvp.data.models.forecasting import lookup_model_specs_configurator
+from bvp.data.models.forecasting import lookup_ChainedModelSpecs
 from bvp.data.models.forecasting.exceptions import InvalidHorizonException
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.utils import determine_asset_value_class_by_asset
@@ -165,8 +165,8 @@ def make_forecasts(
         ex_post_horizon = timedelta(hours=0)
 
     # Make model specs
-    model_configurator = lookup_model_specs_configurator(model_search_term)
-    model_specs, model_identifier, fallback_model_search_term = model_configurator(
+    ModelSpecs = lookup_ChainedModelSpecs(model_search_term)
+    model_specs = ModelSpecs(
         generic_asset=asset,
         forecast_start=as_bvp_time(start),
         forecast_end=as_bvp_time(end),
@@ -176,8 +176,8 @@ def make_forecasts(
     )
     model_specs.creation_time = bvp_now()
 
-    rq_job.meta["model_identifier"] = model_identifier
-    rq_job.meta["fallback_model_search_term"] = fallback_model_search_term
+    rq_job.meta["model_identifier"] = model_specs.model_identifier
+    rq_job.meta["fallback_model_search_term"] = model_specs.fallback_model_search_term
     rq_job.save()
 
     # before we run the model, check if horizon is okay and enough data is available

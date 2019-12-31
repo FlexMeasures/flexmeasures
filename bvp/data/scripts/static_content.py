@@ -26,7 +26,7 @@ from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from bvp.data.models.user import User, Role, RolesUsers
-from bvp.data.models.forecasting import lookup_model_specs_configurator
+from bvp.data.models.forecasting import lookup_ChainedModelSpecs
 from bvp.data.models.forecasting.exceptions import NotEnoughDataException
 from bvp.data.queries.utils import read_sqlalchemy_results
 from bvp.data.services.users import create_user
@@ -630,8 +630,8 @@ def populate_time_series_forecasts(
     for generic_asset in generic_assets:
         for horizon in horizons:
             try:
-                default_model = lookup_model_specs_configurator()
-                model_specs, model_identifier, model_fallback = default_model(
+                DefaultModelSpecs = lookup_ChainedModelSpecs()
+                model_specs = DefaultModelSpecs(
                     generic_asset=generic_asset,
                     forecast_start=start,
                     forecast_end=end,
@@ -649,7 +649,7 @@ def populate_time_series_forecasts(
                         start,
                         end,
                         naturaldelta(training_and_testing_period),
-                        model_identifier,
+                        model_specs.model_identifier,
                     )
                 )
                 model_specs.creation_time = start

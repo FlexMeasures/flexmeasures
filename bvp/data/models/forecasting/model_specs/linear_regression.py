@@ -2,21 +2,28 @@ from typing import Optional
 
 import statsmodels.api as sm
 
-from bvp.data.models.forecasting.model_spec_factory import create_initial_model_specs
+from . import ChainedModelSpecs
 
 """
 Simple linear regression by ordinary least squares.
 """
 
-# update this version if small things like parametrisation change
-version: int = 2
 # if a forecasting job using this model fails, fall back on this one
 fallback_model_search_term: Optional[str] = "naive"
 
 
-def ols_specs_configurator(**kwargs):
-    """Create and customize initial specs with OLS. See model_spec_factory for param docs."""
-    model_specs = create_initial_model_specs(**kwargs)
-    model_specs.set_model(sm.OLS)
-    model_identifier = "Linear-OLS model (v%d)" % version
-    return model_specs, model_identifier, fallback_model_search_term
+class LinearOlsModelSpecs(ChainedModelSpecs):
+    """Model Specs with a linear OLS model."""
+
+    def __init__(self, *args, **kwargs):
+        version = 2  # update this version if small things like parametrisation change
+        model_identifier = "Linear-OLS model (v%d)" % version
+        model = sm.OLS
+        super().__init__(
+            model_identifier=model_identifier,
+            fallback_model_search_term=fallback_model_search_term,
+            model=model,
+            version=version,
+            *args,
+            **kwargs
+        )

@@ -1,27 +1,20 @@
-from typing import Tuple, Callable, Union, Optional
-from datetime import datetime, timedelta
+from typing import Callable
 
-from timetomodel import ModelSpecs
-
-from bvp.data.models.forecasting.model_specs.naive import (
-    naive_specs_configurator as naive_specs,
-)
+from bvp.data.models.forecasting.model_specs.naive import NaiveModelSpecs as naive_specs
 from bvp.data.models.forecasting.model_specs.linear_regression import (
-    ols_specs_configurator as linear_ols_specs,
+    LinearOlsModelSpecs as linear_ols_specs,
 )
 from bvp.data.models.forecasting.model_specs.ensemble import (
-    adaboost_decision_tree_specs_configurator as adaboost_specs,
-    bagging_decision_tree_specs_configurator as bagging_specs,
-    random_forest_specs_configurator as forest_specs,
+    AdaBoostDecisionTreeModelSpecs as adaboost_specs,
+    BaggingDecisionTreeModelSpecs as bagging_specs,
+    RandomForestModelSpecs as forest_specs,
 )
-
-from bvp.data.models.assets import Asset
-from bvp.data.models.markets import Market
-from bvp.data.models.weather import WeatherSensor
+from bvp.data.models.forecasting.model_specs import ChainedModelSpecs
 
 
 model_map = {
     "naive": naive_specs,
+    "Naive": naive_specs,
     "linear": linear_ols_specs,
     "linear-OLS": linear_ols_specs,
     "Linear-OLS": linear_ols_specs,
@@ -38,37 +31,29 @@ model_map = {
 }
 
 
-def lookup_model_specs_configurator(
+def lookup_ChainedModelSpecs(
     model_search_term: str = "Linear-OLS",
-) -> Callable[
-    [
-        Union[Asset, Market, WeatherSensor],
-        datetime,
-        datetime,
-        timedelta,
-        Optional[timedelta],
-        Optional[dict],
-    ],
-    Tuple[ModelSpecs, str, str],
-]:
+) -> Callable[..., ChainedModelSpecs]:
     """
-    This function maps a model-identifying search term to a model configurator function, which can make model meta data.
+    This function maps a model-identifying search term to a chained model specs class, which can then be instantiated.
     Why use a string? It might be stored on RQ jobs. It might also leave more freedom, we can then
     map multiple terms to the same model or vice versa (e.g. when different versions exist).
 
-    Model meta data in this context means a tuple of:
-        * timetomodel.ModelSpecs. To fill in those specs, a configurator should accept:
-          - generic_asset: Union[Asset, Market, WeatherSensor],
-          - start: datetime,  # Start of forecast period
-          - end: datetime,  # End of forecast period
-          - horizon: timedelta,  # Duration between time of forecasting and time which is forecast
-          - ex_post_horizon: timedelta = None,
-          - custom_model_params: dict = None,  # overwrite forecasting params, useful for testing or experimentation
-        * a model_identifier (useful in case the model_search_term was generic, e.g. "latest")
-        * a fallback_model_search_term: a string which the forecasting machinery can use to choose
-                                        a different model (using this mapping again) in case of failure.
+    To instantiate the class use:
+    >>> ModelSpecs = lookup_ChainedModelSpecs()
+    >>> model_specs = ModelSpecs(generic_asset, forecast_start, forecast_end, forecast_horizon)
+    For help on how to instantiate the class, see model_spec_factory.create_init_params().
 
-       So to implement a model, write such a function and decide here which search term(s) map(s) to it.
+    The instantiated class then has useful attributes relating to how the models are chained, such as:
+    >>> model_specs.model_identifier
+    >>> model_specs.fallback_model_search_term
+    The model identifier is useful in case the model_search_term was generic, e.g. "latest".
+    The fallback model search term is a string which the forecasting machinery can use to choose a different model
+    (using this mapping again) in case of failure.
+
+    The instantiated class also has the information you expect to find in an timetomodel.ModelSpecs instance, such as:
+    >>> model_specs.start_of_training
+    >>> model_specs.model_type
     """
     if model_search_term not in model_map.keys():
         raise Exception("No model found for search term '%s'" % model_search_term)

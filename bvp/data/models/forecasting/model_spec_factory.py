@@ -2,7 +2,7 @@ from typing import Union, Optional, List
 from datetime import datetime, timedelta
 
 from flask import current_app
-from timetomodel import DBSeriesSpecs, ModelSpecs
+from timetomodel import DBSeriesSpecs
 from timetomodel.utils.time_utils import to_15_min_lags
 from timetomodel.transforming import BoxCoxTransformation, Transformation
 
@@ -28,7 +28,7 @@ These specs can be customized.
 """
 
 
-def create_initial_model_specs(  # noqa: C901
+def create_init_params(  # noqa: C901
     generic_asset: Union[Asset, Market, WeatherSensor],
     forecast_start: datetime,  # Start of forecast period
     forecast_end: datetime,  # End of forecast period
@@ -38,7 +38,7 @@ def create_initial_model_specs(  # noqa: C901
     use_regressors: bool = True,  # If false, do not create regressor specs
     use_periodicity: bool = True,  # If false, do not create lags given the asset's periodicity
     custom_model_params: dict = None,  # overwrite forecasting params, most useful for testing or experimentation.
-) -> ModelSpecs:
+) -> dict:
     """
     Generic model specs for all asset types (also for markets and weather sensors) and horizons.
     Fills in training, testing periods, lags. Specifies input and regressor data.
@@ -54,7 +54,7 @@ def create_initial_model_specs(  # noqa: C901
     generic_asset_type = determine_asset_type_by_asset(generic_asset)
     generic_asset_value_class = determine_asset_value_class_by_asset(generic_asset)
 
-    params = parameterise_forecasting_by_asset_type(
+    params = parameterize_forecasting_by_asset_type(
         generic_asset_type, transform_to_normal
     )
     params.update(custom_model_params if custom_model_params is not None else {})
@@ -105,7 +105,8 @@ def create_initial_model_specs(  # noqa: C901
         feature_transformation=params.get("outcome_var_transformation", None),
         interpolation_config={"method": "time"},
     )
-    specs = ModelSpecs(
+
+    return dict(
         outcome_var=outcome_var_spec,
         model=None,  # at least this will need to be configured still to make these specs usable!
         frequency=timedelta(minutes=15),
@@ -118,10 +119,8 @@ def create_initial_model_specs(  # noqa: C901
         remodel_frequency=timedelta(days=7),
     )
 
-    return specs
 
-
-def parameterise_forecasting_by_asset_type(
+def parameterize_forecasting_by_asset_type(
     generic_asset_type: Union[AssetType, MarketType, WeatherSensorType],
     transform_to_normal: bool,
 ) -> dict:

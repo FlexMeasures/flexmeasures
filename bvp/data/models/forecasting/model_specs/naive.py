@@ -3,7 +3,7 @@ from datetime import timedelta
 
 import statsmodels.api as sm
 
-from bvp.data.models.forecasting.model_spec_factory import create_initial_model_specs
+from . import ChainedModelSpecs
 
 """
 Naive model, which simply copies the measurement from which the forecasts is made. Useful as a fallback.
@@ -28,15 +28,26 @@ class Naive(sm.OLS):
         super().__init__([0, 1], [0, 1])
 
 
-def naive_specs_configurator(**kwargs):
-    """Create and customize initial specs with OLS. See model_spec_factory for param docs."""
-    kwargs["transform_to_normal"] = False
-    kwargs["use_regressors"] = False
-    kwargs["use_periodicity"] = False
-    kwargs["custom_model_params"] = dict(
-        training_and_testing_period=timedelta(hours=0), n_lags=1
-    )
-    model_specs = create_initial_model_specs(**kwargs)
-    model_specs.set_model(Naive, library_name="statsmodels")
-    model_identifier = "naive model (v%d)" % version
-    return model_specs, model_identifier, fallback_model_search_term
+class NaiveModelSpecs(ChainedModelSpecs):
+    """Model Specs with a naive model."""
+
+    def __init__(self, *args, **kwargs):
+        version = 1  # update this version if small things like parametrisation change
+        model = Naive
+        library_name = "statsmodels"
+        model_identifier = "naive model (v%d)" % version
+        kwargs["transform_to_normal"] = False
+        kwargs["use_regressors"] = False
+        kwargs["use_periodicity"] = False
+        kwargs["custom_model_params"] = dict(
+            training_and_testing_period=timedelta(hours=0), n_lags=1
+        )
+        super().__init__(
+            model_identifier=model_identifier,
+            fallback_model_search_term=fallback_model_search_term,
+            model=model,
+            library_name=library_name,
+            version=version,
+            *args,
+            **kwargs
+        )

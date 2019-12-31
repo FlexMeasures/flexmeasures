@@ -4,7 +4,7 @@ from sklearn.ensemble import BaggingRegressor, AdaBoostRegressor, RandomForestRe
 from sklearn.tree import DecisionTreeRegressor
 import numpy as np
 
-from bvp.data.models.forecasting.model_spec_factory import create_initial_model_specs
+from . import ChainedModelSpecs
 
 """
 Ensemble models.
@@ -14,16 +14,13 @@ Ensemble models.
 fallback_model_search_term: Optional[str] = "linear-OLS"
 
 
-def adaboost_decision_tree_specs_configurator(**args):
-    """Create and customize initial specs with AdaBoost (decision tree as weak learner).
-    See model__spec_factory for param docs."""
+class AdaBoostDecisionTreeModelSpecs(ChainedModelSpecs):
+    """Model Specs with a AdaBoost ensemble model and a decision tree model as a weak learner."""
 
-    # update this version if small things like parametrisation change
-    version: int = 1
-
-    model_specs = create_initial_model_specs(**args)
-    model_specs.set_model(
-        (
+    def __init__(self, *args, **kwargs):
+        version = 1  # update this version if small things like parametrisation change
+        model_identifier = "AdaBoost Decision Tree model (v%d)" % version
+        model = (
             AdaBoostRegressor,
             dict(
                 base_estimator=DecisionTreeRegressor(max_depth=4),
@@ -31,21 +28,23 @@ def adaboost_decision_tree_specs_configurator(**args):
                 random_state=np.random.RandomState(1),
             ),
         )
-    )
-    model_identifier = "AdaBoost Decision Tree model (v%d)" % version
-    return model_specs, model_identifier, fallback_model_search_term
+        super().__init__(
+            model_identifier=model_identifier,
+            fallback_model_search_term=fallback_model_search_term,
+            model=model,
+            version=version,
+            *args,
+            **kwargs
+        )
 
 
-def bagging_decision_tree_specs_configurator(**args):
-    """Create and customize initial specs with Bagging (decision tree as weak learner).
-    See model__spec_factory for param docs."""
+class BaggingDecisionTreeModelSpecs(ChainedModelSpecs):
+    """Model Specs with a Bagging ensemble model and a decision tree model as a weak learner."""
 
-    # update this version if small things like parametrisation change
-    version: int = 1
-
-    model_specs = create_initial_model_specs(**args)
-    model_specs.set_model(
-        (
+    def __init__(self, *args, **kwargs):
+        version = 1  # update this version if small things like parametrisation change
+        model_identifier = "Bagging Decision Tree model (v%d)" % version
+        model = (
             BaggingRegressor,
             dict(
                 base_estimator=DecisionTreeRegressor(max_depth=4),
@@ -53,20 +52,23 @@ def bagging_decision_tree_specs_configurator(**args):
                 random_state=np.random.RandomState(1),
             ),
         )
-    )
-    model_identifier = "Bagging Decision Tree model (v%d)" % version
-    return model_specs, model_identifier, fallback_model_search_term
+        super().__init__(
+            model_identifier=model_identifier,
+            fallback_model_search_term=fallback_model_search_term,
+            model=model,
+            version=version,
+            *args,
+            **kwargs
+        )
 
 
-def random_forest_specs_configurator(**args):
-    """Create and customize initial specs with Random Forest. See model__spec_factory for param docs."""
+class RandomForestModelSpecs(ChainedModelSpecs):
+    """Model Specs with a Random Forest ensemble model."""
 
-    # update this version if small things like parametrisation change
-    version: int = 1
-
-    model_specs = create_initial_model_specs(**args)
-    model_specs.set_model(
-        (
+    def __init__(self, *args, **kwargs):
+        version = 1  # update this version if small things like parametrisation change
+        model_identifier = "Random Forest model (v%d)" % version
+        model = (
             RandomForestRegressor,
             dict(
                 n_estimators=100,
@@ -76,6 +78,11 @@ def random_forest_specs_configurator(**args):
                 oob_score=True,
             ),
         )
-    )
-    model_identifier = "Random Forest model (v%d)" % version
-    return model_specs, model_identifier, fallback_model_search_term
+        super().__init__(
+            model_identifier=model_identifier,
+            fallback_model_search_term=fallback_model_search_term,
+            model=model,
+            version=version,
+            *args,
+            **kwargs
+        )
