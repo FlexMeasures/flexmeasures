@@ -39,10 +39,10 @@ class NaiveModelSpecs(ChainedModelSpecs):
         kwargs["transform_to_normal"] = False
         kwargs["use_regressors"] = False
         kwargs["use_periodicity"] = False
-        kwargs["custom_model_params"] = dict(
-            **kwargs.get("custom_model_params", {}),
-            training_and_testing_period=timedelta(hours=0), n_lags=1
-        )
+        custom_model_params = kwargs.get("custom_model_params", {})
+        custom_model_params["training_and_testing_period"] = timedelta(hours=0)
+        custom_model_params["n_lags"] = 1
+        kwargs["custom_model_params"] = custom_model_params
         super().__init__(
             model_identifier=model_identifier,
             fallback_model_search_term=fallback_model_search_term,

@@ -1,9 +1,7 @@
 from typing import Callable
 
-from bvp.data.models.forecasting.model_specs.naive import NaiveModelSpecs as naive_specs
-from bvp.data.models.forecasting.model_specs.linear_regression import (
-    LinearOlsModelSpecs as linear_ols_specs,
-)
+from bvp.data.models.forecasting.model_specs.naive import NaiveModelSpecs
+from bvp.data.models.forecasting.model_specs.linear_regression import LinearOlsModelSpecs
 from bvp.data.models.forecasting.model_specs.ensemble import (
     AdaBoostDecisionTreeModelSpecs,
     BaggingDecisionTreeModelSpecs,
