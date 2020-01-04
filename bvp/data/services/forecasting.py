@@ -49,7 +49,7 @@ def create_forecasting_jobs(
     end_of_roll: datetime,
     resolution: timedelta = None,
     horizons: List[timedelta] = None,
-    model_search_term="linear-OLS",
+    model_search_term="Linear-OLS",
     custom_model_params: dict = None,
     enqueue: bool = True,
 ) -> List[Job]:
@@ -71,7 +71,7 @@ def create_forecasting_jobs(
 
     If not given, relevant horizons are deduced from the resolution of the posted data.
 
-    The job needs a model configurator, for which you can supply a model search term. If ommited, the
+    The job needs a model configurator, for which you can supply a model search term. If omitted, the
     current default model configuration will be used.
 
     It's possible to customize model parameters, but this feature is (currently) meant to only
@@ -149,7 +149,7 @@ def make_forecasts(
     rq_job = get_current_job()
 
     # find out which model to run, fall back to latest recommended
-    model_search_term = rq_job.meta.get("model_search_term", "linear-OLS")
+    model_search_term = rq_job.meta.get("model_search_term", "Linear-OLS")
 
     # find asset
     asset = get_asset(asset_id, timed_value_type)

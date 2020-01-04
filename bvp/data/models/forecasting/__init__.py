@@ -5,29 +5,25 @@ from bvp.data.models.forecasting.model_specs.linear_regression import (
     LinearOlsModelSpecs as linear_ols_specs,
 )
 from bvp.data.models.forecasting.model_specs.ensemble import (
-    AdaBoostDecisionTreeModelSpecs as adaboost_specs,
-    BaggingDecisionTreeModelSpecs as bagging_specs,
-    RandomForestModelSpecs as forest_specs,
+    AdaBoostDecisionTreeModelSpecs,
+    BaggingDecisionTreeModelSpecs,
+    RandomForestModelSpecs,
 )
 from bvp.data.models.forecasting.model_specs import ChainedModelSpecs
+from bvp.data.models.forecasting.utils import get_case_insensitive_key_value
 
 
 model_map = {
-    "naive": naive_specs,
-    "Naive": naive_specs,
-    "linear": linear_ols_specs,
-    "linear-OLS": linear_ols_specs,
-    "Linear-OLS": linear_ols_specs,
-    "AdaBoost Decision Tree": adaboost_specs,
-    "AdaBoost": adaboost_specs,
-    "adaboost": adaboost_specs,
-    "ensemble": adaboost_specs,
-    "Bagging Decision Tree": bagging_specs,
-    "Bagging": bagging_specs,
-    "bagging": bagging_specs,
-    "Random Forest": forest_specs,
-    "random forest": forest_specs,
-    "forest": forest_specs,
+    "naive": NaiveModelSpecs,
+    "linear": LinearOlsModelSpecs,
+    "Linear-OLS": LinearOlsModelSpecs,
+    "AdaBoost Decision Tree": AdaBoostDecisionTreeModelSpecs,
+    "adaboost": AdaBoostDecisionTreeModelSpecs,
+    "ensemble": AdaBoostDecisionTreeModelSpecs,
+    "Bagging Decision Tree": BaggingDecisionTreeModelSpecs,
+    "bagging": BaggingDecisionTreeModelSpecs,
+    "Random Forest": RandomForestModelSpecs,
+    "forest": RandomForestModelSpecs,
 }
 
 
@@ -38,6 +34,7 @@ def lookup_ChainedModelSpecs(
     This function maps a model-identifying search term to a chained model specs class, which can then be instantiated.
     Why use a string? It might be stored on RQ jobs. It might also leave more freedom, we can then
     map multiple terms to the same model or vice versa (e.g. when different versions exist).
+    NB: look-ups in the model map are case insensitive.
 
     To instantiate the class use:
     >>> ModelSpecs = lookup_ChainedModelSpecs()
@@ -55,6 +52,7 @@ def lookup_ChainedModelSpecs(
     >>> model_specs.start_of_training
     >>> model_specs.model_type
     """
-    if model_search_term not in model_map.keys():
+    m = get_case_insensitive_key_value(model_map, model_search_term)
+    if m is None:
         raise Exception("No model found for search term '%s'" % model_search_term)
-    return model_map[model_search_term]
+    return m

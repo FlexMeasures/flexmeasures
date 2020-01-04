@@ -102,7 +102,7 @@ def set_training_and_testing_dates(
     training_and_testing_period: Union[timedelta, Tuple[datetime, datetime]],
 ) -> Tuple[datetime, datetime]:
     """If needed (if training_and_testing_period is a timedelta),
-    derive training_start and testing_end from forecasting_start,
+    derive training_start and testing_end from forecast_start,
     otherwise simply return training_and_testing_period.
 
 
@@ -133,3 +133,7 @@ def set_training_and_testing_dates(
         return forecast_start - training_and_testing_period, forecast_start
     else:
         return training_and_testing_period
+
+
+def get_case_insensitive_key_value(input_dict, key):
+    return next((value for dict_key, value in input_dict.items() if dict_key.lower() == key.lower()), None)
