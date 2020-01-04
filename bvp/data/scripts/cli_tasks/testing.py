@@ -83,6 +83,9 @@ def test_making_forecasts():
 @click.option(
     "--training", default=30, help="Number of days in the training and testing period."
 )
+@click.option(
+    "--model", default="linear", help="Model search term, such as 'linear', 'forest' or 'naive'."
+)
 def test_generic_model(
     asset_type: str,
     asset: Optional[str] = None,
@@ -90,6 +93,7 @@ def test_generic_model(
     period: int = 3,
     horizon: int = 1,
     training: int = 30,
+    model: str = "linear",
 ):
     """Manually test integration of timetomodel for our generic model."""
 
@@ -129,8 +133,8 @@ def test_generic_model(
             click.echo("No such assets in db, so I will not add any forecasts.")
             return
 
-        LinearModelSpecs = lookup_ChainedModelSpecs("linear")
-        model_specs = LinearModelSpecs(
+        ModelSpecs = lookup_ChainedModelSpecs(model)
+        model_specs = ModelSpecs(
             generic_asset=generic_asset,
             forecast_start=start,
             forecast_end=end,
