@@ -40,6 +40,7 @@ class NaiveModelSpecs(ChainedModelSpecs):
         kwargs["use_regressors"] = False
         kwargs["use_periodicity"] = False
         kwargs["custom_model_params"] = dict(
+            **kwargs.get("custom_model_params", {}),
             training_and_testing_period=timedelta(hours=0), n_lags=1
         )
         super().__init__(
