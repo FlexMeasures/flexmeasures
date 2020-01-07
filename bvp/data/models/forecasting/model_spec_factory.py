@@ -15,7 +15,7 @@ from bvp.data.models.utils import (
 )
 from bvp.data.models.forecasting.utils import (
     create_lags,
-    set_training_and_testing_dates,
+    set_training_and_testing_window,
     get_query_window,
 )
 from bvp.data.services.resources import find_closest_weather_sensor
@@ -51,6 +51,8 @@ def create_init_params(  # noqa: C901
           calendar day.
     """
 
+    resolution = timedelta(minutes=15)
+
     generic_asset_type = determine_asset_type_by_asset(generic_asset)
     generic_asset_value_class = determine_asset_value_class_by_asset(generic_asset)
 
@@ -67,8 +69,11 @@ def create_init_params(  # noqa: C901
         use_periodicity,
     )
 
-    training_start, testing_end = set_training_and_testing_dates(
-        forecast_start, params["training_and_testing_period"]
+    training_start, testing_end = set_training_and_testing_window(
+        forecast_start,
+        forecast_horizon,
+        resolution,
+        params["training_and_testing_period"],
     )
     query_window = get_query_window(training_start, forecast_end, lags)
 
@@ -109,7 +114,7 @@ def create_init_params(  # noqa: C901
     return dict(
         outcome_var=outcome_var_spec,
         model=None,  # at least this will need to be configured still to make these specs usable!
-        frequency=timedelta(minutes=15),
+        frequency=resolution,
         horizon=forecast_horizon,
         lags=to_15_min_lags(lags),
         regressors=regressor_specs,

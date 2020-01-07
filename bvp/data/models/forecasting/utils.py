@@ -1,6 +1,7 @@
 from typing import Tuple, List, Union
 from datetime import datetime, timedelta
 
+import numpy as np
 
 from bvp.data.models.forecasting.exceptions import NotEnoughDataException
 from bvp.utils.time_utils import as_bvp_time
@@ -97,13 +98,17 @@ def get_query_window(
     return query_start, query_end
 
 
-def set_training_and_testing_dates(
+def set_training_and_testing_window(
     forecast_start: datetime,
+    forecast_horizon: timedelta,
+    resolution: timedelta,
     training_and_testing_period: Union[timedelta, Tuple[datetime, datetime]],
 ) -> Tuple[datetime, datetime]:
     """If needed (if training_and_testing_period is a timedelta),
-    derive training_start and testing_end from forecast_start,
+    derive training_start and testing_end from forecast_start, forecast_horizon and resolution,
     otherwise simply return training_and_testing_period.
+
+    Note that testing_end is the last event_end before the belief_time of the first event in the forecast_period.
 
 
         |------forecast_horizon/belief_horizon------|
@@ -112,28 +117,36 @@ def set_training_and_testing_dates(
 
 
                            |--resolution--|--resolution--|--resolution--|--resolution--|--resolution--|--resolution--|
-        |---------forecast_horizon--------|              |              |              |              |              |
-        belief_time        event_start    |              |              |              |              |              |
-                       |---------forecast_horizon--------|              |              |              |              |
-                       belief_time        event_start    |              |              |              |              |
-                           |          |---------forecast_horizon--------|              |              |              |
-                           |          belief_time        event_start    |              |              |              |
-    |--------max_lag-------|--------training_and_testing_period---------|---------------forecast_period--------------|
-    query_start            training_start |              |    testing_end/forecast_start              |   forecast_end
-        |------min_lag-----|              |          |---------forecast_horizon--------|              |              |
-                           |              |          belief_time        event_start    |              |              |
-                           |              |              |          |---------forecast_horizon--------|              |
-                           |              |              |          belief_time        event_start    |              |
-                           |              |              |              |          |---------forecast_horizon--------|
-                           |              |              |              |          belief_time        event_start    |
+               |-----forecast_horizon-----|              |              |              |              |              |
+               belief_time event_start    |              |              |              |              |              |
+                              |-----forecast_horizon-----|              |              |              |              |
+                              belief_time event_start    |              |              |              |              |
+                           |                 |-----forecast_horizon-----|              |              |              |
+                           |                 belief_time event_start    |              |              |              |
+    |--------max_lag-------|-training_and_testing_period-|              |---------------forecast_period--------------|
+    query_start            training_start |    testing_end              forecast_start              |   forecast_end
+        |------min_lag-----|              |                 |-----forecast_horizon-----|              |              |
+                           |              |                 belief_time event_start    |              |              |
+                           |              |              |                 |-----forecast_horizon-----|              |
+                           |              |              |                 belief_time event_start    |              |
+                           |              |              |              |                 |-----forecast_horizon-----|
+                           |              |              |              |                 belief_time event_start    |
     |--------------------------------------------------query_window--------------------------------------------------|
 
     """
-    if isinstance(training_and_testing_period, timedelta):
-        return forecast_start - training_and_testing_period, forecast_start
-    else:
+    if not isinstance(training_and_testing_period, timedelta):
         return training_and_testing_period
+
+    testing_end = forecast_start - np.ceil(forecast_horizon / resolution) * resolution
+    return testing_end - training_and_testing_period, testing_end
 
 
 def get_case_insensitive_key_value(input_dict, key):
-    return next((value for dict_key, value in input_dict.items() if dict_key.lower() == key.lower()), None)
+    return next(
+        (
+            value
+            for dict_key, value in input_dict.items()
+            if dict_key.lower() == key.lower()
+        ),
+        None,
+    )
