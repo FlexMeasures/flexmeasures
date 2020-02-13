@@ -104,7 +104,7 @@ def test_forecasting_an_hour_of_wind(
     assert len(forecasts) == 4
     check_aggregate(4, horizon)
 
-    check_failures(app.redis_queue)  # check that there are no failures
+    check_failures(app.queues["forecasting"])  # check that there are no failures
 
 
 def test_forecasting_three_hours_of_wind(db, app):
@@ -136,7 +136,7 @@ def test_forecasting_three_hours_of_wind(db, app):
     assert len(forecasts) == 12
     check_aggregate(12, horizon)
 
-    check_failures(app.redis_queue)  # check that there are no failures
+    check_failures(app.queues["forecasting"])  # check that there are no failures
 
 
 def test_forecasting_two_hours_of_solar(db, app):
@@ -167,7 +167,7 @@ def test_forecasting_two_hours_of_solar(db, app):
     assert len(forecasts) == 8
     check_aggregate(8, horizon)
 
-    check_failures(app.redis_queue)  # check that there are no failures
+    check_failures(app.queues["forecasting"])  # check that there are no failures
 
 
 def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app):
@@ -212,7 +212,7 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app):
     assert len(forecasts) == 1
     check_aggregate(4, horizon)
 
-    check_failures(app.redis_queue)  # check that there are no failures
+    check_failures(app.queues["forecasting"])  # check that there are no failures
 
 
 def check_failures(
