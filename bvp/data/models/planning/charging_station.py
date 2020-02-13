@@ -1,7 +1,7 @@
-from typing import Optional, Union
+from typing import Union
 from datetime import datetime, timedelta
 
-import pandas as pd
+from pandas import Series
 from pandas.tseries.frequencies import to_offset
 
 from bvp.data.models.assets import Asset
@@ -15,18 +15,19 @@ from bvp.data.models.planning.utils import (
 )
 
 
-def schedule_battery(
+def schedule_charging_station(
     asset: Asset,
     market: Market,
     start: datetime,
     end: datetime,
     resolution: timedelta,
     soc_at_start: float,
-    soc_targets: Optional[pd.Series] = None,
+    soc_targets: Series,
     prefer_charging_sooner: bool = True,
-) -> Union[pd.Series, None]:
-    """Schedule a battery asset based directly on the latest beliefs regarding market prices within the specified time
+) -> Union[Series, None]:
+    """Schedule a charging station asset based directly on the latest beliefs regarding market prices within the specified time
     window.
+    Todo: handle uni-directional charging by setting the "min" or "derivative min" constraint to 0
     """
 
     # Check for known prices or price forecasts, adjusting planning horizon accordingly
@@ -65,20 +66,21 @@ def schedule_battery(
         "derivative min",
     ]
     device_constraints = [initialize_df(columns, start, end, resolution)]
-    if soc_targets is not None:
-        device_constraints[0]["equals"] = soc_targets.shift(
-            -1, freq=resolution
-        ).values * (timedelta(hours=1) / resolution) - soc_at_start * (
-            timedelta(hours=1) / resolution
-        )  # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
-        # while the "equals" constraint defines what the total stock should be at the end of a time slot,
-        # where the time slot is indexed by its starting time)
-    device_constraints[0]["min"] = (asset.min_soc_in_mwh - soc_at_start) * (
+    device_constraints[0]["equals"] = soc_targets.shift(-1, freq=resolution).values * (
         timedelta(hours=1) / resolution
-    )
-    device_constraints[0]["max"] = (asset.max_soc_in_mwh - soc_at_start) * (
+    ) - soc_at_start * (
         timedelta(hours=1) / resolution
-    )
+    )  # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
+    # while the "equals" constraint defines what the total stock should be at the end of a time slot,
+    # where the time slot is indexed by its starting time)
+    device_constraints[0]["min"] = -soc_at_start * (
+        timedelta(hours=1) / resolution
+    )  # Can't drain the EV battery by more than it contains
+    device_constraints[0]["max"] = max(soc_targets.values) * (
+        timedelta(hours=1) / resolution
+    ) - soc_at_start * (
+        timedelta(hours=1) / resolution
+    )  # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
     device_constraints[0]["derivative min"] = asset.capacity_in_mw * -1
     device_constraints[0]["derivative max"] = asset.capacity_in_mw
 
@@ -93,6 +95,6 @@ def schedule_battery(
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
     )
-    battery_schedule = ems_schedule[0]
+    charging_station_schedule = ems_schedule[0]
 
-    return battery_schedule
+    return charging_station_schedule

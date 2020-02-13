@@ -6,37 +6,22 @@ from bvp.api.common.utils.api_utils import check_access, append_doc_of
 from bvp.api.common.utils.decorators import as_response_type
 from bvp.api.common.utils.validators import usef_roles_accepted
 from bvp.api.v1 import implementations as v1_implementations
-from bvp.api.v1_1 import routes as v1_1_routes, implementations as v1_1_implementations
-from bvp.api.v1_2 import (
-    bvp_api as bvp_api_v1_2,
-    implementations as v1_2_implementations,
+from bvp.api.v1_1 import implementations as v1_1_implementations
+from bvp.api.v1_2 import routes as v1_2_routes
+from bvp.api.v1_3 import (
+    bvp_api as bvp_api_v1_3,
+    implementations as v1_3_implementations,
 )
 
 # The service listing for this API version (import from previous version or update if needed)
-v1_2_service_listing = copy.deepcopy(v1_1_routes.v1_1_service_listing)
-v1_2_service_listing["version"] = "1.2"
-v1_2_service_listing["services"].append(
-    {
-        "name": "getDeviceMessage",
-        "access": ["Prosumer", "ESCo"],
-        "description": "Get an Active Demand & Supply (ADS) request for a certain type of control action, "
-        "including control set points",
-    }
-)
-v1_2_service_listing["services"].append(
-    {
-        "name": "postUdiEvent",
-        "access": ["Prosumer", "ESCo"],
-        "description": "Send a description of some flexible consumption or production process as a USEF Device "
-        "Interface (UDI) event, including device capabilities (control constraints)",
-    }
-)
+v1_3_service_listing = copy.deepcopy(v1_2_routes.v1_2_service_listing)
+v1_3_service_listing["version"] = "1.3"
 
 
-@bvp_api_v1_2.route("/getDeviceMessage", methods=["GET"])
+@bvp_api_v1_3.route("/getDeviceMessage", methods=["GET"])
 @as_response_type("GetDeviceMessageResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_2_service_listing, "getDeviceMessage"))
+@usef_roles_accepted(*check_access(v1_3_service_listing, "getDeviceMessage"))
 def get_device_message():
     """API endpoint to get device message.
 
@@ -81,25 +66,24 @@ def get_device_message():
     :reqheader Content-Type: application/json
     :resheader Content-Type: application/json
     :status 200: PROCESSED
-    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, UNKNOWN_PRICES,
-                 UNRECOGNIZED_CONNECTION_GROUP, or UNRECOGNIZED_UDI_EVENT
+    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_DOMAIN, INVALID_UNIT, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP, or UNRECOGNIZED_UDI_EVENT
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD
     """
-    return v1_2_implementations.get_device_message_response()
+    return v1_3_implementations.get_device_message_response()
 
 
-@bvp_api_v1_2.route("/postUdiEvent", methods=["POST"])
+@bvp_api_v1_3.route("/postUdiEvent", methods=["POST"])
 @as_response_type("PostUdiEventResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_2_service_listing, "postUdiEvent"))
+@usef_roles_accepted(*check_access(v1_3_service_listing, "postUdiEvent"))
 def post_udi_event():
     """API endpoint to post UDI event.
 
     .. :quickref: User; Upload flexibility constraints to the platform
 
-    **Example request**
+    **Example request A**
 
     This "PostUdiEventRequest" message posts a state of charge (soc) of 12.1 kWh at 10.00am
     as UDI event 203 of device 10 of owner 7.
@@ -111,7 +95,29 @@ def post_udi_event():
             "event": "ea1.2018-06.com.a1-bvp.play:7:10:203:soc",
             "value": 12.1,
             "unit": "kWh",
+            "datetime": "2015-06-02T10:00:00+00:00"
+        }
+
+    **Example request B**
+
+    This "PostUdiEventRequest" message posts a state of charge (soc) of 12.1 kWh at 10.00am,
+    and a target state of charge of 25 kWh at 4.00pm,
+    as UDI event 204 of device 10 of owner 7.
+
+    .. code-block:: json
+
+        {
+            "type": "PostUdiEventRequest",
+            "event": "ea1.2018-06.com.a1-bvp.play:7:10:204:soc-with-targets",
+            "value": 12.1,
+            "unit": "kWh",
             "datetime": "2015-06-02T10:00:00+00:00",
+            "targets": [
+                {
+                    "value": 25,
+                    "datetime": "2015-06-02T16:00:00+00:00"
+                }
+            ]
         }
 
     **Example response**
@@ -130,70 +136,71 @@ def post_udi_event():
     :reqheader Content-Type: application/json
     :resheader Content-Type: application/json
     :status 200: PROCESSED
-    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_DATETIME, INVALID_UNIT, PTUS_INCOMPLETE, OUTDATED_UDI_EVENT or UNRECOGNIZED_UDI_EVENT
+    :status 400: INCOMPLETE_UDI_EVENT, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_DATETIME, INVALID_DOMAIN,
+                 INVALID_UNIT, OUTDATED_UDI_EVENT, PTUS_INCOMPLETE, OUTDATED_UDI_EVENT or UNRECOGNIZED_UDI_EVENT
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD
     """
-    return v1_2_implementations.post_udi_event_response()
+    return v1_3_implementations.post_udi_event_response()
 
 
-@bvp_api_v1_2.route("/getConnection", methods=["GET"])
+@bvp_api_v1_3.route("/getConnection", methods=["GET"])
 @as_response_type("GetConnectionResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_2_service_listing, "getConnection"))
-@append_doc_of(v1_1_routes.get_connection)
+@usef_roles_accepted(*check_access(v1_3_service_listing, "getConnection"))
+@append_doc_of(v1_2_routes.get_connection)
 def get_connection():
     return v1_1_implementations.get_connection_response()
 
 
-@bvp_api_v1_2.route("/postPriceData", methods=["POST"])
+@bvp_api_v1_3.route("/postPriceData", methods=["POST"])
 @as_response_type("PostPriceDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_2_service_listing, "postPriceData"))
-@append_doc_of(v1_1_routes.post_price_data)
+@usef_roles_accepted(*check_access(v1_3_service_listing, "postPriceData"))
+@append_doc_of(v1_2_routes.post_price_data)
 def post_price_data():
     return v1_1_implementations.post_price_data_response()
 
 
-@bvp_api_v1_2.route("/postWeatherData", methods=["POST"])
+@bvp_api_v1_3.route("/postWeatherData", methods=["POST"])
 @as_response_type("PostWeatherDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_2_service_listing, "postWeatherData"))
-@append_doc_of(v1_1_routes.post_weather_data)
+@usef_roles_accepted(*check_access(v1_3_service_listing, "postWeatherData"))
+@append_doc_of(v1_2_routes.post_weather_data)
 def post_weather_data():
     return v1_1_implementations.post_weather_data_response()
 
 
-@bvp_api_v1_2.route("/getPrognosis", methods=["GET"])
+@bvp_api_v1_3.route("/getPrognosis", methods=["GET"])
 @as_response_type("GetPrognosisResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_2_service_listing, "getPrognosis"))
-@append_doc_of(v1_1_routes.get_prognosis)
+@usef_roles_accepted(*check_access(v1_3_service_listing, "getPrognosis"))
+@append_doc_of(v1_2_routes.get_prognosis)
 def get_prognosis():
     return v1_1_implementations.get_prognosis_response()
 
 
-@bvp_api_v1_2.route("/getMeterData", methods=["GET"])
+@bvp_api_v1_3.route("/getMeterData", methods=["GET"])
 @as_response_type("GetMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_2_service_listing, "getMeterData"))
-@append_doc_of(v1_1_routes.get_meter_data)
+@usef_roles_accepted(*check_access(v1_3_service_listing, "getMeterData"))
+@append_doc_of(v1_2_routes.get_meter_data)
 def get_meter_data():
     return v1_implementations.get_meter_data_response()
 
 
-@bvp_api_v1_2.route("/postMeterData", methods=["POST"])
+@bvp_api_v1_3.route("/postMeterData", methods=["POST"])
 @as_response_type("PostMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_2_service_listing, "postMeterData"))
-@append_doc_of(v1_1_routes.post_meter_data)
+@usef_roles_accepted(*check_access(v1_3_service_listing, "postMeterData"))
+@append_doc_of(v1_2_routes.post_meter_data)
 def post_meter_data():
     return v1_implementations.post_meter_data_response()
 
 
-@bvp_api_v1_2.route("/getService", methods=["GET"])
+@bvp_api_v1_3.route("/getService", methods=["GET"])
 @as_response_type("GetServiceResponse")
-@append_doc_of(v1_1_routes.get_service)
-def get_service(service_listing=v1_2_service_listing):
+@append_doc_of(v1_2_routes.get_service)
+def get_service(service_listing=v1_3_service_listing):
     return v1_implementations.get_service_response(service_listing)

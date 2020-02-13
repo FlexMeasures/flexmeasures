@@ -3,14 +3,34 @@
 Change log
 ==========
 
-v1.2-2
-""""""
+v1.3-1 | 2020-02-08
+"""""""""""""""""""
+
+- Backend change: the default planning horizon can now be set in the BVP configuration (currently set to |BVP_PLANNING_HORIZON|)
+
+v1.3-0 | 2020-01-28
+"""""""""""""""""""
+
+- Introduced new event type "soc-with-targets" to support scheduling charging stations (see extra example for the *postUdiEvent* endpoint)
+- The *postUdiEvent* endpoint now triggers scheduling jobs to be set up (rather than scheduling directly triggered by the *getDeviceMessage* endpoint)
+- The *getDeviceMessage* now queries the job queue and database for an available schedule
+
+v1.2-3 | 2020-01-28
+"""""""""""""""""""
+
+- Updated endpoint descriptions with additional possible status 400 responses:
+
+    - INVALID_DOMAIN for invalid entity addresses
+    - UNKNOWN_PRICES for infeasible schedules due to missing prices
+
+v1.2-2 | 2018-10-08
+"""""""""""""""""""
 
 - Added a list of registered types of weather sensors to the Simulation section and *postWeatherData* endpoint
 - Changed example for the *postPriceData* endpoint to reflect Korean situation
 
-v1.2-1
-""""""
+v1.2-1 | 2018-09-24
+"""""""""""""""""""
 
 - Added a local table of contents to the Simulation section
 - Added a description of the *postPriceData* endpoint in the Simulation section
@@ -35,23 +55,23 @@ v1.2-1
         "type": "soc"
     }
 
-v1.2-0
-""""""
+v1.2-0 | 2018-09-08
+"""""""""""""""""""
 
 - Added a description of the *postUdiEvent* endpoint in the Prosumer and Simulation sections
 - Added a description of the *getDeviceMessage* endpoint in the Prosumer and Simulation sections
 
-v1.1-3
-""""""
+v1.1-3 | 2018-09-08
+"""""""""""""""""""
 
-- Added the Simulation section
+- Added the Simulation section:
 
     - Added information about setting up a new simulation
     - Added examples for calling the *postMeterData* endpoint
     - Added example for calling the *getPrognosis* endpoint
 
-v1.1-2
-""""""
+v1.1-2 | 2018-08-15
+"""""""""""""""""""
 
 - Added the *postPrognosis* endpoint
 - Added the *postPriceData* endpoint
@@ -62,8 +82,8 @@ v1.1-2
 
     - Added the *restoreData* endpoint
 
-v1.1-1
-""""""
+v1.1-1 | 2018-08-06
+"""""""""""""""""""
 
 - Added the *getConnection* endpoint
 - Added the *postWeatherData* endpoint
@@ -74,8 +94,8 @@ v1.1-1
  
 - Added an optional horizon to the *postMeterData* endpoint
 
-v1.1-0
-""""""
+v1.1-0 | 2018-07-15
+"""""""""""""""""""
 
 - Added the *getPrognosis* endpoint
 - Changed the *getMeterData* endpoint to accept an optional resolution, source, and horizon
@@ -87,8 +107,8 @@ v1.1-0
 
 - Added a description of the *getPrognosis* endpoint in the Supplier section
 
-v1.0-1
-""""""
+v1.0-1 | 2018-07-10
+"""""""""""""""""""
 
 - Moved specifications to be part of the platform's Sphinx documentation:
 
@@ -97,8 +117,8 @@ v1.0-1
     - Documentation includes specifications of **all** supported API versions (supported versions have a registered Flask blueprint)
 
 
-v1.0-0
-""""""
+v1.0-0 | 2018-07-10
+"""""""""""""""""""
 
 - Started change log
 - Added Introduction section with notes regarding:

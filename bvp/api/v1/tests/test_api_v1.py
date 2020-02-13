@@ -185,7 +185,7 @@ def test_post_and_get_meter_data(db, app, client, post_message, get_message):
     # look for Forecasting jobs
     expected_connections = count_connections_in_post_message(post_message)
     assert (
-        len(app.redis_queue) == 4 * expected_connections
+        len(app.queues["forecasting"]) == 4 * expected_connections
     )  # four horizons times the number of assets
     horizons = repeat(
         [
@@ -196,7 +196,7 @@ def test_post_and_get_meter_data(db, app, client, post_message, get_message):
         ],
         expected_connections,
     )
-    jobs = sorted(app.redis_queue.jobs, key=lambda x: x.kwargs["horizon"])
+    jobs = sorted(app.queues["forecasting"].jobs, key=lambda x: x.kwargs["horizon"])
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon

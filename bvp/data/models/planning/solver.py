@@ -37,9 +37,10 @@ def device_scheduler(  # noqa C901
     Device constraints are on a device level. Handled constraints (listed by column name):
         max: maximum stock assuming an initial stock of zero (e.g. in MWh or boxes)
         min: minimum stock assuming an initial stock of zero
+        equal: exact amount of stock (we do this by clamping min and max)
         derivative max: maximum flow (e.g. in MW or boxes/h)
         derivative min: minimum flow
-        derivative equals: exact amount of flow
+        derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
     EMS constraints are on an EMS level. Handled constraints (listed by column name):
         derivative max: maximum flow
         derivative min: minimum flow
@@ -62,13 +63,13 @@ def device_scheduler(  # noqa C901
         return [], 0
 
     # Check if commitments have the same time window and resolution as the constraints
-    start = device_constraints[0].index.values[0]
+    start = device_constraints[0].index.to_pydatetime()[0]
     resolution = pd.to_timedelta(device_constraints[0].index.freq)
-    end = device_constraints[0].index.values[-1] + resolution
+    end = device_constraints[0].index.to_pydatetime()[-1] + resolution
     if len(commitment_quantities) != 0:
-        start_c = commitment_quantities[0].index.values[0]
+        start_c = commitment_quantities[0].index.to_pydatetime()[0]
         resolution_c = pd.to_timedelta(commitment_quantities[0].index.freq)
-        end_c = commitment_quantities[0].index.values[-1] + resolution
+        end_c = commitment_quantities[0].index.to_pydatetime()[-1] + resolution
         if not (start_c == start and end_c == end):
             raise Exception(
                 "Not implemented for different time windows.\n(%s,%s)\n(%s,%s)"
@@ -103,7 +104,7 @@ def device_scheduler(  # noqa C901
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
     model.j = RangeSet(
-        0, len(device_constraints[0].index.values) - 1, doc="Set of datetimes"
+        0, len(device_constraints[0].index.to_pydatetime()) - 1, doc="Set of datetimes"
     )
     model.c = RangeSet(0, len(commitment_quantities) - 1, doc="Set of commitments")
 
@@ -118,18 +119,20 @@ def device_scheduler(  # noqa C901
         return commitment_quantities[c].iloc[j]
 
     def device_max_select(m, d, j):
-        v = device_constraints[d]["max"].iloc[j]
-        if np.isnan(v):
+        max_v = device_constraints[d]["max"].iloc[j]
+        equal_v = device_constraints[d]["equals"].iloc[j]
+        if np.isnan(max_v) and np.isnan(equal_v):
             return infinity
         else:
-            return v
+            return np.nanmin([max_v, equal_v])
 
     def device_min_select(m, d, j):
-        v = device_constraints[d]["min"].iloc[j]
-        if np.isnan(v):
+        min_v = device_constraints[d]["min"].iloc[j]
+        equal_v = device_constraints[d]["equals"].iloc[j]
+        if np.isnan(min_v) and np.isnan(equal_v):
             return -infinity
         else:
-            return v
+            return np.nanmax([min_v, equal_v])
 
     def device_derivative_max_select(m, d, j):
         max_v = device_constraints[d]["derivative max"].iloc[j]

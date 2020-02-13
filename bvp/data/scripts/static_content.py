@@ -860,7 +860,7 @@ def depopulate_forecasts(
     num_weather_measurements_deleted = 0
 
     # Clear all forecasting jobs
-    num_jobs_deleted = app.redis_queue.empty()
+    num_jobs_deleted = app.queues["forecasting"].empty()
 
     # Clear all forecasts (data with positive horizon)
     if generic_asset_name is None:

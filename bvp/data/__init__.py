@@ -18,6 +18,6 @@ def register_at(app: Flask):
         with app.app_context():
             import bvp.data.scripts.cli_tasks.db_pop
             import bvp.data.scripts.cli_tasks.data_collection
-            import bvp.data.scripts.cli_tasks.forecasting  # noqa: F401
+            import bvp.data.scripts.cli_tasks.testing  # noqa: F401
 
     app.teardown_request(after_request_session_commit_or_rollback)

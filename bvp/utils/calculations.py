@@ -1,6 +1,9 @@
 """ Calculations """
+from datetime import timedelta
+from typing import Optional
 
 import numpy as np
+import pandas as pd
 
 
 def mean_absolute_error(y_true: np.ndarray, y_forecast: np.ndarray):
@@ -31,3 +34,35 @@ def drop_nan_rows(a, b):
     d = np.array(list(zip(a, b)))
     d = d[~np.any(np.isnan(d), axis=1)]
     return d[:, 0], d[:, 1]
+
+
+def integrate_time_series(
+    s: pd.Series, s0: float, decimal_precision: Optional[int] = None
+) -> pd.Series:
+    """Integrate time series of length n and closed="left" (representing a flow)
+    to a time series of length n+1 and closed="both" (representing a stock),
+    given a starting stock s0.
+    The unit of time is hours: i.e. the stock unit is flow unit times hours (e.g. a flow in kW becomes a stock in kWh).
+    Optionally, set a decimal precision to round off the results (useful for tests failing over machine precision).
+
+    >>> s = pd.Series([1, 2, 3, 4], index=pd.date_range(datetime(2001, 1, 1,5), datetime(2001, 1, 1, 6), freq=timedelta(minutes=15), closed="left"))
+    >>> integrate_time_series(s, 10)
+        2001-01-01 05:00:00    10.00
+        2001-01-01 05:15:00    10.25
+        2001-01-01 05:30:00    10.75
+        2001-01-01 05:45:00    11.50
+        2001-01-01 06:00:00    12.50
+        Freq: D, dtype: float64
+    """
+    resolution = pd.to_timedelta(s.index.freq)
+    int_s = pd.concat(
+        [
+            pd.Series(s0, index=pd.date_range(s.index[0], periods=1)),
+            s.tshift(1, freq=timedelta(minutes=15)).cumsum()
+            * (resolution / timedelta(hours=1))
+            + s0,
+        ]
+    )
+    if decimal_precision is not None:
+        int_s = int_s.round(decimal_precision)
+    return int_s

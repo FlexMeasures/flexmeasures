@@ -5,11 +5,11 @@ setup(
     description="Balancing Valorisation Platform.",
     author="Seita BV",
     author_email="nicolas@seita.nl",
-    keywords=["smart grid", "renewables", "balancing", "forecasting"],
-    version="0.1",
+    keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
+    version="0.2",
     # flask should be after all the flask plugins, because setup might find they ARE flask
     install_requires=[
-        "bokeh==1.0.2",  # ui/utils/plotting_utils separate_legend()
+        "bokeh==1.0.4",  # ui/utils/plotting_utils separate_legend()
         "colour",
         "pscript",
         "pandas",
@@ -43,6 +43,7 @@ setup(
         "Flask-Migrate",
         "Flask-Classful",
         "Flask-WTF",
+        "Flask-Login==0.4.1",  # Todo: remove once https://github.com/mattupstate/flask-security/issues/856 is solved
         "Flask-Mail",
         "Flask-Security",
         "Flask-Marshmallow",

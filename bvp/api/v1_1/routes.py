@@ -178,7 +178,7 @@ def post_price_data():
     :reqheader Content-Type: application/json
     :resheader Content-Type: application/json
     :status 200: PROCESSED
-    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, or UNRECOGNIZED_MARKET
+    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, or UNRECOGNIZED_MARKET
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD
@@ -250,7 +250,7 @@ def post_weather_data():
     :reqheader Content-Type: application/json
     :resheader Content-Type: application/json
     :status 200: PROCESSED
-    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, or UNRECOGNIZED_SENSOR
+    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, or UNRECOGNIZED_SENSOR
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD

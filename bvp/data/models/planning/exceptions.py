@@ -1,0 +1,2 @@
+class UnknownPricesException(Exception):
+    pass

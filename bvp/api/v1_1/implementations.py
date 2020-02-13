@@ -141,7 +141,7 @@ def post_price_data_response(
     try:
         save_to_database(prices)
         db.session.flush()
-        [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
+        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
         return request_processed()
     except IntegrityError as e:
         current_app.logger.warning(e)
@@ -150,7 +150,10 @@ def post_price_data_response(
         # Allow price data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(prices, overwrite=True)
-            [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
+            [
+                current_app.queues["forecasting"].enqueue_job(job)
+                for job in forecasting_jobs
+            ]
             return request_processed()
         else:
             return already_received_and_successfully_processed()
@@ -280,7 +283,7 @@ def post_weather_data_response(
     current_app.logger.info("SAVING TO DB...")
     try:
         save_to_database(weather_measurements)
-        [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
+        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
         db.session.flush()
         return request_processed()
     except IntegrityError as e:
@@ -290,7 +293,10 @@ def post_weather_data_response(
         # Allow meter data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(weather_measurements, overwrite=True)
-            [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
+            [
+                current_app.queues["forecasting"].enqueue_job(job)
+                for job in forecasting_jobs
+            ]
             return request_processed()
         else:
             return already_received_and_successfully_processed()

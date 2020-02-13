@@ -53,6 +53,7 @@ The platform operator of the BVP is an Aggregator.
     api/supplier
     api/aggregator
     api/mdc
+    api/v1_3
     api/v1_2
     api/v1_1
     api/v1

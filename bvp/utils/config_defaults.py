@@ -1,5 +1,6 @@
-from typing import List
+from datetime import timedelta
 import logging
+from typing import List
 
 """
 This lays out our configuration requirements and allows to set trivial defaults, per environment adjustable.
@@ -51,6 +52,7 @@ class Config(object):
     BVP_TIMEZONE = "Asia/Seoul"
     BVP_DB_BACKUP_PATH = "migrations/dumps"
     BVP_LP_SOLVER = "cbc"
+    BVP_PLANNING_HORIZON = timedelta(hours=2 * 24)
     BVP_TASK_CHECK_AUTH_TOKEN = None
     BVP_PA_DOMAIN_NAMES = []
     BVP_REDIS_URL = "localhost"
@@ -108,3 +110,6 @@ class TestingConfig(Config):
     SECURITY_HASHING_SCHEMES = ["hex_md5"]
     SECURITY_DEPRECATED_HASHING_SCHEMES = []
     BVP_MODE = "test"
+    BVP_PLANNING_HORIZON = timedelta(
+        hours=2 * 24
+    )  # if more than 2 days, consider setting up more days of price data for tests

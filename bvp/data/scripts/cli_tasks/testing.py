@@ -6,7 +6,6 @@ import os
 from flask import current_app as app
 import click
 from timetomodel import ModelState, create_fitted_model, evaluate_models
-from sqlalchemy.orm import configure_mappers
 
 if os.name == "nt":
     from rq_win import WindowsWorker as Worker
@@ -22,36 +21,6 @@ from bvp.data.services.forecasting import (
     create_forecasting_jobs,
     handle_forecasting_exception,
 )
-
-
-@app.cli.command("run_forecasting_worker")
-@click.option(
-    "--name",
-    default=None,
-    help="Give your worker a recognizable name. Defaults to random string.",
-)
-def run_forecasting_worker(name: str):
-    """
-    Use this CLI task to run the worker for forecasting - it will be able to use the app context this way.
-    """
-    # https://stackoverflow.com/questions/50822822/high-sqlalchemy-initialization-overhead
-    configure_mappers()
-
-    worker = Worker(
-        [app.redis_queue],
-        connection=app.redis_queue.connection,
-        name=name,
-        exception_handlers=[handle_forecasting_exception],
-    )
-
-    click.echo("\n=========================================================")
-    click.echo('Worker "%s" initialised: %s' % (worker.name, worker))
-    click.echo(
-        "Running against %s on %s" % (app.redis_queue, app.redis_queue.connection)
-    )
-    click.echo("=========================================================\n")
-
-    worker.work()
 
 
 @app.cli.command()
@@ -84,16 +53,16 @@ def test_making_forecasts():
         end_of_roll=as_bvp_time(datetime(2015, 4, 3)),
     )
 
-    click.echo("Queue before working: %s" % app.redis_queue.jobs)
+    click.echo("Queue before working: %s" % app.queues["forecasting"].jobs)
 
     worker = Worker(
-        [app.redis_queue],
-        connection=app.redis_queue.connection,
+        [app.queues["forecasting"]],
+        connection=app.queues["forecasting"].connection,
         name="Test CLI Forecaster",
         exception_handlers=[handle_forecasting_exception],
     )
     worker.work()
-    click.echo("Queue after working: %s" % app.redis_queue.jobs)
+    click.echo("Queue after working: %s" % app.queues["forecasting"].jobs)
 
     click.echo(
         "Forecasts found after (should be 24 * 2 * 4 = 192): %d"

@@ -93,7 +93,7 @@ In `documentation/api` start a new specification `v1_1.rst` with contents:
       :order: path
       :include-empty-docstring:
 
-If you are ready to publish the new specifications, enter your changes in `documentation/api/change_log.rst` and update the api toctree in `documentation/api/index.rst`
+If you are ready to publish the new specifications, enter your changes in `documentation/api/change_log.rst` and update the api toctree in `documentation/index.rst`
 to include the new version in the table of contents.
 
 You're not done. Several sections in the API documentation list endpoints as examples. If you want other developers to use your new API version, make sure those examples reference the latest endpoints. Remember that [Sphinx autoflask](https://sphinxcontrib-httpdomain.readthedocs.io/en/stable/#module-sphinxcontrib.autohttp.flask) likes to prefix the names of endpoints with the blueprint’s name, for example:

@@ -28,6 +28,7 @@ from bvp.api.common.utils.validators import (
 )
 from bvp.data.models.assets import Asset
 from bvp.data.models.planning.battery import schedule_battery
+from bvp.data.models.planning.exceptions import UnknownPricesException
 from bvp.data.services.resources import has_assets, can_access_asset
 
 
@@ -39,8 +40,13 @@ def get_device_message_response(generic_asset_name_groups, duration):
 
     resolution = timedelta(minutes=15)
     unit = "MW"
-    min_planning_horizon = timedelta(hours=24)
-    planning_horizon = max(min_planning_horizon, duration)
+    min_planning_horizon = timedelta(
+        hours=24
+    )  # user can request a shorter planning, but the scheduler takes into account at least this horizon
+    planning_horizon = min(
+        max(min_planning_horizon, duration),
+        current_app.config.get("BVP_PLANNING_HORIZON"),
+    )
 
     if not has_assets():
         current_app.logger.info("User doesn't seem to have any assets.")
@@ -69,7 +75,10 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 )
                 return unrecognized_connection_group()
             if asset.asset_type_name != "battery":
-                return invalid_domain("Asset ID:%s is not a battery." % asset_id)
+                return invalid_domain(
+                    "API version 1.2 only supports device messages for batteries. Asset ID:%s is not a battery."
+                    % asset_id
+                )
             if event_type != "soc" or event_id != asset.soc_udi_event_id:
                 return unrecognized_event(event_id, event_type)
             start = asset.soc_datetime
@@ -80,10 +89,17 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 return invalid_market()
 
             # Schedule the asset
-            schedule = schedule_battery(
-                asset, market, start, start + planning_horizon, resolution
-            )
-            if schedule is None:
+            try:
+                schedule = schedule_battery(
+                    asset,
+                    market,
+                    start,
+                    start + planning_horizon,
+                    resolution,
+                    soc_at_start=asset.soc_in_mwh,
+                    prefer_charging_sooner=False,
+                )
+            except UnknownPricesException:
                 return unknown_prices()
             else:
                 # Update the planning window
@@ -128,7 +144,7 @@ def post_udi_event_response(unit):
             current_app.logger.warning(
                 "Cannot parse timezone of 'datetime' value %s" % form.get("datetime")
             )
-            return invalid_timezone()
+            return invalid_timezone("Datetime should explicitly state a timezone.")
 
     # parse event/address info
     if "event" not in form:
@@ -153,7 +169,10 @@ def post_udi_event_response(unit):
         current_app.logger.warning("Cannot identify asset via %s." % ea)
         return unrecognized_connection_group()
     if asset.asset_type_name != "battery":
-        return invalid_domain("Asset ID:%s is not a battery." % asset_id)
+        return invalid_domain(
+            "API version 1.2 only supports UDI events for batteries. Asset ID:%s is not a battery."
+            % asset_id
+        )
 
     # unless on play, keep events ordered by entry date and ID
     if current_app.config.get("BVP_MODE") != "play":
@@ -184,6 +203,4 @@ def post_udi_event_response(unit):
     asset.soc_udi_event_id = event_id
     asset.soc_in_mwh = value
 
-    response = dict(type="PostUdiEventResponse")
-    d, s = request_processed("Request has been processed.")
-    return dict(**response, **d), s
+    return request_processed("Request has been processed.")

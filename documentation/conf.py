@@ -14,8 +14,12 @@
 #
 import os
 import sys
+from datetime import datetime
+
+from humanize import naturaldelta
 
 from bvp.app import create as create_app
+from bvp.ui.utils.view_utils import get_git_description
 
 sys.path.insert(0, os.path.abspath(".."))
 bvp_app = create_app()
@@ -24,14 +28,18 @@ bvp_app = create_app()
 # -- Project information -----------------------------------------------------
 
 project = "Balancing Valorisation Platform"
-copyright = "2018, Seita, developed in partnership with A1 Engineering, South Korea"
+copyright = f"{datetime.now().year}, Seita, developed in partnership with A1 Engineering, South Korea"
 author = "A1 Engineering with Seita B.V."
 
 # The short X.Y version
-version = ""
+git_version, git_commits_since, git_hash = get_git_description()
+version = f"{git_version} + {git_commits_since} commits (revision {git_hash})"
 # The full version, including alpha/beta/rc tags
-release = ""
+release = version
 
+rst_epilog = f"""
+    .. |BVP_PLANNING_HORIZON| replace:: {naturaldelta(bvp_app.config.get("BVP_PLANNING_HORIZON"))}
+"""
 
 # -- General configuration ---------------------------------------------------
 
@@ -48,8 +56,8 @@ extensions = [
     "sphinx.ext.coverage",
     "sphinx.ext.imgmath",
     "sphinx.ext.ifconfig",
-    'sphinxcontrib.autohttp.flask',
-    'sphinxcontrib.autohttp.flaskqref',
+    "sphinxcontrib.autohttp.flask",
+    "sphinxcontrib.autohttp.flaskqref",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -192,5 +200,5 @@ def setup(sphinx_app):
     """
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
-    sphinx_app.add_config_value('BVP_MODE', bvp_app.config.get("BVP_MODE", ""), 'env')
-    sphinx_app.add_stylesheet('css/custom.css')
+    sphinx_app.add_config_value("BVP_MODE", bvp_app.config.get("BVP_MODE", ""), "env")
+    sphinx_app.add_stylesheet("css/custom.css")

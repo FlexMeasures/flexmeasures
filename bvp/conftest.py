@@ -266,11 +266,51 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
 
 
 @pytest.fixture(scope="function", autouse=True)
+def add_charging_station_asset(db: SQLAlchemy, setup_roles_users, setup_markets):
+    """Add a charging station asset, set its capacity value and its initial SOC."""
+    db.session.add(
+        AssetType(
+            name="charging_station",
+            is_consumer=True,
+            is_producer=False,
+            can_curtail=True,
+            can_shift=True,
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        )
+    )
+
+    from bvp.data.models.user import User, Role
+
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
+    epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
+
+    charging_station = Asset(
+        name="Test charging station",
+        asset_type_name="charging_station",
+        capacity_in_mw=2,
+        max_soc_in_mwh=5,
+        min_soc_in_mwh=0,
+        soc_in_mwh=2.5,
+        soc_datetime=as_bvp_time(datetime(2015, 1, 1)),
+        soc_udi_event_id=203,
+        latitude=10,
+        longitude=100,
+        market_id=epex_da.id,
+        unit="MW",
+    )
+    charging_station.owner = test_prosumer
+    db.session.add(charging_station)
+
+
+@pytest.fixture(scope="function", autouse=True)
 def clean_redis(app):
-    failed = app.redis_queue.failed_job_registry
-    app.redis_queue.empty()
+    failed = app.queues["forecasting"].failed_job_registry
+    app.queues["forecasting"].empty()
     for job_id in failed.get_job_ids():
-        failed.remove(app.redis_queue.fetch_job(job_id))
+        failed.remove(app.queues["forecasting"].fetch_job(job_id))
 
 
 @pytest.fixture(scope="session", autouse=True)

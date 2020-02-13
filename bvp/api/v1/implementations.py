@@ -303,7 +303,7 @@ def create_connection_and_value_groups(  # noqa: C901
     try:
         save_to_database(power_measurements)
         db.session.flush()
-        [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
+        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
         return request_processed()
     except IntegrityError as e:
         current_app.logger.warning(e)
@@ -312,7 +312,10 @@ def create_connection_and_value_groups(  # noqa: C901
         # Allow meter data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
             save_to_database(power_measurements, overwrite=True)
-            [current_app.redis_queue.enqueue_job(job) for job in forecasting_jobs]
+            [
+                current_app.queues["forecasting"].enqueue_job(job)
+                for job in forecasting_jobs
+            ]
             return request_processed()
         else:
             return already_received_and_successfully_processed()

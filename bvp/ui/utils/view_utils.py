@@ -47,9 +47,11 @@ def render_bvp_template(html_filename: str, **variables):
         session.get("forecast_horizon", "")
     )
 
-    variables["git_version"], variables["git_commits_since"], variables[
-        "git_hash"
-    ] = get_git_description()
+    (
+        variables["git_version"],
+        variables["git_commits_since"],
+        variables["git_hash"],
+    ) = get_git_description()
     app_start_time = current_app.config.get("START_TIME")
     variables["app_running_since"] = time_utils.naturalized_datetime_str(app_start_time)
 
@@ -82,7 +84,7 @@ def set_session_market(resource: Resource) -> Market:
 
 
 def set_session_sensor_type(
-    accepted_sensor_types: List[WeatherSensorType]
+    accepted_sensor_types: List[WeatherSensorType],
 ) -> WeatherSensorType:
     """Set session["sensor_type"] to something, based on the available sensor types or the request.
     Returns the selected sensor type, or None."""

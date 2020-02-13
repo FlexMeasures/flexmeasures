@@ -73,7 +73,7 @@ def get_versions() -> dict:
         "message": "For these API versions a public endpoint is available, listing its service. For example: "
         "/api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: "
         "/api/requestAuthToken",
-        "versions": ["v1", "v1_1", "v1_2"],
+        "versions": ["v1", "v1_1", "v1_2", "v1_3"],
     }
     return response
 
@@ -103,7 +103,9 @@ def register_at(app: Flask):
         from bvp.api.v1 import register_at as v1_register_at
         from bvp.api.v1_1 import register_at as v1_1_register_at
         from bvp.api.v1_2 import register_at as v1_2_register_at
+        from bvp.api.v1_3 import register_at as v1_3_register_at
 
         v1_register_at(app)
         v1_1_register_at(app)
         v1_2_register_at(app)
+        v1_3_register_at(app)

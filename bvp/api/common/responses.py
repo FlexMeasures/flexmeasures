@@ -114,7 +114,6 @@ def invalid_sender(
     )
 
 
-@BaseMessage("Start time should explicitly state a timezone.")
 def invalid_timezone(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="INVALID_TIMEZONE", message=message), 400
 
@@ -185,6 +184,11 @@ def unknown_prices(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="UNKNOWN_PRICES", message=message), 400
 
 
+@BaseMessage("No known schedule for this time period.")
+def unknown_schedule(message: str) -> Tuple[dict, int]:
+    return dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message), 400
+
+
 @BaseMessage("The requested backup is not known.")
 def unrecognized_backup(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="UNRECOGNIZED_BACKUP", message=message), 400
@@ -200,6 +204,20 @@ def unrecognized_connection_group(message: str) -> Tuple[dict, int]:
     )
 
 
+def incomplete_event(
+    requested_event_id, requested_event_type, message
+) -> Tuple[dict, int]:
+    return (
+        dict(
+            result="Rejected",
+            status="INCOMPLETE_UDI_EVENT",
+            message="The requested UDI event (id = %s, type = %s) is incomplete."
+            % (requested_event_id, requested_event_type),
+        ),
+        400,
+    )
+
+
 def unrecognized_event(requested_event_id, requested_event_type) -> Tuple[dict, int]:
     return (
         dict(
@@ -207,6 +225,18 @@ def unrecognized_event(requested_event_id, requested_event_type) -> Tuple[dict, 
             status="UNRECOGNIZED_UDI_EVENT",
             message="The requested UDI event (id = %s, type = %s) is not known."
             % (requested_event_id, requested_event_type),
+        ),
+        400,
+    )
+
+
+def unrecognized_event_type(requested_event_type) -> Tuple[dict, int]:
+    return (
+        dict(
+            result="Rejected",
+            status="UNRECOGNIZED_UDI_EVENT",
+            message="The requested UDI event type %s is not known."
+            % requested_event_type,
         ),
         400,
     )

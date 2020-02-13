@@ -97,7 +97,7 @@ def validate_horizon(horizon: str) -> Union[Tuple[timedelta, bool], Tuple[None, 
         rep = False
     try:
         horizon = isodate.parse_duration(horizon)
-    except ISO8601Error:
+    except (ISO8601Error, AttributeError):
         return None, None
     if neg:
         horizon = -horizon
@@ -110,7 +110,7 @@ def validate_duration(duration: str) -> Union[timedelta, None]:
     """
     try:
         return isodate.parse_duration(duration)
-    except ISO8601Error:
+    except (ISO8601Error, AttributeError):
         return None
 
 
@@ -120,7 +120,7 @@ def parse_isodate_str(start: str) -> Union[datetime, None]:
     """
     try:
         return isodate.parse_datetime(start)
-    except ISO8601Error:
+    except (ISO8601Error, AttributeError):
         return None
 
 
@@ -397,7 +397,9 @@ def optional_horizon_accepted(ex_post: bool = False):
                     return invalid_period(extra_info)
                 if start.tzinfo is None:
                     current_app.logger.warning("Cannot parse timezone of 'start' value")
-                    return invalid_timezone()
+                    return invalid_timezone(
+                        "Start time should explicitly state a timezone."
+                    )
                 if not duration:
                     extra_info = "Cannot parse 'duration' value."
                     current_app.logger.warning(extra_info)
@@ -486,7 +488,9 @@ def period_required(fn):
                 return invalid_period()
             if start.tzinfo is None:
                 current_app.logger.warning("Cannot parse timezone of 'start' value")
-                return invalid_timezone()
+                return invalid_timezone(
+                    "Start time should explicitly state a timezone."
+                )
         else:
             current_app.logger.warning("Request missing 'start'.")
             return invalid_period()

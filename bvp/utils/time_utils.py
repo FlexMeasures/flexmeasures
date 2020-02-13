@@ -99,17 +99,11 @@ def decide_resolution(start: datetime, end: datetime) -> str:
     resolution = "15T"  # default is 15 minute intervals
     period_length = end - start
     if period_length > timedelta(weeks=16):
-        resolution = (
-            "168h"
-        )  # So upon switching from days to weeks, you get at least 16 data points
+        resolution = "168h"  # So upon switching from days to weeks, you get at least 16 data points
     elif period_length > timedelta(days=14):
-        resolution = (
-            "24h"
-        )  # So upon switching from hours to days, you get at least 14 data points
+        resolution = "24h"  # So upon switching from hours to days, you get at least 14 data points
     elif period_length > timedelta(hours=48):
-        resolution = (
-            "1h"
-        )  # So upon switching from 15min to hours, you get at least 48 data points
+        resolution = "1h"  # So upon switching from 15min to hours, you get at least 48 data points
     return resolution
 
 

@@ -160,10 +160,12 @@ def test_post_price_data(db, app, post_message):
     )
 
     # look for Forecasting jobs in queue
-    assert len(app.redis_queue) == 2  # only one market is affected, but two horizons
+    assert (
+        len(app.queues["forecasting"]) == 2
+    )  # only one market is affected, but two horizons
     market = Market.query.filter_by(name=market_name).one_or_none()
     horizons = [timedelta(hours=24), timedelta(hours=48)]
-    jobs = sorted(app.redis_queue.jobs, key=lambda x: x.kwargs["horizon"])
+    jobs = sorted(app.queues["forecasting"].jobs, key=lambda x: x.kwargs["horizon"])
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon

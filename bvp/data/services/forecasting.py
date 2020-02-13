@@ -10,14 +10,13 @@ from timetomodel.forecasting import make_rolling_forecasts
 
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
-from bvp.data.models.data_sources import DataSource
 from bvp.data.models.forecasting import lookup_model_specs_configurator
 from bvp.data.models.forecasting.exceptions import InvalidHorizonException
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.utils import determine_asset_value_class_by_asset
 from bvp.data.models.forecasting.utils import get_query_window, check_data_availability
 from bvp.data.models.weather import Weather, WeatherSensor
-from bvp.data.utils import save_to_database
+from bvp.data.utils import save_to_database, get_data_source
 from bvp.utils.time_utils import (
     as_bvp_time,
     bvp_now,
@@ -30,7 +29,7 @@ The life cycle of a forecasting job:
 1. A forecasting job is born in create_forecasting_jobs.
 2. It is run in make_forecasts which writes results to the db.
    This is also where model specs are configured and a possible fallback model is stored for step 3.
-3. If an error occurs (and the worker is configured accordingly), handle_forecasting_exceptions comes in.
+3. If an error occurs (and the worker is configured accordingly), handle_forecasting_exception comes in.
    This might re-enqueue the job or try a different model (which creates a new job).
 """
 
@@ -105,13 +104,13 @@ def create_forecasting_jobs(
                 end=end_of_roll + horizon,
                 custom_model_params=custom_model_params,
             ),
-            connection=current_app.redis_queue.connection,
+            connection=current_app.queues["forecasting"].connection,
         )
         job.meta["model_search_term"] = model_search_term
         job.save_meta()
         jobs.append(job)
         if enqueue:
-            current_app.redis_queue.enqueue_job(job)
+            current_app.queues["forecasting"].enqueue_job(job)
     return jobs
 
 
@@ -122,10 +121,11 @@ def make_forecasts(
     start: datetime,
     end: datetime,
     custom_model_params: dict = None,
-):
+) -> int:
     """
     Build forecasting model specs, make rolling forecasts, save the forecasts made.
     Each individual forecast is a belief about an interval.
+    Returns the number of forecasts made.
 
     Parameters
     ----------
@@ -259,22 +259,11 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
                 make_forecasts,
                 args=job.args,
                 kwargs=job.kwargs,
-                connection=current_app.redis_queue.connection,
+                connection=current_app.queues["forecasting"].connection,
             )
             new_job.meta["model_search_term"] = job.meta["fallback_model_search_term"]
             new_job.save_meta()
-            current_app.redis_queue.enqueue_job(new_job)
-
-
-def get_data_source(data_source_label: str) -> DataSource:
-    """Make sure we have a data source"""
-    data_source = DataSource.query.filter(
-        DataSource.label == data_source_label
-    ).one_or_none()
-    if data_source is None:
-        data_source = DataSource(label=data_source_label, type="script")
-        db.session.add(data_source)
-    return data_source
+            current_app.queues["forecasting"].enqueue_job(new_job)
 
 
 def num_forecasts(start: datetime, end: datetime, resolution: timedelta) -> int:

@@ -59,8 +59,8 @@ class AssetForm(FlaskForm):
     def validate_on_submit(self):
         if self.market_id.data == -1:
             self.market_id.data = (
-                ""
-            )  # cannot be coerced to int so will be flagged as invalid input
+                ""  # cannot be coerced to int so will be flagged as invalid input
+            )
         form_valid = super().validate_on_submit()
         if self.max_soc_in_mwh.data < self.min_soc_in_mwh.data:
             self.errors["max_soc_in_mwh"] = [
@@ -255,7 +255,7 @@ class AssetCrud(FlaskView):
 
 
 def get_or_create_owner(
-    asset_form: NewAssetForm
+    asset_form: NewAssetForm,
 ) -> Tuple[Optional[User], Optional[str]]:
     """Get an existing or create a new User as owner for the to-be-created asset.
     Return the user (if available and an error message)"""

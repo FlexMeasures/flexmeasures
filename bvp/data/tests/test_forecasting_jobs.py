@@ -6,15 +6,11 @@ import os
 import pytest
 import numpy as np
 from sqlalchemy.orm import Query
-
-if os.name == "nt":
-    from rq_win import WindowsWorker as SimpleWorker
-else:
-    from rq import SimpleWorker
 from rq.job import Job
 
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.assets import Asset, Power
+from bvp.data.tests.utils import work_on_rq
 from bvp.data.services.forecasting import (
     create_forecasting_jobs,
     handle_forecasting_exception,
@@ -36,19 +32,6 @@ def get_data_source(model_identifier: str = "linear-OLS model (v2)"):
     Only when the forecasting job is successful, will the created data source entry not be rolled back."""
     data_source_label = "forecast by Seita (%s)" % model_identifier
     return DataSource.query.filter(DataSource.label == data_source_label).one_or_none()
-
-
-def work_on_rq(app, exc_handler=None):
-    exc_handlers = []
-    if exc_handler is not None:
-        exc_handlers.append(exc_handler)
-    print("STARTING SIMPLE RQ WORKER, seeing %d job(s)" % app.redis_queue.count)
-    worker = SimpleWorker(
-        [app.redis_queue],
-        connection=app.redis_queue.connection,
-        exception_handlers=exc_handlers,
-    )
-    worker.work(burst=True)
 
 
 def check_aggregate(overall_expected: int, horizon: timedelta):
@@ -81,7 +64,7 @@ def test_forecasting_an_hour_of_wind(db, app):
 
     print("Job: %s" % job[0].id)
 
-    work_on_rq(app, exc_handler=handle_forecasting_exception)
+    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
     assert get_data_source() is not None
 
@@ -113,7 +96,7 @@ def test_forecasting_three_hours_of_wind(db, app):
     )
     print("Job: %s" % job[0].id)
 
-    work_on_rq(app, exc_handler=handle_forecasting_exception)
+    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
     forecasts = (
         Power.query.filter(Power.asset_id == wind_device2.id)
@@ -143,7 +126,7 @@ def test_forecasting_two_hours_of_solar(db, app):
     )
     print("Job: %s" % job[0].id)
 
-    work_on_rq(app, exc_handler=handle_forecasting_exception)
+    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
     forecasts = (
         Power.query.filter(Power.asset_id == solar_device1.id)
         .filter(Power.horizon == horizon)
@@ -188,7 +171,7 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app):
     )
     print("Job: %s" % job[0].id)
 
-    work_on_rq(app, exc_handler=handle_forecasting_exception)
+    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
     forecasts = (
         Power.query.filter(Power.asset_id == solar_device1.id)
@@ -254,8 +237,8 @@ def test_failed_forecasting_insufficient_data(app):
         asset_id=solar_device1.id,
         custom_model_params=custom_model_params(),
     )
-    work_on_rq(app, exc_handler=handle_forecasting_exception)
-    check_failures(app.redis_queue, 2 * ["NotEnoughDataException"])
+    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
+    check_failures(app.queues["forecasting"], 2 * ["NotEnoughDataException"])
 
 
 def test_failed_forecasting_invalid_horizon(app):
@@ -269,8 +252,8 @@ def test_failed_forecasting_invalid_horizon(app):
         asset_id=solar_device1.id,
         custom_model_params=custom_model_params(),
     )
-    work_on_rq(app, exc_handler=handle_forecasting_exception)
-    check_failures(app.redis_queue, 2 * ["InvalidHorizonException"])
+    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
+    check_failures(app.queues["forecasting"], 2 * ["InvalidHorizonException"])
 
 
 def test_failed_unknown_model(app):
@@ -290,9 +273,9 @@ def test_failed_unknown_model(app):
         model_search_term="no-one-knows-this",
         custom_model_params=cmp,
     )
-    work_on_rq(app, exc_handler=handle_forecasting_exception)
+    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
-    check_failures(app.redis_queue, ["No model found for search term"])
+    check_failures(app.queues["forecasting"], ["No model found for search term"])
 
 
 @pytest.mark.parametrize(
@@ -328,11 +311,11 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
         model_search_term=model_to_start_with,
         custom_model_params=cmp,
     )
-    work_on_rq(app, exc_handler=handle_forecasting_exception)
+    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
     # Check if the correct model failed in the expected way
     check_failures(
-        app.redis_queue,
+        app.queues["forecasting"],
         ["NotEnoughDataException"],
         ["%s model (v%d)" % (model_to_start_with, model_version)],
     )
