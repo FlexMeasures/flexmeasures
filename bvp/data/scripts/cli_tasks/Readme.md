@@ -20,3 +20,5 @@ The file `routes.py` contains its registration and documentation, while the file
 
 The save functionality is currently not available as an API endpoint.
 This script cannot be executed within the lifetime of an https request, and would require processing within a separate thread, similar to how forecasting jobs are handled by BVP.
+
+To create new commands, be sure to register any new file (containing the corresponding script) with the flask cli in `bvp/data/__init__.py`.
