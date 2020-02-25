@@ -6,7 +6,7 @@ from sqlalchemy.orm import configure_mappers
 from bvp.data.services.forecasting import handle_forecasting_exception
 
 
-@app.cli.command("run_worker")
+@app.cli.command()
 @click.option(
     "--name",
     default=None,
