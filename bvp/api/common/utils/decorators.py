@@ -31,7 +31,10 @@ def as_response_type(response_type):
         @wraps(fn)
         @as_json
         def decorated_service(*args, **kwargs):
-            current_app.logger.info(get_form_from_request(request))
+            try:
+                current_app.logger.info(get_form_from_request(request))
+            except OSError as e:  # don't crash if request can't be logged (e.g. [Errno 90] Message too long)
+                current_app.logger.info(e)
             response = fn(*args, **kwargs)  # expects flask response object
             if not (
                 hasattr(response, "json")
