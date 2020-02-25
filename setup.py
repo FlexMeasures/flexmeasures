@@ -37,7 +37,7 @@ setup(
         "pysolar",
         "sklearn",
         "statsmodels",
-        "timetomodel>=0.6.7",
+        "timetomodel>=0.6.8",
         "python-dotenv",
         "Flask-SSLify",
         "Flask_JSON",
