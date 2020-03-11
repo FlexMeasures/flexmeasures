@@ -52,7 +52,7 @@ def invalid_ptu_duration(message: str) -> Tuple[dict, int]:
     )
 
 
-@BaseMessage("Only a 15 minute resolution is currently supported.")
+@BaseMessage("Only the following resolutions are supported:")
 def invalid_resolution(message: str) -> Tuple[dict, int]:
     return dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400
 

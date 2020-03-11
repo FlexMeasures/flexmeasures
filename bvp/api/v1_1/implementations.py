@@ -66,7 +66,9 @@ def get_connection_response():
 @optional_horizon_accepted()
 @values_required
 @period_required
-@resolutions_accepted(timedelta(minutes=15), timedelta(hours=1))
+@resolutions_accepted(
+    timedelta(minutes=15), timedelta(hours=1), timedelta(days=1), timedelta(days=7)
+)
 def post_price_data_response(
     unit,
     generic_asset_name_groups,

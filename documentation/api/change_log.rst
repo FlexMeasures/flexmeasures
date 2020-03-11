@@ -68,6 +68,11 @@ v1.2-0 | 2018-09-08
 - Added a description of the *postUdiEvent* endpoint in the Prosumer and Simulation sections
 - Added a description of the *getDeviceMessage* endpoint in the Prosumer and Simulation sections
 
+v1.1-4 | 2020-03-11
+"""""""""""""""""""
+
+- Added support for posting daily and weekly prices for the *postPriceData* endpoint
+
 v1.1-3 | 2018-09-08
 """""""""""""""""""
 

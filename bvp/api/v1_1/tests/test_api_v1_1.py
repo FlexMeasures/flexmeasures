@@ -1,11 +1,16 @@
 from flask import url_for
 import pytest
 from datetime import timedelta
-from isodate import parse_duration, parse_datetime
+from isodate import duration_isoformat, parse_duration, parse_datetime
 from iso8601 import parse_date
 import pandas as pd
 
-from bvp.api.common.responses import request_processed, invalid_horizon, invalid_unit
+from bvp.api.common.responses import (
+    request_processed,
+    invalid_horizon,
+    invalid_resolution,
+    invalid_unit,
+)
 from bvp.api.common.utils.validators import validate_entity_address
 from bvp.api.tests.utils import get_auth_token
 from bvp.api.common.utils.api_utils import (
@@ -197,6 +202,29 @@ def test_post_price_data_invalid_unit(client, post_message):
     assert (
         post_price_data_response.json["message"]
         == invalid_unit("%s prices" % market.display_name, ["EUR/MWh"])[0]["message"]
+    )
+
+
+@pytest.mark.parametrize("post_message", [message_for_post_price_data()])
+def test_post_price_data_invalid_resolution(client, post_message):
+    """
+    Try to post price data with the wrong resolution, which should fail.
+    """
+
+    post_message["duration"] = duration_isoformat(timedelta(minutes=2))
+
+    # post price data
+    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+    post_price_data_response = client.post(
+        url_for("bvp_api_v1_1.post_price_data"),
+        json=post_message,
+        headers={"Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % post_price_data_response.json)
+    assert post_price_data_response.status_code == 400
+    assert post_price_data_response.json["type"] == "PostPriceDataResponse"
+    assert (
+        invalid_resolution()[0]["message"] in post_price_data_response.json["message"]
     )
 
 

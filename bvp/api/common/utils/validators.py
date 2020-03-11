@@ -3,8 +3,10 @@ import re
 from functools import wraps
 from typing import List, Tuple, Union, Optional
 
+from humanize import naturaldelta
 import isodate
 from isodate.isoerror import ISO8601Error
+import inflect
 from inflection import pluralize
 from pandas.tseries.frequencies import to_offset
 from flask import request, current_app
@@ -35,6 +37,9 @@ from bvp.data.models.data_sources import DataSource
 from bvp.data.config import db
 from bvp.data.services.users import get_users
 from bvp.utils.time_utils import bvp_now
+
+
+p = inflect.engine()
 
 
 def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[int]:
@@ -748,14 +753,20 @@ def resolutions_accepted(*resolutions):
                 resolution = kwargs["duration"] / len(kwargs["value_groups"][0])
                 if resolution not in resolutions:
                     current_app.logger.warning("Resolution is not accepted.")
-                    return invalid_resolution()
+                    res_listing = p.join(
+                        [naturaldelta(res) for res in resolutions], final_sep=""
+                    )
+                    return invalid_resolution(res_listing)
                 else:
                     kwargs["resolution"] = resolution
                     return fn(*args, **kwargs)
             else:
                 current_app.logger.warning("Could not infer resolution.")
+                res_listing = p.join(
+                    [naturaldelta(res) for res in resolutions], final_sep=""
+                )
                 extra_info = "Specify some 'values' and a 'duration' so that the resolution can be inferred."
-                return invalid_resolution(extra_info)
+                return invalid_resolution(res_listing, extra_info)
 
         return decorated_service
 
@@ -794,7 +805,10 @@ def optional_resolutions_accepted(*resolutions):
                 return fn(*args, **kwargs)
             elif form["resolution"] not in resolutions:
                 current_app.logger.warning("Resolution is not accepted.")
-                return invalid_resolution()
+                res_listing = p.join(
+                    [naturaldelta(res) for res in resolutions], final_sep=""
+                )
+                return invalid_resolution(res_listing)
             else:
                 kwargs["resolution"] = to_offset(
                     isodate.parse_duration(form["resolution"])
