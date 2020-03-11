@@ -118,7 +118,8 @@ for i in range(num_days_sim * 96 // batch_size):
         time.sleep(seconds_of_sleep_between_steps)
     cpu_seconds_after, _ = get_cpu_seconds("seita", PA_API_TOKEN)
     print(
-        f"Batch {i+1} out of {num_days_sim * 96 // batch_size} - CPU seconds spent on forecasting: {round(cpu_seconds_after - cpu_seconds_before, 3)} out of {cpu_seconds_budget}"
+        f"Batch {i+1} out of {num_days_sim * 96 // batch_size} - CPU seconds spent on forecasting: "
+        f"{round(cpu_seconds_after - cpu_seconds_before, 3)} out of {cpu_seconds_budget}"
     )
 
 print(
