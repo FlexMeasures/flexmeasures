@@ -3,6 +3,13 @@
 Change log
 ==========
 
+
+v1.3-2 | 2020-03-11
+"""""""""""""""""""
+
+- Fixed example entity addresses in simulation section
+
+
 v1.3-1 | 2020-02-08
 """""""""""""""""""
 

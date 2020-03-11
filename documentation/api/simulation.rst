@@ -92,7 +92,7 @@ This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute 
 
         {
             "type": "PostWeatherDataRequest",
-            "sensor": "ea1.2018-06.localhost:5000:temperature:33.4843866:126.477859",
+            "sensor": "ea1.2018-06.com.a1-bvp.play:temperature:33.4843866:126.477859",
             "values": [
                 20.04,
                 20.23,
@@ -137,7 +137,7 @@ The horizon indicates that the prices were published at 3pm on December 31st 201
 
     {
         "type": "PostPriceDataRequest",
-        "market": "ea1.2018-06.localhost:5000:kpx_da",
+        "market": "ea1.2018-06.com.a1-bvp.play:kpx_da",
         "values": [
             52.37,
             51.14,
