@@ -98,8 +98,8 @@ def register_at(app: Flask):
 
         play_register_at(app)
 
-    # Load all versions of the API functionality, if we're not on the demo node
-    if app.config.get("BVP_MODE", "") != "demo":
+    # Load all versions of the API functionality, unless the config specifies otherwise
+    if app.config.get("BVP_API", True) is True:
         from bvp.api.v1 import register_at as v1_register_at
         from bvp.api.v1_1 import register_at as v1_1_register_at
         from bvp.api.v1_2 import register_at as v1_2_register_at
