@@ -241,7 +241,12 @@ def post_udi_event_response(unit):
     # get value
     if "value" not in form:
         return ptus_incomplete()
-    value = form.get("value")
+    try:
+        value = float(form.get("value"))
+    except ValueError:
+        extra_info = "Request includes empty or ill-formatted value(s)."
+        current_app.logger.warning(extra_info)
+        return ptus_incomplete(extra_info)
     if unit == "kWh":
         value = value / 1000.0
 
@@ -268,7 +273,12 @@ def post_udi_event_response(unit):
             # get target value
             if "value" not in target:
                 return ptus_incomplete("Target missing value parameter.")
-            target_value = target["value"]
+            try:
+                target_value = float(target["value"])
+            except ValueError:
+                extra_info = "Request includes empty or ill-formatted target value(s)."
+                current_app.logger.warning(extra_info)
+                return ptus_incomplete(extra_info)
             if unit == "kWh":
                 target_value = target_value / 1000.0
 
