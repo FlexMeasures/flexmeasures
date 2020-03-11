@@ -224,6 +224,7 @@ def post_weather_data_response(
                         weather_sensor_type_name=weather_sensor_type_name,
                         latitude=latitude,
                         longitude=longitude,
+                        unit=unit,
                     )
                     db.session.add(weather_sensor)
                     db.session.flush()  # flush so that we can reference the new object in the current db session
