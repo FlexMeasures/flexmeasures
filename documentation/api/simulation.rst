@@ -366,6 +366,25 @@ This example posts a state of charge value for a battery device (asset 10 of own
             "unit": "kWh"
         }
 
+Some devices also accept target values for their state of charge.
+As an example, consider the same UDI event as above with an additional target value.
+
+.. code-block:: json
+
+    {
+        "type": "PostUdiEventRequest",
+        "event": "ea1.2018-06.com.a1-bvp.play:7:10:204:soc-with-targets",
+        "value": 12.1,
+        "datetime": "2015-06-02T10:00:00+00:00",
+        "unit": "kWh",
+        "targets": [
+            {
+                "value": 25,
+                "datetime": "2015-06-02T16:00:00+00:00"
+            }
+        ]
+    }
+
 Getting control signals
 -----------------------
 

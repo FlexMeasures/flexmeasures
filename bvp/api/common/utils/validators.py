@@ -223,11 +223,16 @@ def validate_entity_address(
     elif entity_type == "event":
         match = re.search(
             r"^"
-            r"((?P<scheme>.+)\.)*"
-            r"((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
-            r"((?P<owner_id>\d+):(?=.+:{0}))*"
-            r"(?P<asset_id>\d+):"
-            r"(?P<event_id>\d+):"
+            r"(?P<scheme>.+)"
+            r"\."
+            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
+            r":"
+            r"(?P<owner_id>\d+)"
+            r":"
+            r"(?P<asset_id>\d+)"
+            r":"
+            r"(?P<event_id>\d+)"
+            r":"
             r"(?P<event_type>.+)"
             r"$",
             generic_asset_name,
