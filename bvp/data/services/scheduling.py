@@ -108,11 +108,11 @@ def make_schedule(
         )
 
     if asset.asset_type_name == "battery":
-        series = schedule_battery(
+        consumption_schedule = schedule_battery(
             asset, asset.market, start, end, resolution, soc_at_start, soc_targets
         )
     elif asset.asset_type_name == "charging_station":
-        series = schedule_charging_station(
+        consumption_schedule = schedule_charging_station(
             asset, asset.market, start, end, resolution, soc_at_start, soc_targets
         )
     else:
@@ -128,12 +128,12 @@ def make_schedule(
         Power(
             datetime=dt,
             horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
-            value=value,
+            value=-value,
             asset_id=asset_id,
             data_source_id=data_source.id,
         )
-        for dt, value in series.items()
-    ]
+        for dt, value in consumption_schedule.items()
+    ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
 
     try:
         save_to_database(ts_value_schedule)

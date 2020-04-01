@@ -95,22 +95,24 @@ def test_post_udi_event_and_get_device_message(app, message, asset_name):
     assert (
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
-    schedule = (
+    power_values = (
         Power.query.filter(Power.asset_id == asset_id)
         .filter(Power.data_source_id == scheduler_source.id)
         .all()
     )
-    schedule = pd.Series(
-        [v.value for v in schedule],
-        index=pd.DatetimeIndex([v.datetime for v in schedule], freq=resolution),
+    consumption_schedule = pd.Series(
+        [-v.value for v in power_values],
+        index=pd.DatetimeIndex([v.datetime for v in power_values], freq=resolution),
+    )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+    assert (
+        len(consumption_schedule) == app.config.get("BVP_PLANNING_HORIZON") / resolution
     )
-    assert len(schedule) == app.config.get("BVP_PLANNING_HORIZON") / resolution
 
     # check targets, if applicable
     if "targets" in message:
         start_soc = message["value"] / 1000  # in MWh
-        soc_schedule = integrate_time_series(schedule, start_soc, 6)
-        print(schedule)
+        soc_schedule = integrate_time_series(consumption_schedule, start_soc, 6)
+        print(consumption_schedule)
         print(soc_schedule)
         for target in message["targets"]:
             assert soc_schedule[target["datetime"]] == target["value"] / 1000

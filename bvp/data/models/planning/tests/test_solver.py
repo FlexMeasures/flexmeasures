@@ -65,16 +65,25 @@ def test_battery_solver_day_2():
     )  # Buy what you can to sell later
 
 
-@pytest.mark.parametrize("target_soc", [0, 5])
-def test_charging_station_solver_day_2(target_soc):
+@pytest.mark.parametrize(
+    "target_soc, charging_station_name",
+    [
+        (1, "Test charging station"),
+        (5, "Test charging station"),
+        (0, "Test charging station (bidirectional)"),
+        (5, "Test charging station (bidirectional)"),
+    ],
+)
+def test_charging_station_solver_day_2(target_soc, charging_station_name):
     """Starting with a state of charge 1 kWh, within 2 hours we should be able to reach
-    any state of charge in the range [0, 5] kWh."""
+    any state of charge in the range [1, 5] kWh for a unidirectional station,
+    or [0, 5] for a bidirectional station."""
     soc_at_start = 1
     duration_until_target = timedelta(hours=2)
 
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
     charging_station = Asset.query.filter(
-        Asset.name == "Test charging station"
+        Asset.name == charging_station_name
     ).one_or_none()
     start = as_bvp_time(datetime(2015, 1, 2))
     end = as_bvp_time(datetime(2015, 1, 3))
@@ -84,14 +93,16 @@ def test_charging_station_solver_day_2(target_soc):
         np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
     )
     soc_targets.loc[target_soc_datetime] = target_soc
-    schedule = schedule_charging_station(
+    consumption_schedule = schedule_charging_station(
         charging_station, epex_da, start, end, resolution, soc_at_start, soc_targets
     )
-    soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
+    soc_schedule = integrate_time_series(
+        consumption_schedule, soc_at_start, decimal_precision=6
+    )
 
     # Check if constraints were met
-    assert min(schedule.values) >= charging_station.capacity_in_mw * -1
-    assert max(schedule.values) <= charging_station.capacity_in_mw
-    print(schedule.head(12))
+    assert min(consumption_schedule.values) >= charging_station.capacity_in_mw * -1
+    assert max(consumption_schedule.values) <= charging_station.capacity_in_mw
+    print(consumption_schedule.head(12))
     print(soc_schedule.head(12))
     assert abs(soc_schedule.loc[target_soc_datetime] - target_soc) < 0.00001

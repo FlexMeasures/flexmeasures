@@ -266,13 +266,25 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def add_charging_station_asset(db: SQLAlchemy, setup_roles_users, setup_markets):
-    """Add a charging station asset, set its capacity value and its initial SOC."""
+def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
+    """Add uni- and bi-directional charging station assets, set their capacity value and their initial SOC."""
     db.session.add(
         AssetType(
             name="charging_station",
             is_consumer=True,
             is_producer=False,
+            can_curtail=True,
+            can_shift=True,
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        )
+    )
+    db.session.add(
+        AssetType(
+            name="bidirectional_charging_station",
+            is_consumer=True,
+            is_producer=True,
             can_curtail=True,
             can_shift=True,
             daily_seasonality=True,
@@ -303,6 +315,23 @@ def add_charging_station_asset(db: SQLAlchemy, setup_roles_users, setup_markets)
     )
     charging_station.owner = test_prosumer
     db.session.add(charging_station)
+
+    bidirectional_charging_station = Asset(
+        name="Test charging station (bidirectional)",
+        asset_type_name="bidirectional_charging_station",
+        capacity_in_mw=2,
+        max_soc_in_mwh=5,
+        min_soc_in_mwh=0,
+        soc_in_mwh=2.5,
+        soc_datetime=as_bvp_time(datetime(2015, 1, 1)),
+        soc_udi_event_id=203,
+        latitude=10,
+        longitude=100,
+        market_id=epex_da.id,
+        unit="MW",
+    )
+    bidirectional_charging_station.owner = test_prosumer
+    db.session.add(bidirectional_charging_station)
 
 
 @pytest.fixture(scope="function", autouse=True)

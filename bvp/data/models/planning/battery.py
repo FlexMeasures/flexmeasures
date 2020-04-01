@@ -27,6 +27,7 @@ def schedule_battery(
 ) -> Union[pd.Series, None]:
     """Schedule a battery asset based directly on the latest beliefs regarding market prices within the specified time
     window.
+    For the resulting consumption schedule, consumption is defined as positive values.
     """
 
     # Check for known prices or price forecasts, adjusting planning horizon accordingly

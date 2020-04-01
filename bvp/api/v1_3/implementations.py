@@ -134,27 +134,31 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 return unknown_schedule(
                     message + f'no data is known labeled "{scheduler_label}".'
                 )
-            schedule = (
+            power_values = (
                 Power.query.filter(Power.asset_id == asset.id)
                 .filter(Power.data_source_id == scheduler_source.id)
                 .filter(Power.datetime >= schedule_start)
                 .filter(Power.datetime < schedule_start + planning_horizon)
                 .all()
             )
-            schedule = pd.Series(
-                [v.value for v in schedule],
-                index=pd.DatetimeIndex([v.datetime for v in schedule]),
-            )
-            if schedule.empty:
+            consumption_schedule = pd.Series(
+                [-v.value for v in power_values],
+                index=pd.DatetimeIndex([v.datetime for v in power_values]),
+            )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+            if consumption_schedule.empty:
                 return unknown_schedule(
                     message + "the schedule was not found in the database."
                 )
 
             # Update the planning window
-            start = schedule.index[0]
-            duration = min(duration, schedule.index[-1] + resolution - start)
-            schedule = schedule[start : start + duration - resolution]
-            value_groups.append(schedule.tolist())
+            start = consumption_schedule.index[0]
+            duration = min(
+                duration, consumption_schedule.index[-1] + resolution - start
+            )
+            consumption_schedule = consumption_schedule[
+                start : start + duration - resolution
+            ]
+            value_groups.append(consumption_schedule.tolist())
             new_event_groups.append([event])
 
     response = groups_to_dict(

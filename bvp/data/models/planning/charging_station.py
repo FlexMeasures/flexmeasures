@@ -27,6 +27,7 @@ def schedule_charging_station(
 ) -> Union[Series, None]:
     """Schedule a charging station asset based directly on the latest beliefs regarding market prices within the specified time
     window.
+    For the resulting consumption schedule, consumption is defined as positive values.
     Todo: handle uni-directional charging by setting the "min" or "derivative min" constraint to 0
     """
 
@@ -81,8 +82,14 @@ def schedule_charging_station(
     ) - soc_at_start * (
         timedelta(hours=1) / resolution
     )  # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-    device_constraints[0]["derivative min"] = asset.capacity_in_mw * -1
-    device_constraints[0]["derivative max"] = asset.capacity_in_mw
+    if asset.is_pure_consumer:
+        device_constraints[0]["derivative min"] = 0
+    else:
+        device_constraints[0]["derivative min"] = asset.capacity_in_mw * -1
+    if asset.is_pure_producer:
+        device_constraints[0]["derivative max"] = 0
+    else:
+        device_constraints[0]["derivative max"] = asset.capacity_in_mw
 
     # Set up EMS constraints (no additional constraints)
     columns = ["derivative max", "derivative min"]

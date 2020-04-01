@@ -42,13 +42,13 @@ def test_scheduling_a_battery(db, app):
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
 
-    schedule = (
+    power_values = (
         Power.query.filter(Power.asset_id == battery.id)
         .filter(Power.data_source_id == scheduler_source.id)
         .all()
     )
-    print([v.value for v in schedule])
-    assert len(schedule) == 96
+    print([v.value for v in power_values])
+    assert len(power_values) == 96
 
 
 def test_scheduling_a_charging_station(db, app):
@@ -100,17 +100,17 @@ def test_scheduling_a_charging_station(db, app):
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
 
-    schedule = (
+    power_values = (
         Power.query.filter(Power.asset_id == charging_station.id)
         .filter(Power.data_source_id == scheduler_source.id)
         .all()
     )
-    schedule = pd.Series(
-        [v.value for v in schedule],
-        index=pd.DatetimeIndex([v.datetime for v in schedule]),
-    )
-    assert len(schedule) == 96
-    print(schedule.head(12))
+    consumption_schedule = pd.Series(
+        [-v.value for v in power_values],
+        index=pd.DatetimeIndex([v.datetime for v in power_values]),
+    )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+    assert len(consumption_schedule) == 96
+    print(consumption_schedule.head(12))
     assert (
-        schedule.head(8).sum() * (resolution / timedelta(hours=1)) == 4.0
+        consumption_schedule.head(8).sum() * (resolution / timedelta(hours=1)) == 4.0
     )  # The first 2 hours should consume 4 kWh to charge from 1 to 5 kWh
