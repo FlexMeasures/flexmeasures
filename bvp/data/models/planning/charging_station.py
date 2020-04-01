@@ -53,9 +53,7 @@ def schedule_charging_station(
 
     # Todo: convert to EUR/(deviation of commitment, which is in MW)
     commitment_upwards_deviation_price = [prices.loc[start : end - resolution]["y"]]
-    commitment_downwards_deviation_price = [
-        prices.loc[start : end - resolution]["y"].multiply(-1)
-    ]
+    commitment_downwards_deviation_price = [prices.loc[start : end - resolution]["y"]]
 
     # Set up device constraints (only one device for this EMS)
     columns = [

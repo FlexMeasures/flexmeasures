@@ -111,7 +111,10 @@ def make_schedule(
         consumption_schedule = schedule_battery(
             asset, asset.market, start, end, resolution, soc_at_start, soc_targets
         )
-    elif asset.asset_type_name == "charging_station":
+    elif asset.asset_type_name in (
+        "charging_station",
+        "bidirectional_charging_station",
+    ):
         consumption_schedule = schedule_charging_station(
             asset, asset.market, start, end, resolution, soc_at_start, soc_targets
         )
