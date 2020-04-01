@@ -43,7 +43,7 @@ def schedule_battery(
     end = prices.last_valid_index() + resolution
 
     # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
-    # We penalise the future with at most 1 per million the price spread.
+    # We penalise the future with at most 1 per thousand times the price spread.
     if prefer_charging_sooner:
         prices = add_tiny_price_slope(prices)
 
