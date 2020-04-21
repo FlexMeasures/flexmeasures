@@ -1,4 +1,5 @@
 from flask import url_for
+from flask_security import SQLAlchemySessionUserDatastore
 
 from bvp.ui.tests.utils import logout
 
@@ -36,11 +37,17 @@ def test_control_responds(client, as_prosumer):
     assert b"Control actions" in control.data
 
 
-def test_analytics_responds(client, as_prosumer):
+def test_analytics_responds(db, client, as_prosumer):
     analytics = client.get(url_for("bvp_ui.analytics_view"), follow_redirects=True)
     assert analytics.status_code == 200
     assert b"Client analytics" in analytics.data
-    assert b"for test_prosumer@seita.nl" in analytics.data
+
+    from bvp.data.models.user import User, Role
+
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
+
+    assert str.encode(f"for {test_prosumer.username}") in analytics.data
 
 
 def test_logout(client, as_prosumer):

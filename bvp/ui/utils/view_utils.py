@@ -60,6 +60,9 @@ def render_bvp_template(html_filename: str, **variables):
         "user_is_admin"
     ] = current_user.is_authenticated and current_user.has_role("admin")
     variables["user_email"] = current_user.is_authenticated and current_user.email or ""
+    variables["user_name"] = (
+        current_user.is_authenticated and current_user.username or ""
+    )
 
     return render_template(html_filename, **variables)
 
