@@ -58,12 +58,14 @@
                                 {% if page != "analytics" %}
                                     <ul class="nav navbar-nav">
                                         {% for href, id, caption, icon in navigation_bar %}
+                                            {% if not (user_is_anonymous and id in ('control', 'portfolio')) %}
                                             <li{% if id == active_page %} class="active"{% endif %}>
                                                 <a href="/{{ href|e }}"{% if id == 'docs' %} target="_blank"{% endif %}>
                                                     <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                                                     {{ caption|e }}
                                                 </a>
                                             </li>
+                                            {% endif %}
                                         {% endfor %}
                                     </ul>
                                 {% else %}

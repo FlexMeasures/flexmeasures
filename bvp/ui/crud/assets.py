@@ -156,6 +156,8 @@ class AssetCrud(FlaskView):
         """POST to /assets/<id>, where id can be 'create' (and thus a new asset is made from POST data)
            Most of the code deals with creating a user for the asset if no existing is chosen.
         """
+        if current_user.has_role("anonymous"):
+            return unauth_handler()
 
         if id == "create":
             if not current_user.has_role("admin"):

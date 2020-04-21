@@ -49,10 +49,12 @@
                 <div class="panel panel-default" style="margin-top: 2em;">
                     <div class="panel-heading"><h4>Admin panel</h4></div>
                     <div class="panel-body">
-                        {% if user_is_admin %}
+                        {% if show_queues %}
                         <form action="/rq/" method="get" target="_blank">
                             <button class="btn btn-sm btn-responsive btn-info" type="submit">Show task queue</button>
                         </form>
+                        {% endif %}
+                        {% if user_is_admin %}
                         <form action="/users" method="get" style="margin-top: 1em;">
                             <button class="btn btn-sm btn-responsive btn-info" type="submit">List active users</button>
                         </form>

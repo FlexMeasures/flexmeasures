@@ -21,6 +21,14 @@ def render_bvp_template(html_filename: str, **variables):
     if os.path.exists("%s/static/documentation/html/index.html" % bvp_ui.root_path):
         variables["documentation_exists"] = True
 
+    variables["show_queues"] = False
+    if current_user.is_authenticated:
+        if (
+            current_user.has_role("admin")
+            or current_app.config.get("BVP_MODE", "") == "demo"
+        ):
+            variables["show_queues"] = True
+
     variables["start_time"] = time_utils.get_default_start_time()
     if "start_time" in session:
         variables["start_time"] = session["start_time"]
@@ -59,6 +67,9 @@ def render_bvp_template(html_filename: str, **variables):
     variables[
         "user_is_admin"
     ] = current_user.is_authenticated and current_user.has_role("admin")
+    variables[
+        "user_is_anonymous"
+    ] = current_user.is_authenticated and current_user.has_role("anonymous")
     variables["user_email"] = current_user.is_authenticated and current_user.email or ""
     variables["user_name"] = (
         current_user.is_authenticated and current_user.username or ""

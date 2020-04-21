@@ -91,7 +91,7 @@ class UserCrud(FlaskView):
     @roles_required("admin")
     def reset_password_for(self, id: str):
         """/users/reset_password_for/<id>
-        Set the password to something random (in case of worries the passsword might be compromised)
+        Set the password to something random (in case of worries the password might be compromised)
         and send instructions on how to reset."""
         user: User = get_user(id)
         new_random_password = "".join(

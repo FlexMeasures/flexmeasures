@@ -73,6 +73,7 @@
                                 {{ roles }}
                             </td>
                         </tr>
+                        {% if not user_is_anonymous %}
                         <tr>
                             <td>
                                 Fresh access token
@@ -81,6 +82,7 @@
                                 {{ logged_in_user.get_auth_token() }}
                             </td>
                         </tr>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>
