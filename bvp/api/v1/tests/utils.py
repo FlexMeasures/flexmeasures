@@ -9,6 +9,7 @@ def message_for_get_meter_data(
     no_connection: bool = False,
     invalid_connection: bool = False,
     single_connection=False,
+    demo_connection=False,
     invalid_unit: bool = False,
     no_unit: bool = False,
 ) -> dict:
@@ -25,6 +26,9 @@ def message_for_get_meter_data(
         message["connections"] = ["Non-existing asset 1", "Non-existing asset 2"]
     elif single_connection:
         message["connection"] = message["connections"][0]
+        message.pop("connections", None)
+    elif demo_connection:
+        message["connection"] = "CS 0"
         message.pop("connections", None)
     if no_unit:
         message.pop("unit", None)

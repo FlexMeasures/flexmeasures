@@ -126,17 +126,24 @@ def test_invalid_or_no_unit(client, method, message):
     )
 
 
-def test_invalid_sender_and_logout(client):
+@pytest.mark.parametrize(
+    "user_email, get_message",
+    [
+        ["test_user@seita.nl", message_for_get_meter_data()],
+        ["demo@seita.nl", message_for_get_meter_data(demo_connection=True)],
+    ],
+)
+def test_invalid_sender_and_logout(client, user_email, get_message):
     """
     Tries to get meter data as a logged-in test user without any USEF role, which should fail.
     Then tries to log out, which should succeed as a url direction.
     """
 
     # get meter data
-    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, user_email, "testtest")
     get_meter_data_response = client.get(
         url_for("bvp_api_v1.get_meter_data"),
-        query_string=message_for_get_meter_data(),
+        query_string=get_message,
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_meter_data_response.json)

@@ -836,6 +836,7 @@ def usef_roles_accepted(*usef_roles):
 
     The current user must have either the `Prosumer` role or `MDC` role in
     order to use the service.
+    And finally, users with the anonymous user role are never accepted.
 
     :param usef_roles: The possible roles.
     """
@@ -845,7 +846,12 @@ def usef_roles_accepted(*usef_roles):
         @as_json
         def decorated_service(*args, **kwargs):
             perm = Permission(*[RoleNeed(role) for role in usef_roles])
-            if perm.can() or current_user.has_role("admin"):
+            if current_user.has_role("anonymous"):
+                current_app.logger.warning(
+                    "Anonymous user is not accepted for this service"
+                )
+                return invalid_sender("anonymous user", "non-anonymous user")
+            elif perm.can() or current_user.has_role("admin"):
                 return fn(*args, **kwargs)
             else:
                 current_app.logger.warning("User role is not accepted for this service")

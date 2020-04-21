@@ -61,12 +61,21 @@ def register_rq_dashboard(app):
     )
 
     @login_required
-    @roles_accepted("admin")
     def basic_auth():
         """Ensure basic authorization."""
         return
 
-    rq_dashboard.blueprint.before_request(basic_auth)
+    @login_required
+    @roles_accepted("admin")
+    def basic_admin_auth():
+        """Ensure basic admin authorization."""
+        return
+
+    # Logged in users can view queues on the demo server, but only admins can view them on other servers
+    if app.config.get("BVP_MODE", "") == "demo":
+        rq_dashboard.blueprint.before_request(basic_auth)
+    else:
+        rq_dashboard.blueprint.before_request(basic_admin_auth)
     app.register_blueprint(rq_dashboard.blueprint, url_prefix="/rq")
 
 
