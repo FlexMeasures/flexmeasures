@@ -123,8 +123,9 @@ def make_schedule(
             "Scheduling is not supported for asset type %s." % asset.asset_type
         )
 
-    data_source_label = "schedule by Seita"
-    data_source = get_data_source(data_source_label)
+    data_source = get_data_source(
+        data_source_label="schedule by Seita", data_source_type="scheduling script",
+    )
     click.echo("Job %s made schedule." % rq_job.id)
 
     ts_value_schedule = [

@@ -26,27 +26,38 @@ def create_beliefs_query(
     return query
 
 
-def assign_source_ids(cls, query: Query, source_ids: Union[int, List[int]]) -> Query:
-    if source_ids is not None and not isinstance(source_ids, list):
-        source_ids = [source_ids]  # ensure source_ids is a list
-    if source_ids:
-        # Collect only data from sources that are either a specified user id or a script
-        script_sources = DataSource.query.filter(DataSource.type == "script").all()
-        user_sources = (
+def add_user_source_filter(
+    cls, query: Query, user_source_ids: Union[int, List[int]]
+) -> Query:
+    """Add filter to the query to search only through user data from the specified user sources.
+
+    We distinguish user sources (sources with source.type == "user") from other sources (source.type != "user").
+    Data with a user source originates from a registered user. Data with e.g. a script source originates from a script.
+
+    This filter doesn't affect the query over non-user type sources.
+    It does so by ignoring user sources that are not in the given list of source_ids.
+    """
+    if user_source_ids is not None and not isinstance(user_source_ids, list):
+        user_source_ids = [user_source_ids]  # ensure user_source_ids is a list
+    if user_source_ids:
+        ignorable_user_sources = (
             DataSource.query.filter(DataSource.type == "user")
-            .filter(DataSource.id.in_(source_ids))
+            .filter(DataSource.id.notin_(user_source_ids))
             .all()
         )
-        script_source_ids = [script_source.id for script_source in script_sources]
-        user_source_ids = [user_source.id for user_source in user_sources]
-        query = query.filter(
-            cls.data_source_id.in_(user_source_ids)
-            | cls.data_source_id.in_(script_source_ids)
-        )
+        ignorable_user_source_ids = [
+            user_source.id for user_source in ignorable_user_sources
+        ]
+        query = query.filter(cls.data_source_id.notin_(ignorable_user_source_ids))
     return query
 
 
-def assign_horizon_window(
+def add_source_type_filter(cls, query: Query, source_types: List[str]) -> Query:
+    """Add filter to the query to collect only data from sources that are of the given type."""
+    return query.filter(DataSource.type.in_(source_types)) if source_types else query
+
+
+def add_horizon_filter(
     cls,
     query: Query,
     end: datetime,

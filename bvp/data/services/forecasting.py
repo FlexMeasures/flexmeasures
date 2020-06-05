@@ -189,7 +189,7 @@ def make_forecasts(
     query_window = get_query_window(
         model_specs.start_of_training,
         end,
-        [l * model_specs.frequency for l in model_specs.lags],
+        [lag * model_specs.frequency for lag in model_specs.lags],
     )
     check_data_availability(
         asset,
@@ -200,10 +200,11 @@ def make_forecasts(
         horizon,
     )
 
-    data_source_label = "forecast by Seita (%s)" % rq_job.meta.get(
-        "model_identifier", "unknown model"
+    data_source = get_data_source(
+        data_source_label="forecast by Seita (%s)"
+        % rq_job.meta.get("model_identifier", "unknown model"),
+        data_source_type="forecasting script",
     )
-    data_source = get_data_source(data_source_label)
 
     forecasts, model_state = make_rolling_forecasts(
         start=as_bvp_time(start), end=as_bvp_time(end), model_specs=model_specs

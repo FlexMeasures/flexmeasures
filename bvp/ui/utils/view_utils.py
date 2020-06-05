@@ -137,12 +137,8 @@ def set_session_resource(
     """Set session["resource"] to something, based on the available asset groups or the request.
     Returns the selected resource, or None."""
     if "resource" not in session:  # set some default, if possible
-        if "solar" in groups_with_assets:
-            session["resource"] = "solar"
-        elif "wind" in groups_with_assets:
-            session["resource"] = "wind"
-        elif "vehicles" in groups_with_assets:
-            session["resource"] = "vehicles"
+        if len(groups_with_assets) > 0:
+            session["resource"] = groups_with_assets[0]
         elif len(assets) > 0:
             session["resource"] = assets[0].name
     if (

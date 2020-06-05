@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from datetime import timedelta
 import math
 
@@ -10,6 +10,7 @@ from inflection import humanize
 
 from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
+from bvp.data.queries.utils import add_user_source_filter, add_source_type_filter
 from bvp.utils.geo_utils import parse_lat_lng
 
 
@@ -186,8 +187,18 @@ class Weather(TimedValue, db.Model):
     sensor = db.relationship("WeatherSensor", backref=db.backref("weather", lazy=True))
 
     @classmethod
-    def make_query(cls, **kwargs) -> Query:
-        return super().make_query(asset_class=WeatherSensor, **kwargs)
+    def make_query(
+        cls,
+        user_source_ids: Optional[Union[int, List[int]]] = None,
+        source_types: Optional[List[str]] = None,
+        **kwargs
+    ) -> Query:
+        query = super().make_query(asset_class=WeatherSensor, **kwargs)
+        if user_source_ids:
+            query = add_user_source_filter(cls, query, user_source_ids)
+        if source_types:
+            query = add_source_type_filter(cls, query, source_types)
+        return query
 
     def __init__(self, **kwargs):
         super(Weather, self).__init__(**kwargs)

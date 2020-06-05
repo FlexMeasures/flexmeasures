@@ -49,6 +49,8 @@ class Config(object):
     JSONIFY_PRETTYPRINT_REGULAR = False
 
     BVP_MODE = ""
+    BVP_API = False
+    BVP_PUBLIC_DEMO = False
     BVP_TIMEZONE = "Asia/Seoul"
     BVP_DB_BACKUP_PATH = "migrations/dumps"
     BVP_LP_SOLVER = "cbc"
@@ -110,6 +112,7 @@ class TestingConfig(Config):
     SECURITY_HASHING_SCHEMES = ["hex_md5"]
     SECURITY_DEPRECATED_HASHING_SCHEMES = []
     BVP_MODE = "test"
+    BVP_API = True
     BVP_PLANNING_HORIZON = timedelta(
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests

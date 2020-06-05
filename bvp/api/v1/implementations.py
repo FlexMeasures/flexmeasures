@@ -71,6 +71,9 @@ def get_meter_data_response(
     # Any meter data observed at most <horizon> after the fact and not before the fact
     horizon_window = (horizon, timedelta(hours=0))
 
+    # Check the user's intention first, fall back to other data from script
+    source_types = ["user", "script"]
+
     return collect_connection_and_value_groups(
         unit,
         resolution,
@@ -80,6 +83,7 @@ def get_meter_data_response(
         generic_asset_name_groups,
         preferred_source_ids,
         fallback_source_ids,
+        source_types,
         rolling=rolling,
     )
 
@@ -141,12 +145,13 @@ def collect_connection_and_value_groups(
     start: datetime_type,
     duration: timedelta,
     connection_groups: List[List[str]],
-    preferred_source_ids: {
+    preferred_user_source_ids: {
         Union[int, List[int]]
     } = None,  # None is interpreted as all sources
-    fallback_source_ids: Union[
+    fallback_user_source_ids: Union[
         int, List[int]
     ] = -1,  # An id = -1 is interpreted as no sources
+    source_types: List[str] = None,
     rolling: bool = False,
 ) -> Tuple[dict, int]:
     from flask import current_app
@@ -192,8 +197,9 @@ def collect_connection_and_value_groups(
             resolution=resolution,
             horizon_window=horizon_window,
             rolling=rolling,
-            preferred_source_ids=preferred_source_ids,
-            fallback_source_ids=fallback_source_ids,
+            preferred_user_source_ids=preferred_user_source_ids,
+            fallback_user_source_ids=fallback_user_source_ids,
+            source_types=source_types,
             sum_multiple=False,
         )
         # Todo: parse time window of ts_values, which will be different for requests that are not of the form:

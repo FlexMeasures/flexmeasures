@@ -262,7 +262,7 @@ def get_cell_nums(
 def get_region_from_assets() -> Tuple[Tuple[float, float], Tuple[float, float]]:
     """
     Create a suitable region of interest from all asset locations.
-    Currently not used. (we simply pass top left and bottom right to thsi script).
+    Currently not used. (we simply pass top left and bottom right to this script).
     Should in any case later probably contact the database actually.
     """
     assets_path = "../raw_data/assets.json"

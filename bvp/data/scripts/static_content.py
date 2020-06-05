@@ -485,7 +485,7 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
         check_mx=False,
     )
 
-    # anonymous demo user (a Prosumer)
+    # anonymous demo user (a CPO Prosumer)
     if app.config.get("BVP_MODE", "") == "demo":
         create_user(
             username="Demo account",
@@ -496,6 +496,10 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
                 "Prosumer",
                 dict(
                     name="anonymous", description="An anonymous user cannot make edits."
+                ),
+                dict(
+                    name="CPO",
+                    description="OCPI defined role of Charging Point Operator.",
                 ),
             ],
             check_mx=False,

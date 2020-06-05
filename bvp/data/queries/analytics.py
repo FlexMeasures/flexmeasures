@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 from datetime import timedelta
 
 from flask import session
@@ -13,9 +13,10 @@ from bvp.data.models.weather import Weather, WeatherSensor, WeatherSensorType
 
 
 def get_power_data(
-    showing_pure_consumption_data: bool, metrics: dict
-) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
-    """Get power data and metrics"""
+    show_consumption_as_positive: bool, metrics: dict
+) -> Tuple[pd.DataFrame, Optional[pd.DataFrame], Optional[pd.DataFrame], dict]:
+    """Get power data and metrics.
+    Todo: Power schedules ignore horizon."""
 
     # Get power data
     power_data = Resource(session["resource"]).get_data(
@@ -25,14 +26,32 @@ def get_power_data(
     # Get power forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
     power_forecast_data = Resource(session["resource"]).get_data(
-        horizon_window=(horizon, None), rolling=True, create_if_empty=True
+        horizon_window=(horizon, None),
+        rolling=True,
+        source_types=[
+            "user",
+            "forecasting script",
+            "script",
+        ],  # we choose to show data from scheduling scripts separately
+        create_if_empty=True,
     )
 
-    if showing_pure_consumption_data:
+    # Get power schedule
+    power_schedule_data = Resource(session["resource"]).get_data(
+        horizon_window=(None, None),
+        source_types=["scheduling script"],
+        create_if_empty=True,
+    )
+
+    if show_consumption_as_positive:
         power_data.y *= -1
         power_forecast_data.y *= -1
+        power_schedule_data.y *= -1
 
     power_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
+    power_schedule_data.rename(columns={"y": "yhat"}, inplace=True)
+
+    # Calculate the power metrics
     power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
     realised_power_in_mwh = pd.Series(power_data.y * power_hour_factor).values
 
@@ -57,7 +76,7 @@ def get_power_data(
         metrics["mae_power_in_mwh"] = np.NaN
         metrics["mape_power"] = np.NaN
         metrics["wape_power"] = np.NaN
-    return power_data, power_forecast_data, metrics
+    return power_data, power_forecast_data, power_schedule_data, metrics
 
 
 def get_prices_data(
@@ -80,10 +99,13 @@ def get_prices_data(
         [market_name],
         horizon_window=(horizon, None),
         rolling=True,
+        source_types=["user", "forecasting script", "script"],
         create_if_empty=True,
         as_beliefs=True,
     )
     prices_forecast_data.rename(columns={"y": "yhat"}, inplace=True)
+
+    # Calculate the price metrics
     if not prices_forecast_data.empty and prices_forecast_data.size == prices_data.size:
         metrics["expected_unit_price"] = prices_forecast_data.yhat.mean()
         metrics["mae_unit_price"] = calculations.mean_absolute_error(
@@ -141,6 +163,7 @@ def get_weather_data(
                 sensor_names,
                 horizon_window=(horizon, None),
                 rolling=True,
+                source_types=["user", "forecasting script", "script"],
                 create_if_empty=True,
                 sum_multiple=False,
                 as_beliefs=True,

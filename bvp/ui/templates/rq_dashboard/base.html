@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% set active_page = "tasks" %}
+
+{% block title %} Task listing {% endblock %}
+
+{% block divs %}
+
+<div class="rq-style">
+
+<div id="alert-fixed" class="alert alert-error">
+    <strong>Warning!</strong> Selection pauses information refresh
+</div>
+
+<div class="container-fluid">
+
+    {% block content %}{% endblock %}
+
+</div>
+
+<div id="confirmation-modal" class="modal hide fade">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h3>Do you really want to <span id="confirmation-modal-action"></span>?</h3>
+    </div>
+    <div class="modal-footer">
+        <button id="confirmation-modal-no" class="btn">No</button>
+        <button id="confirmation-modal-yes" class="btn btn-primary">Yes</button>
+    </div>
+</div>
+
+{% block footer %}{% endblock %}
+
+{% endblock%}
+
+</div>
+
+{% block scripts %}
+
+{#- Custom JS for rq dashboard -#}
+<script src="{{ url_for('rq_dashboard.static', filename='js/jquery.min.js') }}" type="text/javascript"></script>
+<script src="{{ url_for('rq_dashboard.static', filename='js/underscore-min.js') }}" type="text/javascript"></script>
+<script src="{{ url_for('rq_dashboard.static', filename='js/sugar-1.2.1.min.js') }}" type="text/javascript"></script>
+<script src="{{ url_for('rq_dashboard.static', filename='js/bootstrap-tooltip.js') }}" type="text/javascript"></script>
+<script src="{{ url_for('rq_dashboard.static', filename='js/bootstrap-modal.js') }}" type="text/javascript"></script>
+<script type="text/javascript">
+{% block inline_js %}{% endblock %}
+</script>
+
+{% endblock scripts %}

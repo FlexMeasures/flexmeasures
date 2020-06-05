@@ -29,7 +29,11 @@ def create_hover_tool(  # noqa: C901
     y_unit: str, resolution: timedelta, as_beliefs: bool = False
 ) -> HoverTool:
     """Describe behaviour of default tooltips
-    (we could also return html for custom tooltips)"""
+    (we could also return html for custom tooltips)
+
+    Uses from_py_func, a deprecated function since bokeh==1.1
+    https://docs.bokeh.org/en/latest/docs/releases.html?highlight=from_py_func
+    """
 
     def horizon_formatter() -> str:
         horizon = value  # noqa
@@ -176,6 +180,7 @@ def create_graph(  # noqa: C901
     legend_labels: Tuple[str, Optional[str]] = ("Actual", "Forecast"),
     x_range: Range1d = None,
     forecasts: pd.DataFrame = None,
+    schedules: pd.DataFrame = None,
     show_y_floats: bool = False,
     non_negative_only: bool = False,
     tools: List[str] = None,
@@ -183,7 +188,7 @@ def create_graph(  # noqa: C901
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
 
-    :param data: the actual data
+    :param data: the actual data. Expects column name "y".
     :param unit: the (physical) unit of the data
     :param title: Title of the graph
     :param x_label: x axis label
@@ -192,6 +197,7 @@ def create_graph(  # noqa: C901
     :param legend_labels: labels for the legend items
     :param x_range: values for x axis. If None, taken from series index.
     :param forecasts: forecasts of the data. Expects column names "yhat", "yhat_upper" and "yhat_lower".
+    :param schedules: scheduled data. Expects column name "yhat".
     :param hover_tool: Bokeh hover tool, if required
     :param show_y_floats: if True, y axis will show floating numbers (defaults False, will be True if y values are < 2)
     :param non_negative_only: whether or not the data can only be non-negative
@@ -202,7 +208,7 @@ def create_graph(  # noqa: C901
     # Make sure even an empty DataFrame has the attributes we need
     if data.empty:
         data["y"] = pd.Series()
-        data.index.freq = timedelta()
+        data.index.freq = timedelta(minutes=15)
 
     # Set x range
     if x_range is None:
@@ -213,9 +219,15 @@ def create_graph(  # noqa: C901
     y_range = None
     if data.y.isnull().all():
         if forecasts is None:
-            y_range = Range1d(start=0, end=1)
+            if schedules is None:
+                y_range = Range1d(start=0, end=1)
+            elif schedules.yhat.isnull().all():
+                y_range = Range1d(start=0, end=1)
         elif forecasts.yhat.isnull().all():
-            y_range = Range1d(start=0, end=1)
+            if schedules is None:
+                y_range = Range1d(start=0, end=1)
+            elif schedules.yhat.isnull().all():
+                y_range = Range1d(start=0, end=1)
 
     # Set default tools if none were given
     if tools is None:
@@ -279,6 +291,16 @@ def create_graph(  # noqa: C901
         if legend_labels[1] is None:
             raise TypeError("Legend label must be of type string, not None.")
         legend_items.append((legend_labels[1], [fc, fl]))
+
+    if schedules is not None and not schedules.yhat.isnull().all():
+        schedules = tz_index_naively(schedules)
+        s_color = "#3FB023"
+        sds = make_datasource_from(schedules)
+        sl = fig.line(x="x", y="y", source=sds, color=s_color)
+
+        if legend_labels[2] is None:
+            raise TypeError("Legend label must be of type string, not None.")
+        legend_items.append((legend_labels[2], [sl]))
 
     fig.toolbar.logo = None
     fig.yaxis.axis_label = y_label
@@ -387,6 +409,7 @@ def separate_legend(fig: Figure, orientation: str = "vertical") -> Figure:
     """Cuts legend out of fig and returns a separate legend (as a Figure object).
     Click policy doesn't work on the new legend.
     Requires bokeh==1.0.2 for solution from https://groups.google.com/a/continuum.io/forum/#!topic/bokeh/BJRhWlnmhWU
+    Open feature request to share a legend across plots: https://github.com/bokeh/bokeh/issues/7607
     """
 
     legend_fig = Plot(

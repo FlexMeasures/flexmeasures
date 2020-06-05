@@ -44,7 +44,7 @@ p = inflect.engine()
 
 def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[int]:
     """Return a list of source ids given a user id, a role name or a list thereof.
-    Always include the user id of the current user."""
+    Always includes the user id of the current user."""
     sources = (
         sources if isinstance(sources, list) else [sources]
     )  # Make sure sources is a list
@@ -109,12 +109,21 @@ def validate_horizon(horizon: str) -> Union[Tuple[timedelta, bool], Tuple[None, 
     return horizon, rep
 
 
-def validate_duration(duration: str) -> Union[timedelta, None]:
+def validate_duration(
+    duration_str: str, start: Optional[datetime] = None
+) -> Union[timedelta, isodate.Duration, None]:
     """
     Validates whether the string 'duration' is a valid ISO 8601 time interval.
+    If needed, try deriving the timedelta from the actual time span (e.g. in case duration is 1 year).
     """
     try:
-        return isodate.parse_duration(duration)
+        duration = isodate.parse_duration(duration_str)
+        if not isinstance(duration, timedelta):
+            if start:
+                return (start + duration) - start
+            return duration  # valid duration, but not a timedelta (e.g. "P1Y" could be leap year)
+        else:
+            return isodate.parse_duration(duration_str)
     except (ISO8601Error, AttributeError):
         return None
 
@@ -274,7 +283,9 @@ def optional_duration_accepted(default_duration: timedelta):
                 return invalid_method(request.method)
 
             if "duration" in form:
-                duration = validate_duration(form["duration"])
+                duration = validate_duration(
+                    form["duration"], kwargs.get("start", kwargs.get("datetime", None))
+                )
                 if not duration:
                     extra_info = "Cannot parse 'duration' value."
                     current_app.logger.warning(extra_info)
@@ -400,7 +411,7 @@ def optional_horizon_accepted(ex_post: bool = False):
                         return invalid_horizon(extra_info)
             elif "start" in form and "duration" in form:
                 start = parse_isodate_str(form["start"])
-                duration = validate_duration(form["duration"])
+                duration = validate_duration(form["duration"], start)
                 if not start:
                     extra_info = "Cannot parse 'start' value."
                     current_app.logger.warning(extra_info)
@@ -504,16 +515,15 @@ def period_required(fn):
         else:
             current_app.logger.warning("Request missing 'start'.")
             return invalid_period()
+        kwargs["start"] = start
         if "duration" in form:
-            duration = validate_duration(form["duration"])
+            duration = validate_duration(form["duration"], start)
             if not duration:
                 current_app.logger.warning("Cannot parse 'duration' value")
                 return invalid_period()
         else:
             current_app.logger.warning("Request missing 'duration'.")
             return invalid_period()
-
-        kwargs["start"] = start
         kwargs["duration"] = duration
         return fn(*args, **kwargs)
 
@@ -754,8 +764,10 @@ def resolutions_accepted(*resolutions):
                 )
                 return invalid_method(request.method)
 
-            if "value_groups" in kwargs and "duration" in kwargs:
-                resolution = kwargs["duration"] / len(kwargs["value_groups"][0])
+            if all(key in kwargs for key in ["value_groups", "start", "duration"]):
+                resolution = (
+                    (kwargs["start"] + kwargs["duration"]) - kwargs["start"]
+                ) / len(kwargs["value_groups"][0])
                 if resolution not in resolutions:
                     current_app.logger.warning("Resolution is not accepted.")
                     res_listing = p.join(
@@ -770,7 +782,7 @@ def resolutions_accepted(*resolutions):
                 res_listing = p.join(
                     [naturaldelta(res) for res in resolutions], final_sep=""
                 )
-                extra_info = "Specify some 'values' and a 'duration' so that the resolution can be inferred."
+                extra_info = "Specify some 'values', a 'start' and a 'duration' so that the resolution can be inferred."
                 return invalid_resolution(res_listing, extra_info)
 
         return decorated_service

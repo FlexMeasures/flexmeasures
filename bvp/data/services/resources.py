@@ -245,6 +245,8 @@ class Resource:
         resolution: str = None,
         horizon_window=(None, None),
         rolling: bool = True,
+        user_source_id: int = None,
+        source_types: Optional[List[str]] = None,
         sum_multiple: bool = True,
         create_if_empty: bool = False,
         as_beliefs: bool = None,
@@ -252,7 +254,8 @@ class Resource:
         """Get data for one or more assets. TODO: market data?
         If the time range parameters are None, they will be gotten from the session.
         The horizon window will default to the latest measurement (anything more in the future than the
-        end of the time interval."""
+        end of the time interval.
+        To get data for a specific source, pass a source id."""
 
         asset_names = []
         for asset in self.assets:
@@ -269,6 +272,8 @@ class Resource:
             query_window=(start, end),
             horizon_window=horizon_window,
             rolling=rolling,
+            preferred_user_source_ids=user_source_id,
+            source_types=source_types,
             resolution=resolution,
             sum_multiple=sum_multiple,
             create_if_empty=create_if_empty,

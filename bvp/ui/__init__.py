@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, Blueprint
 from flask import send_from_directory
 from flask_security import login_required, roles_accepted
@@ -44,6 +46,7 @@ def register_at(app: Flask):
 
     add_html_error_views(app)
     add_jinja_filters(app)
+    add_jinja_variables(app)
 
 
 def register_rq_dashboard(app):
@@ -76,7 +79,9 @@ def register_rq_dashboard(app):
         rq_dashboard.blueprint.before_request(basic_auth)
     else:
         rq_dashboard.blueprint.before_request(basic_admin_auth)
-    app.register_blueprint(rq_dashboard.blueprint, url_prefix="/rq")
+
+    # Todo: rq dashboard has no way of passing BVP template variables, so how to conditionally disable menu items?
+    app.register_blueprint(rq_dashboard.blueprint, url_prefix="/tasks")
 
 
 def add_jinja_filters(app):
@@ -88,3 +93,14 @@ def add_jinja_filters(app):
     app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime_str
     app.jinja_env.filters["humanize"] = humanize
     app.jinja_env.filters["parameterize"] = parameterize
+
+
+def add_jinja_variables(app):
+    # Set variables for Jinja template context
+    for v in ("BVP_MODE", "BVP_PUBLIC_DEMO"):
+        app.jinja_env.globals[v] = app.config.get(v, "")
+    app.jinja_env.globals["documentation_exists"] = (
+        True
+        if os.path.exists("%s/static/documentation/html/index.html" % bvp_ui.root_path)
+        else False
+    )

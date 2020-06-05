@@ -31,38 +31,42 @@
                 <h3>About</h3>
                 <div class="justify">
                     <p>
-                        The Balancing Valorisation Platform (BVP) is a tool <em>for scheduling balancing actions</em> on behalf of connected asset owners.
-                        Its purpose is to realise the best value for the owners by selling balancing services to energy markets.
+                        In a world with renewable energy, balancing is crucial.
+                        Planning ahead allows flexible devices to profit from balancing, by scheduling the best balancing actions (such as shifting or curtailing energy use).
+                    </p>
+                    <p>
+                        The Balancing Valorisation Platform (BVP) is a tool for businesses operating electric devices that draw from or supply to the power grid.
+                        Its purpose is to realise the best value for device owners by scheduling balancing actions and selling balancing services to energy markets.
                         It fulfills this purpose with four services: automation, insight, autonomy, and profit sharing.
                     </p>
                     <p>
-                        This dashboard shows you which of your assets are connected to the platform and how they are doing.
+                        The BVP is compliant with the Universal Smart Energy Framework (<a href="https://www.usef.energy/download-the-framework/a-flexibility-market-design/">USEF</a>), a “flexibility market design for the trading and commoditisation of energy flexibility and the architecture, tools and rules to make it work effectively.
+                        [USEF] fits on top of most market models and is already being adopted across Europe to accelerate and future-proof smart energy projects.”
+                    </p>
+                    {% if current_user.has_role('anonymous') and current_user.has_role('CPO') %}
+                    <p>
+                        This demo is tuned to operators of charge points for electric vehicles (EVs).
+                        The terminology used follows the Open Charge Point Interface (<a href="https://ocpi-protocol.org/">OCPI</a>).
+                        This dashboard shows you the locations of all charge points connected to the platform and how they are doing.
+                        Each charge point contains multiple chargers&mdash;called Electric Vehicle Supply Equipment (EVSE) in OCPI&mdash;which are monitored individually (click on a charge point location to reveal its EVSE).
+                    </p>
+                    <p>
+                        The BVP supports automated scheduling of charging profiles through its API.
+                        Charging profiles are optimised against applicable market conditions like wholesale prices and contracted (time-of-use) tariffs.
+                        Charging preferences can be set to reflect whether EV owners are in a hurry or parking for some time.
+                    </p>
+                    {% else %}
+                    <p>
+                        This dashboard shows you the locations of all your devices connected to the platform and how they are doing.
                         Assets marked red require your attention, as balancing opportunities have been identified.
                     </p>
+                    {% endif %}
                     {% if documentation_exists %}
                     <p>
                         Need help understanding this page? Check out the
                         <a href="{{ url_for('bvp_ui.static', filename='documentation/html/views/dashboard.html') }}" target="_blank">documentation</a>.
                     </p>
                     {% endif %}
-                </div>
-                <div class="panel panel-default" style="margin-top: 2em;">
-                    <div class="panel-heading"><h4>Admin panel</h4></div>
-                    <div class="panel-body">
-                        {% if show_queues %}
-                        <form action="/rq/" method="get" target="_blank">
-                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Show task queue</button>
-                        </form>
-                        {% endif %}
-                        {% if user_is_admin %}
-                        <form action="/users" method="get" style="margin-top: 1em;">
-                            <button class="btn btn-sm btn-responsive btn-info" type="submit">List active users</button>
-                        </form>
-                        {% endif %}
-                        <form action="/assets" method="get" style="margin-top: 1em;">
-                            <button class="btn btn-sm btn-responsive btn-info" type="submit">List assets</button>
-                        </form>
-                    </div>
                 </div>
             </div>
             <div class="col-sm-8">

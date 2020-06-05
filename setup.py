@@ -9,11 +9,11 @@ setup(
     version="0.2",
     # flask should be after all the flask plugins, because setup might find they ARE flask
     install_requires=[
-        "bokeh==1.0.4",  # ui/utils/plotting_utils separate_legend()
+        "bokeh==1.0.4",  # ui/utils/plotting_utils separate_legend() and create_hover_tool()
         "colour",
         "pscript",
         "pandas",
-        "pandas-bokeh>=0.3",
+        "pandas-bokeh==0.4.3",  # 0.5 requires bokeh>=2.0, but bokeh still doesn't support sharing a legend across plots
         "iso8601",
         "xlrd",
         "inflection",
@@ -27,6 +27,7 @@ setup(
         "isodate",
         "click",
         "validate_email",
+        "email_validator",  # required by WTForms (itself a Flask-Security dependency)
         "rq",
         "rq-dashboard",
         "rq-win; os_name=='nt'",

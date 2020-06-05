@@ -1,4 +1,4 @@
-from typing import List, Union, Tuple, Dict
+from typing import List, Optional, Union, Tuple, Dict
 from datetime import timedelta
 import io
 import csv
@@ -69,9 +69,11 @@ def analytics_view():
     showing_pure_production_data = all(
         [a.is_pure_producer for a in Resource(session["resource"]).assets]
     )
+    # Only show production positive if all assets are producers
+    show_consumption_as_positive = False if showing_pure_production_data else True
 
     data, metrics, weather_type, selected_weather_sensor = get_data_and_metrics(
-        showing_pure_consumption_data,
+        show_consumption_as_positive,
         selected_market,
         selected_sensor_type,
         Resource(session["resource"]).assets,
@@ -92,6 +94,8 @@ def analytics_view():
 
     # TODO: get rid of this hack, which we use because we mock 2015 data in demo mode
     if current_app.config.get("BVP_MODE", "") == "demo":
+
+        # Show only past data, pretending we're in 2015
         if not data["power"].empty:
             data["power"] = data["power"].loc[
                 data["power"].index
@@ -101,12 +105,12 @@ def analytics_view():
             data["prices"] = data["prices"].loc[
                 data["prices"].index
                 < time_utils.get_most_recent_quarter().replace(year=2015)
-            ]
+                + timedelta(hours=24)
+            ]  # keep tomorrow's prices
         if not data["weather"].empty:
             data["weather"] = data["weather"].loc[
                 data["weather"].index
                 < time_utils.get_most_recent_quarter().replace(year=2015)
-                + timedelta(hours=24)
             ]
         if not data["rev_cost"].empty:
             data["rev_cost"] = data["rev_cost"].loc[
@@ -114,12 +118,40 @@ def analytics_view():
                 < time_utils.get_most_recent_quarter().replace(year=2015)
             ]
 
+        # Show forecasts only up to a limited horizon
+        horizon_days = 10  # keep a 10 day forecast
+        if not data["power_forecast"].empty:
+            data["power_forecast"] = data["power_forecast"].loc[
+                data["power_forecast"].index
+                < time_utils.get_most_recent_quarter().replace(year=2015)
+                + timedelta(hours=horizon_days * 24)
+            ]
+        if not data["prices_forecast"].empty:
+            data["prices_forecast"] = data["prices_forecast"].loc[
+                data["prices_forecast"].index
+                < time_utils.get_most_recent_quarter().replace(year=2015)
+                + timedelta(hours=horizon_days * 24)
+            ]
+        if not data["weather_forecast"].empty:
+            data["weather_forecast"] = data["weather_forecast"].loc[
+                data["weather_forecast"].index
+                < time_utils.get_most_recent_quarter().replace(year=2015)
+                + timedelta(hours=horizon_days * 24)
+            ]
+        if not data["rev_cost_forecast"].empty:
+            data["rev_cost_forecast"] = data["rev_cost_forecast"].loc[
+                data["rev_cost_forecast"].index
+                < time_utils.get_most_recent_quarter().replace(year=2015)
+                + timedelta(hours=horizon_days * 24)
+            ]
+
     # Making figures
     tools = ["box_zoom", "reset", "save"]
     power_fig = make_power_figure(
         data["power"],
         data["power_forecast"],
-        showing_pure_consumption_data,
+        data["power_schedule"],
+        show_consumption_as_positive,
         shared_x_range,
         tools=tools,
     )
@@ -140,7 +172,7 @@ def analytics_view():
     rev_cost_fig = make_revenues_costs_figure(
         data["rev_cost"],
         data["rev_cost_forecast"],
-        showing_pure_consumption_data,
+        show_consumption_as_positive,
         shared_x_range,
         selected_market,
         tools=tools,
@@ -178,6 +210,7 @@ def analytics_view():
         asset_types=session_asset_types,
         showing_pure_consumption_data=showing_pure_consumption_data,
         showing_pure_production_data=showing_pure_production_data,
+        show_consumption_as_positive=show_consumption_as_positive,
         forecast_horizons=time_utils.forecast_horizons_for(session["resolution"]),
         active_forecast_horizon=session["forecast_horizon"],
     )
@@ -223,17 +256,21 @@ def analytics_data_view(content, content_type):
     showing_pure_production_data = all(
         [a.is_pure_producer for a in Resource(session["resource"]).assets]
     )
+    # Only show production positive if all assets are producers
+    show_consumption_as_positive = False if showing_pure_production_data else True
 
     # Getting data and calculating metrics for them
     data, metrics, weather_type, selected_weather_sensor = get_data_and_metrics(
-        showing_pure_consumption_data,
+        show_consumption_as_positive,
         selected_market,
         selected_sensor_type,
         Resource(session["resource"]).assets,
     )
 
     hor = session["forecast_horizon"]
-    rev_cost_header = "revenues/costs"
+    rev_cost_header = (
+        "costs/revenues" if show_consumption_as_positive else "revenues/costs"
+    )
     if showing_pure_consumption_data:
         rev_cost_header = "costs"
     elif showing_pure_production_data:
@@ -249,7 +286,7 @@ def analytics_data_view(content, content_type):
         f"{weather_type}_forecast_label",
         f"{weather_type}_forecast_{hor}",
         "price_label",
-        f"price_on_%s" % selected_market.name,
+        f"price_on_{selected_market.name}",
         "price_forecast_label",
         f"price_forecast_{hor}",
         f"{rev_cost_header}_label",
@@ -348,14 +385,17 @@ def analytics_data_view(content, content_type):
 
 
 def get_data_and_metrics(
-    showing_pure_consumption_data, selected_market, selected_sensor_type, assets
+    show_consumption_as_positive: bool, selected_market, selected_sensor_type, assets
 ) -> Tuple[Dict, Dict, str, WeatherSensor]:
     """Getting data and calculating metrics for them"""
     data = dict()
     metrics = dict()
-    data["power"], data["power_forecast"], metrics = get_power_data(
-        showing_pure_consumption_data, metrics
-    )
+    (
+        data["power"],
+        data["power_forecast"],
+        data["power_schedule"],
+        metrics,
+    ) = get_power_data(show_consumption_as_positive, metrics)
     data["prices"], data["prices_forecast"], metrics = get_prices_data(
         metrics, selected_market
     )
@@ -427,13 +467,14 @@ def get_data_and_metrics(
 
 def make_power_figure(
     data: pd.DataFrame,
-    forecast_data: Union[None, pd.DataFrame],
-    showing_pure_consumption_data: bool,
+    forecast_data: Optional[pd.DataFrame],
+    schedule_data: Optional[pd.DataFrame],
+    show_consumption_as_positive: bool,
     shared_x_range: Range1d,
     tools: List[str] = None,
 ) -> Figure:
     """Make a bokeh figure for power consumption or generation"""
-    if showing_pure_consumption_data:
+    if show_consumption_as_positive:
         title = (
             "Electricity consumption of %s" % Resource(session["resource"]).display_name
         )
@@ -447,7 +488,11 @@ def make_power_figure(
         data,
         unit="MW",
         legend_location="top_right",
+        legend_labels=("Actual", "Forecast")
+        if schedule_data is None or schedule_data.yhat.isnull().all()
+        else ("Actual", "Forecast", "Schedule"),
         forecasts=forecast_data,
+        schedules=schedule_data,
         title=title,
         x_range=shared_x_range,
         x_label="Time (resolution of %s)"
@@ -524,13 +569,13 @@ def make_weather_figure(
 def make_revenues_costs_figure(
     data: pd.DataFrame,
     forecast_data: pd.DataFrame,
-    showing_pure_consumption_data: bool,
+    show_consumption_as_positive: bool,
     shared_x_range: Range1d,
     selected_market: Market,
     tools: List[str] = None,
 ) -> Figure:
     """Make a bokeh figure for revenues / costs data"""
-    if showing_pure_consumption_data:
+    if show_consumption_as_positive:
         rev_cost_str = "Costs"
     else:
         rev_cost_str = "Revenues"

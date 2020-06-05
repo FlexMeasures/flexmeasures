@@ -33,6 +33,9 @@
                 {{ bokeh_css_resources|indent(4)|safe }}
                 {{ bokeh_js_resources|indent(4)|safe }}
             {% endif %}
+            {% if active_page == "tasks" %}
+                <link href="{{ url_for('bvp_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}" rel="stylesheet"/>
+            {% endif %}
         </head>
         <body>
 
@@ -55,15 +58,28 @@
                                 </span>
                             </div>
                             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
-                                {% if page != "analytics" %}
+                                {% if page != "analytics" or BVP_MODE == "demo" %}
                                     <ul class="nav navbar-nav">
                                         {% for href, id, caption, icon in navigation_bar %}
-                                            {% if not (user_is_anonymous and id in ('control', 'portfolio')) %}
-                                            <li{% if id == active_page %} class="active"{% endif %}>
-                                                <a href="/{{ href|e }}"{% if id == 'docs' %} target="_blank"{% endif %}>
-                                                    <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
-                                                    {{ caption|e }}
-                                                </a>
+                                            {% if id == "tasks" %}
+                                            <li {% if id == active_page %} class="active" {% endif %} class="dropdown">
+                                                <a class="dropdown-toggle" data-toggle="dropdown" href="#"><span class="fa fa-tasks" aria-hidden="true"></span>
+                                                    Tasks
+                                                <span class="caret"></span></a>
+                                                <ul class="dropdown-menu">
+                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/forecasting"{% endif %}>Forecasts</a></li>
+                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/scheduling"{% endif %}>Schedules</a></li>
+                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/labelling"{% endif %}>Labels</a></li>
+                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/alerting"{% endif %}>Alerts</a></li>
+                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/reporting"{% endif %}>Reports</a></li>
+                                                </ul>
+                                            </li>
+                                            {% else %}
+                                            <li {% if id == active_page %} class="active" {% endif %} {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) %} class="disabled"{% endif %}>
+                                                    <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) ) %}href="/{{ href|e }}"{% endif %}{% if id == 'docs' %} target="_blank"{% endif %}>
+                                                        <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                                                        {{ caption|e }}
+                                                    </a>
                                             </li>
                                             {% endif %}
                                         {% endfor %}
@@ -104,7 +120,7 @@
 
                         <div class="form-group row datetimepicker">
                             <div class="col-sm-2">
-                                <i class="icon-time"></i>
+                                <div class="col-sm-1"><i class="icon-time icon-center"></i></div>
                             </div>
                             <div class="col-sm-10">
                                 <label class="control-label">Time window</label>
@@ -126,7 +142,7 @@
                         
                         <div class="form-group row">
                             <div class="col-sm-2">
-                                <i class="icon-binoculars"></i>
+                                <div class="col-sm-1"><i class="icon-binoculars icon-center"></i></div>
                             </div>
                             <div class="col-sm-10">
                                 <label class="control-label">Forecast (rolling)</label>
@@ -158,32 +174,45 @@
                     {% endblock attributions %}
 
                 {% endblock divs %}
-                
-                <!-- External scripts -->
-                <script src="{{ url_for('bvp_ui.static', filename='js/external/ion.rangeSlider.min.js') }}"></script>
+
+
+                {#- Scripts used by all views (e.g. by navigation menu) -#}
                 <script src="{{ url_for('bvp_ui.static', filename='js/external/bootstrap.min.js') }}"></script>
 
-                <!-- Custom scripts -->
-                <script src="{{ url_for('bvp_ui.static', filename='js/bvp.js') }}"></script>
-                {% if show_datepicker %}
-                    <script src="{{ url_for('bvp_ui.static', filename='js/daterangepicker-init.js') }}"></script>
-                {% endif %}
+                {% block scripts %}
 
-                <!-- External scripts that should run after custom scripts -->
-                {% if show_datepicker %}
-                    <script src="{{ url_for('bvp_ui.static', filename='js/external/daterangepicker.js') }}"></script>
-                {% endif %}
+                    <!-- External scripts -->
+                    <script src="{{ url_for('bvp_ui.static', filename='js/external/ion.rangeSlider.min.js') }}"></script>
+
+                    <!-- Custom scripts -->
+                    <script src="{{ url_for('bvp_ui.static', filename='js/bvp.js') }}"></script>
+                    {% if show_datepicker %}
+                        <script src="{{ url_for('bvp_ui.static', filename='js/daterangepicker-init.js') }}"></script>
+                    {% endif %}
+
+                    <!-- External scripts that should run after custom scripts -->
+                    {% if show_datepicker %}
+                        <script src="{{ url_for('bvp_ui.static', filename='js/external/daterangepicker.js') }}"></script>
+                    {% endif %}
+
+                {% endblock scripts %}
 
                 <footer class="page-footer font-small pt-4 mt-4">
                     <div class="footer text-center">
                         <div class="container-fluid">
-                            <a href="http://aoneeng.com/">A1 Engineering</a> services supported by <a href="https://seita.nl/">Seita</a> technologies &copy 2018.
+                            <a href="https://aoneeng.com/">A1 Engineering</a> services supported by <a href="https://seita.nl/">Seita</a> technologies &copy <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.
                             {% if app_running_since %}   <!-- We might render templates from plugins, where this meta info is not available -->
+                                {% if current_user.has_role('anonymous') %}
+                                <!--
+                                {% endif %}
                             This app is running since {{ app_running_since }}
                                 {% if git_version != "Unknown" %}
                                 on version {{ git_version }}+{{ git_commits_since }}.
                                 {% else %}
                                 on revision {{ git_hash }}.
+                                {% endif %}
+                                {% if current_user.has_role('anonymous') %}
+                                -->
                                 {% endif %}
                             {% endif %}
                         </div>

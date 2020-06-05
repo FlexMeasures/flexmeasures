@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 
 from bvp.data.config import db
-from bvp.data.queries.utils import assign_horizon_window, create_beliefs_query
+from bvp.data.queries.utils import add_horizon_filter, create_beliefs_query
 from bvp.data.services.time_series import collect_time_series_data
 
 
@@ -70,7 +70,7 @@ class TimedValue(object):
             session = db.session
         start, end = query_window
         query = create_beliefs_query(cls, session, asset_class, asset_name, start, end)
-        query = assign_horizon_window(
+        query = add_horizon_filter(
             cls, query, end, asset_class, horizon_window, rolling
         )
         return query
@@ -85,12 +85,13 @@ class TimedValue(object):
             None,
         ),
         rolling: bool = True,
-        preferred_source_ids: {
+        preferred_user_source_ids: {
             Union[int, List[int]]
         } = None,  # None is interpreted as all sources
-        fallback_source_ids: Union[
+        fallback_user_source_ids: Union[
             int, List[int]
         ] = -1,  # An id = -1 is interpreted as no sources
+        source_types: Optional[List[str]] = None,
         resolution: str = None,
         sum_multiple: bool = True,
         create_if_empty: bool = False,
@@ -106,8 +107,9 @@ class TimedValue(object):
             query_window=query_window,
             horizon_window=horizon_window,
             rolling=rolling,
-            preferred_source_ids=preferred_source_ids,
-            fallback_source_ids=fallback_source_ids,
+            preferred_user_source_ids=preferred_user_source_ids,
+            fallback_user_source_ids=fallback_user_source_ids,
+            source_types=source_types,
             resolution=resolution,
             sum_multiple=sum_multiple,
             create_if_empty=create_if_empty,

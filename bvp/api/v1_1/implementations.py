@@ -327,6 +327,9 @@ def get_prognosis_response(
     # Any prognosis made at least <horizon> before the fact
     horizon_window = (horizon, None)
 
+    # Check the user's intention first, fall back to schedules, then forecasts, then other data from script
+    source_types = ["user", "scheduling script", "forecasting script", "script"]
+
     return collect_connection_and_value_groups(
         unit,
         resolution,
@@ -336,6 +339,7 @@ def get_prognosis_response(
         generic_asset_name_groups,
         preferred_source_ids,
         fallback_source_ids,
+        source_types,
         rolling=rolling,
     )
 

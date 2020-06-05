@@ -22,12 +22,13 @@ def collect_time_series_data(
     query_window: Tuple[datetime, datetime] = (None, None),
     horizon_window: Tuple[timedelta, timedelta] = (None, None),
     rolling: bool = True,
-    preferred_source_ids: {
+    preferred_user_source_ids: {
         Union[int, List[int]]
     } = None,  # None is interpreted as all sources
-    fallback_source_ids: Union[
+    fallback_user_source_ids: Union[
         int, List[int]
     ] = -1,  # An id = -1 is interpreted as no sources
+    source_types: Optional[List[str]] = None,
     resolution: str = None,
     sum_multiple: bool = True,
     create_if_empty: bool = False,
@@ -71,7 +72,8 @@ def collect_time_series_data(
             query_window,
             horizon_window,
             rolling,
-            preferred_source_ids,
+            preferred_user_source_ids,
+            source_types,
             resolution,
             create_if_empty,
             zero_if_nan,
@@ -95,14 +97,14 @@ def collect_time_series_data(
         #   - and if there are unique fallback sources stated (catches case 4 and part of 7)
 
         # As a fallback, we'll only query sources that were not queried already (except if the fallback is to query all)
-        unique_fallback_source_ids = drop_non_unique_elements(
-            preferred_source_ids, fallback_source_ids
+        unique_fallback_user_source_ids = drop_non_unique_elements(
+            preferred_user_source_ids, fallback_user_source_ids
         )  # now a list
 
         if (
             values.empty
-            and preferred_source_ids
-            and -1 not in unique_fallback_source_ids
+            and preferred_user_source_ids
+            and -1 not in unique_fallback_user_source_ids
         ):
             values = query_time_series_data(
                 generic_asset_name,
@@ -110,7 +112,8 @@ def collect_time_series_data(
                 query_window,
                 horizon_window,
                 rolling,
-                unique_fallback_source_ids,
+                unique_fallback_user_source_ids,
+                source_types,
                 resolution,
                 create_if_empty,
                 zero_if_nan,
@@ -143,14 +146,16 @@ def query_time_series_data(
             Tuple[datetime, datetime],
             Tuple[timedelta, timedelta],
             bool,
-            Union[int, List[int]],
+            Optional[Union[int, List[int]]],
+            Optional[List[str]],
         ],
         Query,
     ],
     query_window: Tuple[datetime, datetime] = (None, None),
     horizon_window: Tuple[timedelta, timedelta] = (None, None),
     rolling: bool = True,
-    source_ids: Union[int, List[int]] = None,
+    user_source_ids: Optional[Union[int, List[int]]] = None,
+    source_types: Optional[List[str]] = None,
     resolution: str = None,
     create_if_empty: bool = False,
     zero_if_nan: bool = False,
@@ -165,26 +170,29 @@ def query_time_series_data(
     Returns a DataFrame with a "y" column if as_beliefs is False, otherwise returns a DataFrame with "y", "horizon"
     and "label" columns.
     """
-    if source_ids is None:
-        query = make_query(
-            asset_name=generic_asset_name,
-            query_window=query_window,
-            horizon_window=horizon_window,
-            rolling=rolling,
-        )
-    else:
-        query = make_query(
-            asset_name=generic_asset_name,
-            query_window=query_window,
-            horizon_window=horizon_window,
-            rolling=rolling,
-            source_ids=source_ids,
-        )
+    query = make_query(
+        asset_name=generic_asset_name,
+        query_window=query_window,
+        horizon_window=horizon_window,
+        rolling=rolling,
+        user_source_ids=user_source_ids,
+        source_types=source_types,
+    )
 
     values_orig = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
     )
     values_orig["datetime"] = pd.to_datetime(values_orig["datetime"], utc=True)
+
+    # todo: Keep the preferred data source (first look at source_type, then user_source_id if needed)
+    # if user_source_ids:
+    #     values_orig["source"] = values_orig["source"].astype("category")
+    #     values_orig["source"].cat.set_categories(user_source_ids, inplace=True)
+    #     values_orig = (
+    #         values_orig.sort_values(by=["source"], ascending=True)
+    #         .drop_duplicates(subset=["source"], keep="first")
+    #         .sort_values(by=["datetime"])
+    #     )
 
     # Keep the most recent observation
     values_orig = (
@@ -289,7 +297,7 @@ def drop_non_unique_elements(
 def data_source_resampler(labels: pd.Series) -> str:
     """Join unique data source labels in a human readable way."""
     unique_labels = labels.unique().tolist()
-    unique_labels = [l for l in unique_labels if str(l) not in ["nan", ""]]
+    unique_labels = [label for label in unique_labels if str(label) not in ["nan", ""]]
     new_label = humanize(p.join(unique_labels))
     return new_label
 

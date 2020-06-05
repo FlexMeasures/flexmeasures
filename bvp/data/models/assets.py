@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 from datetime import timedelta
 
 import isodate
@@ -9,7 +9,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 
 from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
-from bvp.data.queries.utils import assign_source_ids
+from bvp.data.queries.utils import add_user_source_filter, add_source_type_filter
 from bvp.utils.config_utils import get_naming_authority, get_addressing_scheme
 
 
@@ -217,9 +217,26 @@ class Power(TimedValue, db.Model):
     )
 
     @classmethod
-    def make_query(cls, source_ids: Union[int, List[int]] = None, **kwargs) -> Query:
+    def make_query(
+        cls,
+        user_source_ids: Optional[Union[int, List[int]]] = None,
+        source_types: Optional[List[str]] = None,
+        **kwargs
+    ) -> Query:
+        """ Construct the database query.
+
+        :param user_source_ids: Optional list of user source ids to query only specific user sources
+        :param source_types: Optional list of source type names to query only specific source types
+
+        If user_source_ids is specified, the "user" source type is automatically included.
+        """
         query = super().make_query(asset_class=Asset, **kwargs)
-        query = assign_source_ids(cls, query, source_ids)
+        if user_source_ids:
+            query = add_user_source_filter(cls, query, user_source_ids)
+        if source_types:
+            if user_source_ids and "user" not in source_types:
+                source_types.append("user")
+            query = add_source_type_filter(cls, query, source_types)
         return query
 
     def to_dict(self):

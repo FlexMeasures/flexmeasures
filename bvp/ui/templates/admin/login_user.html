@@ -26,6 +26,18 @@
                 <form action="/reset" method="get">
                     <button class="btn btn-sm btn-responsive btn-link" type="submit">Forgot password?</button>
                 </form>
+                {% if BVP_PUBLIC_DEMO %}
+                <div class="alert alert-info col-sm-8">
+                    <h2>Interested in a demo?</h2>
+                    <p>
+                        Simply log in to our demo account.
+                        <ul>
+                            <li>Email: demo at seita.nl</li>
+                            <li>Password: bvp demo</li>
+                        </ul>
+                    </p>
+                </div>
+                {% endif %}
             </div>
             <div class="col-sm-8">
                 <h1>Balancing Valorisation Platform</h1>
