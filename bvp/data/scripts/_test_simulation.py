@@ -26,7 +26,7 @@ else:
 
 latest_version = check_version(host)
 services = check_services(host, latest_version)
-auth_token = get_auth_token(host)
+auth_token = get_auth_token(host, "solar@seita.nl", "solar")
 connections = get_connections(host, latest_version, auth_token)
 
 # Initialisation
@@ -51,7 +51,7 @@ post_meter_data(
 input(
     "Run all forecasting jobs, then press Enter to continue ...\n"
     "You can run this in another bvp-venv shell:\n\n"
-    "flask run_forecasting_worker\n"
+    "flask run_worker --name 'Sim worker' --queue 'forecasting'\n"
 )
 
 # Steps

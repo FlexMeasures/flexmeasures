@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional, Tuple, Union
 import requests
 from random import random
 from datetime import datetime, timedelta
@@ -33,29 +33,37 @@ def check_services(host: str, latest_version: str) -> List[str]:
     return services
 
 
-def get_auth_token(host: str) -> str:
+def get_auth_token(host: str, email: str, password: str) -> str:
     response = requests.post(
-        "%s/api/requestAuthToken" % host,
-        json={"email": "solar@seita.nl", "password": "solar"},
+        "%s/api/requestAuthToken" % host, json={"email": email, "password": password},
     )
-    return response.json()["auth_token"]
+    response_json = response.json()
+    if "auth_token" in response_json:
+        return response_json["auth_token"]
+    print(response_json)
 
 
-def get_connections(host: str, latest_version: str, auth_token: str) -> List[str]:
+def get_connections(
+    host: str, latest_version: str, auth_token: str, include_names: bool = False
+) -> Union[List[str], Tuple[List[str], List[str]]]:
     response = requests.get(
         "%s/api/%s/getConnection" % (host, latest_version),
         headers={"Authorization": auth_token},
     )
+    if include_names:
+        return response.json()["connections"], response.json()["names"]
     return response.json()["connections"]
 
 
 def set_scheme_and_naming_authority(host: str) -> str:
     if host == "http://localhost:5000":
-        return "ea1.2018-06.localhost:5000:"
+        return "ea1.2018-06.localhost:5000"
+    elif host == "https://demo.a1-bvp.com":
+        return "ea1.2018-06.com.a1-bvp.demo"
     elif host == "https://play.a1-bvp.com":
-        return "ea1.2018-06.com.a1-bvp.play:"
+        return "ea1.2018-06.com.a1-bvp.play"
     elif host == "https://staging.a1-bvp.com":
-        return "ea1.2018-06.com.a1-bvp.staging:"
+        return "ea1.2018-06.com.a1-bvp.staging"
     else:
         raise ("Set market entity address for host %s." % host)
 
@@ -119,3 +127,79 @@ def post_weather_data(
         json=message,
     )
     assert response.status_code == 200
+
+
+def get_prices(
+    host: str, latest_version: str, auth_token: str, market_name: str,
+):
+    message = {
+        "type": "GetPriceDataRequest",
+        "market": f"{set_scheme_and_naming_authority(host)}:{market_name}",
+    }
+    response = requests.get(
+        "%s/api/%s/getPriceData" % (host, latest_version),
+        headers={"Authorization": auth_token},
+        params=message,
+    )
+    if response.status_code != 200:
+        print(response.content)
+        print(response.json())
+    return response
+
+
+def post_soc_with_target(
+    host: str,
+    latest_version: str,
+    auth_token: str,
+    owner_id: int,
+    asset_id: int,
+    udi_event_id: int,
+    soc_datetime: datetime,
+    soc_value: float,
+    target_datetime: datetime,
+    target_value: float,
+    unit: str = "MWh",
+):
+    message = {
+        "type": "PostUdiEventRequest",
+        "unit": unit,
+        "event": f"{set_scheme_and_naming_authority(host)}:{owner_id}:{asset_id}:{udi_event_id}:soc-with-targets",
+        "datetime": datetime_isoformat(soc_datetime),
+        "value": soc_value,
+        "targets": [
+            {"value": target_value, "datetime": datetime_isoformat(target_datetime)}
+        ],
+    }
+    response = requests.post(
+        "%s/api/%s/postUdiEvent" % (host, latest_version),
+        headers={"Authorization": auth_token},
+        json=message,
+    )
+    if response.status_code != 200:
+        print(response.json())
+
+
+def get_device_message(
+    host: str,
+    latest_version: str,
+    auth_token: str,
+    owner_id: int,
+    asset_id: int,
+    udi_event_id: int,
+    duration: Optional[timedelta] = None,
+):
+    message = {
+        "type": "GetDeviceMessageRequest",
+        "event": f"{set_scheme_and_naming_authority(host)}:{owner_id}:{asset_id}:{udi_event_id}:soc-with-targets",
+    }
+    if duration is not None:
+        message.update({"duration": duration_isoformat(duration)})
+    response = requests.get(
+        "%s/api/%s/getDeviceMessage" % (host, latest_version),
+        headers={"Authorization": auth_token},
+        params=message,
+    )
+    if response.status_code != 200:
+        print(response.content)
+        print(response.json())
+    return response
