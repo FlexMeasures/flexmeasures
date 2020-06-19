@@ -5,11 +5,11 @@ from flask_security import roles_accepted
 from flask_security.core import current_user
 import pandas as pd
 import numpy as np
-from inflection import pluralize, titleize
 from bokeh.embed import components
 import bokeh.palettes as palettes
 
 from bvp.utils import time_utils
+from bvp.utils.bvp_inflection import capitalize, pluralize
 from bvp.data.models.assets import Power
 from bvp.data.models.markets import Price
 from bvp.data.services.resources import Resource, get_assets, get_markets
@@ -32,7 +32,7 @@ def portfolio_view():
     end = session.get("end_time")
     resolution = session.get("resolution")
 
-    assets = get_assets()
+    assets = get_assets(order_by_asset_attribute="display_name", order_direction="asc")
     markets = get_markets()
 
     production_per_asset = dict.fromkeys([a.name for a in assets])
@@ -51,6 +51,11 @@ def portfolio_view():
 
     represented_asset_types = {}
 
+    average_prices = {}
+    for market in markets:
+        average_prices[market.name] = Price.collect(
+            [market.name], query_window=(start, end), resolution=resolution
+        ).y.mean()
     prices_data = Price.collect(
         ["epex_da"], query_window=(start, end), resolution=resolution
     )
@@ -82,7 +87,7 @@ def portfolio_view():
             production_per_asset[asset.name] = sum_production_or_consumption
             consumption_per_asset[asset.name] = 0
 
-        neat_asset_type_name = titleize(asset.asset_type_name)
+        neat_asset_type_name = pluralize(asset.asset_type.display_name)
         if neat_asset_type_name not in production_per_asset_type:
             represented_asset_types[neat_asset_type_name] = asset.asset_type
             production_per_asset_type[neat_asset_type_name] = 0.0
@@ -138,35 +143,45 @@ def portfolio_view():
             return df
 
     default_stack_side = "production"
+    stack_types = {}
     if "building" in current_user.email or "charging" in current_user.email:
         default_stack_side = "consumption"
     show_stacked = request.values.get("show_stacked", default_stack_side)
     if show_stacked == "production":
         show_summed = "consumption"
-        stack_types = [
-            t.name
-            for t in represented_asset_types.values()
-            if decide_direction_for_report(
-                t.is_consumer,
-                t.is_producer,
-                production_per_asset_type[titleize(t.name)],
-            )
-            == "producer"
-        ]
+        for t in represented_asset_types:
+            if (
+                decide_direction_for_report(
+                    represented_asset_types[t].is_consumer,
+                    represented_asset_types[t].is_producer,
+                    production_per_asset_type[
+                        pluralize(represented_asset_types[t].display_name)
+                    ],
+                )
+                == "producer"
+            ):
+                stack_types[
+                    pluralize(represented_asset_types[t].display_name)
+                ] = represented_asset_types[t]
         sum_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
         plot_label = "Stacked production vs aggregated consumption"
     else:
         show_summed = "production"
-        stack_types = [
-            t.name
-            for t in represented_asset_types.values()
-            if decide_direction_for_report(
-                t.is_consumer,
-                t.is_producer,
-                -1 * consumption_per_asset_type[titleize(t.name)],
-            )
-            == "consumer"
-        ]
+        for t in represented_asset_types:
+            if (
+                decide_direction_for_report(
+                    represented_asset_types[t].is_consumer,
+                    represented_asset_types[t].is_producer,
+                    -1
+                    * consumption_per_asset_type[
+                        pluralize(represented_asset_types[t].display_name)
+                    ],
+                )
+                == "consumer"
+            ):
+                stack_types[
+                    pluralize(represented_asset_types[t].display_name)
+                ] = represented_asset_types[t]
         sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
         plot_label = "Stacked consumption vs aggregated production"
 
@@ -200,7 +215,7 @@ def portfolio_view():
         % time_utils.freq_label_to_human_readable_label(resolution),
         y_label="Power (in MW)",
         legend_location="top_right",
-        legend_labels=(titleize(show_summed), None),
+        legend_labels=(capitalize(show_summed), None),
         show_y_floats=True,
         non_negative_only=True,
     )
@@ -218,13 +233,13 @@ def portfolio_view():
     fig_profile.plot_height = 450
     fig_profile.plot_width = 900
 
-    df_stacked_data = pd.DataFrame(index=df_sum.index, columns=stack_types)
+    df_stacked_data = pd.DataFrame(index=df_sum.index)
     for st in stack_types:
-        df_stacked_data[st] = (
-            Resource(pluralize(st)).get_data(
-                start=start, end=end, resolution=resolution, create_if_empty=True
-            )
-        ).y.values
+        data = Resource(st).get_data(
+            start=start, end=end, resolution=resolution, create_if_empty=True
+        )
+        if not data.empty:
+            df_stacked_data[capitalize(st)] = data.y.values
 
     # Plot as positive values regardless of whether the stacked data is production or consumption
     df_stacked_data = data_or_zeroes(df_stacked_data).fillna(0)
@@ -250,7 +265,7 @@ def portfolio_view():
             color=colors[a],
             alpha=0.8,
             line_color=None,
-            legend=titleize(df_stacked_data.columns[a]),
+            legend=df_stacked_data.columns[a],
             level="underlay",
         )
 
@@ -320,6 +335,7 @@ def portfolio_view():
     return render_bvp_template(
         "views/portfolio.html",
         assets=assets,
+        average_prices=average_prices,
         asset_types=represented_asset_types,
         markets=markets,
         production_per_asset=production_per_asset,

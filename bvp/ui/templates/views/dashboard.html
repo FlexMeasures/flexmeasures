@@ -5,25 +5,25 @@
 {% block title %} Dashboard {% endblock %}
 
 {% block divs %}
-    <script type="text/javascript">
+<!--    <script type="text/javascript">-->
 
-    // Helper functions
+<!--    // Helper functions-->
 
-    function getMockImageByCapacityFactor(capacity_factor_in_percent){
-        var path = "ui/static/live-mock-imgs/";
-        if (capacity_factor_in_percent < 5) return path + "0.0.png";
-        if (capacity_factor_in_percent < 15) return path + "0.1.png";
-        if (capacity_factor_in_percent < 25) return path + "0.2.png";
-        if (capacity_factor_in_percent < 35) return path + "0.3.png";
-        if (capacity_factor_in_percent < 45) return path + "0.4.png";
-        if (capacity_factor_in_percent < 55) return path + "0.5.png";
-        if (capacity_factor_in_percent < 65) return path + "0.6.png";
-        if (capacity_factor_in_percent < 75) return path + "0.7.png";
-        if (capacity_factor_in_percent < 85) return path + "0.8.png";
-        if (capacity_factor_in_percent < 95) return path + "0.9.png";
-        return path + "1.0.png"
-    }
-    </script>
+<!--    function getMockImageByCapacityFactor(capacity_factor_in_percent){-->
+<!--        var path = "ui/static/live-mock-imgs/";-->
+<!--        if (capacity_factor_in_percent < 5) return path + "0.0.png";-->
+<!--        if (capacity_factor_in_percent < 15) return path + "0.1.png";-->
+<!--        if (capacity_factor_in_percent < 25) return path + "0.2.png";-->
+<!--        if (capacity_factor_in_percent < 35) return path + "0.3.png";-->
+<!--        if (capacity_factor_in_percent < 45) return path + "0.4.png";-->
+<!--        if (capacity_factor_in_percent < 55) return path + "0.5.png";-->
+<!--        if (capacity_factor_in_percent < 65) return path + "0.6.png";-->
+<!--        if (capacity_factor_in_percent < 75) return path + "0.7.png";-->
+<!--        if (capacity_factor_in_percent < 85) return path + "0.8.png";-->
+<!--        if (capacity_factor_in_percent < 95) return path + "0.9.png";-->
+<!--        return path + "1.0.png"-->
+<!--    }-->
+<!--    </script>-->
 
     <div class="container-fluid">
         <div class="row">
@@ -41,7 +41,7 @@
                     </p>
                     <p>
                         The BVP is compliant with the Universal Smart Energy Framework (<a href="https://www.usef.energy/download-the-framework/a-flexibility-market-design/">USEF</a>), a “flexibility market design for the trading and commoditisation of energy flexibility and the architecture, tools and rules to make it work effectively.
-                        [USEF] fits on top of most market models and is already being adopted across Europe to accelerate and future-proof smart energy projects.”
+                        USEF fits on top of most market models and is already being adopted across Europe to accelerate and future-proof smart energy projects.”
                     </p>
                     {% if current_user.has_role('anonymous') and current_user.has_role('CPO') %}
                     <p>
@@ -72,7 +72,7 @@
             <div class="col-sm-8">
                 <div class="row eq-height">
                     <div class="col-sm-12">
-                        <h3>{% if user_is_admin: %}BVP status:{% else %}Status of my assets:{% endif%}
+                        <h3>{% if user_is_admin %}BVP status:{% else %}Status of my assets:{% endif%}
                         </h3>
 
                         <div id="mapid"></div>
@@ -81,22 +81,24 @@
                             <thead>
                                 <tr>
                                     <th></th>
-                                    {% for asset_type in asset_counts_per_pluralised_type: %}
-                                        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
-                                            <th><a href="analytics?resource={{ asset_type }}" target="_blank">{{ asset_type | capitalize | replace("_", " ") }}</a></th>
+                                    {% for asset_group in asset_groups %}
+                                        {% if asset_groups[asset_group].count > 0 %}
+                                            <th {% if asset_groups[asset_group].hover_label %} title="{{ asset_groups[asset_group].hover_label | capitalize }}" {% endif %}><a href="analytics?resource={{ asset_group }}" target="_blank">{{ asset_group | capitalize }}</a></th>
                                         {% endif %}
                                     {% endfor %}
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>{% if user_is_admin: %}BVP total:{% else %}My assets:{% endif%}</td>
+                                    <td>{% if user_is_admin %}BVP total:{% else %}My assets:{% endif%}</td>
 
-                                    {% for asset_type in asset_counts_per_pluralised_type: %}
-                                        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
-                                    <td>
-                                        <i class="icon-{{ asset_type }} icon-right">{{ asset_counts_per_pluralised_type[asset_type] }}</i>
-                                    </td>
+                                    {% for asset_group in asset_groups %}
+                                        {% if asset_groups[asset_group].count > 0 %}
+                                            <td>
+                                                <i class="{{ asset_groups[asset_group].unique_asset_types[0].icon_name }} icon-right">
+                                                    {{ asset_groups[asset_group].assets | length }}
+                                                </i>
+                                            </td>
                                         {% endif %}
                                     {% endfor %}
                                 </tr>
@@ -129,23 +131,23 @@
         $(".bokeh-state-plot").html(data);
     }
 
-    // create markers, keep them by asset type
+    // create lists for markers, one per asset type, and icons, one per asset type
 
-    {% for asset_type in asset_counts_per_pluralised_type: %}
-        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
-            var {{ asset_type }}_markers = [];
+    {% for asset_group in asset_groups %}
+        {% if asset_groups[asset_group].count > 0 %}
+            var {{ asset_groups[asset_group].parameterized_name }}_markers = [];
 
-            var {{ asset_type }}_icon = new L.DivIcon({
+            var {{ asset_groups[asset_group].parameterized_name }}_icon = new L.DivIcon({
                     className:      'map-icon',
-                    html:           '<i class="icon-{{ asset_type }}"></i>',
+                    html:           '<i class="{{ asset_groups[asset_group].unique_asset_types[0].icon_name }}"></i>',
                     iconSize:       [24, 24], // size of the icon
                     iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
                     popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
                 });
 
-            var {{ asset_type }}_opportunity_icon = new L.DivIcon({
+            var {{ asset_groups[asset_group].parameterized_name }}_opportunity_icon = new L.DivIcon({
                     className:      'map-icon opportunity',
-                    html:           '<i class="icon-{{ asset_type }}"></i>',
+                    html:           '<i class="{{ asset_groups[asset_group].unique_asset_types[0].icon_name }}"></i>',
                     iconSize:       [24, 24], // size of the icon
                     iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
                     popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
@@ -153,213 +155,225 @@
         {% endif %}
     {% endfor %}
 
-    // mock battery icons
-    var battery_icon = new L.DivIcon({
-        className:      'map-icon',
-        html:           '<i class="icon-battery"></i>',
-        iconSize:       [24, 24], // size of the icon
-        iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
-        popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
-    });
-    var battery_opportunity_icon = new L.DivIcon({
-        className:      'map-icon opportunity',
-        html:           '<i class="icon-battery"></i>',
-        iconSize:       [24, 24], // size of the icon
-        iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
-        popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
-    });
+<!--    // mock battery icons-->
+<!--    var stationary_batteries_icon = new L.DivIcon({-->
+<!--        className:      'map-icon',-->
+<!--        html:           '<i class="icon-battery"></i>',-->
+<!--        iconSize:       [24, 24], // size of the icon-->
+<!--        iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location-->
+<!--        popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor-->
+<!--    });-->
+<!--    var stationary_batteries_opportunity_icon = new L.DivIcon({-->
+<!--        className:      'map-icon opportunity',-->
+<!--        html:           '<i class="icon-battery"></i>',-->
+<!--        iconSize:       [24, 24], // size of the icon-->
+<!--        iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location-->
+<!--        popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor-->
+<!--    });-->
 
-    {% for asset in assets: %}
-        {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
-        <!--var marker_for_{{ (asset.name|parameterize).replace("-", "") }} = makeMarker({{ asset }})-->
+    // create markers, keep them in separate lists (by asset type) to be put into layers
 
-        var marker_for_{{ (asset.name|parameterize).replace("-", "") }} = L
-            .marker(
-                [{{ asset.location[0] }}, {{ asset.location[1] }}],
-                {icon: {{ asset.asset_type.pluralized_name }}_icon, id: "{{ asset.id }}"}
-            )
-            .bindPopup(`
-                <div class="leaflet-marker-popup">
-                    <div class="row">
-                        <div class="col-sm-12">
-                            <h4>{{ asset.display_name }}</h4>
+    {% for asset_group in asset_groups: %}
+        {% for asset in asset_groups[asset_group].assets: %}
+            {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
+            <!--var marker_for_{{ (asset.name | parameterize) }} = makeMarker({{ asset }})-->
+
+            if (typeof marker_for_{{ (asset.name | parameterize) }} == 'undefined') {
+                var marker_for_{{ (asset.name | parameterize) }} = L
+                    .marker(
+                        [{{ asset.location[0] }}, {{ asset.location[1] }}],
+                        {icon: {{ asset_groups[asset_group].parameterized_name }}_icon, id: "{{ asset.id }}"}
+                    )
+                    .bindPopup(`
+                        <div class="leaflet-marker-popup">
+                            <div class="row">
+                                <div class="col-sm-12">
+                                    <h4>{{ asset.display_name }}</h4>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-5 bokeh-state-plot"></div>
+                                <div class="col-sm-7">
+                                    <div class="row top-buffer">
+                                        <div class="col-sm-12">
+                                            <form action="analytics" target="_blank" method="get">
+                                                <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
+                                                <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    <div class="row top-buffer">
+                                        <div class="col-sm-12">
+                                            <form action="assets/{{ asset.id }}" target="_blank" method="get">
+                                                <button class="btn btn-sm btn-responsive btn-info" type="submit">Edit this asset</button>
+                                            </form>
+                                        </div>
+                                    </div>
+    <!--                                <div class="row top-buffer">-->
+    <!--                                    <div class="col-sm-12">-->
+    <!--                                        <form action="control" method="get">-->
+    <!--                                            &lt;!&ndash;<input type="hidden" name="offer" value="still_mocked">&ndash;&gt;-->
+    <!--                                            &lt;!&ndash;<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>&ndash;&gt;-->
+    <!--                                        </form>-->
+    <!--                                    </div>-->
+    <!--                                </div>-->
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-sm-5 bokeh-state-plot"></div>
-                        <div class="col-sm-7">
-                            <div class="row top-buffer">
-                                <div class="col-sm-12">
-                                    <form action="analytics" target="_blank" method="get">
-                                        <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
-                                        <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
-                                    </form>
-                                </div>
-                            </div>
-                            <div class="row top-buffer">
-                                <div class="col-sm-12">
-                                    <form action="assets/{{ asset.id }}" target="_blank" method="get">
-                                        <button class="btn btn-sm btn-responsive btn-info" type="submit">Edit this asset</button>
-                                    </form>
-                                </div>
-                            </div>
-                            <div class="row top-buffer">
-                                <div class="col-sm-12">
-                                    <form action="control" method="get">
-                                        <!--<input type="hidden" name="offer" value="still_mocked">-->
-                                        <!--<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                `
-            )
-            .on('click', clickZoom)
-            .on('click', lookForState);
-            // .openPopup();
-        {{ asset.asset_type.pluralized_name }}_markers.push(marker_for_{{ (asset.name|parameterize).replace("-", "") }});
+                        `
+                    )
+                    .on('click', clickZoom)
+                    .on('click', lookForState);
+                    // .openPopup();
+                {{ asset_groups[asset_group].parameterized_name }}_markers.push(marker_for_{{ (asset.name | parameterize) }});
+            }
+        {% endfor%}
     {% endfor%}
 
-    // add mock icons in layer
-    {% if user_is_logged_in and (user_is_admin or "wind" in user_email) %}
-        var marker_for_wind = L
-            .marker(
-                [33.428833, 126.166126],
-                {icon: wind_opportunity_icon}
-            )
-            .bindPopup(`
-                <div class="row">
-                    <div class="col-sm-12">
-                        <h4>Suwon</h4>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-sm-9">
-                        This wind asset is currently producing at 3 MW (60% capacity) and has a balancing opportunity. Please consider valorising on this opportunity.
-                    </div>
-                    <div class="col-sm-3">
-                        ` +
-                        responsiveImageWithTooltip(
-                            getMockImageByCapacityFactor(60),
-                            'Power',
-                            'Currently producing at 3 MW (60% capacity)'
-                        )
-                        + `
-                    </div>
-                </div>
-                <div class="row top-buffer">
-                    <div class="col-sm-6">
-                        <form action="analytics" target="_blank" method="get">
-                            <input type="hidden" name="resource" value="sw-offshore">
-                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
-                        </form>
-                    </div>
-                    <div class="col-sm-6">
-                        <form action="control" method="get">
-                            <!--<input type="hidden" name="offer" value="still_mocked">-->
-                            <button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>
-                        </form>
-                    </div>
-                </div>
-                `
-            )
-            .on('click', clickZoom)
-            .on('click', lookForState);
-        wind_markers.push(marker_for_wind);
-    {% endif%}
-    {% if user_is_admin %}
-        var marker_for_bat = L
-            .marker(
-                [33.3761057, 126.3025723],
-                {icon: battery_opportunity_icon}
-            )
-            .bindPopup(`
-                <div class="row">
-                    <div class="col-sm-12">
-                        <h4>Battery storage unit</h4>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-sm-9">
-                        This battery asset is currently consuming at 4 MW (80% capacity) and has a balancing opportunity. Please consider valorising on this opportunity.
-                    </div>
-                    <div class="col-sm-3">
-                        ` +
-                        responsiveImageWithTooltip(
-                            getMockImageByCapacityFactor(80),
-                            'Power',
-                            'Currently consuming at 4 MW (80% capacity)'
-                        )
-                        + `
-                    </div>
-                </div>
-                <div class="row top-buffer">
-                    <div class="col-sm-6">
-                        <form action="analytics" target="_blank" method="get">
-                            <!--<input type="hidden" name="resource" value="still_mocked">-->
-                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
-                        </form>
-                    </div>
-                    <div class="col-sm-6">
-                        <form action="control" method="get">
-                            <!--<input type="hidden" name="offer" value="still_mocked">-->
-                            <button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>
-                        </form>
-                    </div>
-                </div>
-                `
-            )
-            .on('click', clickZoom)
-            .on('click', lookForState);
-        batteries_markers.push(marker_for_bat);
+<!--    // add mock icons in layer-->
+<!--    {% if user_is_logged_in and (user_is_admin or "wind" in user_email) %}-->
+<!--        var marker_for_wind = L-->
+<!--            .marker(-->
+<!--                [33.428833, 126.166126],-->
+<!--                {icon: wind_turbines_opportunity_icon}-->
+<!--            )-->
+<!--            .bindPopup(`-->
+<!--                <div class="row">-->
+<!--                    <div class="col-sm-12">-->
+<!--                        <h4>Suwon</h4>-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                <div class="row">-->
+<!--                    <div class="col-sm-9">-->
+<!--                        This wind asset is currently producing at 3 MW (60% capacity) and has a balancing opportunity. Please consider valorising on this opportunity.-->
+<!--                    </div>-->
+<!--                    <div class="col-sm-3">-->
+<!--                        ` +-->
+<!--                        responsiveImageWithTooltip(-->
+<!--                            getMockImageByCapacityFactor(60),-->
+<!--                            'Power',-->
+<!--                            'Currently producing at 3 MW (60% capacity)'-->
+<!--                        )-->
+<!--                        + `-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                <div class="row top-buffer">-->
+<!--                    <div class="col-sm-6">-->
+<!--                        <form action="analytics" target="_blank" method="get">-->
+<!--                            <input type="hidden" name="resource" value="sw-offshore">-->
+<!--                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
+<!--                        </form>-->
+<!--                    </div>-->
+<!--                    <div class="col-sm-6">-->
+<!--                        <form action="control" method="get">-->
+<!--                            &lt;!&ndash;<input type="hidden" name="offer" value="still_mocked">&ndash;&gt;-->
+<!--                            <button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
+<!--                        </form>-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                `-->
+<!--            )-->
+<!--            .on('click', clickZoom)-->
+<!--            .on('click', lookForState);-->
+<!--        if (typeof stationary_batteries_markers !== 'undefined') {-->
+<!--            wind_turbines_markers.push(marker_for_wind);-->
+<!--        }-->
+<!--    {% endif%}-->
+<!--    {% if user_is_admin %}-->
+<!--        var marker_for_bat = L-->
+<!--            .marker(-->
+<!--                [33.3761057, 126.3025723],-->
+<!--                {icon: stationary_batteries_opportunity_icon}-->
+<!--            )-->
+<!--            .bindPopup(`-->
+<!--                <div class="row">-->
+<!--                    <div class="col-sm-12">-->
+<!--                        <h4>Battery storage unit</h4>-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                <div class="row">-->
+<!--                    <div class="col-sm-9">-->
+<!--                        This battery asset is currently consuming at 4 MW (80% capacity) and has a balancing opportunity. Please consider valorising on this opportunity.-->
+<!--                    </div>-->
+<!--                    <div class="col-sm-3">-->
+<!--                        ` +-->
+<!--                        responsiveImageWithTooltip(-->
+<!--                            getMockImageByCapacityFactor(80),-->
+<!--                            'Power',-->
+<!--                            'Currently consuming at 4 MW (80% capacity)'-->
+<!--                        )-->
+<!--                        + `-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                <div class="row top-buffer">-->
+<!--                    <div class="col-sm-6">-->
+<!--                        <form action="analytics" target="_blank" method="get">-->
+<!--                            &lt;!&ndash;<input type="hidden" name="resource" value="still_mocked">&ndash;&gt;-->
+<!--                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
+<!--                        </form>-->
+<!--                    </div>-->
+<!--                    <div class="col-sm-6">-->
+<!--                        <form action="control" method="get">-->
+<!--                            &lt;!&ndash;<input type="hidden" name="offer" value="still_mocked">&ndash;&gt;-->
+<!--                            <button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
+<!--                        </form>-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                `-->
+<!--            )-->
+<!--            .on('click', clickZoom)-->
+<!--            .on('click', lookForState);-->
+<!--        if (typeof stationary_batteries_markers !== 'undefined') {-->
+<!--            stationary_batteries_markers.push(marker_for_bat);-->
+<!--        }-->
 
-        var marker_for_bat = L
-            .marker(
-                [33.3262057, 126.3925813],
-                {icon: battery_icon}
-            )
-            .bindPopup(`
-                <div class="row">
-                    <div class="col-sm-12">
-                        <h4>Four battery storage units</h4>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-sm-9">
-                        This battery asset is currently consuming at 4 MW (80% capacity).
-                    </div>
-                    <div class="col-sm-3">
-                        ` +
-                        responsiveImageWithTooltip(
-                            getMockImageByCapacityFactor(80),
-                            'Power',
-                            'Currently consuming at 4 MW (80% capacity)'
-                        )
-                        + `
-                    </div>
-                </div>
-                <div class="row top-buffer">
-                    <div class="col-sm-6">
-                        <form action="analytics" target="_blank" method="get">
-                            <!--<input type="hidden" name="resource" value="still_mocked">-->
-                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
-                        </form>
-                    </div>
-                    <div class="col-sm-6">
-                        <form action="control" method="get">
-                            <!--<input type="hidden" name="offer" value="still_mocked">-->
-                            <!--<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
-                        </form>
-                    </div>
-                </div>
-                `
-            )
-            .on('click', clickZoom)
-            .on('click', lookForState);
-        batteries_markers.push(marker_for_bat);
-    {% endif%}
+<!--        var marker_for_bat = L-->
+<!--            .marker(-->
+<!--                [33.3262057, 126.3925813],-->
+<!--                {icon: stationary_batteries_icon}-->
+<!--            )-->
+<!--            .bindPopup(`-->
+<!--                <div class="row">-->
+<!--                    <div class="col-sm-12">-->
+<!--                        <h4>Four battery storage units</h4>-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                <div class="row">-->
+<!--                    <div class="col-sm-9">-->
+<!--                        This battery asset is currently consuming at 4 MW (80% capacity).-->
+<!--                    </div>-->
+<!--                    <div class="col-sm-3">-->
+<!--                        ` +-->
+<!--                        responsiveImageWithTooltip(-->
+<!--                            getMockImageByCapacityFactor(80),-->
+<!--                            'Power',-->
+<!--                            'Currently consuming at 4 MW (80% capacity)'-->
+<!--                        )-->
+<!--                        + `-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                <div class="row top-buffer">-->
+<!--                    <div class="col-sm-6">-->
+<!--                        <form action="analytics" target="_blank" method="get">-->
+<!--                            &lt;!&ndash;<input type="hidden" name="resource" value="still_mocked">&ndash;&gt;-->
+<!--                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
+<!--                        </form>-->
+<!--                    </div>-->
+<!--                    <div class="col-sm-6">-->
+<!--                        <form action="control" method="get">-->
+<!--                            &lt;!&ndash;<input type="hidden" name="offer" value="still_mocked">&ndash;&gt;-->
+<!--                            &lt;!&ndash;<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>&ndash;&gt;-->
+<!--                        </form>-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                `-->
+<!--            )-->
+<!--            .on('click', clickZoom)-->
+<!--            .on('click', lookForState);-->
+<!--        if (typeof stationary_batteries_markers !== 'undefined') {-->
+<!--            stationary_batteries_markers.push(marker_for_bat);-->
+<!--        }-->
+<!--    {% endif%}-->
 
     // create Map with tiles
     var assetMap = L
@@ -373,12 +387,12 @@
     var control = L.control.layers(null, null, { collapsed: true });
 
     // add a layer for each asset type
-    {% for asset_type in asset_counts_per_pluralised_type: %}
-        {% if asset_counts_per_pluralised_type[asset_type] > 0 %}
-            var {{ asset_type }}_layer = new L.LayerGroup({{ asset_type }}_markers);
-            mcgLayerSupportGroup.checkIn({{ asset_type }}_layer);
-            control.addOverlay({{ asset_type }}_layer, "{{ asset_type }}")
-            {{ asset_type }}_layer.addTo(assetMap);
+    {% for asset_group in asset_groups %}
+        {% if asset_groups[asset_group].count > 0 %}
+            var {{ asset_groups[asset_group].parameterized_name }}_layer = new L.LayerGroup({{ asset_groups[asset_group].parameterized_name }}_markers);
+            mcgLayerSupportGroup.checkIn({{ asset_groups[asset_group].parameterized_name }}_layer);
+            control.addOverlay({{ asset_groups[asset_group].parameterized_name }}_layer, "{{ asset_group | capitalize }}")
+            {{ asset_groups[asset_group].parameterized_name }}_layer.addTo(assetMap);
         {% endif %}
     {% endfor %}
     mcgLayerSupportGroup.addTo(assetMap);

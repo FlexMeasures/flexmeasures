@@ -4,6 +4,11 @@ Change log
 ==========
 
 
+v1.3-3 | 2020-06-07
+"""""""""""""""""""
+
+- Changed backend support (API specifications unaffected) for scheduling charging stations to scheduling Electric Vehicle Supply Equipment (EVSE), in accordance with the Open Charge Point Interface (OCPI).
+
 v1.3-2 | 2020-03-11
 """""""""""""""""""
 

@@ -2,8 +2,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from datetime import timedelta
 
 import isodate
-import inflection
-from inflection import humanize, pluralize, titleize
+
 from sqlalchemy.orm import Query
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -11,18 +10,17 @@ from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
 from bvp.data.queries.utils import add_user_source_filter, add_source_type_filter
 from bvp.utils.config_utils import get_naming_authority, get_addressing_scheme
-
-
-# Give the inflection module some help for our domain
-inflection.UNCOUNTABLES.add("solar")
-inflection.UNCOUNTABLES.add("wind")
+from bvp.utils.bvp_inflection import humanize
 
 
 class AssetType(db.Model):
     """Describing asset types for our purposes"""
 
     name = db.Column(db.String(80), primary_key=True)
+    # The name we want to see (don't unnecessarily capitalize, so it can be used in a sentence)
     display_name = db.Column(db.String(80), default="", unique=True)
+    # The explanatory hovel label (don't unnecessarily capitalize, so it can be used in a sentence)
+    hover_label = db.Column(db.String(80), nullable=True, unique=False)
     is_consumer = db.Column(db.Boolean(), nullable=False, default=False)
     is_producer = db.Column(db.Boolean(), nullable=False, default=False)
     can_curtail = db.Column(db.Boolean(), nullable=False, default=False, index=True)
@@ -41,19 +39,12 @@ class AssetType(db.Model):
     def icon_name(self) -> str:
         """Icon name for this asset type, which can be used for UI html templates made with Jinja. For example:
             <i class={{ asset_type.icon_name }}></i>
-        becomes (for a charging station):
-            <i class="icon-charging_station"></i>
+        becomes (for a battery):
+            <i class="icon-battery"></i>
         """
-        if self.name == "solar":
-            return "icon-solar"
-        elif self.name == "wind":
-            return "icon-wind"
-        elif self.name in ("charging_station", "bidirectional_charging_station"):
+        if self.name in ("one-way_evse", "two-way_evse"):
             return "icon-charging_station"
-        elif self.name == "battery":
-            return "icon-battery"
-        elif self.name == "building":
-            return "icon-building"
+        return f"icon-{self.name}"
 
     @property
     def preconditions(self) -> Dict[str, bool]:
@@ -73,18 +64,9 @@ class AssetType(db.Model):
             correlations.append("radiation")
         if self.name == "wind":
             correlations.append("wind_speed")
-        if self.name in (
-            "charging_station",
-            "bidirectional_charging_station",
-            "battery",
-            "building",
-        ):
+        if self.name in ("one-way_evse", "two-way_evse", "battery", "building",):
             correlations.append("temperature")
         return correlations
-
-    @property
-    def pluralized_name(self):
-        return pluralize(self.name)
 
     def __repr__(self):
         return "<AssetType %r>" % self.name
@@ -96,7 +78,7 @@ class Asset(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     # The name
     name = db.Column(db.String(80), default="", unique=True)
-    # The name we want to see
+    # The name we want to see (don't unnecessarily capitalize, so it can be used in a sentence)
     display_name = db.Column(db.String(80), default="", unique=True)
     # The name of the assorted AssetType
     asset_type_name = db.Column(
@@ -123,8 +105,8 @@ class Asset(db.Model):
     def __init__(self, **kwargs):
         super(Asset, self).__init__(**kwargs)
         self.name = self.name.replace(" (MW)", "")
-        if self.display_name == "" or self.display_name is None:
-            self.display_name = titleize(self.name)
+        if "display_name" not in kwargs:
+            self.display_name = humanize(self.name)
 
     asset_type = db.relationship("AssetType", backref=db.backref("assets", lazy=True))
     owner = db.relationship(
@@ -143,10 +125,6 @@ class Asset(db.Model):
     def power_unit(self) -> float:
         """Return the 'unit' property of the generic asset, just with a more insightful name."""
         return self.unit
-
-    @property
-    def asset_type_display_name(self) -> str:
-        return titleize(self.asset_type_name)
 
     @property
     def entity_address(self) -> str:
@@ -221,7 +199,7 @@ class Power(TimedValue, db.Model):
         cls,
         user_source_ids: Optional[Union[int, List[int]]] = None,
         source_types: Optional[List[str]] = None,
-        **kwargs
+        **kwargs,
     ) -> Query:
         """ Construct the database query.
 

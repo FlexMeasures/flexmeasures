@@ -6,12 +6,12 @@ from sqlalchemy.orm import Query
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
-from inflection import humanize
 
 from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
 from bvp.data.queries.utils import add_user_source_filter, add_source_type_filter
 from bvp.utils.geo_utils import parse_lat_lng
+from bvp.utils.bvp_inflection import humanize
 
 
 class WeatherSensorType(db.Model):

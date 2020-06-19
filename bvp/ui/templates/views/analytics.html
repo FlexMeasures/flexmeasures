@@ -37,14 +37,14 @@
                         <form id="resource-form" method="post">
                             <label class="control-label" for="resource">Resource</label>
                             <select class="form-control" id="resource" name="resource" onchange="submit_resource()">
-                                {% for asset_group, asset_group_display_name in asset_groups %}
-                                    <option value="{{ asset_group }}" {% if selected_resource.name==asset_group %} selected="selected"{% endif %}>
-                                        {{ asset_group_display_name }}
+                                {% for asset_group_name in asset_group_names %}
+                                    <option value="{{ asset_group_name }}" {% if selected_resource.name==asset_group_name %} selected="selected"{% endif %}>
+                                        {{ asset_group_name | capitalize}}
                                     </option>
                                 {% endfor %}
                                 {% for asset in assets %}
                                     <option value="{{ asset.name }}" {% if selected_resource.name==asset.name %} selected="selected"{% endif %}>
-                                        {{ asset.display_name }} ({{ asset.asset_type_display_name }})
+                                        {{ asset.display_name | capitalize }} ({{ asset.asset_type.display_name }})
                                     </option>
                                 {% endfor %}
                             </select>
@@ -80,7 +80,7 @@
                             <select class="form-control" id="sensor_type" name="sensor_type" onchange="submit_sensor_type()">
                                 {% for sensor_type in sensor_types %}
                                     <option value="{{ sensor_type.name }}" {% if selected_sensor_type.name==sensor_type.name %} selected="selected"{% endif %}>
-                                        {{ sensor_type.display_name | humanize }}
+                                        {{ sensor_type.display_name | capitalize }}
                                     </option>
                                 {% endfor %}
                             </select>
@@ -95,26 +95,24 @@
                         <tr>
                             <th rowspan="2"><i class="icon-calculator icon-center"></i></th>
                             <th class="text-right">
-                                <span title="Aggregation of the profile of this resource">
-                                    {% if showing_pure_consumption_data %} Consumption
-                                    {% elif showing_pure_production_data %} Production
-                                    {% elif show_consumption_as_positive %} Consumption
+                                <span title="Total (aggregated) {% if show_consumption_as_positive %}consumption{% else %}production{% endif %} of {{ selected_resource.display_name }}">
+                                    {% if show_consumption_as_positive %} Consumption
                                     {% else %} Production {% endif %}
                                 </span>
                             </th>
-                            <th class="text-right"><span title="The prices for {{ selected_market.display_name }} {{ selected_market.market_type.display_name }}">Price</span></th>
+                            <th class="text-right"><span title="Average price for {{ selected_market.display_name }}">Price</span></th>
                             <th class="text-right">
                                 {% if showing_pure_consumption_data %}
-                                <span title="The costs which {{ selected_resource.display_name }} occurred or might occur"> Costs</span>
+                                <span title="The costs which {{ selected_resource.display_name }} accrued or might accrue"> Costs</span>
                                 {% elif showing_pure_production_data %}
-                                <span title="The revenues which {{ selected_resource.display_name }} occurred or might occur"> Revenues</span>
+                                <span title="The revenues which {{ selected_resource.display_name }} accrued or might accrue"> Revenues</span>
                                 {% elif show_consumption_as_positive %}
-                                <span title="The costs or revenues which {{ selected_resource.display_name }} occurred or might occur"> Costs/Rev.</span>
+                                <span title="The costs or revenues which {{ selected_resource.display_name }} accrued or might accrue"> Costs/Rev.</span>
                                 {% else %}
-                                <span title="The revenues or costs which {{ selected_resource.display_name }} occurred or might occur"> Rev./Costs</span>
+                                <span title="The revenues or costs which {{ selected_resource.display_name }} accrued or might accrue" Rev./Costs</span>
                                 {% endif %}
                             </th>
-                            <th class="text-right"><span title="{{ selected_sensor_type.display_name | humanize }} for this resource">{{ selected_sensor_type.display_name | humanize }}</span></th>
+                            <th class="text-right"><span title="Selected weather sensor for {{ selected_resource.display_name }}">{{ selected_sensor_type.display_name | capitalize }}</span></th>
                         </tr>
                         <tr>
                             <th class="text-right">MWh</th>

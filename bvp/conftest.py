@@ -270,7 +270,7 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
     """Add uni- and bi-directional charging station assets, set their capacity value and their initial SOC."""
     db.session.add(
         AssetType(
-            name="charging_station",
+            name="one-way_evse",
             is_consumer=True,
             is_producer=False,
             can_curtail=True,
@@ -282,7 +282,7 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
     )
     db.session.add(
         AssetType(
-            name="bidirectional_charging_station",
+            name="two-way_evse",
             is_consumer=True,
             is_producer=True,
             can_curtail=True,
@@ -301,7 +301,7 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
 
     charging_station = Asset(
         name="Test charging station",
-        asset_type_name="charging_station",
+        asset_type_name="one-way_evse",
         capacity_in_mw=2,
         max_soc_in_mwh=5,
         min_soc_in_mwh=0,
@@ -318,7 +318,7 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
 
     bidirectional_charging_station = Asset(
         name="Test charging station (bidirectional)",
-        asset_type_name="bidirectional_charging_station",
+        asset_type_name="two-way_evse",
         capacity_in_mw=2,
         max_soc_in_mwh=5,
         min_soc_in_mwh=0,

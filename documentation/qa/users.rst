@@ -9,7 +9,7 @@ Potential users of the platform are listed below by their role in the Universal 
 Prosumers
 ---------
 
-Prosumers are owners of assets that are connected to the electricity grid and can produce and/or consume energy (like building, wind turbines, charging stations for electric vehicles). A part of these assets consists of Active Demand & Supply (ADS), which are assets that have some flexibility in their load or generation. This flexibility can be activated by the Prosumer itself, or given the Prosumer's consent, by a third party.
+Prosumers are owners of assets that are connected to the electricity grid and can produce and/or consume energy (like buildings, wind turbines, charging stations for electric vehicles). A part of these assets consists of Active Demand & Supply (ADS), which are assets that have some flexibility in their load or generation. This flexibility can be activated by the Prosumer itself, or given the Prosumer's consent, by a third party.
 
 A Prosumer can use the BVP to sell flexibility services.
 

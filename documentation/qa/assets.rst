@@ -34,8 +34,8 @@ Defaults:
 - Mode: consumer
 - Periodicity: none
 
-Charging station
-----------------
+Electric Vehicle Supply Equipment (EVSE)
+--------------------------------------------------------
 
 Defaults:
 

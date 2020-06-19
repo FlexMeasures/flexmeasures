@@ -12,10 +12,7 @@ from bokeh.plotting import Figure
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 from bokeh.models import Range1d
-from inflection import titleize, humanize
 
-from bvp.ui.views import bvp_ui
-from bvp.utils import time_utils
 from bvp.data.models.markets import Market
 from bvp.data.models.weather import WeatherSensor
 from bvp.data.services.resources import (
@@ -32,6 +29,8 @@ from bvp.data.queries.analytics import (
     get_weather_data,
     get_revenues_costs_data,
 )
+from bvp.utils import time_utils
+from bvp.utils.bvp_inflection import humanize
 from bvp.ui.utils.view_utils import (
     render_bvp_template,
     set_session_resource,
@@ -39,6 +38,7 @@ from bvp.ui.utils.view_utils import (
     set_session_sensor_type,
 )
 from bvp.ui.utils.plotting_utils import create_graph, separate_legend
+from bvp.ui.views import bvp_ui
 
 
 @bvp_ui.route("/analytics", methods=["GET", "POST"])
@@ -52,11 +52,17 @@ def analytics_view():
     time_utils.set_time_range_for_session()
     markets = get_markets()
     assets = get_assets()
-    asset_groups = get_asset_groups()
-    groups_with_assets: List[str] = [
+    asset_groups = get_asset_groups(
+        custom_additional_groups=[
+            "renewables",
+            "all Charge Points",
+            "each Charge Point",
+        ]
+    )
+    asset_group_names: List[str] = [
         group for group in asset_groups if asset_groups[group].count() > 0
     ]
-    selected_resource = set_session_resource(assets, groups_with_assets)
+    selected_resource = set_session_resource(assets, asset_group_names)
     selected_market = set_session_market(selected_resource)
     sensor_types = get_sensor_types(selected_resource)
     selected_sensor_type = set_session_sensor_type(sensor_types)
@@ -200,9 +206,7 @@ def analytics_view():
         markets=markets,
         sensor_types=sensor_types,
         assets=assets,
-        asset_groups=list(
-            zip(groups_with_assets, [titleize(gwa) for gwa in groups_with_assets])
-        ),
+        asset_group_names=asset_group_names,
         selected_market=selected_market,
         selected_resource=selected_resource,
         selected_sensor_type=selected_sensor_type,
@@ -240,11 +244,17 @@ def analytics_data_view(content, content_type):
 
     # Maybe move some of this stuff into get_data_and_metrics
     assets = get_assets()
-    asset_groups = get_asset_groups()
-    groups_with_assets: List[str] = [
+    asset_groups = get_asset_groups(
+        custom_additional_groups=[
+            "renewables",
+            "all Charge Points",
+            "each Charge Point",
+        ]
+    )
+    asset_group_names: List[str] = [
         group for group in asset_groups if asset_groups[group].count() > 0
     ]
-    selected_resource = set_session_resource(assets, groups_with_assets)
+    selected_resource = set_session_resource(assets, asset_group_names)
     selected_market = set_session_market(selected_resource)
     sensor_types = get_sensor_types(selected_resource)
     selected_sensor_type = set_session_sensor_type(sensor_types)
@@ -516,12 +526,11 @@ def make_prices_figure(
         unit=selected_market.unit,
         legend_location="top_right",
         forecasts=forecast_data,
-        title="%s %s prices"
-        % (selected_market.display_name, selected_market.market_type.display_name),
+        title=f"Prices for {selected_market.display_name}",
         x_range=shared_x_range,
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),
-        y_label="Prices (in %s)" % selected_market.unit,
+        y_label="Price (in %s)" % selected_market.unit,
         show_y_floats=True,
         tools=tools,
     )
@@ -587,13 +596,7 @@ def make_revenues_costs_figure(
         ],  # First three letters of a price unit give the currency (ISO 4217)
         legend_location="top_right",
         forecasts=forecast_data,
-        title="%s for %s (on %s %s)"
-        % (
-            rev_cost_str,
-            Resource(session["resource"]).display_name,
-            selected_market.display_name,
-            selected_market.market_type.display_name,
-        ),
+        title=f"{rev_cost_str} for {Resource(session['resource']).display_name} (on {selected_market.display_name})",
         x_range=shared_x_range,
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),

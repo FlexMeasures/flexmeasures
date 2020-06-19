@@ -3,14 +3,11 @@ from datetime import timedelta
 from bokeh.resources import CDN
 from flask import request, session, current_app
 from flask_security import login_required
-from flask_security.core import current_user
-from inflection import pluralize
 
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.utils import time_utils
-from bvp.data.services.resources import Resource
-from bvp.data.models.assets import AssetType
+from bvp.data.services.resources import get_asset_groups, Resource
 from bvp.data.models.assets import Power
 
 
@@ -36,15 +33,15 @@ def dashboard_view():
             del session[skey]
         msg = "Your session was cleared."
 
-    assets = []
-    asset_counts_per_pluralised_type = {}
     current_asset_loads = {}
-    for asset_type in AssetType.query.all():
-        assets_by_pluralised_type = Resource(pluralize(asset_type.name)).assets
-        asset_counts_per_pluralised_type[pluralize(asset_type.name)] = len(
-            assets_by_pluralised_type
-        )
-        for asset in assets_by_pluralised_type:
+    asset_groups = get_asset_groups(
+        custom_additional_groups=["renewables", "all Charge Points"]
+    )
+    map_asset_groups = {}
+    for asset_group_name in asset_groups:
+        asset_group = Resource(asset_group_name)
+        map_asset_groups[asset_group_name] = asset_group
+        for asset in asset_group.assets:
             recent_quarter = time_utils.get_most_recent_quarter()
             if current_app.config.get("BVP_MODE", "") == "demo":
                 recent_quarter = recent_quarter.replace(year=2015)
@@ -57,13 +54,6 @@ def dashboard_view():
                 current_asset_loads[asset.name] = measured_now[0]
             else:
                 current_asset_loads[asset.name] = 0
-            assets.append(asset)
-
-    # TODO: remove this trick to list batteries
-    if current_user.has_role("admin"):
-        asset_counts_per_pluralised_type[
-            "batteries"
-        ] = asset_counts_per_pluralised_type["solar"]
 
     # Pack CDN resources (from pandas_bokeh/base.py)
     bokeh_html_embedded = ""
@@ -79,7 +69,6 @@ def dashboard_view():
         bokeh_html_embedded=bokeh_html_embedded,
         show_map=True,
         message=msg,
-        assets=assets,
-        asset_counts_per_pluralised_type=asset_counts_per_pluralised_type,
+        asset_groups=map_asset_groups,
         current_asset_loads=current_asset_loads,
     )

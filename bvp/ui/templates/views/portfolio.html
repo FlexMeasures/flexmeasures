@@ -45,8 +45,8 @@
                         <tbody>
                         {% for asset_type_name in asset_types %}
                             <tr>
-                                <td class="text-left">
-                                    {{ asset_type_name }}
+                                <td class="text-left" {% if asset_types[asset_type_name].hover_label %} title="{{ asset_types[asset_type_name].hover_label | capitalize }}" {% endif %}>
+                                    {{ asset_type_name | capitalize }}
                                 </td>
                                 <td>{% if asset_types[asset_type_name].is_producer and production_per_asset_type[asset_type_name] > 0  %}
                                         {{ "{:,.3f}".format( production_per_asset_type[asset_type_name]  | round(3)) }}
@@ -91,8 +91,8 @@
                         <tbody>
                         {% for asset_type_name in asset_types %}
                             <tr>
-                                <td class="text-right">
-                                    {{ asset_type_name }}
+                                <td class="text-right" {% if asset_types[asset_type_name].hover_label %} title="{{ asset_types[asset_type_name].hover_label | capitalize }}" {% endif %}>
+                                    {{ asset_type_name | capitalize }}
                                 </td>
                                 <td>{% if asset_types[asset_type_name].is_producer and curtailment_per_asset_type[asset_type_name] > 0  %}
                                         {{ "{:,.3f}".format( curtailment_per_asset_type[asset_type_name]  | round(3)) }}
@@ -172,7 +172,7 @@
                                     {% for asset in assets: %}
                                     <tr class="active">
                                         <td>
-                                            <i class="icon-{{ asset.asset_type_name }}"><a href="/assets/{{ asset.id }}" title="Show asset meta data and location on map">{{ asset.display_name }}</a></i>
+                                            <i class="{{ asset.asset_type.icon_name }}"><a href="/assets/{{ asset.id }}" title="Show asset meta data and location on map">{{ asset.display_name }}</a></i>
                                         </td>
                                         <td>
                                             {% if asset.asset_type.is_producer %}
@@ -231,7 +231,13 @@
                                 <tr>
                                     <td>{{ market.display_name }}</td>
                                     <td>{{ market.unit[:3] }}</td>
-                                    <td>x {{ market.unit }}</td>
+                                    <td>
+                                        {% if not average_prices[market.name] | isnan %}
+                                            {{ "{:,.2f}".format( average_prices[market.name] | round(2)) }} {{ market.unit }}
+                                        {% else %}
+                                            Unknown for the requested period
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

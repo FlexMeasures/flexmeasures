@@ -1,6 +1,7 @@
 # flake8: noqa: C901
 from datetime import timedelta
 
+import inflect
 import isodate
 from flask_json import as_json
 from flask import request, current_app
@@ -35,6 +36,9 @@ from bvp.data.models.assets import Asset, Power
 from bvp.data.models.data_sources import DataSource
 from bvp.data.services.resources import has_assets, can_access_asset
 from bvp.data.services.scheduling import create_scheduling_job
+
+
+p = inflect.engine()
 
 
 @type_accepted("GetDeviceMessageRequest")
@@ -73,10 +77,10 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     "Cannot identify asset %s given the event." % event
                 )
                 return unrecognized_connection_group()
-            if asset.asset_type_name not in ("battery", "charging_station"):
+            if asset.asset_type_name not in ("battery", "one-way_evse", "two-way_evse"):
                 return invalid_domain(
-                    "API version 1.3 only supports device messages for batteries and charging stations. "
-                    "Asset ID:%s is not a battery or charging station." % asset_id
+                    f"API version 1.3 only supports device messages for batteries and Electric Vehicle Supply Equipment (EVSE). "
+                    f"Asset ID:{asset_id} is not a battery or EVSE, but {p.a(asset.asset_type.display_name)}."
                 )
 
             # Use the event_id to look up the schedule start
@@ -219,10 +223,10 @@ def post_udi_event_response(unit):
     if asset is None or not can_access_asset(asset):
         current_app.logger.warning("Cannot identify asset via %s." % ea)
         return unrecognized_connection_group()
-    if asset.asset_type_name not in ("battery", "charging_station"):
+    if asset.asset_type_name not in ("battery", "one-way_evse", "two-way_evse"):
         return invalid_domain(
-            "API version 1.3 only supports UDI events for batteries and charging stations. "
-            "Asset ID:%s is not a battery or charging station." % asset_id
+            f"API version 1.3 only supports UDI events for batteries and Electric Vehicle Supply Equipment (EVSE). "
+            f"Asset ID:{asset_id} is not a battery or EVSE, but {p.a(asset.asset_type.display_name)}."
         )
 
     # unless on play, keep events ordered by entry date and ID

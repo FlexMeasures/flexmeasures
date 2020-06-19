@@ -110,8 +110,9 @@ def add_asset_types(db: SQLAlchemy):
     )
     db.session.add(
         AssetType(
-            name="charging_station",
-            display_name="Charging station (uni-directional)",
+            name="one-way_evse",
+            display_name="one-way EVSE",
+            hover_label="uni-directional Electric Vehicle Supply Equipment",
             is_consumer=True,
             can_shift=True,
             daily_seasonality=True,
@@ -121,8 +122,9 @@ def add_asset_types(db: SQLAlchemy):
     )
     db.session.add(
         AssetType(
-            name="bidirectional_charging_station",
-            display_name="Charging station (bi-directional)",
+            name="two-way_evse",
+            display_name="two-way EVSE",
+            hover_label="bi-directional Electric Vehicle Supply Equipment",
             is_consumer=True,
             is_producer=True,
             can_shift=True,
@@ -269,6 +271,8 @@ def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
     db.session.flush()
     with open(asset_path, "r") as assets_json:
         for json_asset in json.loads(assets_json.read()):
+            if json_asset["asset_type_name"] == "charging_station":
+                json_asset["asset_type_name"] = "one-way_evse"
             if "unit" not in json_asset:
                 json_asset["unit"] = "MW"
             asset = Asset(**json_asset)
@@ -471,6 +475,14 @@ def add_users(db: SQLAlchemy, assets: List[Asset]):
         # Add batteries to the solar asset owner
         if asset_type == "solar":
             for asset in [a for a in assets if a.asset_type_name == "battery"]:
+                asset.owner = mock_asset_owner
+        # Add EVSE to the charging_station asset owner
+        if asset_type == "charging_station":
+            for asset in [
+                a
+                for a in assets
+                if a.asset_type_name in ("one-way_evse", "two-way_evse")
+            ]:
                 asset.owner = mock_asset_owner
 
     # task runner

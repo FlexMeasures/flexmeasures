@@ -4,10 +4,12 @@ Generic services for accessing asset data.
 
 from typing import List, Dict, Union, Optional
 from datetime import datetime
-from inflection import pluralize
+from bvp.utils.bvp_inflection import parameterize, pluralize
+from itertools import groupby
 
 from flask import current_app
 from flask_security.core import current_user
+import inflect
 from sqlalchemy.orm.query import Query
 import pandas as pd
 
@@ -17,6 +19,9 @@ from bvp.data.models.markets import Market
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor
 from bvp.data.models.user import User
 from bvp.utils.geo_utils import parse_lat_lng
+
+
+p = inflect.engine()
 
 
 class InvalidBVPAsset(Exception):
@@ -29,11 +34,15 @@ def get_markets() -> List[Market]:
     return Market.query.order_by(Market.name.asc()).all()
 
 
-def get_assets(owner_id: Optional[int] = None) -> List[Asset]:
+def get_assets(
+    owner_id: Optional[int] = None,
+    order_by_asset_attribute: str = "id",
+    order_direction: str = "desc",
+) -> List[Asset]:
     """Return a list of all Asset objects owned by current_user
      (or all users or a specific user - for this, admins can set an owner_id).
     """
-    return _build_asset_query(owner_id).all()
+    return _build_asset_query(owner_id, order_by_asset_attribute, order_direction).all()
 
 
 def has_assets(owner_id: Optional[int] = None) -> bool:
@@ -53,10 +62,16 @@ def can_access_asset(asset: Asset) -> bool:
     return False
 
 
-def _build_asset_query(owner_id: Optional[int] = None) -> Query:
+def _build_asset_query(
+    owner_id: Optional[int] = None,
+    order_by_asset_attribute: str = "id",
+    order_direction: str = "desc",
+) -> Query:
     """Build an Asset query. Only authenticated users can use this.
     Admins can query for all assets (owner_id is None) or for any user (the asset's owner).
     Non-admins can only query for themselves (owner_id is ignored).
+
+    order_direction can be "asc" or "desc".
     """
     if current_user.is_authenticated:
         if current_user.has_role("admin"):
@@ -69,42 +84,97 @@ def _build_asset_query(owner_id: Optional[int] = None) -> Query:
                             "Owner id %s cannot be parsed as integer, thus seems to be invalid."
                             % owner_id
                         )
-                return Asset.query.filter(Asset.owner_id == owner_id).order_by(
-                    Asset.id.desc()
-                )
+                query = Asset.query.filter(Asset.owner_id == owner_id)
             else:
-                return Asset.query.order_by(Asset.id.desc())
+                query = Asset.query
         else:
-            return Asset.query.filter_by(owner=current_user).order_by(Asset.id.desc())
-    return Asset.query.filter(Asset.owner_id == -1)
-
-
-def get_asset_groups() -> Dict[str, Query]:
-    """
-    An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised names.
-    They still need an executive call, like all(), count() or first()
-    """
-    # 1. Custom asset groups by combinations of asset types
-    asset_queries = dict(
-        renewables=(Asset.query.filter(Asset.asset_type_name.in_(["solar", "wind"]))),
-        all_charging_stations=(
-            Asset.query.filter(
-                Asset.asset_type_name.in_(
-                    ["charging_station", "bidirectional_charging_station"]
-                )
-            )
-        ),
+            query = Asset.query.filter_by(owner=current_user)
+    else:
+        query = Asset.query.filter(Asset.owner_id == -1)
+    query = query.order_by(
+        getattr(getattr(Asset, order_by_asset_attribute), order_direction)()
     )
-    # 2. We also include a group per asset type - using the pluralised asset type name
-    for asset_type in AssetType.query.all():
-        asset_queries[pluralize(asset_type.name)] = Asset.query.filter_by(
-            asset_type_name=asset_type.name
+    return query
+
+
+def get_asset_groups(
+    custom_additional_groups: Optional[List[str]] = None,
+) -> Dict[str, Query]:
+    """
+    An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised display names.
+    They still need an executive call, like all(), count() or first().
+
+    :param custom_additional_groups: list of additional groups next to groups that represent unique asset types.
+                                     Valid names are:
+                                     - "renewables", to query all solar and wind assets
+                                     - "all Charge Points", to query all Electric Vehicle Supply Equipment
+                                     - "each Charge Point", to query each individual Charge Point
+                                                            (i.e. all EVSE at 1 location)
+    """
+
+    if custom_additional_groups is None:
+        custom_additional_groups = []
+    asset_queries = {}
+
+    # 1. Custom asset groups by combinations of asset types
+    if "renewables" in custom_additional_groups:
+        asset_queries["renewables"] = Asset.query.filter(
+            Asset.asset_type_name.in_(["solar", "wind"])
+        )
+    if "all Charge Points" in custom_additional_groups:
+        asset_queries["all Charge Points"] = Asset.query.filter(
+            Asset.asset_type_name.in_(["one-way_evse", "two-way_evse"])
         )
 
-    if current_user.is_authenticated and not current_user.has_role("admin"):
+    # 2. We also include a group per asset type - using the pluralised asset type display name
+    for asset_type in AssetType.query.all():
+        asset_queries[pluralize(asset_type.display_name)] = Asset.query.filter_by(
+            asset_type_name=asset_type.name
+        )
+    asset_queries = mask_inaccessible_assets(asset_queries)
+
+    # 3. We group EVSE assets by location (if they share a location, they belong to the same Charge Point)
+    if "each Charge Point" in custom_additional_groups:
+        asset_queries.update(get_charge_points())
+
+    return asset_queries
+
+
+def get_charge_points() -> Dict[str, Query]:
+    """
+    A Charge Point is defined similarly to asset groups (see get_asset_groups).
+    We group EVSE assets by location (if they share a location, they belong to the same Charge Point)
+    Like get_asset_groups, the values in the returned dict still need an executive call, like all(), count() or first().
+
+    The Charge Points are named on the basis of the first EVSE in their list,
+    using either the whole EVSE display name or that part that comes before a " -" delimiter. For example:
+    If:
+        evse_display_name = "Seoul Hilton - charger 1"
+    Then:
+        charge_point_display_name = "Seoul Hilton (Charge Point)"
+    """
+    asset_queries = {}
+    all_evse_assets = Asset.query.filter(
+        Asset.asset_type_name.in_(["one-way_evse", "two-way_evse"])
+    ).all()
+    cps = group_assets_by_location(all_evse_assets)
+    for cp in cps:
+        charge_point_name = cp[0].display_name.split(" -")[0] + " (Charge Point)"
+        asset_queries[charge_point_name] = Asset.query.filter(
+            Asset.name.in_([evse.name for evse in cp])
+        )
+    return mask_inaccessible_assets(asset_queries)
+
+
+def mask_inaccessible_assets(asset_queries: Dict[str, Query]) -> Dict[str, Query]:
+    """ Filter out any assets that the user should not be able to access. """
+    if not current_user.is_authenticated:
+        for name, query in asset_queries.items():
+            # filter out everything: no asset can have two different id's simultaneously
+            asset_queries[name] = query.filter_by(id=0).filter_by(id=1)
+    elif not current_user.has_role("admin"):
         for name, query in asset_queries.items():
             asset_queries[name] = query.filter_by(owner=current_user)
-
     return asset_queries
 
 
@@ -201,7 +271,13 @@ class Resource:
         """Gather assets which are identified by this resource's name.
         The resource name is either the name of an asset group or an individual asset."""
         assets = []
-        asset_groups = get_asset_groups()
+        asset_groups = get_asset_groups(
+            custom_additional_groups=[
+                "renewables",
+                "all Charge Points",
+                "each Charge Point",
+            ]
+        )
         if self.name in asset_groups:
             for asset in asset_groups[self.name]:
                 assets.append(asset)
@@ -211,6 +287,21 @@ class Resource:
                 assets = [asset]
         self.last_loaded_asset_list = assets
         return assets
+
+    @property
+    def count(self) -> int:
+        """Count the number of assets identified by this resource's name."""
+        asset_groups = get_asset_groups(
+            custom_additional_groups=[
+                "renewables",
+                "all Charge Points",
+                "each Charge Point",
+            ]
+        )
+        if self.name in asset_groups:
+            return asset_groups[self.name].count()
+        else:
+            return Asset.query.filter_by(name=self.name).count()
 
     @property
     def is_unique_asset(self) -> bool:
@@ -223,6 +314,23 @@ class Resource:
         if self.is_unique_asset:
             return self.assets[0].display_name
         return self.name
+
+    @property
+    def hover_label(self) -> Optional[str]:
+        """Attempt to get a hover label to show if possible."""
+        label = p.join(
+            [
+                asset_type.hover_label
+                for asset_type in self.unique_asset_types
+                if asset_type.hover_label is not None
+            ]
+        )
+        return label if label else None
+
+    @property
+    def parameterized_name(self) -> str:
+        """Get a parameterized name for use in javascript."""
+        return parameterize(self.name)
 
     @property
     def unique_asset_types(self) -> List[AssetType]:
@@ -329,3 +437,10 @@ def find_closest_weather_sensor(
         return sensors.first()
     else:
         return sensors.limit(n).all()
+
+
+def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:
+    groups = []
+    for _k, g in groupby(asset_list, lambda x: x.location):
+        groups.append(list(g))
+    return groups

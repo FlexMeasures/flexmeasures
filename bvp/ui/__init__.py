@@ -3,9 +3,13 @@ import os
 from flask import Flask, Blueprint
 from flask import send_from_directory
 from flask_security import login_required, roles_accepted
-from inflection import humanize, parameterize
+import numpy as np
 import rq_dashboard
 
+from bvp.utils.bvp_inflection import (
+    capitalize,
+    parameterize,
+)
 from bvp.utils.time_utils import localized_datetime_str, naturalized_datetime_str
 
 
@@ -91,8 +95,9 @@ def add_jinja_filters(app):
     )  # Allow expression statements (e.g. for modifying lists)
     app.jinja_env.filters["localized_datetime"] = localized_datetime_str
     app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime_str
-    app.jinja_env.filters["humanize"] = humanize
+    app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["parameterize"] = parameterize
+    app.jinja_env.filters["isnan"] = np.isnan
 
 
 def add_jinja_variables(app):

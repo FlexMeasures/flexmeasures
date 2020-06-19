@@ -2,7 +2,7 @@
 
 """
 Script for loading and pickling dataframes from the Excel Spreadsheet we got from A1 with 2015 data.
-When we move to a database, this will change.
+When we move to a database, this will change.  # todo: it seems like we can deprecate this script entirely
 Each pickle encodes in its name the asset name and resolution. Asset name should refer to a name in assets.json of
 course, we might add a check or warning here.
 """
@@ -175,7 +175,7 @@ def initialise_charging_station_data():
         start=df.index[0].floor("min"),
         timezone=pytz.timezone("Asia/Seoul"),
     )
-    asset_type = AssetType.query.filter_by(name="charging_station").one_or_none()
+    asset_type = AssetType.query.filter_by(name="one-way_evse").one_or_none()
 
     asset_count = 0
     for asset_col_name in df:

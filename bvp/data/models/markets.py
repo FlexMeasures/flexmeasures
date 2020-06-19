@@ -3,11 +3,11 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Query
 from sqlalchemy.ext.hybrid import hybrid_property
-from inflection import humanize
 
 from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
 from bvp.data.queries.utils import add_user_source_filter, add_source_type_filter
+from bvp.utils.bvp_inflection import humanize
 
 
 class MarketType(db.Model):
