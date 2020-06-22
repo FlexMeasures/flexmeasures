@@ -82,26 +82,49 @@
                                 <tr>
                                     <th></th>
                                     {% for asset_group in asset_groups %}
-                                        {% if asset_groups[asset_group].count > 0 %}
-                                            <th {% if asset_groups[asset_group].hover_label %} title="{{ asset_groups[asset_group].hover_label | capitalize }}" {% endif %}><a href="analytics?resource={{ asset_group }}" target="_blank">{{ asset_group | capitalize }}</a></th>
+                                        {# On demo, show all non-empty groups, otherwise show all group that are non-empty for the current user #}
+                                        {% if (BVP_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (BVP_MODE != "demo" and asset_groups[asset_group].count > 0)%}
+                                            <th {% if asset_groups[asset_group].hover_label %} title="{{ asset_groups[asset_group].hover_label | capitalize }}" {% endif %} class="text-center"><a href="analytics?resource={{ asset_group }}" target="_blank">{{ asset_group | capitalize }}</a></th>
                                         {% endif %}
                                     {% endfor %}
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>{% if user_is_admin %}BVP total:{% else %}My assets:{% endif%}</td>
+                                    <td></td>
 
                                     {% for asset_group in asset_groups %}
-                                        {% if asset_groups[asset_group].count > 0 %}
-                                            <td>
-                                                <i class="{{ asset_groups[asset_group].unique_asset_types[0].icon_name }} icon-right">
-                                                    {{ asset_groups[asset_group].assets | length }}
-                                                </i>
+                                        {% if (BVP_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (BVP_MODE != "demo" and asset_groups[asset_group].count > 0)%}
+                                            <td class="text-center">
+                                                <div style="min-height: 20px; padding:15px;">
+                                                    <i class="{{ asset_groups[asset_group].icon_name }} center-icon"></i>
+                                                </div>
                                             </td>
                                         {% endif %}
                                     {% endfor %}
                                 </tr>
+                                {% if not user_is_admin %}
+                                <tr>
+                                    <td>My assets:</td>
+
+                                    {% for asset_group in asset_groups %}
+                                        {% if (BVP_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (BVP_MODE != "demo" and asset_groups[asset_group].count > 0)%}
+                                            <td class="text-center">{{ asset_groups[asset_group].count }}</td>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tr>
+                                {% endif %}
+                                {% if user_is_admin or BVP_MODE == "demo" %}
+                                <tr>
+                                    <td>BVP total:</td>
+
+                                    {% for asset_group in asset_groups %}
+                                        {% if (BVP_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (BVP_MODE != "demo" and asset_groups[asset_group].count > 0)%}
+                                            <td class="text-center">{{ asset_groups[asset_group].count_all }}</td>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tr>
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>

@@ -98,14 +98,6 @@ div.margin-top {
     width: 20px;
 }
 
-label.icon-left {
-    margin-right: 10px;
-}
-
-label.icon-right {
-    margin-left: 10px;
-}
-
 div.attribution {
     text-align: right;
 /*    display: flex;
@@ -321,20 +313,23 @@ i:not(.supersize):before, i:not(.supersize):after {
     font-size: 48px;
 }
 
-/* icon on the left (default) */
-:not(.map-icon) > i:not(.icon-right):not(.icon-center) {
+/* icon on the left (use left-icon class) */
+:not(.map-icon) > i.left-icon {
     left: 40px;
 }
-:not(.map-icon) > i:not(.icon-right):not(.icon-center):after, :not(.map-icon) > i:not(.icon-right):not(.icon-center):before {
+:not(.map-icon) > i.left-icon:after, :not(.map-icon) > i.left-icon:before {
     position: absolute;
     top: 0px;
     left: -40px;
 }
-/* icon on the right (use icon-right class) */
-i.icon-right:after, i.icon-right:before {
+/* icon centered (use center-icon class) */
+i.center-icon {
+    right: 0px;
+}
+i.center-icon:after, i.center-icon:before {
     position: absolute;
     top: 0px;
-    left: 15px;
+    right: -20px;
 }
 
 .icon-column {

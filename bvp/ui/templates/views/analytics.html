@@ -30,7 +30,7 @@
                 <div class="form-group row">
                     <div class="col-sm-2">
                         {% for asset_type in asset_types %}
-                            <div class="col-sm-1"><i class="{{ asset_type.icon_name }}"></i></div>
+                            <div class="col-sm-1"><i class="{{ asset_type.icon_name }} center-icon"></i></div>
                         {% endfor %}
                     </div>
                     <div class="col-sm-10">
@@ -53,7 +53,7 @@
                 </div>
                 <div class="form-group row">
                     <div class="col-sm-2">
-                        <div class="col-sm-1"><i class="icon-market-{{ selected_market.unit[:3] }}"></i></div>
+                        <div class="col-sm-1"><i class="icon-market-{{ selected_market.unit[:3] }} center-icon"></i></div>
                     </div>
                     <div class="col-sm-10">
                         <form id="market-form" method="post">
@@ -71,7 +71,7 @@
                 <div class="form-group row">
                     <div class="col-sm-2">
                         {% for sensor_type in sensor_types %}
-                            <div class="col-sm-1"><i class="{{ sensor_type.icon_name }}"></i></div>
+                            <div class="col-sm-1"><i class="{{ sensor_type.icon_name }} center-icon"></i></div>
                         {% endfor %}
                     </div>
                     <div class="col-sm-10">
@@ -93,7 +93,7 @@
                 <table class="table text-right" style="font-size: 100%;">
                     <thead>
                         <tr>
-                            <th rowspan="2"><i class="icon-calculator icon-center"></i></th>
+                            <th rowspan="2"><i class="icon-calculator"></i></th>
                             <th class="text-right">
                                 <span title="Total (aggregated) {% if show_consumption_as_positive %}consumption{% else %}production{% endif %} of {{ selected_resource.display_name }}">
                                     {% if show_consumption_as_positive %} Consumption

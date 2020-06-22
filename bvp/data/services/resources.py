@@ -98,7 +98,7 @@ def _build_asset_query(
 
 
 def get_asset_groups(
-    custom_additional_groups: Optional[List[str]] = None,
+    custom_additional_groups: Optional[List[str]] = None, all_users: bool = False,
 ) -> Dict[str, Query]:
     """
     An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised display names.
@@ -110,6 +110,7 @@ def get_asset_groups(
                                      - "all Charge Points", to query all Electric Vehicle Supply Equipment
                                      - "each Charge Point", to query each individual Charge Point
                                                             (i.e. all EVSE at 1 location)
+    :param all_users: if True, do not filter out assets that do not belong to the user (use with care)
     """
 
     if custom_additional_groups is None:
@@ -131,7 +132,9 @@ def get_asset_groups(
         asset_queries[pluralize(asset_type.display_name)] = Asset.query.filter_by(
             asset_type_name=asset_type.name
         )
-    asset_queries = mask_inaccessible_assets(asset_queries)
+
+    if not all_users:
+        asset_queries = mask_inaccessible_assets(asset_queries)
 
     # 3. We group EVSE assets by location (if they share a location, they belong to the same Charge Point)
     if "each Charge Point" in custom_additional_groups:
@@ -266,6 +269,34 @@ class Resource:
             raise Exception("Empty resource name passed (%s)" % name)
         self.name = name
 
+        # Query assets for all users to set some public information about the resource
+        asset_groups = get_asset_groups(
+            custom_additional_groups=[
+                "renewables",
+                "all Charge Points",
+                "each Charge Point",
+            ],
+            all_users=True,
+        )
+        asset_query = (
+            asset_groups[self.name]
+            if name in asset_groups
+            else Asset.query.filter_by(name=self.name)
+        )
+
+        # List unique asset types and asset type names represented by this resource
+        assets = asset_query.all()
+        self.unique_asset_types = list(set([a.asset_type for a in assets]))
+        self.unique_asset_type_names = list(set([a.asset_type.name for a in assets]))
+
+        # Count the number of assets identified by this resource's name, for every user.
+        self.count_all = asset_query.count()
+
+        # The icon name is taken from the first asset in the group.
+        first_asset = asset_query.first()
+        if first_asset is not None:
+            self.icon_name = first_asset.asset_type.icon_name
+
     @property
     def assets(self) -> List[Asset]:
         """Gather assets which are identified by this resource's name.
@@ -279,12 +310,10 @@ class Resource:
             ]
         )
         if self.name in asset_groups:
-            for asset in asset_groups[self.name]:
+            for asset in asset_groups[self.name].all():
                 assets.append(asset)
         else:
-            asset = Asset.query.filter_by(name=self.name).one_or_none()
-            if asset is not None:
-                assets = [asset]
+            assets = Asset.query.filter_by(name=self.name).all()
         self.last_loaded_asset_list = assets
         return assets
 
@@ -331,20 +360,6 @@ class Resource:
     def parameterized_name(self) -> str:
         """Get a parameterized name for use in javascript."""
         return parameterize(self.name)
-
-    @property
-    def unique_asset_types(self) -> List[AssetType]:
-        """Return list of unique asset types represented by this resource."""
-        return list(
-            set([a.asset_type for a in self.assets])
-        )  # list of unique asset types in resource
-
-    @property
-    def unique_asset_type_names(self) -> List[str]:
-        """Return list of unique asset type names represented by this resource."""
-        return list(
-            set([a.asset_type.name for a in self.assets])
-        )  # list of unique asset type names in resource
 
     def get_data(
         self,
