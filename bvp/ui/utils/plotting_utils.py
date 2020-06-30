@@ -464,12 +464,18 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
         .order_by(Power.datetime.desc())
     )
     if before is not None:
-        power_query = power_query.filter(Power.datetime <= before)
+        power_query = power_query.filter(Power.datetime + asset.resolution <= before)
     latest_power = power_query.first()
     if latest_power is not None:
         latest_power_value = latest_power.value
+        if current_app.config.get("BVP_MODE", "") == "demo":
+            latest_power_datetime = latest_power.datetime.replace(
+                year=datetime.now().year
+            )
+        else:
+            latest_power_datetime = latest_power.datetime
         latest_measurement_time_str = localized_datetime_str(
-            latest_power.datetime + asset.resolution
+            latest_power_datetime + asset.resolution
         )
     else:
         latest_power_value = 0

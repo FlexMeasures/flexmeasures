@@ -170,6 +170,14 @@ def query_time_series_data(
     Returns a DataFrame with a "y" column if as_beliefs is False, otherwise returns a DataFrame with "y", "horizon"
     and "label" columns.
     """
+
+    # On demo, we query 2015 data as if it's the current year's data (we convert back below)
+    if current_app.config.get("BVP_MODE", "") == "demo":
+        query_window = (
+            query_window[0].replace(year=2015),
+            query_window[-1].replace(year=2015),
+        )
+
     query = make_query(
         asset_name=generic_asset_name,
         query_window=query_window,
@@ -262,6 +270,11 @@ def query_time_series_data(
             values = pd.DataFrame(index=time_steps, columns=["y"])
     if zero_if_nan:
         values.fillna(0.0)
+
+    # On demo, we query 2015 data as if it's the current year's data (we converted above)
+    if current_app.config.get("BVP_MODE", "") == "demo":
+        values.index = values.index.map(lambda t: t.replace(year=datetime.now().year))
+        values.index.freq = resolution
 
     return values
 
