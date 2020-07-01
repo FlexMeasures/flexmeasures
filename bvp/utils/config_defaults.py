@@ -22,6 +22,11 @@ class Config(object):
     SQLALCHEMY_DATABASE_URI = None
     # https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # https://www.pythonanywhere.com/forums/topic/2599/
+    SQLALCHEMY_POOL_RECYCLE = 299
+    # SQLALCHEMY_POOL_TIMEOUT = 20
+    # https://docs.sqlalchemy.org/en/13/core/pooling.html#disconnect-handling-pessimistic
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 
     MAIL_SERVER = None
     MAIL_PORT = None
@@ -55,6 +60,9 @@ class Config(object):
     BVP_DB_BACKUP_PATH = "migrations/dumps"
     BVP_LP_SOLVER = "cbc"
     BVP_PLANNING_HORIZON = timedelta(hours=2 * 24)
+    BVP_PLANNING_TTL = timedelta(
+        days=7
+    )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
     BVP_TASK_CHECK_AUTH_TOKEN = None
     BVP_PA_DOMAIN_NAMES = []
     BVP_REDIS_URL = "localhost"

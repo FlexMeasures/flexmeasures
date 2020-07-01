@@ -196,9 +196,9 @@
     tileLayer.addTo(assetMap);
 
     // create marker
-    var {{ asset.asset_type.name }}_icon = new L.DivIcon({
+    var {{ asset.asset_type_name | parameterize }}_icon = new L.DivIcon({
                                     className:      'map-icon',
-                                    html:           '<i class="icon-{{ asset.asset_type.name }}"></i>',
+                                    html:           '<i class="{{ asset.icon_name }}"></i>',
                                     iconSize:       [24, 24], // size of the icon
                                     iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location
                                     popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor
@@ -206,7 +206,7 @@
     var marker = L
         .marker(
             [{{ asset.latitude }}, {{ asset.longitude }}],
-            {icon: {{ asset.asset_type.name }}_icon}
+            {icon: {{ asset.asset_type_name | parameterize }}_icon}
         ).addTo(assetMap);
 
     assetMap.on('click', function(e) {

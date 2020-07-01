@@ -261,4 +261,4 @@ def test_post_udi_event_and_get_device_message_with_unknown_prices(app, message)
             get_device_message_response.json["status"]
             == unknown_schedule()[0]["status"]
         )
-        assert "unknown prices" in get_device_message_response.json["message"].lower()
+        assert "prices unknown" in get_device_message_response.json["message"].lower()

@@ -39,6 +39,7 @@ release = version
 
 rst_epilog = f"""
     .. |BVP_PLANNING_HORIZON| replace:: {naturaldelta(bvp_app.config.get("BVP_PLANNING_HORIZON"))}
+    .. |BVP_PLANNING_TTl| replace:: {naturaldelta(bvp_app.config.get("BVP_PLANNING_TTL"))}
 """
 
 # -- General configuration ---------------------------------------------------

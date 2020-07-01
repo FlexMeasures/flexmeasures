@@ -3,6 +3,10 @@
 Change log
 ==========
 
+v1.3-4 | 2020-06-18
+"""""""""""""""""""
+
+- Improved support for use cases of the *getDeviceMessage* endpoint in which a longer duration, between posting UDI events and retrieving device messages based on those UDI events, is required; the default *time to live* of UDI event identifiers is prolonged from 500 seconds to 7 days, and can be set as a config variable (currently set to |BVP_PLANNING_TTL|)
 
 v1.3-3 | 2020-06-07
 """""""""""""""""""
@@ -72,6 +76,11 @@ v1.2-0 | 2018-09-08
 
 - Added a description of the *postUdiEvent* endpoint in the Prosumer and Simulation sections
 - Added a description of the *getDeviceMessage* endpoint in the Prosumer and Simulation sections
+
+v1.1-5 | 2020-06-18
+"""""""""""""""""""
+
+- Fixed the *getConnection* endpoint where the returned list of connection names had been unnecessarily nested
 
 v1.1-4 | 2020-03-11
 """""""""""""""""""
