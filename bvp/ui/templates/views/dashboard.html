@@ -82,7 +82,7 @@
                                 <tr>
                                     <th></th>
                                     {% for asset_group in asset_groups %}
-                                        {# On demo, show all non-empty groups, otherwise show all group that are non-empty for the current user #}
+                                        {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
                                         {% if (BVP_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (BVP_MODE != "demo" and asset_groups[asset_group].count > 0)%}
                                             <th {% if asset_groups[asset_group].hover_label %} title="{{ asset_groups[asset_group].hover_label | capitalize }}" {% endif %} class="text-center"><a href="analytics?resource={{ asset_group }}" target="_blank">{{ asset_group | capitalize }}</a></th>
                                         {% endif %}
