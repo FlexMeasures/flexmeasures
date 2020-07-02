@@ -51,7 +51,7 @@ def analytics_view():
     """
     time_utils.set_time_range_for_session()
     markets = get_markets()
-    assets = get_assets()
+    assets = get_assets(order_by_asset_attribute="display_name", order_direction="asc")
     asset_groups = get_asset_group_queries(
         custom_additional_groups=["renewables", "EVSE", "each Charge Point"]
     )
@@ -228,7 +228,7 @@ def analytics_data_view(content, content_type):
     time_utils.set_time_range_for_session()
 
     # Maybe move some of this stuff into get_data_and_metrics
-    assets = get_assets()
+    assets = get_assets(order_by_asset_attribute="display_name", order_direction="asc")
     asset_groups = get_asset_group_queries(
         custom_additional_groups=["renewables", "EVSE", "each Charge Point"]
     )
