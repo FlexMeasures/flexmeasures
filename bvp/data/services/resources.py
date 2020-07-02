@@ -107,7 +107,7 @@ def get_asset_group_queries(
     :param custom_additional_groups: list of additional groups next to groups that represent unique asset types.
                                      Valid names are:
                                      - "renewables", to query all solar and wind assets
-                                     - "all Charge Points", to query all Electric Vehicle Supply Equipment
+                                     - "EVSE", to query all Electric Vehicle Supply Equipment
                                      - "each Charge Point", to query each individual Charge Point
                                                             (i.e. all EVSE at 1 location)
     :param all_users: if True, do not filter out assets that do not belong to the user (use with care)
@@ -122,8 +122,8 @@ def get_asset_group_queries(
         asset_queries["renewables"] = Asset.query.filter(
             Asset.asset_type_name.in_(["solar", "wind"])
         )
-    if "all Charge Points" in custom_additional_groups:
-        asset_queries["all Charge Points"] = Asset.query.filter(
+    if "EVSE" in custom_additional_groups:
+        asset_queries["EVSE"] = Asset.query.filter(
             Asset.asset_type_name.in_(["one-way_evse", "two-way_evse"])
         )
 
@@ -281,11 +281,7 @@ class Resource:
 
         # Query assets for all users to set some public information about the resource
         asset_queries = get_asset_group_queries(
-            custom_additional_groups=[
-                "renewables",
-                "all Charge Points",
-                "each Charge Point",
-            ],
+            custom_additional_groups=["renewables", "EVSE", "each Charge Point"],
             all_users=True,
         )
         asset_query = (

@@ -35,7 +35,7 @@ def dashboard_view():
 
     current_asset_loads = {}
     asset_groups = get_asset_group_queries(
-        custom_additional_groups=["renewables", "all Charge Points"]
+        custom_additional_groups=["renewables", "EVSE"]
     )
     map_asset_groups = {}
     for asset_group_name in asset_groups:

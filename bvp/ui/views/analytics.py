@@ -53,11 +53,7 @@ def analytics_view():
     markets = get_markets()
     assets = get_assets()
     asset_groups = get_asset_group_queries(
-        custom_additional_groups=[
-            "renewables",
-            "all Charge Points",
-            "each Charge Point",
-        ]
+        custom_additional_groups=["renewables", "EVSE", "each Charge Point"]
     )
     asset_group_names: List[str] = [
         group for group in asset_groups if asset_groups[group].count() > 0
@@ -234,11 +230,7 @@ def analytics_data_view(content, content_type):
     # Maybe move some of this stuff into get_data_and_metrics
     assets = get_assets()
     asset_groups = get_asset_group_queries(
-        custom_additional_groups=[
-            "renewables",
-            "all Charge Points",
-            "each Charge Point",
-        ]
+        custom_additional_groups=["renewables", "EVSE", "each Charge Point"]
     )
     asset_group_names: List[str] = [
         group for group in asset_groups if asset_groups[group].count() > 0
