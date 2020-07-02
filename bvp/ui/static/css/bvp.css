@@ -1,5 +1,5 @@
 body {
-    padding-top: 60px;
+    padding-top: 100px;  /* This default is overridden by bvp.js to support a fluid navbar */
 }
 
 #alerts {
@@ -465,6 +465,8 @@ i.icon-wind:hover:before {
 .icon-calculator:before { content: '\e804'; } /* '' */
 .icon-charging_station:before { content: '\e805'; } /* '' */
 .icon-bidirectional_charging_station:before { content: '\e805'; } /* '' */
+.icon-one-way_evse:before { content: '\e805'; } /* '' */
+.icon-two-way_evse:before { content: '\e805'; } /* '' */
 .icon-house:before { content: '\e806'; } /* '' */
 .icon-market-EUR:before { content: '\e807'; } /* '' */
 .icon-market-KRW:before { content: '\e808'; } /* '' */

@@ -395,6 +395,7 @@ A Prosumer can query the BVP for control signals for its flexible devices using 
 
     https://play.a1-bvp.com/api/<version>/getDeviceMessage
 
+Control signals can be queried by UDI event for up to 1 week after the UDI event was posted.
 This example requests a control signal for UDI event 203 posted previously.
 
 .. code-block:: json

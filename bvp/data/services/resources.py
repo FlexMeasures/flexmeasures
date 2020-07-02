@@ -172,12 +172,12 @@ def get_charge_point_queries() -> Dict[str, Query]:
 def mask_inaccessible_assets(
     asset_queries: Union[Query, Dict[str, Query]]
 ) -> Union[Query, Dict[str, Query]]:
-    """ Filter out any assets that the user should not be able to access. """
-    if not current_user.is_authenticated:
-        for name, query in asset_queries.items():
-            # filter out everything: no asset can have two different id's simultaneously
-            asset_queries[name] = query.filter_by(id=0).filter_by(id=1)
-    elif not current_user.has_role("admin"):
+    """ Filter out any assets that the user should not be able to access.
+
+    We do not explicitly check user authentication here, because non-authenticated users are not admins
+    and have no asset ownership, so applying this filter for non-admins masks all assets.
+    """
+    if not current_user.has_role("admin"):
         if isinstance(asset_queries, dict):
             for name, query in asset_queries.items():
                 asset_queries[name] = query.filter_by(owner=current_user)

@@ -3,14 +3,14 @@ $(document).ready(function() {
 });
 
 $(window).resize(function () {
-    $('body').css('padding-top', $("#navbar-container").height());
-    $('.floatThead-container').css('top', $("#navbar-container").height() - 60 + 'px');
-    $('.floatThead-container').css('margin-top', $("#navbar-container").height() - 60 + 'px');
+    $('body').css('padding-top', $("#navbar-fixed-top").height());
+    $('.floatThead-container').css('top', $("#navbar-container").height() - $('#topnavbar').height());
+    $('.floatThead-container').css('margin-top', $("#navbar-container").height() - $('#topnavbar').height());
 });
 
 
 $(window).scroll(function () {
-    $('.floatThead-container').css('top', $("#navbar-container").height() - 60 + 'px');
+    $('.floatThead-container').css('top', $("#navbar-container").height() - $('#topnavbar').height());
 });
 
 
@@ -93,7 +93,6 @@ function ready() {
     });
 
 
-
     // Hover behaviour
 
     $("#control-tr-offshore").mouseenter(function(data){
@@ -127,11 +126,19 @@ function ready() {
     });
 
 
+    // Navbar behaviour
+
+    $(document.body).css('padding-top', $('#topnavbar').height());
+        $(window).resize(function(){
+            $(document.body).css('padding-top', $('#topnavbar').height());
+        });
+
+
     // Table behaviour
 
     $('table').floatThead({
         position: 'absolute',
-        top: 60,
+        top: $('#topnavbar').height(),
         scrollContainer: true
     });
 
@@ -140,8 +147,11 @@ function ready() {
 		$(this).closest('form').submit();
 	})
 
+
     // Security messages styling
+
     $('.flashes').addClass('alert alert-info');
+
 
     // Check button behaviour
 

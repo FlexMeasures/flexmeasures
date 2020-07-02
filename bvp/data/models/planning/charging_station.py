@@ -2,16 +2,15 @@ from typing import Union
 from datetime import datetime, timedelta
 
 from pandas import Series
-from pandas.tseries.frequencies import to_offset
 
 from bvp.data.models.assets import Asset
-from bvp.data.models.markets import Market, Price
-from bvp.data.models.planning.exceptions import UnknownPricesException
+from bvp.data.models.markets import Market
 from bvp.data.models.planning.solver import device_scheduler
 from bvp.data.models.planning.utils import (
     initialize_df,
     initialize_series,
     add_tiny_price_slope,
+    get_prices,
 )
 
 
@@ -31,17 +30,12 @@ def schedule_charging_station(
     Todo: handle uni-directional charging by setting the "min" or "derivative min" constraint to 0
     """
 
-    # Check for known prices or price forecasts, adjusting planning horizon accordingly
-    prices = Price.collect(
-        market.name,
-        query_window=(start, end),
-        resolution=to_offset(resolution).freqstr,
-        create_if_empty=True,
+    # Check for known prices or price forecasts, trimming planning window accordingly
+    prices, (start, end) = get_prices(
+        market, (start, end), resolution, allow_trimmed_query_window=True
     )
-    if prices.isnull().values.all():
-        raise UnknownPricesException("Unknown prices for scheduling window.")
-    start = prices.first_valid_index()
-    end = prices.last_valid_index() + resolution
+    # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
+    soc_targets = soc_targets[start + resolution : end]
 
     # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
     # We penalise the future with at most 1 per thousand times the price spread.

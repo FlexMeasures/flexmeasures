@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from flask import request, session, current_app
+from flask import request, session
 from flask_security import roles_accepted
 from flask_security.core import current_user
 import pandas as pd
@@ -198,8 +198,6 @@ def portfolio_view():
         df_sum.y *= -1
 
     this_hour = time_utils.get_most_recent_hour()
-    if current_app.config.get("BVP_MODE", "") == "demo":
-        this_hour = this_hour.replace(year=2015)
     next4am = [
         dt
         for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)]

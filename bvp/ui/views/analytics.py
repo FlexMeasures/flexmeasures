@@ -98,57 +98,46 @@ def analytics_view():
             start=query_window[0], end=query_window[1] + pd.to_timedelta(resolution)
         )
 
-    # TODO: get rid of this hack, which we use because we mock 2015 data in demo mode
+    # TODO: get rid of this hack, which we use because we mock the current year's data from 2015 data in demo mode
+    # Our demo server uses 2015 data as if it's the current year's data. Here we mask future beliefs.
     if current_app.config.get("BVP_MODE", "") == "demo":
 
-        # Show only past data, pretending we're in 2015
+        most_recent_quarter = time_utils.get_most_recent_quarter()
+
+        # Show only past data, pretending we're in the current year
         if not data["power"].empty:
-            data["power"] = data["power"].loc[
-                data["power"].index
-                < time_utils.get_most_recent_quarter().replace(year=2015)
-            ]
+            data["power"] = data["power"].loc[data["power"].index < most_recent_quarter]
         if not data["prices"].empty:
             data["prices"] = data["prices"].loc[
-                data["prices"].index
-                < time_utils.get_most_recent_quarter().replace(year=2015)
-                + timedelta(hours=24)
+                data["prices"].index < most_recent_quarter + timedelta(hours=24)
             ]  # keep tomorrow's prices
         if not data["weather"].empty:
             data["weather"] = data["weather"].loc[
-                data["weather"].index
-                < time_utils.get_most_recent_quarter().replace(year=2015)
+                data["weather"].index < most_recent_quarter
             ]
         if not data["rev_cost"].empty:
             data["rev_cost"] = data["rev_cost"].loc[
-                data["rev_cost"].index
-                < time_utils.get_most_recent_quarter().replace(year=2015)
+                data["rev_cost"].index < most_recent_quarter
             ]
 
         # Show forecasts only up to a limited horizon
         horizon_days = 10  # keep a 10 day forecast
+        max_forecast_datetime = most_recent_quarter + timedelta(hours=horizon_days * 24)
         if not data["power_forecast"].empty:
             data["power_forecast"] = data["power_forecast"].loc[
-                data["power_forecast"].index
-                < time_utils.get_most_recent_quarter().replace(year=2015)
-                + timedelta(hours=horizon_days * 24)
+                data["power_forecast"].index < max_forecast_datetime
             ]
         if not data["prices_forecast"].empty:
             data["prices_forecast"] = data["prices_forecast"].loc[
-                data["prices_forecast"].index
-                < time_utils.get_most_recent_quarter().replace(year=2015)
-                + timedelta(hours=horizon_days * 24)
+                data["prices_forecast"].index < max_forecast_datetime
             ]
         if not data["weather_forecast"].empty:
             data["weather_forecast"] = data["weather_forecast"].loc[
-                data["weather_forecast"].index
-                < time_utils.get_most_recent_quarter().replace(year=2015)
-                + timedelta(hours=horizon_days * 24)
+                data["weather_forecast"].index < max_forecast_datetime
             ]
         if not data["rev_cost_forecast"].empty:
             data["rev_cost_forecast"] = data["rev_cost_forecast"].loc[
-                data["rev_cost_forecast"].index
-                < time_utils.get_most_recent_quarter().replace(year=2015)
-                + timedelta(hours=horizon_days * 24)
+                data["rev_cost_forecast"].index < max_forecast_datetime
             ]
 
     # Making figures

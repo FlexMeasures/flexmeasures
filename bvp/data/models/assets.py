@@ -154,6 +154,10 @@ class Asset(db.Model):
         """Return True if this asset is producing but not consuming."""
         return self.asset_type.is_producer and not self.asset_type.is_consumer
 
+    @property
+    def icon_name(self) -> str:
+        return self.asset_type.icon_name
+
     def to_dict(self) -> Dict[str, Union[str, float]]:
         return dict(
             name=self.name,

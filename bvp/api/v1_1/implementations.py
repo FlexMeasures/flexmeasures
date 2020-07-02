@@ -53,9 +53,9 @@ def get_connection_response():
     # Return entity addresses of assets
     message = dict(connections=[asset.entity_address for asset in user_assets])
     if current_app.config.get("BVP_MODE", "") == "play":
-        message["names"] = ([asset.name for asset in user_assets],)
+        message["names"] = [asset.name for asset in user_assets]
     else:
-        message["names"] = ([asset.display_name for asset in user_assets],)
+        message["names"] = [asset.display_name for asset in user_assets]
 
     return message
 
