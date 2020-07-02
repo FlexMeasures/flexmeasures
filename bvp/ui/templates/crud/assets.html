@@ -13,7 +13,7 @@
                 <h2>All assets</h2>
 
                 {% if user_is_admin %}
-                <form action="/assets/new" target="_blank" method="get" style="float:right">
+                <form action="/assets/new" method="get" style="float:right">
                     <button class="btn btn-sm btn-responsive btn-info" type="submit">Create new asset</button>
                 </form>
                 {% endif %}
@@ -52,7 +52,7 @@
                                     {{ asset.entity_address }}
                                 </td>
                                 <td>
-                                    <form action="../../analytics" target="_blank" method="get">
+                                    <form action="../../analytics" method="get">
                                         <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
                                         <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
                                     </form>
