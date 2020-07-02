@@ -17,7 +17,7 @@ from bvp.data.models.markets import Market
 from bvp.data.models.weather import WeatherSensor
 from bvp.data.services.resources import (
     get_assets,
-    get_asset_groups,
+    get_asset_group_queries,
     get_markets,
     get_sensor_types,
     Resource,
@@ -52,7 +52,7 @@ def analytics_view():
     time_utils.set_time_range_for_session()
     markets = get_markets()
     assets = get_assets()
-    asset_groups = get_asset_groups(
+    asset_groups = get_asset_group_queries(
         custom_additional_groups=[
             "renewables",
             "all Charge Points",
@@ -233,7 +233,7 @@ def analytics_data_view(content, content_type):
 
     # Maybe move some of this stuff into get_data_and_metrics
     assets = get_assets()
-    asset_groups = get_asset_groups(
+    asset_groups = get_asset_group_queries(
         custom_additional_groups=[
             "renewables",
             "all Charge Points",

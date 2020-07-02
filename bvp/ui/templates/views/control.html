@@ -26,7 +26,7 @@
                 <h3>Controls</h3>
                 <div class="form-group row">
                     <div class="col-sm-2">
-                        <div class="col-sm-1"><i class="icon-time icon-center"></i></div>
+                        <div class="col-sm-1"><i class="icon-time center-icon"></i></div>
                     </div>
                     <div class="col-sm-10">
                         <form id="resource-form" method="post">
@@ -44,7 +44,7 @@
                 <table class="table" style="font-size: 100%;">
                     <thead>
                         <tr>
-                            <th><i class="icon-calculator icon-center"></i></th>
+                            <th><i class="icon-calculator"></i></th>
                             <th>Load (MWh)</th>
                             <th>Expected value (KRW)</th>
                         </tr>
@@ -91,7 +91,7 @@
                     {% if user_is_admin or "charging" in user_email: %}
                         <tr class="active">
                             <td>
-                                <i class="icon-charging_station">Seongsan Ilchulbong</i>
+                                <i class="icon-charging_station left-icon">Seongsan Ilchulbong</i>
                             </td>
                             <td>ESCo 1</td>
                             <td>
@@ -121,7 +121,7 @@
                     {% if user_is_admin or "wind" in user_email: %}
                         <tr class="active">
                             <td>
-                                <i class="icon-wind">SamDal</i>
+                                <i class="icon-wind left-icon">SamDal</i>
                             </td>
                             <td>ESCo 1</td>
                             <td>
@@ -149,7 +149,7 @@
                         </tr>
                         <tr id="control-tr-offshore">
                             <td>
-                                <i class="icon-wind">Suwon</i>
+                                <i class="icon-wind left-icon">Suwon</i>
                             </td>
                             <td>ESCo 1</td>
                             <td>
@@ -186,7 +186,7 @@
                     {% if user_is_admin %}
                         <tr id="control-tr-battery">
                             <td>
-                                <i class="icon-battery">Battery storage unit</i>
+                                <i class="icon-battery left-icon">Battery storage unit</i>
                             </td>
                             <td>ESCo 2</td>
                             <td>

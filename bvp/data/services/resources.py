@@ -97,8 +97,8 @@ def _build_asset_query(
     return query
 
 
-def get_asset_groups(
-    custom_additional_groups: Optional[List[str]] = None,
+def get_asset_group_queries(
+    custom_additional_groups: Optional[List[str]] = None, all_users: bool = False,
 ) -> Dict[str, Query]:
     """
     An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised display names.
@@ -110,6 +110,7 @@ def get_asset_groups(
                                      - "all Charge Points", to query all Electric Vehicle Supply Equipment
                                      - "each Charge Point", to query each individual Charge Point
                                                             (i.e. all EVSE at 1 location)
+    :param all_users: if True, do not filter out assets that do not belong to the user (use with care)
     """
 
     if custom_additional_groups is None:
@@ -131,20 +132,22 @@ def get_asset_groups(
         asset_queries[pluralize(asset_type.display_name)] = Asset.query.filter_by(
             asset_type_name=asset_type.name
         )
-    asset_queries = mask_inaccessible_assets(asset_queries)
+
+    if not all_users:
+        asset_queries = mask_inaccessible_assets(asset_queries)
 
     # 3. We group EVSE assets by location (if they share a location, they belong to the same Charge Point)
     if "each Charge Point" in custom_additional_groups:
-        asset_queries.update(get_charge_points())
+        asset_queries.update(get_charge_point_queries())
 
     return asset_queries
 
 
-def get_charge_points() -> Dict[str, Query]:
+def get_charge_point_queries() -> Dict[str, Query]:
     """
-    A Charge Point is defined similarly to asset groups (see get_asset_groups).
+    A Charge Point is defined similarly to asset groups (see get_asset_group_queries).
     We group EVSE assets by location (if they share a location, they belong to the same Charge Point)
-    Like get_asset_groups, the values in the returned dict still need an executive call, like all(), count() or first().
+    Like get_asset_group_queries, the values in the returned dict still need an executive call, like all(), count() or first().
 
     The Charge Points are named on the basis of the first EVSE in their list,
     using either the whole EVSE display name or that part that comes before a " -" delimiter. For example:
@@ -166,15 +169,20 @@ def get_charge_points() -> Dict[str, Query]:
     return mask_inaccessible_assets(asset_queries)
 
 
-def mask_inaccessible_assets(asset_queries: Dict[str, Query]) -> Dict[str, Query]:
+def mask_inaccessible_assets(
+    asset_queries: Union[Query, Dict[str, Query]]
+) -> Union[Query, Dict[str, Query]]:
     """ Filter out any assets that the user should not be able to access.
 
     We do not explicitly check user authentication here, because non-authenticated users are not admins
     and have no asset ownership, so applying this filter for non-admins masks all assets.
     """
     if not current_user.has_role("admin"):
-        for name, query in asset_queries.items():
-            asset_queries[name] = query.filter_by(owner=current_user)
+        if isinstance(asset_queries, dict):
+            for name, query in asset_queries.items():
+                asset_queries[name] = query.filter_by(owner=current_user)
+        else:
+            asset_queries = asset_queries.filter_by(owner=current_user)
     return asset_queries
 
 
@@ -241,7 +249,7 @@ class Resource:
     A "resource" is an umbrella term:
 
     * It can be one asset / market.
-    * It can be a group of assets / markets. (see get_asset_groups)
+    * It can be a group of assets / markets. (see get_asset_group_queries)
 
     The class itself defines only one thing: a resource name.
     The class methods provide helpful functions to get from resource name to assets and their time series data.
@@ -257,51 +265,53 @@ class Resource:
           to fetch. I cannot imagine we ever want to mix data from assets and markets.
     """
 
-    last_loaded_asset_list = (
-        []
-    )  # this can be used to avoid loading assets more than once during one call stack
+    assets: List[Asset]
+    count: int
+    count_all: int
+    icon_name: str
+    name: str
+    unique_asset_types: List[AssetType]
+    unique_asset_type_names: List[str]
 
-    def __init__(self, name):
+    def __init__(self, name: str):
+        """ The resource name is either the name of an asset group or an individual asset. """
         if name is None or name == "":
             raise Exception("Empty resource name passed (%s)" % name)
         self.name = name
 
-    @property
-    def assets(self) -> List[Asset]:
-        """Gather assets which are identified by this resource's name.
-        The resource name is either the name of an asset group or an individual asset."""
-        assets = []
-        asset_groups = get_asset_groups(
+        # Query assets for all users to set some public information about the resource
+        asset_queries = get_asset_group_queries(
             custom_additional_groups=[
                 "renewables",
                 "all Charge Points",
                 "each Charge Point",
-            ]
+            ],
+            all_users=True,
         )
-        if self.name in asset_groups:
-            for asset in asset_groups[self.name]:
-                assets.append(asset)
-        else:
-            asset = Asset.query.filter_by(name=self.name).one_or_none()
-            if asset is not None:
-                assets = [asset]
-        self.last_loaded_asset_list = assets
-        return assets
+        asset_query = (
+            asset_queries[self.name]
+            if name in asset_queries
+            else Asset.query.filter_by(name=self.name)
+        )  # gather assets that are identified by this resource's name
 
-    @property
-    def count(self) -> int:
-        """Count the number of assets identified by this resource's name."""
-        asset_groups = get_asset_groups(
-            custom_additional_groups=[
-                "renewables",
-                "all Charge Points",
-                "each Charge Point",
-            ]
-        )
-        if self.name in asset_groups:
-            return asset_groups[self.name].count()
-        else:
-            return Asset.query.filter_by(name=self.name).count()
+        # List unique asset types and asset type names represented by this resource
+        assets = asset_query.all()
+        self.unique_asset_types = list(set([a.asset_type for a in assets]))
+        self.unique_asset_type_names = list(set([a.asset_type.name for a in assets]))
+
+        # Count all assets in the system that are identified by this resource's name, no matter who is the owner
+        self.count_all = len(assets)
+
+        # The icon name is taken from the first asset in the group
+        first_asset = asset_query.first()
+        if first_asset is not None:
+            self.icon_name = first_asset.asset_type.icon_name
+
+        # List all assets that are identified by this resource's name and accessible by the current user
+        self.assets = mask_inaccessible_assets(asset_query).all()
+
+        # Count all assets that are identified by this resource's name and accessible by the current user
+        self.count = len(self.assets)
 
     @property
     def is_unique_asset(self) -> bool:
@@ -331,20 +341,6 @@ class Resource:
     def parameterized_name(self) -> str:
         """Get a parameterized name for use in javascript."""
         return parameterize(self.name)
-
-    @property
-    def unique_asset_types(self) -> List[AssetType]:
-        """Return list of unique asset types represented by this resource."""
-        return list(
-            set([a.asset_type for a in self.assets])
-        )  # list of unique asset types in resource
-
-    @property
-    def unique_asset_type_names(self) -> List[str]:
-        """Return list of unique asset type names represented by this resource."""
-        return list(
-            set([a.asset_type.name for a in self.assets])
-        )  # list of unique asset type names in resource
 
     def get_data(
         self,

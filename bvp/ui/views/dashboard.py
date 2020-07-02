@@ -7,7 +7,7 @@ from flask_security import login_required
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.utils import time_utils
-from bvp.data.services.resources import get_asset_groups, Resource
+from bvp.data.services.resources import get_asset_group_queries, Resource
 from bvp.data.models.assets import Power
 
 
@@ -34,7 +34,7 @@ def dashboard_view():
         msg = "Your session was cleared."
 
     current_asset_loads = {}
-    asset_groups = get_asset_groups(
+    asset_groups = get_asset_group_queries(
         custom_additional_groups=["renewables", "all Charge Points"]
     )
     map_asset_groups = {}
