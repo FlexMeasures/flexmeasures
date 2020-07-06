@@ -84,7 +84,7 @@
                                     {% for asset_group in asset_groups %}
                                         {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
                                         {% if (BVP_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (BVP_MODE != "demo" and asset_groups[asset_group].count > 0)%}
-                                            <th {% if asset_groups[asset_group].hover_label %} title="{{ asset_groups[asset_group].hover_label | capitalize }}" {% endif %} class="text-center"><a href="analytics?resource={{ asset_group }}">{{ asset_group | capitalize }}</a></th>
+                                            <th {% if asset_groups[asset_group].hover_label %} title="{{ asset_groups[asset_group].hover_label | capitalize }}" {% endif %} class="text-center{% if asset_group in aggregate_groups %} agg-group{% endif %}"><a href="analytics?resource={{ asset_group }}">{{ asset_group | capitalize }}</a></th>
                                         {% endif %}
                                     {% endfor %}
                                 </tr>
@@ -95,7 +95,7 @@
 
                                     {% for asset_group in asset_groups %}
                                         {% if (BVP_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (BVP_MODE != "demo" and asset_groups[asset_group].count > 0)%}
-                                            <td class="text-center">
+                                            <td class="text-center{% if asset_group in aggregate_groups %} agg-group{% endif %}">
                                                 <div style="min-height: 20px; padding:15px;">
                                                     <i class="{{ asset_groups[asset_group].icon_name }} center-icon"></i>
                                                 </div>
@@ -109,7 +109,7 @@
 
                                     {% for asset_group in asset_groups %}
                                         {% if (BVP_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (BVP_MODE != "demo" and asset_groups[asset_group].count > 0)%}
-                                            <td class="text-center">{{ asset_groups[asset_group].count }}</td>
+                                            <td class="text-center{% if asset_group in aggregate_groups %} agg-group{% endif %}">{{ asset_groups[asset_group].count }}</td>
                                         {% endif %}
                                     {% endfor %}
                                 </tr>
@@ -120,7 +120,7 @@
 
                                     {% for asset_group in asset_groups %}
                                         {% if (BVP_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (BVP_MODE != "demo" and asset_groups[asset_group].count > 0)%}
-                                            <td class="text-center">{{ asset_groups[asset_group].count_all }}</td>
+                                            <td class="text-center{% if asset_group in aggregate_groups %} agg-group{% endif %}">{{ asset_groups[asset_group].count_all }}</td>
                                         {% endif %}
                                     {% endfor %}
                                 </tr>

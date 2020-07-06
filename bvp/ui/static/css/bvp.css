@@ -104,6 +104,10 @@ div.attribution {
     align-content: flex-end;*/
 }
 
+.agg-group {
+    background-color: #F8F8F8;
+}
+
 .form-group.row {
   display: flex;
   display: -webkit-flex;

@@ -34,9 +34,8 @@ def dashboard_view():
         msg = "Your session was cleared."
 
     current_asset_loads = {}
-    asset_groups = get_asset_group_queries(
-        custom_additional_groups=["renewables", "EVSE"]
-    )
+    aggregate_groups = ["renewables", "EVSE"]
+    asset_groups = get_asset_group_queries(custom_additional_groups=aggregate_groups)
     map_asset_groups = {}
     for asset_group_name in asset_groups:
         asset_group = Resource(asset_group_name)
@@ -70,5 +69,6 @@ def dashboard_view():
         show_map=True,
         message=msg,
         asset_groups=map_asset_groups,
+        aggregate_groups=aggregate_groups,
         current_asset_loads=current_asset_loads,
     )
