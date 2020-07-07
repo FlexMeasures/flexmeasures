@@ -18,8 +18,8 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 
 ### Dependencies
 
-* Make a virtual environment: `python3.6 -m venv bvp-venv` or use a different tool like `mkvirtualenv`. You can also use
-  an [Anaconda distribution](https://conda.io/docs/user-guide/tasks/manage-environments.html) as base with `conda create -n bvp-venv python=3.6`.
+* Make a virtual environment: `python3.8 -m venv bvp-venv` or use a different tool like `mkvirtualenv`. You can also use
+  an [Anaconda distribution](https://conda.io/docs/user-guide/tasks/manage-environments.html) as base with `conda create -n bvp-venv python=3.8`.
 * Activate it, e.g.: `source bvp-venv/bin/activate`
 * Install the `bvp` platform and dependencies:
 
@@ -32,7 +32,7 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 * Set an env variable to indicate in which environment you are operating (one out of development|testing|staging|production), e.g.:
 
     `echo "FLASK_ENV=development" >> .env`
-    
+
     `export FLASK_ENV=production`
 * If you need to customise settings, create `bvp/<development|testing|staging|production>_config.py` and add required settings.
   If you're unsure what you need, just continue for now and the app will tell you what it misses.
@@ -54,7 +54,7 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 If you have a SQL Dump file, you can load that:
 
     psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
-    
+
 Else, you can populate some standard data, most of which comes from files:
 
 * For meta data, ask someone for `raw_data/assets.json`
@@ -112,7 +112,7 @@ More information (e.g. for installing on Windows) on [the website](https://proje
 Now, to start the web application, you can run:
 
     python bvp/run-local.py
-    
+
 Note that in a production context, you'd not run a script but hand the `app` object to a WSGI process.
 
 

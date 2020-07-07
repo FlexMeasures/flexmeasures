@@ -120,11 +120,11 @@ def get_device_message_response(generic_asset_name_groups, duration):
     return dict(**response, **d), s
 
 
-@usef_roles_accepted("Prosumer")  # noqa: C901
+@usef_roles_accepted("Prosumer")
 @type_accepted("PostUdiEventRequest")
 @units_accepted("State of charge", "kWh", "MWh")
 @as_json
-def post_udi_event_response(unit):
+def post_udi_event_response(unit):  # noqa: C901
 
     if not has_assets():
         current_app.logger.info("User doesn't seem to have any assets.")
