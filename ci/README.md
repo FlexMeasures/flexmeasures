@@ -1,6 +1,6 @@
 # WSGI configuration
 
-Here is an example hot to serve this application as WSGI app:
+Here is an example how to serve this application as WSGI app:
 
 
     # This file contains the WSGI configuration required to serve up your
@@ -45,7 +45,7 @@ Git remote is added and the code is pushed. The below step pushes to the BVP sta
 ```
 git remote add pythonanywhere seita@ssh.pythonanywhere.com:/home/seita/bvp-staging
 
-git push -u pythonanywhere $BITBUCKET_BRANCH
+git push --follow-tags -u pythonanywhere $BITBUCKET_BRANCH
 ```
 
 # Install Post-Receive Hook
@@ -55,7 +55,7 @@ in the repo where you wish to deploy the final code. This will be triggered when
 push is received by the Bitbucket repo.
 
 The script below can be a Post Receive Hook (save as `hooks/post-receive` in your remote origin repo and update paths).
-It will force checkout the master branch,update dependencies, upgrade the database structure,
+It will force checkout the master branch, update dependencies, upgrade the database structure,
 update the documentation and finally touch the wsgi.py file.
 This last step is documented by PythonAnywhere as a way to soft restart the running application.
 
@@ -69,17 +69,19 @@ echo "CHECKING OUT CODE TO GIT WORK TREE ($PATH_TO_GIT_WORK_TREE) ..."
 GIT_WORK_TREE=$PATH_TO_GIT_WORK_TREE git checkout -f
 
 cd $PATH_TO_GIT_WORK_TREE
-PATH=$PATH_TO_VENV/bin:$PATH                                                                                                                                                                                  
+PATH=$PATH_TO_VENV/bin:$PATH
 
 echo "INSTALLING DEPENDENCIES ..."
-python setup.py develop
+make install-deps
+
+echo "INSTALLING BVP ..."
+make install-bvp
 
 echo "UPGRADING DATABASE STRUCTURE ..."
-flask db upgrade
+make upgrade-db
 
 echo "UPDATING DOCUMENTATION ..."
-pip install sphinx sphinxcontrib.httpdomain
-cd documentation; make clean; make html; cd ..
+make update-db
 
 echo "RESTARTING APPLICATION ..."
 touch $PATH_TO_WSGI

@@ -1,4 +1,8 @@
 repos:
+-   repo: https://github.com/jazzband/pip-tools
+    rev: 5.0.0
+    hooks:
+    - id: pip-compile
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v1.3.0
     hooks:

@@ -6,7 +6,6 @@ The *Balancing Valorisation Platform (BVP)* is a tool for scheduling balancing a
 Its purpose is to offer these balancing actions as one aggregated service to energy markets, realising the highest possible value for its users.
 
 
-
 ## Build & Run
 
 
@@ -21,9 +20,11 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 * Make a virtual environment: `python3.8 -m venv bvp-venv` or use a different tool like `mkvirtualenv`. You can also use
   an [Anaconda distribution](https://conda.io/docs/user-guide/tasks/manage-environments.html) as base with `conda create -n bvp-venv python=3.8`.
 * Activate it, e.g.: `source bvp-venv/bin/activate`
-* Install the `bvp` platform and dependencies:
+* Install dependencies and the `bvp` platform itself:
 
-      python setup.py [develop|install]
+      pip install pip-tools
+      pip-sync
+      python setup.py develop
 
 
 
