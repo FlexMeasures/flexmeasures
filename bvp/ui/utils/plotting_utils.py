@@ -36,7 +36,7 @@ def create_hover_tool(  # noqa: C901
     """
 
     def horizon_formatter() -> str:
-        horizon = value  # noqa
+        horizon = value  # type:ignore  # noqa
 
         def ngettext(message, plural, num):
             if num == 1:
@@ -177,7 +177,11 @@ def create_graph(  # noqa: C901
     x_label: str = "X",
     y_label: str = "Y",
     legend_location: Union[str, Tuple[float, float]] = "top_right",
-    legend_labels: Tuple[str, Optional[str]] = ("Actual", "Forecast"),
+    legend_labels: Tuple[str, Optional[str], Optional[str]] = (
+        "Actual",
+        "Forecast",
+        "Schedules",
+    ),
     x_range: Range1d = None,
     forecasts: pd.DataFrame = None,
     schedules: pd.DataFrame = None,
@@ -387,7 +391,9 @@ def highlight(
                 )
 
         else:
-            open_order_book = None  # TODO: implement for other x-range types
+            raise NotImplementedError(
+                "Highlighting only works for datetime ranges"
+            )  # TODO: implement for other x-range types
         fig.js_on_event(events.DoubleTap, open_order_book(redirect_to, x_start, x_end))
 
 
@@ -454,7 +460,7 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
     if current_app.config.get("BVP_MODE", "") == "demo":
         before = bvp_now().replace(year=2015)
     elif current_app.config.get("BVP_MODE", "") == "play":
-        before = None
+        before = None  # type:ignore
     else:
         before = bvp_now()
 

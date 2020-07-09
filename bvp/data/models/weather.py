@@ -47,6 +47,7 @@ class WeatherSensorType(db.Model):
             return "wi wi-wind-direction"
         elif self.name == "wind_speed":
             return "wi wi-strong-wind"
+        return ""
 
     def __repr__(self):
         return "<WeatherSensorType %r>" % self.name

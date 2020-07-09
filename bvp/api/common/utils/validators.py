@@ -48,7 +48,7 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
     sources = (
         sources if isinstance(sources, list) else [sources]
     )  # Make sure sources is a list
-    source_ids = []
+    source_ids: List[int] = []
     for source in sources:
         if isinstance(source, int):  # Parse as user id
             try:
@@ -67,10 +67,7 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
                 .filter(DataSource.user_id.in_(user_ids))
                 .all()
             )
-    source_ids = [
-        source_id if isinstance(source_id, int) else int(source_id[0])
-        for source_id in source_ids
-    ]
+    # add current (logged-in) user
     source_ids.extend(
         db.session.query(DataSource.id)
         .filter(DataSource.user_id == current_user.id)
@@ -79,9 +76,9 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
     return list(set(source_ids))  # only unique source ids
 
 
-def validate_horizon(horizon: str) -> Union[Tuple[timedelta, bool], Tuple[None, None]]:
+def validate_horizon(horizon_str: str) -> Tuple[Optional[timedelta], bool]:
     """
-    Validates whether the string 'horizon' is a valid ISO 8601 (repeating) time interval.
+    Validates whether a horizon string represents a valid ISO 8601 (repeating) time interval.
 
     Examples:
 
@@ -89,24 +86,30 @@ def validate_horizon(horizon: str) -> Union[Tuple[timedelta, bool], Tuple[None, 
         horizon = "R/PT6H"
         horizon = "-PT10M"
 
+    Returns horizon as timedelta and a boolean indicating whether the repetitive indicator "R/" was used.
+    If horizon_str could not be parsed with various methods, then horizon will be None
     """
-    if horizon[0] == "-":
+    # negativity
+    neg = False
+    if horizon_str[0] == "-":
         neg = True
-        horizon = horizon[1:]
-    else:
-        neg = False
-    if re.search(r"^R\d*/", horizon):
-        _, horizon, *_ = re.split("/", horizon)
-        rep = True
-    else:
-        rep = False
+        horizon_str = horizon_str[1:]
+
+    # repetition-encoding
+    is_repetition: bool = False
+    if re.search(r"^R\d*/", horizon_str):
+        _, horizon_str, *_ = re.split("/", horizon_str)
+        is_repetition = True
+
+    # parse
     try:
-        horizon = isodate.parse_duration(horizon)
+        horizon: timedelta = isodate.parse_duration(horizon_str)
     except (ISO8601Error, AttributeError):
-        return None, None
+        return None, is_repetition
+
     if neg:
         horizon = -horizon
-    return horizon, rep
+    return horizon, is_repetition
 
 
 def validate_duration(
@@ -172,6 +175,9 @@ def validate_entity_address(
         event = ea1.2018-06.com.a1-bvp:5000:40:30:302:soc
         event = ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>:<event_id>:<event_type>
 
+    Returns a dictionary with scheme, naming_authority and various other fields,
+    depending on the entity type.
+    Returns None if entity type is unkown.
     """
     if entity_type == "connection":
         match = re.search(
@@ -256,6 +262,8 @@ def validate_entity_address(
                 "event_type": str,
             }
             return typed_regex_results(match, value_types)
+    current_app.logger.warning(f"Entity type {entity_type} not recognized.")
+    return None
 
 
 def optional_duration_accepted(default_duration: timedelta):

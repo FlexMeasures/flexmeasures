@@ -1,7 +1,7 @@
 from typing import Tuple, List, Union
 from datetime import datetime, timedelta
 
-
+from bvp.data.config import db
 from bvp.data.models.forecasting.exceptions import NotEnoughDataException
 from bvp.utils.time_utils import as_bvp_time
 
@@ -53,7 +53,7 @@ def check_data_availability(
 
 def create_lags(
     n_lags: int,
-    generic_asset_type: str,
+    generic_asset_type: db.Model,
     horizon: timedelta,
     resolution: timedelta,
     use_periodicity: bool,

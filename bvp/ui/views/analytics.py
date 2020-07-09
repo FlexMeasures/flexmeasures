@@ -380,7 +380,7 @@ def get_data_and_metrics(
 ) -> Tuple[Dict, Dict, str, WeatherSensor]:
     """Getting data and calculating metrics for them"""
     data = dict()
-    metrics = dict()
+    metrics: dict = dict()
     (
         data["power"],
         data["power_forecast"],

@@ -91,7 +91,7 @@ def create_user(
     # add roles to user (creating new roles if necessary)
     if user_roles:
         if not isinstance(user_roles, list):
-            user_roles = [user_roles]
+            user_roles = [user_roles]  # type: ignore
         for user_role in user_roles:
             if isinstance(user_role, dict):
                 role = user_datastore.find_role(user_role["name"])

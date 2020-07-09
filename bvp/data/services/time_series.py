@@ -13,18 +13,29 @@ from bvp.utils import time_utils
 
 p = inflect.engine()
 
+# Signature of a callable that build queries
+QueryCallType = Callable[
+    [
+        str,
+        Tuple[datetime, datetime],
+        Tuple[timedelta, timedelta],
+        bool,
+        Optional[Union[int, List[int]]],
+        Optional[List[str]],
+    ],
+    Query,
+]
+
 
 def collect_time_series_data(
     generic_asset_names: Union[str, List[str]],
-    make_query: Callable[
-        [str, Tuple[datetime, datetime], Tuple[timedelta, timedelta]], Query
-    ],
-    query_window: Tuple[datetime, datetime] = (None, None),
-    horizon_window: Tuple[timedelta, timedelta] = (None, None),
+    make_query: QueryCallType,
+    query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
+    horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
     rolling: bool = True,
-    preferred_user_source_ids: {
-        Union[int, List[int]]
-    } = None,  # None is interpreted as all sources
+    preferred_user_source_ids: Union[
+        int, List[int]
+    ] = None,  # None is interpreted as all sources
     fallback_user_source_ids: Union[
         int, List[int]
     ] = -1,  # An id = -1 is interpreted as no sources
@@ -60,7 +71,7 @@ def collect_time_series_data(
         )
 
     data_as_dict: Dict[str, pd.DataFrame] = {}
-    data_as_df: pd.DataFrame() = pd.DataFrame()
+    data_as_df: pd.DataFrame = pd.DataFrame()
 
     query_window, resolution = ensure_timing_vars_are_set(query_window, resolution)
 
@@ -97,9 +108,12 @@ def collect_time_series_data(
         #   - and if there are unique fallback sources stated (catches case 4 and part of 7)
 
         # As a fallback, we'll only query sources that were not queried already (except if the fallback is to query all)
-        unique_fallback_user_source_ids = drop_non_unique_elements(
-            preferred_user_source_ids, fallback_user_source_ids
-        )  # now a list
+        if preferred_user_source_ids:
+            unique_fallback_user_source_ids = drop_non_unique_ids(
+                preferred_user_source_ids, fallback_user_source_ids
+            )  # now a list
+        else:
+            unique_fallback_user_source_ids = fallback_user_source_ids
 
         if (
             values.empty
@@ -140,19 +154,9 @@ def collect_time_series_data(
 
 def query_time_series_data(
     generic_asset_name: str,
-    make_query: Callable[
-        [
-            str,
-            Tuple[datetime, datetime],
-            Tuple[timedelta, timedelta],
-            bool,
-            Optional[Union[int, List[int]]],
-            Optional[List[str]],
-        ],
-        Query,
-    ],
-    query_window: Tuple[datetime, datetime] = (None, None),
-    horizon_window: Tuple[timedelta, timedelta] = (None, None),
+    make_query: QueryCallType,
+    query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
+    horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
     rolling: bool = True,
     user_source_ids: Optional[Union[int, List[int]]] = None,
     source_types: Optional[List[str]] = None,
@@ -172,7 +176,11 @@ def query_time_series_data(
     """
 
     # On demo, we query 2015 data as if it's the current year's data (we convert back below)
-    if current_app.config.get("BVP_MODE", "") == "demo":
+    if (
+        current_app.config.get("BVP_MODE", "") == "demo"
+        and query_window[0]
+        and query_window[-1]
+    ):
         query_window = (
             query_window[0].replace(year=2015),
             query_window[-1].replace(year=2015),
@@ -298,13 +306,13 @@ def ensure_timing_vars_are_set(
     return (start, end), resolution
 
 
-def drop_non_unique_elements(
+def drop_non_unique_ids(
     a: Union[int, List[int]], b: Union[int, List[int]]
 ) -> List[int]:
     """Removes all elements from B that are already in A."""
-    a = a if type(a) == list else [a]
-    b = b if type(b) == list else [b]
-    return list(set(b).difference(a))  # just the unique ones
+    a_l = a if type(a) == list else [a]
+    b_l = b if type(b) == list else [b]
+    return list(set(b_l).difference(a_l))  # just the unique ones
 
 
 def data_source_resampler(labels: pd.Series) -> str:

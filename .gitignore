@@ -5,6 +5,7 @@ venv
 .env
 .vscode
 .coverage.*
+.mypy_cache/
 *.rdb
 *.rdb.settings
 

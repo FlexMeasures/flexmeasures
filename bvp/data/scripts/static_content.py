@@ -589,7 +589,7 @@ def populate_time_series_data(
     click.echo("DB now has %d Weather Measurements" % db.session.query(Weather).count())
 
 
-@as_transaction
+@as_transaction  # noqa: C901
 def populate_time_series_forecasts(  # noqa: C901
     db: SQLAlchemy,
     test_data_set: bool,

@@ -1,6 +1,6 @@
 from datetime import timedelta
 import logging
-from typing import List
+from typing import List, Optional
 
 """
 This lays out our configuration requirements and allows to set trivial defaults, per environment adjustable.
@@ -19,7 +19,7 @@ class Config(object):
     LOGGING_LEVEL = logging.WARNING
     CSRF_ENABLED = True
 
-    SQLALCHEMY_DATABASE_URI = None
+    SQLALCHEMY_DATABASE_URI: Optional[str] = None
     # https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # https://www.pythonanywhere.com/forums/topic/2599/
@@ -28,16 +28,16 @@ class Config(object):
     # https://docs.sqlalchemy.org/en/13/core/pooling.html#disconnect-handling-pessimistic
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 
-    MAIL_SERVER = None
-    MAIL_PORT = None
-    MAIL_USE_TLS = None
-    MAIL_USE_SSL = None
-    MAIL_USERNAME = None
+    MAIL_SERVER: Optional[str] = None
+    MAIL_PORT: Optional[str] = None
+    MAIL_USE_TLS: Optional[str] = None
+    MAIL_USE_SSL: Optional[str] = None
+    MAIL_USERNAME: Optional[str] = None
     MAIL_DEFAULT_SENDER = (
         "bvp",
         "no-reply@example.com",
     )  # tuple of name and email address
-    MAIL_PASSWORD = None
+    MAIL_PASSWORD: Optional[str] = None
 
     SECURITY_REGISTERABLE = False
     SECURITY_LOGIN_USER_TEMPLATE = "admin/login_user.html"
@@ -47,9 +47,9 @@ class Config(object):
     SECURITY_TOKEN_AUTHENTICATION_HEADER = "Authorization"
     SECURITY_TOKEN_MAX_AGE = 60 * 60 * 6  # six hours
     SECURITY_TRACKABLE = False  # this is more in line with modern privacy law
-    SECURITY_PASSWORD_SALT = None
+    SECURITY_PASSWORD_SALT: Optional[str] = None
 
-    DARK_SKY_API_KEY = None
+    DARK_SKY_API_KEY: Optional[str] = None
 
     JSONIFY_PRETTYPRINT_REGULAR = False
 
@@ -63,8 +63,8 @@ class Config(object):
     BVP_PLANNING_TTL = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
-    BVP_TASK_CHECK_AUTH_TOKEN = None
-    BVP_PA_DOMAIN_NAMES = []
+    BVP_TASK_CHECK_AUTH_TOKEN: Optional[str] = None
+    BVP_PA_DOMAIN_NAMES: List[str] = []
     BVP_REDIS_URL = "localhost"
     BVP_REDIS_PORT = 6379
     BVP_REDIS_DB_NR = 0  # Redis per default has 16 databases, [0-15]
@@ -118,7 +118,7 @@ class TestingConfig(Config):
     # These can speed up tests due to less hashing work (I saw ~165s -> ~100s)
     # (via https://github.com/mattupstate/flask-security/issues/731#issuecomment-362186021)
     SECURITY_HASHING_SCHEMES = ["hex_md5"]
-    SECURITY_DEPRECATED_HASHING_SCHEMES = []
+    SECURITY_DEPRECATED_HASHING_SCHEMES: List[str] = []
     BVP_MODE = "test"
     BVP_API = True
     BVP_PLANNING_HORIZON = timedelta(

@@ -79,15 +79,15 @@ class TimedValue(object):
     def collect(
         cls,
         generic_asset_names: Union[str, List[str]],
-        query_window: Tuple[datetime_type, datetime_type] = (None, None),
-        horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]] = (
+        query_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
             None,
             None,
         ),
+        horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None,),
         rolling: bool = True,
-        preferred_user_source_ids: {
-            Union[int, List[int]]
-        } = None,  # None is interpreted as all sources
+        preferred_user_source_ids: Union[
+            int, List[int]
+        ] = None,  # None is interpreted as all sources
         fallback_user_source_ids: Union[
             int, List[int]
         ] = -1,  # An id = -1 is interpreted as no sources

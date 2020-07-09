@@ -101,7 +101,7 @@ def add_horizon_filter(
 def read_sqlalchemy_results(session: Session, statement: str) -> List[dict]:
     """Executes a read query and returns a list of dicts, whose keys are column names."""
     data = session.execute(statement).fetchall()
-    results = []
+    results: List[dict] = []
 
     if len(data) == 0:
         return results

@@ -100,7 +100,9 @@ def invalid_sender(
     else:
         user_role_names = [p.a(role_name) for role_name in user_role_names]
         user_roles_str = "are %s" % p.join(user_role_names)
-    allowed_role_names = [pluralize(role_name) for role_name in allowed_role_names]
+    allowed_role_names = tuple(
+        [pluralize(role_name) for role_name in allowed_role_names]
+    )
     allowed_role_names = p.join(allowed_role_names)
     return (
         dict(
@@ -284,6 +286,6 @@ def request_processed(message: str) -> Tuple[dict, int]:
     return dict(status="PROCESSED", message=message), 200
 
 
-def pluralize(usef_role_name):
+def pluralize(usef_role_name: str) -> str:
     """Adding a trailing 's' works well for USEF roles."""
     return "%ss" % usef_role_name

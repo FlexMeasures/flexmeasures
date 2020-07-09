@@ -145,9 +145,9 @@ def collect_connection_and_value_groups(
     start: datetime_type,
     duration: timedelta,
     connection_groups: List[List[str]],
-    preferred_user_source_ids: {
-        Union[int, List[int]]
-    } = None,  # None is interpreted as all sources
+    preferred_user_source_ids: Union[
+        int, List[int]
+    ] = None,  # None is interpreted as all sources
     fallback_user_source_ids: Union[
         int, List[int]
     ] = -1,  # An id = -1 is interpreted as no sources
@@ -174,13 +174,15 @@ def collect_connection_and_value_groups(
         for connection in connections:
 
             # Parse the entity address
-            connection = validate_entity_address(connection, entity_type="connection")
-            if connection is None:
+            connection_details = validate_entity_address(
+                connection, entity_type="connection"
+            )
+            if connection_details is None:
                 current_app.logger.warning(
                     "Cannot parse this connection's entity address: %s" % connection
                 )
                 return invalid_domain()
-            asset_id = connection["asset_id"]
+            asset_id = connection_details["asset_id"]
 
             # Look for the Asset object
             if asset_id in user_asset_ids:

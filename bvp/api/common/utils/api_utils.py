@@ -1,5 +1,5 @@
+from typing import List, Union, Sequence
 import copy
-from typing import List, Union
 from datetime import timedelta
 from functools import wraps
 from json import loads as parse_json, JSONDecodeError
@@ -38,14 +38,15 @@ def contains_empty_items(groups: List[List[str]]):
 
 
 def parse_as_list(
-    connection: Union[List[Union[str, float]], str, float], of_type: type = None
-) -> List[Union[str, float]]:
+    connection: Union[Sequence[Union[str, float]], str, float], of_type: type = None
+) -> Sequence[Union[str, float, None]]:
     """
     Return a list of connections (or values), even if it's just one connection (or value)
     """
+    connections: Sequence[Union[str, float, None]] = []
     if not isinstance(connection, list):
         if of_type is None:
-            connections = [connection]
+            connections = [connection]  # type: ignore
         else:
             try:
                 connections = [of_type(connection)]
@@ -181,7 +182,7 @@ def groups_to_dict(
         else:
             return {plural_name: connection_groups[0], "values": value_groups[0]}
     else:
-        d = {groups_name: []}
+        d: dict = {groups_name: []}
         for connection_group, value_group in zip(connection_groups, value_groups):
             if len(connection_group) == 1:
                 d[groups_name].append(
@@ -223,22 +224,30 @@ def message_replace_name_with_ea(message_with_connections_as_asset_names: dict) 
     )
     if "connection" in message_with_connections_as_asset_names:
         message_with_connections_as_eas["connection"] = asset_replace_name_with_id(
-            parse_as_list(message_with_connections_as_eas["connection"])
+            parse_as_list(  # type:ignore
+                message_with_connections_as_eas["connection"], of_type=str
+            )
         )
     elif "connections" in message_with_connections_as_asset_names:
         message_with_connections_as_eas["connections"] = asset_replace_name_with_id(
-            parse_as_list(message_with_connections_as_eas["connections"])
+            parse_as_list(  # type:ignore
+                message_with_connections_as_eas["connections"], of_type=str
+            )
         )
     elif "groups" in message_with_connections_as_asset_names:
         for i, group in enumerate(message_with_connections_as_asset_names["groups"]):
             if "connection" in group:
                 message_with_connections_as_eas["groups"][i][
                     "connection"
-                ] = asset_replace_name_with_id(parse_as_list(group["connection"]))
+                ] = asset_replace_name_with_id(
+                    parse_as_list(group["connection"], of_type=str)  # type:ignore
+                )
             elif "connections" in group:
                 message_with_connections_as_eas["groups"][i][
                     "connections"
-                ] = asset_replace_name_with_id(parse_as_list(group["connections"]))
+                ] = asset_replace_name_with_id(
+                    parse_as_list(group["connections"], of_type=str)  # type:ignore
+                )
     return message_with_connections_as_eas
 
 

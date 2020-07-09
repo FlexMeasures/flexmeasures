@@ -106,7 +106,7 @@ class AssetCrud(FlaskView):
         return render_bvp_template("crud/assets.html", assets=assets)
 
     @login_required
-    def owned_by(self, owner_id: Optional[str]):
+    def owned_by(self, owner_id: str):
         """/assets/owned_by/<user_id>"""
         if not (current_user.has_role("admin") or int(owner_id) == current_user.id):
             return unauth_handler()
@@ -159,6 +159,7 @@ class AssetCrud(FlaskView):
         if current_user.has_role("anonymous"):
             return unauth_handler()
 
+        asset: Asset = None
         if id == "create":
             if not current_user.has_role("admin"):
                 return unauth_handler()
@@ -212,7 +213,7 @@ class AssetCrud(FlaskView):
                 )
         else:
             asset_form = with_options(AssetForm())
-            asset: Asset = Asset.query.filter_by(id=int(id)).one_or_none()
+            asset = Asset.query.filter_by(id=int(id)).one_or_none()
             if asset is not None:
                 if asset.owner != current_user and not current_user.has_role("admin"):
                     return unauth_handler()
@@ -265,7 +266,7 @@ def get_or_create_owner(
     owner_error = None
 
     if asset_form.owner.data == "none chosen":
-        new_owner_email = request.form.get("new_owner_email")
+        new_owner_email = request.form.get("new_owner_email", "")
         if new_owner_email.startswith("--Type"):
             owner_error = "Either pick an existing user as owner or enter an email address for the new owner."
         else:

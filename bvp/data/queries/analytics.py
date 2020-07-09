@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union
+from typing import List, Dict, Optional, Tuple, Union
 from datetime import timedelta
 
 from flask import session
@@ -19,13 +19,13 @@ def get_power_data(
     Todo: Power schedules ignore horizon."""
 
     # Get power data
-    power_data = Resource(session["resource"]).get_data(
+    power_data: pd.DataFrame = Resource(session["resource"]).get_data(
         horizon_window=(None, timedelta(hours=0)), rolling=True, create_if_empty=True
     )
 
     # Get power forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
-    power_forecast_data = Resource(session["resource"]).get_data(
+    power_forecast_data: pd.DataFrame = Resource(session["resource"]).get_data(
         horizon_window=(horizon, None),
         rolling=True,
         source_types=[
@@ -37,7 +37,7 @@ def get_power_data(
     )
 
     # Get power schedule
-    power_schedule_data = Resource(session["resource"]).get_data(
+    power_schedule_data: pd.DataFrame = Resource(session["resource"]).get_data(
         horizon_window=(None, None),
         source_types=["scheduling script"],
         create_if_empty=True,
@@ -84,7 +84,7 @@ def get_prices_data(
 ) -> Tuple[pd.DataFrame, Union[None, pd.DataFrame], dict]:
     """Get price data and metrics"""
     market_name = "" if market is None else market.name
-    prices_data = Price.collect(
+    prices_data: pd.DataFrame = Price.collect(
         [market_name],
         horizon_window=(None, timedelta(hours=0)),
         rolling=True,
@@ -95,7 +95,7 @@ def get_prices_data(
 
     # Get price forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
-    prices_forecast_data = Price.collect(
+    prices_forecast_data: pd.DataFrame = Price.collect(
         [market_name],
         horizon_window=(horizon, None),
         rolling=True,
@@ -148,7 +148,7 @@ def get_weather_data(
 
             # Collect the weather data for the requested time window
             sensor_names = [sensor.name for sensor in closest_sensors]
-            weather_data_dict = Weather.collect(
+            weather_data_dict: Dict[str, pd.DataFrame] = Weather.collect(
                 sensor_names,
                 horizon_window=(None, timedelta(hours=0)),
                 rolling=True,
@@ -159,7 +159,7 @@ def get_weather_data(
 
             # Get weather forecasts
             horizon = pd.to_timedelta(session["forecast_horizon"])
-            weather_forecast_data_dict = Weather.collect(
+            weather_forecast_data_dict: Dict[str, pd.DataFrame] = Weather.collect(
                 sensor_names,
                 horizon_window=(horizon, None),
                 rolling=True,
