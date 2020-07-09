@@ -1,18 +1,13 @@
 """
 Populate the database with data we know or read in.
 """
-import os
 from pathlib import Path
 from shutil import rmtree
-import json
-from typing import List
 from datetime import datetime, timedelta
 
 from flask import current_app as app
 from flask_sqlalchemy import SQLAlchemy
-from flask_security.utils import hash_password
 import click
-import pandas as pd
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.serializer import loads, dumps
@@ -29,7 +24,6 @@ from bvp.data.models.user import User, Role, RolesUsers
 from bvp.data.models.forecasting import lookup_model_specs_configurator
 from bvp.data.models.forecasting.exceptions import NotEnoughDataException
 from bvp.data.queries.utils import read_sqlalchemy_results
-from bvp.data.services.users import create_user
 from bvp.utils.time_utils import ensure_korea_local
 from bvp.data.transactional import as_transaction
 
@@ -37,47 +31,6 @@ from bvp.data.transactional import as_transaction
 BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 
 infl_eng = inflect.engine()
-
-
-def get_pickle_path() -> str:
-    pickle_path = "raw_data/pickles"
-    if os.getcwd().endswith("bvp") and "app.py" in os.listdir(os.getcwd()):
-        pickle_path = "../" + pickle_path
-    if not os.path.exists(pickle_path):
-        raise Exception("Could not find %s." % pickle_path)
-    if len(os.listdir(pickle_path)) == 0:
-        raise Exception("No pickles in %s" % pickle_path)
-    return pickle_path
-
-
-def add_markets(db: SQLAlchemy) -> List[Market]:
-    """Add default market types and market(s)"""
-    day_ahead = MarketType(
-        name="day_ahead",
-        display_name="day-ahead market",
-        daily_seasonality=True,
-        weekly_seasonality=True,
-        yearly_seasonality=True,
-    )
-    db.session.add(day_ahead)
-    # db.session.add(MarketType(name="dynamic_tariff", daily_seasonality=True, weekly_seasonality=True,
-    #                          yearly_seasonality=True))
-    # db.session.add(MarketType(name="fixed_tariff"))
-    epex_da = Market(
-        name="epex_da",
-        market_type=day_ahead,
-        unit="EUR/MWh",
-        display_name="EPEX SPOT day-ahead market",
-    )
-    db.session.add(epex_da)
-    kpx_da = Market(
-        name="kpx_da",
-        market_type=day_ahead,
-        unit="KRW/kWh",
-        display_name="KPX day-ahead market",
-    )
-    db.session.add(kpx_da)
-    return [epex_da, kpx_da]
 
 
 def add_data_sources(db: SQLAlchemy):
@@ -160,439 +113,24 @@ def add_asset_types(db: SQLAlchemy):
     )
 
 
-def add_sensors(db: SQLAlchemy) -> List[WeatherSensor]:
-    """Add default sensor types and sensor(s)"""
-    temperature = WeatherSensorType(
-        name="temperature", display_name="ambient temperature"
-    )
-    wind_speed = WeatherSensorType(name="wind_speed", display_name="wind speed")
-    radiation = WeatherSensorType(name="radiation", display_name="solar irradiation")
-    db.session.add(temperature)
-    db.session.add(wind_speed)
-    db.session.add(radiation)
-    a1_temperature = WeatherSensor(
-        name="temperature",
-        sensor_type=temperature,
-        latitude=33.4843866,
-        longitude=126.477859,
-        unit="°C",
-    )
-    db.session.add(a1_temperature)
-    a1_wind_speed = WeatherSensor(
-        name="wind_speed",
-        sensor_type=wind_speed,
-        latitude=33.4843866,
-        longitude=126.477859,
-        unit="m/s",
-    )
-    db.session.add(a1_wind_speed)
-    a1_radiation = WeatherSensor(
-        name="total_radiation",
-        sensor_type=radiation,
-        latitude=33.4843866,
-        longitude=126.477859,
-        unit="kW/m²",
-    )
-    db.session.add(a1_radiation)
-    return [a1_temperature, a1_wind_speed, a1_radiation]
-
-
-def add_prices(db: SQLAlchemy, markets: List[Market], test_data_set: bool):
-    pickle_path = get_pickle_path()
-    processed_markets = []
-    data_source = DataSource.query.filter(
-        DataSource.label == "data entered for demonstration purposes"
-    ).one_or_none()
-    for market in markets:
-        pickle_file = "df_%s_res15T.pickle" % market.name
-        pickle_file_path = os.path.join(pickle_path, pickle_file)
-        if not os.path.exists(pickle_file_path):
-            click.echo(
-                "No prices pickle file found in directory to represent %s. Tried '%s'"
-                % (market.name, pickle_file_path)
-            )
-            continue
-        df = pd.read_pickle(pickle_file_path)
-        click.echo(
-            "read in %d records from %s, for Market '%s'"
-            % (df.index.size, pickle_file, market.name)
-        )
-        if market.name in processed_markets:
-            raise Exception("We already added prices for the %s market" % market)
-        prices = []
-        first = None
-        last = None
-        count = 0
-        for i in range(
-            df.index.size
-        ):  # df.iteritems stopped at 10,000 for me (wtf), this is slower than it could be.
-            price_row = df.iloc[i]
-            dt = ensure_korea_local(price_row.name)
-            value = price_row.y
-            if dt < datetime(2015, 1, 1, tzinfo=dt.tz):
-                continue  # we only care about 2015 in the static world
-            if test_data_set is True and dt >= datetime(2015, 1, 5, tzinfo=dt.tz):
-                break
-            count += 1
-            # click.echo("%s: %.2f (%d of %d)" % (dt, value, count, df.index.size))
-            last = dt
-            if first is None:
-                first = dt
-            p = Price(
-                datetime=dt,
-                horizon=timedelta(hours=0),
-                value=value,
-                market_id=market.id,
-                data_source_id=data_source.id,
-            )
-            # p.market = market  # does not work in bulk save
-            prices.append(p)
-        db.session.bulk_save_objects(prices)
-        processed_markets.append(market.name)
-        click.echo(
-            "Added %d prices for %s (from %s to %s)"
-            % (len(prices), market, first, last)
-        )
-
-
-def add_assets(db: SQLAlchemy, test_data_set: bool) -> List[Asset]:
-    """Reads in assets.json. For each asset, create an Asset in the session."""
-    asset_path = "raw_data/assets.json"
-    if os.getcwd().endswith("bvp") and "app.py" in os.listdir(os.getcwd()):
-        asset_path = "../" + asset_path
-    if not os.path.exists(asset_path):
-        raise Exception("Could not find %s/%s." % (os.getcwd(), asset_path))
-    kpx_market = Market.query.filter_by(name="kpx_da").one_or_none()
-    if kpx_market is None:
-        raise Exception(
-            "Cannot find kpx_da market, which we assume here all assets should belong to."
-        )
-    assets: List[Asset] = []
-    db.session.flush()
-    with open(asset_path, "r") as assets_json:
-        for json_asset in json.loads(assets_json.read()):
-            if json_asset["asset_type_name"] == "charging_station":
-                json_asset["asset_type_name"] = "one-way_evse"
-            if "unit" not in json_asset:
-                json_asset["unit"] = "MW"
-            asset = Asset(**json_asset)
-            asset.market_id = kpx_market.id
-            test_assets = ["aa-offshore", "hw-onshore", "jc_pv", "jeju_dream_tower"]
-            if test_data_set is True and asset.name not in test_assets:
-                continue
-            assets.append(asset)
-            db.session.add(asset)
-    assets.append(
-        Asset(
-            asset_type_name="battery",
-            display_name="JoCheon Battery",
-            name="jc_bat",
-            latitude=33.533744,
-            longitude=126.675211 + 0.0002,
-            capacity_in_mw=2,
-            max_soc_in_mwh=5,
-            min_soc_in_mwh=0,
-            soc_in_mwh=2.5,
-            soc_datetime=ensure_korea_local(datetime(2015, 1, 1, tzinfo=None)),
-            unit="MW",
-            market_id=kpx_market.id,
-        )
-    )
-    return assets
-
-
-def add_power(db: SQLAlchemy, assets: List[Asset], test_data_set: bool):
-    """
-    Adding power measurements from pickles. This is a lot of data points, so we use the bulk method of SQLAlchemy.
-    """
-    pickle_path = get_pickle_path()
-    processed_assets = []
-    data_source = DataSource.query.filter(
-        DataSource.label == "data entered for demonstration purposes"
-    ).one_or_none()
-    for asset in assets:
-        pickle_file = "df_%s_res15T.pickle" % asset.name
-        pickle_file_path = os.path.join(pickle_path, pickle_file)
-        if not os.path.exists(pickle_file_path):
-            click.echo(
-                "No power measurement pickle file found in directory to represent %s. Tried '%s'"
-                % (asset.name, pickle_file_path)
-            )
-            continue
-        df = pd.read_pickle(pickle_file_path)
-        click.echo(
-            "read in %d records from %s, for Asset '%s'"
-            % (df.index.size, pickle_file, asset.name)
-        )
-        if asset.name in processed_assets:
-            raise Exception("We already added power measurements for %s" % asset)
-        power_measurements = []
-        first = None
-        last = None
-        count = 0
-        for i in range(
-            df.index.size
-        ):  # df.iteritems stopped at 10,000 for me (wtf), this is slower than it could be.
-            power_row = df.iloc[i]
-            dt = ensure_korea_local(power_row.name)
-            value = power_row.y
-            if test_data_set is True and dt >= datetime(2015, 1, 5, tzinfo=dt.tz):
-                break
-            count += 1
-            # click.echo("%s: %.2f (%d of %d)" % (dt, value, count, df.index.size))
-            last = dt
-            if first is None:
-                first = dt
-            p = Power(
-                datetime=dt,
-                horizon=timedelta(hours=0),
-                value=value,
-                asset_id=asset.id,
-                data_source_id=data_source.id,
-            )
-            # p.asset = asset  # does not work in bulk save
-            power_measurements.append(p)
-        db.session.bulk_save_objects(power_measurements)
-        processed_assets.append(asset.name)
-        click.echo(
-            "Added %d power measurements for %s (from %s to %s)"
-            % (len(power_measurements), asset, first, last)
-        )
-
-
-def add_weather(db: SQLAlchemy, sensors: List[WeatherSensor], test_data_set: bool):
-    """
-    Adding weather measurements from pickles. This is a lot of data points, so we use the bulk method of SQLAlchemy.
-
-    There is a weird issue with data on March 29, 3am that I couldn't figure out, where a DuplicateKey error is caused.
-    """
-    pickle_path = get_pickle_path()
-    processed_sensors = []
-    data_source = DataSource.query.filter(
-        DataSource.label == "data entered for demonstration purposes"
-    ).one_or_none()
-    for sensor in sensors:
-        pickle_file = "df_%s_res15T.pickle" % sensor.name
-        pickle_file_path = os.path.join(pickle_path, pickle_file)
-        if not os.path.exists(pickle_file_path):
-            click.echo(
-                "No weather measurement pickle file found in directory to represent %s. Tried '%s'"
-                % (sensor.name, pickle_file_path)
-            )
-            continue
-        df = pd.read_pickle(pickle_file_path)  # .drop_duplicates()
-        click.echo(
-            "read in %d records from %s, for Asset '%s'"
-            % (df.index.size, pickle_file, sensor.name)
-        )
-        if sensor.name in processed_sensors:
-            raise Exception("We already added weather measurements for %s" % sensor)
-        weather_measurements = []
-        first = None
-        last = None
-        count = 0
-        for i in range(
-            df.index.size
-        ):  # df.iteritems stopped at 10,000 for me (wtf), this is slower than it could be.
-            weather_row = df.iloc[i]
-            dt = ensure_korea_local(weather_row.name)
-            value = weather_row.y
-            if test_data_set is True and dt >= datetime(2015, 1, 5, tzinfo=dt.tz):
-                break
-            count += 1
-            # click.echo("%s: %.2f (%d of %d)" % (dt, value, count, df.index.size))
-            last = dt
-            if first is None:
-                first = dt
-            w = Weather(
-                datetime=dt,
-                horizon=timedelta(hours=0),
-                value=value,
-                sensor_id=sensor.id,
-                data_source_id=data_source.id,
-            )
-            # w.sensor = sensor  # does not work in bulk save
-            weather_measurements.append(w)
-
-        db.session.bulk_save_objects(weather_measurements)
-        processed_sensors.append(sensor.name)
-        click.echo(
-            "Added %d weather measurements for %s (from %s to %s)"
-            % (len(weather_measurements), sensor, first, last)
-        )
-
-
-def add_users(db: SQLAlchemy, assets: List[Asset]):
-    # click.echo(bcrypt.gensalt())  # I used this to generate a salt value for my PASSWORD_SALT env
-
-    # Admins
-    create_user(
-        username="nicolas",
-        email="iam@nicolashoening.de",
-        password=hash_password("testtest"),
-        user_roles=dict(
-            name="admin", description="An admin has access to all assets and controls."
-        ),
-        check_mx=False,
-    )
-    create_user(
-        username="felix",
-        email="felix@seita.nl",
-        password=hash_password("testtest"),
-        user_roles="admin",
-        check_mx=False,
-    )
-    create_user(
-        username="ki_yeol",
-        email="shinky@ynu.ac.kr",
-        password=hash_password("shadywinter"),
-        timezone="Asia/Seoul",
-        user_roles="admin",
-        check_mx=False,
-    )
-    create_user(
-        username="michael",
-        email="michael.kaisers@cwi.nl",
-        password=hash_password("shadywinter"),
-        user_roles="admin",
-        check_mx=False,
-    )
-
-    # Asset owners
-    for asset_type in ("solar", "wind", "charging_station", "building"):
-        mock_asset_owner = create_user(
-            username="mocked %s-owner" % asset_type,
-            email="%s@seita.nl" % asset_type,
-            password=hash_password(asset_type),
-            timezone="Asia/Seoul",
-            user_roles=dict(
-                name="Prosumer", description="USEF defined role of asset owner."
-            ),
-            check_mx=False,
-        )
-        for asset in [a for a in assets if a.asset_type_name == asset_type]:
-            asset.owner = mock_asset_owner
-        # Add batteries to the solar asset owner
-        if asset_type == "solar":
-            for asset in [a for a in assets if a.asset_type_name == "battery"]:
-                asset.owner = mock_asset_owner
-        # Add EVSE to the charging_station asset owner
-        if asset_type == "charging_station":
-            for asset in [
-                a
-                for a in assets
-                if a.asset_type_name in ("one-way_evse", "two-way_evse")
-            ]:
-                asset.owner = mock_asset_owner
-
-    # task runner
-    create_user(
-        username="Tasker",
-        email="tasker@seita.nl",
-        password=hash_password("take-a-coleslaw"),
-        timezone="Europe/Amsterdam",
-        user_roles=dict(
-            name="task-runner", description="Process running BVP-relevant tasks."
-        ),
-        check_mx=False,
-    )
-
-    # anonymous demo user (a CPO Prosumer)
-    if app.config.get("BVP_MODE", "") == "demo":
-        create_user(
-            username="Demo account",
-            email="demo@seita.nl",
-            password=hash_password("demo"),
-            timezone="Asia/Seoul",
-            user_roles=[
-                "Prosumer",
-                dict(
-                    name="anonymous", description="An anonymous user cannot make edits."
-                ),
-                dict(
-                    name="CPO",
-                    description="OCPI defined role of Charging Point Operator.",
-                ),
-            ],
-            check_mx=False,
-        )
-
-
 # ------------ Main functions --------------------------------
 # These can registered at the app object as cli functions
 
 
 @as_transaction
-def populate_structure(db: SQLAlchemy, test_data_set: bool):
+def populate_structure(db: SQLAlchemy):
     """
     Add all meta data for assets, markets, users
     """
     click.echo("Populating the database %s with structural data ..." % db.engine)
-    add_markets(db)
     add_asset_types(db)
-    assets = add_assets(db, test_data_set)
-    add_sensors(db)
-    add_users(db, assets)
     add_data_sources(db)
-    click.echo("DB now has %d MarketTypes" % db.session.query(MarketType).count())
-    click.echo("DB now has %d Markets" % db.session.query(Market).count())
     click.echo("DB now has %d AssetTypes" % db.session.query(AssetType).count())
-    click.echo("DB now has %d Assets" % db.session.query(Asset).count())
-    click.echo(
-        "DB now has %d WeatherSensorTypes" % db.session.query(WeatherSensorType).count()
-    )
-    click.echo("DB now has %d WeatherSensors" % db.session.query(WeatherSensor).count())
-    click.echo("DB now has %d DataSources" % db.session.query(DataSource).count())
-    click.echo("DB now has %d Users" % db.session.query(User).count())
-    click.echo("DB now has %d Roles" % db.session.query(Role).count())
-
-
-@as_transaction
-def populate_time_series_data(
-    db: SQLAlchemy,
-    test_data_set: bool,
-    generic_asset_type: str = None,
-    generic_asset_name: str = None,
-):
-    click.echo("Populating the database %s with time series data ..." % db.engine)
-    if generic_asset_name is None:
-        markets = Market.query.all()
-    else:
-        markets = Market.query.filter(Market.name == generic_asset_name).all()
-    if markets:
-        add_prices(db, markets, test_data_set)
-    else:
-        click.echo("No markets in db, so I will not add any prices.")
-
-    if generic_asset_name is None:
-        assets = Asset.query.all()
-    else:
-        assets = Asset.query.filter(Asset.name == generic_asset_name).all()
-    if assets:
-        add_power(db, assets, test_data_set)
-    else:
-        click.echo("No assets in db, so I will not add any power measurements.")
-
-    if generic_asset_name is None:
-        sensors = WeatherSensor.query.all()
-    else:
-        sensors = WeatherSensor.query.filter(
-            WeatherSensor.name == generic_asset_name
-        ).all()
-    if sensors:
-        add_weather(db, sensors, test_data_set)
-    else:
-        click.echo("No sensors in db, so I will not add any weather measurements.")
-
-    click.echo("DB now has %d Prices" % db.session.query(Price).count())
-    click.echo("DB now has %d Power Measurements" % db.session.query(Power).count())
-    click.echo("DB now has %d Weather Measurements" % db.session.query(Weather).count())
 
 
 @as_transaction  # noqa: C901
 def populate_time_series_forecasts(  # noqa: C901
     db: SQLAlchemy,
-    test_data_set: bool,
     generic_asset_type: str = None,
     generic_asset_name: str = None,
     from_date: str = "2015-02-08",

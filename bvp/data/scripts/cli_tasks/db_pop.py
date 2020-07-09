@@ -1,13 +1,45 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
+from typing import List
 
 from flask import current_app as app
 import flask_migrate as migrate
+from flask_security.utils import hash_password
 import click
+import getpass
 
-from bvp.data.scripts.static_content import get_affected_classes
+from bvp.data.services.users import create_user
+from bvp.data.scripts.data_gen import get_affected_classes
+
 
 BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
+
+
+@app.cli.command()
+@click.option("--username")
+@click.option("--email")
+@click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
+@click.option("--timezone", help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'")
+def new_user(
+    username: str, email: str, roles: List[str], timezone: str = "Europe/Amsterdam"
+):
+    """
+    The `users create` task from Flask Security Too is too simple for us.
+    Use this to add email, timezone and roles.
+    """
+    pwd1 = getpass.getpass(prompt="Please enter the password:")
+    pwd2 = getpass.getpass(prompt="Please repeat the password:")
+    if pwd1 != pwd2:
+        print("Passwords do not match!")
+        return
+    create_user(
+        username=username,
+        email=email,
+        password=hash_password(pwd1),
+        timezone=timezone,
+        user_roles=roles,
+        check_mx=False,
+    )
 
 
 # @app.before_first_request
@@ -15,22 +47,12 @@ BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
 @click.option(
     "--structure/--no-structure",
     default=False,
-    help="Populate structural data like asset (types), market (types), users, roles.",
-)
-@click.option(
-    "--data/--no-data",
-    default=False,
-    help="Populate (time series) data. Will do nothing without structural data present. Data links into structure.",
+    help="Populate structural data (right now: asset types).",
 )
 @click.option(
     "--forecasts/--no-forecasts",
     default=False,
     help="Populate (time series) forecasts. Will do nothing without structural data present. Data links into structure.",
-)
-@click.option(
-    "--small/--no-small",
-    default=False,
-    help="Limit data set to a small one, useful for automated tests.",
 )
 @click.option(
     "--asset-type",
@@ -52,18 +74,9 @@ BACKUP_PATH = app.config.get("BVP_DB_BACKUP_PATH")
     default="2015-12-31",
     help="Forecast to date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
 )
-@click.option(
-    "--save",
-    help="Save the populated data to file. Follow up with a unique name for this backup.",
-)
-@click.option("--backup-dir", default=BACKUP_PATH, help="Directory for saving backups.")
 def db_populate(
     structure: bool,
-    data: bool,
     forecasts: bool,
-    small: bool,
-    save: str,
-    backup_dir: str,
     asset_type: str = None,
     from_date: str = "2015-02-08",
     to_date: str = "2015-12-31",
@@ -71,31 +84,17 @@ def db_populate(
 ):
     """Initialize the database with static values."""
     if structure:
-        from bvp.data.scripts.static_content import populate_structure
+        from bvp.data.scripts.data_gen import populate_structure
 
-        populate_structure(app.db, small)
-    if data:
-        from bvp.data.scripts.static_content import populate_time_series_data
-
-        populate_time_series_data(app.db, small, asset_type, asset)
+        populate_structure(app.db)
     if forecasts:
-        from bvp.data.scripts.static_content import populate_time_series_forecasts
+        from bvp.data.scripts.data_gen import populate_time_series_forecasts
 
-        populate_time_series_forecasts(
-            app.db, small, asset_type, asset, from_date, to_date
-        )
-    if not structure and not data and not forecasts:
+        populate_time_series_forecasts(app.db, asset_type, asset, from_date, to_date)
+    if not structure and not forecasts:
         click.echo(
-            "I did nothing as neither --structure nor --data nor --forecasts was given. Decide what you want!"
+            "I did nothing as neither --structure nor --forecasts was given. Decide what you want!"
         )
-    if save:
-        from bvp.data.scripts.static_content import save_tables
-
-        if data and not small:
-            click.echo("Too much data to save! I'm only saving structure ...")
-            save_tables(app.db, save, structure, data=False, backup_path=backup_dir)
-        else:
-            save_tables(app.db, save, structure, data, backup_dir)
 
 
 @app.cli.command()
@@ -151,15 +150,15 @@ def db_depopulate(
         if not click.confirm(prompt):
             return
     if forecasts:
-        from bvp.data.scripts.static_content import depopulate_forecasts
+        from bvp.data.scripts.data_gen import depopulate_forecasts
 
         depopulate_forecasts(app.db, asset_type, asset)
     if data:
-        from bvp.data.scripts.static_content import depopulate_data
+        from bvp.data.scripts.data_gen import depopulate_data
 
         depopulate_data(app.db, asset_type, asset)
     if structure:
-        from bvp.data.scripts.static_content import depopulate_structure
+        from bvp.data.scripts.data_gen import depopulate_structure
 
         depopulate_structure(app.db)
 
@@ -186,7 +185,7 @@ def db_reset(
         if not click.confirm(prompt):
             click.echo("I did nothing.")
             return
-    from bvp.data.scripts.static_content import reset_db
+    from bvp.data.scripts.data_gen import reset_db
 
     current_version = migrate.current()
     reset_db(app.db)
@@ -196,7 +195,7 @@ def db_reset(
         if not data and not structure:
             click.echo("Neither --data nor --structure given ... loading nothing.")
             return
-        from bvp.data.scripts.static_content import load_tables
+        from bvp.data.scripts.data_gen import load_tables
 
         load_tables(app.db, load, structure, data, dir)
 
@@ -220,7 +219,7 @@ def db_save(
 ):
     """Save structure of the database to a backup file."""
     if name:
-        from bvp.data.scripts.static_content import save_tables
+        from bvp.data.scripts.data_gen import save_tables
 
         save_tables(app.db, name, structure=structure, data=data, backup_path=dir)
     else:
@@ -244,7 +243,7 @@ def db_load(
 ):
     """Load structure and/or data for the database from a backup file."""
     if name:
-        from bvp.data.scripts.static_content import load_tables
+        from bvp.data.scripts.data_gen import load_tables
 
         load_tables(app.db, name, structure=structure, data=data, backup_path=dir)
     else:
