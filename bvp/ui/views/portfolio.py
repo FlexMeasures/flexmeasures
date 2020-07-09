@@ -18,7 +18,7 @@ from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
 
 
-@bvp_ui.route("/portfolio", methods=["GET", "POST"])
+@bvp_ui.route("/portfolio", methods=["GET", "POST"])  # noqa: C901
 @roles_accepted("admin", "Prosumer")
 def portfolio_view():  # noqa: C901
     """ Portfolio view.

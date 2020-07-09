@@ -10,15 +10,17 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'ac2613fffc74'
-down_revision = '50cf294e007d'
+revision = "ac2613fffc74"
+down_revision = "50cf294e007d"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
     op.add_column("asset", sa.Column("market_id", sa.Integer(), nullable=True))
-    op.create_foreign_key("asset_market_id_fkey", "asset", "market", ["market_id"], ["id"])
+    op.create_foreign_key(
+        "asset_market_id_fkey", "asset", "market", ["market_id"], ["id"]
+    )
     op.execute(
         """
         update asset set market_id = market.id from market where market.name = 'kpx_da';

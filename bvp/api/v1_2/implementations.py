@@ -120,7 +120,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
     return dict(**response, **d), s
 
 
-@usef_roles_accepted("Prosumer")
+@usef_roles_accepted("Prosumer")  # noqa: C901
 @type_accepted("PostUdiEventRequest")
 @units_accepted("State of charge", "kWh", "MWh")
 @as_json

@@ -161,7 +161,7 @@ def post_price_data_response(
             return already_received_and_successfully_processed()
 
 
-@type_accepted("PostWeatherDataRequest")
+@type_accepted("PostWeatherDataRequest")  # noqa: C901
 @unit_required
 @assets_required("sensor")
 @optional_horizon_accepted()

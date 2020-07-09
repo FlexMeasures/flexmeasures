@@ -56,7 +56,6 @@ setup(
         "pytest",
         "pytest-flask",
         "pytest-cov",
-        "flake8-bugbear",  # nicer error messages
         "requests",  # to test calls to the API
         "fakeredis",  # let's tests run successfully in containers
         "lupa",  # required with fakeredis, maybe because we use rq

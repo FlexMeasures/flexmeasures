@@ -1,41 +1,37 @@
+codeCheckStep: &codeCheckStep
+  step:
+    name: Code check
+    image: python:3.8
+    script:
+      # Running pre-commit, as it is repeatable from repo code
+      - pip install pre-commit==2.2.0
+      - pre-commit run --all-files --show-diff-on-failure
+
+buildAndTestStep: &buildAndTestStep
+  step:
+    name: Build and Test
+    image: python:3.8
+    caches:
+        - pip
+    script:
+        - ci/SETUP.sh
+        - apt-get update
+        - apt-get -y install postgresql-client coinor-cbc
+        - PGPASSWORD=a1test psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U a1test a1test;
+        - make install-deps
+        - python setup.py test
+    services:
+        - postgres
+
 pipelines:
   default:
-    - step:
-        name: Lint by Flake8
-        image: python:3.8
-        script:
-            - pip install flake8-bugbear flake8
-            - flake8 bvp
-    - step:
-        name: Build and Test
-        image: python:3.8
-        caches:
-          - pip
-        script:
-          - ci/SETUP.sh
-          - apt-get update
-          - apt-get -y install postgresql-client coinor-cbc
-          - PGPASSWORD=a1test psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U a1test a1test;
-          - make install-deps
-          - python setup.py test
-        services:
-          - postgres
+    - <<: *codeCheckStep
+    - <<: *buildAndTestStep
+
   branches:
     master:
-      - step:
-          name: Build and Test
-          image: python:3.8
-          script:
-            - ci/SETUP.sh
-            - apt-get update
-            - apt-get -y install postgresql-client coinor-cbc
-            - PGPASSWORD=a1test psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U a1test a1test;
-            - make install-deps
-            - python setup.py test
-          caches:
-            - pip
-          services:
-            - postgres
+      - <<: *codeCheckStep
+      - <<: *buildAndTestStep
       - step:
           name: Deploy to Staging
           deployment: staging
