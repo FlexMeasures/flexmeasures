@@ -57,6 +57,7 @@ class Config(object):
     BVP_API = False
     BVP_PUBLIC_DEMO = False
     BVP_TIMEZONE = "Asia/Seoul"
+    BVP_DEMO_YEAR = 2015
     BVP_DB_BACKUP_PATH = "migrations/dumps"
     BVP_LP_SOLVER = "cbc"
     BVP_PLANNING_HORIZON = timedelta(hours=2 * 24)
@@ -113,6 +114,7 @@ class TestingConfig(Config):
 
     SECURITY_PASSWORD_SALT = "$2b$19$abcdefghijklmnopqrstuv"
     SQLALCHEMY_DATABASE_URI = "postgresql://a1test:a1test@127.0.0.1/a1test"
+    # SQLALCHEMY_ECHO = True
     BVP_TASK_CHECK_AUTH_TOKEN = "test-task-check-token"
 
     # These can speed up tests due to less hashing work (I saw ~165s -> ~100s)

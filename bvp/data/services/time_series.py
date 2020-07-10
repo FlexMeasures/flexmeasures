@@ -175,16 +175,9 @@ def query_time_series_data(
     and "label" columns.
     """
 
-    # On demo, we query 2015 data as if it's the current year's data (we convert back below)
-    if (
-        current_app.config.get("BVP_MODE", "") == "demo"
-        and query_window[0]
-        and query_window[-1]
-    ):
-        query_window = (
-            query_window[0].replace(year=2015),
-            query_window[-1].replace(year=2015),
-        )
+    # On demo, we query older data as if it's the current year's data (we convert back below)
+    if current_app.config.get("BVP_MODE", "") == "demo":
+        query_window = convert_query_window_for_demo(query_window)
 
     query = make_query(
         asset_name=generic_asset_name,
@@ -279,10 +272,9 @@ def query_time_series_data(
     if zero_if_nan:
         values.fillna(0.0)
 
-    # On demo, we query 2015 data as if it's the current year's data (we converted above)
+    # On demo, we query older data as if it's the current year's data (we converted above)
     if current_app.config.get("BVP_MODE", "") == "demo":
-        values.index = values.index.map(lambda t: t.replace(year=datetime.now().year))
-        values.index.freq = resolution
+        values = convert_values_for_demo(values, resolution, as_beliefs)
 
     return values
 
@@ -341,3 +333,43 @@ def horizon_resampler(horizons: pd.Series) -> List[timedelta]:
     ]
 
     return unique_horizons_of_belief
+
+
+def convert_query_window_for_demo(
+    query_window: Tuple[datetime, datetime]
+) -> Tuple[datetime, datetime]:
+    try:
+        start = query_window[0].replace(year=current_app.config.get("BVP_DEMO_YEAR"))
+    except ValueError as e:
+        # Expand the query_window in case a leap day was selected
+        if "day is out of range for month" in str(e):
+            start = (query_window[0] - timedelta(days=1)).replace(
+                year=current_app.config.get("BVP_DEMO_YEAR")
+            )
+        else:
+            start = query_window[0]
+    try:
+        end = query_window[-1].replace(year=current_app.config.get("BVP_DEMO_YEAR"))
+    except ValueError as e:
+        # Expand the query_window in case a leap day was selected
+        if "day is out of range for month" in str(e):
+            end = (query_window[-1] + timedelta(days=1)).replace(
+                year=current_app.config.get("BVP_DEMO_YEAR")
+            )
+        else:
+            end = query_window[-1]
+    return start, end
+
+
+def convert_values_for_demo(values: pd.DataFrame, resolution: str, as_beliefs: bool):
+    values.index = values.index.map(lambda t: t.replace(year=datetime.now().year))
+    if not values.empty:
+        values = values.reindex(
+            pd.date_range(values.index[0], values.index[-1], freq=resolution)
+        )
+        if values.index[0].is_leap_year:
+            values["y"].loc[(values.index.month == 2) & (values.index.day == 29)] = 0
+    if as_beliefs:
+        values["label"] = values["label"].fillna("")
+        values["horizon"] = values["horizon"].fillna({i: [] for i in values.index})
+    return values
