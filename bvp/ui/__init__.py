@@ -100,7 +100,8 @@ def add_jinja_filters(app):
     app.jinja_env.filters["isnan"] = np.isnan
     app.jinja_env.filters["hide_nan_if_desired"] = (
         lambda x: ""
-        if x in ("nan", "nan%", "NAN") and current_app.config.get("BVP_HIDE_NAN_IN_UI", False)
+        if x in ("nan", "nan%", "NAN")
+        and current_app.config.get("BVP_HIDE_NAN_IN_UI", False)
         else x
     )
 
