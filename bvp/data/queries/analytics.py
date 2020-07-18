@@ -263,6 +263,7 @@ def get_revenues_costs_data(
         metrics["expected_revenues_costs"] = np.NaN
         metrics["mae_revenues_costs"] = np.NaN
         metrics["mape_revenues_costs"] = np.NaN
+        metrics["wape_revenues_costs"] = np.NaN
     else:
         rev_cost_forecasts = pd.DataFrame(
             index=power_data.index, columns=["yhat", "yhat_upper", "yhat_lower"]

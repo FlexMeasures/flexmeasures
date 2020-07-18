@@ -128,20 +128,10 @@
                                     Realised
                                 </span>
                             </td>
-                            <td>{% if metrics["realised_power_in_mwh"] %}
-                                    {{ "{:,.3f}".format( metrics["realised_power_in_mwh"] | round(3) ) }}
-                                {% else %}
-                                    nan
-                                {% endif %}
-                            </td>
-                            <td>{{ "{:,.2f}".format( metrics["realised_unit_price"] | round(2)) }}</td>
-                            <td>{{ "{:,.2f}".format( metrics["realised_revenues_costs"] | round(2)) }}</td>
-                            <td>{% if metrics["realised_weather"] %}
-                                    {{ "{:,.3f}".format( metrics["realised_weather"] | round(3) ) }}
-                                {% else %}
-                                    nan
-                                {% endif %}
-                            </td>
+                            <td>{{ "{:,.3f}".format( metrics["realised_power_in_mwh"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["realised_unit_price"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["realised_revenues_costs"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.3f}".format( metrics["realised_weather"] ) | hide_nan_if_desired }}</td>
                         </tr>
                         <tr>
                             <td class="text-left">
@@ -149,15 +139,10 @@
                                     Expected
                                 </span>
                             </td>
-                            <td>{{ "{:,.3f}".format( metrics["expected_power_in_mwh"] | round(3) ) }}</td>
-                            <td>{{ "{:,.2f}".format( metrics["expected_unit_price"] | round(2) ) }}</td>
-                            <td>{{ "{:,.2f}".format( metrics["expected_revenues_costs"] | round(2) ) }}</td>
-                            <td>{% if metrics["expected_weather"] %}
-                                    {{ "{:,.3f}".format( metrics["expected_weather"] | round(2) ) }}
-                                {% else %}
-                                    nan
-                                {% endif %}
-                            </td>
+                            <td>{{ "{:,.3f}".format( metrics["expected_power_in_mwh"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["expected_unit_price"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["expected_revenues_costs"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.3f}".format( metrics["expected_weather"] ) | hide_nan_if_desired }}</td>
                         </tr>
                         <tr>
                             <td class="text-left">
@@ -165,15 +150,10 @@
                                     MAE
                                 </span>
                             </td>
-                            <td>{{ "{:,.3f}".format( metrics["mae_power_in_mwh"] | round(3)) }}</td>
-                            <td>{{ "{:,.2f}".format( metrics["mae_unit_price"] | round(2)) }}</td>
-                            <td>{{ "{:,.2f}".format( metrics["mae_revenues_costs"] | round(2)) }}</td>
-                            <td>{% if metrics["mae_weather"] %}
-                                    {{ "{:,.3f}".format( metrics["mae_weather"] | round(2) ) }}
-                                {% else %}
-                                    nan
-                                {% endif %}
-                            </td>
+                            <td>{{ "{:,.3f}".format( metrics["mae_power_in_mwh"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["mae_unit_price"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.2f}".format( metrics["mae_revenues_costs"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.3f}".format( metrics["mae_weather"] ) | hide_nan_if_desired }}</td>
                         </tr>
                         <tr>
                             <td class="text-left">
@@ -181,25 +161,10 @@
                                     WAPE
                                 </span>
                             </td>
-                            <td>{{ "{:,.1f}".format( metrics["wape_power"] | round(1)) }} %</td>
-                            <td>{% if metrics["wape_unit_price"] %}
-                                    {{ "{:,.1f}".format( metrics["wape_unit_price"] | round(1)) }} %
-                                {% else %}
-                                    nan
-                                {% endif %}
-                            </td>
-                            <td>{% if metrics["wape_revenues_costs"] %}
-                                    {{ "{:,.2f}".format( metrics["wape_revenues_costs"] | round(2)) }} %
-                                {% else %}
-                                    nan
-                                {% endif %}
-                            </td>
-                            <td>{% if metrics["wape_weather"] %}
-                                    {{ "{:,.2f}".format( metrics["wape_weather"] | round(2)) }} %
-                                {% else %}
-                                    nan
-                                {% endif %}
-                            </td>
+                            <td>{{ "{:,.0%}".format( metrics["wape_power"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.0%}".format( metrics["wape_unit_price"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.0%}".format( metrics["wape_revenues_costs"] ) | hide_nan_if_desired }}</td>
+                            <td>{{ "{:,.0%}".format( metrics["wape_weather"] ) | hide_nan_if_desired }}</td>
                         </tr>
                     </tbody>
                 </table>

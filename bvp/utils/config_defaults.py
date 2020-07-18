@@ -57,6 +57,7 @@ class Config(object):
     BVP_API = False
     BVP_PUBLIC_DEMO = False
     BVP_TIMEZONE = "Asia/Seoul"
+    BVP_HIDE_NAN_IN_UI = False
     BVP_DEMO_YEAR = 2015
     BVP_DB_BACKUP_PATH = "migrations/dumps"
     BVP_LP_SOLVER = "cbc"

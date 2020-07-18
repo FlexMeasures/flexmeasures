@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, Blueprint
+from flask import current_app, Flask, Blueprint
 from flask import send_from_directory
 from flask_security import login_required, roles_accepted
 import numpy as np
@@ -98,6 +98,11 @@ def add_jinja_filters(app):
     app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["parameterize"] = parameterize
     app.jinja_env.filters["isnan"] = np.isnan
+    app.jinja_env.filters["hide_nan_if_desired"] = (
+        lambda x: ""
+        if x in ("nan", "nan%", "NAN") and current_app.config.get("BVP_HIDE_NAN_IN_UI", False)
+        else x
+    )
 
 
 def add_jinja_variables(app):
