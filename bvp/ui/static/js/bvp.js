@@ -2,6 +2,7 @@ $(document).ready(function() {
     ready();
 });
 
+
 $(window).resize(function () {
     $('body').css('padding-top', $("#navbar-fixed-top").height());
     $('.floatThead-container').css('top', $("#navbar-container").height() - $('#topnavbar').height());
@@ -15,6 +16,7 @@ $(window).scroll(function () {
 
 
 var offshoreOrdered = false;
+var batteryOrdered = false;
 
 
 function showMsg(msg){
@@ -43,6 +45,58 @@ function defaultImage(action){
 function ready() {
 
     console.log("ready...");
+
+
+    // For custom hover effects that linger for some time
+
+    $("i").hover(
+        function () {
+            $(this).addClass('over');
+        },
+        function () {
+            $(this).delay(3000).queue(function(next){
+                $(this).removeClass('over');
+                next();
+            });
+        }
+    );
+
+
+    // Table pagination
+
+    $.extend(true, $.fn.dataTable.defaults, {
+        "conditionalPaging": {
+            style:    'fade',
+            speed:    2000,
+        },
+        "searching":  true,
+        "ordering":   true,
+        "info":       true,
+        "order":      [],
+        "lengthMenu": [[5, 10, 25, 50, 100, -1], [5, 10, 25, 50, 100, "All"]],
+        "pageLength": 10,  // initial page length
+        "oLanguage":  {
+                          "sLengthMenu": "Show _MENU_ records",
+                          "sSearch": "Filter records:",
+                          "sInfo": "Showing _START_ to _END_ out of _TOTAL_ records",
+                          "sInfoFiltered": "(filtered from _MAX_ total records)",
+                          "sInfoEmpty": "No records to show",
+                      },
+        "columnDefs": [{
+                          "targets"  : 'no-sort',
+                          "orderable": false,
+                      }],
+        "stateSave":  true,
+    } );
+    // just searching and ordering, no paging
+    $('.paginate-without-paging').DataTable( {
+        "paging": false,
+    });
+    // searching, ordering and paging
+    $('.paginate').DataTable();
+    // set default page lengths
+    $('.paginate-5').dataTable().api().page.len(5).draw();
+    $('.paginate-10').dataTable().api().page.len(10).draw();
 
 
     // Sliders
@@ -192,7 +246,7 @@ function ready() {
             showMsg("Your order of " + value + "MW offshore wind curtailment will be processed!");
             $("#control-tr-offshore").addClass("active");
             $("#control-offshore-volume").html("Ordered: <b>2MW</b>");
-            $("#control-order-button-offshore").html('<span class="fa fa-minus" aria-hidden="true"></span> Cancel');
+            $("#control-order-button-offshore").html('<span class="fa fa-minus" aria-hidden="true"></span> Cancel').removeClass("btn-success").addClass("btn-danger");
             $("#control-check-expected-value-offshore").hide();
             $("#total_load").html("4.4");
             $("#total_value").html("230,000");
@@ -204,13 +258,29 @@ function ready() {
     });
 
     $("#control-order-button-battery").click(function(data){
-        if (!offshoreOrdered){
+        if (batteryOrdered){
+            showMsg("This action is not supported in this mockup.");
+        }
+        else if (!offshoreOrdered){
             showMsg("In this mockup, please first order 2MW of offshore wind.");
         } else {
             var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
             console.log("Battery was ordered for " + value + "MW!");
             showMsg("Your order of " + value + "MW battery shifting will be processed!");
+            $("#control-tr-battery").addClass("active");
+            $("#control-order-button-battery").html('<span class="fa fa-minus" aria-hidden="true"></span> Cancel').removeClass("btn-success").addClass("btn-danger");
             $("#control-check-expected-value-battery").hide();
+            if (value == 1){
+                $("#control-battery-volume").html("Ordered: <b>1MW</b>");
+                $("#total_load").html("5.4");
+                $("#total_value").html("240,000");
+            }
+            else {
+                $("#control-battery-volume").html("Ordered: <b>2MW</b>");
+                $("#total_load").html("6.4");
+                $("#total_value").html("250,000");
+            }
+            batteryOrdered = true;
         }
     });
 

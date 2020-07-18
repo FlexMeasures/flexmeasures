@@ -24,7 +24,7 @@
             </div>
             <div class="col-sm-1">
                 <form action="/users/toggle_active/{{ user.id }}" method="get">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit"
+                    <button class="btn btn-sm btn-responsive {% if user.active %} btn-warning  {% else %} btn-success {% endif %}" type="submit"
                      title="Toggle activation status of this user.">
                         {% if user.active %} Deactivate user {% else %} Activate user {% endif %}
                     </button>
@@ -33,7 +33,7 @@
             <div class="col-sm-10">
 
                 <form action="/users/delete_with_data/{{ user.id }}" method="GET">
-                    <button id="delete-user-button" class="btn btn-sm btn-responsive btn-info" type="submit"
+                    <button id="delete-user-button" class="btn btn-sm btn-responsive btn-danger" type="submit"
                      title="Delete this user and all assorted assets and meter readings.">
                         Delete user
                     </button>

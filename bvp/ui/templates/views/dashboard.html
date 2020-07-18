@@ -5,25 +5,6 @@
 {% block title %} Dashboard {% endblock %}
 
 {% block divs %}
-<!--    <script type="text/javascript">-->
-
-<!--    // Helper functions-->
-
-<!--    function getMockImageByCapacityFactor(capacity_factor_in_percent){-->
-<!--        var path = "ui/static/live-mock-imgs/";-->
-<!--        if (capacity_factor_in_percent < 5) return path + "0.0.png";-->
-<!--        if (capacity_factor_in_percent < 15) return path + "0.1.png";-->
-<!--        if (capacity_factor_in_percent < 25) return path + "0.2.png";-->
-<!--        if (capacity_factor_in_percent < 35) return path + "0.3.png";-->
-<!--        if (capacity_factor_in_percent < 45) return path + "0.4.png";-->
-<!--        if (capacity_factor_in_percent < 55) return path + "0.5.png";-->
-<!--        if (capacity_factor_in_percent < 65) return path + "0.6.png";-->
-<!--        if (capacity_factor_in_percent < 75) return path + "0.7.png";-->
-<!--        if (capacity_factor_in_percent < 85) return path + "0.8.png";-->
-<!--        if (capacity_factor_in_percent < 95) return path + "0.9.png";-->
-<!--        return path + "1.0.png"-->
-<!--    }-->
-<!--    </script>-->
 
     <div class="container-fluid">
         <div class="row">
@@ -178,21 +159,6 @@
         {% endif %}
     {% endfor %}
 
-<!--    // mock battery icons-->
-<!--    var stationary_batteries_icon = new L.DivIcon({-->
-<!--        className:      'map-icon',-->
-<!--        html:           '<i class="icon-battery"></i>',-->
-<!--        iconSize:       [24, 24], // size of the icon-->
-<!--        iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location-->
-<!--        popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor-->
-<!--    });-->
-<!--    var stationary_batteries_opportunity_icon = new L.DivIcon({-->
-<!--        className:      'map-icon opportunity',-->
-<!--        html:           '<i class="icon-battery"></i>',-->
-<!--        iconSize:       [24, 24], // size of the icon-->
-<!--        iconAnchor:     [12, 12], // point of the icon which will correspond to marker's location-->
-<!--        popupAnchor:    [0, -12] // point from which the popup should open relative to the iconAnchor-->
-<!--    });-->
 
     // create markers, keep them in separate lists (by asset type) to be put into layers
 
@@ -245,6 +211,15 @@
                         </div>
                         `
                     )
+                    .on('mouseover', function () {
+                        $(this._icon).addClass('over');
+                    })
+                    .on('mouseout', function () {
+                        $(this._icon).delay(3000).queue(function(next){
+                            $(this).removeClass('over');
+                            next();
+                        });
+                    })
                     .on('click', clickZoom)
                     .on('click', lookForState);
                     // .openPopup();
@@ -252,151 +227,6 @@
             }
         {% endfor%}
     {% endfor%}
-
-<!--    // add mock icons in layer-->
-<!--    {% if user_is_logged_in and (user_is_admin or "wind" in user_email) %}-->
-<!--        var marker_for_wind = L-->
-<!--            .marker(-->
-<!--                [33.428833, 126.166126],-->
-<!--                {icon: wind_turbines_opportunity_icon}-->
-<!--            )-->
-<!--            .bindPopup(`-->
-<!--                <div class="row">-->
-<!--                    <div class="col-sm-12">-->
-<!--                        <h4>Suwon</h4>-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                <div class="row">-->
-<!--                    <div class="col-sm-9">-->
-<!--                        This wind asset is currently producing at 3 MW (60% capacity) and has a balancing opportunity. Please consider valorising on this opportunity.-->
-<!--                    </div>-->
-<!--                    <div class="col-sm-3">-->
-<!--                        ` +-->
-<!--                        responsiveImageWithTooltip(-->
-<!--                            getMockImageByCapacityFactor(60),-->
-<!--                            'Power',-->
-<!--                            'Currently producing at 3 MW (60% capacity)'-->
-<!--                        )-->
-<!--                        + `-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                <div class="row top-buffer">-->
-<!--                    <div class="col-sm-6">-->
-<!--                        <form action="analytics" method="get">-->
-<!--                            <input type="hidden" name="resource" value="sw-offshore">-->
-<!--                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
-<!--                        </form>-->
-<!--                    </div>-->
-<!--                    <div class="col-sm-6">-->
-<!--                        <form action="control" method="get">-->
-<!--                            &lt;!&ndash;<input type="hidden" name="offer" value="still_mocked">&ndash;&gt;-->
-<!--                            <button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
-<!--                        </form>-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                `-->
-<!--            )-->
-<!--            .on('click', clickZoom)-->
-<!--            .on('click', lookForState);-->
-<!--        if (typeof stationary_batteries_markers !== 'undefined') {-->
-<!--            wind_turbines_markers.push(marker_for_wind);-->
-<!--        }-->
-<!--    {% endif%}-->
-<!--    {% if user_is_admin %}-->
-<!--        var marker_for_bat = L-->
-<!--            .marker(-->
-<!--                [33.3761057, 126.3025723],-->
-<!--                {icon: stationary_batteries_opportunity_icon}-->
-<!--            )-->
-<!--            .bindPopup(`-->
-<!--                <div class="row">-->
-<!--                    <div class="col-sm-12">-->
-<!--                        <h4>Battery storage unit</h4>-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                <div class="row">-->
-<!--                    <div class="col-sm-9">-->
-<!--                        This battery asset is currently consuming at 4 MW (80% capacity) and has a balancing opportunity. Please consider valorising on this opportunity.-->
-<!--                    </div>-->
-<!--                    <div class="col-sm-3">-->
-<!--                        ` +-->
-<!--                        responsiveImageWithTooltip(-->
-<!--                            getMockImageByCapacityFactor(80),-->
-<!--                            'Power',-->
-<!--                            'Currently consuming at 4 MW (80% capacity)'-->
-<!--                        )-->
-<!--                        + `-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                <div class="row top-buffer">-->
-<!--                    <div class="col-sm-6">-->
-<!--                        <form action="analytics" method="get">-->
-<!--                            &lt;!&ndash;<input type="hidden" name="resource" value="still_mocked">&ndash;&gt;-->
-<!--                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
-<!--                        </form>-->
-<!--                    </div>-->
-<!--                    <div class="col-sm-6">-->
-<!--                        <form action="control" method="get">-->
-<!--                            &lt;!&ndash;<input type="hidden" name="offer" value="still_mocked">&ndash;&gt;-->
-<!--                            <button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>-->
-<!--                        </form>-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                `-->
-<!--            )-->
-<!--            .on('click', clickZoom)-->
-<!--            .on('click', lookForState);-->
-<!--        if (typeof stationary_batteries_markers !== 'undefined') {-->
-<!--            stationary_batteries_markers.push(marker_for_bat);-->
-<!--        }-->
-
-<!--        var marker_for_bat = L-->
-<!--            .marker(-->
-<!--                [33.3262057, 126.3925813],-->
-<!--                {icon: stationary_batteries_icon}-->
-<!--            )-->
-<!--            .bindPopup(`-->
-<!--                <div class="row">-->
-<!--                    <div class="col-sm-12">-->
-<!--                        <h4>Four battery storage units</h4>-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                <div class="row">-->
-<!--                    <div class="col-sm-9">-->
-<!--                        This battery asset is currently consuming at 4 MW (80% capacity).-->
-<!--                    </div>-->
-<!--                    <div class="col-sm-3">-->
-<!--                        ` +-->
-<!--                        responsiveImageWithTooltip(-->
-<!--                            getMockImageByCapacityFactor(80),-->
-<!--                            'Power',-->
-<!--                            'Currently consuming at 4 MW (80% capacity)'-->
-<!--                        )-->
-<!--                        + `-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                <div class="row top-buffer">-->
-<!--                    <div class="col-sm-6">-->
-<!--                        <form action="analytics" method="get">-->
-<!--                            &lt;!&ndash;<input type="hidden" name="resource" value="still_mocked">&ndash;&gt;-->
-<!--                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
-<!--                        </form>-->
-<!--                    </div>-->
-<!--                    <div class="col-sm-6">-->
-<!--                        <form action="control" method="get">-->
-<!--                            &lt;!&ndash;<input type="hidden" name="offer" value="still_mocked">&ndash;&gt;-->
-<!--                            &lt;!&ndash;<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>&ndash;&gt;-->
-<!--                        </form>-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                `-->
-<!--            )-->
-<!--            .on('click', clickZoom)-->
-<!--            .on('click', lookForState);-->
-<!--        if (typeof stationary_batteries_markers !== 'undefined') {-->
-<!--            stationary_batteries_markers.push(marker_for_bat);-->
-<!--        }-->
-<!--    {% endif%}-->
 
     // create Map with tiles
     var assetMap = L

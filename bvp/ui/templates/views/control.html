@@ -95,7 +95,7 @@
                             </td>
                             <td>ESCo 1</td>
                             <td>
-                                <div class="form-group">
+                                <div>
                                     Ordered: <b>1.1MW</b>
                                 </div>
                             </td>
@@ -105,7 +105,7 @@
                                     <span class="fa fa-arrows-h" aria-hidden="true"></span>
                                 </div>
                                 {% if user_is_admin %}
-                                <a class="btn btn-default" role="button" id="control-order-button-ev">
+                                <a class="btn btn-default btn-danger" role="button" id="control-order-button-ev">
                                     <span class="fa fa-minus" aria-hidden="true"></span> Cancel
                                 </a>
                                 {% endif %}
@@ -125,7 +125,7 @@
                             </td>
                             <td>ESCo 1</td>
                             <td>
-                                <div class="form-group">
+                                <div>
                                     Ordered: <b>1.3MW</b>
                                 </div>
                             </td>
@@ -135,7 +135,7 @@
                                     <span class="fa fa-cut" aria-hidden="true"></span>
                                 </div>
                                 {% if user_is_admin %}
-                                <a class="btn btn-default" role="button" id="control-order-button-onshore">
+                                <a class="btn btn-default btn-danger" role="button" id="control-order-button-onshore">
                                     <span class="fa fa-minus" aria-hidden="true"></span> Cancel
                                 </a>
                                 {% endif %}
@@ -153,7 +153,7 @@
                             </td>
                             <td>ESCo 1</td>
                             <td>
-                                <div class="form-group" id="control-offshore-volume">
+                                <div id="control-offshore-volume">
                                     <div>
                                         <input type="hidden" class="form-control" id="control-action-setting-offshore" name="N" />
                                     </div>
@@ -165,7 +165,7 @@
                                     <span class="fa fa-cut" aria-hidden="true"></span>
                                 </div>
                                 {% if user_is_admin %}
-                                <a class="btn btn-default" role="button" id="control-order-button-offshore"> <!-- data-toggle="modal" data-target="#orderModal" -->
+                                <a class="btn btn-default btn-success" role="button" id="control-order-button-offshore"> <!-- data-toggle="modal" data-target="#orderModal" -->
                                     <span class="fa fa-plus" aria-hidden="true"></span> Order
                                 </a>
                                 {% endif %}
@@ -176,7 +176,7 @@
                                     <span class="fa fa-won" aria-hidden="true"></span>
                                 </div>
                                 {% if user_is_admin %}
-                                <a class="btn btn-default" role="button" id="control-check-expected-value-offshore">
+                                <a class="btn btn-default btn-info" role="button" id="control-check-expected-value-offshore">
                                     <span class="fa fa-line-chart" aria-hidden="true"></span> Check
                                 </a>
                                 {% endif %}
@@ -190,7 +190,7 @@
                             </td>
                             <td>ESCo 2</td>
                             <td>
-                                <div class="form-group">
+                                <div id="control-battery-volume">
                                     <div>
                                         <input type="hidden" class="form-control" id="control-action-setting-battery" name="N" />
                                     </div>
@@ -201,7 +201,7 @@
                                     Shift consumption
                                     <span class="fa fa-arrows-h" aria-hidden="true"></span>
                                 </div>
-                                <a class="btn btn-default" href="#" role="button" data-toggle="modal" data-target="#orderModal" id="control-order-button-battery">
+                                <a class="btn btn-default btn-success" href="#" role="button" data-toggle="modal" data-target="#orderModal" id="control-order-button-battery">
                                     <span class="fa fa-plus" aria-hidden="true"></span> Order
                                 </a>
                             </td>
@@ -210,7 +210,7 @@
                                     <span id="control-expected-value-battery">10.000</span>
                                     <span class="fa fa-won" aria-hidden="true"></span>
                                 </div>
-                                <a class="btn btn-default" href="#" role="button" id="control-check-expected-value-battery">
+                                <a class="btn btn-default btn-info" href="#" role="button" id="control-check-expected-value-battery">
                                     <span class="fa fa-line-chart" aria-hidden="true"></span> Check
                                 </a>
                             </td>

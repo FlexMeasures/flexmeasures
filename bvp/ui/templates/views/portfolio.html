@@ -49,14 +49,14 @@
                                     {{ asset_type_name | capitalize }}
                                 </td>
                                 <td>{% if asset_types[asset_type_name].is_producer and production_per_asset_type[asset_type_name] > 0  %}
-                                        {{ "{:,.3f}".format( production_per_asset_type[asset_type_name]  | round(3)) }}
+                                        {{ "{:,.3f}".format( production_per_asset_type[asset_type_name] ) }}
                                     {% endif %}
                                 </td>
                                 <td>{% if asset_types[asset_type_name].is_consumer and consumption_per_asset_type[asset_type_name] > 0 %}
-                                        {{ "{:,.3f}".format( consumption_per_asset_type[asset_type_name]  | round(3)) }}
+                                        {{ "{:,.3f}".format( consumption_per_asset_type[asset_type_name] ) }}
                                     {% endif %}
                                 </td>
-                                <!--td>{{ "{:,.2f}".format( profit_loss_energy_per_asset_type[asset_type_name] | round(2)) }}</td-->
+                                <!--td>{{ "{:,.2f}".format( profit_loss_energy_per_asset_type[asset_type_name] ) }}</td-->
                             </tr>
                         {% endfor %}
                         {% if asset_types | length > 1 %}
@@ -64,9 +64,9 @@
                                 <td class="text-left">
                                     Total
                                 </td>
-                                <td>{{ "{:,.3f}".format( sum_production | round(3)) }}</td>
-                                <td>{{ "{:,.3f}".format( sum_consumption | round(3)) }}</td>
-                                <!--td>{{ "{:,.2f}".format( sum_profit_loss_energy | round(2)) }}</td-->
+                                <td>{{ "{:,.3f}".format( sum_production ) }}</td>
+                                <td>{{ "{:,.3f}".format( sum_consumption ) }}</td>
+                                <!--td>{{ "{:,.2f}".format( sum_profit_loss_energy ) }}</td-->
                             </tr>
                         {% endif %}
                         </tbody>
@@ -95,14 +95,14 @@
                                     {{ asset_type_name | capitalize }}
                                 </td>
                                 <td>{% if asset_types[asset_type_name].is_producer and curtailment_per_asset_type[asset_type_name] > 0  %}
-                                        {{ "{:,.3f}".format( curtailment_per_asset_type[asset_type_name]  | round(3)) }}
+                                        {{ "{:,.3f}".format( curtailment_per_asset_type[asset_type_name] ) }}
                                     {% endif %}
                                 </td>
                                 <td>{% if asset_types[asset_type_name].is_consumer and shifting_per_asset_type[asset_type_name] > 0  %}
-                                        {{ "{:,.3f}".format( shifting_per_asset_type[asset_type_name]  | round(3)) }}
+                                        {{ "{:,.3f}".format( shifting_per_asset_type[asset_type_name] ) }}
                                     {% endif %}
                                 </td>
-                                <td>{{ "{:,.2f}".format( profit_loss_flexibility_per_asset_type[asset_type_name] | round(2)) }}</td>
+                                <td>{{ "{:,.2f}".format( profit_loss_flexibility_per_asset_type[asset_type_name] ) }}</td>
                             </tr>
                         {% endfor %}
                         {% if asset_types | length > 1 %}
@@ -110,14 +110,39 @@
                                 <td class="text-left">
                                     Total
                                 </td>
-                                <td>{{ "{:,.3f}".format( sum_curtailment | round(3)) }}</td>
-                                <td>{{ "{:,.3f}".format( sum_shifting | round(3)) }}</td>
-                                <td>{{ "{:,.2f}".format( sum_profit_loss_flexibility | round(2)) }}</td>
+                                <td>{{ "{:,.3f}".format( sum_curtailment ) }}</td>
+                                <td>{{ "{:,.3f}".format( sum_shifting ) }}</td>
+                                <td>{{ "{:,.2f}".format( sum_profit_loss_flexibility ) }}</td>
                             </tr>
                         {% endif %}
                         </tbody>
                     </table>
                 {% endif %}
+                <h3>Market status</h3>
+                <table class="table table-striped table-responsive paginate-5 {% if markets | length > 5 %}paginate{% else %}paginate-without-paging{% endif %}" style="font-size: 100%;">
+                    <thead>
+                        <tr>
+                            <th>Market</th>
+                            <th>Currency</th>
+                            <th>Average price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for market in markets: %}
+                        <tr>
+                            <td>{{ market.display_name }}</td>
+                            <td>{{ market.unit[:3] }}</td>
+                            <td>
+                                {% if not average_prices[market.name] | isnan %}
+                                    {{ "{:,.2f}".format( average_prices[market.name] ) }} {{ market.unit }}
+                                {% else %}
+                                    Unknown for the requested period
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
 
             </div>
             <div class="col-sm-8">
@@ -153,55 +178,54 @@
                 </div>
                 <div class="row">
                     <div class="col-sm-12">
-                        <div class="wrapper small-wrapper">
-                            <table class="table-striped">
+                            <table class="table table-striped table-responsive paginate paginate-10">
                                 <thead>
                                     <tr>
                                         <th>Asset</th>
                                         <!--<th>Energy Service Company</th>-->
-                                        <th>Production</th>
-                                        <th>Consumption</th>
-                                        <th>Curtailment</th>
-                                        <th>Shifting</th>
-                                        <th>Balancing revenue</th>
-                                        <th></th>
+                                        <th class="text-right">Production</th>
+                                        <th class="text-right">Consumption</th>
+                                        <th class="text-right">Curtailment</th>
+                                        <th class="text-right">Shifting</th>
+                                        <th class="text-right">Balancing revenue</th>
+                                        <th class="no-sort"></th>
                                     </tr>
                                 </thead>
 
                                 <tbody>
                                     {% for asset in assets: %}
-                                    <tr class="active">
+                                    <tr>
                                         <td>
                                             <i class="{{ asset.asset_type.icon_name }} left-icon"><a href="/assets/{{ asset.id }}" title="Show asset meta data and location on map">{{ asset.display_name }}</a></i>
                                         </td>
-                                        <td>
+                                        <td class="text-right">
                                             {% if asset.asset_type.is_producer %}
                                                 {% if production_per_asset[asset.name] > 0 %}
-                                                    {{ production_per_asset[asset.name] | round(2) }} MWh
+                                                    {{ "{:,.2f}".format( production_per_asset[asset.name] ) }} MWh
                                                 {% endif %}
                                             {% endif %}
                                         </td>
-                                        <td>
+                                        <td class="text-right">
                                             {% if asset.asset_type.is_consumer %}
                                                 {% if consumption_per_asset[asset.name] < 0 %}
-                                                    {{ consumption_per_asset[asset.name] | round(2) }} MWh
+                                                    {{ "{:,.2f}".format( consumption_per_asset[asset.name] ) }} MWh
                                                 {% endif %}
                                             {% endif %}
                                         </td>
-                                        <td>
+                                        <td class="text-right">
                                             {% if asset.asset_type.can_curtail  and curtailment_per_asset[asset.name] > 0 %}
-                                                {{ curtailment_per_asset[asset.name] | round(2) }} MWh
+                                                {{ "{:,.2f}".format( curtailment_per_asset[asset.name] ) }} MWh
                                             {% endif %}
                                         </td>
-                                        <td>
+                                        <td class="text-right">
                                             {% if asset.asset_type.can_shift and shifting_per_asset[asset.name] > 0 %}
-                                                {{ shifting_per_asset[asset.name] | round(2) }} MWh
+                                                {{ "{:,.2f}".format( shifting_per_asset[asset.name] ) }} MWh
                                             {% endif %}
                                         </td>
-                                        <td>
-                                            {{ profit_loss_flexibility_per_asset[asset.name] | round(2) }} KRW
+                                        <td class="text-right">
+                                            {{ "{:,.2f}".format( profit_loss_flexibility_per_asset[asset.name] ) }} KRW
                                         </td>
-                                        <td>
+                                        <td class="text-right">
                                             <form action="analytics" method="get">
                                                 <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
                                                 <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
@@ -211,41 +235,18 @@
                                     {% endfor %}
                                 </tbody>
                             </table>
-                        </div>
                     </div>
                 </div>
 
                 <div class="row">
                     <div class="col-sm-12">
-                        <h3>Market status</h3>
-                        <table class="table" style="font-size: 100%;">
-                            <thead>
-                                <tr>
-                                    <th>Market</th>
-                                    <th>Currency</th>
-                                    <th>Average price</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for market in markets: %}
-                                <tr>
-                                    <td>{{ market.display_name }}</td>
-                                    <td>{{ market.unit[:3] }}</td>
-                                    <td>
-                                        {% if not average_prices[market.name] | isnan %}
-                                            {{ "{:,.2f}".format( average_prices[market.name] | round(2)) }} {{ market.unit }}
-                                        {% else %}
-                                            Unknown for the requested period
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+
                     </div>
                 </div>
             </div>
         </div>
     </div>
-        
+
+    {% block paginate_tables_script %} {{ super() }} {% endblock %}
+
 {% endblock %}

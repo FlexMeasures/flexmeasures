@@ -132,15 +132,6 @@ label.control-label {
     /*margin-bottom: 0px;*/
 }
 
-.table > thead > tr > th {
-     vertical-align: top;
-}
-.table td.fit,
-.table th.fit {
-    white-space: nowrap;
-    width: 1%;
-}
-
 .navbar-tool-name {
     margin-right: 30px;
     color: #c21431;
@@ -192,67 +183,24 @@ table#control-actions tr.active b {
 }
 
 
-/* dashboard mockup - check later */
-
-.my_container {
-    width: 100%;
-    display: flex;
-    justify-content: flex-start;
-}
-
-.image {
-    opacity: 1;
-    display: block;
-    max-width: 100%;
-    width: auto;
-    height: auto;
-    transition: .5s ease;
-    backface-visibility: hidden;
-}
-
-.middle {
-    transition: .5s ease;
-    opacity: 0;
-    position: absolute;
-    top: 50%;
-    left: -50%;
-    transform: translate(-50%, -50%);
-    -ms-transform: translate(-50%, -50%);
-    text-align: center;
-}
-
-.my_container:hover .image {
-    opacity: 0.3;
-}
-
-.my_container:hover .middle {
-    opacity: 1;
-}
-
-.text {
-    width: 200%;
-    background-color: #4CAF50;
-    color: white;
-    font-size: 12px;
-    padding: 8px 8px;
-}
-
-
 /* table scrolling */
 
-.wrapper {
-    overflow: auto;
-    position: relative;
-}
-.wrapper.small-wrapper {
-    height: 400px;
+.floatThead-wrapper table {
+    width: 100%;
 }
 .floatThead-wrapper thead {
     background-color: #FFF;
 }
 
-.floatThead-wrapper th {
-    padding-right: 20px;
+.floatThead-wrapper th, td {
+    padding: 8px;
+}
+
+
+/* bootstrap works on tables with class="table" - here we override their nice styling only with respect to vertical alignment of table elements */
+
+.table > tbody > tr > td {
+     vertical-align: middle;
 }
 
 
@@ -263,12 +211,34 @@ table#control-actions tr.active b {
 }
 
 
+/**
+ * Datatables sorting icons on left when header is not right aligned
+ */
+
+table.dataTable thead tr th:not(.text-right).sorting_asc {
+  background: url("http://cdn.datatables.net/1.10.0/images/sort_asc.png") no-repeat center left;
+}
+table.dataTable thead tr th:not(.text-right).sorting_desc {
+  background: url("http://cdn.datatables.net/1.10.0/images/sort_desc.png") no-repeat center left;
+}
+table.dataTable thead tr th:not(.text-right).sorting {
+  background: url("http://cdn.datatables.net/1.10.0/images/sort_both.png") no-repeat center left;
+}
+table.dataTable thead tr th.no-sort {
+    padding: 9px;
+}
+table.dataTable thead tr th {
+    border-bottom: inherit;
+}
+table.dataTable.no-footer {
+    border-bottom: inherit !important;
+}
+.dataTables_length label, .dataTables_filter label {
+    font-weight: inherit;
+}
+
 /* extra buffer for bootstrap rows */
 .top-buffer { margin-top:15px; }
-
-
-/* extra buffer for buttons inside tables */
-td button { margin:5px; }
 
 
 /* footer */
@@ -368,11 +338,12 @@ i.center-icon:after, i.center-icon:before {
 
 
 /* rotating icons, because why not? */
-i.icon-wind:before {
-    transform-origin: 37.4% 40.2%;
-    transition: transform 0.0s ease;
-}
 i.icon-wind:hover:before {
+    transform: rotate(720deg);
+    transform-origin: 37.4% 40.2%;
+    transition: transform 3.0s ease;
+}
+.over > i.icon-wind:before , i.icon-wind.over:before{
     transform: rotate(720deg);
     transform-origin: 37.4% 40.2%;
     transition: transform 3.0s ease;

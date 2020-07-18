@@ -17,12 +17,12 @@
             {% if user_is_admin %}
             <div class="col-sm-1">
                 <form action="/assets/new" method="get" style="float:right">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Create new asset</button>
+                    <button class="btn btn-sm btn-responsive btn-success" type="submit">Create new asset</button>
                 </form>
             </div>
             <div class="col-sm-1">
                 <form action="/assets/delete_with_data/{{ asset.id }}" method="get" style="float:right">
-                    <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-info" type="submit">Delete this asset</button>
+                    <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">Delete this asset</button>
                 </form>
                 <script>
                     $("#delete-asset-button").click(function(){
@@ -34,18 +34,6 @@
                         }
                     });
                 </script>
-            </div>
-            {% endif %}
-            <div class="col-sm-2">
-                <form action="../../assets" method="get">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Go to asset overview</button>
-                </form>
-            </div>
-            {% if user_is_admin %}
-            <div class="col-sm-7">
-            </div>
-            {% else %}
-            <div class="col-sm-11">
             </div>
             {% endif %}
         </div>
@@ -140,7 +128,7 @@
                         <div class="col-sm-6"></div>
                         <div class="col-sm-6"></div>
                         <div class="col-sm-6">
-                            <input type="submit" value="Save">
+                            <button class="btn btn-sm btn-responsive btn-success" type="submit" value="Save">Save</button>
                         </div>
 
                         <h3>API info for this asset</h3>

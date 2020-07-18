@@ -35,6 +35,8 @@
             {% endif %}
             {% if active_page == "tasks" %}
                 <link href="{{ url_for('bvp_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}" rel="stylesheet"/>
+            {% elif active_page in ("assets", "users", "portfolio") %}
+                <link href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.min.css" rel="stylesheet"/>
             {% endif %}
         </head>
         <body>
@@ -196,6 +198,11 @@
                     {% endif %}
 
                 {% endblock scripts %}
+
+                {% block paginate_tables_script %}
+                    <script src="//cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+                    <script src="{{ url_for('bvp_ui.static', filename='js/external/dataTables.conditionalPaging.js') }}"></script>
+                {% endblock paginate_tables_script %}
 
                 <footer class="page-footer font-small pt-4 mt-4">
                     <div class="footer text-center">

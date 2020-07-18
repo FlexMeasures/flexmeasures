@@ -11,23 +11,22 @@
             <div class="col-sm-12">
 
                 <h2>All assets</h2>
-
-                {% if user_is_admin %}
-                <form action="/assets/new" method="get" style="float:right">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Create new asset</button>
-                </form>
-                {% endif %}
-
-                <table class="table table-striped table-responsive">
+                <table class="table table-striped table-responsive paginate">
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Capacity</th>
-                            <th>Location</th>
-                            <th>Asset id</th>
-                            <th>Owner id</th>
-                            <th>Entity address</th>
-                            <th></th>
+                            <th class="text-right">Capacity</th>
+                            <th class="text-right no-sort">Location</th>
+                            <th class="text-right">Asset id</th>
+                            <th class="text-right">Owner id</th>
+                            <th class="text-right no-sort">Entity address</th>
+                            <th class="text-right no-sort">
+                                {% if user_is_admin %}
+                                    <form action="/assets/new" method="get">
+                                        <button class="btn btn-sm btn-responsive btn-success" type="submit">Create new asset</button>
+                                    </form>
+                                {% endif %}
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -36,22 +35,22 @@
                                 <td>
                                     <i class="{{ asset.icon_name }} left-icon"><a href="/assets/{{ asset.id }}" alt="Edit this asset">{{ asset.display_name }}</a></i>
                                 </td>
-                                <td>
-                                    {{ "{:,.3f}".format(  asset.capacity_in_mw | round(3) ) }} MW
+                                <td class="text-right">
+                                    {{ "{:,.3f}".format( asset.capacity_in_mw ) }} MW
                                 </td>
-                                <td>
-                                    LAT: {{ "{:,.4f}".format(  asset.latitude | round(4) ) }} LONG: {{ "{:,.4f}".format(  asset.longitude | round(4) ) }}
+                                <td class="text-right">
+                                    LAT: {{ "{:,.4f}".format( asset.latitude ) }} LONG: {{ "{:,.4f}".format( asset.longitude ) }}
                                 </td>
-                                <td>
+                                <td class="text-right">
                                     {{ asset.id }}
                                 </td>
-                                <td>
+                                <td class="text-right">
                                     {{ asset.owner_id }}
                                 </td>
-                                <td>
+                                <td class="text-right">
                                     {{ asset.entity_address }}
                                 </td>
-                                <td>
+                                <td class="text-right">
                                     <form action="../../analytics" method="get">
                                         <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
                                         <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
@@ -65,5 +64,7 @@
             </div>
         </div>
     </div>
+
+    {% block paginate_tables_script %} {{ super() }} {% endblock %}
 
 {% endblock%}
