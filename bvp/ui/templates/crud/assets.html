@@ -34,7 +34,7 @@
                         {% for asset in assets: %}
                             <tr>
                                 <td>
-                                    <i class="{{ asset.icon_name }}"><a href="/assets/{{ asset.id }}" alt="Edit this asset">{{ asset.display_name }}</a></i>
+                                    <i class="{{ asset.icon_name }} left-icon"><a href="/assets/{{ asset.id }}" alt="Edit this asset">{{ asset.display_name }}</a></i>
                                 </td>
                                 <td>
                                     {{ "{:,.3f}".format(  asset.capacity_in_mw | round(3) ) }} MW
