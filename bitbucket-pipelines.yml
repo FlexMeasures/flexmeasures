@@ -1,7 +1,7 @@
 codeCheckStep: &codeCheckStep
   step:
     name: Code check
-    image: python:3.8
+    image: python:3.8.3
     script:
       # Running pre-commit, as it is repeatable from repo code
       - pip install pre-commit==2.2.0
@@ -10,7 +10,7 @@ codeCheckStep: &codeCheckStep
 buildAndTestStep: &buildAndTestStep
   step:
     name: Build and Test
-    image: python:3.8
+    image: python:3.8.3
     caches:
         - pip
     script:

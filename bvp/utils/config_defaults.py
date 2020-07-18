@@ -22,11 +22,11 @@ class Config(object):
     SQLALCHEMY_DATABASE_URI: Optional[str] = None
     # https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    # https://www.pythonanywhere.com/forums/topic/2599/
-    SQLALCHEMY_POOL_RECYCLE = 299
-    # SQLALCHEMY_POOL_TIMEOUT = 20
-    # https://docs.sqlalchemy.org/en/13/core/pooling.html#disconnect-handling-pessimistic
-    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_recycle": 299,  # https://www.pythonanywhere.com/forums/topic/2599/
+        # "pool_timeout": 20,
+        "pool_pre_ping": True,  # https://docs.sqlalchemy.org/en/13/core/pooling.html#disconnect-handling-pessimistic
+    }
 
     MAIL_SERVER: Optional[str] = None
     MAIL_PORT: Optional[str] = None
