@@ -19,7 +19,7 @@ def mean_absolute_percentage_error(y_true: np.ndarray, y_forecast: np.ndarray):
     if y_true.size == 0 or y_forecast.size == 0 or 0 in y_true:
         return np.nan
     else:
-        return np.mean(np.abs((y_true - y_forecast) / y_true)) * 100
+        return np.mean(np.abs((y_true - y_forecast) / y_true))
 
 
 def weighted_absolute_percentage_error(y_true: np.ndarray, y_forecast: np.ndarray):
@@ -27,7 +27,7 @@ def weighted_absolute_percentage_error(y_true: np.ndarray, y_forecast: np.ndarra
     if y_true.size == 0 or y_forecast.size == 0 or sum(y_true) == 0:
         return np.nan
     else:
-        return np.sum(np.abs((y_true - y_forecast))) / np.abs(np.sum(y_true)) * 100
+        return np.sum(np.abs((y_true - y_forecast))) / np.abs(np.sum(y_true))
 
 
 def drop_nan_rows(a, b):
