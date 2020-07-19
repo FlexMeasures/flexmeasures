@@ -216,13 +216,13 @@ table#control-actions tr.active b {
  */
 
 table.dataTable thead tr th:not(.text-right).sorting_asc {
-  background: url("http://cdn.datatables.net/1.10.0/images/sort_asc.png") no-repeat center left;
+  background: url("https://cdn.datatables.net/1.10.0/images/sort_asc.png") no-repeat center left;
 }
 table.dataTable thead tr th:not(.text-right).sorting_desc {
-  background: url("http://cdn.datatables.net/1.10.0/images/sort_desc.png") no-repeat center left;
+  background: url("https://cdn.datatables.net/1.10.0/images/sort_desc.png") no-repeat center left;
 }
 table.dataTable thead tr th:not(.text-right).sorting {
-  background: url("http://cdn.datatables.net/1.10.0/images/sort_both.png") no-repeat center left;
+  background: url("https://cdn.datatables.net/1.10.0/images/sort_both.png") no-repeat center left;
 }
 table.dataTable thead tr th.no-sort {
     padding: 9px;
