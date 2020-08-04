@@ -5,7 +5,12 @@ import string
 from flask import current_app
 from flask_security import current_user, SQLAlchemySessionUserDatastore
 from flask_security.recoverable import update_password
-from validate_email import validate_email
+from email_validator import (
+    validate_email,
+    validate_email_deliverability,
+    EmailNotValidError,
+    EmailUndeliverableError,
+)
 
 from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
@@ -42,9 +47,9 @@ def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
     return user
 
 
-def create_user(
+def create_user(  # noqa: C901
     user_roles: Union[Dict[str, str], List[Dict[str, str]], str, List[str]] = None,
-    check_mx: bool = True,
+    check_deliverability: bool = True,
     **kwargs
 ) -> User:
     """Convenience wrapper to create a new User object and new Role objects (if user roles do not already exist),
@@ -54,17 +59,22 @@ def create_user(
     if "email" not in kwargs:
         raise InvalidBVPUser("No email address provided.")
     email = kwargs.pop("email").strip()
-    if validate_email(email, check_mx=False):
+    try:
+        email_info = validate_email(email, check_deliverability=False)
         # The mx check talks to the SMTP server. During testing, we skip it because it
         # takes a bit of time and without internet connection it fails.
-        if (
-            check_mx
-            and not current_app.testing
-            and not validate_email(email, check_mx=True)
-        ):
-            raise InvalidBVPUser("The email address %s does not seem to exist" % email)
-    else:
-        raise InvalidBVPUser("%s is not a valid email address" % email)
+        if check_deliverability and not current_app.testing:
+            try:
+                validate_email_deliverability(
+                    email_info.domain, email_info["domain_i18n"]
+                )
+            except EmailUndeliverableError as eue:
+                raise InvalidBVPUser(
+                    "The email address %s does not seem to be deliverable: %s"
+                    % (email, str(eue))
+                )
+    except EmailNotValidError as enve:
+        raise InvalidBVPUser("%s is not a valid email address: %s" % (email, str(enve)))
     if "username" not in kwargs:
         username = email.split("@")[0]
     else:

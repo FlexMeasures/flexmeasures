@@ -1,8 +1,10 @@
-from flask import Flask, Blueprint, request, current_app
+from flask import Flask, Blueprint, request
 from flask_marshmallow import Marshmallow
-from flask_security.views import login, logout
+from flask_security.utils import verify_password
 from flask_json import as_json
+from flask_login import current_user
 
+from bvp.data.models.user import User
 
 # The api blueprint. It is registered with the Flask app (see app.py)
 bvp_api = Blueprint("bvp_api", __name__)
@@ -16,49 +18,44 @@ def request_auth_token():
     """API endpoint to get a fresh authentication access token. Be aware that this fresh token has a limited lifetime
     (which depends on the current system setting SECURITY_TOKEN_MAX_AGE).
 
+    Pass the `email` parameter to identify the user.
+    Pass the `password` parameter to authenticate the user (if not already authenticated in current session)
+
     .. :quickref: Public; Obtain an authentication token
     """
 
     """
-    Calling the login of flask security here, so we can
+    The login of flask security returns the auth token, as well, but we'd like to
+     * skip authentication if the user is authenticated already
      * be exempt from csrf protection (this is a JSON-only endpoint)
      * use a more fitting name inside the api namespace
      * return the information in a nicer structure
     """
-    csrf_enabled = current_app.config.get(
-        "WTF_CSRF_ENABLED", True
-    )  # default is True, see Flask-WTF docs
     try:
-        current_app.config["WTF_CSRF_ENABLED"] = False
         if not request.is_json:
             return {"errors": ["Content-type of request must be application/json"]}, 400
-        from flask_login import current_user
+        if "email" not in request.json:
+            return {"errors": ["Please provide the 'email' parameter."]}, 400
 
-        if current_user.is_authenticated:
-            return {
-                "auth_token": current_user.get_auth_token(),
-                "user_id": current_user.id,
-            }
-        login_response = login()  # this logs in the user and also grabs the auth token.
-        logout()  # make sure user is returned to the previous state of authentication
-        if type(login_response) == tuple:
-            return_code = login_response[1]
+        email = request.json["email"]
+        if current_user.is_authenticated and current_user.email == email:
+            user = current_user
         else:
-            return_code = login_response.status_code
-        if return_code != 200:
-            if type(login_response) == tuple:
-                return login_response[0].json["response"], return_code
-            else:
-                return {"errors": ["We cannot log you in."]}, return_code
-        user_info = login_response[0].json["response"]["user"]
-        return {
-            "auth_token": user_info["authentication_token"],
-            "user_id": user_info["id"],
-        }
+            user = User.query.filter_by(email=email).one_or_none()
+            if not user:
+                return (
+                    {"errors": ["User with email '%s' does not exist" % email]},
+                    404,
+                )
+
+            if "password" not in request.json:
+                return {"errors": ["Please provide the 'password' parameter."]}
+            if not verify_password(request.json["password"], user.password):
+                return {"errors": ["User password does not match."]}, 401
+        token = user.get_auth_token()
+        return {"auth_token": token, "user_id": user.id}
     except Exception as e:
-        return {"errors": [str(e)]}, 400
-    finally:
-        current_app.config["WTF_CSRF_ENABLED"] = csrf_enabled
+        return {"errors": [str(e)]}, 500
 
 
 @bvp_api.route("/", methods=["GET"])

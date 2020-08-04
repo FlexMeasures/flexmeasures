@@ -48,7 +48,7 @@ def test_create_invalid_user(app):
             password=hash_password("testtest"),
             user_roles=["Prosumer"],
         )
-    assert "not seem to exist" in str(exc_info.value)
+    assert "not seem to be deliverable" in str(exc_info.value)
     """
     with pytest.raises(InvalidBVPUser) as exc_info:
         create_user(

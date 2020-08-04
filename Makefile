@@ -1,6 +1,6 @@
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-deps install-bvp freeze-deps show-file-space
+.PHONY: install install-deps install-bvp run-local test freeze-deps show-file-space
 
 install: install-deps install-bvp
 
@@ -9,10 +9,17 @@ install-deps:
 	pip-sync
 
 freeze-deps:
-	pip-compile
+	pip install pip-tools
+	pip-compile  # use --upgrade or --upgrade-package to actually change versions 
 
 install-bvp:
 	python setup.py develop
+
+run-local:
+	python bvp/run-local.py
+
+test:
+	python setup.py test
 
 upgrade-db:
 	flask db current

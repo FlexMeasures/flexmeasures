@@ -26,8 +26,7 @@ setup(
         "numpy",
         "isodate",
         "click",
-        "validate_email",
-        "email_validator",  # required by WTForms (itself a Flask-Security dependency)
+        "email_validator",
         "rq",
         "rq-dashboard",
         "rq-win; os_name=='nt'",
@@ -44,9 +43,9 @@ setup(
         "Flask-Migrate",
         "Flask-Classful",
         "Flask-WTF",
-        "Flask-Login==0.4.1",  # Todo: remove once https://github.com/mattupstate/flask-security/issues/856 is solved
+        "Flask-Login",
         "Flask-Mail",
-        "Flask-Security",
+        "Flask-Security-Too",
         "Flask-Marshmallow",
         "marshmallow-sqlalchemy>=0.23.1",
         "flask>=1.0",

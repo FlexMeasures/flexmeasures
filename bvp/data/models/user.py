@@ -3,6 +3,7 @@ from datetime import datetime
 from flask_security import UserMixin, RoleMixin
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from bvp.data.config import db
 
@@ -47,14 +48,17 @@ class User(db.Model, UserMixin):
         Inactive users can by definition not be authenticated."""
         return super(UserMixin, self).is_authenticated and self.active
 
-    @property
+    @hybrid_property
     def roles(self):
         """The roles attribute is being used by Flask-Security in the @roles_required decorator (among others).
            With this little overload fix, it will only return the user's roles if they are authenticated.
-           To read roles of an unauthenticated user (e.g. being inactive),
-           use the `bvp_roles` attribute.
+           We do this to prevent that if a user is logged in while the admin deactivates them, their session would still work.
+           In effect, we strip unauthenticated users from their roles. To read roles of an unauthenticated user
+           (e.g. being inactive), use the `bvp_roles` attribute.
+           If our auth model has moved to an improved way, e.g. requiring modern tokens, we should consider relaxing this.
+           Note: This needed to become a hybrid property when moving to Flask-Security 3.4
         """
-        if not self.is_authenticated:
+        if not self.is_authenticated and self is not User:
             return []
         else:
             return self.bvp_roles
