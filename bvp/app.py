@@ -45,7 +45,9 @@ def create(env=None) -> Flask:
 
     # configure Redis (for redis queue)
     if app.testing:
-        from fakeredis import FakeStrictRedis as redis_conn
+        from fakeredis import FakeStrictRedis
+
+        redis_conn = FakeStrictRedis()
     else:
         redis_conn = Redis(
             app.config["BVP_REDIS_URL"],
