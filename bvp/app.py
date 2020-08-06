@@ -45,12 +45,7 @@ def create(env=None) -> Flask:
 
     # configure Redis (for redis queue)
     if app.testing:
-        from fakeredis import FakeStrictRedis
-
-        app.queues = dict(
-            forecasting=Queue(connection=FakeStrictRedis(), name="forecasting"),
-            scheduling=Queue(connection=FakeStrictRedis(), name="scheduling"),
-        )
+        from fakeredis import FakeStrictRedis as redis_conn
     else:
         redis_conn = Redis(
             app.config["BVP_REDIS_URL"],
@@ -63,10 +58,13 @@ def create(env=None) -> Flask:
             redis_conn = Redis("MY-DB-NAME", unix_socket_path="/tmp/my-redis.socket",
             )
         """
-        app.queues = dict(
-            forecasting=Queue(connection=redis_conn, name="forecasting"),
-            scheduling=Queue(connection=redis_conn, name="scheduling"),
-        )
+    app.queues = dict(
+        forecasting=Queue(connection=redis_conn, name="forecasting"),
+        scheduling=Queue(connection=redis_conn, name="scheduling"),
+        labelling=Queue(connection=redis_conn, name="labelling"),
+        alerting=Queue(connection=redis_conn, name="alerting"),
+        reporting=Queue(connection=redis_conn, name="reporting"),
+    )
 
     # Some basic security measures
 
