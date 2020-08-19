@@ -17,14 +17,12 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 
 ### Dependencies
 
-* Make a virtual environment: `python3.8 -m venv bvp-venv` or use a different tool like `mkvirtualenv`. You can also use
+* Make a virtual environment: `python3.8 -m venv bvp-venv` or use a different tool like `mkvirtualenv` or virtualenvwrapper. You can also use
   an [Anaconda distribution](https://conda.io/docs/user-guide/tasks/manage-environments.html) as base with `conda create -n bvp-venv python=3.8`.
 * Activate it, e.g.: `source bvp-venv/bin/activate`
 * Install dependencies and the `bvp` platform itself:
 
-      pip install pip-tools
-      pip-sync
-      python setup.py develop
+      make install
 
 
 
@@ -43,7 +41,7 @@ Its purpose is to offer these balancing actions as one aggregated service to ene
 
 #### Preparing a database
 
-* Make sure you have a Postgres (Version 9+) database.
+* Make sure you have a Postgres (Version 9+) database. See `data/Readme/md` for instructions on this.
 * Tell `bvp` about it. Either you are using the default for the environment you're in (see `bvp/utils/config_defaults`),
    or you can configure your own connection string: In `bvp/<development|testing|staging|production>_conf.py`,
   set the variable `SQLALCHEMY_DATABASE_URI = 'postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`

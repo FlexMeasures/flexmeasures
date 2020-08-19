@@ -83,7 +83,6 @@ class Config(object):
         "MAIL_DEFAULT_SENDER",
         "MAIL_PASSWORD",
         "SECURITY_PASSWORD_SALT",
-        "BVP_TASK_CHECK_AUTH_TOKEN",
     ]
 
 

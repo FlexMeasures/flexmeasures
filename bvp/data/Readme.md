@@ -66,14 +66,18 @@ Or, from within Postgres console:
 
 Log in as the postgres superuser:
 
-    psql -U postgres --password -h 127.0.0.1 -d a1
+    sudo -u postgres psql
+    \connect a1
 
 Add the following extensions while logged in as the postgres superuser:
 
     CREATE EXTENSION cube;
     CREATE EXTENSION earthdistance;
 
-Log out with `\q` and repeat creating these extensions for the test database. Also try logging in as the a1 user once:
+
+Connect to the `a1test` database and repeat creating these extensions there. Then `exit`.
+
+Finally, try logging in as the a1 user once:
 
     psql -U a1 --password -h 127.0.0.1 -d a1
     \q
@@ -82,7 +86,7 @@ Log out with `\q` and repeat creating these extensions for the test database. Al
 
 Write:
 
-    SQLALCHEMY_DB_URL = "postgresql://a1:<password>@127.0.0.1/a1"
+    SQLALCHEMY_DATABASE_URI = "postgresql://a1:<password>@127.0.0.1/a1"
 
 into the config file you are using, e.g. bvp/development_config.py
 

@@ -176,7 +176,7 @@ def db_depopulate(
 def db_reset(
     load: str = None, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False
 ):
-    """Initialize the database with static values."""
+    """Reset database, with options to load fresh data."""
     if not app.debug:
         prompt = (
             "This deletes all data and resets the structure on %s.\nDo you want to continue?"
