@@ -108,7 +108,10 @@ def create_user(  # noqa: C901
             else:
                 role = user_datastore.find_role(user_role)
             if role is None:
-                role = user_datastore.create_role(**user_role)
+                if isinstance(user_role, dict):
+                    role = user_datastore.create_role(**user_role)
+                else:
+                    role = user_datastore.create_role(name=user_role)
             user_datastore.add_role_to_user(user, role)
 
     # create data source

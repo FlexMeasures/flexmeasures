@@ -2,6 +2,7 @@
 
 from typing import List
 
+import pytz
 from flask import current_app as app
 import flask_migrate as migrate
 from flask_security.utils import hash_password
@@ -27,6 +28,11 @@ def new_user(
     The `users create` task from Flask Security Too is too simple for us.
     Use this to add email, timezone and roles.
     """
+    try:
+        pytz.timezone(timezone)
+    except pytz.UnknownTimeZoneError:
+        print("Timezone %s is unkown!" % timezone)
+        return
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
     if pwd1 != pwd2:
