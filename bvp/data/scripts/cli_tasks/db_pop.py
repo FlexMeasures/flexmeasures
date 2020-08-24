@@ -38,8 +38,9 @@ def new_user(
         password=hash_password(pwd1),
         timezone=timezone,
         user_roles=roles,
-        check_mx=False,
+        check_deliverability=False,
     )
+    app.db.session.commit()
 
 
 # @app.before_first_request
