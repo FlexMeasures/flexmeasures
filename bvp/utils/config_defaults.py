@@ -26,6 +26,9 @@ class Config(object):
         "pool_recycle": 299,  # https://www.pythonanywhere.com/forums/topic/2599/
         # "pool_timeout": 20,
         "pool_pre_ping": True,  # https://docs.sqlalchemy.org/en/13/core/pooling.html#disconnect-handling-pessimistic
+        "connect_args": {
+            "options": "-c timezone=utc"
+        },  # https://stackoverflow.com/a/59932909/13775459
     }
 
     MAIL_SERVER: Optional[str] = None

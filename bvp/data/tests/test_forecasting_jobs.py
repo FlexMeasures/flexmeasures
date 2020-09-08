@@ -27,11 +27,13 @@ def custom_model_params():
     )
 
 
-def get_data_source(model_identifier: str = "linear-OLS model (v2)"):
+def get_data_source(model_identifier: str = "linear-OLS model v2"):
     """This helper is a good way to check which model has been successfully used.
     Only when the forecasting job is successful, will the created data source entry not be rolled back."""
-    data_source_label = "forecast by Seita (%s)" % model_identifier
-    return DataSource.query.filter(DataSource.label == data_source_label).one_or_none()
+    data_source_name = "Seita (%s)" % model_identifier
+    return DataSource.query.filter_by(
+        name=data_source_name, type="forecasting script"
+    ).one_or_none()
 
 
 def check_aggregate(overall_expected: int, horizon: timedelta):
@@ -279,7 +281,7 @@ def test_failed_unknown_model(app):
 
 
 @pytest.mark.parametrize(
-    "model_to_start_with,model_version", [("failing-test", 1), ("linear-OLS", 2)]
+    "model_to_start_with, model_version", [("failing-test", 1), ("linear-OLS", 2)]
 )
 def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     app, model_to_start_with, model_version
@@ -287,7 +289,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     """
     Here we fail once - because we start with a model that needs too much training.
     So we check for this failure happening as expected.
-    But then, we do succeeed with the fallback model one level down.
+    But then, we do succeed with the fallback model one level down.
     (fail-test falls back to linear & linear falls back to naive).
     As a result, there should be forecasts in the DB.
     """
@@ -317,7 +319,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     check_failures(
         app.queues["forecasting"],
         ["NotEnoughDataException"],
-        ["%s model (v%d)" % (model_to_start_with, model_version)],
+        ["%s model v%d" % (model_to_start_with, model_version)],
     )
 
     # this query is useful to check data:
@@ -355,17 +357,17 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     # Now to check which models actually got to work.
     # We check which data sources do and do not exist by now:
     assert (
-        get_data_source("failing-test model (v1)") is None
+        get_data_source("failing-test model v1") is None
     )  # the test failure model failed -> no data source
     if model_to_start_with == "linear-OLS":
         assert (
             get_data_source() is None
         )  # the default (linear regression) (was made to) fail, as well
         assert (
-            get_data_source("naive model (v1)") is not None
+            get_data_source("naive model v1") is not None
         )  # the naive one had to be used
     else:
         assert get_data_source() is not None  # the default (linear regression)
         assert (
-            get_data_source("naive model (v1)") is None
+            get_data_source("naive model v1") is None
         )  # the naive one did not have to be used

@@ -115,13 +115,7 @@ def create_user(  # noqa: C901
             user_datastore.add_role_to_user(user, role)
 
     # create data source
-    db.session.add(
-        DataSource(
-            label="data entered by user %s" % user.username,
-            type="user",
-            user_id=user.id,
-        )
-    )
+    db.session.add(DataSource(user=user))
 
     return user
 

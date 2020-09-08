@@ -11,7 +11,7 @@ from flask import current_app
 from flask_security.core import current_user
 import inflect
 from sqlalchemy.orm.query import Query
-import pandas as pd
+import timely_beliefs as tb
 
 from bvp.data.config import db
 from bvp.data.models.assets import AssetType, Asset, Power
@@ -348,27 +348,15 @@ class Resource:
         user_source_id: int = None,
         source_types: Optional[List[str]] = None,
         sum_multiple: bool = True,
-        create_if_empty: bool = False,
-        as_beliefs: bool = None,
-    ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
         """Get data for one or more assets. TODO: market data?
         If the time range parameters are None, they will be gotten from the session.
         The horizon window will default to the latest measurement (anything more in the future than the
         end of the time interval.
         To get data for a specific source, pass a source id."""
 
-        asset_names = []
-        for asset in self.assets:
-            asset_names.append(asset.name)
-
-        if as_beliefs is None:
-            if len(asset_names) > 1 and sum_multiple:
-                as_beliefs = False
-            else:
-                as_beliefs = True
-
         data = Power.collect(
-            asset_names,
+            generic_asset_names=[asset.name for asset in self.assets],
             query_window=(start, end),
             horizon_window=horizon_window,
             rolling=rolling,
@@ -376,8 +364,6 @@ class Resource:
             source_types=source_types,
             resolution=resolution,
             sum_multiple=sum_multiple,
-            create_if_empty=create_if_empty,
-            as_beliefs=as_beliefs,
         )
         return data
 

@@ -60,37 +60,31 @@
                                 </span>
                             </div>
                             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
-                                {% if page != "analytics" or BVP_MODE == "demo" %}
-                                    <ul class="nav navbar-nav">
-                                        {% for href, id, caption, icon in navigation_bar %}
-                                            {% if id == "tasks" %}
-                                            <li {% if id == active_page %} class="active" {% endif %} class="dropdown">
-                                                <a class="dropdown-toggle" data-toggle="dropdown" href="#"><span class="fa fa-tasks" aria-hidden="true"></span>
-                                                    Tasks
-                                                <span class="caret"></span></a>
-                                                <ul class="dropdown-menu">
-                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/forecasting"{% endif %}>Forecasts</a></li>
-                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/scheduling"{% endif %}>Schedules</a></li>
-                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/labelling"{% endif %}>Labels</a></li>
-                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/alerting"{% endif %}>Alerts</a></li>
-                                                    <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/reporting"{% endif %}>Reports</a></li>
-                                                </ul>
-                                            </li>
-                                            {% else %}
-                                            <li {% if id == active_page %} class="active" {% endif %} {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) %} class="disabled"{% endif %}>
-                                                    <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) ) %}href="/{{ href|e }}"{% endif %}{% if id == 'docs' %} target="_blank"{% endif %}>
-                                                        <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
-                                                        {{ caption|e }}
-                                                    </a>
-                                            </li>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </ul>
-                                {% else %}
-                                    <button class="btn btn-sm btn-responsive btn-danger" onclick="window.close(); return false;">
-                                        Close analysis <i class="fa fa-window-close"></i>
-                                    </button>
-                                {% endif %}
+                                <ul class="nav navbar-nav">
+                                    {% for href, id, caption, icon in navigation_bar %}
+                                        {% if id == "tasks" %}
+                                        <li {% if id == active_page %} class="active" {% endif %} class="dropdown">
+                                            <a class="dropdown-toggle" data-toggle="dropdown" href="#"><span class="fa fa-tasks" aria-hidden="true"></span>
+                                                Tasks
+                                            <span class="caret"></span></a>
+                                            <ul class="dropdown-menu">
+                                                <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/forecasting"{% endif %}>Forecasts</a></li>
+                                                <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/scheduling"{% endif %}>Schedules</a></li>
+                                                <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/labelling"{% endif %}>Labels</a></li>
+                                                <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/alerting"{% endif %}>Alerts</a></li>
+                                                <li {% if current_user.has_role('anonymous') %}class="disabled"{% endif %}><a {% if not current_user.has_role('anonymous') %}href="/tasks/reporting"{% endif %}>Reports</a></li>
+                                            </ul>
+                                        </li>
+                                        {% else %}
+                                        <li {% if id == active_page %} class="active" {% endif %} {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) %} class="disabled"{% endif %}>
+                                                <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) ) %}href="/{{ href|e }}"{% endif %}{% if id == 'docs' %} target="_blank"{% endif %}>
+                                                    <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                                                    {{ caption|e }}
+                                                </a>
+                                        </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                </ul>
                             </div>
                         </div>
                     </nav>

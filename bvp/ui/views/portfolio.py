@@ -1,4 +1,5 @@
 from datetime import timedelta
+from typing import Dict
 
 from flask import request, session
 from flask_security import roles_accepted
@@ -7,18 +8,20 @@ import pandas as pd
 import numpy as np
 from bokeh.embed import components
 import bokeh.palettes as palettes
+import timely_beliefs as tb
 
 from bvp.utils import time_utils
 from bvp.utils.bvp_inflection import capitalize, pluralize
 from bvp.data.models.assets import Power
 from bvp.data.models.markets import Price
+from bvp.data.queries.utils import simplify_index
 from bvp.data.services.resources import Resource, get_assets, get_markets
 import bvp.ui.utils.plotting_utils as plotting
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
 
 
-@bvp_ui.route("/portfolio", methods=["GET", "POST"])  # noqa: C901
+@bvp_ui.route("/portfolio", methods=["GET", "POST"])
 @roles_accepted("admin", "Prosumer")
 def portfolio_view():  # noqa: C901
     """Portfolio view.
@@ -51,29 +54,39 @@ def portfolio_view():  # noqa: C901
 
     represented_asset_types = {}
 
-    average_prices = {}
+    average_price_dict: Dict[str, float] = {}
     for market in markets:
-        average_prices[market.name] = Price.collect(
+        average_price_dict[market.name]: float = Price.collect(
             [market.name], query_window=(start, end), resolution=resolution
-        ).y.mean()
-    prices_data = Price.collect(
-        ["epex_da"], query_window=(start, end), resolution=resolution
+        )["event_value"].mean()
+    price_bdf: tb.BeliefsDataFrame = Price.collect(
+        ["epex_da"],
+        query_window=(start, end),
+        resolution=resolution,
     )
+    price_df = simplify_index(price_bdf)
 
     load_hour_factor = time_utils.resolution_to_hour_factor(resolution)
 
     for asset in assets:
-        power_data = Power.collect(
-            [asset.name], query_window=(start, end), resolution=resolution
+        power_bdf: tb.BeliefsDataFrame = Power.collect(
+            [asset.name],
+            query_window=(start, end),
+            resolution=resolution,
         )
-        if prices_data.empty or power_data.empty:
+        power_df: pd.DataFrame = simplify_index(power_bdf)
+
+        if price_df.empty or power_df.empty:
             profit_loss_energy_per_asset[asset.name] = np.NaN
         else:
             profit_loss_energy_per_asset[asset.name] = pd.Series(
-                power_data.y * load_hour_factor * prices_data.y, index=power_data.index
+                power_df["event_value"] * load_hour_factor * price_df["event_value"],
+                index=power_df.index,
             ).sum()
 
-        sum_production_or_consumption = pd.Series(power_data.y).sum() * load_hour_factor
+        sum_production_or_consumption = (
+            pd.Series(power_df["event_value"]).sum() * load_hour_factor
+        )
         report_as = decide_direction_for_report(
             asset.asset_type.is_consumer,
             asset.asset_type.is_producer,
@@ -137,7 +150,7 @@ def portfolio_view():  # noqa: C901
                     tz=time_utils.get_timezone(),
                     closed="left",
                 ),
-                columns=["y"],
+                columns=["event_value"],
             ).fillna(0)
         else:
             return df
@@ -185,17 +198,17 @@ def portfolio_view():  # noqa: C901
         sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
         plot_label = "Stacked consumption vs aggregated production"
 
-    df_sum = Power.collect(
+    power_sum_bdf: tb.BeliefsDataFrame = Power.collect(
         sum_assets,
         query_window=(start, end),
         resolution=resolution,
-        create_if_empty=True,
     )
+    power_sum_df = simplify_index(power_sum_bdf)
 
     # Plot as positive values regardless of whether the summed data is production or consumption
-    df_sum = data_or_zeroes(df_sum)
+    power_sum_df = data_or_zeroes(power_sum_df)
     if show_stacked == "production":
-        df_sum.y *= -1
+        power_sum_df["event_value"] *= -1
 
     this_hour = time_utils.get_most_recent_hour()
     next4am = [
@@ -203,9 +216,11 @@ def portfolio_view():  # noqa: C901
         for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)]
         if dt.hour == 4
     ][0]
-    x_range = plotting.make_range(df_sum.index)
+    x_range = plotting.make_range(
+        pd.date_range(start, end, freq=resolution, closed="left")
+    )
     fig_profile = plotting.create_graph(
-        df_sum,
+        power_sum_df,
         unit="MW",
         title=plot_label,
         x_range=x_range,
@@ -231,13 +246,11 @@ def portfolio_view():  # noqa: C901
     fig_profile.plot_height = 450
     fig_profile.plot_width = 900
 
-    df_stacked_data = pd.DataFrame(index=df_sum.index)
+    df_stacked_data = pd.DataFrame(index=power_sum_df.index)
     for st in stack_types:
-        data = Resource(st).get_data(
-            start=start, end=end, resolution=resolution, create_if_empty=True
-        )
+        data = Resource(st).get_data(start=start, end=end, resolution=resolution)
         if not data.empty:
-            df_stacked_data[capitalize(st)] = data.y.values
+            df_stacked_data[capitalize(st)] = data["event_value"].values
 
     # Plot as positive values regardless of whether the stacked data is production or consumption
     df_stacked_data = data_or_zeroes(df_stacked_data).fillna(0)
@@ -268,7 +281,9 @@ def portfolio_view():  # noqa: C901
         )
 
     # actions
-    df_actions = pd.DataFrame(index=df_sum.index, columns=["y"]).fillna(0)
+    df_actions = pd.DataFrame(index=power_sum_df.index, columns=["event_value"]).fillna(
+        0
+    )
     if next4am in df_actions.index:
         if current_user.is_authenticated:
             if current_user.has_role("admin"):
@@ -333,7 +348,7 @@ def portfolio_view():  # noqa: C901
     return render_bvp_template(
         "views/portfolio.html",
         assets=assets,
-        average_prices=average_prices,
+        average_prices=average_price_dict,
         asset_types=represented_asset_types,
         markets=markets,
         production_per_asset=production_per_asset,

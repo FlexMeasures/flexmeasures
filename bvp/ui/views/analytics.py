@@ -12,6 +12,7 @@ from bokeh.plotting import Figure
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 from bokeh.models import Range1d
+from pandas.tseries.frequencies import to_offset
 
 from bvp.data.models.markets import Market
 from bvp.data.models.weather import WeatherSensor
@@ -22,7 +23,6 @@ from bvp.data.services.resources import (
     get_sensor_types,
     Resource,
 )
-from bvp.data.services.time_series import ensure_timing_vars_are_set
 from bvp.data.queries.analytics import (
     get_power_data,
     get_prices_data,
@@ -82,17 +82,8 @@ def analytics_view():
     )
 
     # Set shared x range
-    series = time_utils.tz_index_naively(data["power"].index)
-    if not series.empty:
-        shared_x_range = Range1d(
-            start=min(series),
-            end=max(series) + pd.to_timedelta(data["power"].index.freq),
-        )
-    else:
-        query_window, resolution = ensure_timing_vars_are_set((None, None), None)
-        shared_x_range = Range1d(
-            start=query_window[0], end=query_window[1] + pd.to_timedelta(resolution)
-        )
+    query_window, resolution = time_utils.ensure_timing_vars_are_set((None, None), None)
+    shared_x_range = Range1d(start=query_window[0], end=query_window[1])
 
     # TODO: get rid of this hack, which we use because we mock the current year's data from 2015 data in demo mode
     # Our demo server uses 2015 data as if it's the current year's data. Here we mask future beliefs.
@@ -322,35 +313,35 @@ def analytics_data_view(content, content_type):
                     data["power"].loc[dt].label
                     if "label" in data["power"].columns
                     else "Aggregated power data",
-                    data["power"].loc[dt].y,
+                    data["power"].loc[dt]["event_value"],
                     data["power_forecast"].loc[dt].label
                     if "label" in data["power_forecast"].columns
                     else "Aggregated power forecast data",
-                    data["power_forecast"].loc[dt].yhat,
+                    data["power_forecast"].loc[dt]["event_value"],
                     data["weather"].loc[dt].label
                     if "label" in data["weather"].columns
                     else f"Aggregated {weather_type} data",
-                    data["weather"].loc[dt].y,
+                    data["weather"].loc[dt]["event_value"],
                     data["weather_forecast"].loc[dt].label
                     if "label" in data["weather_forecast"].columns
                     else f"Aggregated {weather_type} forecast data",
-                    data["weather_forecast"].loc[dt].yhat,
+                    data["weather_forecast"].loc[dt]["event_value"],
                     data["prices"].loc[dt].label
                     if "label" in data["prices"].columns
                     else "Aggregated power data",
-                    data["prices"].loc[dt].y,
+                    data["prices"].loc[dt]["event_value"],
                     data["prices_forecast"].loc[dt].label
                     if "label" in data["prices_forecast"].columns
                     else "Aggregated power data",
-                    data["prices_forecast"].loc[dt].yhat,
+                    data["prices_forecast"].loc[dt]["event_value"],
                     data["rev_cost"].loc[dt].label
                     if "label" in data["rev_cost"].columns
                     else f"Aggregated {rev_cost_header} data",
-                    data["rev_cost"].loc[dt].y,
+                    data["rev_cost"].loc[dt]["event_value"],
                     data["rev_cost_forecast"].loc[dt].label
                     if "label" in data["rev_cost_forecast"].columns
                     else f"Aggregated {rev_cost_header} forecast data",
-                    data["rev_cost_forecast"].loc[dt].yhat,
+                    data["rev_cost_forecast"].loc[dt]["event_value"],
                 ]
                 writer.writerow(row)
 
@@ -377,9 +368,9 @@ def analytics_data_view(content, content_type):
 
 def get_data_and_metrics(
     show_consumption_as_positive: bool, selected_market, selected_sensor_type, assets
-) -> Tuple[Dict, Dict, str, WeatherSensor]:
+) -> Tuple[Dict[str, pd.DataFrame], Dict[str, float], str, WeatherSensor]:
     """Getting data and calculating metrics for them"""
-    data = dict()
+    data: Dict[str, pd.DataFrame] = dict()
     metrics: dict = dict()
     (
         data["power"],
@@ -400,32 +391,27 @@ def get_data_and_metrics(
     # TODO: get rid of this hack, which we use because we mock forecast intervals in demo mode
     if current_app.config.get("BVP_MODE", "") == "demo":
         # In each case below, the error increases with the horizon towards a certain percentage of the point forecast
-        horizon_entry = data["weather_forecast"]["horizon"].values[0]
-        horizon = (
-            horizon_entry[0].to_pytimedelta()[0]
-            if isinstance(horizon_entry, list)
-            else timedelta(days=1)
-        )
+        horizon = pd.to_timedelta(to_offset(session.get("forecast_horizon", "1d")))
         decay_factor = 1 - math.exp(-horizon / timedelta(hours=6))
 
         # Heuristic power confidence interval
         error_margin = 0.1 * decay_factor
-        data["power_forecast"]["yhat_upper"] = data["power_forecast"]["yhat"] * (
+        data["power_forecast"]["yhat_upper"] = data["power_forecast"]["event_value"] * (
             1 + error_margin
         )
-        data["power_forecast"]["yhat_lower"] = data["power_forecast"]["yhat"] * (
+        data["power_forecast"]["yhat_lower"] = data["power_forecast"]["event_value"] * (
             1 - error_margin
         )
 
         # Heuristic price confidence interval
         error_margin_upper = 0.6 * decay_factor
         error_margin_lower = 0.3 * decay_factor
-        data["prices_forecast"]["yhat_upper"] = data["prices_forecast"]["yhat"] * (
-            1 + error_margin_upper
-        )
-        data["prices_forecast"]["yhat_lower"] = data["prices_forecast"]["yhat"] * (
-            1 - error_margin_lower
-        )
+        data["prices_forecast"]["yhat_upper"] = data["prices_forecast"][
+            "event_value"
+        ] * (1 + error_margin_upper)
+        data["prices_forecast"]["yhat_lower"] = data["prices_forecast"][
+            "event_value"
+        ] * (1 - error_margin_lower)
 
         # Heuristic weather confidence interval
         if weather_type == "temperature":
@@ -437,12 +423,12 @@ def get_data_and_metrics(
         elif weather_type == "radiation":
             error_margin_upper = 1.8 * decay_factor
             error_margin_lower = 0.5 * decay_factor
-        data["weather_forecast"]["yhat_upper"] = data["weather_forecast"]["yhat"] * (
-            1 + error_margin_upper
-        )
-        data["weather_forecast"]["yhat_lower"] = data["weather_forecast"]["yhat"] * (
-            1 - error_margin_lower
-        )
+        data["weather_forecast"]["yhat_upper"] = data["weather_forecast"][
+            "event_value"
+        ] * (1 + error_margin_upper)
+        data["weather_forecast"]["yhat_lower"] = data["weather_forecast"][
+            "event_value"
+        ] * (1 - error_margin_lower)
 
     unit_factor = revenue_unit_factor("MWh", selected_market.unit)
     data["rev_cost"], data["rev_cost_forecast"], metrics = get_revenues_costs_data(
@@ -480,7 +466,7 @@ def make_power_figure(
         unit="MW",
         legend_location="top_right",
         legend_labels=("Actual", "Forecast")
-        if schedule_data is None or schedule_data.yhat.isnull().all()
+        if schedule_data is None or schedule_data["event_value"].isnull().all()
         else ("Actual", "Forecast", "Schedule"),
         forecasts=forecast_data,
         schedules=schedule_data,

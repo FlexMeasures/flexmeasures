@@ -27,6 +27,7 @@ def test_create_user(app):
     assert user.username == "new_prosumer"
     assert user.roles == [Role.query.filter_by(name="Prosumer").one_or_none()]
     assert DataSource.query.filter_by(user_id=user.id).one_or_none()
+    assert DataSource.query.filter_by(name=user.username).one_or_none()
 
 
 def test_create_invalid_user(app):

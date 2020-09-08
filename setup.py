@@ -36,6 +36,7 @@ setup(
         "forecastiopy",
         "pysolar",
         "timetomodel>=0.6.8",
+        "timely-beliefs>=0.0.10.dev92038",
         "python-dotenv",
         "Flask-SSLify",
         "Flask_JSON",

@@ -1,10 +1,14 @@
 from typing import List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
+import pandas as pd
+import timely_beliefs as tb
+
 from sqlalchemy.orm import Query, Session
 
 from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
+from bvp.utils import bvp_inflection
 
 
 def create_beliefs_query(
@@ -12,17 +16,20 @@ def create_beliefs_query(
     session: Session,
     asset_class: db.Model,
     asset_name: str,
-    start: datetime,
-    end: datetime,
+    start: Optional[datetime],
+    end: Optional[datetime],
 ) -> Query:
     query = (
-        session.query(cls.datetime, cls.value, cls.horizon, DataSource.label)
+        session.query(cls.datetime, cls.value, cls.horizon, DataSource)
         .join(DataSource)
         .filter(cls.data_source_id == DataSource.id)
         .join(asset_class)
         .filter(asset_class.name == asset_name)
-        .filter((cls.datetime > start - asset_class.resolution) & (cls.datetime < end))
     )
+    if start is not None:
+        query = query.filter((cls.datetime > start - asset_class.resolution))
+    if end is not None:
+        query = query.filter((cls.datetime < end))
     return query
 
 
@@ -60,17 +67,22 @@ def add_source_type_filter(cls, query: Query, source_types: List[str]) -> Query:
 def add_horizon_filter(
     cls,
     query: Query,
-    end: datetime,
+    end: Optional[datetime],
     asset_class: db.Model,
     horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
     rolling: bool,
+    belief_time: Optional[datetime],
 ) -> Query:
+    if belief_time is not None:
+        query = query.filter(
+            cls.datetime + asset_class.resolution - cls.horizon <= belief_time
+        )
     short_horizon, long_horizon = horizon_window
     if (
         short_horizon is not None
         and long_horizon is not None
         and short_horizon == long_horizon
-    ):
+    ):  # search directly for a unique belief_horizon (rolling=True) or belief_time (rolling=False)
         if rolling:
             query = query.filter(cls.horizon == short_horizon)
         else:  # Deduct the difference in end times of the timeslot and the query window
@@ -113,3 +125,31 @@ def read_sqlalchemy_results(session: Session, statement: str) -> List[dict]:
             results[row_number][row.keys()[column_number]] = value
 
     return results
+
+
+def simplify_index(
+    bdf: tb.BeliefsDataFrame, index_levels_to_columns: Optional[List[str]] = None
+) -> pd.DataFrame:
+    """Drops indices other than event_start.
+    Optionally, salvage index levels as new columns.
+
+    Because information stored in the index levels is potentially lost*,
+    we cannot guarantee a complete description of beliefs in the BeliefsDataFrame.
+    Therefore, we type the result as a regular pandas DataFrame.
+
+    * The index levels are dropped (by overwriting the multi-level index with just the “event_start” index level).
+    Only if index_levels_to_columns=True the relevant information is kept around.
+    """
+    if index_levels_to_columns is not None:
+        for col in index_levels_to_columns:
+            try:
+                bdf[col] = bdf.index.get_level_values(col)
+            except KeyError:
+                if hasattr(bdf, col):
+                    bdf[col] = getattr(bdf, col)
+                elif hasattr(bdf, bvp_inflection.pluralize(col)):
+                    bdf[col] = getattr(bdf, bvp_inflection.pluralize(col))
+                else:
+                    raise KeyError(f"Level {col} not found")
+    bdf.index = bdf.index.get_level_values("event_start")
+    return bdf

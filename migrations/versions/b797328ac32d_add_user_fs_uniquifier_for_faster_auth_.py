@@ -1,7 +1,7 @@
 """add user.fs_uniquifier for faster auth tokens
 
 Revision ID: b797328ac32d
-Revises: 7987667dbd43
+Revises: 3db3e71d101d
 Create Date: 2020-08-24 19:01:04.337956
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "b797328ac32d"
-down_revision = "7987667dbd43"
+down_revision = "3db3e71d101d"
 branch_labels = None
 depends_on = None
 

@@ -1,9 +1,9 @@
 from typing import List, Dict, Optional, Union, Tuple
 from datetime import datetime as datetime_type, timedelta
 
-import pandas as pd
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
+import timely_beliefs as tb
 
 from bvp.data.config import db
 from bvp.data.queries.utils import add_horizon_filter, create_beliefs_query
@@ -57,6 +57,7 @@ class TimedValue(object):
         query_window: Tuple[datetime_type, datetime_type],
         horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
         rolling: bool = True,
+        belief_time: Optional[datetime_type] = None,
         session: Session = None,
     ) -> Query:
         """
@@ -65,13 +66,16 @@ class TimedValue(object):
         The query window expects start as well as end
         The horizon window expects first the shorter horizon (e.g. 6H) and then the longer horizon (e.g. 24H).
         The session can be supplied, but if None, the implementation should find a session itself.
+
+        # todo: add examples
+        # todo: switch to using timely_beliefs queries, which are more powerful
         """
         if session is None:
             session = db.session
         start, end = query_window
         query = create_beliefs_query(cls, session, asset_class, asset_name, start, end)
         query = add_horizon_filter(
-            cls, query, end, asset_class, horizon_window, rolling
+            cls, query, end, asset_class, horizon_window, rolling, belief_time
         )
         return query
 
@@ -88,6 +92,7 @@ class TimedValue(object):
             None,
         ),
         rolling: bool = True,
+        belief_time: Optional[datetime_type] = None,
         preferred_user_source_ids: Union[
             int, List[int]
         ] = None,  # None is interpreted as all sources
@@ -95,12 +100,9 @@ class TimedValue(object):
             int, List[int]
         ] = -1,  # An id = -1 is interpreted as no sources
         source_types: Optional[List[str]] = None,
-        resolution: str = None,
+        resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
-        create_if_empty: bool = False,
-        zero_if_nan: bool = False,
-        as_beliefs: bool = False,
-    ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
         """Basically a convenience wrapper for services.collect_time_series_data,
         where time series data collection is implemented.
         """
@@ -110,12 +112,10 @@ class TimedValue(object):
             query_window=query_window,
             horizon_window=horizon_window,
             rolling=rolling,
+            belief_time=belief_time,
             preferred_user_source_ids=preferred_user_source_ids,
             fallback_user_source_ids=fallback_user_source_ids,
             source_types=source_types,
             resolution=resolution,
             sum_multiple=sum_multiple,
-            create_if_empty=create_if_empty,
-            zero_if_nan=zero_if_nan,
-            as_beliefs=as_beliefs,
         )

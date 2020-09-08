@@ -64,7 +64,7 @@ def setup_api_test_data(db):
     cs_2 = Asset.query.filter(Asset.name == "CS 2").one_or_none()
     cs_3 = Asset.query.filter(Asset.name == "CS 3").one_or_none()
     data_source = DataSource.query.filter(
-        DataSource.user_id == test_prosumer.id
+        DataSource.user == test_prosumer
     ).one_or_none()
     power_forecasts = []
     for i in range(6):

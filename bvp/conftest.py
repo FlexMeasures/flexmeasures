@@ -110,9 +110,7 @@ def setup_markets(db):
 def setup_assets(db, setup_roles_users, setup_markets):
     """Make some asset types and add assets to known test users."""
 
-    data_source = DataSource(
-        label="data entered for demonstration purposes", type="script", user_id=None
-    )
+    data_source = DataSource(name="Seita", type="demo script")
     db.session.add(data_source)
 
     db.session.add(
@@ -173,8 +171,8 @@ def setup_assets(db, setup_roles_users, setup_markets):
 def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
     """Add one day of market prices for the EPEX day-ahead market."""
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
-    data_source = DataSource.query.filter(
-        DataSource.label == "data entered for demonstration purposes"
+    data_source = DataSource.query.filter_by(
+        name="Seita", type="demo script"
     ).one_or_none()
 
     # one day of test data (one complete sine curve)

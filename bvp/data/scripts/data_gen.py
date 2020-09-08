@@ -34,11 +34,7 @@ infl_eng = inflect.engine()
 
 
 def add_data_sources(db: SQLAlchemy):
-    db.session.add(
-        DataSource(
-            label="data entered for demonstration purposes", type="script", user_id=None
-        )
-    )
+    db.session.add(DataSource(name="Seita", type="demo script"))
 
 
 def add_asset_types(db: SQLAlchemy):
@@ -152,8 +148,8 @@ def populate_time_series_forecasts(  # noqa: C901
     )
 
     # Set a data source for the forecasts
-    data_source = DataSource.query.filter(
-        DataSource.label == "data entered for demonstration purposes"
+    data_source = DataSource.query.filter_by(
+        name="Seita", type="demo script"
     ).one_or_none()
 
     # List all generic assets for which to forecast.

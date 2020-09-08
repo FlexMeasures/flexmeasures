@@ -5,6 +5,7 @@ from flask import current_app
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 import numpy as np
+import timely_beliefs as tb
 
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.planning.exceptions import UnknownPricesException
@@ -36,17 +37,21 @@ def initialize_index(
     return i
 
 
-def add_tiny_price_slope(prices: pd.DataFrame, d: float = 10 ** -3) -> pd.DataFrame:
-    """Add tiny price slope to represent e.g. inflation as a simple linear price increase.
+def add_tiny_price_slope(
+    prices: pd.DataFrame, col_name: str = "event_value", d: float = 10 ** -3
+) -> pd.DataFrame:
+    """Add tiny price slope to col_name to represent e.g. inflation as a simple linear price increase.
     This is meant to break ties, when multiple time slots have equal prices, in favour of acting sooner.
     We penalise the future with at most d times the price spread (1 per thousand by default).
     """
-    price_spread = prices["y"].max() - prices["y"].min()
+    price_spread = prices[col_name].max() - prices[col_name].min()
     if price_spread > 0:
         max_penalty = price_spread * d
     else:
         max_penalty = d
-    prices["y"] = prices["y"] + np.linspace(0, max_penalty, prices.size)
+    prices[col_name] = prices[col_name] + np.linspace(
+        0, max_penalty, prices[col_name].size
+    )
     return prices
 
 
@@ -55,25 +60,24 @@ def get_prices(
     query_window: Tuple[datetime, datetime],
     resolution: timedelta,
     allow_trimmed_query_window: bool = True,
-):
+) -> Tuple[tb.BeliefsDataFrame, Tuple[datetime, datetime]]:
     """Check for known prices or price forecasts, trimming query window accordingly if allowed.
     todo: set a horizon to avoid collecting prices that are not known at the time of constructing the schedule
           (this may require implementing a belief time for scheduling jobs).
     """
-    prices = Price.collect(
+    price_bdf: tb.BeliefsDataFrame = Price.collect(
         market.name,
         query_window=query_window,
         resolution=to_offset(resolution).freqstr,
-        create_if_empty=True,
     )
-    nan_prices = prices.isnull().values
+    nan_prices = price_bdf.isnull().values
     if nan_prices.all():
         raise UnknownPricesException("Prices unknown for planning window.")
     elif nan_prices.any():
         if allow_trimmed_query_window:
             query_window = (
-                prices.first_valid_index(),
-                prices.last_valid_index() + resolution,
+                price_bdf.first_valid_index(),
+                price_bdf.last_valid_index() + resolution,
             )
             current_app.logger.warning(
                 f"Prices partially unknown for planning window. Trimming planning window to {query_window[0]} until {query_window[-1]}."
@@ -82,4 +86,4 @@ def get_prices(
             raise UnknownPricesException(
                 "Prices partially unknown for planning window."
             )
-    return prices, query_window
+    return price_bdf, query_window

@@ -127,7 +127,7 @@ def make_schedule(
         )
 
     data_source = get_data_source(
-        data_source_label="schedule by Seita",
+        data_source_name="Seita",
         data_source_type="scheduling script",
     )
     click.echo("Job %s made schedule." % rq_job.id)

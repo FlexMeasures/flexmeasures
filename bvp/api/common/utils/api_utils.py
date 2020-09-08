@@ -119,7 +119,7 @@ def convert_to_15min(
 
 
 def groups_to_dict(
-    connection_groups: List[List[str]],
+    connection_groups: List[str],
     value_groups: List[List[str]],
     generic_asset_type_name: str,
     plural_name: str = None,
@@ -132,7 +132,7 @@ def groups_to_dict(
 
         >> connection_groups = [[1]]
         >> value_groups = [[300, 300, 300]]
-        >> response_dict = groups_to_dict(connection_groups, value_groups)
+        >> response_dict = groups_to_dict(connection_groups, value_groups, "connection")
         >> print(response_dict)
         <<  {
                 "connection": 1,
@@ -141,7 +141,7 @@ def groups_to_dict(
 
         >> connection_groups = [[1], [2]]
         >> value_groups = [[300, 300, 300], [300, 300, 300]]
-        >> response_dict = groups_to_dict(connection_groups, value_groups)
+        >> response_dict = groups_to_dict(connection_groups, value_groups, "connection")
         >> print(response_dict)
         <<  {
                 "connections": [1, 2],
@@ -150,7 +150,7 @@ def groups_to_dict(
 
         >> connection_groups = [[1], [2]]
         >> value_groups = [[300, 300, 300], [400, 400, 400]]
-        >> response_dict = groups_to_dict(connection_groups, value_groups)
+        >> response_dict = groups_to_dict(connection_groups, value_groups, "connection")
         >> print(response_dict)
         <<  {
                 "groups": [
@@ -198,9 +198,15 @@ def groups_to_dict(
         return d
 
 
-def unique_ever_seen(iterable, selector):
+def unique_ever_seen(iterable: Sequence, selector: Sequence):
     """
     Return unique iterable elements with corresponding lists of selector elements, preserving order.
+
+    >>> a, b = unique_ever_seen([[10, 20], [10, 20], [20, 40]], [1, 2, 3])
+    >>> print(a)
+    [[10, 20], [20, 40]]
+    >>> print(b)
+    [[1, 2], 3]
     """
     u = []
     s = []
@@ -295,11 +301,7 @@ def get_or_create_user_data_source(user: User) -> DataSource:
     data_source = DataSource.query.filter(DataSource.user == user).one_or_none()
     if not data_source:
         current_app.logger.info("SETTING UP USER AS NEW DATA SOURCE...")
-        data_source = DataSource(
-            label="data entered by user %s" % user.username,
-            type="user",
-            user_id=user.id,
-        )
+        data_source = DataSource(user=user)
         db.session.add(data_source)
         db.session.flush()  # flush so that we can reference the new object in the current db session
     return data_source

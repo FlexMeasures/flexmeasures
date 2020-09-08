@@ -89,8 +89,8 @@ def test_post_udi_event_and_get_device_message(app, message, asset_name):
 
     # check results are in the database
     resolution = timedelta(minutes=15)
-    scheduler_source = DataSource.query.filter(
-        DataSource.label == "schedule by Seita"
+    scheduler_source = DataSource.query.filter_by(
+        name="Seita", type="scheduling script"
     ).one_or_none()
     assert (
         scheduler_source is not None
@@ -238,8 +238,8 @@ def test_post_udi_event_and_get_device_message_with_unknown_prices(app, message)
         assert processed_job.is_failed is True
 
         # check results are not in the database
-        scheduler_source = DataSource.query.filter(
-            DataSource.label == "schedule by Seita"
+        scheduler_source = DataSource.query.filter_by(
+            name="Seita", type="scheduling script"
         ).one_or_none()
         assert (
             scheduler_source is None

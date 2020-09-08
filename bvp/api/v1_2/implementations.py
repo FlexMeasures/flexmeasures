@@ -107,7 +107,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 duration = min(duration, schedule.index[-1] + resolution - start)
                 schedule = schedule[start : start + duration - resolution]
             value_groups.append(schedule.tolist())
-            new_event_groups.append([event])
+            new_event_groups.append(event)
 
     response = groups_to_dict(
         new_event_groups, value_groups, generic_asset_type_name="event"
@@ -120,7 +120,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
     return dict(**response, **d), s
 
 
-@usef_roles_accepted("Prosumer")  # noqa: C901
+@usef_roles_accepted("Prosumer")
 @type_accepted("PostUdiEventRequest")
 @units_accepted("State of charge", "kWh", "MWh")
 @as_json

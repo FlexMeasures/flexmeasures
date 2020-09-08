@@ -18,7 +18,7 @@ from bvp.data.models.weather import Weather
 from bvp.data.models.data_sources import DataSource
 
 FILE_PATH_LOCATION = "/../raw_data/weather-forecasts"
-DATA_SOURCE_LABEL = "forecast by DarkSky for the %s region"
+DATA_SOURCE_NAME = "DarkSky"
 
 
 class LatLngGrid(object):
@@ -305,13 +305,13 @@ def make_file_path(app: Flask, region: str) -> str:
     return data_path
 
 
-def get_data_source(region: str) -> DataSource:
+def get_data_source() -> DataSource:
     """Make sure we have a data source"""
-    data_source = DataSource.query.filter(
-        DataSource.label == DATA_SOURCE_LABEL % region
+    data_source = DataSource.query.filter_by(
+        name=DATA_SOURCE_NAME, type="forecasting script"
     ).one_or_none()
     if data_source is None:
-        data_source = DataSource(label=DATA_SOURCE_LABEL % region, type="script")
+        data_source = DataSource(name=DATA_SOURCE_NAME, type="forecasting script")
         db.session.add(data_source)
     return data_source
 
@@ -505,7 +505,7 @@ def get_weather_forecasts(
 
     # Save the results
     if store_in_db:
-        save_forecasts_in_db(api_key, locations, data_source=get_data_source(region))
+        save_forecasts_in_db(api_key, locations, data_source=get_data_source())
     else:
         save_forecasts_as_json(
             api_key, locations, data_path=make_file_path(app, region)

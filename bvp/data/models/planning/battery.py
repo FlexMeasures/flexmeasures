@@ -40,14 +40,18 @@ def schedule_battery(
     # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
     # We penalise the future with at most 1 per thousand times the price spread.
     if prefer_charging_sooner:
-        prices = add_tiny_price_slope(prices)
+        prices = add_tiny_price_slope(prices, "event_value")
 
     # Set up commitments to optimise for
     commitment_quantities = [initialize_series(0, start, end, resolution)]
 
     # Todo: convert to EUR/(deviation of commitment, which is in MW)
-    commitment_upwards_deviation_price = [prices.loc[start : end - resolution]["y"]]
-    commitment_downwards_deviation_price = [prices.loc[start : end - resolution]["y"]]
+    commitment_upwards_deviation_price = [
+        prices.loc[start : end - resolution]["event_value"]
+    ]
+    commitment_downwards_deviation_price = [
+        prices.loc[start : end - resolution]["event_value"]
+    ]
 
     # Set up device constraints (only one device for this EMS)
     columns = [

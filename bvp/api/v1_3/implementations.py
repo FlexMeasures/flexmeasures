@@ -130,13 +130,13 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     return unknown_schedule("Scheduling job has an unknown status.")
                 schedule_start = job.kwargs["start"]
 
-            scheduler_label = "schedule by Seita"
-            scheduler_source = DataSource.query.filter(
-                DataSource.label == scheduler_label
+            schedule_data_source_name = "Seita"
+            scheduler_source = DataSource.query.filter_by(
+                name="Seita", type="scheduling script"
             ).one_or_none()
             if scheduler_source is None:
                 return unknown_schedule(
-                    message + f'no data is known labeled "{scheduler_label}".'
+                    message + f'no data is known from "{schedule_data_source_name}".'
                 )
             power_values = (
                 Power.query.filter(Power.asset_id == asset.id)
@@ -163,7 +163,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 start : start + duration - resolution
             ]
             value_groups.append(consumption_schedule.tolist())
-            new_event_groups.append([event])
+            new_event_groups.append(event)
 
     response = groups_to_dict(
         new_event_groups, value_groups, generic_asset_type_name="event"

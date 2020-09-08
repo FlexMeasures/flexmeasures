@@ -40,7 +40,7 @@ def remove_seasonality_for_power_forecasts(db):
 def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
     """one day of test data (one complete sine curve) for two sensors"""
     data_source = DataSource.query.filter_by(
-        label="data entered for demonstration purposes", type="script"
+        name="Seita", type="demo script"
     ).one_or_none()
     for sensor_name in ("radiation", "wind_speed"):
         sensor_type = WeatherSensorType(name=sensor_name)
@@ -82,7 +82,7 @@ def add_failing_test_model(db):
         model_specs.start_of_training = model_specs.start_of_training - timedelta(
             days=365
         )
-        model_identifier = "failing-test model (v1)"
+        model_identifier = "failing-test model v1"
         return model_specs, model_identifier, "linear-OLS"
 
     model_map["failing-test"] = test_specs

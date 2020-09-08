@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Tuple
 
 from flask import request, session, current_app
 from flask_security.core import current_user
@@ -94,9 +94,11 @@ def naturalized_datetime_str(dt: Optional[datetime]) -> str:
         return naturaldate(local_dt)
 
 
-def decide_resolution(start: datetime, end: datetime) -> str:
+def decide_resolution(start: Optional[datetime], end: Optional[datetime]) -> str:
     """Decide on a resolution, given the length of the time period."""
     resolution = "15T"  # default is 15 minute intervals
+    if start is None or end is None:
+        return resolution
     period_length = end - start
     if period_length > timedelta(weeks=16):
         resolution = "168h"  # So upon switching from days to weeks, you get at least 16 data points
@@ -115,7 +117,7 @@ def resolution_to_hour_factor(resolution: str):
 
 
 def get_timezone(of_user=False):
-    """Get a timezone to be used, preferably that of the current user."""
+    """Return the BVP timezone, or if desired try to return the timezone of the current user."""
     default_timezone = pytz.timezone(current_app.config.get("BVP_TIMEZONE"))
     if not of_user:
         return default_timezone
@@ -260,3 +262,23 @@ def supported_horizons() -> List[timedelta]:
 
 def timedelta_to_pandas_freq_str(resolution: timedelta) -> str:
     return to_offset(resolution).freqstr
+
+
+def ensure_timing_vars_are_set(
+    time_window: Tuple[Optional[datetime], Optional[datetime]],
+    resolution: Optional[str],
+) -> Tuple[Tuple[datetime, datetime], str]:
+    start = time_window[0]
+    end = time_window[-1]
+    if None in (start, end, resolution):
+        current_app.logger.warning("Setting time range for session.")
+        set_time_range_for_session()
+        start_out: datetime = session["start_time"]
+        end_out: datetime = session["end_time"]
+        resolution_out: str = session["resolution"]
+    else:
+        start_out = start  # type: ignore
+        end_out = end  # type: ignore
+        resolution_out = resolution  # type: ignore
+
+    return (start_out, end_out), resolution_out

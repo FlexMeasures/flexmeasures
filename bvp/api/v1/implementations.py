@@ -1,11 +1,12 @@
 import isodate
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 from datetime import datetime as datetime_type, timedelta
 
 from flask import request
 from flask_json import as_json
 from flask_security import current_user
 from sqlalchemy.exc import IntegrityError
+import timely_beliefs as tb
 
 from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
@@ -193,7 +194,7 @@ def collect_connection_and_value_groups(
             asset_names.append(asset.name)
 
         # Get the power values
-        ts_values = Power.collect(
+        power_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Power.collect(
             generic_asset_names=asset_names,
             query_window=(start, end),
             resolution=resolution,
@@ -204,17 +205,14 @@ def collect_connection_and_value_groups(
             source_types=source_types,
             sum_multiple=False,
         )
-        # Todo: parse time window of ts_values, which will be different for requests that are not of the form:
+        # Todo: parse time window of power_bdf_dict, which will be different for requests that are not of the form:
         # - start is a timestamp on the hour or a multiple of 15 minutes thereafter
         # - duration is a multiple of 15 minutes
-        for k, v in ts_values.items():
+        for k, bdf in power_bdf_dict.items():
             value_groups.append(
-                [x * -1 for x in v.y.tolist()]
+                [x * -1 for x in bdf["event_value"].tolist()]
             )  # Reverse sign of values (from BVP specs to USEF specs)
-            new_connection_groups.append(
-                k
-            )  # Todo: maybe this should be [k], because groups_to_dict() expects a list of lists of strings
-
+            new_connection_groups.append(k)
     response = groups_to_dict(
         new_connection_groups, value_groups, generic_asset_type_name="connection"
     )

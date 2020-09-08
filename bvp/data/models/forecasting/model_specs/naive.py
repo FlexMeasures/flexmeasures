@@ -38,5 +38,5 @@ def naive_specs_configurator(**kwargs):
     )
     model_specs = create_initial_model_specs(**kwargs)
     model_specs.set_model(Naive, library_name="statsmodels")
-    model_identifier = "naive model (v%d)" % version
+    model_identifier = "naive model v%d" % version
     return model_specs, model_identifier, fallback_model_search_term

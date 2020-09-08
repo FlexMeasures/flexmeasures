@@ -201,7 +201,7 @@ def make_forecasts(
     )
 
     data_source = get_data_source(
-        data_source_label="forecast by Seita (%s)"
+        data_source_name="Seita (%s)"
         % rq_job.meta.get("model_identifier", "unknown model"),
         data_source_type="forecasting script",
     )

@@ -294,6 +294,6 @@ def test_auto_fix_missing_registration_of_user_as_data_source(client, post_messa
         User.email == "test_improper_user@seita.nl"
     ).one_or_none()
     data_source = DataSource.query.filter(
-        DataSource.user_id == formerly_improper_user.id
+        DataSource.user == formerly_improper_user
     ).one_or_none()
     assert data_source is not None

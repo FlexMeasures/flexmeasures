@@ -3,6 +3,7 @@ from datetime import timedelta
 from bokeh.resources import CDN
 from flask import request, session, current_app
 from flask_security import login_required
+import timely_beliefs as tb
 
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
@@ -44,11 +45,11 @@ def dashboard_view():
             recent_quarter = time_utils.get_most_recent_quarter()
             if current_app.config.get("BVP_MODE", "") == "demo":
                 recent_quarter = recent_quarter.replace(year=2015)
-            measured_now = Power.collect(
+            measured_now: tb.BeliefsSeries = Power.collect(
                 [asset.name],
                 query_window=(recent_quarter, recent_quarter + timedelta(minutes=15)),
                 resolution="15T",
-            ).y
+            )["event_value"]
             if measured_now.size > 0:
                 current_asset_loads[asset.name] = measured_now[0]
             else:

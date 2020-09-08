@@ -17,12 +17,18 @@ from bokeh.models import (
 from bokeh.models.renderers import GlyphRenderer
 from bokeh.models.tools import CustomJSHover
 from bokeh import events
+import inflect
+from inflection import humanize
 import pandas as pd
 import pandas_bokeh
 import numpy as np
+import timely_beliefs as tb
 
 from bvp.data.models.assets import Asset, Power
 from bvp.utils.time_utils import bvp_now, localized_datetime_str, tz_index_naively
+
+
+p = inflect.engine()
 
 
 def create_hover_tool(  # noqa: C901
@@ -138,36 +144,67 @@ def create_hover_tool(  # noqa: C901
 
     tooltips = [("Time", date_format), ("Value", "@y{0.000a} %s" % y_unit)]
     if as_beliefs:
-        tooltips.append(("Description", "@label @horizon{custom}."))
+        tooltips.append(("Description", "@label @belief_horizon{custom}."))
     return HoverTool(
         tooltips=tooltips,
         formatters={
             "x": "datetime",
             "next_x": "datetime",
             "y": "numeral",
-            "horizon": custom_horizon_string,
+            "belief_horizon": custom_horizon_string,
         },
     )
 
 
 def make_range(
-    series: pd.Series, other_series: pd.Series = None
+    index: pd.DatetimeIndex, other_index: pd.DatetimeIndex = None
 ) -> Union[None, Range1d]:
-    """Make a 1D range of values from a series or two. Useful to share axis among Bokeh Figures."""
-    series = tz_index_naively(series)
-    other_series = tz_index_naively(other_series)
+    """Make a 1D range of values from a datetime index or two. Useful to share axis among Bokeh Figures."""
+    index = tz_index_naively(index)
+    other_index = tz_index_naively(other_index)
     a_range = None
     # if there is some actual data, use that to set the range
-    if not series.empty:
-        a_range = Range1d(start=min(series), end=max(series))
+    if not index.empty:
+        a_range = Range1d(start=min(index), end=max(index))
     # if there is other data, include it
-    if not series.empty and other_series is not None and not other_series.empty:
+    if not index.empty and other_index is not None and not other_index.empty:
         a_range = Range1d(
-            start=min(series.append(other_series)), end=max(series.append(other_series))
+            start=min(index.append(other_index)), end=max(index.append(other_index))
         )
     if a_range is None:
         current_app.logger.warning("Not sufficient data to create a range.")
     return a_range
+
+
+def source_labeler(source: Union[tb.BeliefSource, List[tb.BeliefSource], str]) -> str:
+    """Turn a belief source into a human readable label.
+    Join list of belief sources to form a human readable label.
+    If source is already a string, leave it verbatim.
+    Ignores other types of sources, as well as and None or np.nan values."""
+    if isinstance(source, tb.BeliefSource):
+        return humanize(source.name)
+    elif isinstance(source, str):
+        return source
+    elif not isinstance(source, list):
+        return ""
+    unique_labels = list(
+        set(
+            source_s.name
+            for source_s in source
+            if isinstance(source_s, tb.BeliefSource)
+        )
+    )
+    new_label = humanize(p.join(unique_labels))
+    return new_label
+
+
+def replace_source_with_label(data: pd.DataFrame) -> pd.DataFrame:
+    """Column "source" is dropped, and column "label" is created, which contains only strings."""
+    if data is not None:
+        if "source" in data.columns:
+            data["label"] = data["source"].apply(lambda x: source_labeler(x))
+            data.drop("source", axis=1, inplace=True)
+    return data
 
 
 def create_graph(  # noqa: C901
@@ -192,7 +229,7 @@ def create_graph(  # noqa: C901
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
 
-    :param data: the actual data. Expects column name "y".
+    :param data: the actual data. Expects column name "event_value".
     :param unit: the (physical) unit of the data
     :param title: Title of the graph
     :param x_label: x axis label
@@ -200,19 +237,28 @@ def create_graph(  # noqa: C901
     :param legend_location: location of the legend
     :param legend_labels: labels for the legend items
     :param x_range: values for x axis. If None, taken from series index.
-    :param forecasts: forecasts of the data. Expects column names "yhat", "yhat_upper" and "yhat_lower".
-    :param schedules: scheduled data. Expects column name "yhat".
+    :param forecasts: forecasts of the data. Expects column names "event_value", "yhat_upper" and "yhat_lower".
+    :param schedules: scheduled data. Expects column name "event_value".
     :param hover_tool: Bokeh hover tool, if required
     :param show_y_floats: if True, y axis will show floating numbers (defaults False, will be True if y values are < 2)
     :param non_negative_only: whether or not the data can only be non-negative
     :param tools: some tools for the plot, which defaults to ["box_zoom", "reset", "save"].
     :return: a Bokeh Figure
     """
+    data = replace_source_with_label(data)
+    forecasts = replace_source_with_label(forecasts)
+    schedules = replace_source_with_label(schedules)
 
-    # Make sure even an empty DataFrame has the attributes we need
-    if data.empty:
-        data["y"] = pd.Series()
-        data.index.freq = timedelta(minutes=15)
+    if isinstance(data, tb.BeliefsDataFrame):
+        resolution = data.event_resolution
+    elif data.index.freq is not None:
+        resolution = pd.to_timedelta(data.index.freq)
+    else:
+        from flask import session
+
+        resolution = pd.to_timedelta(session["resolution"])
+    if resolution is None:
+        resolution = timedelta(minutes=15)
 
     # Set x range
     if x_range is None:
@@ -221,29 +267,25 @@ def create_graph(  # noqa: C901
 
     # Set y range
     y_range = None
-    if data.y.isnull().all():
+    if data["event_value"].isnull().all():
         if forecasts is None:
             if schedules is None:
                 y_range = Range1d(start=0, end=1)
-            elif schedules.yhat.isnull().all():
+            elif schedules["event_value"].isnull().all():
                 y_range = Range1d(start=0, end=1)
-        elif forecasts.yhat.isnull().all():
+        elif forecasts["event_value"].isnull().all():
             if schedules is None:
                 y_range = Range1d(start=0, end=1)
-            elif schedules.yhat.isnull().all():
+            elif schedules["event_value"].isnull().all():
                 y_range = Range1d(start=0, end=1)
 
     # Set default tools if none were given
     if tools is None:
         tools = ["box_zoom", "reset", "save"]
-    if "horizon" in data.columns and "label" in data.columns:
-        hover_tool = create_hover_tool(
-            unit, pd.to_timedelta(data.index.freq), as_beliefs=True
-        )
+    if "belief_horizon" in data.columns and "label" in data.columns:
+        hover_tool = create_hover_tool(unit, resolution, as_beliefs=True)
     else:
-        hover_tool = create_hover_tool(
-            unit, pd.to_timedelta(data.index.freq), as_beliefs=False
-        )
+        hover_tool = create_hover_tool(unit, resolution, as_beliefs=False)
     tools = [hover_tool] + tools
 
     fig = figure(
@@ -268,20 +310,24 @@ def create_graph(  # noqa: C901
         print(data)
 
     # Format y floats
-    if show_y_floats is False and data.y.size > 0:  # apply a simple heuristic
+    if (
+        show_y_floats is False and data["event_value"].size > 0
+    ):  # apply a simple heuristic
         if forecasts is None or forecasts.empty:
-            show_y_floats = max(data.y.values) < 2
+            show_y_floats = max(data["event_value"].values) < 2
         else:
-            show_y_floats = max(max(data.y.values), max(forecasts.yhat)) < 2
+            show_y_floats = (
+                max(max(data["event_value"].values), max(forecasts["event_value"])) < 2
+            )
 
-    ds = make_datasource_from(data)
+    ds = make_datasource_from(data, resolution)
     ac = fig.circle(x="x", y="y", source=ds, color="#3B0757", alpha=0.5, size=10)
     legend_items = [(legend_labels[0], [ac])]
 
     if forecasts is not None and not forecasts.empty:
         forecasts = tz_index_naively(forecasts)
         fc_color = "#DDD0B3"
-        fds = make_datasource_from(forecasts)
+        fds = make_datasource_from(forecasts, resolution)
         fc = fig.circle(x="x", y="y", source=fds, color=fc_color, size=10)
         fl = fig.line(x="x", y="y", source=fds, color=fc_color)
 
@@ -296,10 +342,10 @@ def create_graph(  # noqa: C901
             raise TypeError("Legend label must be of type string, not None.")
         legend_items.append((legend_labels[1], [fc, fl]))
 
-    if schedules is not None and not schedules.yhat.isnull().all():
+    if schedules is not None and not schedules["event_value"].isnull().all():
         schedules = tz_index_naively(schedules)
         s_color = "#3FB023"
-        sds = make_datasource_from(schedules)
+        sds = make_datasource_from(schedules, resolution)
         sl = fig.line(x="x", y="y", source=sds, color=s_color)
 
         if legend_labels[2] is None:
@@ -322,23 +368,22 @@ def create_graph(  # noqa: C901
     return fig
 
 
-def make_datasource_from(data: pd.DataFrame) -> ColumnDataSource:
+def make_datasource_from(data: pd.DataFrame, resolution: timedelta) -> ColumnDataSource:
     """ Make a bokeh data source, which is for instance useful for the hover tool. """
 
-    # Set column names that our HoverTool can interpret
-    data.index.names = ["x"]
-    if "y" not in data.columns and "yhat" in data.columns:
-        data = data.rename(columns={"yhat": "y"})
+    # Set column names that our HoverTool can interpret (in case of multiple index levels, use the first one)
+    data.index.names = ["x"] + data.index.names[1:]
+    data = data.rename(columns={"event_value": "y"})
 
     # If we have a DatetimeIndex, we encode with each x (start time) also the boundary to which it runs (end time).
     # TODO: can be extended to work with other types
     if (
         data.index.values.size
         and isinstance(data.index, pd.DatetimeIndex)
-        and data.index.freq is not None
+        and resolution is not None
     ):  # i.e. if there is a non-empty index with a clearly defined frequency
         data["next_x"] = pd.date_range(
-            start=data.index.values[1], freq=data.index.freq, periods=len(data.index)
+            start=data.index.values[1], freq=resolution, periods=len(data.index)
         ).values
 
     return ColumnDataSource(data)
