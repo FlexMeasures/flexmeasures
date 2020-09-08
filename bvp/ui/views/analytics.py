@@ -44,7 +44,7 @@ from bvp.ui.views import bvp_ui
 @bvp_ui.route("/analytics", methods=["GET", "POST"])
 @roles_accepted("admin", "Prosumer")
 def analytics_view():
-    """ Analytics view. Here, four plots (consumption/generation, weather, prices and a profit/loss calculation)
+    """Analytics view. Here, four plots (consumption/generation, weather, prices and a profit/loss calculation)
     and a table of metrics data are prepared. This view allows to select a resource name, from which a
     models.Resource object can be made. The resource name is kept in the session.
     Based on the resource, plots and table are labelled appropriately.
@@ -208,7 +208,7 @@ def analytics_view():
 @bvp_ui.route("/analytics_data/<content>/<content_type>", methods=["GET"])
 @roles_accepted("admin", "Prosumer")
 def analytics_data_view(content, content_type):
-    """ Analytics view as above, but here we only download data.
+    """Analytics view as above, but here we only download data.
     Content can be either metrics or raw.
     Content-type can be either CSV or JSON.
     """

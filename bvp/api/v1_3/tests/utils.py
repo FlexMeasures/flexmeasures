@@ -19,7 +19,8 @@ def message_for_get_device_message(
 
 
 def message_for_post_udi_event(
-    unknown_prices: bool = False, targets: bool = False,
+    unknown_prices: bool = False,
+    targets: bool = False,
 ) -> dict:
     message = {
         "type": "PostUdiEventRequest",

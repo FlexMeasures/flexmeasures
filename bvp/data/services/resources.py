@@ -29,8 +29,7 @@ class InvalidBVPAsset(Exception):
 
 
 def get_markets() -> List[Market]:
-    """Return a list of all Market objects.
-    """
+    """Return a list of all Market objects."""
     return Market.query.order_by(Market.name.asc()).all()
 
 
@@ -40,14 +39,14 @@ def get_assets(
     order_direction: str = "desc",
 ) -> List[Asset]:
     """Return a list of all Asset objects owned by current_user
-     (or all users or a specific user - for this, admins can set an owner_id).
+    (or all users or a specific user - for this, admins can set an owner_id).
     """
     return _build_asset_query(owner_id, order_by_asset_attribute, order_direction).all()
 
 
 def has_assets(owner_id: Optional[int] = None) -> bool:
     """Return True if the current user owns any assets.
-     (or all users or a specific user - for this, admins can set an owner_id).
+    (or all users or a specific user - for this, admins can set an owner_id).
     """
     return _build_asset_query(owner_id).count() > 0
 
@@ -98,7 +97,8 @@ def _build_asset_query(
 
 
 def get_asset_group_queries(
-    custom_additional_groups: Optional[List[str]] = None, all_users: bool = False,
+    custom_additional_groups: Optional[List[str]] = None,
+    all_users: bool = False,
 ) -> Dict[str, Query]:
     """
     An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised display names.
@@ -172,7 +172,7 @@ def get_charge_point_queries() -> Dict[str, Query]:
 def mask_inaccessible_assets(
     asset_queries: Union[Query, Dict[str, Query]]
 ) -> Union[Query, Dict[str, Query]]:
-    """ Filter out any assets that the user should not be able to access.
+    """Filter out any assets that the user should not be able to access.
 
     We do not explicitly check user authentication here, because non-authenticated users are not admins
     and have no asset ownership, so applying this filter for non-admins masks all assets.
@@ -386,8 +386,7 @@ class Resource:
 
 
 def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
-    """Return a list of WeatherSensorType objects applicable to the given resource.
-    """
+    """Return a list of WeatherSensorType objects applicable to the given resource."""
     sensor_type_names = []
     for asset_type in resource.unique_asset_types:
         sensor_type_names.extend(asset_type.weather_correlations)

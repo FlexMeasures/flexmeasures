@@ -52,10 +52,10 @@ def as_transaction(db_function):
 
 def after_request_session_commit_or_rollback(exception):
     """Central place to handle transactions finally. So - usually your view code should
-       not have to deal with committing or rolling back.
+    not have to deal with committing or rolling back.
 
-       Register this on your app via the teardown_request setup method.
-       We roll back if there was any error and if committing doesn't work."""
+    Register this on your app via the teardown_request setup method.
+    We roll back if there was any error and if committing doesn't work."""
     if exception is not None:
         db.session.rollback()
         db.session.close()

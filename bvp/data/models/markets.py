@@ -43,8 +43,7 @@ class MarketType(db.Model):
 
 
 class Market(db.Model):
-    """Each market is a pricing service.
-    """
+    """Each market is a pricing service."""
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True)

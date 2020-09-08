@@ -51,12 +51,12 @@ class User(db.Model, UserMixin):
     @hybrid_property
     def roles(self):
         """The roles attribute is being used by Flask-Security in the @roles_required decorator (among others).
-           With this little overload fix, it will only return the user's roles if they are authenticated.
-           We do this to prevent that if a user is logged in while the admin deactivates them, their session would still work.
-           In effect, we strip unauthenticated users from their roles. To read roles of an unauthenticated user
-           (e.g. being inactive), use the `bvp_roles` attribute.
-           If our auth model has moved to an improved way, e.g. requiring modern tokens, we should consider relaxing this.
-           Note: This needed to become a hybrid property when moving to Flask-Security 3.4
+        With this little overload fix, it will only return the user's roles if they are authenticated.
+        We do this to prevent that if a user is logged in while the admin deactivates them, their session would still work.
+        In effect, we strip unauthenticated users from their roles. To read roles of an unauthenticated user
+        (e.g. being inactive), use the `bvp_roles` attribute.
+        If our auth model has moved to an improved way, e.g. requiring modern tokens, we should consider relaxing this.
+        Note: This needed to become a hybrid property when moving to Flask-Security 3.4
         """
         if not self.is_authenticated and self is not User:
             return []

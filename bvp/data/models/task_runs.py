@@ -5,7 +5,7 @@ from bvp.data.config import db
 
 
 class LatestTaskRun(db.Model):
-    """"
+    """ "
     Log the (latest) running of a task.
     This is intended to be used for live monitoring. For a full analysis,
     there are log files.

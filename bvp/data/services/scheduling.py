@@ -114,7 +114,10 @@ def make_schedule(
         consumption_schedule = schedule_battery(
             asset, asset.market, start, end, resolution, soc_at_start, soc_targets
         )
-    elif asset.asset_type_name in ("one-way_evse", "two-way_evse",):
+    elif asset.asset_type_name in (
+        "one-way_evse",
+        "two-way_evse",
+    ):
         consumption_schedule = schedule_charging_station(
             asset, asset.market, start, end, resolution, soc_at_start, soc_targets
         )
@@ -124,7 +127,8 @@ def make_schedule(
         )
 
     data_source = get_data_source(
-        data_source_label="schedule by Seita", data_source_type="scheduling script",
+        data_source_label="schedule by Seita",
+        data_source_type="scheduling script",
     )
     click.echo("Job %s made schedule." % rq_job.id)
 

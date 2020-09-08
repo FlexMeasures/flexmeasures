@@ -153,8 +153,8 @@ def set_session_resource(
 
 
 def get_git_description() -> Tuple[str, int, str]:
-    """ Return the latest git version (tag) as a string, the number of commits since then as an int and the
-    current commit hash as string. """
+    """Return the latest git version (tag) as a string, the number of commits since then as an int and the
+    current commit hash as string."""
 
     def _minimal_ext_cmd(cmd: list):
         # construct minimal environment

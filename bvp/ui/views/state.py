@@ -10,7 +10,7 @@ from bvp.ui.views import bvp_ui
 @bvp_ui.route("/state")
 @login_required
 def state_view():
-    """ State view.
+    """State view.
     This returns a little html snippet with a plot of the most recent state of the asset.
     """
     asset_id = request.args.get("id")

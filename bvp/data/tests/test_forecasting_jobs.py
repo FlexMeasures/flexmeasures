@@ -226,7 +226,7 @@ def check_failures(
 
 
 def test_failed_forecasting_insufficient_data(app):
-    """ This one (as well as the fallback) should fail as there is no underlying data.
+    """This one (as well as the fallback) should fail as there is no underlying data.
     (Power data is in 2015)"""
     solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
     create_forecasting_jobs(

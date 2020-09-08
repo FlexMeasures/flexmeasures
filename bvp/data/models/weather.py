@@ -15,7 +15,7 @@ from bvp.utils.bvp_inflection import humanize
 
 
 class WeatherSensorType(db.Model):
-    """"
+    """ "
     TODO: Add useful attributes like ...?
     """
 
@@ -152,7 +152,7 @@ class WeatherSensor(db.Model):
             great_circle_distance(latitude=32, longitude=54)
             great_circle_distance(lat=32, lng=54)
 
-         """
+        """
         other_latitude, other_longitude = parse_lat_lng(kwargs)
         if other_latitude is None or other_longitude is None:
             return None

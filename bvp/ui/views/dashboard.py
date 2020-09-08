@@ -16,7 +16,7 @@ from bvp.data.models.assets import Power
 @bvp_ui.route("/dashboard")
 @login_required
 def dashboard_view():
-    """ Dashboard view.
+    """Dashboard view.
     This is the default landing page for the platform user.
     It shows a map with the location and status of all of the user's assets,
     as well as a breakdown of the asset types in the user's portfolio.

@@ -64,7 +64,12 @@ class AssetType(db.Model):
             correlations.append("radiation")
         if self.name == "wind":
             correlations.append("wind_speed")
-        if self.name in ("one-way_evse", "two-way_evse", "battery", "building",):
+        if self.name in (
+            "one-way_evse",
+            "two-way_evse",
+            "battery",
+            "building",
+        ):
             correlations.append("temperature")
         return correlations
 
@@ -205,7 +210,7 @@ class Power(TimedValue, db.Model):
         source_types: Optional[List[str]] = None,
         **kwargs,
     ) -> Query:
-        """ Construct the database query.
+        """Construct the database query.
 
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_types: Optional list of source type names to query only specific source types

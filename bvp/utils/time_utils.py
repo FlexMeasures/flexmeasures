@@ -67,10 +67,10 @@ def localized_datetime(dt: datetime) -> datetime:
 
 
 def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -> str:
-    """ Localise a datetime to the timezone of the BVP platform.
-        Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
-        app.jinja_env.filters['datetime'] = localized_datetime_filter
-        If no datetime is passed in, use bvp_now() as basis.
+    """Localise a datetime to the timezone of the BVP platform.
+    Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
+    app.jinja_env.filters['datetime'] = localized_datetime_filter
+    If no datetime is passed in, use bvp_now() as basis.
     """
     if dt is None:
         dt = bvp_now()

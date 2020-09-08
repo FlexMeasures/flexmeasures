@@ -56,7 +56,7 @@ def get_prices(
     resolution: timedelta,
     allow_trimmed_query_window: bool = True,
 ):
-    """ Check for known prices or price forecasts, trimming query window accordingly if allowed.
+    """Check for known prices or price forecasts, trimming query window accordingly if allowed.
     todo: set a horizon to avoid collecting prices that are not known at the time of constructing the schedule
           (this may require implementing a belief time for scheduling jobs).
     """

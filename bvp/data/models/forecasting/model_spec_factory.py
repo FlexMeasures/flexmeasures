@@ -206,8 +206,10 @@ def configure_regressors_for_nearest_weather_sensor(
                 # Collect the weather data for the requested time window
                 regressor_specs_name = "%s_l0" % sensor_type
                 if len(regressor_transformation.keys()) == 0 and transform_to_normal:
-                    regressor_transformation = get_normalization_transformation_by_asset_type(
-                        WeatherSensorType(name=sensor_type)
+                    regressor_transformation = (
+                        get_normalization_transformation_by_asset_type(
+                            WeatherSensorType(name=sensor_type)
+                        )
                     )
                 regressor_specs.append(
                     DBSeriesSpecs(

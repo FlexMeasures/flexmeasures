@@ -83,7 +83,10 @@ class TimedValue(object):
             None,
             None,
         ),
-        horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None,),
+        horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+            None,
+            None,
+        ),
         rolling: bool = True,
         preferred_user_source_ids: Union[
             int, List[int]

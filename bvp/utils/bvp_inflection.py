@@ -22,7 +22,7 @@ def humanize(word):
 
 
 def parameterize(word):
-    """ Parameterize the word so it can be used as a python or javascript variable name.
+    """Parameterize the word so it can be used as a python or javascript variable name.
     For example:
     >>> word = "Acme® EV-Charger™"
     "acme_ev_chargertm"
@@ -37,7 +37,7 @@ def pluralize(word):
 
 
 def titleize(word):
-    """ Acronym exceptions are not yet supported by the inflection package,
+    """Acronym exceptions are not yet supported by the inflection package,
     even though Ruby on Rails, of which the package is a port, does.
 
     In most cases it's probably better to use our capitalize function instead of titleize,

@@ -21,7 +21,7 @@ from bvp.ui.utils.view_utils import render_bvp_template
 @bvp_ui.route("/portfolio", methods=["GET", "POST"])  # noqa: C901
 @roles_accepted("admin", "Prosumer")
 def portfolio_view():  # noqa: C901
-    """ Portfolio view.
+    """Portfolio view.
     By default, this page shows live results (production, consumption and market data) from the user's portfolio.
     Time windows for which the platform has identified upcoming balancing opportunities are highlighted.
     The page can also be used to navigate historical results.

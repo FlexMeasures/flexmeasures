@@ -23,8 +23,8 @@ class InvalidBVPUser(Exception):
 
 def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List[User]:
     """Return a list of User objects.
-       The role_name parameter allows to filter by role.
-       Set only_active to False if you also want non-active users.
+    The role_name parameter allows to filter by role.
+    Set only_active to False if you also want non-active users.
     """
     user_query = User.query
     if only_active:

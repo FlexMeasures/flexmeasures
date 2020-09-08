@@ -456,15 +456,15 @@ def optional_horizon_accepted(ex_post: bool = False):
 
 def unit_required(fn):
     """Decorator which specifies that a GET or POST request must specify a unit.
-        Example:
+    Example:
 
-            @app.route('/postMeterData')
-            @unit_required
-            def post_meter_data(unit):
-                return 'Meter data posted'
+        @app.route('/postMeterData')
+        @unit_required
+        def post_meter_data(unit):
+            return 'Meter data posted'
 
-        The message must specify a 'unit'.
-        """
+    The message must specify a 'unit'.
+    """
 
     @wraps(fn)
     @as_json
