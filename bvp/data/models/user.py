@@ -26,6 +26,15 @@ class Role(db.Model, RoleMixin):
 
 
 class User(db.Model, UserMixin):
+    """
+    We use the flask security UserMixin, which does include functionality,
+    but not the fields (those are in flask_security/models::FsUserMixin).
+    We went with a pick&choose approach. This gives us more freedom, e.g.
+    to choose our own table name or add logic around the activation status.
+    If we add new FS functionality (e.g. 2FA), the fields needed for that
+    need to be added here.
+    """
+
     __tablename__ = "bvp_users"
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True)
@@ -34,6 +43,8 @@ class User(db.Model, UserMixin):
     last_login_at = Column(DateTime())
     login_count = Column(Integer)
     active = Column(Boolean())
+    # Faster token checking
+    fs_uniquifier = Column(String(64), unique=True, nullable=False)
     timezone = Column(String(255), default="Europe/Amsterdam")
     bvp_roles = relationship(
         "Role", secondary="bvp_roles_users", backref=backref("users", lazy="dynamic")

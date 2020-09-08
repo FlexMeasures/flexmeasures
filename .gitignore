@@ -14,7 +14,7 @@ bvp.egg-info
 bvp.log
 
 .cache
-__pychache__
+__pycache__
 .pytest_cache/
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/
