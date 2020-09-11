@@ -81,7 +81,7 @@ def read_config(app):
     # and this app's logger.
     logging.getLogger().setLevel(app.config.get("LOGGING_LEVEL"))
     app.logger.setLevel(app.config.get("LOGGING_LEVEL"))
-    print("Logging level is %s" % logging.getLevelName(app.logger.level))
+    # print("Logging level is %s" % logging.getLevelName(app.logger.level))
 
     app.config["START_TIME"] = datetime.utcnow()
 

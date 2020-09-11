@@ -1,0 +1,44 @@
+# see ui/utils/plotting_utils: separate_legend() and create_hover_tool()
+bokeh==1.0.4
+colour
+pscript
+pandas
+# pandas-bokeh 0.5 requires bokeh>=2.0, but bokeh still doesn't support sharing a legend across plots
+pandas-bokeh==0.4.3
+iso8601
+xlrd
+inflection
+inflect
+humanize
+psycopg2-binary
+bcrypt
+pytz
+tzlocal
+numpy
+isodate
+click
+email_validator
+rq
+rq-dashboard
+rq-win; os_name=='nt'
+redis; os_name=='nt'
+py3DNS
+pyomo>=5.6
+forecastiopy
+pysolar
+timetomodel>=0.6.8
+timely-beliefs>=0.1.0
+python-dotenv
+Flask-SSLify
+Flask_JSON
+Flask-SQLAlchemy>=2.4.3
+Flask-Migrate
+Flask-Classful
+Flask-WTF
+Flask-Login
+Flask-Mail
+Flask-Security-Too
+Flask-Marshmallow
+marshmallow-sqlalchemy>=0.23.1
+# flask should be after all the flask plugins, because setup might find they ARE flask
+flask>=1.0

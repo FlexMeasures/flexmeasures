@@ -1,0 +1,7 @@
+-c app.txt
+-c test.txt
+
+pre-commit
+black
+flake8
+mypy

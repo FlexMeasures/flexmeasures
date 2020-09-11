@@ -1,0 +1,11 @@
+-c app.txt
+
+pytest
+pytest-flask
+pytest-cov
+# to test calls to the API
+requests
+# let's tests run successfully in containers
+fakeredis
+# required with fakeredis, maybe because we use rq
+lupa

@@ -29,13 +29,13 @@ Here is an example how to serve this application as WSGI app:
 
 To deploy the Seita BVP project on PythonAnywhere follow these steps.
 
-# Bitbucket Pipelines
+## Bitbucket Pipelines
 
 The Bitbucket Pipeline is configured with the bitbucket-pipelines.yml file.
 In this file we setup the project, run the tests and linters, and finish with
 deploying the code to PythonAnywhere.
 
-# Add PythonAnywhere Origin
+## Add PythonAnywhere Origin
 
 The deployment uses the hooks functionality of Git. We add PythonAnywhere as a
 remote origin and push to the PythonAnywhere git repo. The step below requires that
@@ -48,7 +48,7 @@ git remote add pythonanywhere seita@ssh.pythonanywhere.com:/home/seita/bvp-stagi
 git push --follow-tags -u pythonanywhere $BITBUCKET_BRANCH
 ```
 
-# Install Post-Receive Hook
+## Install Post-Receive Hook
 
 On the PythonAnywhere server, ssh and install the Git Post Receive Hook
 in the repo where you wish to deploy the final code. This will be triggered when a
@@ -86,3 +86,9 @@ make update-db
 echo "RESTARTING APPLICATION ..."
 touch $PATH_TO_WSGI
 ```
+
+
+## Install the linear solver
+
+The Cbc solver has to be installed from source.
+We provide [an example script to that](ci/install-cbc.sh). You might want to install a later version, then adapt the version in the script. 

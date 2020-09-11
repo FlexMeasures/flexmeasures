@@ -101,7 +101,7 @@ def test_add_asset(db, client, as_admin):
     market = Market.query.filter_by(name="epex_da").one_or_none()
     num_assets_before = len(prosumer2.assets)
     db.session.expunge(prosumer2)
-    asset_creation = client.post(
+    response = client.post(
         url_for("AssetCrud:post", id="create"),
         follow_redirects=True,
         data=dict(
@@ -117,7 +117,9 @@ def test_add_asset(db, client, as_admin):
             soc_in_mwh=0,
         ),
     )
-    assert asset_creation.status_code == 200
+    assert response.status_code == 200  # response is HTML form
+    assert "html" in response.content_type
+    assert b"Creation was successful" in response.data
     assert Asset.query.filter_by(owner_id=prosumer2.id).count() == num_assets_before + 1
     updated_asset = Asset.query.filter_by(latitude=70.4).one_or_none()
     assert updated_asset.display_name == "New Test Asset"
@@ -127,14 +129,14 @@ def test_add_asset(db, client, as_admin):
 def test_add_asset_with_new_owner(client, as_admin):
     new_user_email = "test_prosumer_new_owner@seita.nl"
     market = Market.query.filter_by(name="epex_da").one_or_none()
-    asset_creation = client.post(
+    response = client.post(
         url_for("AssetCrud:post", id="create"),
         follow_redirects=True,
         data=dict(
             display_name="New Test Asset",
             asset_type_name="wind",
             market_id=str(market.id),
-            owner="none chosen",
+            owner=-1,
             new_owner_email=new_user_email,
             capacity_in_mw="100",
             latitude="70.4",
@@ -144,7 +146,8 @@ def test_add_asset_with_new_owner(client, as_admin):
             soc_in_mwh=0,
         ),
     )
-    assert asset_creation.status_code == 200
+    assert response.status_code == 200
+    assert b"Creation was successful" in response.data
     new_user = find_user_by_email(new_user_email)
     assert new_user
     assert Asset.query.filter_by(owner_id=new_user.id).count() == 1

@@ -74,7 +74,7 @@ class NewAssetForm(AssetForm):
     """Here we allow to set asset type and owner."""
 
     asset_type_name = SelectField("Asset type", validators=[DataRequired()])
-    owner = SelectField("Owner")
+    owner = SelectField("Owner", coerce=int)
 
 
 def with_options(
@@ -85,9 +85,9 @@ def with_options(
             (atype.name, atype.display_name) for atype in AssetType.query.all()
         ]
     if "owner" in form:
-        form.owner.choices = [
-            ("none chosen", "--Select existing or add new below--")
-        ] + [(o.id, o.username) for o in get_users(role_name="Prosumer")]
+        form.owner.choices = [(-1, "--Select existing or add new below--")] + [
+            (o.id, o.username) for o in get_users(role_name="Prosumer")
+        ]
     if "market_id" in form:
         form.market_id.choices = [(-1, "--Select existing--")] + [
             (m.id, m.display_name) for m in get_markets()
@@ -265,7 +265,7 @@ def get_or_create_owner(
     owner = None
     owner_error = None
 
-    if asset_form.owner.data == "none chosen":
+    if asset_form.owner.data == -1:
         new_owner_email = request.form.get("new_owner_email", "")
         if new_owner_email.startswith("--Type"):
             owner_error = "Either pick an existing user as owner or enter an email address for the new owner."

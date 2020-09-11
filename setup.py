@@ -1,5 +1,19 @@
 from setuptools import setup
 
+
+def load_requirements(use_case):
+    reqs = []
+    with open("requirements/%s.in" % use_case, "r") as f:
+        reqs = [
+            req
+            for req in f.read().splitlines()
+            if not req.strip() == ""
+            and not req.strip().startswith("#")
+            and not req.strip().startswith("-c")
+        ]
+    return reqs
+
+
 setup(
     name="bvp",
     description="Balancing Valorisation Platform.",
@@ -7,59 +21,9 @@ setup(
     author_email="nicolas@seita.nl",
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
     version="0.2",
-    # flask should be after all the flask plugins, because setup might find they ARE flask
-    install_requires=[
-        "bokeh==1.0.4",  # ui/utils/plotting_utils separate_legend() and create_hover_tool()
-        "colour",
-        "pscript",
-        "pandas",
-        "pandas-bokeh==0.4.3",  # 0.5 requires bokeh>=2.0, but bokeh still doesn't support sharing a legend across plots
-        "iso8601",
-        "xlrd",
-        "inflection",
-        "inflect",
-        "humanize",
-        "psycopg2-binary",
-        "bcrypt",
-        "pytz",
-        "tzlocal",
-        "numpy",
-        "isodate",
-        "click",
-        "email_validator",
-        "rq",
-        "rq-dashboard",
-        "rq-win; os_name=='nt'",
-        "redis; os_name=='nt'",
-        "py3DNS",
-        "pyomo>=5.6",
-        "forecastiopy",
-        "pysolar",
-        "timetomodel>=0.6.8",
-        "timely-beliefs>=0.0.10.dev92038",
-        "python-dotenv",
-        "Flask-SSLify",
-        "Flask_JSON",
-        "Flask-SQLAlchemy>=2.4.3",
-        "Flask-Migrate",
-        "Flask-Classful",
-        "Flask-WTF",
-        "Flask-Login",
-        "Flask-Mail",
-        "Flask-Security-Too",
-        "Flask-Marshmallow",
-        "marshmallow-sqlalchemy>=0.23.1",
-        "flask>=1.0",
-    ],
+    install_requires=load_requirements("app"),
     setup_requires=["pytest-runner"],
-    tests_require=[
-        "pytest",
-        "pytest-flask",
-        "pytest-cov",
-        "requests",  # to test calls to the API
-        "fakeredis",  # let's tests run successfully in containers
-        "lupa",  # required with fakeredis, maybe because we use rq
-    ],
+    tests_require=load_requirements("test"),
     packages=["bvp"],
     include_package_data=True,
     # license="Apache",
