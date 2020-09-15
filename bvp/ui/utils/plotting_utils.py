@@ -17,18 +17,14 @@ from bokeh.models import (
 from bokeh.models.renderers import GlyphRenderer
 from bokeh.models.tools import CustomJSHover
 from bokeh import events
-import inflect
-from inflection import humanize
 import pandas as pd
 import pandas_bokeh
 import numpy as np
 import timely_beliefs as tb
 
 from bvp.data.models.assets import Asset, Power
+from bvp.utils.bvp_inflection import capitalize
 from bvp.utils.time_utils import bvp_now, localized_datetime_str, tz_index_naively
-
-
-p = inflect.engine()
 
 
 def create_hover_tool(  # noqa: C901
@@ -176,33 +172,12 @@ def make_range(
     return a_range
 
 
-def source_labeler(source: Union[tb.BeliefSource, List[tb.BeliefSource], str]) -> str:
-    """Turn a belief source into a human readable label.
-    Join list of belief sources to form a human readable label.
-    If source is already a string, leave it verbatim.
-    Ignores other types of sources, as well as and None or np.nan values."""
-    if isinstance(source, tb.BeliefSource):
-        return humanize(source.name)
-    elif isinstance(source, str):
-        return source
-    elif not isinstance(source, list):
-        return ""
-    unique_labels = list(
-        set(
-            source_s.name
-            for source_s in source
-            if isinstance(source_s, tb.BeliefSource)
-        )
-    )
-    new_label = humanize(p.join(unique_labels))
-    return new_label
-
-
 def replace_source_with_label(data: pd.DataFrame) -> pd.DataFrame:
-    """Column "source" is dropped, and column "label" is created, which contains only strings."""
+    """Column "source" is dropped, and column "label" is created.
+    The former column should contain DataSource objects, while the latter contains only strings."""
     if data is not None:
         if "source" in data.columns:
-            data["label"] = data["source"].apply(lambda x: source_labeler(x))
+            data["label"] = data["source"].apply(lambda x: capitalize(x.label))
             data.drop("source", axis=1, inplace=True)
     return data
 
@@ -381,11 +356,8 @@ def make_datasource_from(data: pd.DataFrame, resolution: timedelta) -> ColumnDat
         data.index.values.size
         and isinstance(data.index, pd.DatetimeIndex)
         and resolution is not None
-    ):  # i.e. if there is a non-empty index with a clearly defined frequency
-        data["next_x"] = pd.date_range(
-            start=data.index.values[1], freq=resolution, periods=len(data.index)
-        ).values
-
+    ):  # i.e. if there is a non-empty DatetimeIndex and a resolution is given
+        data["next_x"] = data.index.shift(1, freq=resolution)
     return ColumnDataSource(data)
 
 
