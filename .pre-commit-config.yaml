@@ -1,4 +1,19 @@
 repos:
+-   repo: https://github.com/jazzband/pip-tools
+    rev: 5.0.0
+    hooks:
+    - id: pip-compile
+      name: pip-compile (freeze production dependencies)
+      files: ^requirements/app\.(in|txt)$
+      args: [--output-file=requirements/app.txt, requirements/app.in]
+    - id: pip-compile
+      name: pip-compile (freeze developer dependencies)
+      files: ^requirements/dev\.(in|txt)$
+      args: [--output-file=requirements/dev.txt, requirements/dev.in]
+    - id: pip-compile
+      name: pip-compile (freeze test dependencies)
+      files: ^requirements/test\.(in|txt)$
+      args: [--output-file=requirements/test.txt, requirements/test.in]
 -   repo: https://gitlab.com/pycqa/flake8
     rev: 3.8.3
     hooks:
