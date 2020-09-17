@@ -32,6 +32,8 @@ bvp_logging_config = {
             "level": "INFO",
             "formatter": "detail",
             "filename": basedir + "/../../bvp.log",
+            "maxBytes": 10_000_000,
+            "backupCount": 6,
         },
     },
     "root": {"level": "INFO", "handlers": ["console", "file"], "propagate": True},

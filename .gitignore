@@ -11,7 +11,7 @@ venv
 
 .env-bvp/
 bvp.egg-info
-bvp.log
+bvp.log*
 
 .cache
 __pycache__
