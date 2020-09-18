@@ -1,6 +1,9 @@
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import MetaData
 from flask_sqlalchemy import SQLAlchemy
 from flask import Flask
+
+from bvp.data.models import naming_convention
 
 
 db: SQLAlchemy = None  # type: ignore
@@ -11,8 +14,11 @@ session_options = None
 def init_db():
     """Initialise the database object"""
     global db, Base, session_options
-    db = SQLAlchemy(session_options=session_options)
-    Base = declarative_base()
+    db = SQLAlchemy(
+        session_options=session_options,
+        metadata=MetaData(naming_convention=naming_convention),
+    )
+    Base = declarative_base(metadata=db.metadata)
     Base.query = None
 
 

@@ -32,8 +32,7 @@ To deploy the Seita BVP project on PythonAnywhere follow these steps.
 ## Bitbucket Pipelines
 
 The Bitbucket Pipeline is configured with the bitbucket-pipelines.yml file.
-In this file we setup the project, run the tests and linters, and finish with
-deploying the code to PythonAnywhere.
+In this file we setup the project, run the tests and linters, and finish with deploying the code to PythonAnywhere.
 
 ## Add PythonAnywhere Origin
 
@@ -51,8 +50,7 @@ git push --follow-tags -u pythonanywhere $BITBUCKET_BRANCH
 ## Install Post-Receive Hook
 
 On the PythonAnywhere server, ssh and install the Git Post Receive Hook
-in the repo where you wish to deploy the final code. This will be triggered when a
-push is received by the Bitbucket repo.
+in the repo where you wish to deploy the final code. This will be triggered when a push is received by the Bitbucket repo.
 
 The script below can be a Post Receive Hook (save as `hooks/post-receive` in your remote origin repo and update paths).
 It will force checkout the master branch, update dependencies, upgrade the database structure,
@@ -81,7 +79,7 @@ echo "UPGRADING DATABASE STRUCTURE ..."
 make upgrade-db
 
 echo "UPDATING DOCUMENTATION ..."
-make update-db
+make update-docs
 
 echo "RESTARTING APPLICATION ..."
 touch $PATH_TO_WSGI
