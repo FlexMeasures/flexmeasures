@@ -90,9 +90,18 @@ Write:
 
 into the config file you are using, e.g. bvp/development_config.py
 
-## Get structure (and some data into place)
+## Get structure (and some data) into place
 
 See the first maintenance step below.
+
+## Visualize the model
+
+You can visualise the data model like this:
+
+    make show-data-model
+
+This will generate a picture based on the model code.
+You can also generate picture based on the actual database, see inside the Makefile. 
 
 # Maintenance
 

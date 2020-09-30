@@ -97,8 +97,7 @@ Note: For developers, there is more detailed documentation available. Please con
 
 Install all dependencies including the ones needed for development:
 
-    make install-deps-with-dev
-    make install-bvp
+    make install-for-dev
 
 ### Run locally
 

@@ -24,3 +24,6 @@ bvp/development_config.py
 bvp/testing_config.py
 documentation/img/screenshot_*
 migrations/dumps
+
+uml_diagram.png
+db_schema.png
