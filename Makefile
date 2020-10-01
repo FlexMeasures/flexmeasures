@@ -58,4 +58,4 @@ upgrade-db:
 	flask db current
 
 show-data-model:
-	./bvp/data/scripts/visualize_data_model.py --uml --store # also try with --schema for database model
+	./bvp/data/scripts/visualize_data_model.py --uml --store --modules new_models # also try with --schema for database model
