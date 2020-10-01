@@ -5,6 +5,7 @@ import sys
 from getpass import getpass
 import inspect
 from importlib import import_module
+from typing import List, Optional
 
 import pkg_resources
 from sqlalchemy import MetaData
@@ -119,7 +120,7 @@ def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False):
 
 
 @uses_dot
-def create_uml_pic(store: bool = False):
+def create_uml_pic(modules: Optional[List[str]], store: bool = False):
     print("CREATING UML CODE DIAGRAM ...")
     print("Finding all the relevant mappers in our model...")
     mappers = []
@@ -127,7 +128,9 @@ def create_uml_pic(store: bool = False):
     # Note: This relies on model classes and their tables having the same name,
     #       ignoring capitalization and underscores.
     relevant_models = {}
-    for module in RELEVANT_MODULES:
+    if modules is None:
+        modules = RELEVANT_MODULES
+    for module in modules:
         relevant_models.update(
             {
                 mname.lower(): mclass
@@ -140,9 +143,15 @@ def create_uml_pic(store: bool = False):
     if DEBUG:
         print(f"Relevant tables: {RELEVANT_TABLES}")
         print(f"Relevant models: {relevant_models}")
-    matched_models = {
-        m: c for (m, c) in relevant_models.items() if c.__tablename__ in RELEVANT_TABLES
-    }
+    matched_models = (
+        {
+            m: c
+            for (m, c) in relevant_models.items()
+            if c.__tablename__ in RELEVANT_TABLES
+        }
+        if modules == RELEVANT_MODULES
+        else relevant_models
+    )
     for model_name, model_class in matched_models.items():
         if DEBUG:
             print(f"Loading class {model_class.__name__} ...")
@@ -206,6 +215,14 @@ if __name__ == "__main__":
         action="store_true",
         help="Store the images a files, instead of showing them directly (which requires pillow).",
     )
+    parser.add_argument(
+        "--modules",
+        action="extend",
+        nargs="+",
+        type=str,
+        help="List which modules to map, e.g. '--modules ['assets', 'data_sources']'. Use with '--uml'. "
+        "By default, only in-code data models that match a relevant database table are visualised.",
+    )
 
     parser.add_argument(
         "--pg_url",
@@ -234,4 +251,4 @@ if __name__ == "__main__":
                 f"We need bvp.data to be in the path, so we can read the data model. Error: '{ie}''."
             )
             sys.exit(0)
-        create_uml_pic(store=args.store)
+        create_uml_pic(store=args.store, modules=args.modules)
