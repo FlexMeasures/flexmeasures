@@ -92,9 +92,55 @@ into the config file you are using, e.g. bvp/development_config.py
 
 ## Get structure (and some data) into place
 
-See the first maintenance step below.
+You need data to enjoy the benefits of BVP or to develop features for it. In this section, there are some ways to get started.
 
-## Visualize the model
+You should also checkout see maintenance section about datbase migrations.
+
+### Import from another database
+
+Here is a short recipe to import data from a database (e.g. a demo database) into your local system.
+
+On the to-be-exported database:
+
+    pg_dump --host=YOUR_URL --port=YOUR_PORT --username=YOUR_USER --no-privileges --no-owner --data-only --format=c --file=pgbackup_`date +%F-%H%M`.dump YOUR_DB_NAME
+
+Note that we only dump the data here. Locally, we create a fresh database with the structure being based on the data model given by the local codebase:
+
+    flask db-reset
+
+Then we import the data dump we made earlier: 
+
+    pg_restore -U YOUR_DEV_USER --password -h 127.0.0.1 -d YOUR_DEV_DB_NAME ~/Downloads/pgbackup_YOUR_DATETIME.dump
+
+You can choose to import a complete db dump into a freshly created database, as well, of course.
+
+### Create data manually
+
+You can create users with the `new-user` command. Check it out:
+
+    flask new-user --help
+
+You can create some pre-determined asset types and data sources with this command:
+
+    flask db-populate --structure
+
+TODO: We should instead offer CLI commands to be able to create asset types as needed.
+
+You can create assets in the BVP UI. TODO: maybe a CLI command would help to script all data creation.
+
+TODO: We still need a decent way to load in metering data, e.g. from CSV - often, a custom loading script will be necessary anyways)
+
+You can create forecasts for your existing metered data with this command:
+
+    flask db-populate --forecasts
+
+Check out it's `--help` content to learn more. You can set which assets and which time window you want to forecast. At the time of writing, the forecasts horizons are fixed to 1, 6, 24 and 48 hours. Of course, making forecasts takes a while for a larger dataset.
+
+Just to note: There is also a command to get rid of data:
+
+    flask db_depopulate --structure --data --forecasts
+
+## Visualize the data model
 
 You can visualise the data model like this:
 
@@ -116,12 +162,9 @@ Run these commands from the repository root directory (read below comments first
     flask db init
     flask db migrate
     flask db upgrade
-    flask db_populate --structure --data --forecasts
 
 The first command (`flask db init`) is only needed here once, it initialises the alembic migration tool.
 The second command generates the SQL for your current db model and the third actually gives you the db structure.
-The fourth command generates some content - not sure where we'll go with this at the moment, but useful for testing
-and development.
 
 With every migration, you get a new migration step in `migrations/versions`. Be sure to add that to `git`,
 as future calls to `flask db upgrade` will need those steps, and they might happen on another computer.
@@ -134,11 +177,6 @@ Just to be clear that the `db init` command is needed only at the beginning - yo
 
     flask db migrate --message "Please explain what you did, it helps for later"
     flask db upgrade
-
-You could decide that you need to re-populate (decide what you need to re-populate):
-
-    flask db_depopulate --structure --data --forecasts
-    flask db_populate --structure --data --forecasts
 
 ## Get database structure updated
 
