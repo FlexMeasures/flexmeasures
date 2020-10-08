@@ -23,6 +23,7 @@ import numpy as np
 import timely_beliefs as tb
 
 from bvp.data.models.assets import Asset, Power
+from bvp.data.models.data_sources import DataSource
 from bvp.utils.bvp_inflection import capitalize
 from bvp.utils.time_utils import bvp_now, localized_datetime_str, tz_index_naively
 
@@ -174,10 +175,14 @@ def make_range(
 
 def replace_source_with_label(data: pd.DataFrame) -> pd.DataFrame:
     """Column "source" is dropped, and column "label" is created.
-    The former column should contain DataSource objects, while the latter contains only strings."""
+    The former column should contain DataSource objects, while the latter will contain only strings."""
     if data is not None:
         if "source" in data.columns:
-            data["label"] = data["source"].apply(lambda x: capitalize(x.label))
+            data["label"] = data["source"].apply(
+                lambda x: capitalize(x.label)
+                if isinstance(x, DataSource)
+                else x.capitalize()
+            )
             data.drop("source", axis=1, inplace=True)
     return data
 
