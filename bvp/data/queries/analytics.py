@@ -141,6 +141,7 @@ def get_prices_data(
     price_df: pd.DataFrame = simplify_index(
         price_bdf, index_levels_to_columns=["belief_horizon", "source"]
     )
+
     if not price_bdf.empty:
         metrics["realised_unit_price"] = price_df["event_value"].mean()
     else:
@@ -335,6 +336,7 @@ def get_revenues_costs_data(
         columns=["event_value", "yhat_upper", "yhat_lower"],
     )
     rev_cost_forecasts = simplify_index(rev_cost_forecasts)
+
     if power_data.empty or prices_data.empty:
         metrics["realised_revenues_costs"] = np.NaN
     else:
@@ -348,6 +350,7 @@ def get_revenues_costs_data(
             index=power_data.index,
             sensor=power_data.sensor,
         )
+        rev_cost_data = simplify_index(rev_cost_data)
         if (
             "belief_horizon" in power_data.columns
             and "belief_horizon" in prices_data.columns
@@ -382,6 +385,8 @@ def get_revenues_costs_data(
             sensor=power_data.sensor,
             columns=["event_value", "yhat_upper", "yhat_lower"],
         )
+        rev_cost_forecasts = simplify_index(rev_cost_forecasts)
+
         if not (power_forecast_data.empty and prices_forecast_data.empty):
             rev_cost_forecasts["event_value"] = (
                 power_forecast_data["event_value"]

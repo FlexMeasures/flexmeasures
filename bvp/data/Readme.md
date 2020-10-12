@@ -94,7 +94,7 @@ into the config file you are using, e.g. bvp/development_config.py
 
 You need data to enjoy the benefits of BVP or to develop features for it. In this section, there are some ways to get started.
 
-You should also checkout see maintenance section about datbase migrations.
+You should also checkout the maintenance section about database migrations.
 
 ### Import from another database
 
@@ -108,11 +108,14 @@ Note that we only dump the data here. Locally, we create a fresh database with t
 
     flask db-reset
 
-Then we import the data dump we made earlier: 
+Then we import the data dump we made earlier:
 
     pg_restore -U YOUR_DEV_USER --password -h 127.0.0.1 -d YOUR_DEV_DB_NAME ~/Downloads/pgbackup_YOUR_DATETIME.dump
 
-You can choose to import a complete db dump into a freshly created database, as well, of course.
+A potential `alembic_version` error should not prevent other data tables from being restored.
+You can also choose to import a complete db dump into a freshly created database, of course.
+
+Note: To make sure passwords will be decrypted correctly when you authenticate, set the same SECURITY_PASSWORD_SALT value in your config as the one that was in use when the dumped passwords were encrypted! 
 
 ### Create data manually
 
