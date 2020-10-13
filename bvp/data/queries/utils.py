@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 import pandas as pd
+import numpy as np
 import timely_beliefs as tb
 
 from sqlalchemy.orm import Query, Session
@@ -153,3 +154,23 @@ def simplify_index(
                     raise KeyError(f"Level {col} not found")
     bdf.index = bdf.index.get_level_values("event_start")
     return bdf
+
+
+def new_dataframe_aligned_with(
+    df: tb.BeliefsDataFrame, columns: List[str] = None, column_values=np.nan
+) -> pd.DataFrame:
+    """
+    Create new DataFrame, where index & columns are aligned with the
+    given BeliefsDataFrame. Index is simplified to "event_start".
+    The default values for columns is NaN, but you can pass in others.
+    Standard columns are event_value, belief_horizon and source.
+    """
+    if columns is None:
+        columns = ["event_value", "belief_horizon", "source"]
+    bdf = tb.BeliefsDataFrame(
+        column_values,  # init with NaN values
+        index=df.index,
+        sensor=df.sensor,
+        columns=columns,
+    )
+    return simplify_index(bdf)

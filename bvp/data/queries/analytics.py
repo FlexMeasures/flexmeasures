@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import timely_beliefs as tb
 
-from bvp.data.queries.utils import simplify_index
+from bvp.data.queries.utils import simplify_index, new_dataframe_aligned_with
 from bvp.utils import calculations, time_utils
 from bvp.data.services.resources import Resource, find_closest_weather_sensor
 from bvp.data.models.assets import Asset
@@ -323,34 +323,24 @@ def get_revenues_costs_data(
     - weighted absolute percentage error
     """
     power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
-    rev_cost_data = tb.BeliefsDataFrame(
-        index=power_data.index,
-        sensor=power_data.sensor,
-        columns=["event_value", "belief_horizon", "source"],
-    )
-    rev_cost_data = simplify_index(rev_cost_data)
-
-    rev_cost_forecasts = tb.BeliefsDataFrame(
-        index=power_data.index,
-        sensor=power_data.sensor,
+    rev_cost_data = new_dataframe_aligned_with(power_data)
+    rev_cost_forecasts = new_dataframe_aligned_with(
+        power_data,
         columns=["event_value", "yhat_upper", "yhat_lower"],
     )
-    rev_cost_forecasts = simplify_index(rev_cost_forecasts)
 
     if power_data.empty or prices_data.empty:
         metrics["realised_revenues_costs"] = np.NaN
     else:
-        rev_cost_data = tb.BeliefsDataFrame(
-            dict(
+        rev_cost_data = new_dataframe_aligned_with(
+            power_data,
+            column_values=dict(
                 event_value=power_data["event_value"]
                 * power_hour_factor
                 * prices_data["event_value"]
                 * unit_factor
             ),
-            index=power_data.index,
-            sensor=power_data.sensor,
         )
-        rev_cost_data = simplify_index(rev_cost_data)
         if (
             "belief_horizon" in power_data.columns
             and "belief_horizon" in prices_data.columns
@@ -380,13 +370,10 @@ def get_revenues_costs_data(
         metrics["mape_revenues_costs"] = np.NaN
         metrics["wape_revenues_costs"] = np.NaN
     else:
-        rev_cost_forecasts = tb.BeliefsDataFrame(
-            index=power_data.index,
-            sensor=power_data.sensor,
+        rev_cost_forecasts = new_dataframe_aligned_with(
+            power_data,
             columns=["event_value", "yhat_upper", "yhat_lower"],
         )
-        rev_cost_forecasts = simplify_index(rev_cost_forecasts)
-
         if not (power_forecast_data.empty and prices_forecast_data.empty):
             rev_cost_forecasts["event_value"] = (
                 power_forecast_data["event_value"]
@@ -411,9 +398,9 @@ def get_revenues_costs_data(
 
         # Todo: compute confidence interval properly - this is just a simple heuristic
         rev_cost_forecasts["yhat_upper"] = rev_cost_forecasts["event_value"] * (
-            1 + metrics["wape_revenues_costs"] / 100
+            1 + metrics["wape_revenues_costs"]
         )
         rev_cost_forecasts["yhat_lower"] = rev_cost_forecasts["event_value"] * (
-            1 - metrics["wape_revenues_costs"] / 100
+            1 - metrics["wape_revenues_costs"]
         )
     return rev_cost_data, rev_cost_forecasts, metrics
