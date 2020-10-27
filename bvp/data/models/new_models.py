@@ -22,14 +22,41 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     # The type of data source (e.g. user, forecasting script or scheduling script)
     type = db.Column(
-        db.String(80), default=""
-    )  # todo: discuss using db.Enum instead of db.String
-
-    # The id of the source (can link e.g. to bvp_user table)
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("bvp_users.id"), nullable=True, unique=True
+        db.Enum(
+            "user",
+            "forecasting script",
+            "scheduling script",
+            "decomposition script",
+        ),
+        nullable=False,
     )
-    user = db.relationship("User", backref=db.backref("data_sources", lazy=True))
+
+    # Can be set by user to distinguish scenarios
+    label = db.Column(db.String(80), default="")
+
+    # The responsible actuator
+    actuator_id = db.Column(
+        db.Integer, db.ForeignKey("actuator.id"), nullable=False, unique=False
+    )
+    actuator = db.relationship(
+        "Actuator",
+        foreign_keys=[actuator_id],
+        backref=db.backref("data_sources", lazy=True),
+    )
+
+    # The responsible user, if any
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("bvp_users.id"), nullable=True, unique=False
+    )
+    user = db.relationship(
+        "User", foreign_keys=[user_id], backref=db.backref("data_sources", lazy=True)
+    )
+
+    # The assigned account (no shared data between accounts)
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("bvp_accounts.id"), nullable=False, unique=False
+    )
+    # todo: account = db.relationship("Account", foreign_keys=[account_id], backref=db.backref("data_sources", lazy=True))
 
 
 class Sensor(db.Model, tb.SensorDBMixin):
@@ -482,6 +509,8 @@ class SensorSeasonalityRelationship(db.Model):
 class Actuator(db.Model):
     """An actuator defines a type of action that can be taken on an asset."""
 
+    id = db.Column(db.Integer, primary_key=True)
+
     action = db.Column(
         db.Enum(
             "can_shift",
@@ -490,6 +519,7 @@ class Actuator(db.Model):
         nullable=False,
         primary_key=True,
     )
+    version = db.Column(db.String(80), default="0.0.0")
 
     @staticmethod
     def trigger(self, **kwargs):
@@ -512,12 +542,10 @@ class AssetActuatorRelationship(db.Model):
         backref=db.backref("actuators", lazy=True),
     )
 
-    actuator_action = db.Column(
-        db.Integer, db.ForeignKey("actuator.action"), nullable=False
-    )
+    actuator_id = db.Column(db.Integer, db.ForeignKey("actuator.id"), nullable=False)
     actuator = db.relationship(
         "Actuator",
-        foreign_keys=[actuator_action],
+        foreign_keys=[actuator_id],
         backref=db.backref("assets", lazy=True),
     )
 
