@@ -273,19 +273,21 @@ class Process(db.Model, ProcessMixin):
         backref=db.backref("processes", lazy=True),
     )
 
-    asset_id = db.Column(db.Integer, db.ForeignKey("asset.id"), nullable=False)
-    asset = db.relationship(
-        "Asset", foreign_keys=[asset_id], backref=db.backref("processes", lazy=True)
+    sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id"), nullable=False)
+    sensor = db.relationship(
+        "Sensor", foreign_keys=[sensor_id], backref=db.backref("processes", lazy=True)
     )
 
-    process_type_id = db.Column(
-        db.Integer, db.ForeignKey("process_type.id"), nullable=False
-    )
-    process_type = db.relationship(
-        "ProcessType",
-        foreign_keys=[process_type_id],
-        backref=db.backref("processes", lazy=True),
-    )
+    @property
+    def process_type(self):
+        """A process type defines what type of data a process describes, and includes a unit.
+
+        Examples of process types: water consumption, electricity consumption, gas consumption.
+
+        Processes of the same type can be aggregated.
+        Processes of different types can be generalized.
+        """
+        return self.sensor.sensor_type
 
 
 class AggregatedProcess(ProcessMixin):
@@ -329,7 +331,7 @@ class AggregatedProcess(ProcessMixin):
         return combines_units[0] if combines_units else None
 
     @property
-    def type(self) -> "ProcessType":
+    def type(self) -> "SensorType":
         """Returns the unique type of the component process, if any."""
         combines_types = list(set(process.process_type for process in self.processes))
         assert len(combines_types) <= 1
@@ -393,21 +395,6 @@ class ProcessLabelRelationship(db.Model):
         foreign_keys=[process_label_id],
         backref=db.backref("processes", lazy=True),
     )
-
-
-class ProcessType(db.Model):
-    """A process type defines what type of data a process describes, and includes a unit.
-
-    Examples of process types: water consumption, electricity consumption, gas consumption.
-
-    Processes of the same type can be aggregated.
-    Processes of different types can be generalized.
-    """
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), default="")
-    unit = db.Column(db.String(80), nullable=False)
-    hover_label = db.Column(db.String(80), nullable=True, unique=False)
 
 
 class Seasonality(db.Model):
