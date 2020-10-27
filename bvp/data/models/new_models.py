@@ -20,17 +20,6 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     __tablename__ = "data_sources"
 
-    # The type of data source (e.g. user, forecasting script or scheduling script)
-    type = db.Column(
-        db.Enum(
-            "user",
-            "forecasting script",
-            "scheduling script",
-            "decomposition script",
-        ),
-        nullable=False,
-    )
-
     # Can be set by user to distinguish scenarios
     label = db.Column(db.String(80), default="")
 
@@ -45,6 +34,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     )
 
     # The responsible user, if any
+    #   although nullable, we do aim to track which user was responsible for triggering the actuator
+    #   for example, if the actuator is triggered by a job, a user triggered the job (e.g. by posting to the API)
+    #   and a little harder: if the actuator is triggered by a scheduled script, a user scheduled the script
     user_id = db.Column(
         db.Integer, db.ForeignKey("bvp_users.id"), nullable=True, unique=False
     )
@@ -57,6 +49,13 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         db.Integer, db.ForeignKey("bvp_accounts.id"), nullable=False, unique=False
     )
     # todo: account = db.relationship("Account", foreign_keys=[account_id], backref=db.backref("data_sources", lazy=True))
+
+    @property
+    def type(self):
+        action_type = self.actuator.action_type
+        if action_type == "post":
+            return "user"
+        return f"{action_type} script"
 
 
 class Sensor(db.Model, tb.SensorDBMixin):
@@ -494,10 +493,27 @@ class SensorSeasonalityRelationship(db.Model):
 
 
 class Actuator(db.Model):
-    """An actuator defines a type of action that can be taken on an asset."""
+    """An actuator defines a type of action that can be taken on an asset.
+
+    Action type, action and version are useful to structure the file system:
+    - action types are modules
+    - actions are submodules
+    - versions are functions)
+    Action types are also useful as filters for the API (and UI).
+    """
 
     id = db.Column(db.Integer, primary_key=True)
 
+    # The type of action (e.g. posting, forecasting or scheduling)
+    action_type = db.Column(
+        db.Enum(
+            "posting",
+            "forecasting",
+            "scheduling",
+            "decomposing",
+        ),
+        nullable=False,
+    )
     action = db.Column(
         db.Enum(
             "can_shift",
@@ -506,7 +522,9 @@ class Actuator(db.Model):
         nullable=False,
         primary_key=True,
     )
-    version = db.Column(db.String(80), default="0.0.0")
+    version = db.Column(
+        db.String(80), default="0.0.0"
+    )  # todo: discuss integer vs. semantic versioning
 
     @staticmethod
     def trigger(self, **kwargs):
