@@ -3,21 +3,11 @@ import json
 from typing import List, Optional, Tuple, Union
 
 from bvp.data.config import db
-from pandas._libs.tslibs.offsets import prefix_mapping
 from pandas.tseries.frequencies import to_offset
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy_json import mutable_json_type
 import pandas as pd
 import timely_beliefs as tb
-
-
-STANDARD_OFFSET_NAMES = [
-    kwarg
-    for kwarg in pd.offsets.DateOffset.__init__.__objclass__._attributes
-    if kwarg not in ["n", "normalize"]
-]
-NON_STANDARD_OFFSET_NAMES = pd.tseries.offsets.__all__
-NON_STANDARD_OFFSET_NAMES = prefix_mapping.keys()
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
@@ -547,7 +537,8 @@ class ProcessLabelRelationship(db.Model):
     )
 
 
-class Seasonality(db.Model):
+# todo: rewrite and update docstring and move it to SensorRelationship (this class is obsolete)
+class Seasonality:
     """Also known as periodicity, seasonality defines the recurrent nature of asset activity.
 
     Some examples: *
@@ -580,41 +571,6 @@ class Seasonality(db.Model):
         https://dateutil.readthedocs.io/en/stable/relativedelta.html
     """
 
-    id = db.Column(db.Integer, primary_key=True)
-    n = db.Column(db.Integer)
-    freq_str = db.Column(
-        db.Enum(*STANDARD_OFFSET_NAMES, *NON_STANDARD_OFFSET_NAMES),
-        nullable=False,
-    )
-
-    @property
-    def offset(self) -> pd.DateOffset:
-
-        # standard date increments like year and years that pandas supports from dateutil.relativedelta
-        if self.freq_str in STANDARD_OFFSET_NAMES:
-            return pd.offsets.DateOffset(**{self.freq_str: self.n})
-
-        # non-standard date increments like BDay and YearEnd that pandas supports in addition
-        mapping = {
-            offset.__name__: offset._prefix
-            for offset in [
-                getattr(pd.tseries.offsets, name) for name in NON_STANDARD_OFFSET_NAMES
-            ]
-            if isinstance(offset._prefix, str)
-        }
-        return to_offset(str(self.n) + mapping[self.freq_str])
-
-    def apply_lags(self, dt: pd.Timestamp, lags: List[int]) -> List[pd.Timestamp]:
-        """Supports arithmetic within pandas Timestamp limitations,
-        a span of approximately 584 years.
-
-        References
-        ----------
-        Timestamp limitations
-            https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#timestamp-limitations
-        """
-        return [dt + lag * self.offset for lag in lags]
-
 
 def date_offset_to_freqstr_or_kwargs(d: pd.DateOffset) -> Union[str, dict]:
     """d is converted to a frequency string or DateOffset kwargs.
@@ -638,31 +594,12 @@ def test_date_offset_logic():
     assert date_offset_to_freqstr_or_kwargs(to_offset(d_str)) == d_str
 
 
+# todo: change this test to work on an autoregressive SensorRelationship instead
 def test_seasonality():
     """Test leap year."""
     s = Seasonality(n=1, freq_str="years")
     lagged_datetimes = s.apply_lags(dt=pd.Timestamp("2020-10-10"), lags=[1])
     assert lagged_datetimes[0] == pd.Timestamp("2021-10-10")
-
-
-class SensorSeasonalityRelationship(db.Model):
-    sensor_id = db.Column(
-        db.Integer(), db.ForeignKey("sensor.id"), primary_key=True, nullable=False
-    )
-    seasonality_id = db.Column(
-        db.Integer(), db.ForeignKey("seasonality.id"), primary_key=True, nullable=False
-    )
-
-    sensor = db.relationship(
-        "Sensor",
-        foreign_keys=[sensor_id],
-        backref=db.backref("seasonalities", lazy=True),
-    )
-    seasonality = db.relationship(
-        "Seasonality",
-        foreign_keys=[seasonality_id],
-        backref=db.backref("sensors", lazy=True),
-    )
 
 
 class Actuator(db.Model):
