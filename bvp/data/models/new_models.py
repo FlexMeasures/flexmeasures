@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
+import json
 from typing import List, Optional, Tuple, Union
 
 from bvp.data.config import db
 from pandas._libs.tslibs.offsets import prefix_mapping
 from pandas.tseries.frequencies import to_offset
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy_json import mutable_json_type
 import pandas as pd
 import timely_beliefs as tb
 
@@ -187,6 +188,19 @@ class SensorRelationship(db.Model):
 
     sensor1 depends on / is a function of sensor2, or sensor1 is constrained by sensor2.
 
+    :param sensor1: Dependent variable (within the context of the described relationship).
+    :param relationship_function:
+                    One of "is_sum_of", "is_equal_or_less_than", "is", "is_equal_or_greater_than",
+                    "is_product_of", "is_scored_by", "is_less_than", "is_greater_than" or "is_regressed_by".
+    :param sensor2: Independent variable (within the context of the described relationship).
+    :param d:       Optional duration: a pandas freqstr like "1B" (1 business day) or "15T" (15 minutes),
+                    or a dictionary with dateutil.relativedelta keywords, such as:
+                    {"months": 1, "day": 4}  # the 4th of the month
+    :param k:       Optional scalar: a float.
+    :param p:       Optional power: a float.
+    :param config:  Optional dictionary to define the above and other config variables for the relationship
+                    e.g. {"d": "15T}
+
     Equality constraints
     --------------------
     x_sensor1 == k * x_sensor2
@@ -246,8 +260,6 @@ class SensorRelationship(db.Model):
         # where and how do we decide which relationships the scheduler should use?
     """
 
-    pd.date_range()
-
     relationship_function = db.Column(
         db.Enum(
             "is_sum_of",  # todo: obsolete?
@@ -264,8 +276,12 @@ class SensorRelationship(db.Model):
         primary_key=True,
     )
     config = db.Column(
-        MutableDict.as_mutable(JSONB()), nullable=False, default={}, primary_key=True
-    )  # do not nest config variables: https://amercader.net/blog/beware-of-json-fields-in-sqlalchemy/
+        mutable_json_type(dbtype=JSONB, nested=True),
+        nullable=False,
+        default={},
+        primary_key=True,
+    )  # this makes SQLAlchemy aware of changes at all levels of the JSON field:
+    # from https://amercader.net/blog/beware-of-json-fields-in-sqlalchemy/
 
     sensor1_id = db.Column(
         db.Integer, db.ForeignKey("sensor.id"), nullable=False, primary_key=True
@@ -290,16 +306,35 @@ class SensorRelationship(db.Model):
         sensor1: Sensor,
         relationship_function: str,
         sensor2: Sensor = None,
-        config: dict = None,
+        d: Union[str, dict, pd.DateOffset] = None,
+        k: float = None,
+        p: float = None,
+        config: dict = None,  # todo: maybe we shouldn't allow setting the config dict directly, because without it is cleaner to have useful validation on individual parameters like d.
     ):
         if sensor2 is None:
             sensor2 = sensor1
         if config is None:
             config = {}
+        if d and "d" not in config:
+            if isinstance(d, str):
+                # d should be a pandas frequency string
+                assert isinstance(to_offset(d), pd.DateOffset)
+                config["d"] = d
+            elif isinstance(d, dict):
+                # d should be DateOffset kwargs
+                assert isinstance(pd.offsets.DateOffset(**d), pd.DateOffset)
+                config["d"] = d
+            elif isinstance(d, pd.DateOffset):
+                # d should be convertible to a frequency string or DateOffset kwargs (and vice versa)
+                config["d"] = date_offset_to_freqstr_or_kwargs(d)
+        if k and "k" not in config:
+            config["k"] = k
+        if p and "p" not in config:
+            config["p"] = p
         self.sensor1 = sensor1
         self.relationship_function = relationship_function
         self.sensor2 = sensor2
-        self.config = config
+        self.config = json.dumps(config)
 
     @property
     def type(
@@ -318,24 +353,13 @@ class SensorRelationship(db.Model):
 
     @property
     def offset(self) -> Optional[pd.DateOffset]:
-        n = self.config.get("n", None)
-        freq_str = self.config.get("freq_str", None)
-        if None in (n, freq_str):
-            return
-
-        # standard date increments like year and years that pandas supports from dateutil.relativedelta
-        if freq_str in STANDARD_OFFSET_NAMES:
-            return pd.offsets.DateOffset(**{freq_str: n})
-
-        # non-standard date increments like BDay and YearEnd that pandas supports in addition
-        mapping = {
-            offset.__name__: offset._prefix
-            for offset in [
-                getattr(pd.tseries.offsets, name) for name in NON_STANDARD_OFFSET_NAMES
-            ]
-            if isinstance(offset._prefix, str)
-        }
-        return to_offset(str(n) + mapping[freq_str])
+        d: Union[str, dict] = json.loads(self.config).get("d", None)
+        if isinstance(d, str):
+            # pandas frequency string
+            return to_offset(d)
+        if isinstance(d, dict):
+            # standard date increments like year and years that pandas supports from dateutil.relativedelta
+            return pd.offsets.DateOffset(**d)
 
     def apply_lags(self, dt: pd.Timestamp, lags: List[int]) -> List[pd.Timestamp]:
         """Supports arithmetic within pandas Timestamp limitations,
@@ -346,7 +370,8 @@ class SensorRelationship(db.Model):
         Timestamp limitations
             https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#timestamp-limitations
         """
-        return [dt + lag * self.offset for lag in lags]
+        if self.offset is not None:
+            return [dt + lag * self.offset for lag in lags]
 
 
 class AssetGroupRelationship(db.Model):
@@ -589,6 +614,28 @@ class Seasonality(db.Model):
             https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#timestamp-limitations
         """
         return [dt + lag * self.offset for lag in lags]
+
+
+def date_offset_to_freqstr_or_kwargs(d: pd.DateOffset) -> Union[str, dict]:
+    """d is converted to a frequency string or DateOffset kwargs.
+    We also check whether we can revert back to a pandas DateOffset,
+    and raise an AssertionError if reverting fails.
+    """
+    try:
+        d_str: str = d.freqstr
+        assert to_offset(d_str) == d
+        return d_str
+    except ValueError:
+        d_dict: dict = d.kwds
+        assert pd.offsets.DateOffset(**d_dict) == d
+        return d_dict
+
+
+def test_date_offset_logic():
+    d_dict = {"months": 1, "day": 4}
+    assert date_offset_to_freqstr_or_kwargs(pd.offsets.DateOffset(**d_dict)) == d_dict
+    d_str = "15B"
+    assert date_offset_to_freqstr_or_kwargs(to_offset(d_str)) == d_str
 
 
 def test_seasonality():
