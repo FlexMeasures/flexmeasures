@@ -1,8 +1,11 @@
 from datetime import datetime, timedelta
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from bvp.data.config import db
+from pandas._libs.tslibs.offsets import prefix_mapping
 from pandas.tseries.frequencies import to_offset
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.mutable import MutableDict
 import pandas as pd
 import timely_beliefs as tb
 
@@ -13,6 +16,7 @@ STANDARD_OFFSET_NAMES = [
     if kwarg not in ["n", "normalize"]
 ]
 NON_STANDARD_OFFSET_NAMES = pd.tseries.offsets.__all__
+NON_STANDARD_OFFSET_NAMES = prefix_mapping.keys()
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
@@ -170,27 +174,98 @@ class AssetType(db.Model):
     hover_label = db.Column(db.String(80), nullable=True, unique=False)
 
 
-class SensorComparisonRelationship(db.Model):
-    """A sensor comparison relationship defines an equality or inequality between 2 sensors.
+class SensorRelationship(db.Model):
+    """A sensor relationship defines a functional dependency or constraint relationship between sensors.
+    It can be used to define:
+    - an equality constraint between 2 sensors (e.g. to let production follow contracted sales)
+    - an inequality constraint between 2 sensors (e.g. to set a max capacity)
+    - autoregressive relationships (e.g. for seasonal periodicity)
+    - regressive relationships (possibly lagged) between 2 sensors
+    - cost or utility functions formed by multiple sensors (e.g. to calculate retail utility)
+    - polynomials formed by multiple sensors (e.g. to calculate compound interest)
     This can be used to describe functional dependency or constraint relationships between sensors.
 
     sensor1 depends on / is a function of sensor2, or sensor1 is constrained by sensor2.
+
+    Equality constraints
+    --------------------
+    x_sensor1 == k * x_sensor2
+    where k is an optional scalar (1 by default).
+
+    For example, production should be equal to contracted sales
+    >>> SensorRelationship(sensor1=Sensor("production"), relationship_function="is", sensor2=Sensor("contracted sales"))
+
+    Inequality constraints
+    ----------------------
+    x_sensor1 <= k * x_sensor2, x_sensor1 < k * x_sensor2, x_sensor1 >= k * x_sensor2, x_sensor1 > k * x_sensor2
+    where k is an optional scalar (1 by default).
+
+    For example, production should be at most 70% of nominal capacity:
+    >>> SensorRelationship(Sensor("production"), "is_equal_or_less_than", Sensor("nominal capacity"), config={"k": 0.7})  # k is an optional scalar
+
+    Autoregressive relationships
+    ----------------------------
+    x(t)_sensor1 = f( k_1 * x(t - d_1)_sensor1 + k_2 * x(t - d_2)_sensor1 + ... + k_r * x(t - d_r)_sensor1 )
+    where k is an optional scalar (1 by default), d is an optional duration (0 by default),
+    and r is an implict count of the autoregressive relationships of sensor1.
+
+    For example, solar production has daily and yearly seasonality:
+    >>> SensorRelationship(Sensor("solar production"), "is_regressed_by", config={"d": "1D"})  # relationship r=1
+    >>> SensorRelationship(Sensor("solar production"), "is_regressed_by", config={"d": "1Y"})  # relationship r=2
+
+    Regressive relationships
+    ------------------------
+    x(t)_sensor1 = f( k_1 * x(t - d_1)_sensor2 + k_2 * x(t - d_2)_sensor2 + ... + k_r * x(t - d_r)_sensor2 )
+    where k is an optional scalar (1 by default), d is an optional duration (0 by default),
+    and r is an implict count of the regressive relationships of sensor1 on sensor2.
+
+    For example, ice cream sales follow day-ahead solar irradiation forecasts:
+    >>> SensorRelationship(Sensor("ice cream sales"), "is_regressed_by", Sensor("solar irradiation"), config={"d": "1D"})
+
+    Polynomial regressive relationships
+    -----------------------------------
+    x(t)_sensor1 = f( k_1 * ( x(t - d_1)_sensor2 )^p_1 + ... + k_r * ( x(t - d_r)_sensor2 )^p_r )
+    where k is an optional scalar (1 by default), d is an optional duration (0 by default),
+    p is an optional power (1 by default),
+    and r is an implict count of the regressive relationships of sensor1 on sensor2.
+
+    For example, ice cream sales follow the square root of temperature:
+    >>> SensorRelationship(Sensor("ice cream sales"), "is_regressed_by", Sensor("temperature"), config={"p": 0.5})
+
+    Cost or utility functions
+    -------------------------
+    costs = k_1 * x_sensor1 * x_sensor2 + ... + k_r * x_sensor1 * x_sensor_r
+    where k is an optional scalar (1 by default),
+    and r is an implict count of the scoring relationships of sensor1 on other sensor2.
+
+    For example, retail utility = power * ask price - power * bid price)
+    >>> SensorRelationship(Sensor("power"), "is_scored_by", Sensor("ask_price"), config={"k": 1})
+    >>> SensorRelationship(Sensor("power"), "is_scored_by", Sensor("bid_price"), config={"k": -1})
+
+    # todo: test the case in which a scheduler wants to do a cost optimisation, while the power sensor also has an emissions scoring relationship
+        # where and how do we decide which relationships the scheduler should use?
     """
 
-    relationship = db.Column(
+    pd.date_range()
+
+    relationship_function = db.Column(
         db.Enum(
-            "is_sum_of",
+            "is_sum_of",  # todo: obsolete?
             "is_equal_or_less_than",
             "is",
             "is_equal_or_greater_than",
-            "is_product_of",
+            "is_product_of",  # todo: obsolete?
+            "is_scored_by",
             "is_less_than",
             "is_greater_than",
-            "is_regressed_by",
+            "is_regressed_by",  # todo: I don't like the word regression in this context. I prefer is_function_of: see also https://en.wikipedia.org/wiki/Dependent_and_independent_variables#Statistics_synonyms
         ),
         nullable=False,
         primary_key=True,
     )
+    config = db.Column(
+        MutableDict.as_mutable(JSONB()), nullable=False, default={}, primary_key=True
+    )  # do not nest config variables: https://amercader.net/blog/beware-of-json-fields-in-sqlalchemy/
 
     sensor1_id = db.Column(
         db.Integer, db.ForeignKey("sensor.id"), nullable=False, primary_key=True
@@ -210,9 +285,27 @@ class SensorComparisonRelationship(db.Model):
         backref=db.backref("independent_related_sensors", lazy=True),
     )
 
+    def __init__(
+        self,
+        sensor1: Sensor,
+        relationship_function: str,
+        sensor2: Sensor = None,
+        config: dict = None,
+    ):
+        if sensor2 is None:
+            sensor2 = sensor1
+        if config is None:
+            config = {}
+        self.sensor1 = sensor1
+        self.relationship_function = relationship_function
+        self.sensor2 = sensor2
+        self.config = config
+
     @property
-    def type(self) -> str:
-        if self.relationship in (
+    def type(
+        self,
+    ) -> str:  # todo: relationship_type (choose a design pattern and be consistent, also for sensor.sensor_type, process.process_type, process.sensor_type, asset.asset_type, etc.)
+        if self.relationship_function in (
             "is",
             "is_less_than",
             "is_greater_than",
@@ -220,7 +313,40 @@ class SensorComparisonRelationship(db.Model):
             "is_equal_or_greater_than",
         ):
             return "constraint"
-        return "dependency"  # todo: or "function"?
+        # todo: should is_scored_by be of type "score"?
+        return "dependency"  # todo: I prefer "dependency" over "function", because an is_regressed_by relationship actually does not specify the function itself, but rather the independent and dependent variables within an unspecified function
+
+    @property
+    def offset(self) -> Optional[pd.DateOffset]:
+        n = self.config.get("n", None)
+        freq_str = self.config.get("freq_str", None)
+        if None in (n, freq_str):
+            return
+
+        # standard date increments like year and years that pandas supports from dateutil.relativedelta
+        if freq_str in STANDARD_OFFSET_NAMES:
+            return pd.offsets.DateOffset(**{freq_str: n})
+
+        # non-standard date increments like BDay and YearEnd that pandas supports in addition
+        mapping = {
+            offset.__name__: offset._prefix
+            for offset in [
+                getattr(pd.tseries.offsets, name) for name in NON_STANDARD_OFFSET_NAMES
+            ]
+            if isinstance(offset._prefix, str)
+        }
+        return to_offset(str(n) + mapping[freq_str])
+
+    def apply_lags(self, dt: pd.Timestamp, lags: List[int]) -> List[pd.Timestamp]:
+        """Supports arithmetic within pandas Timestamp limitations,
+        a span of approximately 584 years.
+
+        References
+        ----------
+        Timestamp limitations
+            https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#timestamp-limitations
+        """
+        return [dt + lag * self.offset for lag in lags]
 
 
 class AssetGroupRelationship(db.Model):
