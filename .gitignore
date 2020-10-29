@@ -8,6 +8,7 @@ venv
 .mypy_cache/
 *.rdb
 *.rdb.settings
+*.pickle
 
 .env-bvp/
 bvp.egg-info
