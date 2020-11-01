@@ -94,11 +94,14 @@ def naturalized_datetime_str(dt: Optional[datetime]) -> str:
         return naturaldate(local_dt)
 
 
-def decide_resolution(start: Optional[datetime], end: Optional[datetime]) -> str:
-    """Decide on a resolution, given the length of the time period."""
-    resolution = "15T"  # default is 15 minute intervals
+def decide_session_resolution(
+    start: Optional[datetime], end: Optional[datetime]
+) -> str:
+    """Decide on a resolution for this session
+    (for plotting and data queries),
+    given the length of the selected time period."""
     if start is None or end is None:
-        return resolution
+        return "15T"  # default if we cannot tell period
     period_length = end - start
     if period_length > timedelta(weeks=16):
         resolution = "168h"  # So upon switching from days to weeks, you get at least 16 data points
@@ -106,6 +109,10 @@ def decide_resolution(start: Optional[datetime], end: Optional[datetime]) -> str
         resolution = "24h"  # So upon switching from hours to days, you get at least 14 data points
     elif period_length > timedelta(hours=48):
         resolution = "1h"  # So upon switching from 15min to hours, you get at least 48 data points
+    elif period_length > timedelta(hours=8):
+        resolution = "15T"
+    else:
+        resolution = "5T"  # we are not going lower than 5 minutes
     return resolution
 
 
@@ -209,7 +216,7 @@ def set_time_range_for_session():
             % (session["start_time"], session["end_time"])
         )
 
-    session["resolution"] = decide_resolution(
+    session["resolution"] = decide_session_resolution(
         session["start_time"], session["end_time"]
     )
 
@@ -225,7 +232,13 @@ def set_time_range_for_session():
 
 def freq_label_to_human_readable_label(freq_label: str) -> str:
     """Translate pandas frequency labels to human-readable labels."""
-    f2h_map = {"15T": "15 minutes", "1h": "1 hour", "24h": "1 day", "168h": "1 week"}
+    f2h_map = {
+        "5T": "5 minutes",
+        "15T": "15 minutes",
+        "1h": "1 hour",
+        "24h": "1 day",
+        "168h": "1 week",
+    }
     return f2h_map.get(freq_label, freq_label)
 
 

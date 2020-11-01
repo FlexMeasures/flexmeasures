@@ -3,7 +3,7 @@ Generic services for accessing asset data.
 """
 
 from typing import List, Dict, Union, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from bvp.utils.bvp_inflection import parameterize, pluralize
 from itertools import groupby
 
@@ -191,6 +191,7 @@ def create_asset(
     asset_type_name: str,
     power_unit: str,
     capacity_in_mw: float,
+    event_resolution: timedelta,
     latitude: float,
     longitude: float,
     min_soc_in_mwh: float,
@@ -221,6 +222,7 @@ def create_asset(
         name=db_name,
         unit=power_unit,
         capacity_in_mw=capacity_in_mw,
+        event_resolution=event_resolution,
         latitude=latitude,
         longitude=longitude,
         asset_type_name=asset_type_name,
@@ -353,7 +355,9 @@ class Resource:
         If the time range parameters are None, they will be gotten from the session.
         The horizon window will default to the latest measurement (anything more in the future than the
         end of the time interval.
-        To get data for a specific source, pass a source id."""
+        To get data for a specific source, pass a source id.
+        TODO: can this be retired in favor of data.services.time_series?
+        """
 
         data = Power.collect(
             generic_asset_names=[asset.name for asset in self.assets],

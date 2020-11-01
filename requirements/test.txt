@@ -18,17 +18,19 @@ jinja2==2.11.2            # via -c requirements/app.txt, flask
 lupa==1.9                 # via -r requirements/test.in
 markupsafe==1.1.1         # via -c requirements/app.txt, jinja2
 more-itertools==8.5.0     # via pytest
-packaging==20.4           # via -c requirements/app.txt, pytest
+packaging==20.4           # via -c requirements/app.txt, pytest, pytest-sugar
 pluggy==0.13.1            # via pytest
 py==1.9.0                 # via pytest
 pyparsing==2.4.7          # via -c requirements/app.txt, packaging
 pytest-cov==2.10.1        # via -r requirements/test.in
 pytest-flask==1.0.0       # via -r requirements/test.in
-pytest==6.0.1             # via -r requirements/test.in, pytest-cov, pytest-flask
+pytest-sugar==0.9.4       # via -r requirements/test.in
+pytest==6.0.1             # via -r requirements/test.in, pytest-cov, pytest-flask, pytest-sugar
 redis==3.5.3              # via -c requirements/app.txt, fakeredis
 requests==2.24.0          # via -c requirements/app.txt, -r requirements/test.in
 six==1.15.0               # via -c requirements/app.txt, fakeredis, packaging
 sortedcontainers==2.2.2   # via fakeredis
+termcolor==1.1.0          # via pytest-sugar
 toml==0.10.1              # via pytest
 urllib3==1.25.10          # via -c requirements/app.txt, requests
 werkzeug==1.0.1           # via -c requirements/app.txt, flask, pytest-flask

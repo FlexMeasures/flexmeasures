@@ -2,6 +2,7 @@
 
 pytest
 pytest-flask
+pytest-sugar
 pytest-cov
 # to test calls to the API
 requests

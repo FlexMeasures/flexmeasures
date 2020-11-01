@@ -5,6 +5,7 @@ from flask import send_from_directory
 from flask_security import login_required, roles_accepted
 import numpy as np
 import rq_dashboard
+from humanize import naturaldelta
 
 from bvp.utils.bvp_inflection import (
     capitalize,
@@ -95,6 +96,7 @@ def add_jinja_filters(app):
     )  # Allow expression statements (e.g. for modifying lists)
     app.jinja_env.filters["localized_datetime"] = localized_datetime_str
     app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime_str
+    app.jinja_env.filters["naturalized_timedelta"] = naturaldelta
     app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["parameterize"] = parameterize
     app.jinja_env.filters["isnan"] = np.isnan

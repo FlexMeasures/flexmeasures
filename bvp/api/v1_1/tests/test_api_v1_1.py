@@ -1,32 +1,32 @@
 from flask import url_for
 import pytest
 from datetime import timedelta
-from isodate import duration_isoformat, parse_duration, parse_datetime
+from isodate import duration_isoformat
 from iso8601 import parse_date
-import pandas as pd
 
 from bvp.api.common.responses import (
     request_processed,
     invalid_horizon,
-    invalid_resolution,
+    unapplicable_resolution,
     invalid_unit,
 )
-from bvp.api.common.utils.validators import validate_entity_address
+from bvp.api.common.utils.api_utils import parse_entity_address
 from bvp.api.tests.utils import get_auth_token
 from bvp.api.common.utils.api_utils import (
     message_replace_name_with_ea,
-    convert_to_15min,
 )
 from bvp.api.v1_1.tests.utils import (
     message_for_get_prognosis,
     message_for_post_price_data,
     message_for_post_weather_data,
+    get_market,
+    verify_prices_in_db,
 )
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
 
 from bvp.data.models.data_sources import DataSource
 from bvp.data.models.user import User
-from bvp.data.models.markets import Market, Price
+from bvp.data.models.markets import Market
 
 
 @pytest.mark.parametrize("query", [{}, {"access": "Prosumer"}])
@@ -143,34 +143,15 @@ def test_post_price_data(db, app, post_message):
         assert post_price_data_response.status_code == 200
         assert post_price_data_response.json["type"] == "PostPriceDataResponse"
 
-    # verify the data ended up in the database
-    start = parse_datetime(post_message["start"])
-    end = start + parse_duration(post_message["duration"])
-    horizon = parse_duration(post_message["horizon"])
-    values = post_message["values"]
-    market = validate_entity_address(post_message["market"], "market")
-    market_name = market["market_name"]
-    # Todo: get data resolution for the market or use the Price.collect function
-    resolution = timedelta(minutes=15)
-    query = (
-        db.session.query(Price.value, Market.name)
-        .filter((Price.datetime > start - resolution) & (Price.datetime < end))
-        .filter(Price.horizon == horizon - (end - (Price.datetime + resolution)))
-        .join(Market)
-        .filter(Market.name == market_name)
-    )
-    df = pd.read_sql(query.statement, db.session.bind)
-    assert df.value.tolist() == convert_to_15min(
-        values, from_resolution=timedelta(hours=1)
-    )
+    verify_prices_in_db(post_message, post_message["values"], db)
 
     # look for Forecasting jobs in queue
     assert (
         len(app.queues["forecasting"]) == 2
     )  # only one market is affected, but two horizons
-    market = Market.query.filter_by(name=market_name).one_or_none()
     horizons = [timedelta(hours=24), timedelta(hours=48)]
     jobs = sorted(app.queues["forecasting"].jobs, key=lambda x: x.kwargs["horizon"])
+    market = get_market(post_message)
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
@@ -196,7 +177,7 @@ def test_post_price_data_invalid_unit(client, post_message):
     print("Server responded with:\n%s" % post_price_data_response.json)
     assert post_price_data_response.status_code == 400
     assert post_price_data_response.json["type"] == "PostPriceDataResponse"
-    market = validate_entity_address(post_message["market"], "market")
+    market = parse_entity_address(post_message["market"], "market")
     market_name = market["market_name"]
     market = Market.query.filter_by(name=market_name).one_or_none()
     assert (
@@ -205,27 +186,39 @@ def test_post_price_data_invalid_unit(client, post_message):
     )
 
 
-@pytest.mark.parametrize("post_message", [message_for_post_price_data()])
-def test_post_price_data_invalid_resolution(client, post_message):
+@pytest.mark.parametrize(
+    "post_message,status,msg",
+    [
+        (
+            message_for_post_price_data(
+                duration=duration_isoformat(timedelta(minutes=2))
+            ),
+            400,
+            unapplicable_resolution()[0]["message"],
+        ),
+        (message_for_post_price_data(compress_n=4), 200, "Request has been processed."),
+    ],
+)
+def test_post_price_data_unexpected_resolution(db, app, post_message, status, msg):
     """
-    Try to post price data with the wrong resolution, which should fail.
+    Try to post price data with an unexpected resolution,
+    which might be fixed with upsampling or otherwise fail.
     """
-
-    post_message["duration"] = duration_isoformat(timedelta(minutes=2))
-
-    # post price data
-    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
-    post_price_data_response = client.post(
-        url_for("bvp_api_v1_1.post_price_data"),
-        json=post_message,
-        headers={"Authorization": auth_token},
-    )
-    print("Server responded with:\n%s" % post_price_data_response.json)
-    assert post_price_data_response.status_code == 400
+    with app.test_client() as client:
+        auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+        post_price_data_response = client.post(
+            url_for("bvp_api_v1_1.post_price_data"),
+            json=post_message,
+            headers={"Authorization": auth_token},
+        )
+        print("Server responded with:\n%s" % post_price_data_response.json)
     assert post_price_data_response.json["type"] == "PostPriceDataResponse"
-    assert (
-        invalid_resolution()[0]["message"] in post_price_data_response.json["message"]
-    )
+    assert post_price_data_response.status_code == status
+    assert msg in post_price_data_response.json["message"]
+    if "processed" in msg:
+        verify_prices_in_db(
+            post_message, [v for v in post_message["values"] for i in range(4)], db
+        )
 
 
 @pytest.mark.parametrize(

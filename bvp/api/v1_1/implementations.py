@@ -12,11 +12,10 @@ from bvp.api.common.responses import (
     invalid_unit,
     request_processed,
     unrecognized_market,
-    unrecognized_sensor,
 )
 from bvp.api.common.utils.api_utils import (
-    convert_to_15min,
     get_or_create_user_data_source,
+    parse_entity_address,
 )
 from bvp.api.common.utils.validators import (
     type_accepted,
@@ -24,21 +23,21 @@ from bvp.api.common.utils.validators import (
     unit_required,
     assets_required,
     optional_sources_accepted,
-    resolutions_accepted,
-    optional_resolutions_accepted,
+    post_data_checked_for_required_resolution,
+    get_data_downsampling_allowed,
     optional_horizon_accepted,
     period_required,
     values_required,
-    validate_entity_address,
     valid_sensor_units,
 )
 from bvp.api.v1.implementations import (
     collect_connection_and_value_groups,
     create_connection_and_value_groups,
 )
+from bvp.api.common.utils.api_utils import get_weather_sensor_by
 from bvp.data.config import db
 from bvp.data.models.markets import Market, Price
-from bvp.data.models.weather import Weather, WeatherSensor
+from bvp.data.models.weather import Weather
 from bvp.data.utils import save_to_database
 from bvp.data.services.resources import get_assets
 from bvp.data.services.forecasting import create_forecasting_jobs
@@ -66,9 +65,7 @@ def get_connection_response():
 @optional_horizon_accepted()
 @values_required
 @period_required
-@resolutions_accepted(
-    timedelta(minutes=15), timedelta(hours=1), timedelta(days=1), timedelta(days=7)
-)
+@post_data_checked_for_required_resolution("market")
 def post_price_data_response(
     unit,
     generic_asset_name_groups,
@@ -82,8 +79,6 @@ def post_price_data_response(
 
     current_app.logger.info("POSTING PRICE DATA")
 
-    value_groups = convert_to_15min(value_groups, resolution)
-
     data_source = get_or_create_user_data_source(current_user)
     prices = []
     forecasting_jobs = []
@@ -91,7 +86,7 @@ def post_price_data_response(
         for market in market_group:
 
             # Parse the entity address
-            ea = validate_entity_address(market, entity_type="market")
+            ea = parse_entity_address(market, entity_type="market")
             if ea is None:
                 current_app.logger.warning(
                     "Cannot parse this market's entity address: %s" % market
@@ -167,7 +162,7 @@ def post_price_data_response(
 @optional_horizon_accepted()
 @values_required
 @period_required
-@resolutions_accepted(timedelta(minutes=15))
+@post_data_checked_for_required_resolution("sensor")
 def post_weather_data_response(  # noqa: C901
     unit,
     generic_asset_name_groups,
@@ -178,11 +173,6 @@ def post_weather_data_response(  # noqa: C901
     duration,
     resolution,
 ):
-    if current_app.config.get("BVP_MODE", "") == "play":
-        api_policy = "create sensor if unknown"
-    else:
-        api_policy = "known sensors only"
-
     current_app.logger.info("POSTING WEATHER DATA")
     data_source = get_or_create_user_data_source(current_user)
     weather_measurements = []
@@ -191,7 +181,7 @@ def post_weather_data_response(  # noqa: C901
         for sensor in sensor_group:
 
             # Parse the entity address
-            ea = validate_entity_address(sensor, entity_type="sensor")
+            ea = parse_entity_address(sensor, entity_type="sensor")
             if ea is None:
                 current_app.logger.warning(
                     "Cannot parse this sensor's entity address: %s" % sensor
@@ -206,44 +196,9 @@ def post_weather_data_response(  # noqa: C901
             if unit not in accepted_units:
                 return invalid_unit(weather_sensor_type_name, accepted_units)
 
-            # Look for the WeatherSensor object
-            weather_sensor = (
-                WeatherSensor.query.filter(
-                    WeatherSensor.weather_sensor_type_name == weather_sensor_type_name
-                )
-                .filter(WeatherSensor.latitude == latitude)
-                .filter(WeatherSensor.longitude == longitude)
-                .one_or_none()
+            weather_sensor = get_weather_sensor_by(
+                weather_sensor_type_name, latitude, longitude
             )
-            if weather_sensor is None:
-
-                # either create a new weather sensor and post to that
-                if api_policy == "create sensor if unknown":
-                    current_app.logger.info("CREATING NEW WEATHER SENSOR...")
-                    weather_sensor = WeatherSensor(
-                        name="Weather sensor for %s at latitude %s and longitude %s"
-                        % (weather_sensor_type_name, latitude, longitude),
-                        weather_sensor_type_name=weather_sensor_type_name,
-                        latitude=latitude,
-                        longitude=longitude,
-                    )
-                    db.session.add(weather_sensor)
-                    db.session.flush()  # flush so that we can reference the new object in the current db session
-
-                # or query and return the nearest sensor and let the requesting user post to that one
-                else:
-                    nearest_weather_sensor = WeatherSensor.query.order_by(
-                        WeatherSensor.great_circle_distance(
-                            latitude=latitude, longitude=longitude
-                        ).asc()
-                    ).first()
-                    if nearest_weather_sensor is not None:
-                        return unrecognized_sensor(
-                            nearest_weather_sensor.latitude,
-                            nearest_weather_sensor.longitude,
-                        )
-                    else:
-                        return unrecognized_sensor()
 
             # Create new Weather objects
             for j, value in enumerate(value_group):
@@ -306,11 +261,11 @@ def post_weather_data_response(  # noqa: C901
 
 @type_accepted("GetPrognosisRequest")
 @units_accepted("power", "MW")
-@optional_resolutions_accepted("PT15M")
 @assets_required("connection")
 @optional_sources_accepted()
 @optional_horizon_accepted()
 @period_required
+@get_data_downsampling_allowed("connection")
 @as_json
 def get_prognosis_response(
     unit,
@@ -350,7 +305,7 @@ def get_prognosis_response(
 @values_required
 @optional_horizon_accepted(ex_post=False)
 @period_required
-@resolutions_accepted(timedelta(minutes=15))
+@post_data_checked_for_required_resolution("connection")
 @as_json
 def post_prognosis_response(
     unit,

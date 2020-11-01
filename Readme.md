@@ -114,11 +114,13 @@ You can run automated tests with:
 
     make test
 
-which beind the curtains installs dependencies and calls pytest.
+which behind the curtains installs dependencies and calls pytest.
 
 A coverage report can be created like this:
 
     pytest --cov=bvp --cov-config .coveragerc
+
+You can add --cov-report=html after which a htmlcov/index.html is generated.
 
 It's also possible to use:
 

@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 
 from flask import current_app
 from timetomodel import DBSeriesSpecs, ModelSpecs
-from timetomodel.utils.time_utils import to_15_min_lags
 from timetomodel.transforming import BoxCoxTransformation, Transformation
 
 from bvp.data.models.assets import AssetType, Asset
@@ -43,7 +42,6 @@ def create_initial_model_specs(  # noqa: C901
     Generic model specs for all asset types (also for markets and weather sensors) and horizons.
     Fills in training, testing periods, lags. Specifies input and regressor data.
     Does not fill in which model to actually use.
-    TODO: Still assumes a 15 minute data resolution.
     TODO: check if enough data is available both for lagged variables and regressors
     TODO: refactor assets and markets to store a list of pandas offset or timedelta instead of booleans for
           seasonality, because e.g. although solar and building assets both have daily seasonality, only the former is
@@ -54,8 +52,8 @@ def create_initial_model_specs(  # noqa: C901
     generic_asset_type = determine_asset_type_by_asset(generic_asset)
     generic_asset_value_class = determine_asset_value_class_by_asset(generic_asset)
 
-    params = parameterise_forecasting_by_asset_type(
-        generic_asset_type, transform_to_normal
+    params = _parameterise_forecasting_by_asset_and_asset_type(
+        generic_asset, generic_asset_type, transform_to_normal
     )
     params.update(custom_model_params if custom_model_params is not None else {})
 
@@ -108,9 +106,9 @@ def create_initial_model_specs(  # noqa: C901
     specs = ModelSpecs(
         outcome_var=outcome_var_spec,
         model=None,  # at least this will need to be configured still to make these specs usable!
-        frequency=timedelta(minutes=15),
+        frequency=generic_asset.event_resolution,
         horizon=forecast_horizon,
-        lags=to_15_min_lags(lags),
+        lags=[int(lag / generic_asset.event_resolution) for lag in lags],
         regressors=regressor_specs,
         start_of_training=training_start,
         end_of_testing=testing_end,
@@ -121,19 +119,18 @@ def create_initial_model_specs(  # noqa: C901
     return specs
 
 
-def parameterise_forecasting_by_asset_type(
+def _parameterise_forecasting_by_asset_and_asset_type(
+    generic_asset: Union[Asset, Market, WeatherSensor],
     generic_asset_type: Union[AssetType, MarketType, WeatherSensorType],
     transform_to_normal: bool,
 ) -> dict:
-    """Fill in the best parameters we know (generic or by asset type)"""
+    """Fill in the best parameters we know (generic or by asset (type))"""
     params = dict()
 
     params["training_and_testing_period"] = timedelta(days=30)
     params["ratio_training_testing_data"] = 14 / 15
     params["n_lags"] = 7
-    params["resolution"] = timedelta(
-        minutes=15
-    )  # Todo: get the data resolution for the asset from asset type
+    params["resolution"] = generic_asset.event_resolution
 
     if transform_to_normal:
         params[

@@ -1,4 +1,5 @@
 from typing import List
+from datetime import timedelta
 
 import pytest
 
@@ -41,6 +42,7 @@ def setup_api_test_data(db):
         asset = Asset(
             name=asset_name,
             asset_type_name="test-type",
+            event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
             latitude=100,
             longitude=100,
@@ -59,18 +61,21 @@ def setup_api_test_data(db):
 
     # Create 3 test assets for the test_prosumer user
     test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
-    asset_names = ["CS 1", "CS 2", "CS 3"]
+    asset_names = ["CS 1", "CS 2", "CS 3", "CS 4"]
     assets: List[Asset] = []
     for asset_name in asset_names:
         asset = Asset(
             name=asset_name,
             asset_type_name="test-type",
+            event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
             latitude=100,
             longitude=100,
             unit="MW",
         )
         asset.owner = test_prosumer
+        if asset_name == "CS 4":
+            asset.event_resolution = timedelta(hours=1)
         assets.append(asset)
         db.session.add(asset)
 

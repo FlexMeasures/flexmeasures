@@ -340,10 +340,13 @@ That is, for ex-ante prognoses, the timeseries resolution (here 15 minutes) is i
 Resolutions
 ^^^^^^^^^^^
 
-Specifying a "resolution" is redundant for POST requests that contain both "values" and a "duration".
-For GET requests such as *getMeterData* a "resolution" may be specified explicitly to obtain e.g. hourly or daily
-values. If omitted, the web service will infer a resolution from the available data.
-Valid resolutions for timeseries data in version 1 of the API are "PT15M" only.
+Specifying a resolution is redundant for POST requests that contain both "values" and a "duration".
+Also, posted data is checked against the required resolution of the assets which are posted to.
+
+GET requests (such as *getMeterData*) return data in the resolution which the sensor is configured for.
+A "resolution" may be specified explicitly to obtain the data in downsampled form, 
+which can be very beneficial for download speed. The specified resolution needs to be a multiple
+of the asset's resolution, e.g. hourly or daily values if the asset's resolution is 15 minutes.
 
 .. _units:
 

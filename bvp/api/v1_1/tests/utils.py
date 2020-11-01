@@ -1,8 +1,13 @@
 """Useful test messages"""
-from numpy import tile
+from typing import Optional, Dict, Any
 from datetime import timedelta
+from isodate import duration_isoformat, parse_duration, parse_datetime
 
-from isodate import duration_isoformat
+import pandas as pd
+from numpy import tile
+
+from bvp.api.common.utils.api_utils import parse_entity_address
+from bvp.data.models.markets import Market, Price
 
 
 def message_for_get_prognosis(
@@ -44,7 +49,22 @@ def message_for_get_prognosis(
     return message
 
 
-def message_for_post_price_data(invalid_unit: bool = False, tile_n=1) -> dict:
+def message_for_post_price_data(
+    invalid_unit: bool = False,
+    tile_n: int = 1,
+    compress_n: int = 1,
+    duration: Optional[timedelta] = None,
+) -> dict:
+    """
+    The default message has 24 hourly values.
+
+    :param tile_n: Tile the price profile back to back to obtain price data for n days (default = 1).
+    :param compress_n: Compress the price profile to obtain price data with a coarser resolution (default = 1),
+                       e.g. compress=4 leads to a resolution of 4 hours.
+    :param duration: Set a duration explicitly to obtain price data with a coarser or finer resolution (default is equal to 24 hours * tile_n),
+                     e.g. (assuming tile_n=1) duration=timedelta(hours=6) leads to a resolution of 15 minutes,
+                     and duration=timedelta(hours=48) leads to a resolution of 2 hours.
+    """
     message = {
         "type": "PostPriceDataRequest",
         "market": "ea1.2018-06.localhost:5000:epex_da",
@@ -82,6 +102,10 @@ def message_for_post_price_data(invalid_unit: bool = False, tile_n=1) -> dict:
         "horizon": duration_isoformat(timedelta(hours=11 + 24 * tile_n)),
         "unit": "EUR/MWh",
     }
+    if duration is not None:
+        message["duration"] = duration
+    if compress_n > 1:
+        message["values"] = message["values"][::compress_n]
     if invalid_unit:
         message["unit"] = "KRW/kWh"  # That is, an invalid unit for EPEX SPOT.
     return message
@@ -90,7 +114,7 @@ def message_for_post_price_data(invalid_unit: bool = False, tile_n=1) -> dict:
 def message_for_post_weather_data(
     invalid_unit: bool = False, temperature: bool = False
 ) -> dict:
-    message = {
+    message: Dict[str, Any] = {
         "type": "PostWeatherDataRequest",
         "groups": [
             {
@@ -99,7 +123,7 @@ def message_for_post_weather_data(
             }
         ],
         "start": "2015-01-01T15:00:00+09:00",
-        "duration": "PT1H30M",
+        "duration": "PT30M",
         "horizon": "PT3H",
         "unit": "m/s",
     }
@@ -112,3 +136,29 @@ def message_for_post_weather_data(
     elif invalid_unit:
         message["unit"] = "°C"  # Wrong unit for wind speed
     return message
+
+
+def get_market(post_message) -> Optional[Market]:
+    """util method to get market from our post message"""
+    market_info = parse_entity_address(post_message["market"], "market")
+    if market_info is None:
+        return None
+    return Market.query.filter_by(name=market_info["market_name"]).one_or_none()
+
+
+def verify_prices_in_db(post_message, values, db):
+    """util method to verify that price data ended up in the database"""
+    start = parse_datetime(post_message["start"])
+    end = start + parse_duration(post_message["duration"])
+    horizon = parse_duration(post_message["horizon"])
+    market = get_market(post_message)
+    resolution = market.event_resolution
+    query = (
+        db.session.query(Price.value, Market.name)
+        .filter((Price.datetime > start - resolution) & (Price.datetime < end))
+        .filter(Price.horizon == horizon - (end - (Price.datetime + resolution)))
+        .join(Market)
+        .filter(Market.name == market.name)
+    )
+    df = pd.read_sql(query.statement, db.session.bind)
+    assert df.value.tolist() == values

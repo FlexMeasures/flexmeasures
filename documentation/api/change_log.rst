@@ -3,6 +3,16 @@
 Change log
 ==========
 
+v1.3-5 | 2020-10-29
+"""""""""""""""""""
+
+*Affects all versions since v1.0*.
+
+- Endpoints to POST meter data will now check incoming data to see if the required asset's resolution is being used ― upsampling is done if possible.
+  These endpoints can now return the REQUIRED_INFO_MISSING status 400 response.
+- Endpoints to GET meter data will return data in the asset's resolution ― downsampling to the "resolution" param is done if possible.
+- As they need to determine the asset, all of the mentioned POST and GET endpoints can now return the UNRECOGNIZED_ASSET status 4000 response.
+
 v1.3-4 | 2020-06-18
 """""""""""""""""""
 

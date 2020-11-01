@@ -1,7 +1,7 @@
-from typing import List, Union, Sequence
+from typing import List, Union, Sequence, Optional
 import copy
+import re
 from datetime import timedelta
-from functools import wraps
 from json import loads as parse_json, JSONDecodeError
 
 from flask import current_app
@@ -10,8 +10,11 @@ from numpy import array
 
 from bvp.data import db
 from bvp.data.models.assets import Asset
+from bvp.data.models.markets import Market
 from bvp.data.models.data_sources import DataSource
+from bvp.data.models.weather import WeatherSensor
 from bvp.data.models.user import User
+from bvp.api.common.responses import unrecognized_sensor
 
 
 def check_access(service_listing, service_name):
@@ -102,13 +105,15 @@ def append_doc_of(fun):
     return decorator
 
 
-def convert_to_15min(
-    value_groups: Union[List[List[float]], List[float]], from_resolution: timedelta
+def upsample_values(
+    value_groups: Union[List[List[float]], List[float]],
+    from_resolution: timedelta,
+    to_resolution: timedelta,
 ) -> Union[List[List[float]], List[float]]:
-    """Resample the values (in value groups) to a resolution of 15 minutes, given the original resolution of the values
-    (which has to be a multiple of 15 minutes)."""
-    if from_resolution % timedelta(minutes=15) == timedelta(hours=0):
-        n = from_resolution // timedelta(minutes=15)
+    """Upsample the values (in value groups) to a smaller resolution.
+    from_resolution has to be a multiple of to_resolution"""
+    if from_resolution % to_resolution == timedelta(hours=0):
+        n = from_resolution // to_resolution
         if isinstance(value_groups[0], list):
             value_groups = [
                 list(array(value_group).repeat(n)) for value_group in value_groups
@@ -278,25 +283,6 @@ def zip_dic(*dicts):
         yield (i,) + tuple(d[i] for d in dicts)
 
 
-class BaseMessage:
-    """Set a base message to which extra info can be added by calling the wrapped function with additional string
-    arguments. This is a decorator implemented as a class."""
-
-    def __init__(self, base_message=""):
-        self.base_message = base_message
-
-    def __call__(self, func):
-        @wraps(func)
-        def my_logic(*args, **kwargs):
-            message = self.base_message
-            if args:
-                for a in args:
-                    message += " %s" % a
-            return func(message)
-
-        return my_logic
-
-
 def get_or_create_user_data_source(user: User) -> DataSource:
     data_source = DataSource.query.filter(DataSource.user == user).one_or_none()
     if not data_source:
@@ -305,3 +291,185 @@ def get_or_create_user_data_source(user: User) -> DataSource:
         db.session.add(data_source)
         db.session.flush()  # flush so that we can reference the new object in the current db session
     return data_source
+
+
+def parse_entity_address(generic_asset_name: str, entity_type: str) -> Optional[dict]:
+    """
+    Parses a generic asset name into an info dict.
+    The generic asset name must be a valid type 1 USEF entity address.
+    That is, it must follow the EA1 addressing scheme recommended by USEF.
+
+    For example:
+
+        connection = ea1.2018-06.localhost:5000:40:30
+        connection = ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>
+        sensor = ea1.2018-06.com.a1-bvp:temperature:52:73.0
+        sensor = ea1.2018-06.com.a1-bvp:<sensor_type>:<latitude>:<longitude>
+        market = ea1.2018-06.com.a1-bvp:epex_da
+        market = ea1.2018-06.com.a1-bvp:<market_name>
+        event = ea1.2018-06.com.a1-bvp:5000:40:30:302:soc
+        event = ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>:<event_id>:<event_type>
+
+    Returns a dictionary with scheme, naming_authority and various other fields,
+    depending on the entity type.
+    Returns None if entity type is unkown.
+    We recommend to `return invalid_domain()` in that case.
+    """
+    if entity_type == "connection":
+        match = re.search(
+            r"^"
+            r"((?P<scheme>.+)\.)*"
+            r"((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
+            r"((?P<owner_id>\d+):(?=.+:{0}))*"
+            r"(?P<asset_id>\d+)"
+            r"$",
+            generic_asset_name,
+        )
+        if match:
+            value_types = {
+                "scheme": str,
+                "naming_authority": str,
+                "owner_id": int,
+                "asset_id": int,
+            }
+            return typed_regex_results(match, value_types)
+    elif entity_type == "sensor":
+        match = re.search(
+            r"^"
+            r"(?P<scheme>.+)"
+            r"\."
+            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
+            r":"
+            r"(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w]+)"  # should start with at least one letter
+            r":"
+            r"(?P<latitude>\d+(\.\d+)?)"
+            r":"
+            r"(?P<longitude>\d+(\.\d+)?)"
+            r"$",
+            generic_asset_name,
+        )
+        if match:
+            value_types = {
+                "scheme": str,
+                "naming_authority": str,
+                "weather_sensor_type_name": str,
+                "latitude": float,
+                "longitude": float,
+            }
+            return typed_regex_results(match, value_types)
+    elif entity_type == "market":
+        match = re.search(
+            r"^"
+            r"(?P<scheme>.+)"
+            r"\."
+            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
+            r":"
+            r"(?=[a-zA-Z])(?P<market_name>[\w]+)"  # should start with at least one letter
+            r"$",
+            generic_asset_name,
+        )
+        if match:
+            value_types = {"scheme": str, "naming_authority": str, "market_name": str}
+            return typed_regex_results(match, value_types)
+    elif entity_type == "event":
+        match = re.search(
+            r"^"
+            r"(?P<scheme>.+)"
+            r"\."
+            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
+            r":"
+            r"(?P<owner_id>\d+)"
+            r":"
+            r"(?P<asset_id>\d+)"
+            r":"
+            r"(?P<event_id>\d+)"
+            r":"
+            r"(?P<event_type>.+)"
+            r"$",
+            generic_asset_name,
+        )
+        if match:
+            value_types = {
+                "scheme": str,
+                "naming_authority": str,
+                "owner_id": int,
+                "asset_id": int,
+                "event_id": int,
+                "event_type": str,
+            }
+            return typed_regex_results(match, value_types)
+    current_app.logger.warning(f"Entity type {entity_type} not recognized.")
+    return None
+
+
+def get_weather_sensor_by(
+    weather_sensor_type_name: str, latitude: float = 0, longitude: float = 0
+) -> WeatherSensor:
+    """
+    Search a weather sensor by type and location.
+    Can create a weather sensor if needed (depends on API mode)
+    and then inform the requesting user which one to use.
+    """
+    # Look for the WeatherSensor object
+    weather_sensor = (
+        WeatherSensor.query.filter(
+            WeatherSensor.weather_sensor_type_name == weather_sensor_type_name
+        )
+        .filter(WeatherSensor.latitude == latitude)
+        .filter(WeatherSensor.longitude == longitude)
+        .one_or_none()
+    )
+    if weather_sensor is None:
+        create_sensor_if_unknown = False
+        if current_app.config.get("BVP_MODE", "") == "play":
+            create_sensor_if_unknown = True
+
+        # either create a new weather sensor and post to that
+        if create_sensor_if_unknown:
+            current_app.logger.info("CREATING NEW WEATHER SENSOR...")
+            weather_sensor = WeatherSensor(
+                name="Weather sensor for %s at latitude %s and longitude %s"
+                % (weather_sensor_type_name, latitude, longitude),
+                weather_sensor_type_name=weather_sensor_type_name,
+                latitude=latitude,
+                longitude=longitude,
+            )
+            db.session.add(weather_sensor)
+            db.session.flush()  # flush so that we can reference the new object in the current db session
+
+        # or query and return the nearest sensor and let the requesting user post to that one
+        else:
+            nearest_weather_sensor = WeatherSensor.query.order_by(
+                WeatherSensor.great_circle_distance(
+                    latitude=latitude, longitude=longitude
+                ).asc()
+            ).first()
+            if nearest_weather_sensor is not None:
+                return unrecognized_sensor(
+                    nearest_weather_sensor.latitude,
+                    nearest_weather_sensor.longitude,
+                )
+            else:
+                return unrecognized_sensor()
+    return weather_sensor
+
+
+def get_generic_asset(asset_descriptor, entity_type):
+    """
+    Get a generic asset from form information
+    # TODO: After refactoring, unify 3 generic_asset cases -> 1 sensor case
+    """
+    ea = parse_entity_address(asset_descriptor, entity_type=entity_type)
+    if ea is None:
+        return None
+    if entity_type == "connection":
+        return Asset.query.filter(Asset.id == ea["asset_id"]).one_or_none()
+    elif entity_type == "market":
+        return Market.query.filter(Market.name == ea["market_name"]).one_or_none()
+    elif entity_type == "sensor":
+        return get_weather_sensor_by(
+            ea["weather_sensor_type_name"],
+            ea["latitude"],
+            ea["longitude"],
+        )
+    return None

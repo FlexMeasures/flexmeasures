@@ -25,7 +25,12 @@ import timely_beliefs as tb
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.data_sources import DataSource
 from bvp.utils.bvp_inflection import capitalize
-from bvp.utils.time_utils import bvp_now, localized_datetime_str, tz_index_naively
+from bvp.utils.time_utils import (
+    bvp_now,
+    localized_datetime_str,
+    tz_index_naively,
+    set_time_range_for_session,
+)
 
 
 def create_hover_tool(  # noqa: C901
@@ -187,6 +192,26 @@ def replace_source_with_label(data: pd.DataFrame) -> pd.DataFrame:
     return data
 
 
+def decide_plot_resolution(
+    data: pd.DataFrame,
+) -> timedelta:
+    """
+    Finding out which resolution to use:
+    prefer resolution in data, otherwise from session (which is based on the session's time period)
+    """
+    if isinstance(data, tb.BeliefsDataFrame):
+        resolution = data.event_resolution
+    elif not data.empty and data.index.freq is not None:
+        resolution = pd.to_timedelta(data.index.freq)
+    else:
+        from flask import session
+
+        if "resolution" not in session:
+            set_time_range_for_session()
+        resolution = pd.to_timedelta(session["resolution"])
+    return resolution
+
+
 def create_graph(  # noqa: C901
     data: pd.DataFrame,
     unit: str = "Some unit",
@@ -228,17 +253,7 @@ def create_graph(  # noqa: C901
     data = replace_source_with_label(data)
     forecasts = replace_source_with_label(forecasts)
     schedules = replace_source_with_label(schedules)
-
-    if isinstance(data, tb.BeliefsDataFrame):
-        resolution = data.event_resolution
-    elif data.index.freq is not None:
-        resolution = pd.to_timedelta(data.index.freq)
-    else:
-        from flask import session
-
-        resolution = pd.to_timedelta(session["resolution"])
-    if resolution is None:
-        resolution = timedelta(minutes=15)
+    resolution = decide_plot_resolution(data)
 
     # Set x range
     if x_range is None:
@@ -247,7 +262,7 @@ def create_graph(  # noqa: C901
 
     # Set y range
     y_range = None
-    if data["event_value"].isnull().all():
+    if not data.empty and data["event_value"].isnull().all():
         if forecasts is None:
             if schedules is None:
                 y_range = Range1d(start=0, end=1)
@@ -291,7 +306,7 @@ def create_graph(  # noqa: C901
 
     # Format y floats
     if (
-        show_y_floats is False and data["event_value"].size > 0
+        not data.empty and show_y_floats is False and data["event_value"].size > 0
     ):  # apply a simple heuristic
         if forecasts is None or forecasts.empty:
             show_y_floats = max(data["event_value"].values) < 2
@@ -492,7 +507,9 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
         .order_by(Power.datetime.desc())
     )
     if before is not None:
-        power_query = power_query.filter(Power.datetime + asset.resolution <= before)
+        power_query = power_query.filter(
+            Power.datetime + asset.event_resolution <= before
+        )
     latest_power = power_query.first()
     if latest_power is not None:
         latest_power_value = latest_power.value
@@ -503,7 +520,7 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
         else:
             latest_power_datetime = latest_power.datetime
         latest_measurement_time_str = localized_datetime_str(
-            latest_power_datetime + asset.resolution
+            latest_power_datetime + asset.event_resolution
         )
     else:
         latest_power_value = 0

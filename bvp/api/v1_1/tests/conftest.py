@@ -50,6 +50,7 @@ def setup_api_test_data(db):
         asset = Asset(
             name=asset_name,
             asset_type_name="test-type",
+            event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
             latitude=100,
             longitude=100,
@@ -103,6 +104,7 @@ def setup_api_test_data(db):
     sensor = WeatherSensor(
         name="wind_speed_sensor",
         weather_sensor_type_name="wind_speed",
+        event_resolution=timedelta(minutes=5),
         latitude=33.4843866,
         longitude=126,
         unit="m/s",
@@ -114,6 +116,7 @@ def setup_api_test_data(db):
     sensor = WeatherSensor(
         name="temperature_sensor",
         weather_sensor_type_name="temperature",
+        event_resolution=timedelta(minutes=5),
         latitude=33.4843866,
         longitude=126,
         unit="°C",

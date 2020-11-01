@@ -26,28 +26,28 @@ from bvp.api.common.utils.api_utils import (
     message_replace_name_with_ea,
     groups_to_dict,
     get_or_create_user_data_source,
+    parse_entity_address,
 )
 from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
     assets_required,
     optional_sources_accepted,
-    resolutions_accepted,
-    optional_resolutions_accepted,
+    post_data_checked_for_required_resolution,
+    get_data_downsampling_allowed,
     optional_horizon_accepted,
     period_required,
     values_required,
-    validate_entity_address,
 )
 
 
 @type_accepted("GetMeterDataRequest")
 @units_accepted("power", "MW")
-@optional_resolutions_accepted("PT15M")
 @assets_required("connection")
 @optional_sources_accepted(preferred_source="MDC")
 @optional_horizon_accepted(ex_post=True)
 @period_required
+@get_data_downsampling_allowed("connection")
 @as_json
 def get_meter_data_response(
     unit,
@@ -95,7 +95,7 @@ def get_meter_data_response(
 @values_required
 @optional_horizon_accepted(ex_post=True)
 @period_required
-@resolutions_accepted(timedelta(minutes=15))
+@post_data_checked_for_required_resolution("connection")
 @as_json
 def post_meter_data_response(
     unit,
@@ -155,6 +155,12 @@ def collect_connection_and_value_groups(
     source_types: List[str] = None,
     rolling: bool = False,
 ) -> Tuple[dict, int]:
+    """
+    Code for GETting power values from the API.
+    Only allows to get values from assets owned by current user.
+    Returns value sign in accordance with USEF specs
+    (with negative production and positive consumption).
+    """
     from flask import current_app
 
     current_app.logger.info("GETTING")
@@ -175,7 +181,7 @@ def collect_connection_and_value_groups(
         for connection in connections:
 
             # Parse the entity address
-            connection_details = validate_entity_address(
+            connection_details = parse_entity_address(
                 connection, entity_type="connection"
             )
             if connection_details is None:
@@ -194,6 +200,7 @@ def collect_connection_and_value_groups(
             asset_names.append(asset.name)
 
         # Get the power values
+        # TODO: fill NaN for non-existing values
         power_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Power.collect(
             generic_asset_names=asset_names,
             query_window=(start, end),
@@ -228,6 +235,15 @@ def collect_connection_and_value_groups(
 def create_connection_and_value_groups(  # noqa: C901
     unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration
 ):
+    """
+    Code for POSTing Power values to the API.
+    Only lets users post to assets they own.
+    The sign of values is validated according to asset specs, but in USEF terms.
+    Then, we store the reverse sign for BVP specs (with positive production
+    and negative consumption).
+
+    If power values are not forecasts, forecasting jobs are created.
+    """
     from flask import current_app
 
     current_app.logger.info("POSTING POWER DATA")
@@ -241,8 +257,9 @@ def create_connection_and_value_groups(  # noqa: C901
     for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
         for connection in connection_group:
 
+            # TODO: get asset through util function after refactoring
             # Parse the entity address
-            connection = validate_entity_address(connection, entity_type="connection")
+            connection = parse_entity_address(connection, entity_type="connection")
             if connection is None:
                 current_app.logger.warning(
                     "Cannot parse this connection's entity address: %s" % connection

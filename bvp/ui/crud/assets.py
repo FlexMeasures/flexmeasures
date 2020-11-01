@@ -1,9 +1,10 @@
 from typing import Optional, Tuple, Union
+from datetime import timedelta
 
 from flask import request, current_app
 from flask_classful import FlaskView
 from flask_wtf import FlaskForm
-from wtforms import StringField, DecimalField, SelectField
+from wtforms import StringField, DecimalField, IntegerField, SelectField
 from wtforms.validators import DataRequired, NumberRange, Length
 from flask_security import login_required, roles_required, current_user
 from werkzeug.exceptions import NotFound
@@ -29,6 +30,11 @@ class AssetForm(FlaskForm):
     )
     capacity_in_mw = DecimalField(
         "Capacity in MW", places=2, validators=[NumberRange(min=0)]
+    )
+    event_resolution_in_minutes = IntegerField(
+        "Resolution in minutes (e.g. 15)",
+        default=15,
+        validators=[NumberRange(min=1, max=10080)],  # up to one week allowed
     )
     min_soc_in_mwh = DecimalField(
         "Minimum state of charge (SOC) in MWh",
@@ -71,7 +77,7 @@ class AssetForm(FlaskForm):
 
 
 class NewAssetForm(AssetForm):
-    """Here we allow to set asset type and owner."""
+    """Here, in addition, we allow to set asset type and owner."""
 
     asset_type_name = SelectField("Asset type", validators=[DataRequired()])
     owner = SelectField("Owner", coerce=int)
@@ -110,7 +116,7 @@ class AssetCrud(FlaskView):
         """/assets/owned_by/<user_id>"""
         if not (current_user.has_role("admin") or int(owner_id) == current_user.id):
             return unauth_handler()
-        assets = get_assets(owner_id)
+        assets = get_assets(int(owner_id))
         return render_bvp_template("crud/assets.html", assets=assets)
 
     @login_required
@@ -191,6 +197,9 @@ class AssetCrud(FlaskView):
                     asset_type_name=asset_form.asset_type_name.data,
                     power_unit="MW",
                     capacity_in_mw=float(asset_form.capacity_in_mw.data),
+                    event_resolution=timedelta(
+                        minutes=asset_form.event_resolution_in_minutes.data
+                    ),
                     latitude=asset_form.latitude.data,
                     longitude=asset_form.longitude.data,
                     min_soc_in_mwh=float(asset_form.min_soc_in_mwh.data),
@@ -228,6 +237,9 @@ class AssetCrud(FlaskView):
                         asset_form.max_soc_in_mwh.data
                     )
                     asset_form.populate_obj(asset)
+                    asset.event_resolution = timedelta(
+                        minutes=asset_form.event_resolution_in_minutes.data
+                    )
                     msg = "Editing was successful."
                 else:
                     msg = "Asset was not saved, please review error(s) below."

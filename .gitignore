@@ -28,3 +28,6 @@ migrations/dumps
 
 uml_diagram.png
 db_schema.png
+
+.coverage
+htmlcov

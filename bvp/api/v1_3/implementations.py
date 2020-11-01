@@ -22,13 +22,16 @@ from bvp.api.common.responses import (
     outdated_event_id,
     ptus_incomplete,
 )
-from bvp.api.common.utils.api_utils import groups_to_dict, get_form_from_request
+from bvp.api.common.utils.api_utils import (
+    groups_to_dict,
+    get_form_from_request,
+    parse_entity_address,
+)
 from bvp.api.common.utils.validators import (
     type_accepted,
     assets_required,
     optional_duration_accepted,
     usef_roles_accepted,
-    validate_entity_address,
     units_accepted,
     parse_isodate_str,
 )
@@ -47,7 +50,6 @@ p = inflect.engine()
 @as_json
 def get_device_message_response(generic_asset_name_groups, duration):
 
-    resolution = timedelta(minutes=15)
     unit = "MW"
     planning_horizon = min(duration, current_app.config.get("BVP_PLANNING_HORIZON"))
 
@@ -60,7 +62,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
         for event in event_group:
 
             # Parse the entity address
-            ea = validate_entity_address(event, entity_type="event")
+            ea = parse_entity_address(event, entity_type="event")
             if ea is None:
                 current_app.logger.warning(
                     "Cannot parse this event's entity address: %s" % event
@@ -155,6 +157,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 )
 
             # Update the planning window
+            resolution = asset.event_resolution
             start = consumption_schedule.index[0]
             duration = min(
                 duration, consumption_schedule.index[-1] + resolution - start
@@ -204,7 +207,7 @@ def post_udi_event_response(unit):
     # parse event/address info
     if "event" not in form:
         return invalid_domain("No event identifier sent.")
-    ea = validate_entity_address(form.get("event"), entity_type="event")
+    ea = parse_entity_address(form.get("event"), entity_type="event")
     if ea is None:
         current_app.logger.warning(
             "Cannot parse this event's entity address: %s." % form.get("event")
@@ -261,7 +264,7 @@ def post_udi_event_response(unit):
     # set soc targets
     start_of_schedule = datetime
     end_of_schedule = datetime + current_app.config.get("BVP_PLANNING_HORIZON")
-    resolution = timedelta(minutes=15)
+    resolution = asset.event_resolution
     soc_targets = pd.Series(
         np.nan,
         index=pd.date_range(

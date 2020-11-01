@@ -1,9 +1,8 @@
 from datetime import datetime, timedelta
-import re
 from functools import wraps
 from typing import List, Tuple, Union, Optional
+import re
 
-from humanize import naturaldelta
 import isodate
 from isodate.isoerror import ISO8601Error
 import inflect
@@ -15,23 +14,28 @@ from flask_principal import Permission, RoleNeed
 from flask_security import current_user
 
 from bvp.api.common.responses import (  # noqa: F401
+    required_info_missing,
     invalid_horizon,
     invalid_method,
     invalid_message_type,
     invalid_period,
-    invalid_resolution,
+    unapplicable_resolution,
+    invalid_resolution_str,
+    conflicting_resolutions,
     invalid_sender,
     invalid_timezone,
     invalid_unit,
     no_message_type,
     ptus_incomplete,
     unrecognized_connection_group,
+    unrecognized_asset,
 )
 from bvp.api.common.utils.api_utils import (
     get_form_from_request,
     parse_as_list,
     contains_empty_items,
-    typed_regex_results,
+    upsample_values,
+    get_generic_asset,
 )
 from bvp.data.models.data_sources import DataSource
 from bvp.data.config import db
@@ -157,117 +161,9 @@ def valid_sensor_units(sensor: str) -> List[str]:
         )
 
 
-def validate_entity_address(
-    generic_asset_name: str, entity_type: str
-) -> Optional[dict]:
-    """
-    Validates whether the generic asset name is a valid type 1 USEF entity address.
-    That is, it must follow the EA1 addressing scheme recommended by USEF.
-
-    For example:
-
-        connection = ea1.2018-06.localhost:5000:40:30
-        connection = ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>
-        sensor = ea1.2018-06.com.a1-bvp:temperature:52:73.0
-        sensor = ea1.2018-06.com.a1-bvp:<sensor_type>:<latitude>:<longitude>
-        market = ea1.2018-06.com.a1-bvp:epex_da
-        market = ea1.2018-06.com.a1-bvp:<market_name>
-        event = ea1.2018-06.com.a1-bvp:5000:40:30:302:soc
-        event = ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>:<event_id>:<event_type>
-
-    Returns a dictionary with scheme, naming_authority and various other fields,
-    depending on the entity type.
-    Returns None if entity type is unkown.
-    """
-    if entity_type == "connection":
-        match = re.search(
-            r"^"
-            r"((?P<scheme>.+)\.)*"
-            r"((?P<naming_authority>\d{4}-\d{2}\..+):(?=.+:))*"  # scheme, naming authority and owner id are optional
-            r"((?P<owner_id>\d+):(?=.+:{0}))*"
-            r"(?P<asset_id>\d+)"
-            r"$",
-            generic_asset_name,
-        )
-        if match:
-            value_types = {
-                "scheme": str,
-                "naming_authority": str,
-                "owner_id": int,
-                "asset_id": int,
-            }
-            return typed_regex_results(match, value_types)
-    elif entity_type == "sensor":
-        match = re.search(
-            r"^"
-            r"(?P<scheme>.+)"
-            r"\."
-            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
-            r":"
-            r"(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w]+)"  # should start with at least one letter
-            r":"
-            r"(?P<latitude>\d+(\.\d+)?)"
-            r":"
-            r"(?P<longitude>\d+(\.\d+)?)"
-            r"$",
-            generic_asset_name,
-        )
-        if match:
-            value_types = {
-                "scheme": str,
-                "naming_authority": str,
-                "weather_sensor_type_name": str,
-                "latitude": float,
-                "longitude": float,
-            }
-            return typed_regex_results(match, value_types)
-    elif entity_type == "market":
-        match = re.search(
-            r"^"
-            r"(?P<scheme>.+)"
-            r"\."
-            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
-            r":"
-            r"(?=[a-zA-Z])(?P<market_name>[\w]+)"  # should start with at least one letter
-            r"$",
-            generic_asset_name,
-        )
-        if match:
-            value_types = {"scheme": str, "naming_authority": str, "market_name": str}
-            return typed_regex_results(match, value_types)
-    elif entity_type == "event":
-        match = re.search(
-            r"^"
-            r"(?P<scheme>.+)"
-            r"\."
-            r"(?P<naming_authority>\d{4}-\d{2}\..+)"
-            r":"
-            r"(?P<owner_id>\d+)"
-            r":"
-            r"(?P<asset_id>\d+)"
-            r":"
-            r"(?P<event_id>\d+)"
-            r":"
-            r"(?P<event_type>.+)"
-            r"$",
-            generic_asset_name,
-        )
-        if match:
-            value_types = {
-                "scheme": str,
-                "naming_authority": str,
-                "owner_id": int,
-                "asset_id": int,
-                "event_id": int,
-                "event_type": str,
-            }
-            return typed_regex_results(match, value_types)
-    current_app.logger.warning(f"Entity type {entity_type} not recognized.")
-    return None
-
-
 def optional_duration_accepted(default_duration: timedelta):
     """Decorator which specifies that a GET or POST request accepts an optional duration.
+    It parses relevant form data and sets the "duration" keyword param.
 
     Example:
 
@@ -312,6 +208,8 @@ def optional_sources_accepted(
     preferred_source: Union[int, str, List[Union[int, str]]] = None
 ):
     """Decorator which specifies that a GET or POST request accepts an optional source or list of data sources.
+    It parses relevant form data and sets the "preferred_source_ids" and "fallback_source_ids" keyword params.
+
     Each source should either be a known USEF role name or a user id.
     We'll parse them as a source id or list of source ids.
     If a requests states one or more data sources, then we'll only query those (no fallback sources).
@@ -382,8 +280,10 @@ def optional_sources_accepted(
 
 
 def optional_horizon_accepted(ex_post: bool = False):
-    """Decorator which specifies that a GET or POST request accepts an optional horizon. If no horizon is specified,
-    the horizon is determined by the server based on when the API endpoint was called.
+    """Decorator which specifies that a GET or POST request accepts an optional horizon.
+    It parses relevant form data and sets the "horizon" and "rolling" keyword params.
+
+    If no horizon is specified, the horizon is determined by the server based on when the API endpoint was called.
     Optionally, an ex_post flag can be passed to the decorator to indicate that only non-positive horizons are allowed.
     Example:
 
@@ -456,6 +356,7 @@ def optional_horizon_accepted(ex_post: bool = False):
 
 def unit_required(fn):
     """Decorator which specifies that a GET or POST request must specify a unit.
+    It parses relevant form data and sets the "unit keyword param.
     Example:
 
         @app.route('/postMeterData')
@@ -489,7 +390,8 @@ def unit_required(fn):
 
 
 def period_required(fn):
-    """Decorator which specifies that a GET or POST request must specify a time period.
+    """Decorator which specifies that a GET or POST request must specify a time period (by start and duration).
+    It parses relevant form data and sets the "start" and "duration" keyword params.
     Example:
 
         @app.route('/postMeterData')
@@ -498,6 +400,7 @@ def period_required(fn):
             return 'Meter data posted'
 
     The message must specify a 'start' and a 'duration' in accordance with the ISO 8601 standard.
+    This decorator should not be used together with optional_duration_accepted.
     """
 
     @wraps(fn)
@@ -542,6 +445,7 @@ def assets_required(
     generic_asset_type_name: str, plural_name: str = None, groups_name="groups"
 ):
     """Decorator which specifies that a GET or POST request must specify one or more assets.
+    It parses relevant form data and sets the "generic_asset_name_groups" keyword param.
     Example:
 
         @app.route('/postMeterData')
@@ -613,6 +517,7 @@ def assets_required(
 
 def values_required(fn):
     """Decorator which specifies that a GET or POST request must specify one or more values.
+    It parses relevant form data and sets the "value_groups" keyword param.
     Example:
 
         @app.route('/postMeterData')
@@ -703,6 +608,7 @@ def type_accepted(message_type: str):
 def units_accepted(quantity: str, *units: str):
     """Decorator which specifies that a GET or POST request must specify one of the
     specified physical units. First parameter specifies the physical or economical quantity.
+    It parses relevant form data and sets the "unit" keyword param.
     Example:
 
         @app.route('/postMeterData')
@@ -743,22 +649,23 @@ def units_accepted(quantity: str, *units: str):
     return wrapper
 
 
-def resolutions_accepted(*resolutions):
-    """Decorator which specifies that a GET or POST request accepts one of the specified time resolutions.
-    The resolution is inferred from the duration and the number of values.
-    Therefore, the decorator should follow after the values_required and the period_required decorators.
+def post_data_checked_for_required_resolution(entity_type):  # noqa: C901
+    """Decorator which checks that a POST request receives time series data with the event resolutions
+    required by the sensor (asset). It sets the "resolution" keyword argument.
+    If the resolution in the data is a multiple of the asset resolution, values are upsampled to the asset resolution.
+    Finally, this decorator also checks if all assets have the same event_resolution and complains otherwise.
+
+    The resolution of the data is inferred from the duration and the number of values.
+    Therefore, the decorator should follow after the values_required, period_required and assets_required decorators.
     Example:
 
         @app.route('/postMeterData')
         @values_required
         @period_required
-        @resolutions_accepted(timedelta(minutes=15), timedelta(hours=1))
-        def post_meter_data(value_groups, start, duration):
+        @assets_required("connection")
+        @post_data_checked_for_required_resolution("connection")
+        def post_meter_data(value_groups, start, duration, generic_asset_name_groups, resolution)
             return 'Meter data posted'
-
-    The resolution inferred from the message must be 15 minutes or an hour.
-
-    :param resolutions: The possible resolutions.
     """
 
     def wrapper(fn):
@@ -772,50 +679,105 @@ def resolutions_accepted(*resolutions):
                 )
                 return invalid_method(request.method)
 
-            if all(key in kwargs for key in ["value_groups", "start", "duration"]):
-                resolution = (
-                    (kwargs["start"] + kwargs["duration"]) - kwargs["start"]
-                ) / len(kwargs["value_groups"][0])
-                if resolution not in resolutions:
-                    current_app.logger.warning("Resolution is not accepted.")
-                    res_listing = p.join(
-                        [naturaldelta(res) for res in resolutions], final_sep=""
-                    )
-                    return invalid_resolution(res_listing)
-                else:
-                    kwargs["resolution"] = resolution
-                    return fn(*args, **kwargs)
-            else:
+            if not all(
+                key in kwargs
+                for key in [
+                    "value_groups",
+                    "start",
+                    "duration",
+                ]
+            ):
                 current_app.logger.warning("Could not infer resolution.")
-                res_listing = p.join(
-                    [naturaldelta(res) for res in resolutions], final_sep=""
+                fields = ("values", "start", "duration")
+                return required_info_missing(fields, "Resolution cannot be inferred.")
+            if "generic_asset_name_groups" not in kwargs:
+                return required_info_missing(
+                    (entity_type),
+                    "Required resolution cannot be found without asset info.",
                 )
-                extra_info = "Specify some 'values', a 'start' and a 'duration' so that the resolution can be inferred."
-                return invalid_resolution(res_listing, extra_info)
+
+            # Calculating (inferring) the resolution in the POSTed data
+            inferred_resolution = (
+                (kwargs["start"] + kwargs["duration"]) - kwargs["start"]
+            ) / len(kwargs["value_groups"][0])
+
+            # Finding the required resolution for assets affected in this request
+            required_resolution = None
+            last_asset = None
+            for asset_group in kwargs["generic_asset_name_groups"]:
+                for asset_descriptor in asset_group:
+                    # Getting the asset
+                    generic_asset = get_generic_asset(asset_descriptor, entity_type)
+                    if generic_asset is None:
+                        return unrecognized_asset(
+                            f"Failed to look up asset by {asset_descriptor}"
+                        )
+                    # Complain if assets don't all require the same resolution
+                    if (
+                        required_resolution is not None
+                        and generic_asset.event_resolution != required_resolution
+                    ):
+                        return conflicting_resolutions(
+                            f"Cannot send data for both {generic_asset} and {last_asset}."
+                        )
+                    # Setting the resolution & remembering last looked-at asset
+                    required_resolution = generic_asset.event_resolution
+                    last_asset = generic_asset
+
+            # if inferred resolution is a multiple from required_solution, we can upsample_values
+            if inferred_resolution % required_resolution == timedelta(hours=0):
+                for i in range(len(kwargs["value_groups"])):
+                    kwargs["value_groups"][i] = upsample_values(
+                        kwargs["value_groups"][i],
+                        from_resolution=inferred_resolution,
+                        to_resolution=required_resolution,
+                    )
+                inferred_resolution = required_resolution
+
+            if inferred_resolution != required_resolution:
+                current_app.logger.warning(
+                    f"Resolution {inferred_resolution} is not accepted. We require {required_resolution}."
+                )
+                return unapplicable_resolution(
+                    isodate.duration_isoformat(required_resolution)
+                )
+            else:
+                kwargs["resolution"] = inferred_resolution
+                return fn(*args, **kwargs)
 
         return decorated_service
 
     return wrapper
 
 
-def optional_resolutions_accepted(*resolutions):
-    """Decorator which specifies that a GET or POST request accepts one of the
-    specified time resolutions. Example:
+def get_data_downsampling_allowed(entity_type):
+    """Decorator which allows downsampling of data which a GET request returns.
+    It checks for a form paramater "resolution".
+    If that is given and is a multiple of the asset's event_resolution,
+    downsampling is performed on the data. This is done by setting the "resolution"
+    keyword parameter, which is obeyed by collect_time_series_data and used
+    in resampling.
 
-        @app.route('/postMeterData')
-        @optional_resolutions_accepted('PT15M', 'PT1H')
-        def post_meter_data(resolution):
-            return 'Meter data posted'
+    The original resolution of the data is the event_resolution of the asset.
+    Therefore, the decorator should follow after the assets_required decorator.
 
-    The message must either specify 'PT15M' or 'PT1H' as the resolution, or no resolution.
+    Example:
 
-    :param resolutions: The possible resolutions.
+        @app.route('/getMeterData')
+        @assets_required("connection")
+        @get_data_downsampling_allowed("connection")
+        def get_meter_data(generic_asset_name_groups, resolution):
+            return data
+
     """
 
     def wrapper(fn):
         @wraps(fn)
         @as_json
         def decorated_service(*args, **kwargs):
+            kwargs[
+                "resolution"
+            ] = None  # using this decorator means you can expect this attribute, None means default
             form = get_form_from_request(request)
             if form is None:
                 current_app.logger.warning(
@@ -823,22 +785,27 @@ def optional_resolutions_accepted(*resolutions):
                 )
                 return invalid_method(request.method)
 
-            elif "resolution" not in form:
-                kwargs[
-                    "resolution"
-                ] = "15T"  # Todo: should be decided based on available data
-                return fn(*args, **kwargs)
-            elif form["resolution"] not in resolutions:
-                current_app.logger.warning("Resolution is not accepted.")
-                res_listing = p.join(
-                    [naturaldelta(res) for res in resolutions], final_sep=""
-                )
-                return invalid_resolution(res_listing)
-            else:
+            if "resolution" in form and form["resolution"]:
+                ds_resolution = validate_duration(form["resolution"])
+                if ds_resolution is None:
+                    return invalid_resolution_str(form["resolution"])
+                # Check if the resolution can be applied to all assets (if it is a multiple
+                # of the event_resolution(s) and thus downsampling is possible)
+                for asset_group in kwargs["generic_asset_name_groups"]:
+                    for asset_descriptor in asset_group:
+                        generic_asset = get_generic_asset(asset_descriptor, entity_type)
+                        if generic_asset is None:
+                            return unrecognized_asset()
+                        asset_resolution = generic_asset.event_resolution
+                        if ds_resolution % asset_resolution != timedelta(minutes=0):
+                            return unapplicable_resolution(
+                                f"{isodate.duration_isoformat(asset_resolution)} or a multiple hereof."
+                            )
                 kwargs["resolution"] = to_offset(
                     isodate.parse_duration(form["resolution"])
                 ).freqstr  # Convert ISO period string to pandas frequency string
-                return fn(*args, **kwargs)
+
+            return fn(*args, **kwargs)
 
         return decorated_service
 

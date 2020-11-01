@@ -28,7 +28,7 @@ def create_beliefs_query(
         .filter(asset_class.name == asset_name)
     )
     if start is not None:
-        query = query.filter((cls.datetime > start - asset_class.resolution))
+        query = query.filter((cls.datetime > start - asset_class.event_resolution))
     if end is not None:
         query = query.filter((cls.datetime < end))
     return query
@@ -76,7 +76,7 @@ def add_horizon_filter(
 ) -> Query:
     if belief_time is not None:
         query = query.filter(
-            cls.datetime + asset_class.resolution - cls.horizon <= belief_time
+            cls.datetime + asset_class.event_resolution - cls.horizon <= belief_time
         )
     short_horizon, long_horizon = horizon_window
     if (
@@ -89,7 +89,7 @@ def add_horizon_filter(
         else:  # Deduct the difference in end times of the timeslot and the query window
             query = query.filter(
                 cls.horizon
-                == short_horizon - (end - (cls.datetime + asset_class.resolution))
+                == short_horizon - (end - (cls.datetime + asset_class.event_resolution))
             )
     else:
         if short_horizon is not None:
@@ -98,7 +98,8 @@ def add_horizon_filter(
             else:
                 query = query.filter(
                     cls.horizon
-                    >= short_horizon - (end - (cls.datetime + asset_class.resolution))
+                    >= short_horizon
+                    - (end - (cls.datetime + asset_class.event_resolution))
                 )
         if long_horizon is not None:
             if rolling:
@@ -106,7 +107,8 @@ def add_horizon_filter(
             else:
                 query = query.filter(
                     cls.horizon
-                    <= long_horizon - (end - (cls.datetime + asset_class.resolution))
+                    <= long_horizon
+                    - (end - (cls.datetime + asset_class.event_resolution))
                 )
     return query
 

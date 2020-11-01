@@ -80,7 +80,7 @@ def get_meter_data():
     :reqheader Content-Type: application/json
     :resheader Content-Type: application/json
     :status 200: PROCESSED
-    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, or UNRECOGNIZED_CONNECTION_GROUP
+    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, UNRECOGNIZED_ASSET, or UNRECOGNIZED_CONNECTION_GROUP
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD
@@ -144,6 +144,8 @@ def post_meter_data():
             "unit": "MW"
         }
 
+    It is allowed to send higher resolutions (in this example for instance, 30 minutes) which will be upsampled.
+
     **Example response**
 
     This "PostMeterDataResponse" message indicates that the measurement has been processed without any error.
@@ -160,7 +162,7 @@ def post_meter_data():
     :reqheader Content-Type: application/json
     :resheader Content-Type: application/json
     :status 200: PROCESSED
-    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, or UNRECOGNIZED_CONNECTION_GROUP
+    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, REQUIRED_INFO_MISSING, UNRECOGNIZED_ASSET or UNRECOGNIZED_CONNECTION_GROUP
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD

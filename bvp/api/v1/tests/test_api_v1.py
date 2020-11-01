@@ -159,6 +159,21 @@ def test_invalid_sender_and_logout(client, user_email, get_message):
     assert logout_response.status_code == 302
 
 
+def test_invalid_resolution_str(client):
+    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    query_string = message_for_get_meter_data()
+    query_string["resolution"] = "15M"  # invalid
+    get_meter_data_response = client.get(
+        url_for("bvp_api_v1.get_meter_data"),
+        query_string=query_string,
+        headers={"Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % get_meter_data_response.json)
+    assert get_meter_data_response.status_code == 400
+    assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
+    assert get_meter_data_response.json["status"] == "INVALID_RESOLUTION"
+
+
 @pytest.mark.parametrize(
     "post_message",
     [
@@ -169,13 +184,18 @@ def test_invalid_sender_and_logout(client, user_email, get_message):
 )
 @pytest.mark.parametrize(
     "get_message",
-    [message_for_get_meter_data(), message_for_get_meter_data(single_connection=False)],
+    [
+        message_for_get_meter_data(),
+        message_for_get_meter_data(single_connection=False),
+        message_for_get_meter_data(resolution="PT30M"),
+    ],
 )
 def test_post_and_get_meter_data(db, app, client, post_message, get_message):
     """
     Tries to post meter data as a logged-in test user with the MDC role, which should succeed.
     There should be some ForecastingJobs waiting now.
-    Then tries to get meter data, which should succeed, and should return the same meter data as was posted.
+    Then tries to get meter data, which should succeed, and should return the same meter data as was posted,
+    or a downsampled version, if that was requested.
     """
 
     # post meter data
@@ -222,10 +242,44 @@ def test_post_and_get_meter_data(db, app, client, post_message, get_message):
     assert get_meter_data_response.status_code == 200
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     if "groups" in post_message:
-        values = post_message["groups"][0]["values"]
+        posted_values = post_message["groups"][0]["values"]
     else:
-        values = post_message["values"]
+        posted_values = post_message["values"]
     if "groups" in get_meter_data_response.json:
-        assert get_meter_data_response.json["groups"][0]["values"] == values
+        gotten_values = get_meter_data_response.json["groups"][0]["values"]
     else:
-        assert get_meter_data_response.json["values"] == values
+        gotten_values = get_meter_data_response.json["values"]
+
+    if "resolution" not in get_message or get_message["resolution"] == "":
+        assert gotten_values == posted_values
+    else:
+        # We used a target resolution of 30 minutes, so double of 15 minutes.
+        # Six values went in, three come out.
+        if posted_values[1] > 0:  # see utils.py:message_for_post_meter_data
+            assert gotten_values == [306.66, -0.0, 306.66]
+        else:
+            assert gotten_values == [153.33, 0, 306.66]
+
+
+def test_post_meter_data_to_different_resolutions(db, app, client):
+    """
+    Tries to post meter data to assets with different event_resolutions, which is not accepted.
+    """
+
+    post_message = message_for_post_meter_data(different_target_resolutions=True)
+    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    post_meter_data_response = client.post(
+        url_for("bvp_api_v1.post_meter_data"),
+        json=message_replace_name_with_ea(post_message),
+        headers={"Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % post_meter_data_response.json)
+    assert post_meter_data_response.json["type"] == "PostMeterDataResponse"
+    assert post_meter_data_response.status_code == 400
+    assert (
+        "assets do not have matching resolutions"
+        in post_meter_data_response.json["message"]
+    )
+    assert "CS 2" in post_meter_data_response.json["message"]
+    assert "CS 4" in post_meter_data_response.json["message"]
+    assert post_meter_data_response.json["status"] == "INVALID_RESOLUTION"

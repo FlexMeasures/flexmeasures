@@ -35,18 +35,16 @@ def check_data_availability(
             f"Not enough data to forecast {generic_asset.name} "
             f"for the forecast window {as_bvp_time(forecast_start)} to {as_bvp_time(forecast_end)}. "
             f"I needed to query from {as_bvp_time(query_window[0])}, "
-            f"but the first value available is from {first} to {first + timedelta(minutes=15)}. "
+            f"but the first value available is from {first} to {first + generic_asset.event_resolution}. "
             f"Consider setting the start date to {as_bvp_time(suggested_start)}."
         )
-    if query_window[1] - horizon > last + timedelta(
-        minutes=15
-    ):  # Todo: resolution should come from generic asset
+    if query_window[1] - horizon > last + generic_asset.event_resolution:
         suggested_end = forecast_end + (last - (query_window[1] - horizon))
         raise NotEnoughDataException(
             f"Not enough data to forecast {generic_asset.name} "
             f"for the forecast window {as_bvp_time(forecast_start)} to {as_bvp_time(forecast_end)}. "
             f"I needed to query until {as_bvp_time(query_window[1] - horizon)}, "
-            f"but the last value available is from {last} to {last + timedelta(minutes=15)}. "
+            f"but the last value available is from {last} to {last + generic_asset.event_resolution}. "
             f"Consider setting the end date to {as_bvp_time(suggested_end)}."
         )
 

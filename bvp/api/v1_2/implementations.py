@@ -16,13 +16,16 @@ from bvp.api.common.responses import (
     outdated_event_id,
     ptus_incomplete,
 )
-from bvp.api.common.utils.api_utils import groups_to_dict, get_form_from_request
+from bvp.api.common.utils.api_utils import (
+    groups_to_dict,
+    get_form_from_request,
+    parse_entity_address,
+)
 from bvp.api.common.utils.validators import (
     type_accepted,
     assets_required,
     optional_duration_accepted,
     usef_roles_accepted,
-    validate_entity_address,
     units_accepted,
     parse_isodate_str,
 )
@@ -38,7 +41,6 @@ from bvp.data.services.resources import has_assets, can_access_asset
 @as_json
 def get_device_message_response(generic_asset_name_groups, duration):
 
-    resolution = timedelta(minutes=15)
     unit = "MW"
     min_planning_horizon = timedelta(
         hours=24
@@ -57,7 +59,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
         for event in event_group:
 
             # Parse the entity address
-            ea = validate_entity_address(event, entity_type="event")
+            ea = parse_entity_address(event, entity_type="event")
             if ea is None:
                 current_app.logger.warning(
                     "Cannot parse this event's entity address: %s" % event
@@ -82,6 +84,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
             if event_type != "soc" or event_id != asset.soc_udi_event_id:
                 return unrecognized_event(event_id, event_type)
             start = asset.soc_datetime
+            resolution = asset.event_resolution
 
             # Look for the Market object
             market = asset.market
@@ -149,7 +152,7 @@ def post_udi_event_response(unit):  # noqa: C901
     # parse event/address info
     if "event" not in form:
         return invalid_domain("No event identifier sent.")
-    ea = validate_entity_address(form.get("event"), entity_type="event")
+    ea = parse_entity_address(form.get("event"), entity_type="event")
     if ea is None:
         current_app.logger.warning(
             "Cannot parse this event's entity address: %s." % form.get("event")

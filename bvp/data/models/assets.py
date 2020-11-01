@@ -4,7 +4,6 @@ from datetime import timedelta
 import isodate
 
 from sqlalchemy.orm import Query
-from sqlalchemy.ext.hybrid import hybrid_property
 
 from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
@@ -90,6 +89,12 @@ class Asset(db.Model):
         db.String(80), db.ForeignKey("asset_type.name"), nullable=False
     )
     unit = db.Column(db.String(80), default="", nullable=False)
+    # Expected resolution of time series for this sensor.
+    # Defaults to zero, as it can't be None (used for calculations during
+    # query building). You should set this to a realistic value!
+    event_resolution = db.Column(
+        db.Interval(), nullable=False, default=timedelta(minutes=0)
+    )
     # How many MW at peak usage
     capacity_in_mw = db.Column(db.Float, nullable=False)
     # State of charge in MWh and its datetime and udi event
@@ -121,10 +126,6 @@ class Asset(db.Model):
         ),
     )
     market = db.relationship("Market", backref=db.backref("assets", lazy=True))
-
-    @hybrid_property
-    def resolution(self) -> timedelta:
-        return timedelta(minutes=15)
 
     @property
     def power_unit(self) -> float:
@@ -174,10 +175,11 @@ class Asset(db.Model):
         )
 
     def __repr__(self):
-        return "<Asset %s:%r (%s) on market %s>" % (
+        return "<Asset %s:%r (%s), res.: %s on market %s>" % (
             self.id,
             self.name,
             self.asset_type_name,
+            self.event_resolution,
             self.market,
         )
 

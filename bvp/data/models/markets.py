@@ -2,7 +2,6 @@ from typing import Dict, List, Optional, Union
 from datetime import timedelta
 
 from sqlalchemy.orm import Query
-from sqlalchemy.ext.hybrid import hybrid_property
 
 from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
@@ -52,16 +51,15 @@ class Market(db.Model):
         db.String(80), db.ForeignKey("market_type.name"), nullable=False
     )
     unit = db.Column(db.String(80), default="", nullable=False)
+    event_resolution = db.Column(
+        db.Interval(), nullable=False, default=timedelta(minutes=0)
+    )
 
     def __init__(self, **kwargs):
         super(Market, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
-
-    @hybrid_property
-    def resolution(self) -> timedelta:
-        return timedelta(minutes=15)
 
     @property
     def price_unit(self) -> str:
@@ -73,7 +71,12 @@ class Market(db.Model):
     )
 
     def __repr__(self):
-        return "<Market %s:%r (%r)>" % (self.id, self.name, self.market_type_name)
+        return "<Market %s:%r (%r) res.: %s>" % (
+            self.id,
+            self.name,
+            self.market_type_name,
+            self.event_resolution,
+        )
 
     def to_dict(self) -> Dict[str, str]:
         return dict(name=self.name, market_type=self.market_type.name)

@@ -8,10 +8,11 @@ from isodate import duration_isoformat
 def message_for_get_meter_data(
     no_connection: bool = False,
     invalid_connection: bool = False,
-    single_connection=False,
-    demo_connection=False,
+    single_connection: bool = False,
+    demo_connection: bool = False,
     invalid_unit: bool = False,
     no_unit: bool = False,
+    resolution: str = "",
 ) -> dict:
     message = {
         "type": "GetMeterDataRequest",
@@ -34,6 +35,8 @@ def message_for_get_meter_data(
         message.pop("unit", None)
     elif invalid_unit:
         message["unit"] = "MW/h"
+    if resolution:
+        message["resolution"] = resolution
     return message
 
 
@@ -42,6 +45,7 @@ def message_for_post_meter_data(
     single_connection: bool = False,
     single_connection_group: bool = False,
     production: bool = False,
+    different_target_resolutions: bool = False,
     tile_n=1,
 ) -> dict:
     sign = 1 if production is False else -1
@@ -55,7 +59,7 @@ def message_for_post_meter_data(
                 ).tolist(),
             },
             {
-                "connection": ["CS 3"],
+                "connection": ["CS 4" if different_target_resolutions else "CS 3"],
                 "values": (
                     tile([306.66, 0, 0, 0, 306.66, 306.66], tile_n) * sign
                 ).tolist(),

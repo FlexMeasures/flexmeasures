@@ -102,7 +102,12 @@ def setup_markets(db):
         yearly_seasonality=True,
     )
     db.session.add(day_ahead)
-    epex_da = Market(name="epex_da", market_type=day_ahead, unit="EUR/MWh")
+    epex_da = Market(
+        name="epex_da",
+        market_type=day_ahead,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+    )
     db.session.add(epex_da)
 
 
@@ -139,6 +144,7 @@ def setup_assets(db, setup_roles_users, setup_markets):
         asset = Asset(
             name=asset_name,
             asset_type_name="wind" if "wind" in asset_name else "solar",
+            event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
             latitude=10,
             longitude=100,
@@ -231,6 +237,7 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
     battery = Asset(
         name="Test battery",
         asset_type_name="battery",
+        event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
         max_soc_in_mwh=5,
         min_soc_in_mwh=0,
@@ -248,6 +255,7 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
     battery = Asset(
         name="Test battery with no known prices",
         asset_type_name="battery",
+        event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
         max_soc_in_mwh=5,
         min_soc_in_mwh=0,
@@ -300,6 +308,7 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
     charging_station = Asset(
         name="Test charging station",
         asset_type_name="one-way_evse",
+        event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
         max_soc_in_mwh=5,
         min_soc_in_mwh=0,
@@ -317,6 +326,7 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
     bidirectional_charging_station = Asset(
         name="Test charging station (bidirectional)",
         asset_type_name="two-way_evse",
+        event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
         max_soc_in_mwh=5,
         min_soc_in_mwh=0,

@@ -64,6 +64,9 @@ class WeatherSensor(db.Model):
         db.String(80), db.ForeignKey("weather_sensor_type.name"), nullable=False
     )
     unit = db.Column(db.String(80), default="", nullable=False)
+    event_resolution = db.Column(
+        db.Interval(), nullable=False, default=timedelta(minutes=0)
+    )
     # latitude is the North/South coordinate
     latitude = db.Column(db.Float, nullable=False)
     # longitude is the East/West coordinate
@@ -75,17 +78,13 @@ class WeatherSensor(db.Model):
             "weather_sensor_type_name",
             "latitude",
             "longitude",
-            name="_type_name_location_unique",
+            name="weather_sensor_type_name_latitude_longitude_key",
         ),
     )
 
     def __init__(self, **kwargs):
         super(WeatherSensor, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
-
-    @hybrid_property
-    def resolution(self) -> timedelta:
-        return timedelta(minutes=15)
 
     @property
     def weather_unit(self) -> float:
@@ -166,10 +165,11 @@ class WeatherSensor(db.Model):
     )
 
     def __repr__(self):
-        return "<WeatherSensor %s:%r (%r)>" % (
+        return "<WeatherSensor %s:%r (%r), res.:%s>" % (
             self.id,
             self.name,
             self.weather_sensor_type_name,
+            self.event_resolution,
         )
 
     def to_dict(self) -> Dict[str, str]:

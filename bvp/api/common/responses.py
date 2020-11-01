@@ -1,18 +1,52 @@
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Sequence
 import inflect
-
-from bvp.api.common.utils.api_utils import BaseMessage
+from functools import wraps
 
 p = inflect.engine()
 
 
+# Type annotation for responses: information and a response type
+ResponseTuple = Tuple[dict, int]
+
+
+class BaseMessage:
+    """Set a base message to which extra info can be added by calling the wrapped function with additional string
+    arguments. This is a decorator implemented as a class."""
+
+    def __init__(self, base_message=""):
+        self.base_message = base_message
+
+    def __call__(self, func):
+        @wraps(func)
+        def my_logic(*args, **kwargs):
+            message = self.base_message
+            if args:
+                for a in args:
+                    message += " %s" % a
+            return func(message)
+
+        return my_logic
+
+
 @BaseMessage("Some of the data has already been received and successfully processed.")
-def already_received_and_successfully_processed(message: str) -> Tuple[dict, int]:
+def already_received_and_successfully_processed(message: str) -> ResponseTuple:
     return (
         dict(
             results="Rejected",
             status="ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED",
             message=message,
+        ),
+        400,
+    )
+
+
+@BaseMessage("Some of the required information is missing from the request.")
+def required_info_missing(fields: Sequence[str], message: str) -> ResponseTuple:
+    return (
+        dict(
+            results="Rejected",
+            status="REQUIRED_INFO_MISSING",
+            message=f"Missing fields: {fields} - {message}",
         ),
         400,
     )
@@ -26,17 +60,17 @@ def already_received_and_successfully_processed(message: str) -> Tuple[dict, int
     " 'ea1.2018-06.com.a1-bvp:<market_name>'"
     " 'ea1.2018-06.com.a1-bvp:<owner_id>:<asset_id>:<event_id>:<event_type>'"
 )
-def invalid_domain(message: str) -> Tuple[dict, int]:
+def invalid_domain(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_DOMAIN", message=message), 400
 
 
 @BaseMessage("The prognosis horizon in your request could not be parsed.")
-def invalid_horizon(message: str) -> Tuple[dict, int]:
+def invalid_horizon(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_HORIZON", message=message), 400
 
 
 @BaseMessage("A time period in your request doesn't seem right.")
-def invalid_period(message: str) -> Tuple[dict, int]:
+def invalid_period(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_PERIOD", message=message), 400
 
 
@@ -45,7 +79,7 @@ def invalid_period(message: str) -> Tuple[dict, int]:
     "duration should be some multiple N of 15 minutes, and "
     "the number of values should be some factor of N."
 )
-def invalid_ptu_duration(message: str) -> Tuple[dict, int]:
+def invalid_ptu_duration(message: str) -> ResponseTuple:
     return (
         dict(result="Rejected", status="INVALID_PTU_DURATION", message=message),
         400,
@@ -53,11 +87,21 @@ def invalid_ptu_duration(message: str) -> Tuple[dict, int]:
 
 
 @BaseMessage("Only the following resolutions are supported:")
-def invalid_resolution(message: str) -> Tuple[dict, int]:
+def unapplicable_resolution(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400
 
 
-def invalid_market() -> Tuple[dict, int]:
+@BaseMessage("The resolution string cannot be parsed as ISO8601 duration:")
+def invalid_resolution_str(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400
+
+
+@BaseMessage("Requested assets do not have matching resolutions.")
+def conflicting_resolutions(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400
+
+
+def invalid_market() -> ResponseTuple:
     return (
         dict(
             result="Rejected",
@@ -68,7 +112,7 @@ def invalid_market() -> Tuple[dict, int]:
     )
 
 
-def invalid_method(request_method) -> Tuple[dict, int]:
+def invalid_method(request_method) -> ResponseTuple:
     return (
         dict(
             result="Rejected",
@@ -79,7 +123,7 @@ def invalid_method(request_method) -> Tuple[dict, int]:
     )
 
 
-def invalid_role(requested_access_role: str) -> Tuple[dict, int]:
+def invalid_role(requested_access_role: str) -> ResponseTuple:
     return (
         dict(
             result="Rejected",
@@ -91,8 +135,8 @@ def invalid_role(requested_access_role: str) -> Tuple[dict, int]:
 
 
 def invalid_sender(
-    user_role_names: Union[str, List[str]], *allowed_role_names: str
-) -> Tuple[dict, int]:
+    user_role_names: Union[str, Sequence[str]], *allowed_role_names: str
+) -> ResponseTuple:
     if isinstance(user_role_names, str):
         user_role_names = [user_role_names]
     if not user_role_names:
@@ -116,18 +160,18 @@ def invalid_sender(
     )
 
 
-def invalid_timezone(message: str) -> Tuple[dict, int]:
+def invalid_timezone(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_TIMEZONE", message=message), 400
 
 
 @BaseMessage("Datetime cannot be used.")
-def invalid_datetime(message: str) -> Tuple[dict, int]:
+def invalid_datetime(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_DATETIME", message=message), 400
 
 
 def invalid_unit(
-    quantity: Optional[str], units: Optional[Union[List[str], Tuple[str]]]
-) -> Tuple[dict, int]:
+    quantity: Optional[str], units: Optional[Union[Sequence[str], Tuple[str]]]
+) -> ResponseTuple:
     quantity_str = (
         "for %s " % quantity.replace("_", " ") if quantity is not None else ""
     )
@@ -142,7 +186,7 @@ def invalid_unit(
     )
 
 
-def invalid_message_type(message_type: str) -> Tuple[dict, int]:
+def invalid_message_type(message_type: str) -> ResponseTuple:
     return (
         dict(
             result="Rejected",
@@ -154,22 +198,22 @@ def invalid_message_type(message_type: str) -> Tuple[dict, int]:
 
 
 @BaseMessage("Request message should include 'backup'.")
-def no_backup(message: str) -> Tuple[dict, int]:
+def no_backup(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="NO_BACKUP", message=message), 400
 
 
 @BaseMessage("Request message should include 'type'.")
-def no_message_type(message: str) -> Tuple[dict, int]:
+def no_message_type(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="NO_MESSAGE_TYPE", message=message), 400
 
 
 @BaseMessage("One or more power values are too big.")
-def power_value_too_big(message: str) -> Tuple[dict, int]:
+def power_value_too_big(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="POWER_VALUE_TOO_BIG", message=message), 400
 
 
 @BaseMessage("One or more power values are too small.")
-def power_value_too_small(message: str) -> Tuple[dict, int]:
+def power_value_too_small(message: str) -> ResponseTuple:
     return (
         dict(result="Rejected", status="POWER_VALUE_TOO_SMALL", message=message),
         400,
@@ -177,27 +221,27 @@ def power_value_too_small(message: str) -> Tuple[dict, int]:
 
 
 @BaseMessage("Missing values.")
-def ptus_incomplete(message: str) -> Tuple[dict, int]:
+def ptus_incomplete(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="PTUS_INCOMPLETE", message=message), 400
 
 
 @BaseMessage("Missing prices for this time period.")
-def unknown_prices(message: str) -> Tuple[dict, int]:
+def unknown_prices(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNKNOWN_PRICES", message=message), 400
 
 
 @BaseMessage("No known schedule for this time period.")
-def unknown_schedule(message: str) -> Tuple[dict, int]:
+def unknown_schedule(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message), 400
 
 
 @BaseMessage("The requested backup is not known.")
-def unrecognized_backup(message: str) -> Tuple[dict, int]:
+def unrecognized_backup(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNRECOGNIZED_BACKUP", message=message), 400
 
 
 @BaseMessage("One or more connections in your request were not found in your account.")
-def unrecognized_connection_group(message: str) -> Tuple[dict, int]:
+def unrecognized_connection_group(message: str) -> ResponseTuple:
     return (
         dict(
             result="Rejected", status="UNRECOGNIZED_CONNECTION_GROUP", message=message
@@ -208,7 +252,7 @@ def unrecognized_connection_group(message: str) -> Tuple[dict, int]:
 
 def incomplete_event(
     requested_event_id, requested_event_type, message
-) -> Tuple[dict, int]:
+) -> ResponseTuple:
     return (
         dict(
             result="Rejected",
@@ -220,7 +264,7 @@ def incomplete_event(
     )
 
 
-def unrecognized_event(requested_event_id, requested_event_type) -> Tuple[dict, int]:
+def unrecognized_event(requested_event_id, requested_event_type) -> ResponseTuple:
     return (
         dict(
             result="Rejected",
@@ -232,7 +276,7 @@ def unrecognized_event(requested_event_id, requested_event_type) -> Tuple[dict, 
     )
 
 
-def unrecognized_event_type(requested_event_type) -> Tuple[dict, int]:
+def unrecognized_event_type(requested_event_type) -> ResponseTuple:
     return (
         dict(
             result="Rejected",
@@ -244,7 +288,7 @@ def unrecognized_event_type(requested_event_type) -> Tuple[dict, int]:
     )
 
 
-def outdated_event_id(requested_event_id, existing_event_id) -> Tuple[dict, int]:
+def outdated_event_id(requested_event_id, existing_event_id) -> ResponseTuple:
     return (
         dict(
             result="Rejected",
@@ -256,7 +300,7 @@ def outdated_event_id(requested_event_id, existing_event_id) -> Tuple[dict, int]
     )
 
 
-def unrecognized_market(requested_market) -> Tuple[dict, int]:
+def unrecognized_market(requested_market) -> ResponseTuple:
     return (
         dict(
             result="Rejected",
@@ -269,7 +313,7 @@ def unrecognized_market(requested_market) -> Tuple[dict, int]:
 
 def unrecognized_sensor(
     lat: Optional[float] = None, lng: Optional[float] = None
-) -> Tuple[dict, int]:
+) -> ResponseTuple:
     base_message = "No sensor is known at this location."
     if lat is not None and lng is not None:
         message = (
@@ -281,8 +325,13 @@ def unrecognized_sensor(
     return dict(result="Rejected", status="UNRECOGNIZED_SENSOR", message=message), 400
 
 
+@BaseMessage("Cannot identify asset.")
+def unrecognized_asset(message: str) -> ResponseTuple:
+    return dict(status="UNRECOGNIZED_ASSET", message=message), 400
+
+
 @BaseMessage("Request has been processed.")
-def request_processed(message: str) -> Tuple[dict, int]:
+def request_processed(message: str) -> ResponseTuple:
     return dict(status="PROCESSED", message=message), 200
 
 

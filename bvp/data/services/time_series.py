@@ -220,8 +220,10 @@ def query_time_series_data(
     if current_app.config.get("BVP_MODE", "") == "demo":
         df.index = df.index.map(lambda t: t.replace(year=datetime.now().year))
 
-    # TODO: get resolution for the asset as stored in the database
-    sensor = tb.Sensor(name=generic_asset_name, event_resolution=timedelta(minutes=15))
+    bvp_sensor = find_sensor_by_name(name=generic_asset_name)
+    sensor = tb.Sensor(
+        name=generic_asset_name, event_resolution=bvp_sensor.event_resolution
+    )
     bdf = tb.BeliefsDataFrame(df.reset_index(), sensor=sensor)
 
     # re-sample data to the resolution we need to serve
@@ -239,6 +241,30 @@ def query_time_series_data(
     )
 
     return bdf
+
+
+def find_sensor_by_name(name: str):
+    """
+    Helper function: Find a sensor by name.
+    TODO: make obsolete when we switched to one sensor class (and timely-beliefs)
+    """
+    # importing here to avoid circular imports, deemed okay for temp. solution
+    from bvp.data.models.assets import Asset
+    from bvp.data.models.weather import WeatherSensor
+    from bvp.data.models.markets import Market
+
+    asset = Asset.query.filter(Asset.name == name).one_or_none()
+    if asset:
+        return asset
+    weather_sensor = WeatherSensor.query.filter(
+        WeatherSensor.name == name
+    ).one_or_none()
+    if weather_sensor:
+        return weather_sensor
+    market = Market.query.filter(Market.name == name).one_or_none()
+    if market:
+        return market
+    raise Exception("Unknown sensor: %s" % name)
 
 
 def drop_non_unique_ids(
