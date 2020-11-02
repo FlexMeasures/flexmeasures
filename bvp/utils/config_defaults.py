@@ -64,8 +64,8 @@ class Config(object):
     BVP_DEMO_YEAR = 2015
     BVP_DB_BACKUP_PATH = "migrations/dumps"
     BVP_LP_SOLVER = "cbc"
-    BVP_PLANNING_HORIZON = timedelta(hours=2 * 24)
-    BVP_PLANNING_TTL = timedelta(
+    BVP_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
+    BVP_PLANNING_TTL: timedelta = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
     BVP_TASK_CHECK_AUTH_TOKEN: Optional[str] = None

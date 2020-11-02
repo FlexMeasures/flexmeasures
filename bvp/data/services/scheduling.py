@@ -64,9 +64,9 @@ def create_scheduling_job(
         ),
         id=udi_event_ea,
         connection=current_app.queues["scheduling"].connection,
-        result_ttl=current_app.config.get(
-            "BVP_PLANNING_TTL", timedelta(-1)
-        ).total_seconds(),  # NB job.cleanup docs says a negative number of seconds means persisting forever
+        result_ttl=int(
+            current_app.config.get("BVP_PLANNING_TTL", timedelta(-1)).total_seconds()
+        ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
     )
     if enqueue:
         current_app.queues["scheduling"].enqueue_job(job)
