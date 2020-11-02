@@ -4,24 +4,24 @@ from bvp.data.services.users import find_user_by_email
 
 def test_user_crud_as_non_admin(client, as_prosumer):
     user_index = client.get(url_for("UserCrud:index"), follow_redirects=True)
-    assert user_index.status_code == 401
+    assert user_index.status_code == 403
     prosumer2_id = find_user_by_email("test_prosumer2@seita.nl").id
     user_page = client.get(
         url_for("UserCrud:get", id=prosumer2_id), follow_redirects=True
     )
-    assert user_page.status_code == 401
+    assert user_page.status_code == 403
     user_page = client.get(
         url_for("UserCrud:toggle_active", id=prosumer2_id), follow_redirects=True
     )
-    assert user_page.status_code == 401
+    assert user_page.status_code == 403
     user_page = client.get(
         url_for("UserCrud:delete_with_data", id=prosumer2_id), follow_redirects=True
     )
-    assert user_page.status_code == 401
+    assert user_page.status_code == 403
     user_page = client.get(
         url_for("UserCrud:reset_password_for", id=prosumer2_id), follow_redirects=True
     )
-    assert user_page.status_code == 401
+    assert user_page.status_code == 403
 
 
 def test_user_list(client, as_admin):

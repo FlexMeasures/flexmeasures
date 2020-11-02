@@ -6,9 +6,10 @@ import isodate
 
 from bvp.api.tests.utils import get_auth_token, get_task_run, post_task_run
 from bvp.data.auth_setup import (
-    UNAUTH_ERROR_STATUS,
+    FORBIDDEN_ERROR_STATUS,
+    FORBIDDEN_STATUS_CODE,
+    FORBIDDEN_ERROR_CLASS,
     UNAUTH_STATUS_CODE,
-    UNAUTH_ERROR_CLASS,
 )
 
 
@@ -19,20 +20,27 @@ def test_api_task_run_post_unauthorized_wrong_role(client):
         query_string={"name": "my-task"}, headers={"Authorization": auth_token}
     )
     task_run = client.post(url, **post_req_params)
-    assert task_run.status_code == UNAUTH_STATUS_CODE
-    assert bytes(UNAUTH_ERROR_CLASS, encoding="utf") in task_run.data
+    assert task_run.status_code == FORBIDDEN_STATUS_CODE
+    assert bytes(FORBIDDEN_ERROR_CLASS, encoding="utf") in task_run.data
     # While we are on it, test if the unauth handler correctly returns json if we set the content-type
     post_req_params.update(
         headers={"Authorization": auth_token, "Content-Type": "application/json"}
     )
     task_run = client.post(url, **post_req_params)
+    assert task_run.status_code == FORBIDDEN_STATUS_CODE
+    assert task_run.json["status"] == FORBIDDEN_ERROR_STATUS
+
+
+def test_api_task_run_get_no_token(client):
+    task_run = get_task_run(client, "task-B", "NOAUTH")
     assert task_run.status_code == UNAUTH_STATUS_CODE
-    assert task_run.json["status"] == UNAUTH_ERROR_STATUS
+    assert task_run.json["status"] == "ERROR"
+    assert "Not authenticated" in task_run.json["reason"]
 
 
 def test_api_task_run_get_bad_token(client):
     task_run = get_task_run(client, "task-B", "bad-token")
-    assert task_run.status_code == UNAUTH_STATUS_CODE
+    assert task_run.status_code == FORBIDDEN_STATUS_CODE
     assert task_run.json["status"] == "ERROR"
     assert "Not authorized" in task_run.json["reason"]
 

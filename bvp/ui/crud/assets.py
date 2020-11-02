@@ -18,7 +18,7 @@ from bvp.data.models.user import User
 from bvp.data.models.markets import Market
 from bvp.data.services.users import get_users, create_user, InvalidBVPUser
 from bvp.data.services.resources import delete_asset, get_markets
-from bvp.data.auth_setup import unauth_handler
+from bvp.data.auth_setup import unauthorized_handler
 from bvp.data.config import db
 
 
@@ -115,7 +115,7 @@ class AssetCrud(FlaskView):
     def owned_by(self, owner_id: str):
         """/assets/owned_by/<user_id>"""
         if not (current_user.has_role("admin") or int(owner_id) == current_user.id):
-            return unauth_handler()
+            return unauthorized_handler(None, [])
         assets = get_assets(int(owner_id))
         return render_bvp_template("crud/assets.html", assets=assets)
 
@@ -126,7 +126,7 @@ class AssetCrud(FlaskView):
         if id == "new":
             asset_form = with_options(NewAssetForm())
             if not current_user.has_role("admin"):
-                return unauth_handler()
+                return unauthorized_handler(None, [])
 
             return render_bvp_template(
                 "crud/asset_new.html", asset_form=asset_form, msg=""
@@ -136,7 +136,7 @@ class AssetCrud(FlaskView):
         asset: Asset = Asset.query.filter_by(id=int(id)).one_or_none()
         if asset is not None:
             if asset.owner != current_user and not current_user.has_role("admin"):
-                return unauth_handler()
+                return unauthorized_handler(None, [])
             if asset.market is not None:
                 asset_form.market_id.default = asset_form.market_id.choices.index(
                     (asset.market_id, asset.market.display_name)
@@ -163,12 +163,14 @@ class AssetCrud(FlaskView):
         Most of the code deals with creating a user for the asset if no existing is chosen.
         """
         if current_user.has_role("anonymous"):
-            return unauth_handler()
+            return unauthorized_handler(
+                None, []
+            )  # Disallow edit access, even to own assets TODO: review, probably should be a role like "readonly" and also be used in general API
 
         asset: Asset = None
         if id == "create":
             if not current_user.has_role("admin"):
-                return unauth_handler()
+                return unauthorized_handler(None, [])
 
             asset_form = with_options(NewAssetForm())
 
@@ -225,7 +227,7 @@ class AssetCrud(FlaskView):
             asset = Asset.query.filter_by(id=int(id)).one_or_none()
             if asset is not None:
                 if asset.owner != current_user and not current_user.has_role("admin"):
-                    return unauth_handler()
+                    return unauthorized_handler(None, [])
                 if asset_form.validate_on_submit():
                     asset_form.capacity_in_mw.data = float(
                         asset_form.capacity_in_mw.data

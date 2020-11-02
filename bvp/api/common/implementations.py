@@ -8,7 +8,7 @@ from sqlalchemy import exc as sqla_exc
 
 from bvp.data.config import db
 from bvp.data.models.task_runs import LatestTaskRun
-from bvp.data.auth_setup import UNAUTH_STATUS_CODE
+from bvp.data.auth_setup import UNAUTH_STATUS_CODE, FORBIDDEN_STATUS_CODE
 
 
 @as_json
@@ -39,12 +39,19 @@ def get_task_run():
     # check auth token
     token_name = current_app.config.get("SECURITY_TOKEN_AUTHENTICATION_HEADER")
     token = current_app.config.get("BVP_TASK_CHECK_AUTH_TOKEN", "")
-    if token_name not in request.headers or request.headers.get(token_name) != token:
+    if token_name not in request.headers:
+        return (
+            make_response(
+                "ERROR", "Not authenticated to check task status.", datetime(1970, 1, 1)
+            ),
+            UNAUTH_STATUS_CODE,
+        )
+    if request.headers.get(token_name) != token:
         return (
             make_response(
                 "ERROR", "Not authorized to check task status.", datetime(1970, 1, 1)
             ),
-            UNAUTH_STATUS_CODE,
+            FORBIDDEN_STATUS_CODE,
         )
 
     if task_name is None or task_name == "":

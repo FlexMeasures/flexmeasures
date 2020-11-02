@@ -17,7 +17,7 @@ def test_asset_crud_as_non_admin(db, client, as_prosumer):
     db.session.expunge(prosumer2)
 
     asset_page = client.get(url_for("AssetCrud:get", id="new"), follow_redirects=True)
-    assert asset_page.status_code == 401
+    assert asset_page.status_code == 403
     asset_page = client.get(
         url_for("AssetCrud:get", id=prosumer_assets[0].id), follow_redirects=True
     )
@@ -25,19 +25,19 @@ def test_asset_crud_as_non_admin(db, client, as_prosumer):
     asset_page = client.get(
         url_for("AssetCrud:get", id=prosumer2_assets[0].id), follow_redirects=True
     )
-    assert asset_page.status_code == 401
+    assert asset_page.status_code == 403
     asset_page = client.get(
         url_for("AssetCrud:get", id=8171766575), follow_redirects=True
     )
     assert asset_page.status_code == 404
     asset_index = client.get(url_for("AssetCrud:owned_by", owner_id=prosumer2.id))
-    assert asset_index.status_code == 401
+    assert asset_index.status_code == 403
     asset_index = client.get(url_for("AssetCrud:owned_by", owner_id=prosumer.id))
     assert asset_index.status_code == 200
     asset_creation = client.post(
         url_for("AssetCrud:post", id="create"), follow_redirects=True
     )
-    assert asset_creation.status_code == 401
+    assert asset_creation.status_code == 403
 
 
 def test_new_asset_page(client, as_admin):

@@ -22,9 +22,9 @@ We also test unauth handling, whether flask security raises in its own way or we
         ("/raise-error?type=bad_request", 400, "BadRequest Test Message"),
         ("/raise-error?type=gone", 410, "Gone Test Message"),
         ("/raise-error?type=unauthorized", 401, auth_setup.UNAUTH_MSG),
-        ("/raise-error?type=forbidden", 401, auth_setup.UNAUTH_MSG),
+        ("/raise-error?type=forbidden", 403, auth_setup.FORBIDDEN_MSG),
         ("/non-existant-endpoint", 404, None),
-        ("/protected-endpoint-only-for-admins", 401, auth_setup.UNAUTH_MSG),
+        ("/protected-endpoint-only-for-admins", 403, auth_setup.FORBIDDEN_MSG),
     ],
 )
 def test_error_handling(

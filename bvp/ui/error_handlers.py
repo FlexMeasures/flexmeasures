@@ -15,7 +15,8 @@ def add_html_error_views(app: Flask):
     app.BadRequest_handler_html = handle_bad_request
     app.NotFound_handler_html = handle_not_found
     app.TemplateNotFound_handler_html = handle_not_found
-    app.unauth_handler_html = unauth_handler
+    app.unauthenticated_handler_html = unauthenticated_handler
+    app.unauthorized_handler_html = unauthorized_handler
 
 
 def handle_generic_http_exception(e: HTTPException):
@@ -74,8 +75,8 @@ def handle_not_found(e):
     )
 
 
-def unauth_handler():
-    """An unauth handler which renders an HTML error page"""
+def unauthenticated_handler():
+    """An unauthenticated handler which renders an HTML error page"""
     return (
         render_bvp_template(
             "error.html",
@@ -83,4 +84,16 @@ def unauth_handler():
             error_message=auth_setup.UNAUTH_MSG,
         ),
         auth_setup.UNAUTH_STATUS_CODE,
+    )
+
+
+def unauthorized_handler():
+    """An unauthorized handler which renders an HTML error page"""
+    return (
+        render_bvp_template(
+            "error.html",
+            error_class=auth_setup.FORBIDDEN_ERROR_CLASS,
+            error_message=auth_setup.FORBIDDEN_MSG,
+        ),
+        auth_setup.FORBIDDEN_STATUS_CODE,
     )
