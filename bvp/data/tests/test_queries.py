@@ -136,3 +136,64 @@ def test_multiplication():
         axis=0,
     )
     pd.testing.assert_frame_equal(df, df_compare)
+
+
+def test_multiplication_with_one_empty_dataframe():
+    df1 = pd.DataFrame(
+        [],
+        columns=["event_value", "belief_horizon"],
+    )
+    # set correct types
+    df1["event_value"] = pd.to_numeric(df1["event_value"])
+    df1["belief_horizon"] = pd.to_timedelta(df1["belief_horizon"])
+
+    df2 = pd.DataFrame(
+        [[10.0, timedelta(hours=1)]],
+        index=pd.date_range(
+            "2000-01-01 13:00", "2000-01-01 18:00", freq="1h", closed="left"
+        ),
+        columns=["event_value", "belief_horizon"],
+    )
+
+    df_compare = pd.DataFrame(
+        [[np.nan, timedelta(hours=1)]],
+        index=pd.date_range(
+            "2000-01-01 13:00", "2000-01-01 18:00", freq="1h", closed="left"
+        ),
+        columns=["event_value", "belief_horizon"],
+    )
+    # set correct types
+    df_compare["event_value"] = pd.to_numeric(df_compare["event_value"])
+    df_compare["belief_horizon"] = pd.to_timedelta(df_compare["belief_horizon"])
+
+    df = multiply_dataframe_with_deterministic_beliefs(df1, df2)
+    pd.testing.assert_frame_equal(df, df_compare)
+
+
+def test_multiplication_with_both_empty_dataframe():
+    df1 = pd.DataFrame(
+        [],
+        columns=["event_value", "belief_horizon"],
+    )
+    # set correct types
+    df1["event_value"] = pd.to_numeric(df1["event_value"])
+    df1["belief_horizon"] = pd.to_timedelta(df1["belief_horizon"])
+
+    df2 = pd.DataFrame(
+        [],
+        columns=["event_value", "belief_horizon"],
+    )
+    # set correct types
+    df2["event_value"] = pd.to_numeric(df2["event_value"])
+    df2["belief_horizon"] = pd.to_timedelta(df2["belief_horizon"])
+
+    df_compare = pd.DataFrame(
+        [],
+        columns=["event_value", "belief_horizon"],
+    )
+    # set correct types
+    df_compare["event_value"] = pd.to_numeric(df_compare["event_value"])
+    df_compare["belief_horizon"] = pd.to_timedelta(df_compare["belief_horizon"])
+
+    df = multiply_dataframe_with_deterministic_beliefs(df1, df2)
+    pd.testing.assert_frame_equal(df, df_compare)

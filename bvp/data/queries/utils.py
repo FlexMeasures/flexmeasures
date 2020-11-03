@@ -154,7 +154,7 @@ def simplify_index(
                 else:
                     raise KeyError(f"Level {col} not found")
     bdf.index = bdf.index.get_level_values("event_start")
-    return bdf
+    return pd.DataFrame(bdf)
 
 
 def multiply_dataframe_with_deterministic_beliefs(
@@ -182,6 +182,9 @@ def multiply_dataframe_with_deterministic_beliefs(
               an additional "belief_horizon" column if both df1 and df2 contain this column, and
               an additional "source" column if result_source is set.
     """
+    if df1.empty and df2.empty:
+        return df1
+
     df = (df1["event_value"] * df2["event_value"] * multiplication_factor).to_frame(
         name="event_value"
     )
