@@ -6,7 +6,10 @@ import numpy as np
 import pandas as pd
 import timely_beliefs as tb
 
-from bvp.data.queries.utils import simplify_index, new_dataframe_aligned_with
+from bvp.data.queries.utils import (
+    simplify_index,
+    multiply_dataframe_with_deterministic_beliefs,
+)
 from bvp.utils import calculations, time_utils
 from bvp.data.services.resources import Resource, find_closest_weather_sensor
 from bvp.data.models.assets import Asset
@@ -323,64 +326,32 @@ def get_revenues_costs_data(
     - weighted absolute percentage error
     """
     power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
-    rev_cost_data = new_dataframe_aligned_with(power_data)
-    rev_cost_forecasts = new_dataframe_aligned_with(
-        power_data,
-        columns=["event_value", "yhat_upper", "yhat_lower"],
-    )
 
+    rev_cost_data = multiply_dataframe_with_deterministic_beliefs(
+        power_data,
+        prices_data,
+        result_source="Calculated from power and price data",
+        multiplication_factor=power_hour_factor * unit_factor,
+    )
     if power_data.empty or prices_data.empty:
         metrics["realised_revenues_costs"] = np.NaN
     else:
-        rev_cost_data = new_dataframe_aligned_with(
-            power_data,
-            column_values=dict(
-                event_value=power_data["event_value"]
-                * power_hour_factor
-                * prices_data["event_value"]
-                * unit_factor
-            ),
-        )
-        if (
-            "belief_horizon" in power_data.columns
-            and "belief_horizon" in prices_data.columns
-        ):
-            rev_cost_data["belief_horizon"] = pd.DataFrame(
-                [power_data["belief_horizon"], prices_data["belief_horizon"]]
-            ).min()
-        if "source" in power_data.columns and "source" in prices_data.columns:
-            rev_cost_data["source"] = "Calculated from power and price data"
         metrics["realised_revenues_costs"] = np.nansum(
             rev_cost_data["event_value"].values
         )
 
-    if (
-        power_data.empty
-        or prices_data.empty
-        or power_forecast_data.empty
-        or prices_forecast_data.empty
-        or not (power_data["event_value"].size == prices_data["event_value"].size)
-        or not (
-            power_forecast_data["event_value"].size
-            == prices_forecast_data["event_value"].size
-        )
-    ):
+    rev_cost_forecasts = multiply_dataframe_with_deterministic_beliefs(
+        power_forecast_data,
+        prices_forecast_data,
+        result_source="Calculated from power and price data",
+        multiplication_factor=power_hour_factor * unit_factor,
+    )
+    if power_forecast_data.empty or prices_forecast_data.empty:
         metrics["expected_revenues_costs"] = np.NaN
         metrics["mae_revenues_costs"] = np.NaN
         metrics["mape_revenues_costs"] = np.NaN
         metrics["wape_revenues_costs"] = np.NaN
     else:
-        rev_cost_forecasts = new_dataframe_aligned_with(
-            power_data,
-            columns=["event_value", "yhat_upper", "yhat_lower"],
-        )
-        if not (power_forecast_data.empty and prices_forecast_data.empty):
-            rev_cost_forecasts["event_value"] = (
-                power_forecast_data["event_value"]
-                * power_hour_factor
-                * prices_forecast_data["event_value"]
-                * unit_factor
-            )
         metrics["expected_revenues_costs"] = np.nansum(
             rev_cost_forecasts["event_value"]
         )

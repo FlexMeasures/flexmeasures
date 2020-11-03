@@ -302,7 +302,6 @@ def create_graph(  # noqa: C901
 
     if data.empty:
         current_app.logger.warning("No data to show for %s" % title)
-        print(data)
 
     # Format y floats
     if (

@@ -2,7 +2,6 @@ from typing import List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 
 import pandas as pd
-import numpy as np
 import timely_beliefs as tb
 
 from sqlalchemy.orm import Query, Session
@@ -158,21 +157,43 @@ def simplify_index(
     return bdf
 
 
-def new_dataframe_aligned_with(
-    df: tb.BeliefsDataFrame, columns: List[str] = None, column_values=np.nan
+def multiply_dataframe_with_deterministic_beliefs(
+    df1: pd.DataFrame,
+    df2: pd.DataFrame,
+    multiplication_factor: float = 1,
+    result_source: Optional[str] = None,
 ) -> pd.DataFrame:
     """
-    Create new DataFrame, where index & columns are aligned with the
-    given BeliefsDataFrame. Index is simplified to "event_start".
-    The default values for columns is NaN, but you can pass in others.
-    Standard columns are event_value, belief_horizon and source.
+    Create new DataFrame where the event_value columns of df1 and df2 are multiplied.
+
+    If df1 and df2 have belief_horizon columns, the belief_horizon column of the new DataFrame is
+    determined as the minimum of the input horizons.
+    The source columns of df1 and df2 are not used. A source column for the new DataFrame can be set
+    by passing a result_source (string).
+
+    The index of the resulting DataFrame contains the outer join of the indices of df1 and df2.
+    Event values are np.nan for rows that are not in both DataFrames.
+
+    :param df1: DataFrame with "event_value" column and optional "belief_horizon" and "source" columns
+    :param df2: DataFrame with "event_value" column and optional "belief_horizon" and "source" columns
+    :param multiplication_factor: extra scalar to determine the event_value of the resulting DataFrame
+    :param result_source: string label for the source of the resulting DataFrame
+    :returns: DataFrame with "event_value" column,
+              an additional "belief_horizon" column if both df1 and df2 contain this column, and
+              an additional "source" column if result_source is set.
     """
-    if columns is None:
-        columns = ["event_value", "belief_horizon", "source"]
-    bdf = tb.BeliefsDataFrame(
-        column_values,  # init with NaN values
-        index=df.index,
-        sensor=df.sensor,
-        columns=columns,
+    df = (df1["event_value"] * df2["event_value"] * multiplication_factor).to_frame(
+        name="event_value"
     )
-    return simplify_index(bdf)
+    if "belief_horizon" in df1.columns and "belief_horizon" in df2.columns:
+        df["belief_horizon"] = (
+            df1["belief_horizon"]
+            .rename("belief_horizon1")
+            .to_frame()
+            .join(df2["belief_horizon"], how="outer")
+            .min(axis=1)
+            .rename("belief_horizon")
+        )  # Add existing belief_horizon information, keeping only the smaller horizon per row
+    if result_source:
+        df["source"] = result_source  # also for rows with nan event_value
+    return df
