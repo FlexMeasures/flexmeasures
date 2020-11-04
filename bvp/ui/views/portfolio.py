@@ -146,74 +146,28 @@ def portfolio_view():  # noqa: C901
 
     # get data for stacked plot for the selected period
 
-    def data_or_zeroes(df: pd.DataFrame) -> pd.DataFrame:
-        """Making really sure we have the structure to let the plots not fail"""
-        if df is None or df.empty:
-            return pd.DataFrame(
-                index=pd.date_range(
-                    start=start,
-                    end=end,
-                    freq=resolution,
-                    tz=time_utils.get_timezone(),
-                    closed="left",
-                ),
-                columns=["event_value"],
-            ).fillna(0)
-        else:
-            return df
-
-    default_stack_side = "production"
-    stack_types = {}
-    if "building" in current_user.email or "charging" in current_user.email:
-        default_stack_side = "consumption"
-    show_stacked = request.values.get("show_stacked", default_stack_side)
-    if show_stacked == "production":
-        show_summed = "consumption"
-        for t in represented_asset_types:
-            if (
-                decide_direction_for_report(
-                    represented_asset_types[t].is_consumer,
-                    represented_asset_types[t].is_producer,
-                    production_per_asset_type[
-                        pluralize(represented_asset_types[t].display_name)
-                    ],
-                )
-                == "producer"
-            ):
-                stack_types[
-                    pluralize(represented_asset_types[t].display_name)
-                ] = represented_asset_types[t]
-        sum_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
-        plot_label = "Stacked production vs aggregated consumption"
-    else:
-        show_summed = "production"
-        for t in represented_asset_types:
-            if (
-                decide_direction_for_report(
-                    represented_asset_types[t].is_consumer,
-                    represented_asset_types[t].is_producer,
-                    -1
-                    * consumption_per_asset_type[
-                        pluralize(represented_asset_types[t].display_name)
-                    ],
-                )
-                == "consumer"
-            ):
-                stack_types[
-                    pluralize(represented_asset_types[t].display_name)
-                ] = represented_asset_types[t]
-        sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
-        plot_label = "Stacked consumption vs aggregated production"
+    (
+        show_summed,
+        show_stacked,
+        sum_assets,
+        stack_types,
+        plot_label,
+    ) = get_plot_perspective(
+        assets,
+        represented_asset_types,
+        production_per_asset_type,
+        consumption_per_asset_type,
+    )
 
     power_sum_df = simplify_index(
         reduce(
             lambda x, y: x.add(y, fill_value=0),
             [power_bdf_dict[asset_name] for asset_name in sum_assets],
         )
-    )
+    )  # todo: refactor this into a util function
 
     # Plot as positive values regardless of whether the summed data is production or consumption
-    power_sum_df = data_or_zeroes(power_sum_df)
+    power_sum_df = data_or_zeroes(power_sum_df, start, end, resolution)
     if show_stacked == "production":
         power_sum_df["event_value"] *= -1
 
@@ -260,7 +214,7 @@ def portfolio_view():  # noqa: C901
             df_stacked_data[capitalize(st)] = data["event_value"].values
 
     # Plot as positive values regardless of whether the stacked data is production or consumption
-    df_stacked_data = data_or_zeroes(df_stacked_data)
+    df_stacked_data = data_or_zeroes(df_stacked_data, start, end, resolution)
     if show_stacked == "consumption":
         df_stacked_data[:] *= -1
     df_stacked_areas = stack_df(df_stacked_data)
@@ -385,6 +339,23 @@ def portfolio_view():  # noqa: C901
     )
 
 
+def data_or_zeroes(df: pd.DataFrame, start, end, resolution) -> pd.DataFrame:
+    """Making really sure we have the structure to let the plots not fail"""
+    if df is None or df.empty:
+        return pd.DataFrame(
+            index=pd.date_range(
+                start=start,
+                end=end,
+                freq=resolution,
+                tz=time_utils.get_timezone(),
+                closed="left",
+            ),
+            columns=["event_value"],
+        ).fillna(0)
+    else:
+        return df
+
+
 def decide_direction_for_report(is_consumer, is_producer, sum_values) -> str:
     """returns "producer" or "consumer" """
     if is_consumer and not is_producer:
@@ -403,3 +374,54 @@ def stack_df(df: pd.DataFrame) -> pd.DataFrame:
     df_bottom = df_top.shift(axis=1).fillna(0)[::-1]
     df_stack = pd.concat([df_bottom, df_top], ignore_index=True)
     return df_stack
+
+
+def get_plot_perspective(
+    assets,
+    represented_asset_types,
+    production_per_asset_type,
+    consumption_per_asset_type,
+):
+    default_stack_side = "production"
+    stack_types = {}
+    if "building" in current_user.email or "charging" in current_user.email:
+        default_stack_side = "consumption"
+    show_stacked = request.values.get("show_stacked", default_stack_side)
+    if show_stacked == "production":
+        show_summed = "consumption"
+        for t in represented_asset_types:
+            if (
+                decide_direction_for_report(
+                    represented_asset_types[t].is_consumer,
+                    represented_asset_types[t].is_producer,
+                    production_per_asset_type[
+                        pluralize(represented_asset_types[t].display_name)
+                    ],
+                )
+                == "producer"
+            ):
+                stack_types[
+                    pluralize(represented_asset_types[t].display_name)
+                ] = represented_asset_types[t]
+        sum_assets = [a.name for a in assets if a.asset_type.is_consumer is True]
+        plot_label = "Stacked production vs aggregated consumption"
+    else:
+        show_summed = "production"
+        for t in represented_asset_types:
+            if (
+                decide_direction_for_report(
+                    represented_asset_types[t].is_consumer,
+                    represented_asset_types[t].is_producer,
+                    -1
+                    * consumption_per_asset_type[
+                        pluralize(represented_asset_types[t].display_name)
+                    ],
+                )
+                == "consumer"
+            ):
+                stack_types[
+                    pluralize(represented_asset_types[t].display_name)
+                ] = represented_asset_types[t]
+        sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
+        plot_label = "Stacked consumption vs aggregated production"
+    return show_summed, show_stacked, sum_assets, stack_types, plot_label
