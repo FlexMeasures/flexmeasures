@@ -1,4 +1,5 @@
 from datetime import timedelta
+from functools import reduce
 from typing import Dict
 
 from flask import request, session
@@ -55,15 +56,18 @@ def portfolio_view():  # noqa: C901
     represented_asset_types = {}
 
     average_price_dict: Dict[str, float] = {}
-    for market in markets:
-        average_price_dict[market.name]: float = Price.collect(
-            [market.name], query_window=(start, end), resolution=resolution
-        )["event_value"].mean()
-    price_bdf: tb.BeliefsDataFrame = Price.collect(
-        ["epex_da"],
+    market_names = [market.name for market in markets]
+    average_price_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Price.collect(
+        market_names,
         query_window=(start, end),
         resolution=resolution,
+        sum_multiple=False,
     )
+    for market_name in market_names:
+        average_price_dict[market_name] = average_price_bdf_dict[market_name][
+            "event_value"
+        ].mean()
+    price_bdf: tb.BeliefsDataFrame = average_price_bdf_dict["epex_da"]
     price_df = simplify_index(price_bdf)
 
     load_hour_factor = time_utils.resolution_to_hour_factor(resolution)
@@ -201,12 +205,12 @@ def portfolio_view():  # noqa: C901
         sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
         plot_label = "Stacked consumption vs aggregated production"
 
-    power_sum_bdf: tb.BeliefsDataFrame = Power.collect(
-        sum_assets,
-        query_window=(start, end),
-        resolution=resolution,
+    power_sum_df = simplify_index(
+        reduce(
+            lambda x, y: x.add(y, fill_value=0),
+            [power_bdf_dict[asset_name] for asset_name in sum_assets],
+        )
     )
-    power_sum_df = simplify_index(power_sum_bdf)
 
     # Plot as positive values regardless of whether the summed data is production or consumption
     power_sum_df = data_or_zeroes(power_sum_df)
@@ -256,7 +260,7 @@ def portfolio_view():  # noqa: C901
             df_stacked_data[capitalize(st)] = data["event_value"].values
 
     # Plot as positive values regardless of whether the stacked data is production or consumption
-    df_stacked_data = data_or_zeroes(df_stacked_data).fillna(0)
+    df_stacked_data = data_or_zeroes(df_stacked_data)
     if show_stacked == "consumption":
         df_stacked_data[:] *= -1
     df_stacked_areas = stack_df(df_stacked_data)
