@@ -59,8 +59,10 @@ def get_power_data(
         source_types=[
             "user",
             "forecasting script",
+            "demo script",
             "script",
-        ],  # we choose to show data from scheduling scripts separately
+        ],  # todo: we choose to show data from scheduling scripts separately, which would be
+        #           easier if we could just exclude the "scheduling script" source type here
     )
     power_forecast_df: pd.DataFrame = simplify_index(
         power_forecast_bdf, index_levels_to_columns=["belief_horizon", "source"]
