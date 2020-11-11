@@ -119,8 +119,7 @@ def decide_session_resolution(
 def resolution_to_hour_factor(resolution: str):
     """Return the factor with which a value needs to be multiplied in order to get the value per hour,
     e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step"""
-    switch = {"15T": 0.25, "1h": 1, "24h": 24, "168h": 24 * 7}
-    return switch.get(resolution, 1)
+    return pd.Timedelta(resolution).to_pytimedelta() / timedelta(hours=1)
 
 
 def get_timezone(of_user=False):
