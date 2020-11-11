@@ -1,7 +1,9 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
+from datetime import timedelta
 from typing import List
 
+import pandas as pd
 import pytz
 from flask import current_app as app
 import flask_migrate as migrate
@@ -9,6 +11,7 @@ from flask_security.utils import hash_password
 import click
 import getpass
 
+from bvp.data.services.forecasting import create_forecasting_jobs
 from bvp.data.services.users import create_user
 from bvp.data.scripts.data_gen import get_affected_classes
 
@@ -255,3 +258,48 @@ def db_load(
         load_tables(app.db, name, structure=structure, data=data, backup_path=dir)
     else:
         click.echo("You must specify the name of the backup: --name <unique name>")
+
+
+@app.cli.command()
+@click.option("--asset-id", help="Asset id.")
+@click.option(
+    "--from-date",
+    help="Forecast from date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
+)
+@click.option(
+    "--to-date",
+    help="Forecast to date (exclusive!). Follow up with a date in the form yyyy-mm-dd.",
+)
+@click.option("--horizon-hours", default=1, help="Forecasting horizon in hours.")
+def create_power_forecasts(
+    asset_id: int,
+    from_date: str,
+    to_date: str,
+    timezone: str = "Asia/Seoul",
+    horizon_hours: int = 1,
+):
+    """Creates a forecasting job.
+
+    Useful to run locally and create forecasts on a remote server. In that case, just point the redis db in your
+    config settings to that of the remote server. To process the job, run a worker to process the forecasting queue.
+
+    For example:
+
+        from_data = "2015-02-02"
+        to_date = "2015-02-04"
+        horizon_hours = 6
+
+        This creates 1 job that forecasts values from 0am on May 2nd to 0am on May 4th,
+        based on a 6 hour horizon.
+        Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
+        the time period refers to the period of belief_times, therefore we are subtracting the horizon.
+    """
+    create_forecasting_jobs(
+        asset_id=asset_id,
+        timed_value_type="Power",
+        horizons=[timedelta(hours=horizon_hours)],
+        start_of_roll=pd.Timestamp(from_date).tz_localize(timezone)
+        - timedelta(hours=horizon_hours),
+        end_of_roll=pd.Timestamp(to_date).tz_localize(timezone)
+        - timedelta(hours=horizon_hours),
+    )
