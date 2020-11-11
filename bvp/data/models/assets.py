@@ -9,7 +9,7 @@ from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
 from bvp.data.queries.utils import add_user_source_filter, add_source_type_filter
 from bvp.utils.config_utils import get_naming_authority, get_addressing_scheme
-from bvp.utils.bvp_inflection import humanize
+from bvp.utils.bvp_inflection import humanize, pluralize
 
 
 class AssetType(db.Model):
@@ -44,6 +44,10 @@ class AssetType(db.Model):
         if self.name in ("one-way_evse", "two-way_evse"):
             return "icon-charging_station"
         return f"icon-{self.name}"
+
+    @property
+    def plural_name(self) -> str:
+        return pluralize(self.display_name)
 
     @property
     def preconditions(self) -> Dict[str, bool]:
