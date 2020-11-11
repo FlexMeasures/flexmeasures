@@ -43,6 +43,7 @@ def get_power_data(
         resolution=resolution,
         horizon_window=(None, timedelta(hours=0)),
         rolling=True,
+        sum_multiple=True,
     )
     power_df: pd.DataFrame = simplify_index(
         power_bdf, index_levels_to_columns=["belief_horizon", "source"]
@@ -61,6 +62,7 @@ def get_power_data(
             "forecasting script",
             "script",
         ],  # we choose to show data from scheduling scripts separately
+        sum_multiple=True,
     )
     power_forecast_df: pd.DataFrame = simplify_index(
         power_forecast_bdf, index_levels_to_columns=["belief_horizon", "source"]
@@ -73,6 +75,7 @@ def get_power_data(
         resolution=resolution,
         horizon_window=(None, None),
         source_types=["scheduling script"],
+        sum_multiple=True,
     )
     power_schedule_df: pd.DataFrame = simplify_index(
         power_schedule_bdf, index_levels_to_columns=["belief_horizon", "source"]
