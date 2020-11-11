@@ -8,6 +8,7 @@ from sqlalchemy.orm.query import Query
 import timely_beliefs as tb
 import isodate
 
+from bvp.data.queries.utils import simplify_index
 from bvp.utils import time_utils
 
 
@@ -63,7 +64,6 @@ def collect_time_series_data(
         generic_asset_names = [generic_asset_names]
 
     data_as_dict: Dict[str, tb.BeliefsDataFrame] = {}
-    data_as_bdf: tb.BeliefsDataFrame = tb.BeliefsDataFrame()
 
     for generic_asset_name in generic_asset_names:
 
@@ -120,22 +120,14 @@ def collect_time_series_data(
                 resolution,
             )
 
-        # Here we only build one data frame, summed up if necessary.
-        if sum_multiple is True:
-            if data_as_bdf.empty:
-                data_as_bdf = values
-            elif not values.empty:
-                data_as_bdf["event_value"] = data_as_bdf["event_value"].add(
-                    values["event_value"], fill_value=0
-                )
-        else:  # Here we build a dict with data frames.
-            if len(data_as_dict.keys()) == 0:
-                data_as_dict = {generic_asset_name: values}
-            else:
-                data_as_dict[generic_asset_name] = values
+        # Here we build a dict with data frames.
+        if len(data_as_dict.keys()) == 0:
+            data_as_dict = {generic_asset_name: values}
+        else:
+            data_as_dict[generic_asset_name] = values
 
     if sum_multiple is True:
-        return data_as_bdf
+        return aggregate_values(data_as_dict)
     else:
         return data_as_dict
 
@@ -314,3 +306,42 @@ def convert_values_for_demo(values: pd.DataFrame, resolution: str, as_beliefs: b
         values["label"] = values["label"].fillna("")
         values["horizon"] = values["horizon"].fillna({i: [] for i in values.index})
     return values
+
+
+def aggregate_values(bdf_dict: Dict[str, tb.BeliefsDataFrame], method: str = "A") -> tb.BeliefsDataFrame:
+
+    # todo: test this function rigorously, e.g. with empty bdfs in bdf_dict
+    # todo: consider 1 bdf with beliefs from source A, plus 1 bdf with beliefs from source B -> 1 bdf with sources A+B
+    # todo: consider 1 bdf with beliefs from sources A and B, plus 1 bdf with beliefs from source C. -> 1 bdf with sources A+B and A+C
+    # todo: consider 1 bdf with beliefs from sources A and B, plus 1 bdf with beliefs from source C and D. -> 1 bdf with sources A+B, A+C, B+C and B+D
+    # Relevant issue: https://github.com/SeitaBV/timely-beliefs/issues/33
+    unique_source_ids: List[int] = []
+    for bdf in bdf_dict.values():
+        unique_source_ids.extend(bdf.lineage.sources)
+        if not bdf.lineage.unique_beliefs_per_event_per_source:
+            current_app.logger.warning("Not implemented: only aggregation of deterministic uni-source beliefs (1 per event) is properly supported")
+        if bdf.lineage.number_of_sources > 1:
+            current_app.logger.warning("Not implemented: aggregating multi-source beliefs about the same sensor.")
+    if len(set(unique_source_ids)) > 1:
+        current_app.logger.warning(f"Not implemented: aggregating multi-source beliefs. Source {unique_source_ids[1:]} will be treated as if source {unique_source_ids[0]}")
+
+    # if method == "A":
+    data_as_bdf = tb.BeliefsDataFrame()
+    for k, v in bdf_dict.items():
+        if data_as_bdf.empty:
+            data_as_bdf = v.copy()
+        elif not v.empty:
+            data_as_bdf["event_value"] = data_as_bdf["event_value"].add(
+                simplify_index(v.copy())["event_value"], fill_value=0, level="event_start"
+            )  # we only look at the event_start index level and sum up duplicates that level
+    # elif method == "B":
+    #     data_as_bdf = reduce(
+    #         lambda x, y: x.add(y, fill_value=0),
+    #         [simplify_index(bdf_dict[asset_name]) for asset_name in bdf_dict.keys()],
+    #     )
+    # else:
+    #     data_as_bdf = reduce(
+    #         lambda x, y: x.add(y, fill_value=0),
+    #         bdf_dict.values(),
+    #     )
+    return data_as_bdf
