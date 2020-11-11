@@ -56,7 +56,6 @@
                                         {{ "{:,.3f}".format( consumption_per_asset_type[asset_type_name] ) }}
                                     {% endif %}
                                 </td>
-                                <!--td>{{ "{:,.2f}".format( profit_loss_energy_per_asset_type[asset_type_name] ) }}</td-->
                             </tr>
                         {% endfor %}
                         {% if asset_types | length > 1 %}
@@ -66,7 +65,6 @@
                                 </td>
                                 <td>{{ "{:,.3f}".format( sum_production ) }}</td>
                                 <td>{{ "{:,.3f}".format( sum_consumption ) }}</td>
-                                <!--td>{{ "{:,.2f}".format( sum_profit_loss_energy ) }}</td-->
                             </tr>
                         {% endif %}
                         </tbody>
@@ -199,17 +197,13 @@
                                             <i class="{{ asset.asset_type.icon_name }} left-icon"><a href="/assets/{{ asset.id }}" title="Show asset meta data and location on map">{{ asset.display_name }}</a></i>
                                         </td>
                                         <td class="text-right">
-                                            {% if asset.asset_type.is_producer %}
-                                                {% if production_per_asset[asset.name] > 0 %}
-                                                    {{ "{:,.2f}".format( production_per_asset[asset.name] ) }} MWh
-                                                {% endif %}
+                                            {% if production_per_asset[asset.name] > 0 %}
+                                                {{ "{:,.2f}".format( production_per_asset[asset.name] ) }} MWh
                                             {% endif %}
                                         </td>
                                         <td class="text-right">
-                                            {% if asset.asset_type.is_consumer %}
-                                                {% if consumption_per_asset[asset.name] < 0 %}
-                                                    {{ "{:,.2f}".format( consumption_per_asset[asset.name] ) }} MWh
-                                                {% endif %}
+                                            {% if consumption_per_asset[asset.name] > 0 %}
+                                                {{ "{:,.2f}".format( consumption_per_asset[asset.name] ) }} MWh
                                             {% endif %}
                                         </td>
                                         <td class="text-right">
