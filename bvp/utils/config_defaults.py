@@ -56,12 +56,17 @@ class Config(object):
 
     JSONIFY_PRETTYPRINT_REGULAR = False
 
+    RQ_DASHBOARD_POLL_INTERVAL: int = (
+        3000  # Web interface poll period for updates in ms
+    )
+
     BVP_MODE = ""
     BVP_API = False
     BVP_PUBLIC_DEMO = False
     BVP_TIMEZONE = "Asia/Seoul"
     BVP_HIDE_NAN_IN_UI = False
     BVP_DEMO_YEAR = 2015
+    BVP_PROFILE_REQUESTS: bool = False
     BVP_DB_BACKUP_PATH = "migrations/dumps"
     BVP_LP_SOLVER = "cbc"
     BVP_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
@@ -108,6 +113,7 @@ class DevelopmentConfig(Config):
     JSONIFY_PRETTYPRINT_REGULAR = True
     SERVER_NAME = "localhost:5000"
     BVP_MODE = "development"
+    BVP_PROFILE_REQUESTS: bool = True
 
 
 class TestingConfig(Config):

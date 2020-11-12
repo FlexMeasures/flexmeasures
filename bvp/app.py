@@ -1,6 +1,7 @@
 # flake8: noqa: E402
 import os
-from flask import Flask
+import time
+from flask import Flask, g, request
 from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
@@ -94,5 +95,20 @@ def create(env=None) -> Flask:
     if app.cli:
         with app.app_context():
             import bvp.utils.pa_ssl_cert_renewal  # noqa: F401
+
+    # Profile endpoints (if needed, e.g. during development)
+    @app.before_request
+    def before_request():
+        if app.config.get("BVP_PROFILE_REQUESTS", False):
+            g.start = time.time()
+
+    @app.teardown_request
+    def teardown_request(exception=None):
+        if app.config.get("BVP_PROFILE_REQUESTS", False):
+            diff = time.time() - g.start
+            if all([kw not in request.url for kw in ["/static", "favicon.ico"]]):
+                app.logger.info(
+                    f"[PROFILE] {str(round(diff, 2)).rjust(6)} seconds to serve {request.url}."
+                )
 
     return app
