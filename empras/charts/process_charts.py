@@ -2,6 +2,7 @@ import altair as alt
 
 from .defaults import (
     determine_k_unit_str,
+    AGG_DEMAND_TITLE,
     HEIGHT,
     K_TITLE,
     REDUCED_HEIGHT,
@@ -64,6 +65,7 @@ def bar_chart_with_time_selection(dataset_name: str, agg_demand_unit: str):
         .properties(height=REDUCED_HEIGHT, width=WIDTH)
         .add_selection(dt_selection_brush)
     )
+    duration_unit_str = "days"  # todo: from analysis
     dt_k_plot = (
         base.mark_bar()
         .encode(
@@ -77,6 +79,14 @@ def bar_chart_with_time_selection(dataset_name: str, agg_demand_unit: str):
                 alt.Tooltip(
                     "sum(k):Q",
                     title=f"{K_TITLE} ({k_unit_str})",
+                ),
+                alt.Tooltip(
+                    "d_human:Q",
+                    title=f"Duration ({duration_unit_str})",
+                ),
+                alt.Tooltip(
+                    "q:Q",
+                    title=f"{AGG_DEMAND_TITLE} ({agg_demand_unit})",
                 ),
             ],
         )

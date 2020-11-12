@@ -14,6 +14,7 @@ TIME_TITLE = None
 TIME_SELECTION_TOOLTIP = "Click and drag to select a time window"
 K_TIME_UNIT_STR = "h"
 K_TITLE = "Consumption rate"
+AGG_DEMAND_TITLE = "Total consumption"
 
 
 def apply_chart_defaults(fn):
