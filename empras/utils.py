@@ -41,44 +41,24 @@ def determine_time_window_from_request(
 
 
 def slice_data(
-    df: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp, resolution: timedelta
+    df: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp
 ) -> pd.DataFrame:
 
     # Slice data
     df = df[(df.index >= start) & (df.index < end)]
 
-    # Ensure data reflects whole time range
-    df = ensure_time_range(df, start, end, resolution)
     return df
 
 
-def ensure_time_range(
+def add_none_rows_to_help_charts(
     df: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp, resolution: timedelta
-) -> pd.DataFrame:
-    """Ensure data reflects whole time range, adding None rows at edges if needed."""
-    end_index = end - resolution  # index of the desired last row in the DataFrame
-    if start not in df.index:
-        # add 1 row at start
-        df = pd.concat(
-            [
-                pd.DataFrame(
-                    None,
-                    index=pd.date_range(start, start, name=df.index.name),
-                    columns=df.columns,
-                ),
-                df,
-            ]
-        )
-    if end_index not in df.index:
-        # add 1 row at end
-        df = pd.concat(
-            [
-                df,
-                pd.DataFrame(
-                    None,
-                    index=pd.date_range(end_index, end_index, name=df.index.name),
-                    columns=df.columns,
-                ),
-            ]
-        )
-    return df
+):
+    """Ensure data reflects whole time range, adding None rows if needed."""
+
+    index = pd.date_range(
+        start, end, freq=resolution, closed="left", name=df.index.name
+    ).difference(df.index)
+    df_to_add = pd.DataFrame(None, index, columns=df.columns)
+    df_to_add["dt_e"] = df_to_add.index + resolution
+
+    return pd.concat([df, df_to_add]).sort_index()

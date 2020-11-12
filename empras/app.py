@@ -1,10 +1,15 @@
 from datetime import timedelta
 import pickle
 
-from flask import Flask, render_template
+from flask import abort, Flask, render_template
 import pandas as pd
 
-from empras.utils import determine_time_window_from_request, slice_data
+from empras.charts import belief_charts_mapping, process_charts_mapping
+from empras.utils import (
+    add_none_rows_to_help_charts,
+    determine_time_window_from_request,
+    slice_data,
+)
 
 app = Flask(__name__)
 
@@ -14,41 +19,34 @@ def index():
     return render_template("index.html")
 
 
-WIDTH = 600
-HEIGHT = 300
-
-
 @app.route(
-    "/chart/<chart_type>/<dataset_name>"
+    "/chart/<data_structure>/<chart_type>/<dataset_name>/<agg_demand_unit>"
 )  # todo: probably this route should get a more standard logic
-def get_chart(chart_type: str, dataset_name: str):
+# todo: move dataset_name and agg_demand_unit to url parameters or json load
+def get_chart(
+    data_structure: str, chart_type: str, dataset_name: str, agg_demand_unit: str
+):
     """
 
+    :param data_structure: "processes" or "data"
     :param chart_type: used to select between available visualisations
     :param dataset_name: used to assign a name to the dataset
+    :param agg_demand_unit: unit for total consumption, such as m3 or kWh (a stock, not a flow)
     """
-    time_format = "%I %p on %A %b %e, %Y"
-    return {
-        # "$schema": "https://vega.github.io/schema/vega-lite/v3.json",
-        "description": "A simple bar chart missing a data url.",
-        "width": WIDTH,
-        "height": HEIGHT,
-        "data": {
-            "name": dataset_name,
-        },
-        "mark": "bar",
-        "transform": [
-            {"as": "full_date", "calculate": f"timeFormat(datum.dt, '{time_format}')"}
-        ],
-        "encoding": {
-            "x": {"field": "dt", "type": "T"},
-            "y": {"field": "k", "type": "quantitative"},
-            "tooltip": [
-                {"field": "full_date", "title": "Time and date", "type": "nominal"},
-                {"field": "k", "title": "Consumption rate", "type": "quantitative"},
-            ],
-        },
-    }
+    kwargs = dict(
+        dataset_name=dataset_name,
+        agg_demand_unit=agg_demand_unit,
+    )
+
+    if data_structure == "processes":
+        return process_charts_mapping[chart_type](**kwargs)
+    elif data_structure == "data":
+        return belief_charts_mapping[chart_type](**kwargs)
+    elif data_structure in ["sensors", "assets"]:
+        # todo: return a map plotting their location
+        abort(404)
+    else:
+        abort(404)
 
 
 @app.route("/sensor/<int:sensor_id>", methods=["GET"])
@@ -81,13 +79,12 @@ def get_processes(sensor_id: int):
             d_range,
             tz,
         ) = pickle.load(f)
-    df["dt"] = pd.to_datetime(df["dt"], unit="ms").dt.tz_localize(tz)
-    df = df.set_index("dt")
+    df = df.set_index("dt").dropna()
 
     # Interpret requested time window and slice
     start, end = determine_time_window_from_request(df, tz)
-    df = slice_data(df, start, end, resolution)
-
+    df = slice_data(df, start, end)
+    df = add_none_rows_to_help_charts(df, start, end, resolution)
     return df.reset_index().to_json(orient="records")
 
 
@@ -116,7 +113,8 @@ def get_data(sensor_id: int):
 
     # Interpret requested time window and slice
     start, end = determine_time_window_from_request(df, tz)
-    df = slice_data(df, start, end, resolution)
+    df = slice_data(df, start, end)
+    df = add_none_rows_to_help_charts(df, start, end, resolution)
 
     # Return data
     return df.reset_index().to_json(orient="records")

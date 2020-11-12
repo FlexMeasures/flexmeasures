@@ -48,10 +48,12 @@
 
       var datasetName = "my dataset name"
       var sensorId = 0
-      chartSpecsPath = "/chart/simple bar chart/" + datasetName
-      dataPath = "/sensor/" + sensorId + "/processes"
+      data_structure = "processes" // or "data"
+      dataset_name = "bar_chart_with_time_selection" // or "bar_chart"
+      agg_demand_unit = "MWh"
+      chartSpecsPath = "/chart/" + data_structure + "/" + dataset_name + "/" + datasetName + "/" + agg_demand_unit
+      dataPath = "/sensor/" + sensorId + "/" + data_structure
       elementId = "myChart"
-<!--      dataPath = "/sensor/" + sensorId + "/data"-->
       embedAndLoad(chartSpecsPath, dataPath, elementId);
 
       var currentStartDate = currentEndDate = new Date();
