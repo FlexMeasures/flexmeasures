@@ -24,7 +24,7 @@ class TimedValue(object):
 
     @declared_attr
     def datetime(cls):  # noqa: B902
-        return db.Column(db.DateTime(timezone=True), primary_key=True)
+        return db.Column(db.DateTime(timezone=True), primary_key=True, index=True)
 
     """The time delta of measuring or forecasting.
     This should be a duration in ISO8601, e.g. "PT10M", which you can turn into a timedelta with

@@ -88,7 +88,9 @@ class Price(TimedValue, db.Model):
     TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
     """
 
-    market_id = db.Column(db.Integer(), db.ForeignKey("market.id"), primary_key=True)
+    market_id = db.Column(
+        db.Integer(), db.ForeignKey("market.id"), primary_key=True, index=True
+    )
     market = db.relationship("Market", backref=db.backref("prices", lazy=True))
 
     @classmethod

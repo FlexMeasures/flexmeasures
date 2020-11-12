@@ -183,7 +183,7 @@ class Weather(TimedValue, db.Model):
     """
 
     sensor_id = db.Column(
-        db.Integer(), db.ForeignKey("weather_sensor.id"), primary_key=True
+        db.Integer(), db.ForeignKey("weather_sensor.id"), primary_key=True, index=True
     )
     sensor = db.relationship("WeatherSensor", backref=db.backref("weather", lazy=True))
 

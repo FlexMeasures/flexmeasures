@@ -193,7 +193,10 @@ class Power(TimedValue, db.Model):
     """
 
     asset_id = db.Column(
-        db.Integer(), db.ForeignKey("asset.id", ondelete="CASCADE"), primary_key=True
+        db.Integer(),
+        db.ForeignKey("asset.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
     )
     asset = db.relationship(
         "Asset",
