@@ -65,9 +65,13 @@
       }
 
       function updateData(dataPath, dataset, startDate=null, endDate=null, picker=null) {
-        // Date range not set or outside of current one -> replace current data
+        // Date range not set, outside of current one or exactly matching current range -> replace current data
 
-        if (startDate >= currentEndDate || endDate <= currentStartDate || startDate == null || endDate == null) {
+        if (
+          startDate == null || endDate == null ||
+          startDate >= currentEndDate || endDate <= currentStartDate ||
+          ( startDate.getDate() == currentStartDate.getDate() && endDate.getDate() == currentEndDate.getDate() )
+        ) {
           queryStartDate = (startDate != null) ? (startDate.toDateString()) : (null)
           queryEndDate = (endDate != null) ? (endDate.toDateString()) : (null)
           $.getJSON( dataPath, {
