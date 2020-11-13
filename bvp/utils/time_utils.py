@@ -116,7 +116,7 @@ def decide_session_resolution(
     return resolution
 
 
-def resolution_to_hour_factor(resolution: str):
+def resolution_to_hour_factor(resolution: str) -> float:
     """Return the factor with which a value needs to be multiplied in order to get the value per hour,
     e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step"""
     return pd.Timedelta(resolution).to_pytimedelta() / timedelta(hours=1)

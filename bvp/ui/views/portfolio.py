@@ -101,9 +101,9 @@ def portfolio_view():  # noqa: C901
     average_price_dict = {k: v["event_value"].mean() for k, v in price_bdf_dict.items()}
 
     # Uncomment if needed
-    revenue_per_asset_type = {k: v.aggregate_revenue for k, v in resource_dict.items()}
-    cost_per_asset_type = {k: v.aggregate_cost for k, v in resource_dict.items()}
-    profit_per_asset_type = {k: v.aggregate_profit_or_loss for k, v in resource_dict.items()}
+    # revenue_per_asset_type = {k: v.aggregate_revenue for k, v in resource_dict.items()}
+    # cost_per_asset_type = {k: v.aggregate_cost for k, v in resource_dict.items()}
+    # profit_per_asset_type = {k: v.aggregate_profit_or_loss for k, v in resource_dict.items()}
 
     # Create summed plot
     power_sum_df = data_or_zeroes(power_sum_df, start, end, resolution)

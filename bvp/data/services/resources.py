@@ -257,7 +257,7 @@ def delete_asset(asset: Asset):
 
 
 def check_cache(attribute):
-    """ Decorator for Resource class attributes to check if the resource has cached the attribute.
+    """Decorator for Resource class attributes to check if the resource has cached the attribute.
 
     Example usage:
     @check_cache("cached_data")
@@ -266,12 +266,14 @@ def check_cache(attribute):
     """
 
     def inner_function(fn):
-
         @wraps(fn)
         def wrapper(self, *args, **kwargs):
             if not hasattr(self, attribute) or not getattr(self, attribute):
-                raise ValueError(f"Resource has no cached data. Call resource.get_data() or resource.get_price_data() first.")
+                raise ValueError(
+                    "Resource has no cached data. Call resource.get_data() or resource.get_price_data() first."
+                )
             return fn(self, *args, **kwargs)
+
         return wrapper
 
     return inner_function
@@ -362,7 +364,9 @@ class Resource:
         self.count = len(self.assets)
 
         # Construct a convenient mapping for dictionary with power values per asset and dictionary with price per market
-        self.power_price_key_map = {asset.name: asset.market.name for asset in self.assets}
+        self.power_price_key_map = {
+            asset.name: asset.market.name for asset in self.assets
+        }
 
     @property
     def is_unique_asset(self) -> bool:
@@ -419,9 +423,15 @@ class Resource:
         # Determine for which sensors we are still missing data
         if prior_data is None:
             prior_data = {}
-        asset_names_with_prior_data = set(asset.name for asset in self.assets) & set(prior_data.keys())
-        asset_names_without_prior_data = set(asset.name for asset in self.assets) - set(prior_data.keys())
-        prior_data_without_asset_names = set(prior_data.keys()) - set(asset.name for asset in self.assets)
+        asset_names_with_prior_data = set(asset.name for asset in self.assets) & set(
+            prior_data.keys()
+        )
+        asset_names_without_prior_data = set(asset.name for asset in self.assets) - set(
+            prior_data.keys()
+        )
+        prior_data_without_asset_names = set(prior_data.keys()) - set(
+            asset.name for asset in self.assets
+        )
 
         # Query the sensors for which we are missing data
         new_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.collect(
@@ -434,8 +444,18 @@ class Resource:
             resolution=resolution,
             sum_multiple=False,
         )
-        resource_data = {**{k: v for k, v in prior_data.items() if k in asset_names_with_prior_data}, **new_data}
-        prior_and_new_data = {**{k: v for k, v in prior_data.items() if k in prior_data_without_asset_names}, **resource_data}
+        resource_data = {
+            **{k: v for k, v in prior_data.items() if k in asset_names_with_prior_data},
+            **new_data,
+        }
+        prior_and_new_data = {
+            **{
+                k: v
+                for k, v in prior_data.items()
+                if k in prior_data_without_asset_names
+            },
+            **resource_data,
+        }
 
         # Invalidate old caches
         if clear_cached_data:
@@ -471,9 +491,15 @@ class Resource:
         # Determine for which markets we are still missing data
         if prior_data is None:
             prior_data = {}
-        market_names_with_prior_data = set(asset.market.name for asset in self.assets) & set(prior_data.keys())
-        market_names_without_prior_data = set(asset.market.name for asset in self.assets) - set(prior_data.keys())
-        prior_data_without_market_names = set(prior_data.keys()) - set(asset.market.name for asset in self.assets)
+        market_names_with_prior_data = set(
+            asset.market.name for asset in self.assets
+        ) & set(prior_data.keys())
+        market_names_without_prior_data = set(
+            asset.market.name for asset in self.assets
+        ) - set(prior_data.keys())
+        prior_data_without_market_names = set(prior_data.keys()) - set(
+            asset.market.name for asset in self.assets
+        )
 
         # Query the markets for which we are missing data
         new_data: Dict[str, tb.BeliefsDataFrame] = Price.collect(
@@ -486,8 +512,20 @@ class Resource:
             source_types=source_types,
             sum_multiple=False,
         )
-        resource_data = {**{k: v for k, v in prior_data.items() if k in market_names_with_prior_data}, **new_data}
-        prior_and_new_data = {**{k: v for k, v in prior_data.items() if k in prior_data_without_market_names}, **resource_data}
+        resource_data = {
+            **{
+                k: v for k, v in prior_data.items() if k in market_names_with_prior_data
+            },
+            **new_data,
+        }
+        prior_and_new_data = {
+            **{
+                k: v
+                for k, v in prior_data.items()
+                if k in prior_data_without_market_names
+            },
+            **resource_data,
+        }
 
         # Invalidate old caches
         if clear_cached_data:
@@ -498,6 +536,10 @@ class Resource:
         self.cached_resolution = resolution
 
         return prior_and_new_data
+
+    @property
+    def hour_factor(self) -> float:
+        return time_utils.resolution_to_hour_factor(self.cached_resolution)
 
     @property
     @check_cache("cached_power_data")
@@ -536,27 +578,36 @@ class Resource:
     @cached_property
     def total_demand(self) -> Dict[str, float]:
         """ Returns each asset's total demand as a positive value. """
-        return {k: v.sum().values[0] * time_utils.resolution_to_hour_factor(self.cached_resolution) for k, v in self.demand.items()}
+        return {k: v.sum().values[0] * self.hour_factor for k, v in self.demand.items()}
 
     @cached_property
     def total_supply(self) -> Dict[str, float]:
         """ Returns each asset's total supply as a positive value. """
-        return {k: v.sum().values[0] * time_utils.resolution_to_hour_factor(self.cached_resolution) for k, v in self.supply.items()}
+        return {k: v.sum().values[0] * self.hour_factor for k, v in self.supply.items()}
 
     @cached_property
     def total_aggregate_demand(self) -> float:
         """ Returns total aggregate demand as a positive value. """
-        return self.aggregate_demand.sum().values[0] * time_utils.resolution_to_hour_factor(self.cached_resolution)
+        return self.aggregate_demand.sum().values[0] * self.hour_factor
 
     @cached_property
     def total_aggregate_supply(self) -> float:
         """ Returns total aggregate supply as a positive value. """
-        return self.aggregate_supply.sum().values[0] * time_utils.resolution_to_hour_factor(self.cached_resolution)
+        return self.aggregate_supply.sum().values[0] * self.hour_factor
 
     @cached_property
     def revenue(self) -> Dict[str, float]:
         """ Returns each asset's total revenue from supply. """
-        return {k: (simplify_index(v) * simplify_index(self.price_data[self.power_price_key_map[k]])).sum().values[0] * time_utils.resolution_to_hour_factor(self.cached_resolution) for k, v in self.supply.items()}
+        return {
+            k: (
+                simplify_index(v)
+                * simplify_index(self.price_data[self.power_price_key_map[k]])
+            )
+            .sum()
+            .values[0]
+            * self.hour_factor
+            for k, v in self.supply.items()
+        }
 
     @cached_property
     def aggregate_revenue(self) -> float:
@@ -567,8 +618,15 @@ class Resource:
     def cost(self) -> Dict[str, float]:
         """ Returns each asset's total cost from demand. """
         return {
-            k: (simplify_index(v) * simplify_index(self.price_data[self.power_price_key_map[k]])).sum().values[
-                   0] * time_utils.resolution_to_hour_factor(self.cached_resolution) for k, v in self.demand.items()}
+            k: (
+                simplify_index(v)
+                * simplify_index(self.price_data[self.power_price_key_map[k]])
+            )
+            .sum()
+            .values[0]
+            * self.hour_factor
+            for k, v in self.demand.items()
+        }
 
     @cached_property
     def aggregate_cost(self) -> float:
@@ -593,12 +651,16 @@ def clear_cache(self):
             del self.__dict__[prop.__name__]
 
 
-def get_demand_from_bdf(bdf: Union[pd.DataFrame, tb.BeliefsDataFrame]) -> Union[pd.DataFrame, tb.BeliefsDataFrame]:
+def get_demand_from_bdf(
+    bdf: Union[pd.DataFrame, tb.BeliefsDataFrame]
+) -> Union[pd.DataFrame, tb.BeliefsDataFrame]:
     """ Positive values become 0 and negative values become positive values. """
     return bdf.clip(upper=0)[:] * -1
 
 
-def get_supply_from_bdf(bdf: Union[pd.DataFrame, tb.BeliefsDataFrame]) -> Union[pd.DataFrame, tb.BeliefsDataFrame]:
+def get_supply_from_bdf(
+    bdf: Union[pd.DataFrame, tb.BeliefsDataFrame]
+) -> Union[pd.DataFrame, tb.BeliefsDataFrame]:
     """ Negative values become 0. """
     return bdf.clip(lower=0)
 
