@@ -39,11 +39,6 @@ def get_markets() -> List[Market]:
     return Market.query.order_by(Market.name.asc()).all()
 
 
-def get_asset_types() -> List[AssetType]:
-    """Return a list of all AssetType objects."""
-    return AssetType.query.all()
-
-
 def get_assets(
     owner_id: Optional[int] = None,
     order_by_asset_attribute: str = "id",
