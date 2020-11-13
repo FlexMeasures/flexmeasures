@@ -308,7 +308,7 @@ def convert_values_for_demo(values: pd.DataFrame, resolution: str, as_beliefs: b
     return values
 
 
-def aggregate_values(bdf_dict: Dict[str, tb.BeliefsDataFrame], method: str = "A") -> tb.BeliefsDataFrame:
+def aggregate_values(bdf_dict: Dict[str, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
 
     # todo: test this function rigorously, e.g. with empty bdfs in bdf_dict
     # todo: consider 1 bdf with beliefs from source A, plus 1 bdf with beliefs from source B -> 1 bdf with sources A+B
@@ -319,29 +319,26 @@ def aggregate_values(bdf_dict: Dict[str, tb.BeliefsDataFrame], method: str = "A"
     for bdf in bdf_dict.values():
         unique_source_ids.extend(bdf.lineage.sources)
         if not bdf.lineage.unique_beliefs_per_event_per_source:
-            current_app.logger.warning("Not implemented: only aggregation of deterministic uni-source beliefs (1 per event) is properly supported")
+            current_app.logger.warning(
+                "Not implemented: only aggregation of deterministic uni-source beliefs (1 per event) is properly supported"
+            )
         if bdf.lineage.number_of_sources > 1:
-            current_app.logger.warning("Not implemented: aggregating multi-source beliefs about the same sensor.")
+            current_app.logger.warning(
+                "Not implemented: aggregating multi-source beliefs about the same sensor."
+            )
     if len(set(unique_source_ids)) > 1:
-        current_app.logger.warning(f"Not implemented: aggregating multi-source beliefs. Source {unique_source_ids[1:]} will be treated as if source {unique_source_ids[0]}")
+        current_app.logger.warning(
+            f"Not implemented: aggregating multi-source beliefs. Source {unique_source_ids[1:]} will be treated as if source {unique_source_ids[0]}"
+        )
 
-    # if method == "A":
     data_as_bdf = tb.BeliefsDataFrame()
     for k, v in bdf_dict.items():
         if data_as_bdf.empty:
             data_as_bdf = v.copy()
         elif not v.empty:
             data_as_bdf["event_value"] = data_as_bdf["event_value"].add(
-                simplify_index(v.copy())["event_value"], fill_value=0, level="event_start"
+                simplify_index(v.copy())["event_value"],
+                fill_value=0,
+                level="event_start",
             )  # we only look at the event_start index level and sum up duplicates that level
-    # elif method == "B":
-    #     data_as_bdf = reduce(
-    #         lambda x, y: x.add(y, fill_value=0),
-    #         [simplify_index(bdf_dict[asset_name]) for asset_name in bdf_dict.keys()],
-    #     )
-    # else:
-    #     data_as_bdf = reduce(
-    #         lambda x, y: x.add(y, fill_value=0),
-    #         bdf_dict.values(),
-    #     )
     return data_as_bdf
