@@ -18,8 +18,8 @@ from bvp.data.models.weather import WeatherSensor
 model_map = {
     "naive": naive_specs,
     "linear": linear_ols_specs,
-    "linear-OLS": linear_ols_specs,
-}
+    "linear-ols": linear_ols_specs,
+}  # use lower case only
 
 
 def lookup_model_specs_configurator(
@@ -54,6 +54,6 @@ def lookup_model_specs_configurator(
 
        So to implement a model, write such a function and decide here which search term(s) map(s) to it.
     """
-    if model_search_term not in model_map.keys():
+    if model_search_term.lower() not in model_map.keys():
         raise Exception("No model found for search term '%s'" % model_search_term)
-    return model_map[model_search_term]
+    return model_map[model_search_term.lower()]
