@@ -37,7 +37,7 @@ def get_power_data(
     )
 
     # Get power data
-    power_bdf: tb.BeliefsDataFrame = Resource(session["resource"]).get_data(
+    power_bdf: tb.BeliefsDataFrame = Resource(session["resource"]).get_sensor_data(
         start=query_window[0],
         end=query_window[-1],
         resolution=resolution,
@@ -51,7 +51,9 @@ def get_power_data(
 
     # Get power forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
-    power_forecast_bdf: tb.BeliefsDataFrame = Resource(session["resource"]).get_data(
+    power_forecast_bdf: tb.BeliefsDataFrame = Resource(
+        session["resource"]
+    ).get_sensor_data(
         start=query_window[0],
         end=query_window[-1],
         resolution=resolution,
@@ -69,7 +71,9 @@ def get_power_data(
     )
 
     # Get power schedule
-    power_schedule_bdf: tb.BeliefsDataFrame = Resource(session["resource"]).get_data(
+    power_schedule_bdf: tb.BeliefsDataFrame = Resource(
+        session["resource"]
+    ).get_sensor_data(
         start=query_window[0],
         end=query_window[-1],
         resolution=resolution,

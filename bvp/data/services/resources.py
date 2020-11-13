@@ -3,7 +3,7 @@ Generic services for accessing asset data.
 """
 
 from functools import cached_property, wraps
-from typing import List, Dict, Type, Union, Optional
+from typing import List, Dict, Type, TypeVar, Union, Optional
 from datetime import datetime, timedelta
 from bvp.utils.bvp_inflection import parameterize, pluralize
 from itertools import groupby
@@ -23,11 +23,12 @@ from bvp.data.models.user import User
 from bvp.data.queries.utils import simplify_index
 from bvp.data.services.time_series import aggregate_values
 from bvp.utils.geo_utils import parse_lat_lng
-from bvp.utils import decorator_utils, time_utils
+from bvp.utils import coding_utils, time_utils
 
 
 p = inflect.engine()
-cached_property = decorator_utils.make_registering_decorator(cached_property)
+cached_property = coding_utils.make_registering_decorator(cached_property)
+SensorType = TypeVar("SensorType", Type[Power], Type[Price], Type[Weather])
 
 
 class InvalidBVPAsset(Exception):
@@ -265,7 +266,7 @@ def check_cache(attribute):
         def wrapper(self, *args, **kwargs):
             if not hasattr(self, attribute) or not getattr(self, attribute):
                 raise ValueError(
-                    "Resource has no cached data. Call resource.get_data() or resource.get_price_data() first."
+                    "Resource has no cached data. Call resource.get_data() first."
                 )
             return fn(self, *args, **kwargs)
 
@@ -317,7 +318,9 @@ class Resource:
     name: str
     unique_asset_types: List[AssetType]
     unique_asset_type_names: List[str]
-    cached_power_data: Dict[str, tb.BeliefsDataFrame]
+    cached_power_data: Dict[
+        str, tb.BeliefsDataFrame
+    ]  # todo: use standard library caching
     cached_price_data: Dict[str, tb.BeliefsDataFrame]
     cached_resolution: str  # pandas offset such as "15T" or "1H"
     power_price_key_map: Dict[str, str]
@@ -392,9 +395,10 @@ class Resource:
         """Get a parameterized name for use in javascript."""
         return parameterize(self.name)
 
-    def get_data(
+    def get_sensor_data(
         self,
-        sensor_type: Union[Type[Power], Type[Price], Type[Weather]] = Power,
+        sensor_type: SensorType = Power,
+        sensor_key_attribute: str = "name",
         start: datetime = None,
         end: datetime = None,
         resolution: str = None,
@@ -402,7 +406,7 @@ class Resource:
         rolling: bool = True,
         user_source_id: int = None,
         source_types: Optional[List[str]] = None,
-        sum_multiple: bool = True,
+        sum_multiple: bool = False,
         prior_data: Optional[Dict[str, tb.BeliefsDataFrame]] = None,
         clear_cached_data: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
@@ -411,26 +415,33 @@ class Resource:
         The horizon window will default to the latest measurement (anything more in the future than the
         end of the time interval.
         To get data for a specific source, pass a source id.
-        TODO: this function should become get_sensor_data and accept a sensor_type parameter,
-              then we could merge get_price_data
+
+        Usage
+        -----
+        >>> resource = Resource()
+        >>> resource.get_sensor_data(Power, start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
+        >>> resource.cached_power_data
+        >>> resource.get_sensor_data(Price, sensor_key_attribute="market.name", start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
+        >>> resource.cached_price_data
         """
 
         # Determine for which sensors we are still missing data
         if prior_data is None:
             prior_data = {}
-        asset_names_with_prior_data = set(asset.name for asset in self.assets) & set(
-            prior_data.keys()
+        names_of_resource_sensors = set(
+            coding_utils.rgetattr(asset, sensor_key_attribute) for asset in self.assets
         )
-        asset_names_without_prior_data = set(asset.name for asset in self.assets) - set(
-            prior_data.keys()
+        names_of_prior_sensors = set(prior_data.keys())
+        names_of_resource_sensors_with_prior_data = (
+            names_of_resource_sensors & names_of_prior_sensors
         )
-        prior_data_without_asset_names = set(prior_data.keys()) - set(
-            asset.name for asset in self.assets
+        names_of_resource_sensors_without_prior_data = (
+            names_of_resource_sensors - names_of_prior_sensors
         )
 
         # Query the sensors for which we are missing data
         new_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.collect(
-            generic_asset_names=list(asset_names_without_prior_data),
+            generic_asset_names=list(names_of_resource_sensors_without_prior_data),
             query_window=(start, end),
             horizon_window=horizon_window,
             rolling=rolling,
@@ -440,96 +451,27 @@ class Resource:
             sum_multiple=False,
         )
         resource_data = {
-            **{k: v for k, v in prior_data.items() if k in asset_names_with_prior_data},
-            **new_data,
-        }
-        prior_and_new_data = {
             **{
                 k: v
                 for k, v in prior_data.items()
-                if k in prior_data_without_asset_names
+                if k in names_of_resource_sensors_with_prior_data
             },
-            **resource_data,
+            **new_data,
         }
+        prior_and_new_data = coding_utils.sort_dict({**prior_data, **new_data})
 
         # Invalidate old caches
         if clear_cached_data:
             clear_cache(self)
 
         # Cache new data
-        self.cached_power_data = resource_data
+        setattr(
+            self, f"cached_{sensor_type.__name__.lower()}_data", resource_data
+        )  # e.g. cached_price_data for sensor type Price
         self.cached_resolution = resolution
 
         if sum_multiple:
             return aggregate_values(prior_and_new_data)
-        return prior_and_new_data
-
-    def get_price_data(
-        self,
-        start: datetime = None,
-        end: datetime = None,
-        resolution: str = None,
-        horizon_window=(None, None),
-        rolling: bool = True,
-        user_source_id: int = None,
-        source_types: Optional[List[str]] = None,
-        prior_data: Optional[Dict[str, tb.BeliefsDataFrame]] = None,
-        clear_cached_data: bool = True,
-    ) -> Dict[str, tb.BeliefsDataFrame]:
-        """Get data for one or more assets and cache the results. TODO: write about how market data is handled in 2 approaches. Also add check_cache decorators to check whether caches are filled.
-        If the time range parameters are None, they will be gotten from the session.
-        The horizon window will default to the latest measurement (anything more in the future than the
-        end of the time interval.
-        To get data for a specific source, pass a source id.
-        """
-
-        # Determine for which markets we are still missing data
-        if prior_data is None:
-            prior_data = {}
-        market_names_with_prior_data = set(
-            asset.market.name for asset in self.assets
-        ) & set(prior_data.keys())
-        market_names_without_prior_data = set(
-            asset.market.name for asset in self.assets
-        ) - set(prior_data.keys())
-        prior_data_without_market_names = set(prior_data.keys()) - set(
-            asset.market.name for asset in self.assets
-        )
-
-        # Query the markets for which we are missing data
-        new_data: Dict[str, tb.BeliefsDataFrame] = Price.collect(
-            generic_asset_names=list(market_names_without_prior_data),
-            query_window=(start, end),
-            resolution=resolution,
-            horizon_window=horizon_window,
-            rolling=rolling,
-            preferred_user_source_ids=user_source_id,
-            source_types=source_types,
-            sum_multiple=False,
-        )
-        resource_data = {
-            **{
-                k: v for k, v in prior_data.items() if k in market_names_with_prior_data
-            },
-            **new_data,
-        }
-        prior_and_new_data = {
-            **{
-                k: v
-                for k, v in prior_data.items()
-                if k in prior_data_without_market_names
-            },
-            **resource_data,
-        }
-
-        # Invalidate old caches
-        if clear_cached_data:
-            clear_cache(self)
-
-        # Cache new data
-        self.cached_price_data = resource_data
-        self.cached_resolution = resolution
-
         return prior_and_new_data
 
     @property
@@ -641,7 +583,7 @@ def clear_cache(self):
     self.cached_power_data = {}
     self.cached_price_data = {}
     self.cached_resolution = ""
-    for prop in decorator_utils.methods_with_decorator(Resource, cached_property):
+    for prop in coding_utils.methods_with_decorator(Resource, cached_property):
         if prop in self.__dict__:
             del self.__dict__[prop.__name__]
 

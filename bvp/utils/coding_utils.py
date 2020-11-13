@@ -1,3 +1,6 @@
+import functools
+
+
 def make_registering_decorator(foreign_decorator):
     """
     Returns a copy of foreign_decorator, which is identical in every
@@ -47,3 +50,30 @@ def methods_with_decorator(cls, decorator):
                     yield maybe_decorated.original
                 else:
                     yield maybe_decorated
+
+
+def rgetattr(obj, attr, *args):
+    """Get chained properties.
+
+    Usage
+    -----
+    >>> class Pet:
+            def __init__(self):
+                self.favorite_color = "orange"
+    >>> class Person:
+            def __init__(self):
+                self.pet = Pet()
+    >>> p = Person()
+    >>> rgetattr(p, 'pet.favorite_color')  # "orange"
+
+    From https://stackoverflow.com/a/31174427/13775459"""
+
+    def _getattr(obj, attr):
+        return getattr(obj, attr, *args)
+
+    return functools.reduce(_getattr, [obj] + attr.split("."))
+
+
+def sort_dict(unsorted_dict: dict) -> dict:
+    sorted_dict = dict(sorted(unsorted_dict.items(), key=lambda item: item[0]))
+    return sorted_dict
