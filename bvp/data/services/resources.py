@@ -266,7 +266,7 @@ def check_cache(attribute):
         def wrapper(self, *args, **kwargs):
             if not hasattr(self, attribute) or not getattr(self, attribute):
                 raise ValueError(
-                    "Resource has no cached data. Call resource.get_data() first."
+                    "Resource has no cached data. Call resource.get_sensor_data() first."
                 )
             return fn(self, *args, **kwargs)
 
@@ -277,39 +277,60 @@ def check_cache(attribute):
 
 class Resource:
     """
-    This class represents a resource and helps to map names to assets.
-    A "resource" is an umbrella term:
+    This class represents a group of assets of the same type, and provides
+    helpful functions to retrieve their time series data and derived statistics.
 
-    * It can be one asset / market.
-    * It can be a group of assets / markets. (see get_asset_group_queries)
+    Resolving asset type names
+    --------------------------
+    When initialised with a plural asset type name, the resource will contain all assets of
+    the given type that are accessible to the user.
+    When initialised with just one asset name, the resource will list only that asset.
 
-    The class itself defines only one thing: a resource name.
-    The class methods provide helpful functions to get from resource name to assets and their time series data.
+    Loading structure
+    -----------------
+    Initialization only loads structural information from the database (which assets the resource groups).
 
-    Typical usages might thus be:
+    Loading and caching time series
+    -------------------------------
+    To load time series data for a certain time window, use the get_sensor_data() method.
+    This loads beliefs data from the database and caches the results (as a named attribute).
+    Caches are cleared when new time series data is requested (or when the Resource instance seizes to exist).
 
-    * Resource(session["resource"]).assets
-    * Resource(session["resource"]).display_name
-    * Resource(session["resource"]).get_data()
+    Loading and caching derived statistics
+    --------------------------------------
+    Cached time series data is used to compute derived statistics, such as aggregates and scores.
+    More specifically:
+    - demand and supply
+    - aggregated values (summed over assets)
+    - total values (summed over time)
+    - mean values (averaged over time) (todo: add this property)
+    - revenue and cost
+    - profit/loss
+    When a derived statistic is called for, the results are also cached (using @functools.cached_property).
 
-    TODO: The link to markets still needs some care (best to do that once we have modeled markets better)
-          First, decide, if we want to call markets a "Resource". If so, get_data, should maybe just decide which data
-          to fetch. I cannot imagine we ever want to mix data from assets and markets.
+    Sharing data across resources
+    -----------------------------
+    Because different Resources may share common data (at least prices, but perhaps also power values),
+    a significant speed-up can be achieved by passing already loaded data to the get_sensor_data() method,
+    which then only load what is missing.
 
-    TODO: I imagine we WILL mix data from assets and market.
-          Our Resource may become an (Aggregated*)Asset with a grouping relationship with other Assets.
-          Each component asset may have sensors that may have an is_scored_by relationship, with e.g. a price sensor of a market.
-          I imagine this class uses the following strategy to keep database queries efficient:
-          - Upon initialization, it only loads (from db) structural information (which assets it groups, and which markets are used for scoring)
-          - It has methods to load (from db) time series data (power data and price data for a time period of interest)
-          - The time series data is cached, and caches are cleared when new time series data is requested
-          - Cached time series data is used to compute demand/supply, aggregated values, total values, averaged values, scores (revenue/cost), etc.
-            The results could be cached if needed.
-          - Because different Resources (AggregatedAssets) may share common data (at least prices, but perhaps also power values),
-            a significant speed-up can be achieved by passing already loaded data to the data loading methods,
-            which then only load what is missing.
-          * Asset == AggregatedAsset if it groups assets of only 1 type, Asset == GeneralizedAsset if it groups assets of multiple types
+    Usage
+    -----
+    >>> from flask import session
+    >>> resource = Resource(session["resource"])
+    >>> resource.assets
+    >>> resource.display_name
+    >>> resource.get_sensor_data(Power)
+    >>> resource.cached_power_data
+    >>> resource.get_sensor_data(Price, sensor_key_attribute="market.name")
+    >>> resource.cached_price_data
     """
+
+    # Todo: Our Resource may become an (Aggregated*)Asset with a grouping relationship with other Assets.
+    #       Each component asset may have sensors that may have an is_scored_by relationship,
+    #       with e.g. a price sensor of a market.
+    #       * Asset == AggregatedAsset if it groups assets of only 1 type,
+    #         Asset == GeneralizedAsset if it groups assets of multiple types
 
     assets: List[Asset]
     count: int
