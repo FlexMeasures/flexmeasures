@@ -167,7 +167,6 @@
     {% for asset_group in asset_groups %}
         {% if asset_group not in aggregate_groups %}
             {% for asset in asset_groups[asset_group].assets %}
-                {% set current_load_in_mw = current_asset_loads.get(asset.name, 0) %}
                 <!--var marker_for_{{ (asset.name | parameterize) }} = makeMarker({{ asset }})-->
 
                 if (typeof marker_for_{{ (asset.name | parameterize) }} == 'undefined') {

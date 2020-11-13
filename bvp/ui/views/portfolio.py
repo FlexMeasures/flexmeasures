@@ -1,4 +1,5 @@
 from datetime import timedelta
+from functools import reduce
 from typing import Dict
 
 from flask import request, session
@@ -55,31 +56,37 @@ def portfolio_view():  # noqa: C901
     represented_asset_types = {}
 
     average_price_dict: Dict[str, float] = {}
-    for market in markets:
-        average_price_dict[market.name]: float = Price.collect(
-            [market.name], query_window=(start, end), resolution=resolution
-        )["event_value"].mean()
-    price_bdf: tb.BeliefsDataFrame = Price.collect(
-        ["epex_da"],
+    market_names = [market.name for market in markets]
+    average_price_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Price.collect(
+        market_names,
         query_window=(start, end),
         resolution=resolution,
+        sum_multiple=False,
     )
+    for market_name in market_names:
+        average_price_dict[market_name] = average_price_bdf_dict[market_name][
+            "event_value"
+        ].mean()
+    price_bdf: tb.BeliefsDataFrame = average_price_bdf_dict["epex_da"]
     price_df = simplify_index(price_bdf)
 
     load_hour_factor = time_utils.resolution_to_hour_factor(resolution)
 
-    for asset in assets:
-        power_bdf: tb.BeliefsDataFrame = Power.collect(
-            [asset.name],
-            query_window=(start, end),
-            resolution=resolution,
-        )
+    power_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Power.collect(
+        [asset.name for asset in assets],
+        query_window=(start, end),
+        resolution=resolution,
+        sum_multiple=False,
+    )
+    asset_types_dict = {asset.name: asset.asset_type for asset in assets}
+    for asset_name, power_bdf in power_bdf_dict.items():
+        asset_type = asset_types_dict[asset_name]
         power_df: pd.DataFrame = simplify_index(power_bdf)
 
         if price_df.empty or power_df.empty:
-            profit_loss_energy_per_asset[asset.name] = np.NaN
+            profit_loss_energy_per_asset[asset_name] = np.NaN
         else:
-            profit_loss_energy_per_asset[asset.name] = pd.Series(
+            profit_loss_energy_per_asset[asset_name] = pd.Series(
                 power_df["event_value"] * load_hour_factor * price_df["event_value"],
                 index=power_df.index,
             ).sum()
@@ -88,21 +95,21 @@ def portfolio_view():  # noqa: C901
             pd.Series(power_df["event_value"]).sum() * load_hour_factor
         )
         report_as = decide_direction_for_report(
-            asset.asset_type.is_consumer,
-            asset.asset_type.is_producer,
+            asset_type.is_consumer,
+            asset_type.is_producer,
             sum_production_or_consumption,
         )
 
         if report_as == "consumer":
-            production_per_asset[asset.name] = 0
-            consumption_per_asset[asset.name] = -1 * sum_production_or_consumption
+            production_per_asset[asset_name] = 0
+            consumption_per_asset[asset_name] = -1 * sum_production_or_consumption
         elif report_as == "producer":
-            production_per_asset[asset.name] = sum_production_or_consumption
-            consumption_per_asset[asset.name] = 0
+            production_per_asset[asset_name] = sum_production_or_consumption
+            consumption_per_asset[asset_name] = 0
 
-        neat_asset_type_name = pluralize(asset.asset_type.display_name)
+        neat_asset_type_name = pluralize(asset_type.display_name)
         if neat_asset_type_name not in production_per_asset_type:
-            represented_asset_types[neat_asset_type_name] = asset.asset_type
+            represented_asset_types[neat_asset_type_name] = asset_type
             production_per_asset_type[neat_asset_type_name] = 0.0
             consumption_per_asset_type[neat_asset_type_name] = 0.0
             profit_loss_energy_per_asset_type[neat_asset_type_name] = 0.0
@@ -110,32 +117,32 @@ def portfolio_view():  # noqa: C901
             shifting_per_asset_type[neat_asset_type_name] = 0.0
             profit_loss_flexibility_per_asset_type[neat_asset_type_name] = 0.0
         production_per_asset_type[neat_asset_type_name] += production_per_asset[
-            asset.name
+            asset_name
         ]
         consumption_per_asset_type[neat_asset_type_name] += consumption_per_asset[
-            asset.name
+            asset_name
         ]
         profit_loss_energy_per_asset_type[
             neat_asset_type_name
-        ] += profit_loss_energy_per_asset[asset.name]
+        ] += profit_loss_energy_per_asset[asset_name]
 
         # flexibility numbers are mocked for now
-        curtailment_per_asset[asset.name] = 0
-        shifting_per_asset[asset.name] = 0
-        profit_loss_flexibility_per_asset[asset.name] = 0
-        if asset.name == "48_r":
-            shifting_per_asset[asset.name] = 1.1
-            profit_loss_flexibility_per_asset[asset.name] = 76000
-        if asset.name == "hw-onshore":
-            curtailment_per_asset[asset.name] = 1.3
-            profit_loss_flexibility_per_asset[asset.name] = 84000
+        curtailment_per_asset[asset_name] = 0
+        shifting_per_asset[asset_name] = 0
+        profit_loss_flexibility_per_asset[asset_name] = 0
+        if asset_name == "48_r":
+            shifting_per_asset[asset_name] = 1.1
+            profit_loss_flexibility_per_asset[asset_name] = 76000
+        if asset_name == "hw-onshore":
+            curtailment_per_asset[asset_name] = 1.3
+            profit_loss_flexibility_per_asset[asset_name] = 84000
         curtailment_per_asset_type[neat_asset_type_name] += curtailment_per_asset[
-            asset.name
+            asset_name
         ]
-        shifting_per_asset_type[neat_asset_type_name] += shifting_per_asset[asset.name]
+        shifting_per_asset_type[neat_asset_type_name] += shifting_per_asset[asset_name]
         profit_loss_flexibility_per_asset_type[
             neat_asset_type_name
-        ] += profit_loss_flexibility_per_asset[asset.name]
+        ] += profit_loss_flexibility_per_asset[asset_name]
 
     # get data for stacked plot for the selected period
 
@@ -198,12 +205,12 @@ def portfolio_view():  # noqa: C901
         sum_assets = [a.name for a in assets if a.asset_type.is_producer is True]
         plot_label = "Stacked consumption vs aggregated production"
 
-    power_sum_bdf: tb.BeliefsDataFrame = Power.collect(
-        sum_assets,
-        query_window=(start, end),
-        resolution=resolution,
+    power_sum_df = simplify_index(
+        reduce(
+            lambda x, y: x.add(y, fill_value=0),
+            [power_bdf_dict[asset_name] for asset_name in sum_assets],
+        )
     )
-    power_sum_df = simplify_index(power_sum_bdf)
 
     # Plot as positive values regardless of whether the summed data is production or consumption
     power_sum_df = data_or_zeroes(power_sum_df)
@@ -253,7 +260,7 @@ def portfolio_view():  # noqa: C901
             df_stacked_data[capitalize(st)] = data["event_value"].values
 
     # Plot as positive values regardless of whether the stacked data is production or consumption
-    df_stacked_data = data_or_zeroes(df_stacked_data).fillna(0)
+    df_stacked_data = data_or_zeroes(df_stacked_data)
     if show_stacked == "consumption":
         df_stacked_data[:] *= -1
     df_stacked_areas = stack_df(df_stacked_data)

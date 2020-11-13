@@ -1,13 +1,10 @@
 from bokeh.resources import CDN
 from flask import request, session, current_app
 from flask_security import login_required
-import timely_beliefs as tb
 
 from bvp.ui.views import bvp_ui
 from bvp.ui.utils.view_utils import render_bvp_template
-from bvp.utils import time_utils
 from bvp.data.services.resources import get_asset_group_queries, Resource
-from bvp.data.models.assets import Power
 
 
 # Dashboard and main landing page
@@ -32,26 +29,12 @@ def dashboard_view():
             del session[skey]
         msg = "Your session was cleared."
 
-    current_asset_loads = {}
     aggregate_groups = ["renewables", "EVSE"]
     asset_groups = get_asset_group_queries(custom_additional_groups=aggregate_groups)
     map_asset_groups = {}
     for asset_group_name in asset_groups:
         asset_group = Resource(asset_group_name)
         map_asset_groups[asset_group_name] = asset_group
-        for asset in asset_group.assets:
-            recent_quarter = time_utils.get_most_recent_quarter()
-            if current_app.config.get("BVP_MODE", "") == "demo":
-                recent_quarter = recent_quarter.replace(year=2015)
-            measured_now: tb.BeliefsSeries = Power.collect(
-                [asset.name],
-                query_window=(recent_quarter, recent_quarter + asset.event_resolution),
-                resolution=asset.event_resolution,
-            )["event_value"]
-            if measured_now.size > 0:
-                current_asset_loads[asset.name] = measured_now[0]
-            else:
-                current_asset_loads[asset.name] = 0
 
     # Pack CDN resources (from pandas_bokeh/base.py)
     bokeh_html_embedded = ""
@@ -69,5 +52,4 @@ def dashboard_view():
         message=msg,
         asset_groups=map_asset_groups,
         aggregate_groups=aggregate_groups,
-        current_asset_loads=current_asset_loads,
     )
