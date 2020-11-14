@@ -614,7 +614,7 @@ def get_demand_from_bdf(
     bdf: Union[pd.DataFrame, tb.BeliefsDataFrame]
 ) -> Union[pd.DataFrame, tb.BeliefsDataFrame]:
     """ Positive values become 0 and negative values become positive values. """
-    return bdf.clip(upper=0)[:] * -1
+    return bdf.clip(upper=0).abs()
 
 
 def get_supply_from_bdf(
