@@ -76,37 +76,8 @@ def portfolio_view():  # noqa: C901
     )
     df_stacked_data = pd.concat(stack_dict, axis=1) if stack_dict else pd.DataFrame()
 
-    # Flexibility numbers are mocked for now
-    curtailment_per_asset = {a.name: 0 for a in assets}
-    shifting_per_asset = {a.name: 0 for a in assets}
-    profit_loss_flexibility_per_asset = {a.name: 0 for a in assets}
-    curtailment_per_asset_type = {k: 0 for k in represented_asset_types.keys()}
-    shifting_per_asset_type = {k: 0 for k in represented_asset_types.keys()}
-    profit_loss_flexibility_per_asset_type = {
-        k: 0 for k in represented_asset_types.keys()
-    }
-    shifting_per_asset["48_r"] = 1.1
-    profit_loss_flexibility_per_asset["48_r"] = 76000
-    shifting_per_asset_type["one-way EVSE"] = shifting_per_asset["48_r"]
-    profit_loss_flexibility_per_asset_type[
-        "one-way EVSE"
-    ] = profit_loss_flexibility_per_asset["48_r"]
-    curtailment_per_asset["hw-onshore"] = 1.3
-    profit_loss_flexibility_per_asset["hw-onshore"] = 84000
-    curtailment_per_asset_type["wind turbines"] = curtailment_per_asset["hw-onshore"]
-    profit_loss_flexibility_per_asset_type[
-        "wind turbines"
-    ] = profit_loss_flexibility_per_asset["hw-onshore"]
-
     # Create summed plot
     power_sum_df = data_or_zeroes(power_sum_df, start, end, resolution)
-
-    this_hour = time_utils.get_most_recent_hour()
-    next4am = [
-        dt
-        for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)]
-        if dt.hour == 4
-    ][0]
     x_range = plotting.make_range(
         pd.date_range(start, end, freq=resolution, closed="left")
     )
@@ -123,17 +94,6 @@ def portfolio_view():  # noqa: C901
         show_y_floats=True,
         non_negative_only=True,
     )
-
-    # TODO: show when user has (possible) actions in order book for a time slot
-    if current_user.is_authenticated and (
-        current_user.has_role("admin")
-        or "wind" in current_user.email
-        or "charging" in current_user.email
-    ):
-        plotting.highlight(
-            fig_profile, next4am, next4am + timedelta(hours=1), redirect_to="/control"
-        )
-
     fig_profile.plot_height = 450
     fig_profile.plot_width = 900
 
@@ -161,6 +121,46 @@ def portfolio_view():  # noqa: C901
             line_color=None,
             legend=df_stacked_data.columns[a],
             level="underlay",
+        )
+
+    # Flexibility numbers are mocked for now
+    curtailment_per_asset = {a.name: 0 for a in assets}
+    shifting_per_asset = {a.name: 0 for a in assets}
+    profit_loss_flexibility_per_asset = {a.name: 0 for a in assets}
+    curtailment_per_asset_type = {k: 0 for k in represented_asset_types.keys()}
+    shifting_per_asset_type = {k: 0 for k in represented_asset_types.keys()}
+    profit_loss_flexibility_per_asset_type = {
+        k: 0 for k in represented_asset_types.keys()
+    }
+    shifting_per_asset["48_r"] = 1.1
+    profit_loss_flexibility_per_asset["48_r"] = 76000
+    shifting_per_asset_type["one-way EVSE"] = shifting_per_asset["48_r"]
+    profit_loss_flexibility_per_asset_type[
+        "one-way EVSE"
+    ] = profit_loss_flexibility_per_asset["48_r"]
+    curtailment_per_asset["hw-onshore"] = 1.3
+    profit_loss_flexibility_per_asset["hw-onshore"] = 84000
+    curtailment_per_asset_type["wind turbines"] = curtailment_per_asset["hw-onshore"]
+    profit_loss_flexibility_per_asset_type[
+        "wind turbines"
+    ] = profit_loss_flexibility_per_asset["hw-onshore"]
+
+    # Add referral to mocked control action
+    this_hour = time_utils.get_most_recent_hour()
+    next4am = [
+        dt
+        for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)]
+        if dt.hour == 4
+    ][0]
+
+    # TODO: show when user has (possible) actions in order book for a time slot
+    if current_user.is_authenticated and (
+        current_user.has_role("admin")
+        or "wind" in current_user.email
+        or "charging" in current_user.email
+    ):
+        plotting.highlight(
+            fig_profile, next4am, next4am + timedelta(hours=1), redirect_to="/control"
         )
 
     # actions
@@ -207,6 +207,10 @@ def portfolio_view():  # noqa: C901
         x_range=x_range,
         y_label="Power (in MW)",
     )
+    fig_actions.plot_height = 150
+    fig_actions.plot_width = fig_profile.plot_width
+    fig_actions.xaxis.visible = False
+
     if current_user.is_authenticated and (
         current_user.has_role("admin")
         or "wind" in current_user.email
@@ -215,10 +219,6 @@ def portfolio_view():  # noqa: C901
         plotting.highlight(
             fig_actions, next4am, next4am + timedelta(hours=1), redirect_to="/control"
         )
-
-    fig_actions.plot_height = 150
-    fig_actions.plot_width = fig_profile.plot_width
-    fig_actions.xaxis.visible = False
 
     portfolio_plots_script, portfolio_plots_divs = components(
         (fig_profile, fig_actions)
