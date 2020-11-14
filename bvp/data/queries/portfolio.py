@@ -1,5 +1,7 @@
 from typing import Dict, List
 
+from datetime import datetime
+
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.markets import Price
 from bvp.data.queries.utils import simplify_index
@@ -28,7 +30,9 @@ def get_structure(assets: List[Asset]):
     return represented_asset_types, markets, resource_dict
 
 
-def get_power_data(start, end, resolution, markets, resource_dict: Dict[str, Resource]):
+def get_power_data(
+    start: datetime, end: datetime, resolution: str, resource_dict: Dict[str, Resource]
+):
 
     # Load power data (separate demand and supply, and group data per resource)
     supply_resources_df_dict = {}  # power >= 0, production/supply >= 0
@@ -69,7 +73,9 @@ def get_power_data(start, end, resolution, markets, resource_dict: Dict[str, Res
     )
 
 
-def get_price_data(start, end, resolution, resource_dict: Dict[str, Resource]):
+def get_price_data(
+    start: datetime, end: datetime, resolution: str, resource_dict: Dict[str, Resource]
+):
 
     # Load price data
     price_bdf_dict = {}

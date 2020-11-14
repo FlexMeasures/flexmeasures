@@ -53,7 +53,7 @@ def portfolio_view():  # noqa: C901
         consumption_per_asset_type,
         production_per_asset,
         consumption_per_asset,
-    ) = get_power_data(start, end, resolution, markets, resource_dict)
+    ) = get_power_data(start, end, resolution, resource_dict)
     price_bdf_dict, average_price_dict = get_price_data(
         start, end, resolution, resource_dict
     )
