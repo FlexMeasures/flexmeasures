@@ -1,14 +1,18 @@
-from typing import Dict, List
-
 from datetime import datetime
+from typing import Dict, List, Tuple
 
-from bvp.data.models.assets import Asset, Power
-from bvp.data.models.markets import Price
+import pandas as pd
+import timely_beliefs as tb
+
+from bvp.data.models.assets import Asset, AssetType, Power
+from bvp.data.models.markets import Market, Price
 from bvp.data.queries.utils import simplify_index
 from bvp.data.services.resources import Resource
 
 
-def get_structure(assets: List[Asset]):
+def get_structure(
+    assets: List[Asset],
+) -> Tuple[Dict[str, AssetType], List[Market], Dict[str, Resource]]:
 
     # Set up a resource name for each asset type
     represented_asset_types = {
@@ -18,21 +22,28 @@ def get_structure(assets: List[Asset]):
 
     # Load structure (and set up resources)
     resource_dict = {}
-    markets = []
+    markets: List[Market] = []
     for resource_name in represented_asset_types.keys():
         resource = Resource(resource_name)
         if len(resource.assets) == 0:
             continue
         resource_dict[resource_name] = resource
-        markets.extend(set(asset.market for asset in resource.assets))
-    markets = set(markets)
+        markets.extend(list(set(asset.market for asset in resource.assets)))
+    markets = list(set(markets))
 
     return represented_asset_types, markets, resource_dict
 
 
 def get_power_data(
     start: datetime, end: datetime, resolution: str, resource_dict: Dict[str, Resource]
-):
+) -> Tuple[
+    Dict[str, pd.DataFrame],
+    Dict[str, pd.DataFrame],
+    Dict[str, float],
+    Dict[str, float],
+    Dict[str, float],
+    Dict[str, float],
+]:
 
     # Load power data (separate demand and supply, and group data per resource)
     supply_resources_df_dict = {}  # power >= 0, production/supply >= 0
@@ -75,7 +86,7 @@ def get_power_data(
 
 def get_price_data(
     start: datetime, end: datetime, resolution: str, resource_dict: Dict[str, Resource]
-):
+) -> Tuple[Dict[str, tb.BeliefsDataFrame], Dict[str, float]]:
 
     # Load price data
     price_bdf_dict = {}
