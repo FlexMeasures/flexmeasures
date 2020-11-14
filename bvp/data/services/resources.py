@@ -343,7 +343,6 @@ class Resource:
         str, tb.BeliefsDataFrame
     ]  # todo: use standard library caching
     cached_price_data: Dict[str, tb.BeliefsDataFrame]
-    cached_resolution: str  # pandas offset such as "15T" or "1H"
     power_price_key_map: Dict[str, str]
 
     def __init__(self, name: str):
@@ -490,15 +489,10 @@ class Resource:
         setattr(
             self, f"cached_{sensor_type.__name__.lower()}_data", resource_data
         )  # e.g. cached_price_data for sensor type Price
-        self.cached_resolution = resolution
 
         if sum_multiple:
             return aggregate_values(prior_and_new_data)
         return prior_and_new_data
-
-    @property
-    def hour_factor(self) -> float:
-        return time_utils.resolution_to_hour_factor(self.cached_resolution)
 
     @property
     @check_cache("cached_power_data")
@@ -537,22 +531,34 @@ class Resource:
     @cached_property
     def total_demand(self) -> Dict[str, float]:
         """ Returns each asset's total demand as a positive value. """
-        return {k: v.sum().values[0] * self.hour_factor for k, v in self.demand.items()}
+        return {
+            k: v.sum().values[0]
+            * time_utils.resolution_to_hour_factor(v.event_resolution)
+            for k, v in self.demand.items()
+        }
 
     @cached_property
     def total_supply(self) -> Dict[str, float]:
         """ Returns each asset's total supply as a positive value. """
-        return {k: v.sum().values[0] * self.hour_factor for k, v in self.supply.items()}
+        return {
+            k: v.sum().values[0]
+            * time_utils.resolution_to_hour_factor(v.event_resolution)
+            for k, v in self.supply.items()
+        }
 
     @cached_property
     def total_aggregate_demand(self) -> float:
         """ Returns total aggregate demand as a positive value. """
-        return self.aggregate_demand.sum().values[0] * self.hour_factor
+        return self.aggregate_demand.sum().values[
+            0
+        ] * time_utils.resolution_to_hour_factor(self.aggregate_demand.event_resolution)
 
     @cached_property
     def total_aggregate_supply(self) -> float:
         """ Returns total aggregate supply as a positive value. """
-        return self.aggregate_supply.sum().values[0] * self.hour_factor
+        return self.aggregate_supply.sum().values[
+            0
+        ] * time_utils.resolution_to_hour_factor(self.aggregate_supply.event_resolution)
 
     @cached_property
     def revenue(self) -> Dict[str, float]:
@@ -563,7 +569,9 @@ class Resource:
             if market_name is not None:
                 revenue_dict[k] = (
                     simplify_index(v) * simplify_index(self.price_data[market_name])
-                ).sum().values[0] * self.hour_factor
+                ).sum().values[0] * time_utils.resolution_to_hour_factor(
+                    v.event_resolution
+                )
             else:
                 revenue_dict[k] = None
         return revenue_dict
@@ -582,7 +590,9 @@ class Resource:
             if market_name is not None:
                 cost_dict[k] = (
                     simplify_index(v) * simplify_index(self.price_data[market_name])
-                ).sum().values[0] * self.hour_factor
+                ).sum().values[0] * time_utils.resolution_to_hour_factor(
+                    v.event_resolution
+                )
             else:
                 cost_dict[k] = None
         return cost_dict
@@ -604,7 +614,6 @@ class Resource:
 def clear_cache(self):
     self.cached_power_data = {}
     self.cached_price_data = {}
-    self.cached_resolution = ""
     for prop in coding_utils.methods_with_decorator(Resource, cached_property):
         if prop in self.__dict__:
             del self.__dict__[prop.__name__]
