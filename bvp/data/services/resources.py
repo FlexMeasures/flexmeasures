@@ -384,7 +384,8 @@ class Resource:
 
         # Construct a convenient mapping for dictionary with power values per asset and dictionary with price per market
         self.power_price_key_map = {
-            asset.name: asset.market.name for asset in self.assets
+            asset.name: asset.market.name if asset.market is not None else None
+            for asset in self.assets
         }
 
     @property
@@ -556,16 +557,16 @@ class Resource:
     @cached_property
     def revenue(self) -> Dict[str, float]:
         """ Returns each asset's total revenue from supply. """
-        return {
-            k: (
-                simplify_index(v)
-                * simplify_index(self.price_data[self.power_price_key_map[k]])
-            )
-            .sum()
-            .values[0]
-            * self.hour_factor
-            for k, v in self.supply.items()
-        }
+        revenue_dict = {}
+        for k, v in self.supply.items():
+            market_name = self.power_price_key_map[k]
+            if market_name is not None:
+                revenue_dict[k] = (
+                    simplify_index(v) * simplify_index(self.price_data[market_name])
+                ).sum().values[0] * self.hour_factor
+            else:
+                revenue_dict[k] = None
+        return revenue_dict
 
     @cached_property
     def aggregate_revenue(self) -> float:
@@ -575,16 +576,16 @@ class Resource:
     @cached_property
     def cost(self) -> Dict[str, float]:
         """ Returns each asset's total cost from demand. """
-        return {
-            k: (
-                simplify_index(v)
-                * simplify_index(self.price_data[self.power_price_key_map[k]])
-            )
-            .sum()
-            .values[0]
-            * self.hour_factor
-            for k, v in self.demand.items()
-        }
+        cost_dict = {}
+        for k, v in self.demand.items():
+            market_name = self.power_price_key_map[k]
+            if market_name is not None:
+                cost_dict[k] = (
+                    simplify_index(v) * simplify_index(self.price_data[market_name])
+                ).sum().values[0] * self.hour_factor
+            else:
+                cost_dict[k] = None
+        return cost_dict
 
     @cached_property
     def aggregate_cost(self) -> float:
