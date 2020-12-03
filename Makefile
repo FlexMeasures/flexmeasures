@@ -1,6 +1,6 @@
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-deps install-bvp run-local test freeze-deps upgrade-deps show-file-space show-data-model
+.PHONY: install install-for-dev install-deps install-bvp run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model
 
 
 run-local:
@@ -14,6 +14,10 @@ update-docs:
 	pip install sphinx sphinxcontrib.httpdomain
 	cd documentation; make clean; make html; cd ..
 
+update-docs-pdf:
+	apt-get install texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended 
+	# note: requires some pictures not in the git repo atm
+	cd documentation; make clean; make latexpdf; cd ..
 
 # ---- Installation ---
 
