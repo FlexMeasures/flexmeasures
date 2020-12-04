@@ -3,6 +3,8 @@
 .PHONY: install install-for-dev install-deps install-bvp run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model
 
 
+# ---- Development ---
+
 run-local:
 	python bvp/run-local.py
 
@@ -10,14 +12,17 @@ test:
 	make install-for-dev
 	pytest
 
+# ---- Documentation ---
+
 update-docs:
 	pip install sphinx sphinxcontrib.httpdomain
 	cd documentation; make clean; make html; cd ..
 
 update-docs-pdf:
-	apt-get install texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended 
-	# note: requires some pictures not in the git repo atm
-	cd documentation; make clean; make latexpdf; cd ..
+	@echo "NOTE: PDF documentation requires packages (on Debian: latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended)"
+	@echo "NOTE: Currently, the docs require some pictures which are not in the git repo atm. Ask the devs."
+	pip install sphinx sphinxcontrib.httpdomain
+	cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
 
 # ---- Installation ---
 
@@ -50,7 +55,7 @@ upgrade-deps:
 	pip-compile --upgrade -o requirements/test.txt requirements/test.in
 
 
-# ---- Data Model ----
+# ---- Data ----
 
 show-file-space:
 	# Where is our file space going?
@@ -62,4 +67,4 @@ upgrade-db:
 	flask db current
 
 show-data-model:
-	./bvp/data/scripts/visualize_data_model.py --uml --store # also try with --schema for database model
+	./bvp/data/scripts/visualize_data_model.py --uml --store  # also try with --schema for database model
