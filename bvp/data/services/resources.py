@@ -483,7 +483,7 @@ class Resource:
 
         # Invalidate old caches
         if clear_cached_data:
-            clear_cache(self)
+            self.clear_cache()
 
         # Cache new data
         setattr(
@@ -607,16 +607,15 @@ class Resource:
         """ Returns total aggregate profit (loss is negative). """
         return self.aggregate_revenue - self.aggregate_cost
 
+    def clear_cache(self):
+        self.cached_power_data = {}
+        self.cached_price_data = {}
+        for prop in coding_utils.methods_with_decorator(Resource, cached_property):
+            if prop in self.__dict__:
+                del self.__dict__[prop.__name__]
+
     def __str__(self):
         return self.display_name
-
-
-def clear_cache(self):
-    self.cached_power_data = {}
-    self.cached_price_data = {}
-    for prop in coding_utils.methods_with_decorator(Resource, cached_property):
-        if prop in self.__dict__:
-            del self.__dict__[prop.__name__]
 
 
 def get_demand_from_bdf(
