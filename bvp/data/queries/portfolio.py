@@ -13,6 +13,16 @@ from bvp.data.services.resources import Resource
 def get_structure(
     assets: List[Asset],
 ) -> Tuple[Dict[str, AssetType], List[Market], Dict[str, Resource]]:
+    """Get asset portfolio structured as Resources, based on AssetTypes present in a list of Assets.
+
+    Initializing Resources leads to some database queries.
+
+    :param assets: a list of Assets
+    :returns: a tuple comprising:
+              - a dictionary of resource names (as keys) and the asset type represented by these resources (as values)
+              - a list of (unique) Markets that are relevant to these resources
+              - a dictionary of resource names (as keys) and Resources (as values)
+    """
 
     # Set up a resource name for each asset type
     represented_asset_types = {
@@ -46,10 +56,14 @@ def get_power_data(
 ]:
 
     # Load power data (separate demand and supply, and group data per resource)
-    supply_resources_df_dict = {}  # power >= 0, production/supply >= 0
-    demand_resources_df_dict = {}  # power <= 0, consumption/demand >=0 !!!
-    production_per_asset = {}
-    consumption_per_asset = {}
+    supply_resources_df_dict: Dict[
+        str, pd.DataFrame
+    ] = {}  # power >= 0, production/supply >= 0
+    demand_resources_df_dict: Dict[
+        str, pd.DataFrame
+    ] = {}  # power <= 0, consumption/demand >=0 !!!
+    production_per_asset: Dict[str, float] = {}
+    consumption_per_asset: Dict[str, float] = {}
     for resource_name, resource in resource_dict.items():
         resource.get_sensor_data(
             sensor_type=Power,
@@ -89,7 +103,7 @@ def get_price_data(
 ) -> Tuple[Dict[str, tb.BeliefsDataFrame], Dict[str, float]]:
 
     # Load price data
-    price_bdf_dict = {}
+    price_bdf_dict: Dict[str, tb.BeliefsDataFrame] = {}
     for resource_name, resource in resource_dict.items():
         price_bdf_dict = resource.get_sensor_data(
             sensor_type=Price,
