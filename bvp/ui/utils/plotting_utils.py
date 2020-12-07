@@ -234,7 +234,7 @@ def create_graph(  # noqa: C901
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
 
-    :param data: the actual data. Expects column name "event_value".
+    :param data: the actual data. Expects column name "event_value" and optional "belief_horizon" and "source" columns.
     :param unit: the (physical) unit of the data
     :param title: Title of the graph
     :param x_label: x axis label
@@ -250,6 +250,8 @@ def create_graph(  # noqa: C901
     :param tools: some tools for the plot, which defaults to ["box_zoom", "reset", "save"].
     :return: a Bokeh Figure
     """
+
+    # Replace "source" column with "label" column (containing strings)
     data = replace_source_with_label(data)
     forecasts = replace_source_with_label(forecasts)
     schedules = replace_source_with_label(schedules)
@@ -321,20 +323,30 @@ def create_graph(  # noqa: C901
     if forecasts is not None and not forecasts.empty:
         forecasts = tz_index_naively(forecasts)
         fc_color = "#DDD0B3"
-        fds = make_datasource_from(forecasts, resolution)
-        fc = fig.circle(x="x", y="y", source=fds, color=fc_color, size=10)
-        fl = fig.line(x="x", y="y", source=fds, color=fc_color)
+        if "label" not in forecasts:
+            forecasts["label"] = "Forecast from unknown source"
+        labels = forecasts["label"].unique()
+        for label in labels:
+            # forecasts from different data sources
+            label_forecasts = forecasts[forecasts["label"] == label]
+            fds = make_datasource_from(label_forecasts, resolution)
+            fc = fig.circle(x="x", y="y", source=fds, color=fc_color, size=10)
+            fl = fig.line(x="x", y="y", source=fds, color=fc_color)
 
-        # draw uncertainty range as a two-dimensional patch
-        if "yhat_lower" and "yhat_upper" in forecasts:
-            x_points = np.append(forecasts.index, forecasts.index[::-1])
-            y_points = np.append(forecasts.yhat_lower, forecasts.yhat_upper[::-1])
-            fig.patch(
-                x_points, y_points, color=fc_color, fill_alpha=0.2, line_width=0.01
-            )
-        if legend_labels[1] is None:
-            raise TypeError("Legend label must be of type string, not None.")
-        legend_items.append((legend_labels[1], [fc, fl]))
+            # draw uncertainty range as a two-dimensional patch
+            if "yhat_lower" and "yhat_upper" in label_forecasts:
+                x_points = np.append(label_forecasts.index, label_forecasts.index[::-1])
+                y_points = np.append(
+                    label_forecasts.yhat_lower, label_forecasts.yhat_upper[::-1]
+                )
+                fig.patch(
+                    x_points, y_points, color=fc_color, fill_alpha=0.2, line_width=0.01
+                )
+            if legend_labels[1] is None:
+                raise TypeError("Legend label must be of type string, not None.")
+            if label == labels[0]:
+                # only add 1 legend item for forecasts
+                legend_items.append((legend_labels[1], [fc, fl]))
 
     if schedules is not None and not schedules["event_value"].isnull().all():
         schedules = tz_index_naively(schedules)
