@@ -684,25 +684,25 @@ def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:
     return groups
 
 
-def determine_k_unit(agg_demand_unit: str, k_time_unit: str = "h"):
+def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
     """For example:
-    >>> determine_k_unit("m3")  # m3/h
-    >>> determine_k_unit("kWh")  # kW
+    >>> determine_flow_unit("m3")  # m3/h
+    >>> determine_flow_unit("kWh")  # kW
     """
     return (
-        agg_demand_unit.rpartition(k_time_unit)[0]
-        if agg_demand_unit.endswith(k_time_unit)
-        else f"{agg_demand_unit}/{k_time_unit}"
+        stock_unit.rpartition(time_unit)[0]
+        if stock_unit.endswith(time_unit)
+        else f"{stock_unit}/{time_unit}"
     )
 
 
-def determine_agg_demand_unit(k_unit: str, k_time_unit: str = "h"):
+def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
     """For example:
-    >>> determine_agg_demand_unit("m3/h")  # m3
-    >>> determine_agg_demand_unit("kW")  # kWh
+    >>> determine_stock_unit("m3/h")  # m3
+    >>> determine_stock_unit("kW")  # kWh
     """
     return (
-        k_unit.rpartition(f"/{k_time_unit}")[0]
-        if k_unit.endswith(f"/{k_time_unit}")
-        else f"{k_unit}{k_time_unit}"
+        flow_unit.rpartition(f"/{time_unit}")[0]
+        if flow_unit.endswith(f"/{time_unit}")
+        else f"{flow_unit}{time_unit}"
     )
