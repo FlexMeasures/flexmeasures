@@ -70,9 +70,11 @@ def portfolio_view():  # noqa: C901
         else pd.DataFrame()
     )
     stack_dict = (
-        rename_each_value_column(supply_resources_df_dict).values()
+        rename_event_value_column_to_resource_name(supply_resources_df_dict).values()
         if show_summed == "consumption"
-        else rename_each_value_column(demand_resources_df_dict).values()
+        else rename_event_value_column_to_resource_name(
+            demand_resources_df_dict
+        ).values()
     )
     df_stacked_data = pd.concat(stack_dict, axis=1) if stack_dict else pd.DataFrame()
 
@@ -283,9 +285,10 @@ def stack_df(df: pd.DataFrame) -> pd.DataFrame:
     return df_stack
 
 
-def rename_each_value_column(
+def rename_event_value_column_to_resource_name(
     df_dict: Dict[str, pd.DataFrame]
 ) -> Dict[str, pd.DataFrame]:
+    """Replace the column name "event_source" with the resource name, for each resource in the dictionary."""
     return {
         df_name: df.rename(columns={"event_value": capitalize(df_name)})
         for df_name, df in df_dict.items()
