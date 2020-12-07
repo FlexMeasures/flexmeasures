@@ -1,7 +1,9 @@
+import re
 import sys
 import traceback
 from flask import Flask, jsonify, current_app, request
 from flask_security import current_user
+from sqlalchemy.orm import Query
 from werkzeug.exceptions import HTTPException, InternalServerError, BadRequest
 
 
@@ -75,3 +77,20 @@ def add_basic_error_handlers(app: Flask):
     app.register_error_handler(InternalServerError, error_handling_router)
     app.register_error_handler(BadRequest, error_handling_router)
     app.register_error_handler(HTTPException, error_handling_router)
+
+
+def print_query(query: Query) -> str:
+    """Print full SQLAlchemy query with compiled parameters.
+
+    Recommended use as developer tool only.
+
+    Adapted from https://stackoverflow.com/a/63900851/13775459
+    """
+    regex = re.compile(r":(?P<name>\w+)")
+    params = query.statement.compile().params
+    sql = regex.sub(r"'{\g<name>}'", str(query.statement)).format(**params)
+    from bvp.data.config import db
+
+    print(f"\nPrinting SQLAlchemy query to database {db.engine.url.database}:\n\n")
+    print(sql)
+    return sql
