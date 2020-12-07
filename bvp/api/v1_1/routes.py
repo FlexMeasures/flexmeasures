@@ -1,6 +1,6 @@
 from flask_security import auth_token_required
 
-from bvp.api.common.utils.api_utils import check_access, append_doc_of
+from bvp.api.common.utils.api_utils import list_access, append_doc_of
 from bvp.api.common.utils.decorators import as_response_type
 from bvp.api.common.utils.validators import usef_roles_accepted
 from bvp.api.v1 import routes as v1_routes, implementations as v1_implementations
@@ -55,7 +55,7 @@ v1_1_service_listing = {
 @bvp_api_v1_1.route("/getConnection", methods=["GET"])
 @as_response_type("GetConnectionResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_1_service_listing, "getConnection"))
+@usef_roles_accepted(*list_access(v1_1_service_listing, "getConnection"))
 def get_connection():
     """API endpoint to get the user's connections as entity addresses ordered from newest to oldest.
 
@@ -108,7 +108,7 @@ def get_connection():
 @bvp_api_v1_1.route("/postPriceData", methods=["POST"])
 @as_response_type("PostPriceDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_1_service_listing, "postPriceData"))
+@usef_roles_accepted(*list_access(v1_1_service_listing, "postPriceData"))
 def post_price_data():
     """API endpoint to post price data.
 
@@ -190,7 +190,7 @@ def post_price_data():
 @bvp_api_v1_1.route("/postWeatherData", methods=["POST"])
 @as_response_type("PostWeatherDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_1_service_listing, "postWeatherData"))
+@usef_roles_accepted(*list_access(v1_1_service_listing, "postWeatherData"))
 def post_weather_data():
     """API endpoint to post weather data, such as:
 
@@ -264,7 +264,7 @@ def post_weather_data():
 @bvp_api_v1_1.route("/getPrognosis", methods=["GET"])
 @as_response_type("GetPrognosisResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_1_service_listing, "getPrognosis"))
+@usef_roles_accepted(*list_access(v1_1_service_listing, "getPrognosis"))
 def get_prognosis():
     """API endpoint to get prognosis.
 
@@ -331,7 +331,7 @@ def get_prognosis():
 @bvp_api_v1_1.route("/postPrognosis", methods=["POST"])
 @as_response_type("PostPrognosisResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_1_service_listing, "postPrognosis"))
+@usef_roles_accepted(*list_access(v1_1_service_listing, "postPrognosis"))
 def post_prognosis():
     """API endpoint to post prognoses about meter data.
 
@@ -414,7 +414,7 @@ def post_prognosis():
 @bvp_api_v1_1.route("/getMeterData", methods=["GET"])
 @as_response_type("GetMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_1_service_listing, "getMeterData"))
+@usef_roles_accepted(*list_access(v1_1_service_listing, "getMeterData"))
 @append_doc_of(v1_routes.get_meter_data)
 def get_meter_data():
     return v1_implementations.get_meter_data_response()
@@ -423,7 +423,7 @@ def get_meter_data():
 @bvp_api_v1_1.route("/postMeterData", methods=["POST"])
 @as_response_type("PostMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*check_access(v1_1_service_listing, "postMeterData"))
+@usef_roles_accepted(*list_access(v1_1_service_listing, "postMeterData"))
 @append_doc_of(v1_routes.post_meter_data)
 def post_meter_data():
     return v1_implementations.post_meter_data_response()

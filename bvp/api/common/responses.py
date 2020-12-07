@@ -41,7 +41,7 @@ def already_received_and_successfully_processed(message: str) -> ResponseTuple:
 
 
 @BaseMessage("Some of the required information is missing from the request.")
-def required_info_missing(fields: Sequence[str], message: str) -> ResponseTuple:
+def required_info_missing(fields: Sequence[str], message: str = "") -> ResponseTuple:
     return (
         dict(
             results="Rejected",

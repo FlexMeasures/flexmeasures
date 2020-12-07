@@ -3,7 +3,6 @@
 from flask import Flask
 from werkzeug.exceptions import BadRequest, InternalServerError, HTTPException
 
-from bvp.utils.error_utils import log_error
 from bvp.ui.utils.view_utils import render_bvp_template
 from bvp.data import auth_setup
 
@@ -21,23 +20,22 @@ def add_html_error_views(app: Flask):
 
 def handle_generic_http_exception(e: HTTPException):
     """This handles all known exception as fall-back"""
-    log_error(e, e.description)
     error_code = 500
-    if e.code is not None:
+    if hasattr(e, "code") and e.code is not None:
         error_code = e.code
+    error_text = getattr(e, "description", str(e))
     return (
         render_bvp_template(
             "error.html",
             error_class=e.__class__.__name__,
             error_description="We encountered an Http exception.",
-            error_message=e.description,
+            error_message=error_text,
         ),
         error_code,
     )
 
 
 def handle_500_error(e: InternalServerError):
-    log_error(e, str(e))
     return (
         render_bvp_template(
             "error.html",
@@ -50,7 +48,6 @@ def handle_500_error(e: InternalServerError):
 
 
 def handle_bad_request(e: BadRequest):
-    log_error(e, e.description)
     return (
         render_bvp_template(
             "error.html",
@@ -63,7 +60,6 @@ def handle_bad_request(e: BadRequest):
 
 
 def handle_not_found(e):
-    log_error(e, str(e))
     return (
         render_bvp_template(
             "error.html",

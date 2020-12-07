@@ -17,7 +17,7 @@ from bvp.data.models.user import User
 from bvp.api.common.responses import unrecognized_sensor
 
 
-def check_access(service_listing, service_name):
+def list_access(service_listing, service_name):
     """
     For a given USEF service name (API endpoint) in a service listing,
     return the list of USEF roles that are allowed to access the service.

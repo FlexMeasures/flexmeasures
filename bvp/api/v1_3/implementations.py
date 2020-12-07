@@ -35,6 +35,7 @@ from bvp.api.common.utils.validators import (
     units_accepted,
     parse_isodate_str,
 )
+from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.data_sources import DataSource
 from bvp.data.services.resources import has_assets, can_access_asset
@@ -339,4 +340,5 @@ def post_udi_event_response(unit):
     asset.soc_udi_event_id = event_id
     asset.soc_in_mwh = value
 
+    db.session.commit()
     return request_processed()

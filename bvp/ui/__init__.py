@@ -13,7 +13,6 @@ from bvp.utils.bvp_inflection import (
 )
 from bvp.utils.time_utils import localized_datetime_str, naturalized_datetime_str
 
-
 # The ui blueprint. It is registered with the Flask app (see app.py)
 bvp_ui = Blueprint(
     "bvp_ui",
@@ -90,6 +89,8 @@ def register_rq_dashboard(app):
 
 
 def add_jinja_filters(app):
+    from bvp.ui.utils.view_utils import asset_icon_name, username
+
     app.jinja_env.filters["zip"] = zip  # Allow zip function in templates
     app.jinja_env.add_extension(
         "jinja2.ext.do"
@@ -106,6 +107,8 @@ def add_jinja_filters(app):
         and current_app.config.get("BVP_HIDE_NAN_IN_UI", False)
         else x
     )
+    app.jinja_env.filters["asset_icon"] = asset_icon_name
+    app.jinja_env.filters["username"] = username
 
 
 def add_jinja_variables(app):

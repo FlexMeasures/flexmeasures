@@ -12,7 +12,7 @@ from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
 from bvp.data.services.resources import get_assets
 from bvp.data.services.forecasting import create_forecasting_jobs
-from bvp.data.utils import save_to_database
+from bvp.data.utils import save_to_session
 from bvp.api.common.responses import (
     already_received_and_successfully_processed,
     invalid_domain,
@@ -324,9 +324,10 @@ def create_connection_and_value_groups(  # noqa: C901
 
     current_app.logger.info("SAVING TO DB AND QUEUEING...")
     try:
-        save_to_database(power_measurements)
+        save_to_session(power_measurements)
         db.session.flush()
         [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
+        db.session.commit()
         return request_processed()
     except IntegrityError as e:
         current_app.logger.warning(e)
@@ -334,11 +335,12 @@ def create_connection_and_value_groups(  # noqa: C901
 
         # Allow meter data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
-            save_to_database(power_measurements, overwrite=True)
+            save_to_session(power_measurements, overwrite=True)
             [
                 current_app.queues["forecasting"].enqueue_job(job)
                 for job in forecasting_jobs
             ]
+            db.session.commit()
             return request_processed()
         else:
             return already_received_and_successfully_processed()

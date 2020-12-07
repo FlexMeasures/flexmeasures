@@ -833,7 +833,9 @@ def usef_roles_accepted(*usef_roles):
         @as_json
         def decorated_service(*args, **kwargs):
             perm = Permission(*[RoleNeed(role) for role in usef_roles])
-            if current_user.has_role("anonymous"):
+            if current_user.has_role(
+                "anonymous"
+            ):  # TODO: this role needs to go, we should not mix permissive and restrictive roles
                 current_app.logger.warning(
                     "Anonymous user is not accepted for this service"
                 )
@@ -841,7 +843,9 @@ def usef_roles_accepted(*usef_roles):
             elif perm.can() or current_user.has_role("admin"):
                 return fn(*args, **kwargs)
             else:
-                current_app.logger.warning("User role is not accepted for this service")
+                current_app.logger.warning(
+                    "User does not have necessary authorization for this service"
+                )
                 return invalid_sender(
                     [role.name for role in current_user.roles], *usef_roles
                 )

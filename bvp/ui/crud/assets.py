@@ -1,64 +1,55 @@
-from typing import Optional, Tuple, Union
+from typing import Union, Optional, Tuple
 from datetime import timedelta
+import copy
 
-from flask import request, current_app
+from flask import request, url_for, current_app
 from flask_classful import FlaskView
 from flask_wtf import FlaskForm
+from flask_security import login_required, current_user
 from wtforms import StringField, DecimalField, IntegerField, SelectField
-from wtforms.validators import DataRequired, NumberRange, Length
-from flask_security import login_required, roles_required, current_user
-from werkzeug.exceptions import NotFound
+from wtforms.validators import DataRequired
 from sqlalchemy.exc import IntegrityError
 
-from bvp.data.services.resources import get_assets, create_asset
-from bvp.ui.utils.plotting_utils import get_latest_power_as_plot
-from bvp.ui.utils.view_utils import render_bvp_template
-from bvp.data.models.assets import Asset, AssetType
+from bvp.data.auth_setup import unauthorized_handler
+from bvp.data.services.users import get_users, create_user, InvalidBVPUser
+from bvp.data.services.resources import get_markets
+from bvp.data.models.assets import AssetType, Asset
 from bvp.data.models.user import User
 from bvp.data.models.markets import Market
-from bvp.data.services.users import get_users, create_user, InvalidBVPUser
-from bvp.data.services.resources import delete_asset, get_markets
-from bvp.data.auth_setup import unauthorized_handler
-from bvp.data.config import db
+from bvp.ui.utils.plotting_utils import get_latest_power_as_plot
+from bvp.ui.utils.view_utils import render_bvp_template
+from bvp.ui.crud.api_wrapper import InternalApi
 
 
 class AssetForm(FlaskForm):
     """The default asset form only allows to edit the name, numbers and market."""
 
-    display_name = StringField(
-        "Display name", validators=[DataRequired(), Length(min=4)]
-    )
-    capacity_in_mw = DecimalField(
-        "Capacity in MW", places=2, validators=[NumberRange(min=0)]
-    )
-    event_resolution_in_minutes = IntegerField(
+    display_name = StringField("Display name")
+    capacity_in_mw = DecimalField("Capacity in MW", places=2)
+    unit = SelectField("Unit", default="MW", choices=[("MW", "MW")])
+    event_resolution = IntegerField(
         "Resolution in minutes (e.g. 15)",
         default=15,
-        validators=[NumberRange(min=1, max=10080)],  # up to one week allowed
     )
     min_soc_in_mwh = DecimalField(
         "Minimum state of charge (SOC) in MWh",
         places=2,
         default=0,
-        validators=[NumberRange(min=0)],
     )
     max_soc_in_mwh = DecimalField(
         "Maximum state of charge (SOC) in MWh",
         places=2,
         default=0,
-        validators=[NumberRange(min=0)],
     )
     latitude = DecimalField(
         "Latitude",
         places=4,
-        render_kw={"placeholder": "--Click the map or enter a latitude --"},
-        validators=[NumberRange(min=-90, max=90)],
+        render_kw={"placeholder": "--Click the map or enter a latitude--"},
     )
     longitude = DecimalField(
         "Longitude",
         places=4,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
-        validators=[NumberRange(min=-180, max=180)],
     )
     market_id = SelectField("Market", coerce=int)
 
@@ -67,13 +58,40 @@ class AssetForm(FlaskForm):
             self.market_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )
-        form_valid = super().validate_on_submit()
-        if self.max_soc_in_mwh.data < self.min_soc_in_mwh.data:
-            self.errors["max_soc_in_mwh"] = [
-                "This value must be equal or higher than the minimum soc."
-            ]
-            return False
-        return form_valid
+        return super().validate_on_submit()
+
+    def to_json(self) -> dict:
+        """ turn form data into a JSON we can POST to our internal API """
+        data = copy.copy(self.data)
+        data["name"] = data["display_name"]  # both are part of the asset model
+        data[
+            "unit"
+        ] = "MW"  # TODO: make unit a choice? this is hard-coded in the UI as well
+        data["capacity_in_mw"] = float(data["capacity_in_mw"])
+        data["min_soc_in_mwh"] = float(data["min_soc_in_mwh"])
+        data["max_soc_in_mwh"] = float(data["max_soc_in_mwh"])
+        data["longitude"] = float(data["longitude"])
+        data["latitude"] = float(data["latitude"])
+        if "owner" in data:
+            data["owner_id"] = data.pop("owner")
+
+        if "csrf_token" in data:
+            del data["csrf_token"]
+
+        return data
+
+    def process_api_validation_errors(self, api_response: dict):
+        """Process form errors from the API for the WTForm"""
+        if (
+            not isinstance(api_response, dict)
+            or "validation_errors" not in api_response
+        ):
+            return
+        for field in list(self._fields.keys()):
+            if field in list(api_response["validation_errors"].keys()):
+                self._fields[field].errors.append(
+                    api_response["validation_errors"][field]
+                )
 
 
 class NewAssetForm(AssetForm):
@@ -101,22 +119,55 @@ def with_options(
     return form
 
 
+def process_internal_api_response(
+    asset_data: dict, asset_id: Optional[int] = None, make_obj=False
+) -> Union[Asset, dict]:
+    """
+    Turn data from the internal API into something we can use to further populate the UI.
+    Either as an asset object or a dict for form filling.
+    """
+    asset_data.pop("status", None)  # might have come from requests.response
+    if asset_id:
+        asset_data["id"] = asset_id
+    if make_obj:
+        asset_data["event_resolution"] = timedelta(
+            minutes=int(asset_data["event_resolution"])
+        )
+        return Asset(**asset_data)
+    asset_data["event_resolution"] = asset_data["event_resolution"].seconds / 60
+    return asset_data
+
+
 class AssetCrud(FlaskView):
+    """
+    These views help us offering a Jinja2-based UI.
+    The main focus on logic is the API, so these views simply call the API functions,
+    and deal with the response.
+    Some new functionality, like fetching users and markets, is added here.
+    """
+
     route_base = "/assets"
-    trailing_slash = False
 
     @login_required
-    def index(self):
+    def index(self, msg=""):
         """/assets"""
-        assets = get_assets()
-        return render_bvp_template("crud/assets.html", assets=assets)
+        get_assets_response = InternalApi().get(url_for("bvp_api_v2_0.get_assets"))
+        assets = [
+            process_internal_api_response(ad, make_obj=True)
+            for ad in get_assets_response.json()
+        ]
+        return render_bvp_template("crud/assets.html", assets=assets, message=msg)
 
     @login_required
     def owned_by(self, owner_id: str):
         """/assets/owned_by/<user_id>"""
-        if not (current_user.has_role("admin") or int(owner_id) == current_user.id):
-            return unauthorized_handler(None, [])
-        assets = get_assets(int(owner_id))
+        get_assets_response = InternalApi().get(
+            url_for("bvp_api_v2_0.get_assets"), query={"owner_id": owner_id}
+        )
+        assets = [
+            process_internal_api_response(ad, make_obj=True)
+            for ad in get_assets_response.json()
+        ]
         return render_bvp_template("crud/assets.html", assets=assets)
 
     @login_required
@@ -124,58 +175,50 @@ class AssetCrud(FlaskView):
         """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)"""
 
         if id == "new":
-            asset_form = with_options(NewAssetForm())
             if not current_user.has_role("admin"):
                 return unauthorized_handler(None, [])
 
+            asset_form = with_options(NewAssetForm())
             return render_bvp_template(
                 "crud/asset_new.html", asset_form=asset_form, msg=""
             )
 
-        asset_form = with_options(AssetForm())
-        asset: Asset = Asset.query.filter_by(id=int(id)).one_or_none()
-        if asset is not None:
-            if asset.owner != current_user and not current_user.has_role("admin"):
-                return unauthorized_handler(None, [])
-            if asset.market is not None:
-                asset_form.market_id.default = asset_form.market_id.choices.index(
-                    (asset.market_id, asset.market.display_name)
-                )
-            asset_form.process(obj=asset)
+        get_asset_response = InternalApi().get(url_for("bvp_api_v2_0.get_asset", id=id))
+        asset_dict = get_asset_response.json()
 
-            latest_measurement_time_str, asset_plot_html = get_latest_power_as_plot(
-                asset
-            )
-            return render_bvp_template(
-                "crud/asset.html",
-                asset=asset,
-                asset_form=asset_form,
-                msg="",
-                latest_measurement_time_str=latest_measurement_time_str,
-                asset_plot_html=asset_plot_html,
-            )
-        else:
-            raise NotFound
+        asset_form = with_options(AssetForm())
+
+        asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
+        asset_form.process(data=process_internal_api_response(asset_dict))
+
+        latest_measurement_time_str, asset_plot_html = get_latest_power_as_plot(asset)
+        return render_bvp_template(
+            "crud/asset.html",
+            asset=asset,
+            asset_form=asset_form,
+            msg="",
+            latest_measurement_time_str=latest_measurement_time_str,
+            asset_plot_html=asset_plot_html,
+        )
 
     @login_required
     def post(self, id: str):
         """POST to /assets/<id>, where id can be 'create' (and thus a new asset is made from POST data)
         Most of the code deals with creating a user for the asset if no existing is chosen.
         """
-        if current_user.has_role("anonymous"):
-            return unauthorized_handler(
-                None, []
-            )  # Disallow edit access, even to own assets TODO: review, probably should be a role like "readonly" and also be used in general API
 
         asset: Asset = None
-        if id == "create":
-            if not current_user.has_role("admin"):
-                return unauthorized_handler(None, [])
+        error_msg = ""
 
+        if id == "create":
             asset_form = with_options(NewAssetForm())
 
-            owner, owner_error = get_or_create_owner(asset_form)
-            market, market_error = get_market(asset_form)
+            # We make our own auth check here because set_owner might alter the DB;
+            # otherwise we trust the API is handling auth.
+            if not current_user.has_role("admin"):
+                return unauthorized_handler(None, [])
+            owner, owner_error = set_owner(asset_form, create_if_not_exists=True)
+            market, market_error = set_market(asset_form)
 
             if asset_form.asset_type_name.data == "none chosen":
                 asset_form.asset_type_name.data = ""
@@ -184,69 +227,65 @@ class AssetCrud(FlaskView):
 
             # Fill up the form with useful errors for the user
             if owner_error is not None:
-                asset_form.errors["owner"] = [owner_error]
-            else:
-                asset_form.errors["owner"] = []
+                form_valid = False
+                asset_form.owner.errors.append(owner_error)
             if market_error is not None:
-                asset_form.errors["market_id"] = [market_error]
-            else:
-                asset_form.errors["market_id"] = []
+                form_valid = False
+                asset_form.market_id.errors.append(market_error)
 
-            # Create new asset or return the form
+            # Create new asset or return the form for new assets with a message
             if form_valid and owner is not None and market is not None:
-                asset = create_asset(
-                    display_name=asset_form.display_name.data,
-                    asset_type_name=asset_form.asset_type_name.data,
-                    power_unit="MW",
-                    capacity_in_mw=float(asset_form.capacity_in_mw.data),
-                    event_resolution=timedelta(
-                        minutes=asset_form.event_resolution_in_minutes.data
-                    ),
-                    latitude=asset_form.latitude.data,
-                    longitude=asset_form.longitude.data,
-                    min_soc_in_mwh=float(asset_form.min_soc_in_mwh.data),
-                    max_soc_in_mwh=float(asset_form.max_soc_in_mwh.data),
-                    soc_in_mwh=0,
-                    owner=owner,
-                    market=market,
+                post_asset_response = InternalApi().post(
+                    url_for("bvp_api_v2_0.post_assets"),
+                    args=asset_form.to_json(),
+                    do_not_raise_for=[400],
                 )
-                asset_form.owner.data = owner.id
-                asset_form.market_id.default = asset_form.market_id.choices.index(
-                    (asset.market.id, asset.market.display_name)
-                )
-                asset_form.process(obj=asset)
-                db.session.flush()  # the object should get the ID here, for the form to be rendered correctly
-                msg = "Creation was successful."
-            else:
-                msg = "Cannot create asset."
+
+                if post_asset_response.status_code in (200, 201):
+                    asset_dict = post_asset_response.json()
+                    asset = process_internal_api_response(
+                        asset_dict, int(asset_dict["id"]), make_obj=True
+                    )
+                    msg = "Creation was successful."
+                else:
+                    current_app.logger.error(
+                        f"Internal asset API call unsuccessful [{post_asset_response.status_code}]: {post_asset_response.text}"
+                    )
+                    asset_form.process_api_validation_errors(post_asset_response.json())
+                    if "message" in post_asset_response.json():
+                        error_msg = post_asset_response.json()["message"]
+            if asset is None:
+                msg = "Cannot create asset. " + error_msg
                 return render_bvp_template(
                     "crud/asset_new.html", asset_form=asset_form, msg=msg
                 )
+
         else:
             asset_form = with_options(AssetForm())
-            asset = Asset.query.filter_by(id=int(id)).one_or_none()
-            if asset is not None:
-                if asset.owner != current_user and not current_user.has_role("admin"):
-                    return unauthorized_handler(None, [])
-                if asset_form.validate_on_submit():
-                    asset_form.capacity_in_mw.data = float(
-                        asset_form.capacity_in_mw.data
-                    )
-                    asset_form.min_soc_in_mwh.data = float(
-                        asset_form.min_soc_in_mwh.data
-                    )
-                    asset_form.max_soc_in_mwh.data = float(
-                        asset_form.max_soc_in_mwh.data
-                    )
-                    asset_form.populate_obj(asset)
-                    asset.event_resolution = timedelta(
-                        minutes=asset_form.event_resolution_in_minutes.data
-                    )
-                    msg = "Editing was successful."
-                else:
-                    msg = "Asset was not saved, please review error(s) below."
+            if not asset_form.validate_on_submit():
+                return render_bvp_template(
+                    "crud/asset_new.html",
+                    asset_form=asset_form,
+                    msg="Cannot edit asset.",
+                )
+            patch_asset_response = InternalApi().patch(
+                url_for("bvp_api_v2_0.patch_asset", id=id),
+                args=asset_form.to_json(),
+                do_not_raise_for=[400],
+            )
+            asset_dict = patch_asset_response.json()
+            if patch_asset_response.status_code in (200, 201):
+                asset = process_internal_api_response(
+                    asset_dict, int(id), make_obj=True
+                )
+                msg = "Editing was successful."
             else:
-                raise NotFound
+                current_app.logger.error(
+                    f"Internal asset API call unsuccessful [{patch_asset_response.status_code}]: {patch_asset_response.text}"
+                )
+                asset_form.process_api_validation_errors(patch_asset_response.json())
+                asset = Asset.query.get(id)
+
         latest_measurement_time_str, asset_plot_html = get_latest_power_as_plot(asset)
         return render_bvp_template(
             "crud/asset.html",
@@ -257,29 +296,26 @@ class AssetCrud(FlaskView):
             asset_plot_html=asset_plot_html,
         )
 
-    @roles_required("admin")
+    @login_required
     def delete_with_data(self, id: str):
         """Delete via /assets/delete_with_data/<id>"""
-        asset: Asset = Asset.query.filter_by(id=int(id)).one_or_none()
-        asset_name = asset.name
-        delete_asset(asset)
-        return render_bvp_template(
-            "crud/assets.html",
-            msg="Asset %s and assorted meter readings / forecasts have been deleted."
-            % asset_name,
-            assets=get_assets(),
+        InternalApi().delete(
+            url_for("bvp_api_v2_0.delete_asset", id=id),
+        )
+        return self.index(
+            msg=f"Asset {id} and assorted meter readings / forecasts have been deleted."
         )
 
 
-def get_or_create_owner(
-    asset_form: NewAssetForm,
+def set_owner(
+    asset_form: NewAssetForm, create_if_not_exists: bool = False
 ) -> Tuple[Optional[User], Optional[str]]:
-    """Get an existing or create a new User as owner for the to-be-created asset.
+    """Set a user as owner for the to-be-created asset.
     Return the user (if available and an error message)"""
     owner = None
     owner_error = None
 
-    if asset_form.owner.data == -1:
+    if asset_form.owner.data == -1 and create_if_not_exists:
         new_owner_email = request.form.get("new_owner_email", "")
         if new_owner_email.startswith("--Type"):
             owner_error = "Either pick an existing user as owner or enter an email address for the new owner."
@@ -302,8 +338,8 @@ def get_or_create_owner(
     return owner, owner_error
 
 
-def get_market(asset_form: NewAssetForm) -> Tuple[Optional[Market], Optional[str]]:
-    """Get an existing Market as market for the to-be-created asset.
+def set_market(asset_form: NewAssetForm) -> Tuple[Optional[Market], Optional[str]]:
+    """Set a market for the to-be-created asset.
     Return the market (if available) and an error message."""
     market = None
     market_error = None

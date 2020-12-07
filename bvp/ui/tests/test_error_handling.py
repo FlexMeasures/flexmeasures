@@ -37,12 +37,10 @@ def test_error_handling(
         assert json.loads(res.data)["message"] == expected_message
 
     res = client.get(raising_url)
+    print(f"Server responded with {res.data}")
     assert res.status_code == status_code
     assert "text/html" in res.content_type
-    if "type=gone" not in raising_url:
-        # test if we rendered the base template
-        assert b"- Balancing Valorisation Platform" in res.data
-    else:
-        assert b"- Balancing Valorisation Platform" not in res.data
+    # test if we rendered the base template
+    assert b"- Balancing Valorisation Platform" in res.data
     if expected_message:
         assert expected_message.encode() in res.data

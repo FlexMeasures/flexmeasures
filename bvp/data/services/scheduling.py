@@ -14,7 +14,7 @@ from bvp.data.config import db
 from bvp.data.models.assets import Asset, Power
 from bvp.data.models.planning.battery import schedule_battery
 from bvp.data.models.planning.charging_station import schedule_charging_station
-from bvp.data.utils import save_to_database, get_data_source
+from bvp.data.utils import save_to_session, get_data_source
 
 """
 The life cycle of a scheduling job:
@@ -144,7 +144,7 @@ def make_schedule(
     ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
 
     try:
-        save_to_database(ts_value_schedule)
+        save_to_session(ts_value_schedule)
     except IntegrityError as e:
 
         current_app.logger.warning(e)
@@ -153,7 +153,7 @@ def make_schedule(
 
         if current_app.config.get("BVP_MODE", "") == "play":
             click.echo("Saving again, with overwrite=True")
-            save_to_database(ts_value_schedule, overwrite=True)
+            save_to_session(ts_value_schedule, overwrite=True)
 
     db.session.commit()
 

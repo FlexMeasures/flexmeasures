@@ -1,43 +1,38 @@
 from flask import url_for
+import copy
+
+import pytest
 
 from bvp.data.services.users import find_user_by_email
-from bvp.data.models.assets import Asset
-from bvp.data.models.markets import Market
+from bvp.ui.tests.utils import mock_asset_response, mock_api_data_as_form_input
+
+"""
+Testing if our asset UI proceeds with the expected roundtrip.
+Here, we mock the API responses (we have to, as our UI layer contacts BVP as a server, which does not run during tests).
+The real logic tests are done in the api package, which is also the better place for that.
+"""
 
 
-def test_asset_crud_as_non_admin(db, client, as_prosumer):
+def test_assets_page_empty(db, client, requests_mock, as_prosumer):
+    requests_mock.get("http://localhost//api/v2_0/assets", status_code=200, json={})
     asset_index = client.get(url_for("AssetCrud:index"), follow_redirects=True)
     assert asset_index.status_code == 200
-    prosumer = find_user_by_email("test_prosumer@seita.nl")
-    prosumer_assets = prosumer.assets
-    db.session.expunge(prosumer)
 
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
-    prosumer2_assets = prosumer2.assets
-    db.session.expunge(prosumer2)
 
-    asset_page = client.get(url_for("AssetCrud:get", id="new"), follow_redirects=True)
-    assert asset_page.status_code == 403
-    asset_page = client.get(
-        url_for("AssetCrud:get", id=prosumer_assets[0].id), follow_redirects=True
+@pytest.mark.parametrize("use_owned_by", [False, True])
+def test_assets_page_nonempty(db, client, requests_mock, as_prosumer, use_owned_by):
+    mock_assets = mock_asset_response(multiple=True)
+    requests_mock.get(
+        "http://localhost//api/v2_0/assets", status_code=200, json=mock_assets
     )
-    assert asset_page.status_code == 200
-    asset_page = client.get(
-        url_for("AssetCrud:get", id=prosumer2_assets[0].id), follow_redirects=True
-    )
-    assert asset_page.status_code == 403
-    asset_page = client.get(
-        url_for("AssetCrud:get", id=8171766575), follow_redirects=True
-    )
-    assert asset_page.status_code == 404
-    asset_index = client.get(url_for("AssetCrud:owned_by", owner_id=prosumer2.id))
-    assert asset_index.status_code == 403
-    asset_index = client.get(url_for("AssetCrud:owned_by", owner_id=prosumer.id))
-    assert asset_index.status_code == 200
-    asset_creation = client.post(
-        url_for("AssetCrud:post", id="create"), follow_redirects=True
-    )
-    assert asset_creation.status_code == 403
+    if use_owned_by:
+        asset_index = client.get(
+            url_for("AssetCrud:owned_by", owner_id=mock_assets[0]["owner_id"])
+        )
+    else:
+        asset_index = client.get(url_for("AssetCrud:index"))
+    for asset in mock_assets:
+        assert asset["display_name"].encode() in asset_index.data
 
 
 def test_new_asset_page(client, as_admin):
@@ -46,135 +41,90 @@ def test_new_asset_page(client, as_admin):
     assert b"Creating a new asset" in asset_page.data
 
 
-def test_asset_page(db, client, as_prosumer):
+def test_asset_page(db, client, requests_mock, as_prosumer):
     prosumer = find_user_by_email("test_prosumer@seita.nl")
-    prosumer_assets = prosumer.assets
+    asset = prosumer.assets[0]
     db.session.expunge(prosumer)
+    mock_asset = mock_asset_response(as_list=False)
+    mock_asset["capacity_in_mw"] = asset.capacity_in_mw
+    mock_asset["latitude"] = asset.latitude
+    mock_asset["longitude"] = asset.longitude
+
+    requests_mock.get(
+        f"http://localhost//api/v2_0/asset/{asset.id}", status_code=200, json=mock_asset
+    )
     asset_page = client.get(
-        url_for("AssetCrud:get", id=prosumer_assets[0].id), follow_redirects=True
+        url_for("AssetCrud:get", id=asset.id), follow_redirects=True
     )
-    assert (
-        "Edit asset %s" % prosumer_assets[0].display_name
-    ).encode() in asset_page.data
-    assert str(prosumer_assets[0].capacity_in_mw).encode() in asset_page.data
-    assert str(prosumer_assets[0].latitude).encode() in asset_page.data
-    assert str(prosumer_assets[0].longitude).encode() in asset_page.data
+    assert ("Edit asset %s" % mock_asset["display_name"]).encode() in asset_page.data
+    assert str(mock_asset["capacity_in_mw"]).encode() in asset_page.data
+    assert str(mock_asset["latitude"]).encode() in asset_page.data
+    assert str(mock_asset["longitude"]).encode() in asset_page.data
 
 
-def test_assets_owned_by(db, client, as_admin):
-    prosumer = find_user_by_email("test_prosumer@seita.nl")
-    prosumer_assets = prosumer.assets
-    db.session.expunge(prosumer)
-    asset_index = client.get(url_for("AssetCrud:owned_by", owner_id=prosumer.id))
-    for asset in prosumer_assets:
-        assert asset.display_name.encode() in asset_index.data
-
-
-def test_edit_asset(db, client, as_prosumer):
-    prosumer = find_user_by_email("test_prosumer@seita.nl")
-    existing_asset = prosumer.assets[1]
-    db.session.expunge(prosumer)
-    asset_edit = client.post(
-        url_for("AssetCrud:post", id=existing_asset.id),
+def test_edit_asset(db, client, requests_mock, as_admin):
+    mock_asset = mock_asset_response(as_list=False)
+    requests_mock.patch(
+        "http://localhost//api/v2_0/asset/1", status_code=200, json=mock_asset
+    )
+    response = client.post(
+        url_for("AssetCrud:post", id=1),
         follow_redirects=True,
-        data=dict(
-            display_name=existing_asset.display_name,
-            latitude=existing_asset.latitude,
-            longitude=existing_asset.longitude,
-            market_id=existing_asset.market_id,
-            capacity_in_mw="33.33",
-            min_soc_in_mwh=existing_asset.min_soc_in_mwh,
-            max_soc_in_mwh=existing_asset.max_soc_in_mwh,
-            soc_in_mwh=existing_asset.soc_in_mwh,
-        ),
+        data=mock_api_data_as_form_input(mock_asset),
     )
-    assert asset_edit.status_code == 200
-    updated_asset = Asset.query.filter_by(id=existing_asset.id).one_or_none()
-    assert updated_asset.display_name == existing_asset.display_name
-    assert updated_asset.latitude == existing_asset.latitude
-    assert updated_asset.longitude == existing_asset.longitude
-    assert updated_asset.capacity_in_mw == 33.33
+    assert response.status_code == 200
+    assert b"Editing was successful" in response.data
+    assert mock_asset["display_name"] in str(response.data)
+    assert str(mock_asset["latitude"]) in str(response.data)
+    assert str(mock_asset["longitude"]) in str(response.data)
 
 
-def test_add_asset(db, client, as_admin):
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
-    market = Market.query.filter_by(name="epex_da").one_or_none()
-    num_assets_before = len(prosumer2.assets)
-    db.session.expunge(prosumer2)
+def test_add_asset(db, client, requests_mock, as_admin):
+    """Add a new asset"""
+    prosumer = find_user_by_email("test_prosumer@seita.nl")
+    mock_asset = mock_asset_response(owner_id=prosumer.id, as_list=False)
+    requests_mock.post(
+        "http://localhost//api/v2_0/assets", status_code=201, json=mock_asset
+    )
     response = client.post(
         url_for("AssetCrud:post", id="create"),
         follow_redirects=True,
-        data=dict(
-            display_name="New Test Asset",
-            asset_type_name="wind",
-            market_id=str(market.id),
-            owner=str(prosumer2.id),
-            capacity_in_mw="100",
-            latitude="70.4",
-            longitude="30.9",
-            min_soc_in_mwh=0,
-            max_soc_in_mwh=0,
-            soc_in_mwh=0,
-        ),
+        data=mock_api_data_as_form_input(mock_asset),
     )
     assert response.status_code == 200  # response is HTML form
     assert "html" in response.content_type
     assert b"Creation was successful" in response.data
-    assert Asset.query.filter_by(owner_id=prosumer2.id).count() == num_assets_before + 1
-    updated_asset = Asset.query.filter_by(latitude=70.4).one_or_none()
-    assert updated_asset.display_name == "New Test Asset"
-    assert updated_asset.capacity_in_mw == 100
+    assert mock_asset["display_name"] in str(response.data)
+    assert str(mock_asset["latitude"]) in str(response.data)
+    assert str(mock_asset["longitude"]) in str(response.data)
 
 
-def test_add_asset_with_new_owner(client, as_admin):
+def test_add_asset_with_new_owner(client, requests_mock, as_admin):
+    """Test roundtrip and expect new user (new owner) in db"""
+    mock_asset = mock_asset_response(owner_id=-1, as_list=False)
+    requests_mock.post(
+        "http://localhost//api/v2_0/assets", status_code=201, json=mock_asset
+    )
     new_user_email = "test_prosumer_new_owner@seita.nl"
-    market = Market.query.filter_by(name="epex_da").one_or_none()
+    data = copy.deepcopy(mock_asset)
+    data["new_owner_email"] = new_user_email
     response = client.post(
         url_for("AssetCrud:post", id="create"),
         follow_redirects=True,
-        data=dict(
-            display_name="New Test Asset",
-            asset_type_name="wind",
-            market_id=str(market.id),
-            owner=-1,
-            new_owner_email=new_user_email,
-            capacity_in_mw="100",
-            latitude="70.4",
-            longitude="30.9",
-            min_soc_in_mwh=0,
-            max_soc_in_mwh=0,
-            soc_in_mwh=0,
-        ),
+        data=mock_api_data_as_form_input(data),
     )
     assert response.status_code == 200
     assert b"Creation was successful" in response.data
-    new_user = find_user_by_email(new_user_email)
-    assert new_user
-    assert Asset.query.filter_by(owner_id=new_user.id).count() == 1
-    new_asset = Asset.query.filter_by(owner_id=new_user.id).one_or_none()
-    assert new_asset.display_name == "New Test Asset"
-    assert new_asset.capacity_in_mw == 100
+    assert find_user_by_email(new_user_email)
 
 
-def test_add_invalid_asset(db, client, as_admin):
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
-    market = Market.query.filter_by(name="epex_da").one_or_none()
-    num_assets_before = len(prosumer2.assets)
-    db.session.expunge(prosumer2)
-    asset_creation = client.post(
-        url_for("AssetCrud:post", id="create"),
+def test_delete_asset(client, db, requests_mock, as_admin):
+    """Delete an asset"""
+    requests_mock.delete("http://localhost//api/v2_0/asset/1", status_code=204, json={})
+    requests_mock.get("http://localhost//api/v2_0/assets", status_code=200, json={})
+    response = client.get(
+        url_for("AssetCrud:delete_with_data", id=1),
         follow_redirects=True,
-        data=dict(
-            display_name="New Test Asset",
-            asset_type_name="wind",
-            market_id=str(market.id),
-            owner=str(prosumer2.id),
-            capacity_in_mw="-100",
-            latitude="70.4",
-            longitude="300.9",
-        ),
     )
-    assert asset_creation.status_code == 200
-    assert b"must be at least 0" in asset_creation.data
-    assert b"must be between -180 and 180" in asset_creation.data
-    assert Asset.query.filter_by(owner_id=prosumer2.id).count() == num_assets_before
+    assert response.status_code == 200
+    assert b"have been deleted" in response.data

@@ -38,7 +38,7 @@ from bvp.api.common.utils.api_utils import get_weather_sensor_by
 from bvp.data.config import db
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.weather import Weather
-from bvp.data.utils import save_to_database
+from bvp.data.utils import save_to_session
 from bvp.data.services.resources import get_assets
 from bvp.data.services.forecasting import create_forecasting_jobs
 
@@ -136,9 +136,10 @@ def post_price_data_response(
     # Put these into the database
     current_app.logger.info("SAVING TO DB...")
     try:
-        save_to_database(prices)
+        save_to_session(prices)
         db.session.flush()
         [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
+        db.session.commit()
         return request_processed()
     except IntegrityError as e:
         current_app.logger.warning(e)
@@ -146,11 +147,12 @@ def post_price_data_response(
 
         # Allow price data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
-            save_to_database(prices, overwrite=True)
+            save_to_session(prices, overwrite=True)
             [
                 current_app.queues["forecasting"].enqueue_job(job)
                 for job in forecasting_jobs
             ]
+            db.session.commit()
             return request_processed()
         else:
             return already_received_and_successfully_processed()
@@ -239,9 +241,10 @@ def post_weather_data_response(  # noqa: C901
     # Put these into the database
     current_app.logger.info("SAVING TO DB...")
     try:
-        save_to_database(weather_measurements)
-        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
+        save_to_session(weather_measurements)
         db.session.flush()
+        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
+        db.session.commit()
         return request_processed()
     except IntegrityError as e:
         current_app.logger.warning(e)
@@ -249,11 +252,12 @@ def post_weather_data_response(  # noqa: C901
 
         # Allow meter data to be replaced only in play mode
         if current_app.config.get("BVP_MODE", "") == "play":
-            save_to_database(weather_measurements, overwrite=True)
+            save_to_session(weather_measurements, overwrite=True)
             [
                 current_app.queues["forecasting"].enqueue_job(job)
                 for job in forecasting_jobs
             ]
+            db.session.commit()
             return request_processed()
         else:
             return already_received_and_successfully_processed()

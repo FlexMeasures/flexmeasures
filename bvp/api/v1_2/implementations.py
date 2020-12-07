@@ -29,6 +29,7 @@ from bvp.api.common.utils.validators import (
     units_accepted,
     parse_isodate_str,
 )
+from bvp.data.config import db
 from bvp.data.models.assets import Asset
 from bvp.data.models.planning.battery import schedule_battery
 from bvp.data.models.planning.exceptions import UnknownPricesException
@@ -206,4 +207,5 @@ def post_udi_event_response(unit):  # noqa: C901
     asset.soc_udi_event_id = event_id
     asset.soc_in_mwh = value
 
+    db.session.commit()
     return request_processed("Request has been processed.")

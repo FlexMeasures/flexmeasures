@@ -9,7 +9,7 @@ from bvp.ui.views.control import control_view  # noqa: F401
 from bvp.ui.views.analytics import analytics_view  # noqa: F401
 from bvp.ui.views.state import state_view  # noqa: F401
 
-from bvp.ui.views.auth import account_view  # noqa: F401  # noqa: F401
+from bvp.ui.views.account import account_view  # noqa: F401  # noqa: F401
 
 
 @bvp_ui.route("/docs")

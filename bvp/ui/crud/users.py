@@ -32,6 +32,7 @@ class UserForm(FlaskForm):
 # Some helpers
 
 
+# TODO: move to services, handle id not being parseable as int
 def get_user(id: str) -> User:
     user: User = User.query.filter_by(id=int(id)).one_or_none()
     if user is None:
@@ -47,6 +48,9 @@ def render_user(user: Optional[User], msg: str = None):
     )
 
 
+# TODO: URLs should be /users/<id>/action
+# TODO: move to Flask-RestPlus - can all of them stay GET?
+# TODO: support JSON?
 class UserCrud(FlaskView):
     route_base = "/users"
     trailing_slash = False

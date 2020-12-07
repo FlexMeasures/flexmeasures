@@ -16,7 +16,7 @@ from bvp.data.models.markets import Market, Price
 from bvp.data.models.utils import determine_asset_value_class_by_asset
 from bvp.data.models.forecasting.utils import get_query_window, check_data_availability
 from bvp.data.models.weather import Weather, WeatherSensor
-from bvp.data.utils import save_to_database, get_data_source
+from bvp.data.utils import save_to_session, get_data_source
 from bvp.utils.time_utils import (
     as_bvp_time,
     bvp_now,
@@ -217,7 +217,7 @@ def make_forecasts(
     ]
 
     try:
-        save_to_database(ts_value_forecasts)
+        save_to_session(ts_value_forecasts)
     except IntegrityError as e:
 
         current_app.logger.warning(e)
@@ -226,7 +226,7 @@ def make_forecasts(
 
         if current_app.config.get("BVP_MODE", "") == "play":
             click.echo("Saving again, with overwrite=True")
-            save_to_database(ts_value_forecasts, overwrite=True)
+            save_to_session(ts_value_forecasts, overwrite=True)
 
     db.session.commit()
 

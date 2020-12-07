@@ -33,7 +33,7 @@
             <div class="form-group row">
                 <div class="col-sm-2">
                     {% for asset_type in asset_types %}
-                    <div class="col-sm-1"><i class="{{ asset_type.icon_name }} center-icon"></i></div>
+                    <div class="col-sm-1"><i class="{{  asset_type.name | asset_icon }} center-icon"></i></div>
                     {% endfor %}
                 </div>
                 <div class="col-sm-10">
@@ -77,7 +77,7 @@
             <div class="form-group row">
                 <div class="col-sm-2">
                     {% for sensor_type in sensor_types %}
-                    <div class="col-sm-1"><i class="{{ sensor_type.icon_name }} center-icon"></i></div>
+                    <div class="col-sm-1"><i class="{{ sensor_type.name | asset_icon }} center-icon"></i></div>
                     {% endfor %}
                 </div>
                 <div class="col-sm-10">

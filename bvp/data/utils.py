@@ -6,7 +6,7 @@ from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
 
 
-def save_to_database(objects: List[db.Model], overwrite: bool = False):
+def save_to_session(objects: List[db.Model], overwrite: bool = False):
     """Utility function to save to database, either efficiently with a bulk save, or inefficiently with a merge save."""
     if not overwrite:
         db.session.bulk_save_objects(objects)

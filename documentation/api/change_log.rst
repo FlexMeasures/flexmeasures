@@ -3,6 +3,11 @@
 Change log
 ==========
 
+v2.0 | 2020-11-14
+"""""""""""""""""""
+
+- REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE)
+
 v1.3-5 | 2020-10-29
 """""""""""""""""""
 

@@ -7,8 +7,8 @@ from datetime import datetime
 
 import pytz
 import click
+from flask import current_app
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.exc import DatabaseError
 
 from bvp.data.config import db
 from bvp.utils.error_utils import get_err_source_info
@@ -35,12 +35,14 @@ def as_transaction(db_function):
         # run actual function, handle any exceptions and re-raise
         try:
             if db_obj_passed:
-                db_function(*args, **kwargs)
-            else:
                 db_function(*args[1:], **kwargs)
+            else:
+                db_function(*args, **kwargs)
             the_db.session.commit()
         except Exception as e:
-            click.echo("[%s] Encountered Problem: %s" % (db_function.__name__, str(e)))
+            current_app.logger.error(
+                "[%s] Encountered Problem: %s" % (db_function.__name__, str(e))
+            )
             the_db.session.rollback()
             raise
         finally:
@@ -50,24 +52,22 @@ def as_transaction(db_function):
     return wrap
 
 
-def after_request_session_commit_or_rollback(exception):
-    """Central place to handle transactions finally. So - usually your view code should
-    not have to deal with committing or rolling back.
+def after_request_exception_rollback_session(exception):
+    """
+    Central place to handle transactions finally.
+    So - usually your view code should not have to deal with
+    rolling back.
+    Our policy *is* that we don't auto-commit (we used to do that here).
+    Some more reading is e.g. here https://github.com/pallets/flask-sqlalchemy/issues/216
 
     Register this on your app via the teardown_request setup method.
-    We roll back if there was any error and if committing doesn't work."""
+    We roll back the session if there was any error (which only has an effect if
+    the session has not yet been comitted).
+
+    Flask-SQLAlchemy is closing the scoped sessions automatically."""
     if exception is not None:
         db.session.rollback()
-        db.session.close()
         return
-    try:
-        db.session.commit()
-    except DatabaseError:
-        db.session.rollback()
-        raise
-    finally:
-        db.session.close()
-    # session.remove() is called for us by flask-sqlalchemy
 
 
 class PartialTaskCompletionException(Exception):

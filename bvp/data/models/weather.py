@@ -32,23 +32,6 @@ class WeatherSensorType(db.Model):
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
 
-    @property
-    def icon_name(self) -> str:
-        """Icon name for this weather sensor type, which can be used for UI html templates made with Jinja. For example:
-            <i class={{ sensor_type.icon_name }}></i>
-        becomes (for a wind speed sensor):
-            <i class="wi wi-strong-wind"></i>
-        """
-        if self.name == "radiation":
-            return "wi wi-horizon-alt"
-        elif self.name == "temperature":
-            return "wi wi-thermometer"
-        elif self.name == "wind_direction":
-            return "wi wi-wind-direction"
-        elif self.name == "wind_speed":
-            return "wi wi-strong-wind"
-        return ""
-
     def __repr__(self):
         return "<WeatherSensorType %r>" % self.name
 

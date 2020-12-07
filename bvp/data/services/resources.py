@@ -3,21 +3,18 @@ Generic services for accessing asset data.
 """
 
 from typing import List, Dict, Union, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from bvp.utils.bvp_inflection import parameterize, pluralize
 from itertools import groupby
 
-from flask import current_app
 from flask_security.core import current_user
 import inflect
 from sqlalchemy.orm.query import Query
 import timely_beliefs as tb
 
-from bvp.data.config import db
 from bvp.data.models.assets import AssetType, Asset, Power
 from bvp.data.models.markets import Market
 from bvp.data.models.weather import WeatherSensorType, WeatherSensor
-from bvp.data.models.user import User
 from bvp.utils.geo_utils import parse_lat_lng
 
 
@@ -186,65 +183,6 @@ def mask_inaccessible_assets(
     return asset_queries
 
 
-def create_asset(
-    display_name: str,
-    asset_type_name: str,
-    power_unit: str,
-    capacity_in_mw: float,
-    event_resolution: timedelta,
-    latitude: float,
-    longitude: float,
-    min_soc_in_mwh: float,
-    max_soc_in_mwh: float,
-    soc_in_mwh: float,
-    owner: User,
-    market: Market,
-) -> Asset:
-    """Validate input, create an asset and add it to the database"""
-    if not display_name:
-        raise InvalidBVPAsset("No display name provided.")
-    if capacity_in_mw < 0:
-        raise InvalidBVPAsset("Capacity cannot be negative.")
-    if latitude < -90 or latitude > 90:
-        raise InvalidBVPAsset("Latitude must be between -90 and +90.")
-    if longitude < -180 or longitude > 180:
-        raise InvalidBVPAsset("Longitude must be between -180 and +180.")
-    if owner is None:
-        raise InvalidBVPAsset("Asset owner cannot be None.")
-    if "Prosumer" not in owner.bvp_roles:
-        raise InvalidBVPAsset("Owner must have role 'Prosumer'.")
-    if market is None:
-        raise InvalidBVPAsset("Market cannot be None.")
-
-    db_name = display_name.replace(" ", "-").lower()
-    asset = Asset(
-        display_name=display_name,
-        name=db_name,
-        unit=power_unit,
-        capacity_in_mw=capacity_in_mw,
-        event_resolution=event_resolution,
-        latitude=latitude,
-        longitude=longitude,
-        asset_type_name=asset_type_name,
-        min_soc_in_mwh=min_soc_in_mwh,
-        max_soc_in_mwh=max_soc_in_mwh,
-        soc_in_mwh=soc_in_mwh,
-        owner=owner,
-        market=market,
-    )
-    db.session.add(asset)
-    return asset
-
-
-def delete_asset(asset: Asset):
-    """Delete the asset (and also its power measurements!). Requires admin privileges"""
-    if "admin" not in current_user.roles:
-        raise Exception("Only admins can delete assets.")
-    else:
-        db.session.delete(asset)
-        current_app.logger.info("Deleted %s." % asset)
-
-
 class Resource:
     """
     This class represents a resource and helps to map names to assets.
@@ -270,7 +208,6 @@ class Resource:
     assets: List[Asset]
     count: int
     count_all: int
-    icon_name: str
     name: str
     unique_asset_types: List[AssetType]
     unique_asset_type_names: List[str]
@@ -299,11 +236,6 @@ class Resource:
 
         # Count all assets in the system that are identified by this resource's name, no matter who is the owner
         self.count_all = len(assets)
-
-        # The icon name is taken from the first asset in the group
-        first_asset = asset_query.first()
-        if first_asset is not None:
-            self.icon_name = first_asset.asset_type.icon_name
 
         # List all assets that are identified by this resource's name and accessible by the current user
         self.assets = mask_inaccessible_assets(asset_query).all()

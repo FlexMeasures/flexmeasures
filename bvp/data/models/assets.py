@@ -35,17 +35,6 @@ class AssetType(db.Model):
             self.display_name = humanize(self.name)
 
     @property
-    def icon_name(self) -> str:
-        """Icon name for this asset type, which can be used for UI html templates made with Jinja. For example:
-            <i class={{ asset_type.icon_name }}></i>
-        becomes (for a battery):
-            <i class="icon-battery"></i>
-        """
-        if self.name in ("one-way_evse", "two-way_evse"):
-            return "icon-charging_station"
-        return f"icon-{self.name}"
-
-    @property
     def preconditions(self) -> Dict[str, bool]:
         """Assumptions about the time series data set, such as normality and stationarity
         For now, this is usable input for Prophet (see init), but it might evolve or go away."""
@@ -159,10 +148,6 @@ class Asset(db.Model):
     def is_pure_producer(self) -> bool:
         """Return True if this asset is producing but not consuming."""
         return self.asset_type.is_producer and not self.asset_type.is_consumer
-
-    @property
-    def icon_name(self) -> str:
-        return self.asset_type.icon_name
 
     def to_dict(self) -> Dict[str, Union[str, float]]:
         return dict(

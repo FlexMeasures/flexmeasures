@@ -27,8 +27,9 @@ pytest-flask==1.0.0       # via -r requirements/test.in
 pytest-sugar==0.9.4       # via -r requirements/test.in
 pytest==6.0.1             # via -r requirements/test.in, pytest-cov, pytest-flask, pytest-sugar
 redis==3.5.3              # via -c requirements/app.txt, fakeredis
-requests==2.24.0          # via -c requirements/app.txt, -r requirements/test.in
-six==1.15.0               # via -c requirements/app.txt, fakeredis, packaging
+requests-mock==1.8.0      # via -r requirements/test.in
+requests==2.24.0          # via -c requirements/app.txt, -r requirements/test.in, requests-mock
+six==1.15.0               # via -c requirements/app.txt, fakeredis, packaging, requests-mock
 sortedcontainers==2.2.2   # via fakeredis
 termcolor==1.1.0          # via pytest-sugar
 toml==0.10.1              # via pytest

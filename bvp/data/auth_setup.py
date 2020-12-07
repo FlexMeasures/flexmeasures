@@ -68,10 +68,13 @@ def unauthorized_handler_e(e):
 def unauthorized_handler(func: Optional[Callable], params: list):
     """
     Handler for authorization problems.
-    func is the Flask-Security-Too decorator, if relevant, and params are its parameters.
+    :param func: the Flask-Security-Too decorator, if relevant, and params are its parameters.
+
     We support json if the request supports it.
     The ui package can also define how it wants to render HTML errors.
     """
+    if func is not None:
+        func(*params)
     if request.is_json:
         response = jsonify(dict(message=FORBIDDEN_MSG, status=FORBIDDEN_ERROR_STATUS))
         response.status_code = FORBIDDEN_STATUS_CODE
@@ -90,14 +93,16 @@ def unauthenticated_handler_e(e):
 def unauthenticated_handler(mechanisms: list, headers: Optional[dict] = None):
     """
     Handler for authentication problems.
-    mechanisms is a list of which authentication mechanisms were tried.
-    headers is a dict of headers to return.
+    :param mechanisms: a list of which authentication mechanisms were tried.
+    :param headers: a dict of headers to return.
     We support json if the request supports it.
     The ui package can also define how it wants to render HTML errors.
     """
     if request.is_json:
         response = jsonify(dict(message=UNAUTH_MSG, status=UNAUTH_ERROR_STATUS))
         response.status_code = UNAUTH_STATUS_CODE
+        if headers is not None:
+            response.headers.update(headers)
         return response
     elif hasattr(current_app, "unauthenticated_handler_html"):
         return current_app.unauthenticated_handler_html()

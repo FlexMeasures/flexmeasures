@@ -9,6 +9,7 @@ from flask_security.core import current_user
 
 from bvp.utils import time_utils
 from bvp.ui import bvp_ui
+from bvp.data.models.user import User
 from bvp.data.models.assets import Asset
 from bvp.data.models.markets import Market
 from bvp.data.models.weather import WeatherSensorType
@@ -191,3 +192,41 @@ def get_git_description() -> Tuple[str, int, str]:
         current_app.logger.warning("Problem when reading git describe: %s" % ose)
 
     return version, commits_since, sha
+
+
+def asset_icon_name(asset_type_name: str) -> str:
+    """Icon name for this asset type.
+
+    This can be used for UI html templates made with Jinja.
+    ui.__init__ makes this function available as the filter "asset_icon".
+
+    For example:
+        <i class={{ asset_type.name | asset_icon }}></i>
+    becomes (for a battery):
+        <i class="icon-battery"></i>
+    """
+    # power asset exceptions
+    if "evse" in asset_type_name.lower():
+        return "icon-charging_station"
+    # weather exceptions
+    if asset_type_name == "radiation":
+        return "wi wi-horizon-alt"
+    elif asset_type_name == "temperature":
+        return "wi wi-thermometer"
+    elif asset_type_name == "wind_direction":
+        return "wi wi-wind-direction"
+    elif asset_type_name == "wind_speed":
+        return "wi wi-strong-wind"
+    # aggregation exceptions
+    elif asset_type_name == "renewables":
+        return "icon-wind"
+    return f"icon-{asset_type_name}"
+
+
+def username(user_id) -> str:
+    user = User.query.get(user_id)
+    if user is None:
+        current_app.logger.warning(f"Could not find user with id {user_id}")
+        return ""
+    else:
+        return user.username

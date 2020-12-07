@@ -35,8 +35,8 @@
                     {% for asset in assets: %}
                     <tr>
                         <td>
-                            <i class="{{ asset.icon_name }} left-icon"><a href="/assets/{{ asset.id }}"
-                                    alt="Edit this asset">{{ asset.display_name }}</a></i>
+                            <i class="{{ asset.asset_type_name | asset_icon }} left-icon"><a
+                                    href="/assets/{{ asset.id }}" alt="Edit this asset">{{ asset.display_name }}</a></i>
                         </td>
                         <td class="text-right">
                             LAT: {{ "{:,.4f}".format( asset.latitude ) }} LONG:

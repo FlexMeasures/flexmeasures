@@ -2,6 +2,9 @@ import json
 
 from flask import url_for, current_app
 
+from bvp.data.config import db
+from bvp.data.services.users import find_user_by_email
+
 """
 Useful things for API testing
 """
@@ -22,6 +25,29 @@ def get_auth_token(client, user_email, password):
     if "errors" in auth_response.json:
         raise Exception(";".join(auth_response.json["errors"]))
     return auth_response.json["auth_token"]
+
+
+class UserContext(object):
+    """
+    Context manager for a temporary user instance from the DB,
+    which is expunged from the session at Exit.
+    Expunging is useful, so that the API call being tested still operates on
+    a "fresh" session.
+    While the context is alive, you can collect any useful information, like
+    the user's assets:
+
+    with UserContext("test_prosumer@seita.nl") as prosumer:
+        assets = prosumer.assets
+    """
+
+    def __init__(self, user_email: str):
+        self.the_user = find_user_by_email(user_email)
+
+    def __enter__(self):
+        return self.the_user
+
+    def __exit__(self, type, value, traceback):
+        db.session.expunge(self.the_user)
 
 
 def get_task_run(client, task_name: str, token=None):
