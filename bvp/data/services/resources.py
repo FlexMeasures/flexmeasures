@@ -437,6 +437,13 @@ class Resource:
         end of the time interval.
         To get data for a specific source, pass a source id.
 
+        :param prior_data: a dictionary with asset names (as keys)
+                           and prior retrieved sensor data for each asset in the form of a BeliefsDataFrame (as values)
+        :returns: either of the following:
+            - (if sum_multiple is False) a dictionary with asset names (as keys)
+              and a BeliefsDataFrame with sensor data (both prior and new data) for each asset (as values)
+            - (if sum_multiple is True) a BeliefsDataFrame with aggregated sensor data (summing both prior and new data)
+
         Usage
         -----
         >>> resource = Resource()
