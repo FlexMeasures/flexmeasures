@@ -343,7 +343,7 @@ class Resource:
         str, tb.BeliefsDataFrame
     ]  # todo: use standard library caching
     cached_price_data: Dict[str, tb.BeliefsDataFrame]
-    power_price_key_map: Dict[str, str]
+    asset_name_to_market_name_map: Dict[str, str]
 
     def __init__(self, name: str):
         """ The resource name is either the name of an asset group or an individual asset. """
@@ -381,8 +381,8 @@ class Resource:
         # Count all assets that are identified by this resource's name and accessible by the current user
         self.count = len(self.assets)
 
-        # Construct a convenient mapping for dictionary with power values per asset and dictionary with price per market
-        self.power_price_key_map = {
+        # Construct a convenient mapping to get from an asset name to the market name of the asset's relevant market
+        self.asset_name_to_market_name_map = {
             asset.name: asset.market.name if asset.market is not None else None
             for asset in self.assets
         }
@@ -572,7 +572,7 @@ class Resource:
         """ Returns each asset's total revenue from supply. """
         revenue_dict = {}
         for k, v in self.supply.items():
-            market_name = self.power_price_key_map[k]
+            market_name = self.asset_name_to_market_name_map[k]
             if market_name is not None:
                 revenue_dict[k] = (
                     simplify_index(v) * simplify_index(self.price_data[market_name])
@@ -593,7 +593,7 @@ class Resource:
         """ Returns each asset's total cost from demand. """
         cost_dict = {}
         for k, v in self.demand.items():
-            market_name = self.power_price_key_map[k]
+            market_name = self.asset_name_to_market_name_map[k]
             if market_name is not None:
                 cost_dict[k] = (
                     simplify_index(v) * simplify_index(self.price_data[market_name])
