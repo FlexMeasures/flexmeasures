@@ -54,16 +54,29 @@ def get_power_data(
     Dict[str, float],
     Dict[str, float],
 ]:
+    """Get power data, separating demand and supply,
+    as time series per resource and as totals (summed over time) per resource and per asset.
+
+    Getting sensor data of a Resource leads to database queries (unless results are already cached).
+
+    :returns: a tuple comprising:
+        - a dictionary of resource names (as keys) and a DataFrame with aggregated time series of supply (as values)
+        - a dictionary of resource names (as keys) and a DataFrame with aggregated time series of demand (as values)
+        - a dictionary of resource names (as keys) and their total supply summed over time (as values)
+        - a dictionary of resource names (as keys) and their total demand summed over time (as values)
+        - a dictionary of asset names (as keys) and their total supply summed over time (as values)
+        - a dictionary of asset names (as keys) and their total demand summed over time (as values)
+    """
 
     # Load power data (separate demand and supply, and group data per resource)
-    supply_resources_df_dict: Dict[
+    supply_per_resource: Dict[
         str, pd.DataFrame
     ] = {}  # power >= 0, production/supply >= 0
-    demand_resources_df_dict: Dict[
+    demand_per_resource: Dict[
         str, pd.DataFrame
     ] = {}  # power <= 0, consumption/demand >=0 !!!
-    production_per_asset: Dict[str, float] = {}
-    consumption_per_asset: Dict[str, float] = {}
+    total_supply_per_asset: Dict[str, float] = {}
+    total_demand_per_asset: Dict[str, float] = {}
     for resource_name, resource in resource_dict.items():
         resource.get_sensor_data(
             sensor_type=Power,
@@ -73,28 +86,28 @@ def get_power_data(
             sum_multiple=False,
         )  # The resource caches the results
         if (resource.aggregate_demand.values != 0).any():
-            demand_resources_df_dict[resource_name] = simplify_index(
+            demand_per_resource[resource_name] = simplify_index(
                 resource.aggregate_demand
             )
         if (resource.aggregate_supply.values != 0).any():
-            supply_resources_df_dict[resource_name] = simplify_index(
+            supply_per_resource[resource_name] = simplify_index(
                 resource.aggregate_supply
             )
-        production_per_asset = {**production_per_asset, **resource.total_supply}
-        consumption_per_asset = {**consumption_per_asset, **resource.total_demand}
-    production_per_asset_type = {
+        total_supply_per_asset = {**total_supply_per_asset, **resource.total_supply}
+        total_demand_per_asset = {**total_demand_per_asset, **resource.total_demand}
+    total_supply_per_resource = {
         k: v.total_aggregate_supply for k, v in resource_dict.items()
     }
-    consumption_per_asset_type = {
+    total_demand_per_resource = {
         k: v.total_aggregate_demand for k, v in resource_dict.items()
     }
     return (
-        supply_resources_df_dict,
-        demand_resources_df_dict,
-        production_per_asset_type,
-        consumption_per_asset_type,
-        production_per_asset,
-        consumption_per_asset,
+        supply_per_resource,
+        demand_per_resource,
+        total_supply_per_resource,
+        total_demand_per_resource,
+        total_supply_per_asset,
+        total_demand_per_asset,
     )
 
 
