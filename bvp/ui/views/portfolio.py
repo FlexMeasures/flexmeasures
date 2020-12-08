@@ -46,6 +46,13 @@ def portfolio_view():  # noqa: C901
         order_by_asset_attribute="display_name", order_direction="asc"
     )
     represented_asset_types, markets, resource_dict = get_structure(assets)
+    import time
+    from guppy import hpy
+    from flask import g
+
+    h = hpy()
+    h.setrelheap()
+    t1 = time.time()
     (
         supply_resources_df_dict,
         demand_resources_df_dict,
@@ -57,6 +64,12 @@ def portfolio_view():  # noqa: C901
     price_bdf_dict, average_price_dict = get_price_data(
         start, end, resolution, resource_dict
     )
+    t2 = time.time()
+    interval = t2 - t1
+    print(f"Getting resource data took {round(interval, 2)} seconds")
+    print("MEMORY HEAPS:")
+    print(h.heap())
+    print(f"QUERY COUNT: {g.query_counter}")
 
     # Pick a perspective for summing and for stacking
     sum_dict = (

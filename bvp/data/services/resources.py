@@ -501,6 +501,20 @@ class Resource:
             return aggregate_values(prior_and_new_data)
         return prior_and_new_data
 
+    """
+    TODO:
+    - commit the state debugging in view and time_series
+    - get rid of @cached_property
+    - get rid of prior data
+    - the two properties power_data and price_data should call get_sensor_data.
+    - the caching should happen on time_series.query_time_series_data. We should use memoization
+      (https://pythonhosted.org/Flask-Caching/#flask_caching.Cache.memoize on a "simple" cache which has
+      a maximum entry number and limit of 30 minutes or so per configuration.
+      Horizon window and sources matter (see queries/analytics.py, where get)
+    - Regarding the problem that power and prices could be out of sync, I suggest to load power and prices
+      at the same time. Then we're also sure that the same params are being used.
+    """
+
     @property
     @check_cache("cached_power_data")
     def power_data(self) -> Dict[str, tb.BeliefsDataFrame]:

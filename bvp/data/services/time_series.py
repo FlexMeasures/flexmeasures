@@ -155,6 +155,16 @@ def query_time_series_data(
       see https://github.com/pandas-dev/pandas/issues/35219
     """
 
+    from flask import g
+
+    if not hasattr(g, "query_counter"):
+        g.query_counter = 0
+    g.query_counter += 1
+
+    print(
+        f"QUERY_TIME_SERIES_DATA for {generic_asset_name}, {query_window} [{resolution}]"
+    )
+
     # On demo, we query older data as if it's the current year's data (we convert back below)
     if current_app.config.get("BVP_MODE", "") == "demo":
         query_window = convert_query_window_for_demo(query_window)
