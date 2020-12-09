@@ -52,6 +52,7 @@ def portfolio_view():  # noqa: C901
 
     h = hpy()
     h.setrelheap()
+    g.query_counter = 0
     t1 = time.time()
     (
         supply_resources_df_dict,

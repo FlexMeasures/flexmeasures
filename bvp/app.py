@@ -1,13 +1,16 @@
 # flake8: noqa: E402
 import os
-from flask import Flask
+import time
+
+from flask import Flask, g
 from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_json import FlaskJSON
-
 from redis import Redis
 from rq import Queue
+
+# from flask_caching import Cache
 
 from bvp.utils.config_utils import read_config, configure_logging
 from bvp.utils.app_utils import install_secret_key
@@ -68,6 +71,8 @@ def create(env=None) -> Flask:
             scheduling=Queue(connection=redis_conn, name="scheduling"),
         )
 
+    # app.cache = Cache(app, config={"CACHE_TYPE": "simple"})
+
     # Some basic security measures
 
     install_secret_key(app)
@@ -94,5 +99,18 @@ def create(env=None) -> Flask:
     if app.cli:
         with app.app_context():
             import bvp.utils.pa_ssl_cert_renewal  # noqa: F401
+
+    # Profile requests, TODO: delete this, we have better support for this on master
+    if app.debug:
+
+        @app.before_request
+        def before_request():
+            g.start = time.time()
+
+        @app.after_request
+        def after_request(response):
+            diff = time.time() - g.start
+            app.logger.debug(f"EXECUTION_TIME: {round(diff, 2)}")
+            return response
 
     return app

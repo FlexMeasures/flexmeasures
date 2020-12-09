@@ -132,6 +132,7 @@ def collect_time_series_data(
         return data_as_dict
 
 
+# @current_app.cache.memoize(timeout=50)
 def query_time_series_data(
     generic_asset_name: str,
     make_query: QueryCallType,

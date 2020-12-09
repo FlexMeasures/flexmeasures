@@ -78,13 +78,13 @@ def get_power_data(
     total_supply_per_asset: Dict[str, float] = {}
     total_demand_per_asset: Dict[str, float] = {}
     for resource_name, resource in resource_dict.items():
-        resource.get_sensor_data(
+        resource.load_sensor_data(
             sensor_type=Power,
             start=start,
             end=end,
             resolution=resolution,
             sum_multiple=False,
-        )  # The resource caches the results
+        )
         if (resource.aggregate_demand.values != 0).any():
             demand_per_resource[resource_name] = simplify_index(
                 resource.aggregate_demand
@@ -118,15 +118,16 @@ def get_price_data(
     # Load price data
     price_bdf_dict: Dict[str, tb.BeliefsDataFrame] = {}
     for resource_name, resource in resource_dict.items():
-        price_bdf_dict = resource.get_sensor_data(
-            sensor_type=Price,
-            sensor_key_attribute="market.name",
-            start=start,
-            end=end,
-            resolution=resolution,
-            sum_multiple=False,
-            prior_data=price_bdf_dict,
-            clear_cached_data=False,
+        price_bdf_dict.update(
+            resource.load_sensor_data(
+                sensor_type=Price,
+                sensor_key_attribute="market.name",
+                start=start,
+                end=end,
+                resolution=resolution,
+                sum_multiple=False,
+                clear_cached_data=False,
+            )
         )
     average_price_dict = {k: v["event_value"].mean() for k, v in price_bdf_dict.items()}
 

@@ -2,7 +2,7 @@
 Generic services for accessing asset data.
 """
 
-from functools import cached_property, wraps
+from functools import cached_property
 from typing import List, Dict, Type, TypeVar, Union, Optional
 from datetime import datetime, timedelta
 from bvp.utils.bvp_inflection import parameterize, pluralize
@@ -252,29 +252,6 @@ def delete_asset(asset: Asset):
         current_app.logger.info("Deleted %s." % asset)
 
 
-def check_cache(attribute):
-    """Decorator for Resource class attributes to check if the resource has cached the attribute.
-
-    Example usage:
-    @check_cache("cached_data")
-    def some_property(self):
-        return self.cached_data
-    """
-
-    def inner_function(fn):
-        @wraps(fn)
-        def wrapper(self, *args, **kwargs):
-            if not hasattr(self, attribute) or not getattr(self, attribute):
-                raise ValueError(
-                    "Resource has no cached data. Call resource.get_sensor_data() first."
-                )
-            return fn(self, *args, **kwargs)
-
-        return wrapper
-
-    return inner_function
-
-
 class Resource:
     """
     This class represents a group of assets of the same type, and provides
@@ -321,9 +298,9 @@ class Resource:
     >>> resource.assets
     >>> resource.display_name
     >>> resource.get_sensor_data(Power)
-    >>> resource.cached_power_data
+    >>> resource.power_data
     >>> resource.get_sensor_data(Price, sensor_key_attribute="market.name")
-    >>> resource.cached_price_data
+    >>> resource.price_data
     """
 
     # Todo: Our Resource may become an (Aggregated*)Asset with a grouping relationship with other Assets.
@@ -339,10 +316,9 @@ class Resource:
     name: str
     unique_asset_types: List[AssetType]
     unique_asset_type_names: List[str]
-    cached_power_data: Dict[
-        str, tb.BeliefsDataFrame
-    ]  # todo: use standard library caching
-    cached_price_data: Dict[str, tb.BeliefsDataFrame]
+    # TODO: we might rely completely on the standard library caching and not cache these on the class.
+    cached_power_data: Optional[Dict[str, tb.BeliefsDataFrame]] = None
+    cached_price_data: Optional[Dict[str, tb.BeliefsDataFrame]] = None
     asset_name_to_market_name_map: Dict[str, str]
 
     def __init__(self, name: str):
@@ -416,7 +392,7 @@ class Resource:
         """Get a parameterized name for use in javascript."""
         return parameterize(self.name)
 
-    def get_sensor_data(
+    def load_sensor_data(
         self,
         sensor_type: SensorType = Power,
         sensor_key_attribute: str = "name",
@@ -428,7 +404,6 @@ class Resource:
         user_source_id: int = None,
         source_types: Optional[List[str]] = None,
         sum_multiple: bool = False,
-        prior_data: Optional[Dict[str, tb.BeliefsDataFrame]] = None,
         clear_cached_data: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
         """Get data for one or more assets and cache the results.
@@ -437,39 +412,28 @@ class Resource:
         end of the time interval.
         To get data for a specific source, pass a source id.
 
-        :param prior_data: a dictionary with asset names (as keys)
-                           and prior retrieved sensor data for each asset in the form of a BeliefsDataFrame (as values)
         :returns: either of the following:
             - (if sum_multiple is False) a dictionary with asset names (as keys)
-              and a BeliefsDataFrame with sensor data (both prior and new data) for each asset (as values)
-            - (if sum_multiple is True) a BeliefsDataFrame with aggregated sensor data (summing both prior and new data)
+              and a BeliefsDataFrame with sensor data for each asset (as values)
+            - (if sum_multiple is True) a BeliefsDataFrame with aggregated sensor data
 
         Usage
         -----
         >>> resource = Resource()
-        >>> resource.get_sensor_data(Power, start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
-        >>> resource.cached_power_data
-        >>> resource.get_sensor_data(Price, sensor_key_attribute="market.name", start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
-        >>> resource.cached_price_data
+        >>> resource.load_sensor_data(Power, start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
+        >>> resource.power_data
+        >>> resource.load_sensor_data(Price, sensor_key_attribute="market.name", start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
+        >>> resource.price_data
         """
+        print("------------------------")
+        print(f"LOADING DATA FOR {self}.{sensor_type}.{sensor_key_attribute}")
 
-        # Determine for which sensors we are still missing data
-        if prior_data is None:
-            prior_data = {}
         names_of_resource_sensors = set(
             coding_utils.rgetattr(asset, sensor_key_attribute) for asset in self.assets
         )
-        names_of_prior_sensors = set(prior_data.keys())
-        names_of_resource_sensors_with_prior_data = (
-            names_of_resource_sensors & names_of_prior_sensors
-        )
-        names_of_resource_sensors_without_prior_data = (
-            names_of_resource_sensors - names_of_prior_sensors
-        )
 
-        # Query the sensors for which we are missing data
-        new_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.collect(
-            generic_asset_names=list(names_of_resource_sensors_without_prior_data),
+        resource_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.collect(
+            generic_asset_names=list(names_of_resource_sensors),
             query_window=(start, end),
             horizon_window=horizon_window,
             rolling=rolling,
@@ -478,51 +442,34 @@ class Resource:
             resolution=resolution,
             sum_multiple=False,
         )
-        resource_data = {
-            **{
-                k: v
-                for k, v in prior_data.items()
-                if k in names_of_resource_sensors_with_prior_data
-            },
-            **new_data,
-        }
-        prior_and_new_data = coding_utils.sort_dict({**prior_data, **new_data})
 
         # Invalidate old caches
         if clear_cached_data:
+            print("CLEARING THE RESOURCE CACHE")
             self.clear_cache()
 
-        # Cache new data
         setattr(
             self, f"cached_{sensor_type.__name__.lower()}_data", resource_data
         )  # e.g. cached_price_data for sensor type Price
 
         if sum_multiple:
-            return aggregate_values(prior_and_new_data)
-        return prior_and_new_data
-
-    """
-    TODO:
-    - commit the state debugging in view and time_series
-    - get rid of @cached_property
-    - get rid of prior data
-    - the two properties power_data and price_data should call get_sensor_data.
-    - the caching should happen on time_series.query_time_series_data. We should use memoization
-      (https://pythonhosted.org/Flask-Caching/#flask_caching.Cache.memoize on a "simple" cache which has
-      a maximum entry number and limit of 30 minutes or so per configuration.
-      Horizon window and sources matter (see queries/analytics.py, where get)
-    - Regarding the problem that power and prices could be out of sync, I suggest to load power and prices
-      at the same time. Then we're also sure that the same params are being used.
-    """
+            return aggregate_values(resource_data)
+        return resource_data
 
     @property
-    @check_cache("cached_power_data")
     def power_data(self) -> Dict[str, tb.BeliefsDataFrame]:
+        if self.cached_power_data is None:
+            raise ValueError(
+                "Resource has no cached power data. Call resource.load_sensor_data() first."
+            )
         return self.cached_power_data
 
     @property
-    @check_cache("cached_price_data")
     def price_data(self) -> Dict[str, tb.BeliefsDataFrame]:
+        if self.cached_price_data is None:
+            raise ValueError(
+                "Resource has no cached price data. Call resource.load_sensor_data() first."
+            )
         return self.cached_price_data
 
     @cached_property
