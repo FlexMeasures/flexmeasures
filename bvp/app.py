@@ -10,8 +10,6 @@ from flask_json import FlaskJSON
 from redis import Redis
 from rq import Queue
 
-# from flask_caching import Cache
-
 from bvp.utils.config_utils import read_config, configure_logging
 from bvp.utils.app_utils import install_secret_key
 from bvp.utils.error_utils import add_basic_error_handlers
@@ -70,8 +68,6 @@ def create(env=None) -> Flask:
             forecasting=Queue(connection=redis_conn, name="forecasting"),
             scheduling=Queue(connection=redis_conn, name="scheduling"),
         )
-
-    # app.cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
     # Some basic security measures
 

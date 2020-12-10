@@ -406,7 +406,7 @@ class Resource:
         sum_multiple: bool = False,
         clear_cached_data: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
-        """Get data for one or more assets and cache the results.
+        """Get data for one or more assets and cache the results on this instance.
         If the time range parameters are None, they will be gotten from the session.
         The horizon window will default to the latest measurement (anything more in the future than the
         end of the time interval.
@@ -425,7 +425,6 @@ class Resource:
         >>> resource.load_sensor_data(Price, sensor_key_attribute="market.name", start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
         >>> resource.price_data
         """
-        print("------------------------")
         print(f"LOADING DATA FOR {self}.{sensor_type}.{sensor_key_attribute}")
 
         names_of_resource_sensors = set(
@@ -445,7 +444,6 @@ class Resource:
 
         # Invalidate old caches
         if clear_cached_data:
-            print("CLEARING THE RESOURCE CACHE")
             self.clear_cache()
 
         setattr(

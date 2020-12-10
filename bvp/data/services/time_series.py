@@ -132,7 +132,7 @@ def collect_time_series_data(
         return data_as_dict
 
 
-# @current_app.cache.memoize(timeout=50)
+@current_app.cache.memoize(timeout=60)  # timeout is in seconds
 def query_time_series_data(
     generic_asset_name: str,
     make_query: QueryCallType,
@@ -162,7 +162,7 @@ def query_time_series_data(
         g.query_counter = 0
     g.query_counter += 1
 
-    print(
+    current_app.logger.debug(
         f"QUERY_TIME_SERIES_DATA for {generic_asset_name}, {query_window} [{resolution}]"
     )
 

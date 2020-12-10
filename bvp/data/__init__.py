@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_migrate import Migrate
+from flask_caching import Cache
 
 from bvp.data.config import configure_db_for, db
 from bvp.data.auth_setup import configure_auth
@@ -7,6 +8,7 @@ from bvp.data.transactional import after_request_session_commit_or_rollback
 
 
 def register_at(app: Flask):
+    app.cache = Cache(app, config={"CACHE_TYPE": "data.services.caching.simple"})
     # First configure the central db object and Alembic's migration tool
     configure_db_for(app)
     Migrate(app, db)

@@ -45,13 +45,18 @@ def portfolio_view():  # noqa: C901
     assets: List[Asset] = get_assets(
         order_by_asset_attribute="display_name", order_direction="asc"
     )
-    represented_asset_types, markets, resource_dict = get_structure(assets)
     import time
-    from guppy import hpy
+
+    t1 = time.time()
+    represented_asset_types, markets, resource_dict = get_structure(assets)
+    t2 = time.time()
+    interval = t2 - t1
+    print(f"Getting resource structure took {round(interval, 2)} seconds")
+    # from guppy import hpy
     from flask import g
 
-    h = hpy()
-    h.setrelheap()
+    # h = hpy()
+    # h.setrelheap()
     g.query_counter = 0
     t1 = time.time()
     (
@@ -68,8 +73,8 @@ def portfolio_view():  # noqa: C901
     t2 = time.time()
     interval = t2 - t1
     print(f"Getting resource data took {round(interval, 2)} seconds")
-    print("MEMORY HEAPS:")
-    print(h.heap())
+    # print("MEMORY HEAPS:")
+    # print(h.heap())
     print(f"QUERY COUNT: {g.query_counter}")
 
     # Pick a perspective for summing and for stacking
