@@ -132,7 +132,8 @@ def collect_time_series_data(
         return data_as_dict
 
 
-@current_app.cache.memoize(timeout=60)  # timeout is in seconds
+@current_app.cache.memoize(timeout=2)
+# timeout is in seconds, only two for now, so new updates
 def query_time_series_data(
     generic_asset_name: str,
     make_query: QueryCallType,
@@ -154,6 +155,7 @@ def query_time_series_data(
     * Note that we convert string resolutions to datetime.timedelta objects.
       Pandas can resample with those, but still has some quirky behaviour with DST:
       see https://github.com/pandas-dev/pandas/issues/35219
+      The fix has been merged, expected in Pandas 1.2
     """
 
     from flask import g
