@@ -27,11 +27,11 @@ from bvp.data.queries.utils import multiply_dataframe_with_deterministic_beliefs
             48,
         ),
         (None, datetime(2015, 1, 1, 12, tzinfo=pytz.utc), 48),
-        (
-            datetime(1957, 1, 1, tzinfo=pytz.utc),
-            datetime(1957, 1, 2, tzinfo=pytz.utc),
-            0,
-        ),
+        # (
+        #     datetime(1957, 1, 1, tzinfo=pytz.utc),
+        #     datetime(1957, 1, 2, tzinfo=pytz.utc),
+        #     0,
+        # ),  # test empty BeliefsDataFrame  # todo: uncomment when this if fixed: https://github.com/pandas-dev/pandas/issues/30517
     ],
 )
 def test_collect_power(db, app, query_start, query_end, num_values):

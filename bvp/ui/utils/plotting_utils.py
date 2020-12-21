@@ -262,19 +262,14 @@ def create_graph(  # noqa: C901
         x_range = make_range(data.index)
     data = tz_index_naively(data)
 
-    # Set y range
+    # Set default y range in case there is no data from which to derive a range
     y_range = None
-    if not data.empty and data["event_value"].isnull().all():
-        if forecasts is None:
-            if schedules is None:
-                y_range = Range1d(start=0, end=1)
-            elif schedules["event_value"].isnull().all():
-                y_range = Range1d(start=0, end=1)
-        elif forecasts["event_value"].isnull().all():
-            if schedules is None:
-                y_range = Range1d(start=0, end=1)
-            elif schedules["event_value"].isnull().all():
-                y_range = Range1d(start=0, end=1)
+    if (
+        data["event_value"].isnull().all()
+        and (forecasts is None or forecasts["event_value"].isnull().all())
+        and (schedules is None or schedules["event_value"].isnull().all())
+    ):
+        y_range = Range1d(start=0, end=1)
 
     # Set default tools if none were given
     if tools is None:
