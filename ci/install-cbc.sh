@@ -10,7 +10,7 @@ echo "Attempting to install Cbc-2.9 to $SOFTWARE_DIR ..."
 mkdir -p $SOFTWARE_DIR
 cd $SOFTWARE_DIR
 
-# Getting Cbc abd its build tools
+# Getting Cbc and its build tools
 git clone --branch=stable/2.9 https://github.com/coin-or/Cbc Cbc-2.9
 cd Cbc-2.9
 git clone --branch=stable/0.8 https://github.com/coin-or-tools/BuildTools/

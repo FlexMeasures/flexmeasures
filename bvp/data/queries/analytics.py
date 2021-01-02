@@ -37,12 +37,13 @@ def get_power_data(
     )
 
     # Get power data
-    power_bdf: tb.BeliefsDataFrame = Resource(session["resource"]).get_data(
+    power_bdf: tb.BeliefsDataFrame = Resource(session["resource"]).get_sensor_data(
         start=query_window[0],
         end=query_window[-1],
         resolution=resolution,
         horizon_window=(None, timedelta(hours=0)),
         rolling=True,
+        sum_multiple=True,
     )
     power_df: pd.DataFrame = simplify_index(
         power_bdf, index_levels_to_columns=["belief_horizon", "source"]
@@ -50,7 +51,9 @@ def get_power_data(
 
     # Get power forecast
     horizon = pd.to_timedelta(session["forecast_horizon"])
-    power_forecast_bdf: tb.BeliefsDataFrame = Resource(session["resource"]).get_data(
+    power_forecast_bdf: tb.BeliefsDataFrame = Resource(
+        session["resource"]
+    ).get_sensor_data(
         start=query_window[0],
         end=query_window[-1],
         resolution=resolution,
@@ -61,20 +64,24 @@ def get_power_data(
             "forecasting script",
             "demo script",
             "script",
-        ],  # todo: we choose to show data from scheduling scripts separately, which would be
+        ],  # TODO: we choose to show data from scheduling scripts separately, which would be
         #           easier if we could just exclude the "scheduling script" source type here
+        sum_multiple=True,
     )
     power_forecast_df: pd.DataFrame = simplify_index(
         power_forecast_bdf, index_levels_to_columns=["belief_horizon", "source"]
     )
 
     # Get power schedule
-    power_schedule_bdf: tb.BeliefsDataFrame = Resource(session["resource"]).get_data(
+    power_schedule_bdf: tb.BeliefsDataFrame = Resource(
+        session["resource"]
+    ).get_sensor_data(
         start=query_window[0],
         end=query_window[-1],
         resolution=resolution,
         horizon_window=(None, None),
         source_types=["scheduling script"],
+        sum_multiple=True,
     )
     power_schedule_df: pd.DataFrame = simplify_index(
         power_schedule_bdf, index_levels_to_columns=["belief_horizon", "source"]
