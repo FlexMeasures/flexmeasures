@@ -1,7 +1,6 @@
 from typing import List, Dict, Tuple
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from flask import session
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
@@ -18,7 +17,12 @@ from bvp.data.models.weather import Weather, WeatherSensor, WeatherSensorType
 
 
 def get_power_data(
-    show_consumption_as_positive: bool, metrics: dict
+    resource_name: str,
+    show_consumption_as_positive: bool,
+    metrics: dict,
+    query_window: Tuple[datetime, datetime],
+    resolution: str,
+    forecast_horizon: timedelta,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
     """Get power data and metrics.
 
@@ -32,12 +36,8 @@ def get_power_data(
     Todo: Power schedules ignore horizon.
     """
 
-    query_window, resolution = time_utils.ensure_timing_vars_are_set(
-        (session["start_time"], session["end_time"]), session["resolution"]
-    )
-
     # Get power data
-    power_bdf: tb.BeliefsDataFrame = Resource(session["resource"]).get_sensor_data(
+    power_bdf: tb.BeliefsDataFrame = Resource(resource_name).get_sensor_data(
         start=query_window[0],
         end=query_window[-1],
         resolution=resolution,
@@ -50,14 +50,11 @@ def get_power_data(
     )
 
     # Get power forecast
-    horizon = pd.to_timedelta(session["forecast_horizon"])
-    power_forecast_bdf: tb.BeliefsDataFrame = Resource(
-        session["resource"]
-    ).get_sensor_data(
+    power_forecast_bdf: tb.BeliefsDataFrame = Resource(resource_name).get_sensor_data(
         start=query_window[0],
         end=query_window[-1],
         resolution=resolution,
-        horizon_window=(horizon, None),
+        horizon_window=(forecast_horizon, None),
         rolling=True,
         source_types=[
             "user",
@@ -73,9 +70,7 @@ def get_power_data(
     )
 
     # Get power schedule
-    power_schedule_bdf: tb.BeliefsDataFrame = Resource(
-        session["resource"]
-    ).get_sensor_data(
+    power_schedule_bdf: tb.BeliefsDataFrame = Resource(resource_name).get_sensor_data(
         start=query_window[0],
         end=query_window[-1],
         resolution=resolution,
@@ -93,7 +88,7 @@ def get_power_data(
         power_schedule_df["event_value"] *= -1
 
     # Calculate the power metrics
-    power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
+    power_hour_factor = time_utils.resolution_to_hour_factor(resolution)
     realised_power_in_mwh = pd.Series(
         power_df["event_value"] * power_hour_factor
     ).values
@@ -125,7 +120,11 @@ def get_power_data(
 
 
 def get_prices_data(
-    metrics: dict, market: Market
+    metrics: dict,
+    market: Market,
+    query_window: Tuple[datetime, datetime],
+    resolution: str,
+    forecast_horizon: timedelta,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, dict]:
     """Get price data and metrics.
 
@@ -138,9 +137,6 @@ def get_prices_data(
     """
 
     market_name = "" if market is None else market.name
-    query_window, resolution = time_utils.ensure_timing_vars_are_set(
-        (session["start_time"], session["end_time"]), session["resolution"]
-    )
 
     # Get price data
     price_bdf: tb.BeliefsDataFrame = Price.collect(
@@ -160,12 +156,11 @@ def get_prices_data(
         metrics["realised_unit_price"] = np.NaN
 
     # Get price forecast
-    horizon = pd.to_timedelta(session["forecast_horizon"])
     price_forecast_bdf: tb.BeliefsDataFrame = Price.collect(
         [market_name],
         query_window=query_window,
         resolution=resolution,
-        horizon_window=(horizon, None),
+        horizon_window=(forecast_horizon, None),
         rolling=True,
         source_types=["user", "forecasting script", "script"],
     )
@@ -194,7 +189,12 @@ def get_prices_data(
 
 
 def get_weather_data(
-    assets: List[Asset], metrics: dict, sensor_type: WeatherSensorType
+    assets: List[Asset],
+    metrics: dict,
+    sensor_type: WeatherSensorType,
+    query_window: Tuple[datetime, datetime],
+    resolution: str,
+    forecast_horizon: timedelta,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, str, WeatherSensor, dict]:
     """Get most recent weather data and forecast weather data for the requested forecast horizon.
 
@@ -223,9 +223,6 @@ def get_weather_data(
 
             # Collect the weather data for the requested time window
             sensor_names = [sensor.name for sensor in closest_sensors]
-            query_window, resolution = time_utils.ensure_timing_vars_are_set(
-                (session["start_time"], session["end_time"]), session["resolution"]
-            )
 
             # Get weather data
             weather_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.collect(
@@ -244,12 +241,11 @@ def get_weather_data(
                 )
 
             # Get weather forecasts
-            horizon = pd.to_timedelta(session["forecast_horizon"])
             weather_forecast_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.collect(
                 sensor_names,
                 query_window=query_window,
                 resolution=resolution,
-                horizon_window=(horizon, None),
+                horizon_window=(forecast_horizon, None),
                 rolling=True,
                 source_types=["user", "forecasting script", "script"],
                 sum_multiple=False,
@@ -321,6 +317,7 @@ def get_revenues_costs_data(
     prices_forecast_data: pd.DataFrame,
     metrics: Dict[str, float],
     unit_factor: float,
+    resolution: str,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, dict]:
     """Compute revenues/costs data. These data are purely derivative from power and prices.
     For forecasts we use the WAPE metrics. Then we calculate metrics on this construct.
@@ -334,7 +331,7 @@ def get_revenues_costs_data(
     - mean absolute percentage error
     - weighted absolute percentage error
     """
-    power_hour_factor = time_utils.resolution_to_hour_factor(session["resolution"])
+    power_hour_factor = time_utils.resolution_to_hour_factor(resolution)
 
     rev_cost_data = multiply_dataframe_with_deterministic_beliefs(
         power_data,

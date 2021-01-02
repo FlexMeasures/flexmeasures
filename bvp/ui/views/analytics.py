@@ -1,5 +1,5 @@
 from typing import List, Optional, Union, Tuple, Dict
-from datetime import timedelta
+from datetime import datetime, timedelta
 import io
 import csv
 import json
@@ -36,6 +36,8 @@ from bvp.ui.utils.view_utils import (
     set_session_resource,
     set_session_market,
     set_session_sensor_type,
+    set_time_range_for_session,
+    ensure_timing_vars_are_set,
 )
 from bvp.ui.utils.plotting_utils import create_graph, separate_legend
 from bvp.ui.views import bvp_ui
@@ -46,10 +48,10 @@ from bvp.ui.views import bvp_ui
 def analytics_view():
     """Analytics view. Here, four plots (consumption/generation, weather, prices and a profit/loss calculation)
     and a table of metrics data are prepared. This view allows to select a resource name, from which a
-    models.Resource object can be made. The resource name is kept in the session.
+    `models.Resource` object can be made. The resource name is kept in the session.
     Based on the resource, plots and table are labelled appropriately.
     """
-    time_utils.set_time_range_for_session()
+    set_time_range_for_session()
     markets = get_markets()
     assets = get_assets(order_by_asset_attribute="display_name", order_direction="asc")
     asset_groups = get_asset_group_queries(
@@ -64,6 +66,8 @@ def analytics_view():
     selected_sensor_type = set_session_sensor_type(sensor_types)
     session_asset_types = Resource(session["resource"]).unique_asset_types
 
+    query_window, resolution = ensure_timing_vars_are_set((None, None), None)
+
     # This is useful information - we might want to adapt the sign of the data and labels.
     showing_pure_consumption_data = all(
         [a.is_pure_consumer for a in Resource(session["resource"]).assets]
@@ -75,6 +79,8 @@ def analytics_view():
     show_consumption_as_positive = False if showing_pure_production_data else True
 
     data, metrics, weather_type, selected_weather_sensor = get_data_and_metrics(
+        query_window,
+        resolution,
         show_consumption_as_positive,
         selected_market,
         selected_sensor_type,
@@ -82,7 +88,6 @@ def analytics_view():
     )
 
     # Set shared x range
-    query_window, resolution = time_utils.ensure_timing_vars_are_set((None, None), None)
     shared_x_range = Range1d(start=query_window[0], end=query_window[1])
 
     # TODO: get rid of this hack, which we use because we mock the current year's data from 2015 data in demo mode
@@ -367,19 +372,36 @@ def analytics_data_view(content, content_type):
 
 
 def get_data_and_metrics(
-    show_consumption_as_positive: bool, selected_market, selected_sensor_type, assets
+    query_window: Tuple[datetime, datetime],
+    resolution: str,
+    show_consumption_as_positive: bool,
+    selected_market,
+    selected_sensor_type,
+    assets,
 ) -> Tuple[Dict[str, pd.DataFrame], Dict[str, float], str, WeatherSensor]:
     """Getting data and calculating metrics for them"""
     data: Dict[str, pd.DataFrame] = dict()
+    forecast_horizon = pd.to_timedelta(session["forecast_horizon"])
     metrics: dict = dict()
     (
         data["power"],
         data["power_forecast"],
         data["power_schedule"],
         metrics,
-    ) = get_power_data(show_consumption_as_positive, metrics)
+    ) = get_power_data(
+        session["resource"],
+        show_consumption_as_positive,
+        metrics,
+        query_window,
+        resolution,
+        forecast_horizon,
+    )
     data["prices"], data["prices_forecast"], metrics = get_prices_data(
-        metrics, selected_market
+        metrics,
+        selected_market,
+        query_window,
+        resolution,
+        forecast_horizon,
     )
     (
         data["weather"],
@@ -387,7 +409,14 @@ def get_data_and_metrics(
         weather_type,
         selected_sensor,
         metrics,
-    ) = get_weather_data(assets, metrics, selected_sensor_type)
+    ) = get_weather_data(
+        assets,
+        metrics,
+        selected_sensor_type,
+        query_window,
+        resolution,
+        forecast_horizon,
+    )
     # TODO: get rid of this hack, which we use because we mock forecast intervals in demo mode
     if current_app.config.get("BVP_MODE", "") == "demo":
         # In each case below, the error increases with the horizon towards a certain percentage of the point forecast
@@ -438,6 +467,7 @@ def get_data_and_metrics(
         data["prices_forecast"],
         metrics,
         unit_factor,
+        resolution,
     )
     return data, metrics, weather_type, selected_sensor
 

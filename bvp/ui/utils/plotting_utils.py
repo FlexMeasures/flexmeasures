@@ -29,8 +29,8 @@ from bvp.utils.time_utils import (
     bvp_now,
     localized_datetime_str,
     tz_index_naively,
-    set_time_range_for_session,
 )
+from bvp.ui.utils.view_utils import set_time_range_for_session
 
 
 def create_hover_tool(  # noqa: C901

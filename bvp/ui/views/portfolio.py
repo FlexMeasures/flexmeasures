@@ -16,7 +16,7 @@ from bvp.utils import time_utils
 from bvp.utils.bvp_inflection import capitalize
 import bvp.ui.utils.plotting_utils as plotting
 from bvp.ui.views import bvp_ui
-from bvp.ui.utils.view_utils import render_bvp_template
+from bvp.ui.utils.view_utils import render_bvp_template, set_time_range_for_session
 
 
 @bvp_ui.route("/portfolio", methods=["GET", "POST"])
@@ -28,7 +28,7 @@ def portfolio_view():  # noqa: C901
     The page can also be used to navigate historical results.
     """
 
-    time_utils.set_time_range_for_session()
+    set_time_range_for_session()
     start = session.get("start_time")
     end = session.get("end_time")
     resolution = session.get("resolution")

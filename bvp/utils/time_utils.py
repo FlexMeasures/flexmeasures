@@ -1,13 +1,11 @@
 from datetime import datetime, timedelta
-from typing import List, Union, Optional, Tuple
+from typing import List, Union, Optional
 
-from flask import request, session, current_app
+from flask import current_app
 from flask_security.core import current_user
 from humanize import naturaldate, naturaltime
-from werkzeug.exceptions import BadRequest
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
-import iso8601
 import pytz
 import tzlocal
 from dateutil import tz
@@ -94,12 +92,22 @@ def naturalized_datetime_str(dt: Optional[datetime]) -> str:
         return naturaldate(local_dt)
 
 
-def decide_session_resolution(
-    start: Optional[datetime], end: Optional[datetime]
-) -> str:
-    """Decide on a resolution for this session
-    (for plotting and data queries),
-    given the length of the selected time period."""
+def resolution_to_hour_factor(resolution: Union[str, timedelta]) -> float:
+    """Return the factor with which a value needs to be multiplied in order to get the value per hour,
+    e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step.
+
+    :param resolution: timedelta or pandas offset such as "15T" or "1H"
+    """
+    if isinstance(resolution, timedelta):
+        return resolution / timedelta(hours=1)
+    return pd.Timedelta(resolution).to_pytimedelta() / timedelta(hours=1)
+
+
+def decide_resolution(start: Optional[datetime], end: Optional[datetime]) -> str:
+    """
+    Decide on a practical resolution given the length of the selected time period.
+    Useful for querying or plotting.
+    """
     if start is None or end is None:
         return "15T"  # default if we cannot tell period
     period_length = end - start
@@ -112,19 +120,8 @@ def decide_session_resolution(
     elif period_length > timedelta(hours=8):
         resolution = "15T"
     else:
-        resolution = "5T"  # we are not going lower than 5 minutes
+        resolution = "5T"  # we are (currently) not going lower than 5 minutes
     return resolution
-
-
-def resolution_to_hour_factor(resolution: Union[str, timedelta]) -> float:
-    """Return the factor with which a value needs to be multiplied in order to get the value per hour,
-    e.g. 10 MW at a resolution of 15min are 2.5 MWh per time step.
-
-    :param resolution: timedelta or pandas offset such as "15T" or "1H"
-    """
-    if isinstance(resolution, timedelta):
-        return resolution / timedelta(hours=1)
-    return pd.Timedelta(resolution).to_pytimedelta() / timedelta(hours=1)
 
 
 def get_timezone(of_user=False):
@@ -173,67 +170,6 @@ def get_default_end_time() -> datetime:
     return get_most_recent_quarter() + timedelta(days=1)
 
 
-def set_time_range_for_session():
-    """Set period (start_date, end_date and resolution) on session if they are not yet set.
-    Also set the forecast horizon, if given."""
-    if "start_time" in request.values:
-        session["start_time"] = localized_datetime(
-            iso8601.parse_date(request.values.get("start_time"))
-        )
-    elif "start_time" not in session:
-        session["start_time"] = get_default_start_time()
-    else:
-        if (
-            session["start_time"].tzinfo is None
-        ):  # session storage seems to lose tz info
-            session["start_time"] = (
-                session["start_time"]
-                .replace(tzinfo=pytz.utc)
-                .astimezone(get_timezone())
-            )
-
-    if "end_time" in request.values:
-        session["end_time"] = localized_datetime(
-            iso8601.parse_date(request.values.get("end_time"))
-        )
-    elif "end_time" not in session:
-        session["end_time"] = get_default_end_time()
-    else:
-        if session["end_time"].tzinfo is None:
-            session["end_time"] = (
-                session["end_time"].replace(tzinfo=pytz.utc).astimezone(get_timezone())
-            )
-
-    # Our demo server works only with the current year's data
-    if current_app.config.get("BVP_MODE", "") == "demo":
-        session["start_time"] = session["start_time"].replace(year=datetime.now().year)
-        session["end_time"] = session["end_time"].replace(year=datetime.now().year)
-        if session["start_time"] >= session["end_time"]:
-            session["start_time"], session["end_time"] = (
-                session["end_time"],
-                session["start_time"],
-            )
-
-    if session["start_time"] >= session["end_time"]:
-        raise BadRequest(
-            "Start time %s is not after end time %s."
-            % (session["start_time"], session["end_time"])
-        )
-
-    session["resolution"] = decide_session_resolution(
-        session["start_time"], session["end_time"]
-    )
-
-    if "forecast_horizon" in request.values:
-        session["forecast_horizon"] = request.values.get("forecast_horizon")
-    allowed_horizons = forecast_horizons_for(session["resolution"])
-    if (
-        session.get("forecast_horizon") not in allowed_horizons
-        and len(allowed_horizons) > 0
-    ):
-        session["forecast_horizon"] = allowed_horizons[0]
-
-
 def freq_label_to_human_readable_label(freq_label: str) -> str:
     """Translate pandas frequency labels to human-readable labels."""
     f2h_map = {
@@ -279,23 +215,3 @@ def supported_horizons() -> List[timedelta]:
 
 def timedelta_to_pandas_freq_str(resolution: timedelta) -> str:
     return to_offset(resolution).freqstr
-
-
-def ensure_timing_vars_are_set(
-    time_window: Tuple[Optional[datetime], Optional[datetime]],
-    resolution: Optional[str],
-) -> Tuple[Tuple[datetime, datetime], str]:
-    start = time_window[0]
-    end = time_window[-1]
-    if None in (start, end, resolution):
-        current_app.logger.warning("Setting time range for session.")
-        set_time_range_for_session()
-        start_out: datetime = session["start_time"]
-        end_out: datetime = session["end_time"]
-        resolution_out: str = session["resolution"]
-    else:
-        start_out = start  # type: ignore
-        end_out = end  # type: ignore
-        resolution_out = resolution  # type: ignore
-
-    return (start_out, end_out), resolution_out

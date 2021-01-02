@@ -1,11 +1,15 @@
 """Utilities for views"""
 import os
 import subprocess
-from typing import Tuple, List
+from typing import Tuple, List, Optional
+from datetime import datetime
 
 from flask import render_template, request, session, current_app
 from bokeh.resources import CDN
 from flask_security.core import current_user
+from werkzeug.exceptions import BadRequest
+import iso8601
+import pytz
 
 from bvp.utils import time_utils
 from bvp.ui import bvp_ui
@@ -77,6 +81,94 @@ def render_bvp_template(html_filename: str, **variables):
     )
 
     return render_template(html_filename, **variables)
+
+
+def set_time_range_for_session():
+    """Set period (start_date, end_date and resolution) on session if they are not yet set.
+    Also set the forecast horizon, if given."""
+    if "start_time" in request.values:
+        session["start_time"] = time_utils.localized_datetime(
+            iso8601.parse_date(request.values.get("start_time"))
+        )
+    elif "start_time" not in session:
+        session["start_time"] = time_utils.get_default_start_time()
+    else:
+        if (
+            session["start_time"].tzinfo is None
+        ):  # session storage seems to lose tz info
+            session["start_time"] = (
+                session["start_time"]
+                .replace(tzinfo=pytz.utc)
+                .astimezone(time_utils.get_timezone())
+            )
+
+    if "end_time" in request.values:
+        session["end_time"] = time_utils.localized_datetime(
+            iso8601.parse_date(request.values.get("end_time"))
+        )
+    elif "end_time" not in session:
+        session["end_time"] = time_utils.get_default_end_time()
+    else:
+        if session["end_time"].tzinfo is None:
+            session["end_time"] = (
+                session["end_time"]
+                .replace(tzinfo=pytz.utc)
+                .astimezone(time_utils.get_timezone())
+            )
+
+    # Our demo server works only with the current year's data
+    if current_app.config.get("BVP_MODE", "") == "demo":
+        session["start_time"] = session["start_time"].replace(year=datetime.now().year)
+        session["end_time"] = session["end_time"].replace(year=datetime.now().year)
+        if session["start_time"] >= session["end_time"]:
+            session["start_time"], session["end_time"] = (
+                session["end_time"],
+                session["start_time"],
+            )
+
+    if session["start_time"] >= session["end_time"]:
+        raise BadRequest(
+            "Start time %s is not after end time %s."
+            % (session["start_time"], session["end_time"])
+        )
+
+    session["resolution"] = time_utils.decide_resolution(
+        session["start_time"], session["end_time"]
+    )
+
+    if "forecast_horizon" in request.values:
+        session["forecast_horizon"] = request.values.get("forecast_horizon")
+    allowed_horizons = time_utils.forecast_horizons_for(session["resolution"])
+    if (
+        session.get("forecast_horizon") not in allowed_horizons
+        and len(allowed_horizons) > 0
+    ):
+        session["forecast_horizon"] = allowed_horizons[0]
+
+
+def ensure_timing_vars_are_set(
+    time_window: Tuple[Optional[datetime], Optional[datetime]],
+    resolution: Optional[str],
+) -> Tuple[Tuple[datetime, datetime], str]:
+    """
+    Ensure that time window and resolution variables are set,
+    even if we don't have them available ― in that case,
+    get them from the session.
+    """
+    start = time_window[0]
+    end = time_window[-1]
+    if None in (start, end, resolution):
+        current_app.logger.warning("Setting time range for session.")
+        set_time_range_for_session()
+        start_out: datetime = session["start_time"]
+        end_out: datetime = session["end_time"]
+        resolution_out: str = session["resolution"]
+    else:
+        start_out = start  # type: ignore
+        end_out = end  # type: ignore
+        resolution_out = resolution  # type: ignore
+
+    return (start_out, end_out), resolution_out
 
 
 def set_session_market(resource: Resource) -> Market:
