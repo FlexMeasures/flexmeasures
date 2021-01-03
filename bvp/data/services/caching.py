@@ -15,6 +15,7 @@ class BVPSimpleCache(SimpleCache):
 
     def get(self, key):
         try:
+            print(f"[X] CACHE CHECK: {key}")
             expires, value = self._cache[key]
             if expires == 0 or expires > time():
                 loaded = pickle.loads(value)
@@ -24,6 +25,7 @@ class BVPSimpleCache(SimpleCache):
                             db.session.merge(source, load=False)
                 return loaded
         except (KeyError, pickle.PickleError):
+            print(f"[ ] CACHE CHECK: {key}")
             return None
 
 
