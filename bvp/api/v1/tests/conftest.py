@@ -1,6 +1,7 @@
 from typing import List
 from datetime import timedelta
 
+import isodate
 import pytest
 
 from flask_security import SQLAlchemySessionUserDatastore
@@ -17,7 +18,8 @@ def setup_api_test_data(db):
     print("Setting up data for API v1 tests on %s" % db.engine)
 
     from bvp.data.models.user import User, Role
-    from bvp.data.models.assets import Asset, AssetType
+    from bvp.data.models.assets import Asset, AssetType, Power
+    from bvp.data.models.data_sources import DataSource
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
@@ -59,9 +61,9 @@ def setup_api_test_data(db):
         password=hash_password("testtest"),
     )
 
-    # Create 3 test assets for the test_prosumer user
+    # Create 5 test assets for the test_prosumer user
     test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
-    asset_names = ["CS 1", "CS 2", "CS 3", "CS 4"]
+    asset_names = ["CS 1", "CS 2", "CS 3", "CS 4", "CS 5"]
     assets: List[Asset] = []
     for asset_name in asset_names:
         asset = Asset(
@@ -78,5 +80,36 @@ def setup_api_test_data(db):
             asset.event_resolution = timedelta(hours=1)
         assets.append(asset)
         db.session.add(asset)
+
+    # Add power forecasts to one of the assets, for two sources
+    cs_5 = Asset.query.filter(Asset.name == "CS 5").one_or_none()
+    test_supplier = user_datastore.find_user(email="test_supplier@seita.nl")
+    prosumer_data_source = DataSource.query.filter(
+        DataSource.user == test_prosumer
+    ).one_or_none()
+    supplier_data_source = DataSource.query.filter(
+        DataSource.user == test_supplier
+    ).one_or_none()
+    meter_data = []
+    for i in range(6):
+        p_1 = Power(
+            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+            + timedelta(minutes=15 * i),
+            horizon=timedelta(0),
+            value=(100.0 + i) * -1,
+            asset_id=cs_5.id,
+            data_source_id=prosumer_data_source.id,
+        )
+        p_2 = Power(
+            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+            + timedelta(minutes=15 * i),
+            horizon=timedelta(hours=0),
+            value=(1000.0 - 10 * i) * -1,
+            asset_id=cs_5.id,
+            data_source_id=supplier_data_source.id,
+        )
+        meter_data.append(p_1)
+        meter_data.append(p_2)
+    db.session.bulk_save_objects(meter_data)
 
     print("Done setting up data for API v1 tests")

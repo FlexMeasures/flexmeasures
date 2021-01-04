@@ -2,6 +2,7 @@
 Generic services for accessing asset data.
 """
 
+from __future__ import annotations
 from functools import cached_property, wraps
 from typing import List, Dict, Type, TypeVar, Union, Optional
 from datetime import datetime
@@ -204,7 +205,7 @@ def check_cache(attribute):
         def wrapper(self, *args, **kwargs):
             if not hasattr(self, attribute) or not getattr(self, attribute):
                 raise ValueError(
-                    "Resource has no cached data. Call resource.get_sensor_data() first."
+                    "Resource has no cached data. Call resource.load_sensor_data() first."
                 )
             return fn(self, *args, **kwargs)
 
@@ -230,9 +231,9 @@ class Resource:
 
     Loading and caching time series
     -------------------------------
-    To load time series data for a certain time window, use the get_sensor_data() method.
+    To load time series data for a certain time window, use the load_sensor_data() method.
     This loads beliefs data from the database and caches the results (as a named attribute).
-    Caches are cleared when new time series data is requested (or when the Resource instance seizes to exist).
+    Caches are cleared when new time series data is loaded (or when the Resource instance seizes to exist).
 
     Loading and caching derived statistics
     --------------------------------------
@@ -246,11 +247,9 @@ class Resource:
     - profit/loss
     When a derived statistic is called for, the results are also cached (using @functools.cached_property).
 
-    Sharing data across resources
-    -----------------------------
-    Because different Resources may share common data (at least prices, but perhaps also power values),
-    a significant speed-up can be achieved by passing already loaded data to the get_sensor_data() method,
-    which then only load what is missing.
+    * Resource(session["resource"]).assets
+    * Resource(session["resource"]).display_name
+    * Resource(session["resource"]).get_data()
 
     Usage
     -----
@@ -258,9 +257,9 @@ class Resource:
     >>> resource = Resource(session["resource"])
     >>> resource.assets
     >>> resource.display_name
-    >>> resource.get_sensor_data(Power)
+    >>> resource.load_sensor_data(Power)
     >>> resource.cached_power_data
-    >>> resource.get_sensor_data(Price, sensor_key_attribute="market.name")
+    >>> resource.load_sensor_data(Price, sensor_key_attribute="market.name")
     >>> resource.cached_price_data
     """
 
@@ -348,90 +347,73 @@ class Resource:
         """Get a parameterized name for use in javascript."""
         return parameterize(self.name)
 
-    def get_sensor_data(
+    def load_sensor_data(
         self,
-        sensor_type: SensorType = Power,
-        sensor_key_attribute: str = "name",
+        sensor_types: List[SensorType] = None,
         start: datetime = None,
         end: datetime = None,
         resolution: str = None,
-        horizon_window=(None, None),
-        rolling: bool = True,
-        user_source_id: int = None,
+        belief_horizon_window=(None, None),
+        belief_time_window=(None, None),
         source_types: Optional[List[str]] = None,
-        sum_multiple: bool = False,
-        prior_data: Optional[Dict[str, tb.BeliefsDataFrame]] = None,
-        clear_cached_data: bool = True,
-    ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
-        """Get data for one or more assets and cache the results.
+    ) -> Resource:
+        """Load data for one or more assets and cache the results.
         If the time range parameters are None, they will be gotten from the session.
         The horizon window will default to the latest measurement (anything more in the future than the
         end of the time interval.
-        To get data for a specific source, pass a source id.
+        To load data for a specific source, pass a source id.
 
-        :param prior_data: a dictionary with asset names (as keys)
-                           and prior retrieved sensor data for each asset in the form of a BeliefsDataFrame (as values)
-        :returns: either of the following:
-            - (if sum_multiple is False) a dictionary with asset names (as keys)
-              and a BeliefsDataFrame with sensor data (both prior and new data) for each asset (as values)
-            - (if sum_multiple is True) a BeliefsDataFrame with aggregated sensor data (summing both prior and new data)
+        :returns: self (to allow piping)
 
         Usage
         -----
         >>> resource = Resource()
-        >>> resource.get_sensor_data(Power, start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
+        >>> resource.load_sensor_data([Power], start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
         >>> resource.cached_power_data
-        >>> resource.get_sensor_data(Price, sensor_key_attribute="market.name", start=datetime(2014, 3, 1), end=datetime(2014, 3, 1))
-        >>> resource.cached_price_data
+        >>> resource.load_sensor_data([Power, Price], start=datetime(2014, 3, 1), end=datetime(2014, 3, 1)).cached_price_data
         """
 
-        # Determine for which sensors we are still missing data
-        if prior_data is None:
-            prior_data = {}
-        names_of_resource_sensors = set(
-            coding_utils.rgetattr(asset, sensor_key_attribute) for asset in self.assets
-        )
-        names_of_prior_sensors = set(prior_data.keys())
-        names_of_resource_sensors_with_prior_data = (
-            names_of_resource_sensors & names_of_prior_sensors
-        )
-        names_of_resource_sensors_without_prior_data = (
-            names_of_resource_sensors - names_of_prior_sensors
-        )
-
-        # Query the sensors for which we are missing data
-        new_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.collect(
-            generic_asset_names=list(names_of_resource_sensors_without_prior_data),
-            query_window=(start, end),
-            horizon_window=horizon_window,
-            rolling=rolling,
-            preferred_user_source_ids=user_source_id,
-            source_types=source_types,
-            resolution=resolution,
-            sum_multiple=False,
-        )
-        resource_data = {
-            **{
-                k: v
-                for k, v in prior_data.items()
-                if k in names_of_resource_sensors_with_prior_data
-            },
-            **new_data,
-        }
-        prior_and_new_data = coding_utils.sort_dict({**prior_data, **new_data})
-
         # Invalidate old caches
-        if clear_cached_data:
-            self.clear_cache()
+        self.clear_cache()
 
-        # Cache new data
-        setattr(
-            self, f"cached_{sensor_type.__name__.lower()}_data", resource_data
-        )  # e.g. cached_price_data for sensor type Price
+        # Look up all relevant sensor types for the given resource
+        if sensor_types is None:
+            # todo: after splitting Assets and Sensors, construct here a list of sensor types
+            sensor_types = [Power, Price, Weather]
 
-        if sum_multiple:
-            return aggregate_values(prior_and_new_data)
-        return prior_and_new_data
+        # todo: after combining the Power, Price and Weather tables into one TimedBeliefs table,
+        #       retrieve data from different sensor types in a single query,
+        #       and cache the results grouped by sensor type (cached_price_data, cached_power_data, etc.)
+        for sensor_type in sensor_types:
+            if sensor_type == Power:
+                sensor_key_attribute = "name"
+            elif sensor_type == Price:
+                sensor_key_attribute = "market.name"
+            else:
+                raise NotImplementedError("Unsupported sensor type")
+
+            # Determine which sensors we need to query
+            names_of_resource_sensors = set(
+                coding_utils.rgetattr(asset, sensor_key_attribute)
+                for asset in self.assets
+            )
+
+            # Query the sensors
+            resource_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.collect(
+                generic_asset_names=list(names_of_resource_sensors),
+                query_window=(start, end),
+                belief_horizon_window=belief_horizon_window,
+                belief_time_window=belief_time_window,
+                source_types=source_types,
+                resolution=resolution,
+                sum_multiple=False,
+            )
+
+            # Cache the data
+            setattr(
+                self, f"cached_{sensor_type.__name__.lower()}_data", resource_data
+            )  # e.g. cached_price_data for sensor type Price
+        return self
 
     @property
     @check_cache("cached_power_data")

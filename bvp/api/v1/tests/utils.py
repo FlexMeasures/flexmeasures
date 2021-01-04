@@ -1,8 +1,13 @@
 """Useful test messages"""
 from datetime import timedelta
+from typing import List, Optional, Union
 
+from isodate import duration_isoformat, parse_datetime, parse_duration
 from numpy import tile
-from isodate import duration_isoformat
+import pandas as pd
+
+from bvp.api.common.utils.validators import validate_user_sources
+from bvp.data.models.assets import Power, Asset
 
 
 def message_for_get_meter_data(
@@ -13,6 +18,7 @@ def message_for_get_meter_data(
     invalid_unit: bool = False,
     no_unit: bool = False,
     resolution: str = "",
+    source: Optional[Union[str, List[str]]] = None,
 ) -> dict:
     message = {
         "type": "GetMeterDataRequest",
@@ -37,6 +43,8 @@ def message_for_get_meter_data(
         message["unit"] = "MW/h"
     if resolution:
         message["resolution"] = resolution
+    if source:
+        message["source"] = source
     return message
 
 
@@ -95,3 +103,34 @@ def count_connections_in_post_message(message: dict) -> int:
     if "connections" in message:
         connections += len(message["connections"])
     return connections
+
+
+def verify_power_in_db(
+    message, asset, expected_df: pd.DataFrame, db, swapped_sign: bool = False
+):
+    """util method to verify that power data ended up in the database"""
+    # todo: combine with verify_prices_in_db (in v1_1 utils) into a single function (NB different horizon filters)
+    start = parse_datetime(message["start"])
+    end = start + parse_duration(message["duration"])
+    horizon = (
+        parse_duration(message["horizon"]) if "horizon" in message else timedelta(0)
+    )
+    resolution = asset.event_resolution
+    query = (
+        db.session.query(Power.datetime, Power.value, Power.data_source_id)
+        .filter((Power.datetime > start - resolution) & (Power.datetime < end))
+        .filter(Power.horizon == horizon)
+        .join(Asset)
+        .filter(Asset.name == asset.name)
+    )
+    if "source" in message:
+        source_ids = validate_user_sources(message["source"])
+        query = query.filter(Power.data_source_id.in_(source_ids))
+    df = pd.DataFrame(
+        query.all(), columns=[col["name"] for col in query.column_descriptions]
+    )
+    df = df.set_index(["datetime", "data_source_id"]).sort_index()
+    if swapped_sign:
+        df["value"] = -df["value"]
+
+    assert df["value"].to_list() == expected_df["value"].to_list()

@@ -11,7 +11,7 @@ from bvp.data.queries.utils import (
 )
 from bvp.utils import calculations, time_utils
 from bvp.data.services.resources import Resource, find_closest_weather_sensor
-from bvp.data.models.assets import Asset
+from bvp.data.models.assets import Asset, Power
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.weather import Weather, WeatherSensor, WeatherSensorType
 
@@ -37,46 +37,56 @@ def get_power_data(
     """
 
     # Get power data
-    power_bdf: tb.BeliefsDataFrame = Resource(resource_name).get_sensor_data(
-        start=query_window[0],
-        end=query_window[-1],
-        resolution=resolution,
-        horizon_window=(None, timedelta(hours=0)),
-        rolling=True,
-        sum_multiple=True,
+    power_bdf: tb.BeliefsDataFrame = (
+        Resource(resource_name)
+        .load_sensor_data(
+            sensor_types=[Power],
+            start=query_window[0],
+            end=query_window[-1],
+            resolution=resolution,
+            belief_horizon_window=(None, timedelta(hours=0)),
+        )
+        .aggregate_power_data
     )
     power_df: pd.DataFrame = simplify_index(
         power_bdf, index_levels_to_columns=["belief_horizon", "source"]
     )
 
     # Get power forecast
-    power_forecast_bdf: tb.BeliefsDataFrame = Resource(resource_name).get_sensor_data(
-        start=query_window[0],
-        end=query_window[-1],
-        resolution=resolution,
-        horizon_window=(forecast_horizon, None),
-        rolling=True,
-        source_types=[
-            "user",
-            "forecasting script",
-            "demo script",
-            "script",
-        ],  # TODO: we choose to show data from scheduling scripts separately, which would be
-        #           easier if we could just exclude the "scheduling script" source type here
-        sum_multiple=True,
+    power_forecast_bdf: tb.BeliefsDataFrame = (
+        Resource(resource_name)
+        .load_sensor_data(
+            sensor_types=[Power],
+            start=query_window[0],
+            end=query_window[-1],
+            resolution=resolution,
+            belief_horizon_window=(forecast_horizon, None),
+            source_types=[
+                "user",
+                "forecasting script",
+                "demo script",
+                "script",
+            ],  # TODO: we choose to show data from scheduling scripts separately, which would be
+            #           easier if we could just exclude the "scheduling script" source type here
+        )
+        .aggregate_power_data
     )
     power_forecast_df: pd.DataFrame = simplify_index(
         power_forecast_bdf, index_levels_to_columns=["belief_horizon", "source"]
     )
 
     # Get power schedule
-    power_schedule_bdf: tb.BeliefsDataFrame = Resource(resource_name).get_sensor_data(
-        start=query_window[0],
-        end=query_window[-1],
-        resolution=resolution,
-        horizon_window=(None, None),
-        source_types=["scheduling script"],
-        sum_multiple=True,
+    power_schedule_bdf: tb.BeliefsDataFrame = (
+        Resource(resource_name)
+        .load_sensor_data(
+            sensor_types=[Power],
+            start=query_window[0],
+            end=query_window[-1],
+            resolution=resolution,
+            belief_horizon_window=(None, None),
+            source_types=["scheduling script"],
+        )
+        .aggregate_power_data
     )
     power_schedule_df: pd.DataFrame = simplify_index(
         power_schedule_bdf, index_levels_to_columns=["belief_horizon", "source"]
@@ -143,8 +153,7 @@ def get_prices_data(
         [market_name],
         query_window=query_window,
         resolution=resolution,
-        horizon_window=(None, timedelta(hours=0)),
-        rolling=True,
+        belief_horizon_window=(None, timedelta(hours=0)),
     )
     price_df: pd.DataFrame = simplify_index(
         price_bdf, index_levels_to_columns=["belief_horizon", "source"]
@@ -160,8 +169,7 @@ def get_prices_data(
         [market_name],
         query_window=query_window,
         resolution=resolution,
-        horizon_window=(forecast_horizon, None),
-        rolling=True,
+        belief_horizon_window=(forecast_horizon, None),
         source_types=["user", "forecasting script", "script"],
     )
     price_forecast_df: pd.DataFrame = simplify_index(
@@ -229,8 +237,7 @@ def get_weather_data(
                 sensor_names,
                 query_window=query_window,
                 resolution=resolution,
-                horizon_window=(None, timedelta(hours=0)),
-                rolling=True,
+                belief_horizon_window=(None, timedelta(hours=0)),
                 sum_multiple=False,
             )
             weather_df_dict: Dict[str, pd.DataFrame] = {}
@@ -245,8 +252,7 @@ def get_weather_data(
                 sensor_names,
                 query_window=query_window,
                 resolution=resolution,
-                horizon_window=(forecast_horizon, None),
-                rolling=True,
+                belief_horizon_window=(forecast_horizon, None),
                 source_types=["user", "forecasting script", "script"],
                 sum_multiple=False,
             )

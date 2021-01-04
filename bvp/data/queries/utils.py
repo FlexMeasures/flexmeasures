@@ -9,22 +9,25 @@ from sqlalchemy.orm import Query, Session
 from bvp.data.config import db
 from bvp.data.models.data_sources import DataSource
 from bvp.utils import bvp_inflection
+import bvp.data.models.time_series as ts  # noqa: F401
 
 
 def create_beliefs_query(
-    cls,
+    cls: "ts.TimedValue",
     session: Session,
     asset_class: db.Model,
-    asset_name: str,
+    asset_names: Tuple[str],
     start: Optional[datetime],
     end: Optional[datetime],
 ) -> Query:
     query = (
-        session.query(cls.datetime, cls.value, cls.horizon, DataSource)
+        session.query(
+            asset_class.name, cls.datetime, cls.value, cls.horizon, DataSource
+        )
         .join(DataSource)
         .filter(cls.data_source_id == DataSource.id)
         .join(asset_class)
-        .filter(asset_class.name == asset_name)
+        .filter(asset_class.name.in_(asset_names))
     )
     if start is not None:
         query = query.filter((cls.datetime > start - asset_class.event_resolution))
@@ -34,7 +37,7 @@ def create_beliefs_query(
 
 
 def add_user_source_filter(
-    cls, query: Query, user_source_ids: Union[int, List[int]]
+    cls: "ts.TimedValue", query: Query, user_source_ids: Union[int, List[int]]
 ) -> Query:
     """Add filter to the query to search only through user data from the specified user sources.
 
@@ -59,56 +62,91 @@ def add_user_source_filter(
     return query
 
 
-def add_source_type_filter(cls, query: Query, source_types: List[str]) -> Query:
+def add_source_type_filter(
+    cls: "ts.TimedValue", query: Query, source_types: List[str]
+) -> Query:
     """Add filter to the query to collect only data from sources that are of the given type."""
     return query.filter(DataSource.type.in_(source_types)) if source_types else query
 
 
-def add_horizon_filter(
-    cls,
+def add_belief_timing_filter(
+    cls: "ts.TimedValue",
     query: Query,
-    end: Optional[datetime],
     asset_class: db.Model,
-    horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
-    rolling: bool,
-    belief_time: Optional[datetime],
+    belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
+    belief_time_window: Tuple[Optional[datetime], Optional[datetime]],
 ) -> Query:
-    if belief_time is not None:
+    """Add filters for the desired windows with relevant belief times and belief horizons.
+
+    # todo: interpret belief horizons with respect to knowledge time rather than event end.
+    - a positive horizon denotes a before-the-fact belief (ex-ante w.r.t. knowledge time)
+    - a negative horizon denotes an after-the-fact belief (ex-post w.r.t. knowledge time)
+
+    :param belief_horizon_window: short belief horizon and long belief horizon, each an optional timedelta
+        Interpretation:
+        - a positive short horizon denotes "at least <horizon> before the fact" (min ex-ante)
+        - a positive long horizon denotes "at most <horizon> before the fact" (max ex-ante)
+        - a negative short horizon denotes "at most <horizon> after the fact" (max ex-post)
+        - a negative long horizon denotes "at least <horizon> after the fact" (min ex-post)
+    :param belief_time_window: earliest belief time and latest belief time, each an optional datetime
+
+    Examples (assuming the knowledge time of each event coincides with the end of the event):
+
+        # Query beliefs formed between 1 and 7 days before each individual event
+        belief_horizon_window = (timedelta(days=1), timedelta(days=7))
+
+        # Query beliefs formed at least 2 hours before each individual event
+        belief_horizon_window = (timedelta(hours=2), None)
+
+        # Query beliefs formed at most 2 hours after each individual event
+        belief_horizon_window = (-timedelta(hours=2), None)
+
+        # Query beliefs formed at least after each individual event
+        belief_horizon_window = (None, timedelta(hours=0))
+
+        # Query beliefs formed from May 2nd to May 13th (left inclusive, right exclusive)
+        belief_time_window = (datetime(2020, 5, 2), datetime(2020, 5, 13))
+
+        # Query beliefs formed from May 14th onwards
+        belief_time_window = (datetime(2020, 5, 14), None)
+
+        # Query beliefs formed before May 13th
+        belief_time_window = (None, datetime(2020, 5, 13))
+
+    """
+    earliest_belief_time, latest_belief_time = belief_time_window
+    if (
+        earliest_belief_time is not None
+        and latest_belief_time is not None
+        and earliest_belief_time == latest_belief_time
+    ):  # search directly for a unique belief time
         query = query.filter(
-            cls.datetime + asset_class.event_resolution - cls.horizon <= belief_time
+            cls.datetime + asset_class.event_resolution - cls.horizon
+            == earliest_belief_time
         )
-    short_horizon, long_horizon = horizon_window
+    else:
+        if earliest_belief_time is not None:
+            query = query.filter(
+                cls.datetime + asset_class.event_resolution - cls.horizon
+                >= earliest_belief_time
+            )
+        if latest_belief_time is not None:
+            query = query.filter(
+                cls.datetime + asset_class.event_resolution - cls.horizon
+                <= latest_belief_time
+            )
+    short_horizon, long_horizon = belief_horizon_window
     if (
         short_horizon is not None
         and long_horizon is not None
         and short_horizon == long_horizon
-    ):  # search directly for a unique belief_horizon (rolling=True) or belief_time (rolling=False)
-        if rolling:
-            query = query.filter(cls.horizon == short_horizon)
-        else:  # Deduct the difference in end times of the timeslot and the query window
-            query = query.filter(
-                cls.horizon
-                == short_horizon - (end - (cls.datetime + asset_class.event_resolution))
-            )
+    ):  # search directly for a unique belief horizon
+        query = query.filter(cls.horizon == short_horizon)
     else:
         if short_horizon is not None:
-            if rolling:
-                query = query.filter(cls.horizon >= short_horizon)
-            else:
-                query = query.filter(
-                    cls.horizon
-                    >= short_horizon
-                    - (end - (cls.datetime + asset_class.event_resolution))
-                )
+            query = query.filter(cls.horizon >= short_horizon)
         if long_horizon is not None:
-            if rolling:
-                query = query.filter(cls.horizon <= long_horizon)
-            else:
-                query = query.filter(
-                    cls.horizon
-                    <= long_horizon
-                    - (end - (cls.datetime + asset_class.event_resolution))
-                )
+            query = query.filter(cls.horizon <= long_horizon)
     return query
 
 

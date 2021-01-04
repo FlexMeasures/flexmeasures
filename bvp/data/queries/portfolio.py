@@ -1,11 +1,10 @@
-from datetime import datetime
 from typing import Dict, List, Tuple
 
 import pandas as pd
 import timely_beliefs as tb
 
-from bvp.data.models.assets import Asset, AssetType, Power
-from bvp.data.models.markets import Market, Price
+from bvp.data.models.assets import Asset, AssetType
+from bvp.data.models.markets import Market
 from bvp.data.queries.utils import simplify_index
 from bvp.data.services.resources import Resource
 
@@ -45,7 +44,7 @@ def get_structure(
 
 
 def get_power_data(
-    start: datetime, end: datetime, resolution: str, resource_dict: Dict[str, Resource]
+    resource_dict: Dict[str, Resource]
 ) -> Tuple[
     Dict[str, pd.DataFrame],
     Dict[str, pd.DataFrame],
@@ -78,13 +77,6 @@ def get_power_data(
     total_supply_per_asset: Dict[str, float] = {}
     total_demand_per_asset: Dict[str, float] = {}
     for resource_name, resource in resource_dict.items():
-        resource.get_sensor_data(
-            sensor_type=Power,
-            start=start,
-            end=end,
-            resolution=resolution,
-            sum_multiple=False,
-        )  # The resource caches the results
         if (resource.aggregate_demand.values != 0).any():
             demand_per_resource[resource_name] = simplify_index(
                 resource.aggregate_demand
@@ -112,22 +104,13 @@ def get_power_data(
 
 
 def get_price_data(
-    start: datetime, end: datetime, resolution: str, resource_dict: Dict[str, Resource]
+    resource_dict: Dict[str, Resource]
 ) -> Tuple[Dict[str, tb.BeliefsDataFrame], Dict[str, float]]:
 
     # Load price data
     price_bdf_dict: Dict[str, tb.BeliefsDataFrame] = {}
     for resource_name, resource in resource_dict.items():
-        price_bdf_dict = resource.get_sensor_data(
-            sensor_type=Price,
-            sensor_key_attribute="market.name",
-            start=start,
-            end=end,
-            resolution=resolution,
-            sum_multiple=False,
-            prior_data=price_bdf_dict,
-            clear_cached_data=False,
-        )
+        price_bdf_dict = {**resource.cached_price_data, **price_bdf_dict}
     average_price_dict = {k: v["event_value"].mean() for k, v in price_bdf_dict.items()}
 
     # Uncomment if needed

@@ -17,10 +17,10 @@ p = inflect.engine()
 # Signature of a callable that build queries
 QueryCallType = Callable[
     [
-        str,
+        Tuple[str],
         Tuple[datetime, datetime],
-        Tuple[timedelta, timedelta],
-        bool,
+        Tuple[Optional[timedelta], Optional[timedelta]],
+        Tuple[Optional[datetime], Optional[datetime]],
         Optional[datetime],
         Optional[Union[int, List[int]]],
         Optional[List[str]],
@@ -33,15 +33,13 @@ def collect_time_series_data(
     generic_asset_names: Union[str, List[str]],
     make_query: QueryCallType,
     query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
-    horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
-    rolling: bool = True,
+    belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+        None,
+        None,
+    ),
+    belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
     belief_time: Optional[datetime] = None,
-    preferred_user_source_ids: Union[
-        int, List[int]
-    ] = None,  # None is interpreted as all sources
-    fallback_user_source_ids: Union[
-        int, List[int]
-    ] = -1,  # An id = -1 is interpreted as no sources
+    user_source_ids: Union[int, List[int]] = None,  # None is interpreted as all sources
     source_types: Optional[List[str]] = None,
     resolution: Union[str, timedelta] = None,
     sum_multiple: bool = True,
@@ -60,95 +58,52 @@ def collect_time_series_data(
     The response might be an empty data frame if no data exists for these assets
     in this time range.
     """
+
+    # convert to tuple to support caching the query
     if isinstance(generic_asset_names, str):
-        generic_asset_names = [generic_asset_names]
+        generic_asset_names = (generic_asset_names,)
+    elif isinstance(generic_asset_names, list):
+        generic_asset_names = tuple(generic_asset_names)
 
-    data_as_dict: Dict[str, tb.BeliefsDataFrame] = {}
-
-    for generic_asset_name in generic_asset_names:
-
-        values = query_time_series_data(
-            generic_asset_name,
-            make_query,
-            query_window,
-            horizon_window,
-            rolling,
-            belief_time,
-            preferred_user_source_ids,
-            source_types,
-            resolution,
-        )
-
-        # Cases explaining the following if statement for when to do a fallback query:
-        # 1)    p = None, f = -1          query all sources using id = None
-        # 2)    p = None, f = None        query all sources using id = None
-        # 3)    p = None, f = 1           query all sources using id = None
-        # 4)    p = 1, f = 1              query one source using id = 1 (id = 1 already queried)
-        # 5)    p = 1, f = None           query one source using id = 1,
-        #                                 if values == None then query all source using id = None
-        # 6)    p = 1, f = 2              query one source using id = 1,
-        #                                 if values == None then query one source using id = 2
-        # 7)    p = [1, 2], f = [2, 3]    query two sources with id = 1 or id = 2,
-        #                                 if values == None then query one source with id = 3 (id = 2 already queried)
-        # So the general rule is:
-        #   - if the preferred sources don't have values
-        #   - and if we didn't query all sources already (catches case 1, 2 and 3)
-        #   - and if there are unique fallback sources stated (catches case 4 and part of 7)
-
-        # As a fallback, we'll only query sources that were not queried already (except if the fallback is to query all)
-        if preferred_user_source_ids:
-            unique_fallback_user_source_ids = drop_non_unique_ids(
-                preferred_user_source_ids, fallback_user_source_ids
-            )  # now a list
-        else:
-            unique_fallback_user_source_ids = fallback_user_source_ids
-
-        if (
-            values.empty
-            and preferred_user_source_ids
-            and -1 not in unique_fallback_user_source_ids
-        ):
-            values = query_time_series_data(
-                generic_asset_name,
-                make_query,
-                query_window,
-                horizon_window,
-                rolling,
-                belief_time,
-                unique_fallback_user_source_ids,
-                source_types,
-                resolution,
-            )
-
-        # Here we build a dict with data frames.
-        if len(data_as_dict.keys()) == 0:
-            data_as_dict = {generic_asset_name: values}
-        else:
-            data_as_dict[generic_asset_name] = values
+    bdf_dict = query_time_series_data(
+        generic_asset_names,
+        make_query,
+        query_window,
+        belief_horizon_window,
+        belief_time_window,
+        belief_time,
+        user_source_ids,
+        source_types,
+        resolution,
+    )
 
     if sum_multiple is True:
-        return aggregate_values(data_as_dict)
+        return aggregate_values(bdf_dict)
     else:
-        return data_as_dict
+        return bdf_dict
 
 
 def query_time_series_data(
-    generic_asset_name: str,
+    generic_asset_names: Tuple[str],
     make_query: QueryCallType,
     query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
-    horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
-    rolling: bool = True,
+    belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+        None,
+        None,
+    ),
+    belief_time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
     belief_time: Optional[datetime] = None,
     user_source_ids: Optional[Union[int, List[int]]] = None,
     source_types: Optional[List[str]] = None,
     resolution: Union[str, timedelta] = None,
-) -> tb.BeliefsDataFrame:
+) -> Dict[str, tb.BeliefsDataFrame]:
     """
-    Run a query for time series data on the database.
+    Run a query for time series data on the database for a tuple of assets.
     Here, we need to know that postgres only stores naive datetimes and we keep them as UTC.
     Therefore, we localize the result.
     Then, we resample the result, to fit the given resolution. *
-    Returns a BeliefsDataFrame with an "event_value" column.
+    Returns a dictionary of asset names (as keys) and BeliefsDataFrames (as values),
+    with each BeliefsDataFrame having an "event_value" column.
 
     * Note that we convert string resolutions to datetime.timedelta objects.
       Pandas can resample with those, but still has some quirky behaviour with DST:
@@ -160,79 +115,88 @@ def query_time_series_data(
         query_window = convert_query_window_for_demo(query_window)
 
     query = make_query(
-        asset_name=generic_asset_name,
+        asset_names=generic_asset_names,
         query_window=query_window,
-        horizon_window=horizon_window,
-        rolling=rolling,
+        belief_horizon_window=belief_horizon_window,
+        belief_time_window=belief_time_window,
         belief_time=belief_time,
         user_source_ids=user_source_ids,
         source_types=source_types,
     )
 
-    df = pd.DataFrame(
+    df_all_assets = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
     )
+    bdf_dict: Dict[str, tb.BeliefsDataFrame] = {}
+    for generic_asset_name in generic_asset_names:
 
-    # todo: Keep the preferred data source (first look at source_type, then user_source_id if needed)
-    # if user_source_ids:
-    #     values_orig["source"] = values_orig["source"].astype("category")
-    #     values_orig["source"].cat.set_categories(user_source_ids, inplace=True)
-    #     values_orig = (
-    #         values_orig.sort_values(by=["source"], ascending=True)
-    #         .drop_duplicates(subset=["source"], keep="first")
-    #         .sort_values(by=["datetime"])
-    #     )
+        # Select data for the given asset
+        df = df_all_assets[df_all_assets["name"] == generic_asset_name].loc[
+            :, df_all_assets.columns != "name"
+        ]
 
-    # Keep the most recent observation
-    df = (
-        df.sort_values(by=["horizon"], ascending=True)
-        .drop_duplicates(subset=["datetime"], keep="first")
-        .sort_values(by=["datetime"])
-    )
+        # todo: Keep the preferred data source (first look at source_type, then user_source_id if needed)
+        # if user_source_ids:
+        #     values_orig["source"] = values_orig["source"].astype("category")
+        #     values_orig["source"].cat.set_categories(user_source_ids, inplace=True)
+        #     values_orig = (
+        #         values_orig.sort_values(by=["source"], ascending=True)
+        #         .drop_duplicates(subset=["source"], keep="first")
+        #         .sort_values(by=["datetime"])
+        #     )
 
-    # Index according to time and rename columns
-    # todo: this operation can be simplified after moving our time series data structures to timely-beliefs
-    df.rename(
-        index=str,
-        columns={
-            "value": "event_value",
-            "datetime": "event_start",
-            "DataSource": "source",
-            "horizon": "belief_horizon",
-        },
-        inplace=True,
-    )
-    df.set_index("event_start", drop=True, inplace=True)
+        # Keep the most recent observation
+        # todo: this block also resolves multi-sourced data by selecting the "first" (unsorted) source; we should have a consistent policy for this case
+        df = (
+            df.sort_values(by=["horizon"], ascending=True)
+            .drop_duplicates(subset=["datetime"], keep="first")
+            .sort_values(by=["datetime"])
+        )
 
-    # Convert to the BVP timezone
-    if not df.empty:
-        df.index = df.index.tz_convert(time_utils.get_timezone())
+        # Index according to time and rename columns
+        # todo: this operation can be simplified after moving our time series data structures to timely-beliefs
+        df.rename(
+            index=str,
+            columns={
+                "value": "event_value",
+                "datetime": "event_start",
+                "DataSource": "source",
+                "horizon": "belief_horizon",
+            },
+            inplace=True,
+        )
+        df.set_index("event_start", drop=True, inplace=True)
 
-    # On demo, we query older data as if it's the current year's data (we converted above)
-    if current_app.config.get("BVP_MODE", "") == "demo":
-        df.index = df.index.map(lambda t: t.replace(year=datetime.now().year))
+        # Convert to the BVP timezone
+        if not df.empty:
+            df.index = df.index.tz_convert(time_utils.get_timezone())
 
-    bvp_sensor = find_sensor_by_name(name=generic_asset_name)
-    sensor = tb.Sensor(
-        name=generic_asset_name, event_resolution=bvp_sensor.event_resolution
-    )
-    bdf = tb.BeliefsDataFrame(df.reset_index(), sensor=sensor)
+        # On demo, we query older data as if it's the current year's data (we converted above)
+        if current_app.config.get("BVP_MODE", "") == "demo":
+            df.index = df.index.map(lambda t: t.replace(year=datetime.now().year))
 
-    # re-sample data to the resolution we need to serve
-    if resolution is None:
-        resolution = sensor.event_resolution
-    elif isinstance(resolution, str):
-        try:
-            # todo: allow pandas freqstr as resolution when timely-beliefs supports DateOffsets,
-            #       https://github.com/SeitaBV/timely-beliefs/issues/13
-            resolution = pd.to_timedelta(resolution).to_pytimedelta()
-        except ValueError:
-            resolution = isodate.parse_duration(resolution)
-    bdf = bdf.resample_events(
-        event_resolution=resolution, keep_only_most_recent_belief=True
-    )
+        bvp_sensor = find_sensor_by_name(name=generic_asset_name)
+        sensor = tb.Sensor(
+            name=generic_asset_name, event_resolution=bvp_sensor.event_resolution
+        )
+        bdf = tb.BeliefsDataFrame(df.reset_index(), sensor=sensor)
 
-    return bdf
+        # re-sample data to the resolution we need to serve
+        if resolution is None:
+            resolution = sensor.event_resolution
+        elif isinstance(resolution, str):
+            try:
+                # todo: allow pandas freqstr as resolution when timely-beliefs supports DateOffsets,
+                #       https://github.com/SeitaBV/timely-beliefs/issues/13
+                resolution = pd.to_timedelta(resolution).to_pytimedelta()
+            except ValueError:
+                resolution = isodate.parse_duration(resolution)
+        bdf = bdf.resample_events(
+            event_resolution=resolution, keep_only_most_recent_belief=True
+        )
+        bdf_dict[generic_asset_name] = bdf
+
+    return bdf_dict
 
 
 def find_sensor_by_name(name: str):

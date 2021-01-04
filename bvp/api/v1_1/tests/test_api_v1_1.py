@@ -60,11 +60,10 @@ def test_unauthorized_prognosis_request(client):
 @pytest.mark.parametrize(
     "message",
     [
-        message_for_get_prognosis(no_horizon=True),
         message_for_get_prognosis(invalid_horizon=True),
     ],
 )
-def test_invalid_or_no_horizon(client, message):
+def test_invalid_horizon(client, message):
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("bvp_api_v1_1.get_prognosis"),
@@ -95,10 +94,12 @@ def test_no_data(client):
 @pytest.mark.parametrize(
     "message",
     [
+        message_for_get_prognosis(),
         message_for_get_prognosis(single_connection=False),
         message_for_get_prognosis(single_connection=True),
         message_for_get_prognosis(no_resolution=True),
         message_for_get_prognosis(rolling_horizon=True),
+        message_for_get_prognosis(with_prior=True),
         message_for_get_prognosis(rolling_horizon=True, timezone_alternative=True),
     ],
 )

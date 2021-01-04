@@ -1,5 +1,5 @@
 import isodate
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime as datetime_type, timedelta
 
 from flask import request
@@ -32,10 +32,11 @@ from bvp.api.common.utils.validators import (
     type_accepted,
     units_accepted,
     assets_required,
-    optional_sources_accepted,
+    optional_user_sources_accepted,
     post_data_checked_for_required_resolution,
     get_data_downsampling_allowed,
     optional_horizon_accepted,
+    optional_prior_accepted,
     period_required,
     values_required,
 )
@@ -44,8 +45,9 @@ from bvp.api.common.utils.validators import (
 @type_accepted("GetMeterDataRequest")
 @units_accepted("power", "MW")
 @assets_required("connection")
-@optional_sources_accepted(preferred_source="MDC")
-@optional_horizon_accepted(ex_post=True)
+@optional_user_sources_accepted(default_source="MDC")
+@optional_horizon_accepted(ex_post=True, infer_missing=False)
+@optional_prior_accepted(ex_post=True)
 @period_required
 @get_data_downsampling_allowed("connection")
 @as_json
@@ -54,11 +56,10 @@ def get_meter_data_response(
     resolution,
     generic_asset_name_groups,
     horizon,
-    rolling,
+    prior,
     start,
     duration,
-    preferred_source_ids,
-    fallback_source_ids,
+    user_source_ids,
 ) -> Tuple[dict, int]:
     """
     Read out the power values for each asset.
@@ -70,7 +71,10 @@ def get_meter_data_response(
     """
 
     # Any meter data observed at most <horizon> after the fact and not before the fact
-    horizon_window = (horizon, timedelta(hours=0))
+    belief_horizon_window = (horizon, timedelta(hours=0))
+
+    # Any meter data observed at least before <prior>
+    belief_time_window = (None, prior)
 
     # Check the user's intention first, fall back to other data from script
     source_types = ["user", "script"]
@@ -78,14 +82,13 @@ def get_meter_data_response(
     return collect_connection_and_value_groups(
         unit,
         resolution,
-        horizon_window,
+        belief_horizon_window,
+        belief_time_window,
         start,
         duration,
         generic_asset_name_groups,
-        preferred_source_ids,
-        fallback_source_ids,
+        user_source_ids,
         source_types,
-        rolling=rolling,
     )
 
 
@@ -142,18 +145,13 @@ def get_service_response(service_listing) -> Union[dict, Tuple[dict, int]]:
 def collect_connection_and_value_groups(
     unit: str,
     resolution: str,
-    horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]],
+    belief_horizon_window: Tuple[Union[None, timedelta], Union[None, timedelta]],
+    belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]],
     start: datetime_type,
     duration: timedelta,
     connection_groups: List[List[str]],
-    preferred_user_source_ids: Union[
-        int, List[int]
-    ] = None,  # None is interpreted as all sources
-    fallback_user_source_ids: Union[
-        int, List[int]
-    ] = -1,  # An id = -1 is interpreted as no sources
+    user_source_ids: Union[int, List[int]] = None,  # None is interpreted as all sources
     source_types: List[str] = None,
-    rolling: bool = False,
 ) -> Tuple[dict, int]:
     """
     Code for GETting power values from the API.
@@ -177,7 +175,7 @@ def collect_connection_and_value_groups(
     for connections in connection_groups:
 
         # Get the asset names
-        asset_names = []
+        asset_names: List[str] = []
         for connection in connections:
 
             # Parse the entity address
@@ -205,10 +203,9 @@ def collect_connection_and_value_groups(
             generic_asset_names=asset_names,
             query_window=(start, end),
             resolution=resolution,
-            horizon_window=horizon_window,
-            rolling=rolling,
-            preferred_user_source_ids=preferred_user_source_ids,
-            fallback_user_source_ids=fallback_user_source_ids,
+            belief_horizon_window=belief_horizon_window,
+            belief_time_window=belief_time_window,
+            user_source_ids=user_source_ids,
             source_types=source_types,
             sum_multiple=False,
         )

@@ -22,10 +22,11 @@ from bvp.api.common.utils.validators import (
     units_accepted,
     unit_required,
     assets_required,
-    optional_sources_accepted,
+    optional_user_sources_accepted,
     post_data_checked_for_required_resolution,
     get_data_downsampling_allowed,
     optional_horizon_accepted,
+    optional_prior_accepted,
     period_required,
     values_required,
     valid_sensor_units,
@@ -266,8 +267,9 @@ def post_weather_data_response(  # noqa: C901
 @type_accepted("GetPrognosisRequest")
 @units_accepted("power", "MW")
 @assets_required("connection")
-@optional_sources_accepted()
-@optional_horizon_accepted()
+@optional_user_sources_accepted()
+@optional_horizon_accepted(infer_missing=False)
+@optional_prior_accepted()
 @period_required
 @get_data_downsampling_allowed("connection")
 @as_json
@@ -276,15 +278,17 @@ def get_prognosis_response(
     resolution,
     generic_asset_name_groups,
     horizon,
-    rolling,
+    prior,
     start,
     duration,
-    preferred_source_ids,
-    fallback_source_ids,
+    user_source_ids,
 ) -> Union[dict, Tuple[dict, int]]:
 
     # Any prognosis made at least <horizon> before the fact
-    horizon_window = (horizon, None)
+    belief_horizon_window = (horizon, None)
+
+    # Any prognosis made at least before <prior>
+    belief_time_window = (None, prior)
 
     # Check the user's intention first, fall back to schedules, then forecasts, then other data from script
     source_types = ["user", "scheduling script", "forecasting script", "script"]
@@ -292,14 +296,13 @@ def get_prognosis_response(
     return collect_connection_and_value_groups(
         unit,
         resolution,
-        horizon_window,
+        belief_horizon_window,
+        belief_time_window,
         start,
         duration,
         generic_asset_name_groups,
-        preferred_source_ids,
-        fallback_source_ids,
+        user_source_ids,
         source_types,
-        rolling=rolling,
     )
 
 

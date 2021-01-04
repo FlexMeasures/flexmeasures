@@ -23,6 +23,7 @@ from bvp.api.common.responses import (  # noqa: F401
     invalid_resolution_str,
     conflicting_resolutions,
     invalid_sender,
+    invalid_source,
     invalid_timezone,
     invalid_unit,
     no_message_type,
@@ -46,17 +47,16 @@ from bvp.utils.time_utils import bvp_now
 p = inflect.engine()
 
 
-def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[int]:
-    """Return a list of source ids given a user id, a role name or a list thereof.
-    Always includes the user id of the current user."""
+def validate_user_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[int]:
+    """Return a list of user source ids given a user id, a role name or a list thereof."""
     sources = (
         sources if isinstance(sources, list) else [sources]
     )  # Make sure sources is a list
-    source_ids: List[int] = []
+    user_source_ids: List[int] = []
     for source in sources:
         if isinstance(source, int):  # Parse as user id
             try:
-                source_ids.extend(
+                user_source_ids.extend(
                     db.session.query(DataSource.id)
                     .filter(DataSource.user_id == source)
                     .one_or_none()
@@ -66,12 +66,19 @@ def validate_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[in
                 pass
         else:  # Parse as role name
             user_ids = [user.id for user in get_users(source)]
-            source_ids.extend(
-                db.session.query(DataSource.id)
-                .filter(DataSource.user_id.in_(user_ids))
-                .all()
+            user_source_ids.extend(
+                [
+                    params[0]
+                    for params in db.session.query(DataSource.id)
+                    .filter(DataSource.user_id.in_(user_ids))
+                    .all()
+                ]
             )
-    # add current (logged-in) user
+    return list(set(user_source_ids))  # only unique ids
+
+
+def include_current_user_source_id(source_ids: List[int]) -> List[int]:
+    """Includes the source id of the current user."""
     source_ids.extend(
         db.session.query(DataSource.id)
         .filter(DataSource.user_id == current_user.id)
@@ -204,27 +211,41 @@ def optional_duration_accepted(default_duration: timedelta):
     return wrapper
 
 
-def optional_sources_accepted(
-    preferred_source: Union[int, str, List[Union[int, str]]] = None
+def optional_user_sources_accepted(
+    default_source: Union[int, str, List[Union[int, str]]] = None
 ):
     """Decorator which specifies that a GET or POST request accepts an optional source or list of data sources.
-    It parses relevant form data and sets the "preferred_source_ids" and "fallback_source_ids" keyword params.
+    It parses relevant form data and sets the "user_source_ids" keyword parameter.
+
+    Data originating from the requesting user is included by default.
+    That is, user_source_ids always includes the source id of the requesting user.
 
     Each source should either be a known USEF role name or a user id.
-    We'll parse them as a source id or list of source ids.
-    If a requests states one or more data sources, then we'll only query those (no fallback sources).
-    However, if one or more preferred data sources are already specified in the decorator, we'll query those instead,
-    and if a request states one or more data sources, then we'll only query those as a fallback in case the preferred
-    sources don't have any data to give.
-    Data originating from the requesting user is always included.
+    We'll parse them as a list of source ids.
+
+    Case 1:
+    If a request states one or more data sources, then we'll only query those, in addition to the user's own data.
+    Default sources specified in the decorator (see example below) are ignored.
+
+    Case 2:
+    If a request does not state any data sources, a list of default sources will be used.
+
+        Case 2A:
+        Default sources can be specified in the decorator (see example below).
+
+        Case 2B:
+        If no default sources are specified in the decorator, all sources are included.
+
     Example:
 
         @app.route('/getMeterData')
         @optional_sources_accepted("MDC")
-        def get_meter_data(preferred_source_ids, fallback_source_ids):
+        def get_meter_data(user_source_ids):
             return 'Meter data posted'
 
-    The preferred source ids will be those of users that are registered as a meter data company.
+    The source ids then include the user's own id,
+    and ids of other users that are registered as a Meter Data Company.
+
     If the message specifies:
 
     .. code-block:: json
@@ -233,8 +254,8 @@ def optional_sources_accepted(
             "sources": ["Prosumer", "ESCo"]
         }
 
-    and the MDC has no data available yet, we'll also query data provided by Prosumers and ESCos.
-    If no "source" is specified, we won't query for any other data than from MDCs.
+    The source ids then include the user's own id,
+    and ids of other users that are registered as a Prosumer and/or Energy Service Company.
     """
 
     def wrapper(fn):
@@ -248,42 +269,91 @@ def optional_sources_accepted(
                 )
                 return invalid_method(request.method)
 
-            unknown_sources = False
             if "source" in form:
-                validated_sources = validate_sources(form["source"])
-                if None in validated_sources:
-                    unknown_sources = True
-                if preferred_source:
-                    preferred_source_ids = validate_sources(preferred_source)
-                    fallback_source_ids = validated_sources
-                else:
-                    preferred_source_ids = validated_sources
-                    fallback_source_ids = -1
+                validated_user_source_ids = validate_user_sources(form["source"])
+                if None in validated_user_source_ids:
+                    return invalid_source(form["source"])
+                kwargs["user_source_ids"] = include_current_user_source_id(
+                    validated_user_source_ids
+                )
+            elif default_source is not None:
+                kwargs["user_source_ids"] = include_current_user_source_id(
+                    validate_user_sources(default_source)
+                )
             else:
-                preferred_source_ids = validate_sources(preferred_source)
-                fallback_source_ids = -1
+                kwargs["user_source_ids"] = None
 
-            kwargs["preferred_source_ids"] = preferred_source_ids
-            kwargs["fallback_source_ids"] = fallback_source_ids
-
-            response = fn(*args, **kwargs)
-            if unknown_sources:
-                # preferred_source_ids.index(None)  # Todo: improve warning message by referencing the ones that could not be found.
-                response["message"].append(" Warning: some data sources are unknown.")
-                return response
-            else:
-                return response
+            return fn(*args, **kwargs)
 
         return decorated_service
 
     return wrapper
 
 
-def optional_horizon_accepted(ex_post: bool = False):
-    """Decorator which specifies that a GET or POST request accepts an optional horizon.
-    It parses relevant form data and sets the "horizon" and "rolling" keyword params.
+def optional_prior_accepted(ex_post: bool = False):
+    """Decorator which specifies that a GET or POST request accepts an optional prior.
+    It parses relevant form data and sets the "prior" keyword param.
 
-    If no horizon is specified, the horizon is determined by the server based on when the API endpoint was called.
+    Interpretation for GET requests:
+    -   Denotes "at least before <prior>"
+    -   This results in the filter belief_time_window = (None, prior)
+
+    Optionally, an ex_post flag can be passed to the decorator to indicate that only ex-post datetimes are allowed.
+    """
+
+    def wrapper(fn):
+        @wraps(fn)
+        @as_json
+        def decorated_service(*args, **kwargs):
+            form = get_form_from_request(request)
+            if form is None:
+                current_app.logger.warning(
+                    "Unsupported request method for unpacking 'prior' from request."
+                )
+                return invalid_method(request.method)
+
+            if "prior" in form:
+                prior = parse_isodate_str(form["prior"])
+                if ex_post is True:
+                    start = parse_isodate_str(form["start"])
+                    duration = validate_duration(form["duration"], start)
+                    # todo: validate start and duration (refactor already duplicate code from period_required and optional_horizon_accepted)
+                    knowledge_time = (
+                        start + duration
+                    )  # todo: take into account knowledge horizon function
+                    if prior < knowledge_time:
+                        extra_info = "Meter data can only be observed after the fact."
+                        return invalid_horizon(extra_info)
+            else:
+                prior = None
+
+            kwargs["prior"] = prior
+            return fn(*args, **kwargs)
+
+        return decorated_service
+
+    return wrapper
+
+
+def optional_horizon_accepted(  # noqa C901
+    ex_post: bool = False, infer_missing: bool = True
+):
+    """Decorator which specifies that a GET or POST request accepts an optional horizon.
+    It parses relevant form data and sets the "horizon" keyword param.
+    For POST requests, the "rolling" keyword param is also set.
+    # todo: deprecate the rolling keyword param in favour of an optional "prior" parameter for POST requests
+
+    Interpretation for GET requests:
+    -   Denotes "at least <horizon> before the fact (positive horizon),
+        or at most <horizon> after the fact (negative horizon)"
+    -   This results in the filter belief_horizon_window = (horizon, None)
+
+    Interpretation for POST requests:
+    -   Denotes "at <horizon> before the fact (positive horizon),
+        or at <horizon> after the fact (negative horizon)"
+    -   this results in the assignment belief_horizon = horizon
+
+    For POST requests, if no horizon is specified, it is determined by the server based on when the API endpoint was called.
     Optionally, an ex_post flag can be passed to the decorator to indicate that only non-positive horizons are allowed.
     Example:
 
@@ -293,7 +363,7 @@ def optional_horizon_accepted(ex_post: bool = False):
             return 'Meter data posted'
 
     If the message specifies a "horizon", it should be in accordance with the ISO 8601 standard.
-    If no "horizon" is specified, it is determined by the server.
+    If no "horizon" is specified for a POST request, it is determined by the server.
     The play server uses 0 hours as a default horizon, while other servers derive the horizon from the server time.
     """
 
@@ -308,6 +378,7 @@ def optional_horizon_accepted(ex_post: bool = False):
                 )
                 return invalid_method(request.method)
 
+            rolling = True
             if "horizon" in form:
                 horizon, rolling = validate_horizon(form["horizon"])
                 if horizon is None:
@@ -317,36 +388,44 @@ def optional_horizon_accepted(ex_post: bool = False):
                     if horizon > timedelta(hours=0):
                         extra_info = "Meter data must have a zero or negative horizon to indicate observations after the fact."
                         return invalid_horizon(extra_info)
-            elif "start" in form and "duration" in form:
-                start = parse_isodate_str(form["start"])
-                duration = validate_duration(form["duration"], start)
-                if not start:
-                    extra_info = "Cannot parse 'start' value."
-                    current_app.logger.warning(extra_info)
-                    return invalid_period(extra_info)
-                if start.tzinfo is None:
-                    current_app.logger.warning("Cannot parse timezone of 'start' value")
-                    return invalid_timezone(
-                        "Start time should explicitly state a timezone."
-                    )
-                if not duration:
-                    extra_info = "Cannot parse 'duration' value."
-                    current_app.logger.warning(extra_info)
-                    return invalid_period(extra_info)
-                if current_app.config.get("BVP_MODE", "") == "play":
-                    horizon = timedelta(hours=0)
+            elif infer_missing is True:
+                # A missing horizon is only accepted if the server can infer it
+                if "start" in form and "duration" in form:
+                    start = parse_isodate_str(form["start"])
+                    duration = validate_duration(form["duration"], start)
+                    if not start:
+                        extra_info = "Cannot parse 'start' value."
+                        current_app.logger.warning(extra_info)
+                        return invalid_period(extra_info)
+                    if start.tzinfo is None:
+                        current_app.logger.warning(
+                            "Cannot parse timezone of 'start' value"
+                        )
+                        return invalid_timezone(
+                            "Start time should explicitly state a timezone."
+                        )
+                    if not duration:
+                        extra_info = "Cannot parse 'duration' value."
+                        current_app.logger.warning(extra_info)
+                        return invalid_period(extra_info)
+                    if current_app.config.get("BVP_MODE", "") == "play":
+                        horizon = timedelta(hours=0)
+                    else:
+                        horizon = start + duration - bvp_now()
+                    rolling = False
                 else:
-                    horizon = start + duration - bvp_now()
-                rolling = False
+                    current_app.logger.warning(
+                        "Request missing both 'horizon', 'start' and 'duration'."
+                    )
+                    extra_info = "Specify a 'horizon' value, or 'start' and 'duration' values so that the horizon can be inferred."
+                    return invalid_horizon(extra_info)
             else:
-                current_app.logger.warning(
-                    "Request missing both 'horizon', 'start' and 'duration'."
-                )
-                extra_info = "Specify a 'horizon' value, or 'start' and 'duration' values so that the horizon can be inferred."
-                return invalid_horizon(extra_info)
+                # Otherwise, a missing horizon is fine
+                horizon = None
 
             kwargs["horizon"] = horizon
-            kwargs["rolling"] = rolling
+            if infer_missing is True:
+                kwargs["rolling"] = rolling
             return fn(*args, **kwargs)
 
         return decorated_service

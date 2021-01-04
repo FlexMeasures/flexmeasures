@@ -273,13 +273,14 @@ def get_prognosis():
     **Optional parameters**
 
     - "resolution" (see :ref:`resolutions`)
-    - "horizon" (see :ref:`prognoses`)
+    - "horizon" (see :ref:`beliefs`)
+    - "prior" (see :ref:`beliefs`)
     - "source" (see :ref:`sources`)
 
     **Example request**
 
     This "GetPrognosisRequest" message requests prognosed consumption between 0.00am and 1.30am for charging station 1,
-    with a rolling horizon of 6 hours before the start of each 15 minute time interval.
+    with a rolling horizon of 6 hours before the end of each 15 minute time interval.
 
     .. code-block:: json
 
@@ -288,7 +289,7 @@ def get_prognosis():
             "connection": "CS 1",
             "start": "2015-01-01T00:00:00Z",
             "duration": "PT1H30M",
-            "horizon": "R/PT6H",
+            "horizon": "PT6H",
             "resolution": "PT15M",
             "unit": "MW"
         }
@@ -320,7 +321,7 @@ def get_prognosis():
     :reqheader Content-Type: application/json
     :resheader Content-Type: application/json
     :status 200: PROCESSED
-    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, UNRECOGNIZED_ASSET, or UNRECOGNIZED_CONNECTION_GROUP
+    :status 400: INVALID_MESSAGE_TYPE, INVALID_SOURCE, INVALID_TIMEZONE, INVALID_UNIT, UNRECOGNIZED_ASSET, or UNRECOGNIZED_CONNECTION_GROUP
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD

@@ -96,6 +96,11 @@ def invalid_resolution_str(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400
 
 
+@BaseMessage("The data source is not found:")
+def invalid_source(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="INVALID_SOURCE", message=message), 400
+
+
 @BaseMessage("Requested assets do not have matching resolutions.")
 def conflicting_resolutions(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_RESOLUTION", message=message), 400

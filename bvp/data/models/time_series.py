@@ -6,7 +6,7 @@ from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 
 from bvp.data.config import db
-from bvp.data.queries.utils import add_horizon_filter, create_beliefs_query
+from bvp.data.queries.utils import add_belief_timing_filter, create_beliefs_query
 from bvp.data.services.time_series import collect_time_series_data
 
 
@@ -35,7 +35,9 @@ class TimedValue(object):
 
     @declared_attr
     def horizon(cls):  # noqa: B902
-        return db.Column(db.Interval(), nullable=False, primary_key=True)
+        return db.Column(
+            db.Interval(), nullable=False, primary_key=True
+        )  # todo: default=timedelta(hours=0)
 
     """The value."""
 
@@ -53,17 +55,23 @@ class TimedValue(object):
     def make_query(
         cls,
         asset_class: db.Model,
-        asset_name: str,
-        query_window: Tuple[datetime_type, datetime_type],
-        horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (None, None),
-        rolling: bool = True,
+        asset_names: Tuple[str],
+        query_window: Tuple[Optional[datetime_type], Optional[datetime_type]],
+        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+            None,
+            None,
+        ),
+        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
+            None,
+            None,
+        ),
         belief_time: Optional[datetime_type] = None,
         session: Session = None,
     ) -> Query:
         """
         Can be extended with the make_query function in subclasses.
-        We identify the asset by name, this assumes a unique string field can be used.
-        The query window expects start as well as end
+        We identify the assets by their name, which assumes a unique string field can be used.
+        The query window consists of two optional datetimes (start and end).
         The horizon window expects first the shorter horizon (e.g. 6H) and then the longer horizon (e.g. 24H).
         The session can be supplied, but if None, the implementation should find a session itself.
 
@@ -73,9 +81,9 @@ class TimedValue(object):
         if session is None:
             session = db.session
         start, end = query_window
-        query = create_beliefs_query(cls, session, asset_class, asset_name, start, end)
-        query = add_horizon_filter(
-            cls, query, end, asset_class, horizon_window, rolling, belief_time
+        query = create_beliefs_query(cls, session, asset_class, asset_names, start, end)
+        query = add_belief_timing_filter(
+            cls, query, asset_class, belief_horizon_window, belief_time_window
         )
         return query
 
@@ -87,18 +95,17 @@ class TimedValue(object):
             None,
             None,
         ),
-        horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
+        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
             None,
             None,
         ),
-        rolling: bool = True,
-        belief_time: Optional[datetime_type] = None,
-        preferred_user_source_ids: Union[
+        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
+            None,
+            None,
+        ),
+        user_source_ids: Union[
             int, List[int]
         ] = None,  # None is interpreted as all sources
-        fallback_user_source_ids: Union[
-            int, List[int]
-        ] = -1,  # An id = -1 is interpreted as no sources
         source_types: Optional[List[str]] = None,
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
@@ -110,11 +117,9 @@ class TimedValue(object):
             generic_asset_names=generic_asset_names,
             make_query=cls.make_query,
             query_window=query_window,
-            horizon_window=horizon_window,
-            rolling=rolling,
-            belief_time=belief_time,
-            preferred_user_source_ids=preferred_user_source_ids,
-            fallback_user_source_ids=fallback_user_source_ids,
+            belief_horizon_window=belief_horizon_window,
+            belief_time_window=belief_time_window,
+            user_source_ids=user_source_ids,
             source_types=source_types,
             resolution=resolution,
             sum_multiple=sum_multiple,

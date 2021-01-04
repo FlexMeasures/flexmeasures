@@ -9,7 +9,8 @@ import numpy as np
 from bokeh.embed import components
 import bokeh.palettes as palettes
 
-from bvp.data.models.assets import Asset
+from bvp.data.models.assets import Asset, Power
+from bvp.data.models.markets import Price
 from bvp.data.queries.portfolio import get_structure, get_power_data, get_price_data
 from bvp.data.services.resources import get_assets
 from bvp.utils import time_utils
@@ -46,6 +47,13 @@ def portfolio_view():  # noqa: C901
         order_by_asset_attribute="display_name", order_direction="asc"
     )
     represented_asset_types, markets, resource_dict = get_structure(assets)
+    for resource_name, resource in resource_dict.items():
+        resource.load_sensor_data(
+            [Power, Price],
+            start=start,
+            end=end,
+            resolution=resolution,
+        )  # The resource caches the results
     (
         supply_resources_df_dict,
         demand_resources_df_dict,
@@ -53,10 +61,8 @@ def portfolio_view():  # noqa: C901
         consumption_per_asset_type,
         production_per_asset,
         consumption_per_asset,
-    ) = get_power_data(start, end, resolution, resource_dict)
-    price_bdf_dict, average_price_dict = get_price_data(
-        start, end, resolution, resource_dict
-    )
+    ) = get_power_data(resource_dict)
+    price_bdf_dict, average_price_dict = get_price_data(resource_dict)
 
     # Pick a perspective for summing and for stacking
     sum_dict = (

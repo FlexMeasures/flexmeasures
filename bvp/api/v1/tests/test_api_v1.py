@@ -1,6 +1,8 @@
 from datetime import timedelta
 
 from flask import url_for
+import isodate
+import pandas as pd
 import pytest
 from iso8601 import parse_date
 from numpy import repeat
@@ -15,9 +17,11 @@ from bvp.api.common.responses import (
 )
 from bvp.api.tests.utils import get_auth_token
 from bvp.api.common.utils.api_utils import message_replace_name_with_ea
+from bvp.api.common.utils.validators import validate_user_sources
 from bvp.api.v1.tests.utils import (
     message_for_get_meter_data,
     message_for_post_meter_data,
+    verify_power_in_db,
 )
 from bvp.data.auth_setup import UNAUTH_ERROR_STATUS
 from bvp.api.v1.tests.utils import count_connections_in_post_message
@@ -172,6 +176,78 @@ def test_invalid_resolution_str(client):
     assert get_meter_data_response.status_code == 400
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     assert get_meter_data_response.json["status"] == "INVALID_RESOLUTION"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        message_for_get_meter_data(single_connection=True),
+        message_for_get_meter_data(
+            single_connection=True, source="Prosumer"
+        ),  # sourced by a Prosumer
+        message_for_get_meter_data(
+            single_connection=True, source=["Prosumer", 109304]
+        ),  # sourced by a Prosumer or user 109304
+    ],
+)
+def test_get_meter_data(db, app, client, message):
+    """Checks Charging Station 5, which has multi-sourced data for the same time interval:
+    6 values from a Prosumer, and 6 values from a Supplier.
+
+    All data should be in the database, and currently only the Prosumer data is returned.
+    """
+    message["connection"] = "CS 5"
+
+    # set up frame with expected values, and filter by source if needed
+    expected_values = pd.concat(
+        [
+            pd.DataFrame.from_dict(
+                dict(
+                    value=[(100.0 + i) for i in range(6)],
+                    datetime=[
+                        isodate.parse_datetime("2015-01-01T00:00:00Z")
+                        + timedelta(minutes=15 * i)
+                        for i in range(6)
+                    ],
+                    data_source_id=1,
+                )
+            ),
+            pd.DataFrame.from_dict(
+                dict(
+                    value=[(1000.0 - 10 * i) for i in range(6)],
+                    datetime=[
+                        isodate.parse_datetime("2015-01-01T00:00:00Z")
+                        + timedelta(minutes=15 * i)
+                        for i in range(6)
+                    ],
+                    data_source_id=2,
+                )
+            ),
+        ]
+    )
+    if "source" in message:
+        source_ids = validate_user_sources(message["source"])
+        expected_values = expected_values[
+            expected_values["data_source_id"].isin(source_ids)
+        ]
+    expected_values = expected_values.set_index(
+        ["datetime", "data_source_id"]
+    ).sort_index()
+
+    # check whether conftest.py did its job setting up the database with expected values
+    cs_5 = Asset.query.filter(Asset.name == "CS 5").one_or_none()
+    verify_power_in_db(message, cs_5, expected_values, db, swapped_sign=True)
+
+    # check whether the API returns the expected values (currently only the Prosumer data is returned)
+    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    get_meter_data_response = client.get(
+        url_for("bvp_api_v1.get_meter_data"),
+        query_string=message_replace_name_with_ea(message),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % get_meter_data_response.json)
+    assert get_meter_data_response.status_code == 200
+    assert get_meter_data_response.json["values"] == [(100.0 + i) for i in range(6)]
 
 
 @pytest.mark.parametrize(

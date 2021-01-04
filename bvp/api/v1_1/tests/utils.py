@@ -11,9 +11,9 @@ from bvp.data.models.markets import Market, Price
 
 
 def message_for_get_prognosis(
-    no_horizon: bool = False,
     invalid_horizon=False,
     rolling_horizon=False,
+    with_prior=False,
     no_data=False,
     no_resolution=False,
     single_connection=False,
@@ -23,20 +23,19 @@ def message_for_get_prognosis(
         "type": "GetPrognosisRequest",
         "start": "2015-01-01T00:00:00Z",
         "duration": "PT1H30M",
-        "horizon": "R/PT6H",
+        "horizon": "PT6H",
         "resolution": "PT15M",
         "connections": ["CS 1", "CS 2", "CS 3"],
         "unit": "MW",
     }
-    if no_horizon:
-        message.pop("horizon", None)
-        message.pop(
-            "start", None
-        )  # Otherwise, the server will determine the horizon based on when the API endpoint was called
-    elif invalid_horizon:
+    if invalid_horizon:
         message["horizon"] = "T6H"
     elif rolling_horizon:
-        message["horizon"] = "R/PT6H"
+        message[
+            "horizon"
+        ] = "R/PT6H"  # with or without R/ shouldn't matter: both are interpreted as rolling horizons
+    if with_prior:
+        message["prior"] = ("2015-03-01T00:00:00Z",)
     if no_data:
         message["start"] = ("2010-01-01T00:00:00Z",)
     if no_resolution:
@@ -146,19 +145,23 @@ def get_market(post_message) -> Optional[Market]:
     return Market.query.filter_by(name=market_info["market_name"]).one_or_none()
 
 
-def verify_prices_in_db(post_message, values, db):
+def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     """util method to verify that price data ended up in the database"""
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
     horizon = parse_duration(post_message["horizon"])
-    market = get_market(post_message)
+    market: Market = get_market(post_message)
     resolution = market.event_resolution
     query = (
-        db.session.query(Price.value, Market.name)
+        db.session.query(Price.value, Price.horizon)
         .filter((Price.datetime > start - resolution) & (Price.datetime < end))
         .filter(Price.horizon == horizon - (end - (Price.datetime + resolution)))
         .join(Market)
         .filter(Market.name == market.name)
     )
-    df = pd.read_sql(query.statement, db.session.bind)
+    df = pd.DataFrame(
+        query.all(), columns=[col["name"] for col in query.column_descriptions]
+    )
+    if swapped_sign:
+        df["value"] = -df["value"]
     assert df.value.tolist() == values
