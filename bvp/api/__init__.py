@@ -95,16 +95,15 @@ def register_at(app: Flask):
 
         play_register_at(app)
 
-    # Load all versions of the API functionality, unless the config specifies otherwise
-    if app.config.get("BVP_API", True) is True:
-        from bvp.api.v1 import register_at as v1_register_at
-        from bvp.api.v1_1 import register_at as v1_1_register_at
-        from bvp.api.v1_2 import register_at as v1_2_register_at
-        from bvp.api.v1_3 import register_at as v1_3_register_at
-        from bvp.api.v2_0 import register_at as v2_0_register_at
+    # Load all versions of the API functionality
+    from bvp.api.v1 import register_at as v1_register_at
+    from bvp.api.v1_1 import register_at as v1_1_register_at
+    from bvp.api.v1_2 import register_at as v1_2_register_at
+    from bvp.api.v1_3 import register_at as v1_3_register_at
+    from bvp.api.v2_0 import register_at as v2_0_register_at
 
-        v1_register_at(app)
-        v1_1_register_at(app)
-        v1_2_register_at(app)
-        v1_3_register_at(app)
-        v2_0_register_at(app)
+    v1_register_at(app)
+    v1_1_register_at(app)
+    v1_2_register_at(app)
+    v1_3_register_at(app)
+    v2_0_register_at(app)

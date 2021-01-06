@@ -61,7 +61,6 @@ class Config(object):
     )
 
     BVP_MODE = ""
-    BVP_API = False
     BVP_PUBLIC_DEMO = False
     BVP_TIMEZONE = "Asia/Seoul"
     BVP_HIDE_NAN_IN_UI = False
@@ -131,7 +130,6 @@ class TestingConfig(Config):
     SECURITY_HASHING_SCHEMES = ["hex_md5"]
     SECURITY_DEPRECATED_HASHING_SCHEMES: List[str] = []
     BVP_MODE = "test"
-    BVP_API = True
     BVP_PLANNING_HORIZON = timedelta(
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests
