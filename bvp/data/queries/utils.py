@@ -69,6 +69,13 @@ def add_source_type_filter(
     return query.filter(DataSource.type.in_(source_types)) if source_types else query
 
 
+def exclude_source_type_filter(
+    cls: "ts.TimedValue", query: Query, source_types: List[str]
+) -> Query:
+    """Add filter to the query to exclude sources that are of the given type."""
+    return query.filter(DataSource.type.notin_(source_types)) if source_types else query
+
+
 def add_belief_timing_filter(
     cls: "ts.TimedValue",
     query: Query,

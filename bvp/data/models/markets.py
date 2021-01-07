@@ -1,11 +1,10 @@
-from typing import Dict, List, Optional, Union
+from typing import Dict
 from datetime import timedelta
 
 from sqlalchemy.orm import Query
 
 from bvp.data.config import db
 from bvp.data.models.time_series import TimedValue
-from bvp.data.queries.utils import add_user_source_filter, add_source_type_filter
 from bvp.utils.bvp_inflection import humanize
 
 
@@ -94,18 +93,9 @@ class Price(TimedValue, db.Model):
     market = db.relationship("Market", backref=db.backref("prices", lazy=True))
 
     @classmethod
-    def make_query(
-        cls,
-        user_source_ids: Optional[Union[int, List[int]]] = None,
-        source_types: Optional[List[str]] = None,
-        **kwargs
-    ) -> Query:
-        query = super().make_query(asset_class=Market, **kwargs)
-        if user_source_ids:
-            query = add_user_source_filter(cls, query, user_source_ids)
-        if source_types:
-            query = add_source_type_filter(cls, query, source_types)
-        return query
+    def make_query(cls, **kwargs) -> Query:
+        """Construct the database query."""
+        return super().make_query(asset_class=Market, **kwargs)
 
     def __init__(self, **kwargs):
         super(Price, self).__init__(**kwargs)

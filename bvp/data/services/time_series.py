@@ -24,6 +24,7 @@ QueryCallType = Callable[
         Optional[datetime],
         Optional[Union[int, List[int]]],
         Optional[List[str]],
+        Optional[List[str]],
     ],
     Query,
 ]
@@ -41,6 +42,7 @@ def collect_time_series_data(
     belief_time: Optional[datetime] = None,
     user_source_ids: Union[int, List[int]] = None,  # None is interpreted as all sources
     source_types: Optional[List[str]] = None,
+    exclude_source_types: Optional[List[str]] = None,
     resolution: Union[str, timedelta] = None,
     sum_multiple: bool = True,
 ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
@@ -74,6 +76,7 @@ def collect_time_series_data(
         belief_time,
         user_source_ids,
         source_types,
+        exclude_source_types,
         resolution,
     )
 
@@ -95,6 +98,7 @@ def query_time_series_data(
     belief_time: Optional[datetime] = None,
     user_source_ids: Optional[Union[int, List[int]]] = None,
     source_types: Optional[List[str]] = None,
+    exclude_source_types: Optional[List[str]] = None,
     resolution: Union[str, timedelta] = None,
 ) -> Dict[str, tb.BeliefsDataFrame]:
     """
@@ -122,6 +126,7 @@ def query_time_series_data(
         belief_time=belief_time,
         user_source_ids=user_source_ids,
         source_types=source_types,
+        exclude_source_types=exclude_source_types,
     )
 
     df_all_assets = pd.DataFrame(

@@ -53,6 +53,7 @@ def portfolio_view():  # noqa: C901
             start=start,
             end=end,
             resolution=resolution,
+            exclude_source_types=["scheduling script"],
         )  # The resource caches the results
     (
         supply_resources_df_dict,

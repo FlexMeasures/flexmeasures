@@ -45,6 +45,7 @@ def get_power_data(
             end=query_window[-1],
             resolution=resolution,
             belief_horizon_window=(None, timedelta(hours=0)),
+            exclude_source_types=["scheduling script"],
         )
         .aggregate_power_data
     )
@@ -61,13 +62,7 @@ def get_power_data(
             end=query_window[-1],
             resolution=resolution,
             belief_horizon_window=(forecast_horizon, None),
-            source_types=[
-                "user",
-                "forecasting script",
-                "demo script",
-                "script",
-            ],  # TODO: we choose to show data from scheduling scripts separately, which would be
-            #           easier if we could just exclude the "scheduling script" source type here
+            exclude_source_types=["scheduling script"],
         )
         .aggregate_power_data
     )

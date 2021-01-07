@@ -356,6 +356,7 @@ class Resource:
         belief_horizon_window=(None, None),
         belief_time_window=(None, None),
         source_types: Optional[List[str]] = None,
+        exclude_source_types: Optional[List[str]] = None,
     ) -> Resource:
         """Load data for one or more assets and cache the results.
         If the time range parameters are None, they will be gotten from the session.
@@ -405,6 +406,7 @@ class Resource:
                 belief_horizon_window=belief_horizon_window,
                 belief_time_window=belief_time_window,
                 source_types=source_types,
+                exclude_source_types=exclude_source_types,
                 resolution=resolution,
                 sum_multiple=False,
             )

@@ -6,7 +6,13 @@ from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 
 from bvp.data.config import db
-from bvp.data.queries.utils import add_belief_timing_filter, create_beliefs_query
+from bvp.data.queries.utils import (
+    add_belief_timing_filter,
+    add_user_source_filter,
+    add_source_type_filter,
+    create_beliefs_query,
+    exclude_source_type_filter,
+)
 from bvp.data.services.time_series import collect_time_series_data
 
 
@@ -66,6 +72,9 @@ class TimedValue(object):
             None,
         ),
         belief_time: Optional[datetime_type] = None,
+        user_source_ids: Optional[Union[int, List[int]]] = None,
+        source_types: Optional[List[str]] = None,
+        exclude_source_types: Optional[List[str]] = None,
         session: Session = None,
     ) -> Query:
         """
@@ -74,6 +83,14 @@ class TimedValue(object):
         The query window consists of two optional datetimes (start and end).
         The horizon window expects first the shorter horizon (e.g. 6H) and then the longer horizon (e.g. 24H).
         The session can be supplied, but if None, the implementation should find a session itself.
+
+        :param user_source_ids: Optional list of user source ids to query only specific user sources
+        :param source_types: Optional list of source type names to query only specific source types *
+        :param exclude_source_types: Optional list of source type names to exclude specific source types *
+
+        * If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
+          Somewhat redundant, but still allowed is to set both source_types and exclude_source_types.
+
 
         # todo: add examples
         # todo: switch to using timely_beliefs queries, which are more powerful
@@ -85,6 +102,16 @@ class TimedValue(object):
         query = add_belief_timing_filter(
             cls, query, asset_class, belief_horizon_window, belief_time_window
         )
+        if user_source_ids:
+            query = add_user_source_filter(cls, query, user_source_ids)
+        if source_types:
+            if user_source_ids and "user" not in source_types:
+                source_types.append("user")
+            query = add_source_type_filter(cls, query, source_types)
+        if exclude_source_types:
+            if user_source_ids and "user" in exclude_source_types:
+                exclude_source_types.remove("user")
+            query = exclude_source_type_filter(cls, query, exclude_source_types)
         return query
 
     @classmethod
@@ -107,6 +134,7 @@ class TimedValue(object):
             int, List[int]
         ] = None,  # None is interpreted as all sources
         source_types: Optional[List[str]] = None,
+        exclude_source_types: Optional[List[str]] = None,
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
@@ -121,6 +149,7 @@ class TimedValue(object):
             belief_time_window=belief_time_window,
             user_source_ids=user_source_ids,
             source_types=source_types,
+            exclude_source_types=exclude_source_types,
             resolution=resolution,
             sum_multiple=sum_multiple,
         )
