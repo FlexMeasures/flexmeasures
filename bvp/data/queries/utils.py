@@ -185,7 +185,7 @@ def simplify_index(
     Therefore, we type the result as a regular pandas DataFrame.
 
     * The index levels are dropped (by overwriting the multi-level index with just the “event_start” index level).
-    Only if index_levels_to_columns=True the relevant information is kept around.
+      Only for the columns named in index_levels_to_columns, the relevant information is kept around.
     """
     if index_levels_to_columns is not None:
         for col in index_levels_to_columns:
@@ -242,6 +242,6 @@ def multiply_dataframe_with_deterministic_beliefs(
             .min(axis=1)
             .rename("belief_horizon")
         )  # Add existing belief_horizon information, keeping only the smaller horizon per row
-    if result_source:
+    if result_source is not None:
         df["source"] = result_source  # also for rows with nan event_value
     return df

@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -9,6 +9,7 @@ from bvp.data.queries.utils import (
     simplify_index,
     multiply_dataframe_with_deterministic_beliefs,
 )
+from bvp.data.services.time_series import set_bdf_source
 from bvp.utils import calculations, time_utils
 from bvp.data.services.resources import Resource, find_closest_weather_sensor
 from bvp.data.models.assets import Asset, Power
@@ -17,8 +18,9 @@ from bvp.data.models.weather import Weather, WeatherSensor, WeatherSensorType
 
 
 def get_power_data(
-    resource_name: str,
+    resource: Union[str, Resource],  # name or instance
     show_consumption_as_positive: bool,
+    showing_individual_traces_for: str,
     metrics: dict,
     query_window: Tuple[datetime, datetime],
     resolution: str,
@@ -35,11 +37,14 @@ def get_power_data(
 
     Todo: Power schedules ignore horizon.
     """
+    if isinstance(resource, str):
+        resource = Resource(resource)
+
+    default_columns = ["event_value", "belief_horizon", "source"]
 
     # Get power data
-    power_bdf: tb.BeliefsDataFrame = (
-        Resource(resource_name)
-        .load_sensor_data(
+    if showing_individual_traces_for != "schedules":
+        resource.load_sensor_data(
             sensor_types=[Power],
             start=query_window[0],
             end=query_window[-1],
@@ -47,33 +52,47 @@ def get_power_data(
             belief_horizon_window=(None, timedelta(hours=0)),
             exclude_source_types=["scheduling script"],
         )
-        .aggregate_power_data
-    )
-    power_df: pd.DataFrame = simplify_index(
-        power_bdf, index_levels_to_columns=["belief_horizon", "source"]
-    )
+        if showing_individual_traces_for == "power":
+            power_bdf = resource.power_data
+            # In this case, power_bdf is actually a dict of BeliefDataFrames.
+            # We join the frames into one frame, remembering -per frame- the sensor name as source.
+            power_bdf = pd.concat(
+                [
+                    set_bdf_source(bdf, sensor_name)
+                    for sensor_name, bdf in power_bdf.items()
+                ]
+            )
+        else:
+            # Here, we aggregate all rows together
+            power_bdf = resource.aggregate_power_data
+        power_df: pd.DataFrame = simplify_index(
+            power_bdf, index_levels_to_columns=["belief_horizon", "source"]
+        )
+        if showing_individual_traces_for == "power":
+            # In this case, we keep on indexing by source (as we have more than one)
+            power_df.set_index("source", append=True, inplace=True)
+    else:
+        power_df = pd.DataFrame(columns=default_columns)
 
     # Get power forecast
-    power_forecast_bdf: tb.BeliefsDataFrame = (
-        Resource(resource_name)
-        .load_sensor_data(
+    if showing_individual_traces_for == "none":
+        power_forecast_bdf: tb.BeliefsDataFrame = resource.load_sensor_data(
             sensor_types=[Power],
             start=query_window[0],
             end=query_window[-1],
             resolution=resolution,
             belief_horizon_window=(forecast_horizon, None),
             exclude_source_types=["scheduling script"],
+        ).aggregate_power_data
+        power_forecast_df: pd.DataFrame = simplify_index(
+            power_forecast_bdf, index_levels_to_columns=["belief_horizon", "source"]
         )
-        .aggregate_power_data
-    )
-    power_forecast_df: pd.DataFrame = simplify_index(
-        power_forecast_bdf, index_levels_to_columns=["belief_horizon", "source"]
-    )
+    else:
+        power_forecast_df = pd.DataFrame(columns=default_columns)
 
     # Get power schedule
-    power_schedule_bdf: tb.BeliefsDataFrame = (
-        Resource(resource_name)
-        .load_sensor_data(
+    if showing_individual_traces_for != "power":
+        resource.load_sensor_data(
             sensor_types=[Power],
             start=query_window[0],
             end=query_window[-1],
@@ -81,11 +100,23 @@ def get_power_data(
             belief_horizon_window=(None, None),
             source_types=["scheduling script"],
         )
-        .aggregate_power_data
-    )
-    power_schedule_df: pd.DataFrame = simplify_index(
-        power_schedule_bdf, index_levels_to_columns=["belief_horizon", "source"]
-    )
+        if showing_individual_traces_for == "schedules":
+            power_schedule_bdf = resource.power_data
+            power_schedule_bdf = pd.concat(
+                [
+                    set_bdf_source(bdf, sensor_name)
+                    for sensor_name, bdf in power_schedule_bdf.items()
+                ]
+            )
+        else:
+            power_schedule_bdf = resource.aggregate_power_data
+        power_schedule_df: pd.DataFrame = simplify_index(
+            power_schedule_bdf, index_levels_to_columns=["belief_horizon", "source"]
+        )
+        if showing_individual_traces_for == "schedules":
+            power_schedule_df.set_index("source", append=True, inplace=True)
+    else:
+        power_schedule_df = pd.DataFrame(columns=default_columns)
 
     if show_consumption_as_positive:
         power_df["event_value"] *= -1
@@ -319,6 +350,7 @@ def get_revenues_costs_data(
     metrics: Dict[str, float],
     unit_factor: float,
     resolution: str,
+    showing_individual_traces: bool,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, dict]:
     """Compute revenues/costs data. These data are purely derivative from power and prices.
     For forecasts we use the WAPE metrics. Then we calculate metrics on this construct.
@@ -337,7 +369,9 @@ def get_revenues_costs_data(
     rev_cost_data = multiply_dataframe_with_deterministic_beliefs(
         power_data,
         prices_data,
-        result_source="Calculated from power and price data",
+        result_source=None
+        if showing_individual_traces
+        else "Calculated from power and price data",
         multiplication_factor=power_hour_factor * unit_factor,
     )
     if power_data.empty or prices_data.empty:

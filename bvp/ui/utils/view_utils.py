@@ -226,14 +226,12 @@ def set_session_sensor_type(
 
 def set_session_resource(
     assets: List[Asset], groups_with_assets: List[str]
-) -> Resource:
-    """Set session["resource"] to something, based on the available asset groups or the request.
-    Returns the selected resource, or None."""
-    if "resource" not in session:  # set some default, if possible
-        if len(groups_with_assets) > 0:
-            session["resource"] = groups_with_assets[0]
-        elif len(assets) > 0:
-            session["resource"] = assets[0].name
+) -> Optional[Resource]:
+    """
+    Set session["resource"] to something, based on the available asset groups or the request.
+
+    Returns the selected resource instance, or None.
+    """
     if (
         "resource" in request.args
     ):  # [GET] Set by user clicking on a link somewhere (e.g. dashboard)
@@ -242,7 +240,31 @@ def set_session_resource(
         "resource" in request.form
     ):  # [POST] Set by user in drop-down field. This overwrites GET, as the URL remains.
         session["resource"] = request.form["resource"]
+
+    if "resource" not in session:  # set some default, if possible
+        if len(groups_with_assets) > 0:
+            session["resource"] = groups_with_assets[0]
+        elif len(assets) > 0:
+            session["resource"] = assets[0].name
+        else:
+            return None
+
     return Resource(session["resource"])
+
+
+def set_individual_traces_for_session():
+    """
+    Set session["showing_individual_traces_for"] to a value ("none", "power", "schedules").
+    """
+    var_name = "showing_individual_traces_for"
+    if var_name not in session:
+        session[var_name] = "none"  # default setting: we show traces aggregated
+    if var_name in request.values and request.values[var_name] in (
+        "none",
+        "power",
+        "schedules",
+    ):
+        session[var_name] = request.values[var_name]
 
 
 def get_git_description() -> Tuple[str, int, str]:

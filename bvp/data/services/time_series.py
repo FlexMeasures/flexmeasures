@@ -9,6 +9,7 @@ import timely_beliefs as tb
 import isodate
 
 from bvp.data.queries.utils import simplify_index
+from bvp.data.models.data_sources import DataSource
 from bvp.utils import time_utils
 
 
@@ -311,3 +312,15 @@ def aggregate_values(bdf_dict: Dict[str, tb.BeliefsDataFrame]) -> tb.BeliefsData
                 level="event_start",
             )  # we only look at the event_start index level and sum up duplicates that level
     return data_as_bdf
+
+
+def set_bdf_source(bdf: tb.BeliefsDataFrame, source_name: str) -> tb.BeliefsDataFrame:
+    """
+    Set the source of the BeliefsDataFrame.
+    We do this by re-setting the index (as source probably is part of the BeliefsDataFrame multi index),
+    setting the source, then restoring the (multi) index.
+    """
+    index_cols = bdf.index.names
+    bdf = bdf.reset_index()
+    bdf["source"] = DataSource(source_name)
+    return bdf.set_index(index_cols)

@@ -1,4 +1,4 @@
-$(document).ready(function() {
+$(document).ready(function () {
     ready();
 });
 
@@ -19,13 +19,13 @@ var offshoreOrdered = false;
 var batteryOrdered = false;
 
 
-function showMsg(msg){
+function showMsg(msg) {
     $("#msgModal .modal-content").html(msg);
     $("#msgModal").modal("show");
 }
 
-function showImage(resource, action, value){
-//    $("#expectedValueModal .modal-dialog .modal-content img").html("static/control-mock-imgs/" + resource + "-action" + action + "-" + value + "MW.png")
+function showImage(resource, action, value) {
+    //    $("#expectedValueModal .modal-dialog .modal-content img").html("static/control-mock-imgs/" + resource + "-action" + action + "-" + value + "MW.png")
     document.getElementById('expected_value_mock').src = "ui/static/control-mock-imgs/value-" + resource + "-action" + action + "-" + value + "MW.png"
     load_images = document.getElementsByClassName('expected_load_mock')
     for (var i = 0; i < load_images.length; i++) {
@@ -34,7 +34,7 @@ function showImage(resource, action, value){
 }
 
 
-function defaultImage(action){
+function defaultImage(action) {
     load_images = document.getElementsByClassName('expected_load_mock reset_default')
     for (var i = 0; i < load_images.length; i++) {
         load_images[i].src = "ui/static/control-mock-imgs/load-action" + action + ".png"
@@ -54,7 +54,7 @@ function ready() {
             $(this).addClass('over');
         },
         function () {
-            $(this).delay(3000).queue(function(next){
+            $(this).delay(3000).queue(function (next) {
                 $(this).removeClass('over');
                 next();
             });
@@ -66,30 +66,30 @@ function ready() {
 
     $.extend(true, $.fn.dataTable.defaults, {
         "conditionalPaging": {
-            style:    'fade',
-            speed:    2000,
+            style: 'fade',
+            speed: 2000,
         },
-        "searching":  true,
-        "ordering":   true,
-        "info":       true,
-        "order":      [],
+        "searching": true,
+        "ordering": true,
+        "info": true,
+        "order": [],
         "lengthMenu": [[5, 10, 25, 50, 100, -1], [5, 10, 25, 50, 100, "All"]],
         "pageLength": 10,  // initial page length
-        "oLanguage":  {
-                          "sLengthMenu": "Show _MENU_ records",
-                          "sSearch": "Filter records:",
-                          "sInfo": "Showing _START_ to _END_ out of _TOTAL_ records",
-                          "sInfoFiltered": "(filtered from _MAX_ total records)",
-                          "sInfoEmpty": "No records to show",
-                      },
+        "oLanguage": {
+            "sLengthMenu": "Show _MENU_ records",
+            "sSearch": "Filter records:",
+            "sInfo": "Showing _START_ to _END_ out of _TOTAL_ records",
+            "sInfoFiltered": "(filtered from _MAX_ total records)",
+            "sInfoEmpty": "No records to show",
+        },
         "columnDefs": [{
-                          "targets"  : 'no-sort',
-                          "orderable": false,
-                      }],
-        "stateSave":  true,
-    } );
+            "targets": 'no-sort',
+            "orderable": false,
+        }],
+        "stateSave": true,
+    });
     // just searching and ordering, no paging
-    $('.paginate-without-paging').DataTable( {
+    $('.paginate-without-paging').DataTable({
         "paging": false,
     });
     // searching, ordering and paging
@@ -102,27 +102,27 @@ function ready() {
     // Sliders
 
     $('#control-action-setting-offshore')
-    .ionRangeSlider({
-        type: "single",
-        grid: true,
-        grid_snap: true,
-        min: 0,
-        max: 5,
-        from_min: 2,
-        from_max: 3,
-        from_shadow: true,
-        postfix: "MW",
-        force_edges: true,
-        onChange: function(settingData){
-            action = 1;
-            if (offshoreOrdered){
-                action = 2;
+        .ionRangeSlider({
+            type: "single",
+            grid: true,
+            grid_snap: true,
+            min: 0,
+            max: 5,
+            from_min: 2,
+            from_max: 3,
+            from_shadow: true,
+            postfix: "MW",
+            force_edges: true,
+            onChange: function (settingData) {
+                action = 1;
+                if (offshoreOrdered) {
+                    action = 2;
+                }
+                value = settingData.from;
+                $("#control-expected-value-offshore").html(numberWithCommas(value * 35000));
+                showImage("offshore", action, value);
             }
-            value = settingData.from;
-            $("#control-expected-value-offshore").html(numberWithCommas(value * 35000));
-            showImage("offshore", action, value);
-        }
-     });
+        });
 
     $('#control-action-setting-battery').ionRangeSlider({
         type: "single",
@@ -135,9 +135,9 @@ function ready() {
         from_shadow: true,
         postfix: "MW",
         force_edges: true,
-        onChange: function(settingData){
+        onChange: function (settingData) {
             action = 1;
-            if (offshoreOrdered){
+            if (offshoreOrdered) {
                 action = 2;
             }
             value = settingData.from;
@@ -149,31 +149,31 @@ function ready() {
 
     // Hover behaviour
 
-    $("#control-tr-offshore").mouseenter(function(data){
+    $("#control-tr-offshore").mouseenter(function (data) {
         action = 1;
-        if (offshoreOrdered){
+        if (offshoreOrdered) {
             action = 2;
         }
         var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
         showImage("offshore", action, value);
-    }).mouseleave(function(data){
+    }).mouseleave(function (data) {
         action = 1;
-        if (offshoreOrdered){
+        if (offshoreOrdered) {
             action = 2;
         }
         defaultImage(action);
     });
 
-    $("#control-tr-battery").mouseenter(function(data){
+    $("#control-tr-battery").mouseenter(function (data) {
         action = 1;
-        if (offshoreOrdered){
+        if (offshoreOrdered) {
             action = 2;
         }
         var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
         showImage("battery", action, value);
-    }).mouseleave(function(data){
+    }).mouseleave(function (data) {
         action = 1;
-        if (offshoreOrdered){
+        if (offshoreOrdered) {
             action = 2;
         }
         defaultImage(action);
@@ -183,9 +183,9 @@ function ready() {
     // Navbar behaviour
 
     $(document.body).css('padding-top', $('#topnavbar').height());
-        $(window).resize(function(){
-            $(document.body).css('padding-top', $('#topnavbar').height());
-        });
+    $(window).resize(function () {
+        $(document.body).css('padding-top', $('#topnavbar').height());
+    });
 
 
     // Table behaviour
@@ -196,10 +196,10 @@ function ready() {
         scrollContainer: true
     });
 
-    $(document).on('change', '#user-list-options input[name="include_inactive"]', function(){
-		//Users list inactive
-		$(this).closest('form').submit();
-	})
+    $(document).on('change', '#user-list-options input[name="include_inactive"]', function () {
+        //Users list inactive
+        $(this).closest('form').submit();
+    })
 
 
     // Security messages styling
@@ -209,16 +209,16 @@ function ready() {
 
     // Check button behaviour
 
-    $("#control-check-expected-value-offshore").click(function(data){
+    $("#control-check-expected-value-offshore").click(function (data) {
         var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
         showImage("offshore", 1, value);
         $("#expectedValueModal").modal("show");
     });
 
-    $("#control-check-expected-value-battery").click(function(data){
+    $("#control-check-expected-value-battery").click(function (data) {
         var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
         action = 1;
-        if (offshoreOrdered){
+        if (offshoreOrdered) {
             action = 2;
         }
         showImage("battery", action, value);
@@ -228,21 +228,21 @@ function ready() {
 
     // Order button behaviour
 
-    $("#control-order-button-ev").click(function(data){
+    $("#control-order-button-ev").click(function (data) {
         showMsg("This action is not supported in this mockup.");
     });
 
-    $("#control-order-button-onshore").click(function(data){
+    $("#control-order-button-onshore").click(function (data) {
         showMsg("This action is not supported in this mockup.");
     });
 
-    $("#control-order-button-offshore").click(function(data){
-        if (offshoreOrdered){
+    $("#control-order-button-offshore").click(function (data) {
+        if (offshoreOrdered) {
             showMsg("This action is not supported in this mockup.");
         }
         var value = $("#control-action-setting-offshore").data("ionRangeSlider").old_from;
         console.log("Offshore was ordered for " + value + "MW!");
-        if (value == 2){
+        if (value == 2) {
             showMsg("Your order of " + value + "MW offshore wind curtailment will be processed!");
             $("#control-tr-offshore").addClass("active");
             $("#control-offshore-volume").html("Ordered: <b>2MW</b>");
@@ -252,16 +252,16 @@ function ready() {
             $("#total_value").html("230,000");
             offshoreOrdered = true;
         }
-        else{
+        else {
             showMsg("In this mockup, only ordering 2MW of offshore wind is supported.");
         }
     });
 
-    $("#control-order-button-battery").click(function(data){
-        if (batteryOrdered){
+    $("#control-order-button-battery").click(function (data) {
+        if (batteryOrdered) {
             showMsg("This action is not supported in this mockup.");
         }
-        else if (!offshoreOrdered){
+        else if (!offshoreOrdered) {
             showMsg("In this mockup, please first order 2MW of offshore wind.");
         } else {
             var value = $("#control-action-setting-battery").data("ionRangeSlider").old_from;
@@ -270,7 +270,7 @@ function ready() {
             $("#control-tr-battery").addClass("active");
             $("#control-order-button-battery").html('<span class="fa fa-minus" aria-hidden="true"></span> Cancel').removeClass("btn-success").addClass("btn-danger");
             $("#control-check-expected-value-battery").hide();
-            if (value == 1){
+            if (value == 1) {
                 $("#control-battery-volume").html("Ordered: <b>1MW</b>");
                 $("#total_load").html("5.4");
                 $("#total_value").html("240,000");
@@ -284,12 +284,14 @@ function ready() {
         }
     });
 
+    // activate tooltips
+    $('[data-toggle="tooltip"]').tooltip();
 }
 
 const numberWithCommas = (x) => {
-  var parts = x.toString().split(".");
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return parts.join(".");
+    var parts = x.toString().split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.join(".");
 }
 
 /** Analytics: Submit the resource selector, but reload to a clean URL,

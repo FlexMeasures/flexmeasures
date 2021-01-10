@@ -15,7 +15,7 @@ import pandas as pd
 from sqlalchemy.orm.query import Query
 import timely_beliefs as tb
 
-from bvp.data.models.assets import AssetType, Asset, Power
+from bvp.data.models.assets import AssetType, Asset, Power, assets_share_location
 from bvp.data.models.markets import Market, Price
 from bvp.data.models.weather import Weather, WeatherSensor, WeatherSensorType
 from bvp.data.queries.utils import simplify_index
@@ -165,11 +165,11 @@ def get_charge_point_queries() -> Dict[str, Query]:
     all_evse_assets = Asset.query.filter(
         Asset.asset_type_name.in_(["one-way_evse", "two-way_evse"])
     ).all()
-    cps = group_assets_by_location(all_evse_assets)
-    for cp in cps:
-        charge_point_name = cp[0].display_name.split(" -")[0] + " (Charge Point)"
+    cp_groups = group_assets_by_location(all_evse_assets)
+    for cp_group in cp_groups:
+        charge_point_name = cp_group[0].display_name.split(" -")[0] + " (Charge Point)"
         asset_queries[charge_point_name] = Asset.query.filter(
-            Asset.name.in_([evse.name for evse in cp])
+            Asset.name.in_([evse.name for evse in cp_group])
         )
     return mask_inaccessible_assets(asset_queries)
 
@@ -329,6 +329,17 @@ class Resource:
         if self.is_unique_asset:
             return self.assets[0].display_name
         return self.name
+
+    def is_eligible_for_comparing_individual_traces(self, max_traces: int = 7) -> bool:
+        """
+        Decide whether comparing individual traces for assets in this resource
+        is a useful feature.
+        The number of assets that can be compared is parametrizable with max_traces.
+        Plot colors are reused if max_traces > 7, and run out if max_traces > 105.
+        """
+        return len(self.assets) in range(2, max_traces + 1) and assets_share_location(
+            self.assets
+        )
 
     @property
     def hover_label(self) -> Optional[str]:
@@ -534,7 +545,7 @@ class Resource:
         self.cached_power_data = {}
         self.cached_price_data = {}
         for prop in coding_utils.methods_with_decorator(Resource, cached_property):
-            if prop in self.__dict__:
+            if prop.__name__ in self.__dict__:
                 del self.__dict__[prop.__name__]
 
     def __str__(self):
@@ -602,6 +613,11 @@ def find_closest_weather_sensor(
 
 def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:
     groups = []
-    for _k, g in groupby(asset_list, lambda x: x.location):
+
+    def key_function(x):
+        return x.location
+
+    sorted_asset_list = sorted(asset_list, key=key_function)
+    for _k, g in groupby(sorted_asset_list, key=key_function):
         groups.append(list(g))
     return groups

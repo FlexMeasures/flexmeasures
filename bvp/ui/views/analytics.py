@@ -36,6 +36,7 @@ from bvp.ui.utils.view_utils import (
     set_session_resource,
     set_session_market,
     set_session_sensor_type,
+    set_individual_traces_for_session,
     set_time_range_for_session,
     ensure_timing_vars_are_set,
 )
@@ -64,16 +65,21 @@ def analytics_view():
     selected_market = set_session_market(selected_resource)
     sensor_types = get_sensor_types(selected_resource)
     selected_sensor_type = set_session_sensor_type(sensor_types)
-    session_asset_types = Resource(session["resource"]).unique_asset_types
+    session_asset_types = selected_resource.unique_asset_types
+    set_individual_traces_for_session()
+    view_shows_individual_traces = (
+        session["showing_individual_traces_for"] in ("power", "schedules")
+        and selected_resource.is_eligible_for_comparing_individual_traces()
+    )
 
     query_window, resolution = ensure_timing_vars_are_set((None, None), None)
 
     # This is useful information - we might want to adapt the sign of the data and labels.
     showing_pure_consumption_data = all(
-        [a.is_pure_consumer for a in Resource(session["resource"]).assets]
+        [a.is_pure_consumer for a in selected_resource.assets]
     )
     showing_pure_production_data = all(
-        [a.is_pure_producer for a in Resource(session["resource"]).assets]
+        [a.is_pure_producer for a in selected_resource.assets]
     )
     # Only show production positive if all assets are producers
     show_consumption_as_positive = False if showing_pure_production_data else True
@@ -82,13 +88,20 @@ def analytics_view():
         query_window,
         resolution,
         show_consumption_as_positive,
+        session["showing_individual_traces_for"]
+        if view_shows_individual_traces
+        else "none",
+        selected_resource,
         selected_market,
         selected_sensor_type,
-        Resource(session["resource"]).assets,
+        selected_resource.assets,
     )
 
     # Set shared x range
     shared_x_range = Range1d(start=query_window[0], end=query_window[1])
+    shared_x_range2 = Range1d(
+        start=query_window[0], end=query_window[1]
+    )  # only needed if we draw two legends (if individual traces are on)
 
     # TODO: get rid of this hack, which we use because we mock the current year's data from 2015 data in demo mode
     # Our demo server uses 2015 data as if it's the current year's data. Here we mask future beliefs.
@@ -98,7 +111,10 @@ def analytics_view():
 
         # Show only past data, pretending we're in the current year
         if not data["power"].empty:
-            data["power"] = data["power"].loc[data["power"].index < most_recent_quarter]
+            data["power"] = data["power"].loc[
+                data["power"].index.get_level_values("event_start")
+                < most_recent_quarter
+            ]
         if not data["prices"].empty:
             data["prices"] = data["prices"].loc[
                 data["prices"].index < most_recent_quarter + timedelta(hours=24)
@@ -109,7 +125,8 @@ def analytics_view():
             ]
         if not data["rev_cost"].empty:
             data["rev_cost"] = data["rev_cost"].loc[
-                data["rev_cost"].index < most_recent_quarter
+                data["rev_cost"].index.get_level_values("event_start")
+                < most_recent_quarter
             ]
 
         # Show forecasts only up to a limited horizon
@@ -135,6 +152,7 @@ def analytics_view():
     # Making figures
     tools = ["box_zoom", "reset", "save"]
     power_fig = make_power_figure(
+        selected_resource.display_name,
         data["power"],
         data["power_forecast"],
         data["power_schedule"],
@@ -142,21 +160,8 @@ def analytics_view():
         shared_x_range,
         tools=tools,
     )
-    prices_fig = make_prices_figure(
-        data["prices"],
-        data["prices_forecast"],
-        shared_x_range,
-        selected_market,
-        tools=tools,
-    )
-    weather_fig = make_weather_figure(
-        data["weather"],
-        data["weather_forecast"],
-        shared_x_range,
-        selected_weather_sensor,
-        tools=tools,
-    )
     rev_cost_fig = make_revenues_costs_figure(
+        selected_resource.display_name,
         data["rev_cost"],
         data["rev_cost_forecast"],
         show_consumption_as_positive,
@@ -164,23 +169,52 @@ def analytics_view():
         selected_market,
         tools=tools,
     )
+    # the bottom plots need a separate x axis if they get their own legend (Bokeh complains otherwise)
+    # this means in that in that corner case zooming will not work across all foour plots
+    prices_fig = make_prices_figure(
+        data["prices"],
+        data["prices_forecast"],
+        shared_x_range2 if view_shows_individual_traces else shared_x_range,
+        selected_market,
+        tools=tools,
+    )
+    weather_fig = make_weather_figure(
+        selected_resource,
+        data["weather"],
+        data["weather_forecast"],
+        shared_x_range2 if view_shows_individual_traces else shared_x_range,
+        selected_weather_sensor,
+        tools=tools,
+    )
 
-    # Separate a single legend and remove the others
-    legend_fig = separate_legend(power_fig, orientation="horizontal")
-    weather_fig.renderers.remove(weather_fig.legend[0])
-    prices_fig.renderers.remove(prices_fig.legend[0])
+    # Separate a single legend and remove the others.
+    # In case of individual traces, we need two legends.
+    top_legend_fig = separate_legend(power_fig, orientation="horizontal")
+    top_legend_script, top_legend_div = components(top_legend_fig)
     rev_cost_fig.renderers.remove(rev_cost_fig.legend[0])
+    if view_shows_individual_traces:
+        bottom_legend_fig = separate_legend(weather_fig, orientation="horizontal")
+        prices_fig.renderers.remove(prices_fig.legend[0])
+        bottom_legend_script, bottom_legend_div = components(bottom_legend_fig)
+    else:
+        prices_fig.renderers.remove(prices_fig.legend[0])
+        weather_fig.renderers.remove(weather_fig.legend[0])
+        bottom_legend_fig = bottom_legend_script = bottom_legend_div = None
 
-    legend_script, legend_div = components(legend_fig)
     analytics_plots_script, analytics_plots_divs = components(
-        (power_fig, weather_fig, prices_fig, rev_cost_fig)
+        (power_fig, rev_cost_fig, prices_fig, weather_fig)
     )
 
     return render_bvp_template(
         "views/analytics.html",
-        legend_height=legend_fig.plot_height,
-        legend_script=legend_script,
-        legend_div=legend_div,
+        top_legend_height=top_legend_fig.plot_height,
+        top_legend_script=top_legend_script,
+        top_legend_div=top_legend_div,
+        bottom_legend_height=0
+        if bottom_legend_fig is None
+        else bottom_legend_fig.plot_height,
+        bottom_legend_script=bottom_legend_script,
+        bottom_legend_div=bottom_legend_div,
         analytics_plots_divs=[encode_utf8(div) for div in analytics_plots_divs],
         analytics_plots_script=analytics_plots_script,
         metrics=metrics,
@@ -196,6 +230,8 @@ def analytics_view():
         showing_pure_consumption_data=showing_pure_consumption_data,
         showing_pure_production_data=showing_pure_production_data,
         show_consumption_as_positive=show_consumption_as_positive,
+        showing_individual_traces_for=session["showing_individual_traces_for"],
+        offer_showing_individual_traces=selected_resource.is_eligible_for_comparing_individual_traces(),
         forecast_horizons=time_utils.forecast_horizons_for(session["resolution"]),
         active_forecast_horizon=session["forecast_horizon"],
     )
@@ -205,7 +241,7 @@ def analytics_view():
 @roles_accepted("admin", "Prosumer")
 def analytics_data_view(content, content_type):
     """Analytics view as above, but here we only download data.
-    Content can be either metrics or raw.
+    Content can be either source or metrics.
     Content-type can be either CSV or JSON.
     """
     # if current_app.config.get("BVP_MODE", "") != "play":
@@ -238,20 +274,25 @@ def analytics_data_view(content, content_type):
 
     # This is useful information - we might want to adapt the sign of the data and labels.
     showing_pure_consumption_data = all(
-        [a.is_pure_consumer for a in Resource(session["resource"]).assets]
+        [a.is_pure_consumer for a in selected_resource.assets]
     )
     showing_pure_production_data = all(
-        [a.is_pure_producer for a in Resource(session["resource"]).assets]
+        [a.is_pure_producer for a in selected_resource.assets]
     )
     # Only show production positive if all assets are producers
     show_consumption_as_positive = False if showing_pure_production_data else True
 
     # Getting data and calculating metrics for them
+    query_window, resolution = ensure_timing_vars_are_set((None, None), None)
     data, metrics, weather_type, selected_weather_sensor = get_data_and_metrics(
+        query_window,
+        resolution,
         show_consumption_as_positive,
+        "none",
+        selected_resource,
         selected_market,
         selected_sensor_type,
-        Resource(session["resource"]).assets,
+        selected_resource.assets,
     )
 
     hor = session["forecast_horizon"]
@@ -375,6 +416,8 @@ def get_data_and_metrics(
     query_window: Tuple[datetime, datetime],
     resolution: str,
     show_consumption_as_positive: bool,
+    showing_individual_traces_for: str,
+    selected_resource: Resource,
     selected_market,
     selected_sensor_type,
     assets,
@@ -389,8 +432,9 @@ def get_data_and_metrics(
         data["power_schedule"],
         metrics,
     ) = get_power_data(
-        session["resource"],
+        selected_resource,
         show_consumption_as_positive,
+        showing_individual_traces_for,
         metrics,
         query_window,
         resolution,
@@ -444,7 +488,7 @@ def get_data_and_metrics(
 
         # Heuristic weather confidence interval
         if weather_type == "temperature":
-            error_margin_upper = 0.1 * decay_factor
+            error_margin_upper = 0.7 * decay_factor
             error_margin_lower = error_margin_upper
         elif weather_type == "wind_speed":
             error_margin_upper = 1.5 * decay_factor
@@ -452,6 +496,9 @@ def get_data_and_metrics(
         elif weather_type == "radiation":
             error_margin_upper = 1.8 * decay_factor
             error_margin_lower = 0.5 * decay_factor
+        if data["weather_forecast"].empty:
+            data["weather_forecast"] = data["weather"].copy()
+            data["weather_forecast"]["event_value"] *= 1.1
         data["weather_forecast"]["yhat_upper"] = data["weather_forecast"][
             "event_value"
         ] * (1 + error_margin_upper)
@@ -468,11 +515,13 @@ def get_data_and_metrics(
         metrics,
         unit_factor,
         resolution,
+        showing_individual_traces_for in ("power", "schedules"),
     )
     return data, metrics, weather_type, selected_sensor
 
 
 def make_power_figure(
+    resource_display_name: str,
     data: pd.DataFrame,
     forecast_data: Optional[pd.DataFrame],
     schedule_data: Optional[pd.DataFrame],
@@ -482,14 +531,9 @@ def make_power_figure(
 ) -> Figure:
     """Make a bokeh figure for power consumption or generation"""
     if show_consumption_as_positive:
-        title = (
-            "Electricity consumption of %s" % Resource(session["resource"]).display_name
-        )
+        title = "Electricity consumption of %s" % resource_display_name
     else:
-        title = (
-            "Electricity production from %s"
-            % Resource(session["resource"]).display_name
-        )
+        title = "Electricity production from %s" % resource_display_name
 
     return create_graph(
         data,
@@ -534,6 +578,7 @@ def make_prices_figure(
 
 
 def make_weather_figure(
+    selected_resource: Resource,
     data: pd.DataFrame,
     forecast_data: Union[None, pd.DataFrame],
     shared_x_range: Range1d,
@@ -550,10 +595,10 @@ def make_weather_figure(
         unit,
     )
 
-    if Resource(session["resource"]).is_unique_asset:
+    if selected_resource.is_unique_asset:
         title = "%s at %s" % (
             humanize(weather_sensor.sensor_type.display_name),
-            Resource(session["resource"]).display_name,
+            selected_resource.display_name,
         )
     else:
         title = "%s" % humanize(weather_sensor.sensor_type.display_name)
@@ -573,6 +618,7 @@ def make_weather_figure(
 
 
 def make_revenues_costs_figure(
+    resource_display_name: str,
     data: pd.DataFrame,
     forecast_data: pd.DataFrame,
     show_consumption_as_positive: bool,
@@ -593,7 +639,7 @@ def make_revenues_costs_figure(
         ],  # First three letters of a price unit give the currency (ISO 4217)
         legend_location="top_right",
         forecasts=forecast_data,
-        title=f"{rev_cost_str} for {Resource(session['resource']).display_name} (on {selected_market.display_name})",
+        title=f"{rev_cost_str} for {resource_display_name} (on {selected_market.display_name})",
         x_range=shared_x_range,
         x_label="Time (resolution of %s)"
         % time_utils.freq_label_to_human_readable_label(session["resolution"]),

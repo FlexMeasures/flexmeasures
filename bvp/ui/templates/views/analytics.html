@@ -53,6 +53,34 @@
                             </option>
                             {% endfor %}
                         </select>
+                        {% if offer_showing_individual_traces %}
+                        <div>
+                            <label class="radio-inline"><input type="radio" name="showing_individual_traces_for"
+                                    value="none" onchange="submit_resource()"
+                                    {% if showing_individual_traces_for == 'none' %} checked="checked" {% endif %}>
+                                <span data-toggle="tooltip" data-placement="bottom" data-container="body"
+                                    title="Show aggregated power, forecast and schedule values (default setting).">
+                                    Aggregated
+                                </span>
+                            </label>
+                            <label class="radio-inline"><input type="radio" name="showing_individual_traces_for"
+                                    value="power" onchange="submit_resource()"
+                                    {% if showing_individual_traces_for == 'power' %} checked="checked" {% endif %}>
+                                <span data-toggle="tooltip" data-placement="bottom" data-container="body"
+                                    title="Show individual traces of power measurements per involved asset (will not show forecasts and schedules).">
+                                    Power
+                                </span>
+                            </label>
+                            <label class="radio-inline"><input type="radio" name="showing_individual_traces_for"
+                                    value="schedules" onchange="submit_resource()"
+                                    {% if showing_individual_traces_for == 'schedules' %} checked="checked" {% endif %}>
+                                <span data-toggle="tooltip" data-placement="bottom" data-container="body"
+                                    title="Show individual traces of power schedules per involved asset (will not show power measurements and forecasts).">
+                                    Schedules
+                                </span>
+                            </label>
+                        </div>
+                        {% endif %}
                     </form>
                 </div>
             </div>
@@ -228,7 +256,11 @@
                     {% if not current_user.has_role('anonymous') %}
                     <form action="analytics_data/source/csv" method="get">
                         <input type="hidden" name="market" value="{{ selected_market.name }}" />
-                        <button class="btn btn-sm btn-responsive btn-info center-block">
+                        <button class="btn btn-sm btn-responsive btn-info center-block"
+                            {% if showing_individual_traces_for != 'none' %} data-toggle="tooltip"
+                            data-placement="bottom"
+                            title="This will download only aggregated data, even though you are currently seeing individual traces in the plots."
+                            {% endif%}>
                             Download source data as CSV
                         </button>
                     </form>
@@ -242,9 +274,9 @@
         </div>
         <div class="col-sm-8">
             <div class="row">
-                <div class="col-sm-12" style="height: {{ legend_height }}px;">
-                    {{ legend_div | safe }}
-                    {{ legend_script | safe }}
+                <div class="col-sm-12" style="height: {{ top_legend_height }}px;">
+                    {{ top_legend_div | safe }}
+                    {{ top_legend_script | safe }}
                 </div>
             </div>
             <div class="row">
@@ -255,6 +287,14 @@
                     {{ analytics_plots_divs[1] | safe }}
                 </div>
             </div>
+            {% if bottom_legend_height > 0 %}
+            <div class="row">
+                <div class="col-sm-12" style="height: {{ bottom_legend_height }}px;">
+                    {{ bottom_legend_div | safe }}
+                    {{ bottom_legend_script | safe }}
+                </div>
+            </div>
+            {% endif %}
             <div class="row">
                 <div class="col-sm-6">
                     {{ analytics_plots_divs[2] | safe }}

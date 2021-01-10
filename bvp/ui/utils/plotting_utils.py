@@ -16,6 +16,7 @@ from bokeh.models import (
 )
 from bokeh.models.renderers import GlyphRenderer
 from bokeh.models.tools import CustomJSHover
+from bokeh.palettes import brewer as brewer_palette
 from bokeh import events
 import pandas as pd
 import pandas_bokeh
@@ -179,9 +180,15 @@ def make_range(
 
 
 def replace_source_with_label(data: pd.DataFrame) -> pd.DataFrame:
-    """Column "source" is dropped, and column "label" is created.
-    The former column should contain DataSource objects, while the latter will contain only strings."""
+    """
+    Column "source" is dropped, and column "label" is created.
+    The former column should contain DataSource objects,
+    while the latter will contain only strings.
+    """
     if data is not None:
+        # source is in the multindex when we trace sources individually
+        if "source" not in data.columns and "source" in data.index.names:
+            data.reset_index(level="source", inplace=True)
         if "source" in data.columns:
             data["label"] = data["source"].apply(
                 lambda x: capitalize(x.label)
@@ -210,6 +217,20 @@ def decide_plot_resolution(
             set_time_range_for_session()
         resolution = pd.to_timedelta(session["resolution"])
     return resolution
+
+
+def build_palette() -> Tuple[List[str], str, str]:
+    """Choose a color palette, and also single out
+    our primary, forecasting and scheduling colors"""
+    palette = (
+        brewer_palette["Set1"][8].copy() * 15
+    )  # 7 colors tiled 15 times supports 105 legend items
+    primary_color = "#3B0757"
+    palette.insert(0, primary_color)
+    palette.pop(4)  # too similar to primary
+    forecast_color = "#DDD0B3"
+    schedule_color = palette.pop(2)
+    return palette, forecast_color, schedule_color
 
 
 def create_graph(  # noqa: C901
@@ -311,13 +332,31 @@ def create_graph(  # noqa: C901
                 max(max(data["event_value"].values), max(forecasts["event_value"])) < 2
             )
 
-    ds = make_datasource_from(data, resolution)
-    ac = fig.circle(x="x", y="y", source=ds, color="#3B0757", alpha=0.5, size=10)
-    legend_items = [(legend_labels[0], [ac])]
+    palette, forecast_color, schedule_color = build_palette()
+    legend_items: List[Tuple] = []
 
+    # Plot power data. Support special case of multiple source labels.
+    if not data.empty:
+        data_groups = {legend_labels[0]: data}
+        is_multiple = "label" in data.columns and len(data["label"].unique()) > 1
+        if is_multiple:
+            data_groups = {
+                label: data.loc[data.label == label] for label in data["label"].unique()
+            }
+        legend_items = []
+        for plot_label, plot_data in data_groups.items():
+            ds = make_datasource_from(plot_data, resolution)
+            if not is_multiple:
+                ac = fig.circle(
+                    x="x", y="y", source=ds, color=palette.pop(0), alpha=0.5, size=10
+                )
+            else:
+                ac = fig.line(x="x", y="y", source=ds, color=palette.pop(0))
+            legend_items.append((plot_label, [ac]))
+
+    # Plot forecast data
     if forecasts is not None and not forecasts.empty:
         forecasts = tz_index_naively(forecasts)
-        fc_color = "#DDD0B3"
         if "label" not in forecasts:
             forecasts["label"] = "Forecast from unknown source"
         labels = forecasts["label"].unique()
@@ -325,8 +364,8 @@ def create_graph(  # noqa: C901
             # forecasts from different data sources
             label_forecasts = forecasts[forecasts["label"] == label]
             fds = make_datasource_from(label_forecasts, resolution)
-            fc = fig.circle(x="x", y="y", source=fds, color=fc_color, size=10)
-            fl = fig.line(x="x", y="y", source=fds, color=fc_color)
+            fc = fig.circle(x="x", y="y", source=fds, color=forecast_color, size=10)
+            fl = fig.line(x="x", y="y", source=fds, color=forecast_color)
 
             # draw uncertainty range as a two-dimensional patch
             if "yhat_lower" and "yhat_upper" in label_forecasts:
@@ -335,7 +374,11 @@ def create_graph(  # noqa: C901
                     label_forecasts.yhat_lower, label_forecasts.yhat_upper[::-1]
                 )
                 fig.patch(
-                    x_points, y_points, color=fc_color, fill_alpha=0.2, line_width=0.01
+                    x_points,
+                    y_points,
+                    color=forecast_color,
+                    fill_alpha=0.2,
+                    line_width=0.01,
                 )
             if legend_labels[1] is None:
                 raise TypeError("Legend label must be of type string, not None.")
@@ -343,15 +386,28 @@ def create_graph(  # noqa: C901
                 # only add 1 legend item for forecasts
                 legend_items.append((legend_labels[1], [fc, fl]))
 
-    if schedules is not None and not schedules["event_value"].isnull().all():
+    # Plot schedule data. Support special case of multiple source labels.
+    if (
+        schedules is not None
+        and not schedules.empty
+        and not schedules["event_value"].isnull().all()
+    ):
         schedules = tz_index_naively(schedules)
-        s_color = "#3FB023"
-        sds = make_datasource_from(schedules, resolution)
-        sl = fig.line(x="x", y="y", source=sds, color=s_color)
 
-        if legend_labels[2] is None:
-            raise TypeError("Legend label must be of type string, not None.")
-        legend_items.append((legend_labels[2], [sl]))
+        legend_label = "" if legend_labels[2] is None else legend_labels[2]
+        schedule_groups = {legend_label: schedules}
+        if "label" in schedules.columns and len(schedules["label"].unique()) > 1:
+            schedule_groups = {
+                label: schedules.loc[schedules.label == label]
+                for label in schedules["label"].unique()
+            }
+        for plot_label, plot_data in schedule_groups.items():
+            sds = make_datasource_from(plot_data, resolution)
+            sl = fig.line(x="x", y="y", source=sds, color=palette.pop(0))
+
+            if plot_label is None:
+                raise TypeError("Legend label must be of type string, not None.")
+            legend_items.append((plot_label, [sl]))
 
     fig.toolbar.logo = None
     fig.yaxis.axis_label = y_label
@@ -481,13 +537,15 @@ def separate_legend(fig: Figure, orientation: str = "vertical") -> Figure:
     separated_legend = legend_fig.legend[0]
     separated_legend.border_line_alpha = 0
     separated_legend.margin = 0
+
+    if len(separated_legend.items) > 3:
+        orientation = "vertical"
+
     separated_legend.orientation = orientation
 
     if orientation == "horizontal":
         separated_legend.spacing = 30
-        separated_legend.location = "top_center"
-    else:
-        separated_legend.location = "top_left"
+    separated_legend.location = "top_center"
 
     legend_fig.plot_height = (
         compute_legend_height(original_legend) + original_legend.margin * 2

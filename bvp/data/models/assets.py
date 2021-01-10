@@ -172,6 +172,16 @@ class Asset(db.Model):
         )
 
 
+def assets_share_location(assets: List[Asset]) -> bool:
+    """
+    Return True if all assets in this list are located on the same spot.
+    TODO: In the future, we might soften this to compare if assets are in the same "housing" or "site".
+    """
+    if not assets:
+        return True
+    return all([a.location == assets[0].location for a in assets])
+
+
 class Power(TimedValue, db.Model):
     """
     All measurements of power data are stored in one slim table.
