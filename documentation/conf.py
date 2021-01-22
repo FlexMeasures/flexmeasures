@@ -18,18 +18,18 @@ from datetime import datetime
 
 from humanize import naturaldelta
 
-from bvp.app import create as create_app
-from bvp.ui.utils.view_utils import get_git_description
+from flexmeasures.app import create as create_app
+from flexmeasures.ui.utils.view_utils import get_git_description
 
 sys.path.insert(0, os.path.abspath(".."))
-bvp_app = create_app()
+flexmeasures_app = create_app()
 
 
 # -- Project information -----------------------------------------------------
 
-project = "Balancing Valorisation Platform"
-copyright = f"{datetime.now().year}, Seita, developed in partnership with A1 Engineering, South Korea"
-author = "A1 Engineering with Seita B.V."
+project = flexmeasures_app.config.get("FLEXMEASURES_PLATFORM_NAME")
+copyright = f"{datetime.now().year}, Seita Energy Flexibility, developed in partnership with A1 Engineering, South Korea"
+author = "Seita B.V."
 
 # The short X.Y version
 git_version, git_commits_since, git_hash = get_git_description()
@@ -37,9 +37,10 @@ version = f"{git_version} + {git_commits_since} commits (revision {git_hash})"
 # The full version, including alpha/beta/rc tags
 release = version
 
-rst_epilog = f"""
-    .. |BVP_PLANNING_HORIZON| replace:: {naturaldelta(bvp_app.config.get("BVP_PLANNING_HORIZON"))}
-    .. |BVP_PLANNING_TTl| replace:: {naturaldelta(bvp_app.config.get("BVP_PLANNING_TTL"))}
+rst_prolog = f"""
+    .. |FLEXMEASURES_PLATFORM_NAME| replace:: {flexmeasures_app.config.get("FLEXMEASURES_PLATFORM_NAME")}
+    .. |FLEXMEASURES_PLANNING_HORIZON| replace:: {naturaldelta(flexmeasures_app.config.get("FLEXMEASURES_PLANNING_HORIZON"))}
+    .. |FLEXMEASURES_PLANNING_TTl| replace:: {naturaldelta(flexmeasures_app.config.get("FLEXMEASURES_PLANNING_TTL"))}
 """
 
 # -- General configuration ---------------------------------------------------
@@ -84,10 +85,15 @@ language = None
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-if bvp_app.config.get("BVP_MODE", "") == "demo":
+if flexmeasures_app.config.get("FLEXMEASURES_MODE", "") == "demo":
     exclude_patterns.append("api/*.rst")
-if bvp_app.config.get("BVP_MODE", "") != "play":
+if flexmeasures_app.config.get("FLEXMEASURES_MODE", "") != "play":
     exclude_patterns.append("api/simulation.rst")
+
+# Todo: these are not mature enough yet for release
+exclude_patterns.append("int/*.rst")
+exclude_patterns.append("qa/*.rst")
+exclude_patterns.append("tut/*.rst")
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"
@@ -99,7 +105,7 @@ pygments_style = "sphinx"
 # a list of builtin themes.
 #
 # html_theme = 'alabaster'
-html_theme = "sphinx_rtd_bvp_theme"
+html_theme = "sphinx_rtd_flexmeasures_theme"
 html_theme_path = ["_themes"]
 
 # Theme options are theme-specific and customize the look and feel of a theme
@@ -127,7 +133,7 @@ html_static_path = ["_static"]
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "BVPdoc"
+htmlhelp_basename = "FLEXMEASURESdoc"
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -150,14 +156,22 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [(master_doc, "BPP.tex", "BVP Documentation", "Seita", "manual")]
+latex_documents = [
+    (
+        master_doc,
+        f"{project}.tex",
+        f"{project} Documentation",
+        author,
+        "manual",
+    )
+]
 
 
 # -- Options for manual page output ------------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "bpp", "BVP Documentation", [author], 1)]
+man_pages = [(master_doc, project, f"{project} Documentation", [author], 1)]
 
 
 # -- Options for Texinfo output ----------------------------------------------
@@ -168,11 +182,11 @@ man_pages = [(master_doc, "bpp", "BVP Documentation", [author], 1)]
 texinfo_documents = [
     (
         master_doc,
-        "BVP",
-        "BVP Documentation",
+        project,
+        f"{project} Documentation",
         author,
-        "BVP",
-        "The Balancing Valorisation Platform (BVP) is a tool for scheduling balancing actions on behalf of the connected asset owners.",
+        project,
+        f"The {project} Platform is a tool for scheduling flexible energy actions on behalf of the connected asset owners.",
         "Miscellaneous",
     )
 ]
@@ -190,16 +204,18 @@ intersphinx_mapping = {"https://docs.python.org/": None}
 
 def setup(sphinx_app):
     """
-    Here you can set config variables for Sphinx or even pass config variables from the BVP.
-    For example, to display content depending on the BVP_MODE specified in the BVP app's config.py,
+    Here you can set config variables for Sphinx or even pass config variables from FlexMeasures to Sphinx.
+    For example, to display content depending on FLEXMEASURES_MODE (specified in the FlexMeasures app's config.py),
     place this in one of the rst files:
 
-    .. ifconfig:: BVP_MODE == "play"
+    .. ifconfig:: FLEXMEASURES_MODE == "play"
 
         We are in play mode.
 
     """
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
-    sphinx_app.add_config_value("BVP_MODE", bvp_app.config.get("BVP_MODE", ""), "env")
+    sphinx_app.add_config_value(
+        "FLEXMEASURES_MODE", flexmeasures_app.config.get("FLEXMEASURES_MODE", ""), "env"
+    )
     sphinx_app.add_css_file("css/custom.css")

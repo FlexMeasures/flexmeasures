@@ -1,9 +1,9 @@
 # Requirements
 
-All BVP requirements are specified in this directory.
+All FlexMeasures requirements are specified in this directory.
 We separate by use case:
 
-- app: All requirements for running the BVP platform
+- app: All requirements for running the FlexMeasures platform
 - test: Additional requirements used for running automated tests 
 - dev: Additional requirements used for developers (this includes testing)
 

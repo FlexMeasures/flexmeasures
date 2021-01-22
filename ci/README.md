@@ -15,19 +15,19 @@ Here is an example how to serve this application as WSGI app:
     from dotenv import load_dotenv
 
     # add your project directory to the sys.path
-    project_home = u'/path/to/your/code/bvp'
+    project_home = u'/path/to/your/code/flexmeasures'
     if project_home not in sys.path:
         sys.path = [project_home] + sys.path
 
     load_dotenv(os.path.join(project_home, '.env'))
 
     # create flask app - need to call it "application" for WSGI to work
-    from bvp.app import create as create_app
+    from flexmeasures.app import create as create_app
     application = create_app()
 
 # Deployment
 
-To deploy the Seita BVP project on PythonAnywhere follow these steps.
+To deploy the Seita FlexMeasures project on PythonAnywhere follow these steps.
 
 ## Bitbucket Pipelines
 
@@ -38,11 +38,11 @@ In this file we setup the project, run the tests and linters, and finish with de
 
 The deployment uses the hooks functionality of Git. We add PythonAnywhere as a
 remote origin and push to the PythonAnywhere git repo. The step below requires that
-a deployment key be setup in the bvp Bitbucket repo. Once the code is built, the following
-Git remote is added and the code is pushed. The below step pushes to the BVP staging repo.
+a deployment key be setup in the FlexMeasures repo. Once the code is built, the following
+Git remote is added and the code is pushed. The below step pushes to the FlexMeasures staging repo.
 
 ```
-git remote add pythonanywhere seita@ssh.pythonanywhere.com:/home/seita/bvp-staging
+git remote add pythonanywhere seita@ssh.pythonanywhere.com:/home/seita/flexmeasures-staging
 
 git push --follow-tags -u pythonanywhere $BITBUCKET_BRANCH
 ```
@@ -72,8 +72,8 @@ PATH=$PATH_TO_VENV/bin:$PATH
 echo "INSTALLING DEPENDENCIES ..."
 make install-deps
 
-echo "INSTALLING BVP ..."
-make install-bvp
+echo "INSTALLING FlexMeasures ..."
+make install-flexmeasures
 
 echo "UPGRADING DATABASE STRUCTURE ..."
 make upgrade-db

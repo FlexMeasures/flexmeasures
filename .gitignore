@@ -10,9 +10,9 @@ venv
 *.rdb.settings
 *.pickle
 
-.env-bvp/
-bvp.egg-info
-bvp.log*
+.env-flexmeasures/
+flexmeasures.egg-info
+flexmeasures.log*
 
 .cache
 __pycache__
@@ -20,9 +20,9 @@ __pycache__
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/
 
-bvp/ui/static/documentation
-bvp/development_config.py
-bvp/testing_config.py
+flexmeasures/ui/static/documentation
+flexmeasures/development_config.py
+flexmeasures/testing_config.py
 documentation/img/screenshot_*
 migrations/dumps
 

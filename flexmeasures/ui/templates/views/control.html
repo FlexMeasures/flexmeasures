@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% set active_page = "control" %}
+
+{% block title %} Balancing actions {% endblock %}
+
+{% block divs %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-4 top-bottom">
+            <h3>About</h3>
+            <div class="justify">
+                <p>
+                    This page shows you which balancing actions you can take to valorise on identified opportunities.
+                    Possible actions are listed in order books for future time slots.
+                    You can check the expected value of each action, as well as the expected effect on the power profile
+                    of your portfolio.
+                </p>
+                {% if documentation_exists %}
+                <p>
+                    Need help understanding this page? Check out the
+                    <a href="{{ url_for('flexmeasures_ui.static', filename='documentation/html/views/control.html') }}"
+                        target="_blank">documentation</a>.
+                </p>
+                {% endif %}
+            </div>
+            <h3>Controls</h3>
+            <div class="form-group row">
+                <div class="col-sm-2">
+                    <div class="col-sm-1"><i class="icon-time center-icon"></i></div>
+                </div>
+                <div class="col-sm-10">
+                    <form id="resource-form" method="post">
+                        <label class="control-label">Upcoming hours</label>
+                        <select class="form-control" id="resource" name="resource" onchange="this.form.submit()">
+                            {% for i, j in next24hours|zip(next24hours[1:]) %}
+                            <option {% if i=="04:00 AM" %} selected="selected" {% endif %}>Between {{i}} and {{j}}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </div>
+            </div>
+
+            <h3>Placed order summary</h3>
+            <table class="table" style="font-size: 100%;">
+                <thead>
+                    <tr>
+                        <th><i class="icon-calculator icon-center"></i></th>
+                        <th>Load (MWh)</th>
+                        <th>Expected value (KRW)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Total</td>
+                        <td id="total_load">2.4</td>
+                        <td id="total_value">160,000</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="col-sm-8">
+            <h3>Control actions on asset level (by AGR for SUP)</h3>
+            <div class="alert alert-info">
+                This is a mockup of intended functionality (expected: M3) and still subject to change.
+                Only the upcoming hour between 04:00 AM and 05:00 AM can be selected.
+                <br />
+                {% if user_is_admin %}
+                As the <b>aggregator</b>, you can check the effects of several actions (of both offshore
+                and battery), but only perform the following sequence of actions:
+                <ol>
+                    <li>First, order 2MW of offshore wind curtailment.</li>
+                    <li>Then, order 1MW of battery shifting.</li>
+                </ol>
+                Refresh the page to return to the initial conditions.
+                <br />
+                {% else: %}
+                As a <b>prosumer</b>, only the assets you own are listed, and only if the aggregator placed an order
+                action for them.
+                {% endif %}
+            </div>
+            <table id="control-actions" class="table" style="font-size: 100%;">
+                <thead>
+                    <tr>
+                        <th>Asset</th>
+                        <th>ESCo</th>
+                        <th>Volume</th>
+                        <th>Actions</th>
+                        <th>Expected value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if user_is_admin or "charging" in user_email: %}
+                    <tr class="active">
+                        <td>
+                            <i class="icon-charging_station left-icon">Seongsan Ilchulbong</i>
+                        </td>
+                        <td>ESCo 1</td>
+                        <td>
+                            <div>
+                                Ordered: <b>1.1MW</b>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                Shift consumption
+                                <span class="fa fa-arrows-h" aria-hidden="true"></span>
+                            </div>
+                            {% if user_is_admin %}
+                            <a class="btn btn-default btn-danger" role="button" id="control-order-button-ev">
+                                <span class="fa fa-minus" aria-hidden="true"></span> Cancel
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div>
+                                <span id="control-expected-value-ev">76,000</span>
+                                <span class="fa fa-won" aria-hidden="true"></span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% if user_is_admin or "wind" in user_email: %}
+                    <tr class="active">
+                        <td>
+                            <i class="icon-wind left-icon">SamDal</i>
+                        </td>
+                        <td>ESCo 1</td>
+                        <td>
+                            <div>
+                                Ordered: <b>1.3MW</b>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                Curtail production
+                                <span class="fa fa-cut" aria-hidden="true"></span>
+                            </div>
+                            {% if user_is_admin %}
+                            <a class="btn btn-default btn-danger" role="button" id="control-order-button-onshore">
+                                <span class="fa fa-minus" aria-hidden="true"></span> Cancel
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div>
+                                <span id="control-expected-value-onshore">84,000</span>
+                                <span class="fa fa-won" aria-hidden="true"></span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr id="control-tr-offshore">
+                        <td>
+                            <i class="icon-wind left-icon">Suwon</i>
+                        </td>
+                        <td>ESCo 1</td>
+                        <td>
+                            <div id="control-offshore-volume">
+                                <div>
+                                    <input type="hidden" class="form-control" id="control-action-setting-offshore"
+                                        name="N" />
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                Curtail production
+                                <span class="fa fa-cut" aria-hidden="true"></span>
+                            </div>
+                            {% if user_is_admin %}
+                            <a class="btn btn-default btn-success" role="button" id="control-order-button-offshore">
+                                <!-- data-toggle="modal" data-target="#orderModal" -->
+                                <span class="fa fa-plus" aria-hidden="true"></span> Order
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div>
+                                <span id="control-expected-value-offshore">70,000</span>
+                                <span class="fa fa-won" aria-hidden="true"></span>
+                            </div>
+                            {% if user_is_admin %}
+                            <a class="btn btn-default btn-info" role="button"
+                                id="control-check-expected-value-offshore">
+                                <span class="fa fa-line-chart" aria-hidden="true"></span> Check
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% if user_is_admin %}
+                    <tr id="control-tr-battery">
+                        <td>
+                            <i class="icon-battery left-icon">Battery storage unit</i>
+                        </td>
+                        <td>ESCo 2</td>
+                        <td>
+                            <div id="control-battery-volume">
+                                <div>
+                                    <input type="hidden" class="form-control" id="control-action-setting-battery"
+                                        name="N" />
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                Shift consumption
+                                <span class="fa fa-arrows-h" aria-hidden="true"></span>
+                            </div>
+                            <a class="btn btn-default btn-success" href="#" role="button" data-toggle="modal"
+                                data-target="#orderModal" id="control-order-button-battery">
+                                <span class="fa fa-plus" aria-hidden="true"></span> Order
+                            </a>
+                        </td>
+                        <td>
+                            <div>
+                                <span id="control-expected-value-battery">10.000</span>
+                                <span class="fa fa-won" aria-hidden="true"></span>
+                            </div>
+                            <a class="btn btn-default btn-info" href="#" role="button"
+                                id="control-check-expected-value-battery">
+                                <span class="fa fa-line-chart" aria-hidden="true"></span> Check
+                            </a>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                    </tr>
+                </tbody>
+            </table>
+            {% if user_is_admin %}
+            <img class="expected_load_mock reset_default"
+                src="{{ url_for('flexmeasures_ui.static', filename='control-mock-imgs/load-action1.png') }}"
+                style="max-width:100%;max-height:100%;">
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Referenced objects -->
+<div class="modal fade" id="expectedValueModal" tabindex="-1" role="dialog" aria-labelledby="editClientModalLabel">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            Here are our calculations:
+            <img id=expected_value_mock
+                src="{{ url_for('flexmeasures_ui.static', filename='control-mock-imgs/placeholder.png') }}"
+                style="max-width:100%;max-height:100%;">
+            <img class=expected_load_mock
+                src="{{ url_for('flexmeasures_ui.static', filename='control-mock-imgs/placeholder.png') }}"
+                style="max-width:100%;max-height:100%;">
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="msgModal" tabindex="-1" role="dialog" aria-labelledby="editClientModalLabel">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            Your order will be processed!
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,1 +1,1 @@
-FLASK_APP=bvp.app:create
+FLASK_APP=flexmeasures.app:create

@@ -1,8 +1,8 @@
 .. _components:
 
-****************************************
-What components does the BVP consist of?
-****************************************
+*********************************************
+What components does |FLEXMEASURES_PLATFORM_NAME| consist of?
+*********************************************
 
 
 .. image:: ../img/components.png
@@ -44,11 +44,11 @@ External components
 ===================
 
 
-A1 simulator
-------------
+Power systems simulator
+-----------------------
 
-The platform is coupled to the A1 power systems simulator.
-This simulator provides price data from the Korean Power Exchange (KPX) and consumption/production data from assets on Jeju island.
+The platform can be coupled to a power systems simulator.
+This simulator needs to provide price data and consumption/production data from assets.
 
 
 .. _weather:
@@ -58,3 +58,5 @@ Weather service
 
 The platform is coupled to the Darksky weather service.
 
+Note: Apple Inc. has bought Darksky and will discontinue this service during 2021.
+      We are scouting which alternative to switch to.

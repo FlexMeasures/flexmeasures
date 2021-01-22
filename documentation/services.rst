@@ -3,31 +3,40 @@
 .. _services:
 
 **************************************************
-Services of the Balancing Valorisation Platform
+Services of the |FLEXMEASURES_PLATFORM_NAME| Platform
 **************************************************
 
-Automation
+Monitoring
 -------------
 
-The BVP provides decision-making support so that the platform operator can schedule balancing actions.
-It forecasts the state of assets and proposes the best balancing actions (shifting or curtailment)
-for future periods that need actions. This is done with modern forecasting and scheduling intelligence.
+The |FLEXMEASURES_PLATFORM_NAME| platform continuously reads in meter data from your assets. To assist your maintenance, it can alert you to situations which need your attention:
 
-Insight
+* Breaches of thresholds (protect devices)
+* Data gaps & strange outliers (assure data quality)
+* Idle processes / leaks (minimise waste)
+
+
+Forecasting
 --------------
-Both platform operator and asset owners can monitor the assets - past and current states as well as forecasts are displayed numerically in plots and tables.
-Balancing actions ordered in the past can be reviewed.
-Proposed and scheduled balancing actions show their expected effects (on imbalance as well as on financial returns).
 
-Autonomy
+The |FLEXMEASURES_PLATFORM_NAME| platform continuously creates forecasts for the rest of day.
+
+All relevant data should be forecasted:
+
+* Energy assets
+* Weather data
+* Market prices
+
+
+Scheduling
 --------------
-The companies connected to the BVP only give up as much control as necessary. The asset owners still control the main behaviour of their assets.
-The owners allow the platform operator to schedule balancing actions within limits they can set.
-Finally, the platform operator can choose to approve all proposed balancing actions manually or to let the BVP automatically schedule them.
 
-Profit sharing
----------------
-The platform operator and asset owners share the profit made from balancing actions between them.
-The BVP provides basic accounting.
+The |FLEXMEASURES_PLATFORM_NAME| platform optimizes schedules for your flexible assets. This is where energy flexibility is valorized!
 
+Examples are:
 
+* Charging schedules of batteries
+* Heat pumps management
+* Buffering of machinery
+
+The goals can be maximal cost savings, maximal usage of solar power or stable energy supply for the most crucial consumers.

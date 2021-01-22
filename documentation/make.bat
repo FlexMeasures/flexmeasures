@@ -15,8 +15,8 @@ if "%SPHINXBUILD%" == "" (
 )
 set SOURCEDIR=.
 %set BUILDDIR=_build
-set BUILDDIR=../bvp/ui/static/documentation/
-set SPHINXPROJ=A1VPP
+set BUILDDIR=../flexmeasures/ui/static/documentation/
+set SPHINXPROJ=FLEXMEASURES
 
 if "%1" == "" goto help
 

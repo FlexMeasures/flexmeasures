@@ -6,15 +6,15 @@ Version 2.0
 Summary
 -------
 
-.. qrefflask:: bvp.app:create()
-    :blueprints: bvp_api, bvp_api_play, bvp_api_v2_0
+.. qrefflask:: flexmeasures.app:create()
+    :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v2_0
     :order: path
     :include-empty-docstring:
 
 API Details
 -----------
 
-.. autoflask:: bvp.app:create()
-    :blueprints: bvp_api, bvp_api_play, bvp_api_v2_0
+.. autoflask:: flexmeasures.app:create()
+    :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v2_0
     :order: path
     :include-empty-docstring:

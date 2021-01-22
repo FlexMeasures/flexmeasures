@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% set active_page = "users" %}
+
+{% block title %} User listing {% endblock %}
+
+{% block divs %}
+
+    <div class="container-fluid">
+
+        <!-- a toggle for including inactive users, if wanted -->
+        <h2>All {% if not include_inactive %}active {% endif %}users</h2>
+
+        <div class="row">
+            <form class="col-sm-12 text-right form-inline" role="form" target="" method="get" id="user-list-options">
+                <div class="checkbox">
+                    <label>
+                        <input name="include_inactive" {% if include_inactive %} checked="checked"{% endif %} type="checkbox"> Include inactive
+                    </label>
+                </div>
+            </form>
+        </div>
+
+        <div class="row">
+            <div class="col-sm-12">
+
+                <table class="table table-striped table-responsive paginate">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Roles</th>
+                            <th>Timezone</th>
+                            <th>Last Login</th>
+                            <th>Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                            <tr>
+                                <td>
+                                    <a href="/users/{{ user.id }}" title="View/edit this user">{{ user.username }}</a>
+                                </td>
+                                <td>
+                                    <a href="mailto:{{ user.email }}" title="Mail this user">{{ user.email }}</a>
+                                </td>
+                                <td>{% for role in user.flexmeasures_roles %}
+                                      {{ role.name }}{{ "," if not loop.last }}
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    {{ user.timezone }}
+                                </td>
+                                <td>
+                                    {{ user.last_login_at | naturalized_datetime}}
+                                </td>
+                                <td>
+                                    {{ user.active }}
+                                </td>
+
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% block paginate_tables_script %} {{ super() }} {% endblock %}
+
+{% endblock%}

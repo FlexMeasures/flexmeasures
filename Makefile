@@ -1,12 +1,12 @@
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-deps install-bvp run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model
+.PHONY: install install-for-dev install-deps install-flexmeasures run-local test freeze-deps upgrade-deps update-docs update-docs-pdf show-file-space show-data-model
 
 
 # ---- Development ---
 
 run-local:
-	python bvp/run-local.py
+	python flexmeasures/run-local.py
 
 test:
 	make install-for-dev
@@ -26,20 +26,20 @@ update-docs-pdf:
 
 # ---- Installation ---
 
-install: install-deps install-bvp
+install: install-deps install-flexmeasures
 
 install-for-dev:
 	pip install -q pip-tools
 	make freeze-deps
 	pip-sync requirements/app.txt requirements/dev.txt requirements/test.txt
-	make install-bvp
+	make install-flexmeasures
 
 install-deps:
 	pip install -q pip-tools
 	make freeze-deps
 	pip-sync requirements/app.txt
 
-install-bvp:
+install-flexmeasures:
 	python setup.py develop
 
 freeze-deps:
@@ -67,4 +67,4 @@ upgrade-db:
 	flask db current
 
 show-data-model:
-	./bvp/data/scripts/visualize_data_model.py --uml --store  # also try with --schema for database model
+	./flexmeasures/data/scripts/visualize_data_model.py --uml --store  # also try with --schema for database model

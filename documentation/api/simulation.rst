@@ -3,8 +3,8 @@
 Simulation
 ==========
 
-This document details examples for using the BVP **play** server for simulation.
-The API on this server is extended with several features that make it possible to run simulations of energy flows and balancing valorisation.
+This document details examples for using a |FLEXMEASURES_PLATFORM_NAME| server for simulation.
+The API on a server that is set up for simulation is extended with several features that make it possible to run simulations of energy flows and control actions.
 Please read the :ref:`api_introduction` for explanations of the message fields, specifically regarding:
 
 - The sign of values (:ref:`signs`)
@@ -28,7 +28,7 @@ New assets can be created through the UI on:
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/assets/new
+    https://company.flexmeasures.io/assets/new
 
 
 We recommend that researchers choose their own admin account as the asset's owner.
@@ -51,14 +51,14 @@ The "<token>" can be obtained on your profile after logging in:
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/account
+    https://company.flexmeasures.io/account
 
 For security reasons, tokens expire after a certain amount of time (see :ref:`_auth`).
 To automate token renewal, use the following POST endpoint:
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/api/requestAuthToken
+    https://company.flexmeasures.io/api/requestAuthToken
 
 Providing applicable user credentials:
 
@@ -76,7 +76,7 @@ Weather data (both observations and forecasts) can be posted to the following PO
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/api/<version>/postWeatherData
+    https://company.flexmeasures.io/api/<version>/postWeatherData
 
 Weather data can be posted for the following three types of weather sensors:
 
@@ -92,7 +92,7 @@ This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute 
 
         {
             "type": "PostWeatherDataRequest",
-            "sensor": "ea1.2018-06.com.a1-bvp.play:temperature:33.4843866:126.477859",
+            "sensor": "ea1.2018-06.io.flexmeasures.company:temperature:33.4843866:126.477859",
             "values": [
                 20.04,
                 20.23,
@@ -126,9 +126,9 @@ Price data (both observations and forecasts) can be posted to the following POST
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/api/<version>/postPriceData
+    https://company.flexmeasures.io/api/<version>/postPriceData
 
-This "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
+This example "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
 for the Korean Power Exchange (KPX) day-ahead auction.
 The horizon indicates that the prices were published at 3pm on December 31st 2014
 (i.e. 33 hours ahead of midnight the next day).
@@ -137,7 +137,7 @@ The horizon indicates that the prices were published at 3pm on December 31st 201
 
     {
         "type": "PostPriceDataRequest",
-        "market": "ea1.2018-06.com.a1-bvp.play:kpx_da",
+        "market": "ea1.2018-06.io.flexmeasures.company:kpx_da",
         "values": [
             52.37,
             51.14,
@@ -174,7 +174,7 @@ Observations vs forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For markets, the time at which the market is cleared (i.e. when contracts are signed) determines the difference between an ex-post observation and an ex-ante forecast.
-For the KPX day-ahead auction this is every day at 3pm.
+For example, at the KPX day-ahead auction this is every day at 3pm.
 To post a forecast rather than an observation, simply increase the horizon.
 For example, a horizon of "PT57H" would denote a forecast of 24 hours ahead of clearing.
 
@@ -183,18 +183,18 @@ Posting power data
 ------------------
 
 For power data, USEF specifies separate message types for observations and forecasts.
-Correspondingly, the BVP uses separate endpoints to communicate these messages.
+Correspondingly, |FLEXMEASURES_PLATFORM_NAME| uses separate endpoints to communicate these messages.
 Observations of power data can be posted to the following POST endpoint:
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/api/<version>/postMeterData
+    https://company.flexmeasures.io/api/<version>/postMeterData
 
 while forecasts of power data can be posted to the following POST endpoint:
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/api/<version>/postPrognosis
+    https://company.flexmeasures.io/api/<version>/postPrognosis
 
 For both endpoints, power data can be posted in various ways.
 The following examples assume that the endpoint for power data observations (i.e. meter data) is used.
@@ -209,7 +209,7 @@ A single average power value for a 15-minute time interval for a single connecti
 
     {
         "type": "PostMeterDataRequest",
-        "connection": "ea1.2018-06.com.a1-bvp.play:1:1",
+        "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
         "value": 220,
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT0H15M",
@@ -226,7 +226,7 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
 
     {
         "type": "PostMeterDataRequest",
-        "connection": "ea1.2018-06.com.a1-bvp.play:1:1",
+        "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
         "values": [
             220,
             210,
@@ -250,8 +250,8 @@ We recommend to use this notation for zero values only.
     {
         "type": "PostMeterDataRequest",
         "connections": [
-            "ea1.2018-06.com.a1-bvp.play:1:1",
-            "ea1.2018-06.com.a1-bvp.play:1:2"
+            "ea1.2018-06.io.flexmeasures.company:1:1",
+            "ea1.2018-06.io.flexmeasures.company:1:2"
         ],
         "value": 10,
         "start": "2015-01-01T00:00:00+00:00",
@@ -271,11 +271,11 @@ Single different values for a 15-minute time interval for two connections, poste
         "type": "PostMeterDataRequest",
         "groups": [
             {
-                "connection": "ea1.2018-06.com.a1-bvp.play:1:1",
+                "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
                 "value": 220
             },
             {
-                "connection": "ea1.2018-06.com.a1-bvp.play:1:2",
+                "connection": "ea1.2018-06.io.flexmeasures.company:1:2",
                 "value": 300
             }
         ],
@@ -296,7 +296,7 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
         "type": "PostMeterDataRequest",
         "groups": [
             {
-                "connection": "ea1.2018-06.com.a1-bvp.play:1:1",
+                "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
                 "values": [
                     220,
                     210,
@@ -304,7 +304,7 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
                 ]
             },
             {
-                "connection": "ea1.2018-06.com.a1-bvp.play:1:2",
+                "connection": "ea1.2018-06.io.flexmeasures.company:1:2",
                 "values": [
                     300,
                     303,
@@ -321,14 +321,14 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
 Getting prognoses
 -----------------
 
-Prognoses are power forecasts that are used by the BVP server to determine the best control signals to valorise on
+Prognoses are power forecasts that are used by |FLEXMEASURES_PLATFORM_NAME| to determine the best control signals to valorise on
 balancing opportunities. Researchers can check the accuracy of these forecasts by downloading the prognoses and
 comparing them against the meter data, i.e. the realised power measurements.
 A prognosis can be requested for a single asset at the following GET endpoint:
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/api/<version>/getPrognosis
+    https://company.flexmeasures.io/api/<version>/getPrognosis
 
 This example requests a prognosis with a rolling horizon of 6 hours before realisation.
 
@@ -336,7 +336,7 @@ This example requests a prognosis with a rolling horizon of 6 hours before reali
 
     {
         "type": "GetPrognosisRequest",
-        "connection": "ea1.2018-06.com.a1-bvp.play:1:1",
+        "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT24H",
         "horizon": "R/PT6H",
@@ -347,12 +347,12 @@ This example requests a prognosis with a rolling horizon of 6 hours before reali
 Posting flexibility constraints
 -------------------------------
 
-Prosumers that have Active Demand & Supply can post the constraints of their flexible devices to the BVP at the
+Prosumers that have Active Demand & Supply can post the constraints of their flexible devices to |FLEXMEASURES_PLATFORM_NAME| at the
 following POST endpoint:
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/api/<version>/postUdiEvent
+    https://company.flexmeasures.io/api/<version>/postUdiEvent
 
 This example posts a state of charge value for a battery device (asset 10 of owner 7) as UDI event 203.
 
@@ -360,7 +360,7 @@ This example posts a state of charge value for a battery device (asset 10 of own
 
         {
             "type": "PostUdiEventRequest",
-            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203:soc",
+            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc",
             "value": 12.1,
             "datetime": "2015-06-02T10:00:00+00:00",
             "unit": "kWh"
@@ -373,7 +373,7 @@ As an example, consider the same UDI event as above with an additional target va
 
     {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.com.a1-bvp.play:7:10:204:soc-with-targets",
+        "event": "ea1.2018-06.io.flexmeasures.company:7:10:204:soc-with-targets",
         "value": 12.1,
         "datetime": "2015-06-02T10:00:00+00:00",
         "unit": "kWh",
@@ -388,12 +388,12 @@ As an example, consider the same UDI event as above with an additional target va
 Getting control signals
 -----------------------
 
-A Prosumer can query the BVP for control signals for its flexible devices using the following GET endpoint:
+A Prosumer can query |FLEXMEASURES_PLATFORM_NAME| for control signals for its flexible devices using the following GET endpoint:
 
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/api/<version>/getDeviceMessage
+    https://company.flexmeasures.io/api/<version>/getDeviceMessage
 
 Control signals can be queried by UDI event for up to 1 week after the UDI event was posted.
 This example requests a control signal for UDI event 203 posted previously.
@@ -402,10 +402,10 @@ This example requests a control signal for UDI event 203 posted previously.
 
         {
             "type": "GetDeviceMessageRequest",
-            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203:soc"
+            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc"
         }
 
-The following example response indicates that the BVP planned ahead 45 minutes.
+The following example response indicates that |FLEXMEASURES_PLATFORM_NAME| planned ahead 45 minutes.
 The list of consecutive power values represents the target consumption of the battery (negative values for production).
 Each value represents the average power over a 15 minute time interval.
 
@@ -413,7 +413,7 @@ Each value represents the average power over a 15 minute time interval.
 
         {
             "type": "GetDeviceMessageResponse",
-            "event": "ea1.2018-06.com.a1-bvp.play:7:10:203",
+            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203",
             "values": [
                 2.15,
                 3,
@@ -434,11 +434,11 @@ That should result in the same average values for each quarter-hour.
 Resetting the server
 --------------------
 
-All power, price and weather data on the play server can be cleared using the following PUT endpoint (admin rights are required):
+All power, price and weather data on the simulation server can be cleared using the following PUT endpoint (admin rights are required):
 
 .. code-block:: html
 
-    https://play.a1-bvp.com/api/<version>/restoreData
+    https://company.flexmeasures.io/api/<version>/restoreData
 
 This example restores the database to a backup named demo_v0, which contains no timeseries data.
 

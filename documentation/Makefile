@@ -4,9 +4,9 @@
 # You can set these variables from the command line.
 SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
-SPHINXPROJ    = A1VPP
+SPHINXPROJ    = FLEXMEASURES
 SOURCEDIR     = .
-BUILDDIR      = ../bvp/ui/static/documentation
+BUILDDIR      = ../flexmeasures/ui/static/documentation
 
 # Put it first so that "make" without argument is like "make help".
 help:

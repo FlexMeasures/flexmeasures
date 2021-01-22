@@ -13,7 +13,7 @@ The performance of our algorithms is indicated by the mean absolute error (MAE) 
 Power profiles on an asset level often include zero values, such that the mean absolute percentage error (MAPE), a common statistical measure of forecasting accuracy, is undefined.
 For such profiles, it is more useful to report the WAPE, which is also known as the volume weighted MAPE.
 The MAE of a power profile gives an indication of the size of the uncertainty in consumption and production.
-This allows the user to compare an asset's predictability to its flexibility, i.e. to the size of possible balancing actions.
+This allows the user to compare an asset's predictability to its flexibility, i.e. to the size of possible flexibility actions.
 
 Benchmarks per asset type are listed below for various assets and forecasting horizons, given a 15-minute resolution:
 

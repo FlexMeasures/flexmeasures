@@ -3,15 +3,17 @@
 Introduction
 ============
 
-This document details the Application Programming Interface (API) of the BVP web service. The API supports user automation for balancing valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
+This document details the Application Programming Interface (API) of the |FLEXMEASURES_PLATFORM_NAME| web service. The API supports user automation for flexibility valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
+We assume in this document that the |FLEXMEASURES_PLATFORM_NAME| instance you want to connect to is hosted at https://company.flexmeasures.io. 
+
 
 New versions of the API are released on:
 
 .. code-block:: html
 
-    https://a1-bvp.com/api
+    https://company.flexmeasures.io/api
 
-A list of services offered by (a version of) the BVP web service can be obtained by sending a *getService* request. An optional parameter "access" can be used to specify a user role for which to obtain only the relevant services.
+A list of services offered by (a version of) the |FLEXMEASURES_PLATFORM_NAME| web service can be obtained by sending a *getService* request. An optional parameter "access" can be used to specify a user role for which to obtain only the relevant services.
 
 **Example request**
 
@@ -59,13 +61,13 @@ A fresh "<token>" can be generated on the user's profile after logging in:
 
 .. code-block:: html
 
-    https://a1-bvp.com/account
+    https://company.flexmeasures.io/account
 
 or through a POST request to the following endpoint:
 
 .. code-block:: html
 
-    https://a1-bvp.com/api/requestAuthToken
+    https://company.flexmeasures.io/api/requestAuthToken
 
 using the following JSON message for the POST request data:
 
@@ -130,19 +132,46 @@ The API, however, does not distinguish between singular and plural key notation.
 Connections
 ^^^^^^^^^^^
 
-Connections are end points of the grid at which an asset is located. Connections should be identified with an entity address following the EA1 addressing scheme prescribed by USEF. For example:
+Connections are end points of the grid at which an asset is located. 
+Connections should be identified with an entity address following the EA1 addressing scheme prescribed by USEF[1],
+which is mostly taken from IETF RFC 3720 [2]:
+
+This is the complete structure of an EA1 address:
 
 .. code-block:: json
 
     {
-        "connection": "ea1.2018-06.com.a1-bvp:<owner-id>:<asset-id>"
+        "connection": "ea1.{date code}.{reversed domain name}:{locally unique string}"
     }
 
-The "<owner-id>" and "<asset-id>" as well as the full entity address can be obtained on the asset's listing after logging in:
+Here is a full example for a FlexMeasures connection address: 
+
+.. code-block:: json
+
+    {
+        "connection": "ea1.2021-02.io.flexmeasures.company:30:73"
+    }
+
+where FlexMeasures runs at `company.flexmeasures.io` and the owner ID is 30 and the asset ID is 73.
+The owner ID is optional. Both the owner ID and the asset ID, as well as the full entity address can be obtained on the asset's listing after logging in:
 
 .. code-block:: html
 
-    https://a1-bvp.com/assets
+    https://company.flexmeasures.io/assets
+
+
+Some deeper explanations about an entity address:
+
+- "ea1" is a constant, indicating this is a type 1 USEF entity address
+- The date code "must be a date during which the naming authority owned the domain name used in this format, and should be the first month in which the domain name was owned by this naming authority at 00:01 GMT of the first day of the month.
+- The reversed domain name is taken from the naming authority (person or organization) creating this entity address
+- The locally unique string can be used for local purposes, and FlexMeasures uses it to identify the resource (more information in parse_entity_address).
+
+TODO: This needs to be in the FlexMeasures documentation.
+
+[1] https://www.usef.energy/app/uploads/2020/01/USEF-Flex-Trading-Protocol-Specifications-1.01.pdf
+[2] https://tools.ietf.org/html/rfc3720
+
 
 Notation for simulation
 """""""""""""""""""""""

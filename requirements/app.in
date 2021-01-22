@@ -22,7 +22,7 @@ rq
 rq-dashboard
 rq-win; os_name=='nt'
 redis; os_name=='nt'
-py3DNS
+tldextract
 pyomo>=5.6
 forecastiopy
 pysolar

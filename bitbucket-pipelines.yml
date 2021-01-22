@@ -17,7 +17,7 @@ buildAndTestStep: &buildAndTestStep
         - ci/SETUP.sh
         - apt-get update
         - apt-get -y install postgresql-client coinor-cbc
-        - PGPASSWORD=a1test psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U a1test a1test;
+        - PGPASSWORD=flexmeasures_test psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U flexmeasures_test flexmeasures_test;
         - make install-deps
         - make test
     services:
@@ -43,7 +43,7 @@ definitions:
     postgres:
       image: postgres
       environment:
-        POSTGRES_DB: a1test
-        POSTGRES_USER: a1test
-        POSTGRES_PASSWORD: a1test
-        DATABASE_URL: postgres://a1test:a1test@127.0.0.1:5432/a1test
+        POSTGRES_DB: flexmeasures_test
+        POSTGRES_USER: flexmeasures_test
+        POSTGRES_PASSWORD: flexmeasures_test
+        DATABASE_URL: postgres://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test

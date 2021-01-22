@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} {{asset.display_name}} {% endblock %}
+
+{% block divs %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-1">
+            <form action="../../analytics" method="get">
+                <input type="hidden" name="resource" value="{{ asset.name | urlencode }}">
+                <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
+            </form>
+        </div>
+        {% if user_is_admin %}
+        <div class="col-sm-1">
+            <form action="/assets/new" method="get" style="float:right">
+                <button class="btn btn-sm btn-responsive btn-success" type="submit">Create new asset</button>
+            </form>
+        </div>
+        <div class="col-sm-1">
+            <form action="/assets/delete_with_data/{{ asset.id }}/" method="get" style="float:right">
+                <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">Delete this
+                    asset</button>
+            </form>
+            <script>
+                $("#delete-asset-button").click(function () {
+                    if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
+                        return true;
+                    }
+                    else {
+                        return false;
+                    }
+                });
+            </script>
+        </div>
+        {% endif %}
+    </div>
+
+    <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}/">
+        {{ asset_form.csrf_token }}
+        {{ asset_form.hidden_tag() }}
+        <fieldset>
+            <div class="row">
+                <div class="col-sm-4">
+
+                    <h3>Edit asset {{ asset.display_name }}</h3>
+
+                    <small>(Owned by <a href="/users/{{asset.owner_id}}">{{ asset.owner_id | username }}</a>)</small>
+
+                    <div class="form-group">
+                        {{ asset_form.display_name.label(class="col-sm-6 control-label") }}
+                        <div class="col-sm-6">
+                            {{ asset_form.display_name(class_="form-control") }}
+                            {% for error in asset_form.errors.display_name %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ asset_form.capacity_in_mw.label(class="col-sm-6 control-label") }}
+                        <div class="col-sm-6">
+                            {{ asset_form.capacity_in_mw(class_="form-control") }}
+                            {% for error in asset_form.errors.capacity_in_mw %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ asset_form.unit.label(class="col-sm-6 control-label") }}
+                        <div class="col-sm-6">
+                            {{ asset_form.unit(class_="form-control") }}
+                            {% for error in asset_form.errors.unit %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ asset_form.event_resolution.label(class="col-sm-6 control-label") }}
+                        <div class="col-sm-6">
+                            {{ asset_form.event_resolution(class_="form-control") }}
+                            {% for error in asset_form.errors.event_resolution %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% if asset.asset_type_name == "battery" %}
+                    <div class="form-group">
+                        {{ asset_form.min_soc_in_mwh.label(class="col-sm-6 control-label") }}
+                        <div class="col-sm-6">
+                            {{ asset_form.min_soc_in_mwh(class_="form-control") }}
+                            {% for error in asset_form.errors.min_soc_in_mwh %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ asset_form.max_soc_in_mwh.label(class="col-sm-6 control-label") }}
+                        <div class="col-sm-6">
+                            {{ asset_form.max_soc_in_mwh(class_="form-control") }}
+                            {% for error in asset_form.errors.max_soc_in_mwh %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <!-- Show current soc and measurement time (and udi event ID?) -->
+                    <div class="form-group">
+                        <label for="soc-info" class="col-sm-6 control-label">Last known state of charge in MWh</label>
+                        <div class="col-sm-6">
+                            <input class="form-control" id="soc-info" name="soc-info" type="text"
+                                value="{{ asset.soc_in_mwh }} {% if asset.soc_datetime %} (measured {{ asset.soc_datetime }}) {% endif %}"
+                                disabled>
+                            </input>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
+                        <div class="col-sm-6">
+                            {{ asset_form.latitude(class_="form-control") }}
+                            {% for error in asset_form.errors.latitude %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ asset_form.longitude.label(class="col-sm-6 control-label") }}
+                        <div class="col-sm-6">
+                            {{ asset_form.longitude(class_="form-control") }}
+                            {% for error in asset_form.errors.longitude %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        {{ asset_form.market_id.label(class="col-sm-6 control-label") }}
+                        <div class="col-sm-6">
+                            {{ asset_form.market_id(class_="form-control") }}
+                            {% for error in asset_form.errors.market_id %}
+                            <span style="color: red;">[{{error}}]</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6"></div>
+                    <div class="col-sm-6"></div>
+                    <div class="col-sm-6">
+                        <button class="btn btn-sm btn-responsive btn-success" type="submit" value="Save">Save</button>
+                    </div>
+
+                    <h3>API info for this asset</h3>
+
+                    <div class="form-group">
+                        <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
+                        <div class="col-sm-6">
+                            <input class="form-control" id="asset-id" name="asset-id" type="text" value="{{ asset.id }}"
+                                disabled></input>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="asset-id" class="col-sm-6 control-label">Owner id</label>
+                        <div class="col-sm-6">
+                            <input class="form-control" id="owner-id" name="owner-id" type="text"
+                                value="{{ asset.owner_id }}" disabled></input>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="ea" class="col-sm-6 control-label">Unique entity address</label>
+                        <div class="col-sm-6">
+                            <input class="form-control" id="ea" name="ea" type="text" value="{{ asset.entity_address }}"
+                                disabled></input>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-2">
+                    <h3>Latest state</h3>
+                    <small>(At {{ latest_measurement_time_str | safe}})</small>
+                    {{ asset_plot_html | safe}}
+                </div>
+                <div class="col-sm-6">
+                    <h3>Location</h3>
+                    <small>(Click map to edit latitude and longitude in form)</small>
+                    <div id="mapid"></div>
+                </div>
+            </div>
+        </fieldset>
+    </form>
+</div>
+
+<!-- Initialise the map -->
+<script src="{{ url_for('flexmeasures_ui.static', filename='js/external/leaflet.js') }}"></script>
+<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+
+<script type="text/javascript">
+
+    // create map
+    var assetMap = L
+        .map('mapid', { center: [{{ asset.latitude }}, {{ asset.longitude }}], zoom: 10})
+        .on('popupopen', function () {
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
+    tileLayer.addTo(assetMap);
+
+    // create marker
+    var {{ asset.asset_type_name | parameterize }}_icon = new L.DivIcon({
+        className: 'map-icon',
+        html: '<i class="{{ asset.asset_type_name | asset_icon }}"></i>',
+        iconSize: [24, 24], // size of the icon
+        iconAnchor: [12, 12], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -12] // point from which the popup should open relative to the iconAnchor
+    });
+    var marker = L
+        .marker(
+            [{{ asset.latitude }}, {{ asset.longitude }}],
+    { icon: {{ asset.asset_type_name | parameterize }}_icon }
+        ).addTo(assetMap);
+
+    assetMap.on('click', function (e) {
+        $("#latitude").val(e.latlng.lat.toFixed(4));
+        $("#longitude").val(e.latlng.lng.toFixed(4));
+        marker.setLatLng(e.latlng);
+    });
+</script>
+
+{% endblock %}

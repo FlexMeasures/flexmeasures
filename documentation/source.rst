@@ -11,51 +11,51 @@ Detailed documentation of all internal modules
 app
 ---
 
-.. automodule:: bvp.app
+.. automodule:: flexmeasures.app
     :members:
 
 
 data.models
 -----------
 
-.. automodule:: bvp.data.models
+.. automodule:: flexmeasures.data.models
     :members:
 
 
 utils
 -------
 
-.. automodule:: bvp.utils
+.. automodule:: flexmeasures.utils
     :members:
 
 utils.calculations
 ~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: bvp.utils.calculations
+.. automodule:: flexmeasures.utils.calculations
     :members:
 
 utils.time_utils
 ~~~~~~~~~~~~~~~~~
 
-.. automodule:: bvp.utils.time_utils
+.. automodule:: flexmeasures.utils.time_utils
     :members:
 
 ui.utils.view_utils
 ~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: bvp.ui.utils.view_utils
+.. automodule:: flexmeasures.ui.utils.view_utils
     :members:
 
  utils.forecasting_utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: bvp.utils.forecasting_utils
+.. automodule:: flexmeasures.utils.forecasting_utils
     :members:
 
 ui.utils.plotting_utils
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: bvp.ui.utils.plotting_utils
+.. automodule:: flexmeasures.ui.utils.plotting_utils
     :members:
 
 
@@ -63,15 +63,15 @@ ui.utils.plotting_utils
 ui.views
 --------
 
-.. automodule:: bvp.ui.views.dashboard
+.. automodule:: flexmeasures.ui.views.dashboard
     :members:
 
-.. automodule:: bvp.ui.views.portfolio
+.. automodule:: flexmeasures.ui.views.portfolio
     :members:
 
-.. automodule:: bvp.ui.views.control
+.. automodule:: flexmeasures.ui.views.control
     :members:
 
-.. automodule:: bvp.ui.views.analytics
+.. automodule:: flexmeasures.ui.views.analytics
     :members:
 

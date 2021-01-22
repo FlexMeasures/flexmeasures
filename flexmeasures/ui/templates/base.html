@@ -1,0 +1,265 @@
+{% extends "defaults.jinja" %}
+
+{% block base %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% block head %}
+    <title>{% block title %}{% endblock %} - {{ app_name }}</title>
+    {% endblock head %}
+    <meta charset="windows-1252">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+    <!-- Leaflet -->
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/leaflet.css') }}" rel="stylesheet" />
+    <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
+    <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" rel="stylesheet" />
+    <!-- Bootstrap -->
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/bootstrap.min.css') }}" rel="stylesheet" />
+    {% if show_datepicker %}
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/daterangepicker.css') }}"
+        rel="stylesheet" />
+    {% endif %}
+    <!-- Fonts -->
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/font-awesome.min.css') }}"
+        rel="stylesheet" />
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/weather-icons.min.css') }}"
+        rel="stylesheet" />
+    <!-- Ion range slider -->
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/ion.rangeSlider.css') }}"
+        rel="stylesheet" />
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/ion.rangeSlider.skinCustom.css') }}"
+        rel="stylesheet" />
+    <!-- Custom CSS -->
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/flexmeasures.css') }}" rel="stylesheet" />
+    {% if contains_plots %}
+    {{ bokeh_css_resources|indent(4)|safe }}
+    {{ bokeh_js_resources|indent(4)|safe }}
+    {% endif %}
+    {% if active_page == "tasks" %}
+    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}"
+        rel="stylesheet" />
+    {% elif active_page in ("assets", "users", "portfolio") %}
+    <link href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.min.css" rel="stylesheet" />
+    {% endif %}
+</head>
+
+<body>
+
+    {% block body %}
+
+    {% block nav %}
+
+    <nav class="navbar navbar-default navbar-fixed-top" id="topnavbar">
+        <div id="navbar-container" class="container-fluid">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
+                    data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <span class="navbar-brand">
+                    <a href="/"><span class="navbar-tool-name">{{ app_name_short }}</span></a>
+                    {{ self.title() }} {% if user_is_logged_in and not "Error" in self.title() %} for {{ user_name }} on
+                    Jeju island {% endif %}
+                </span>
+            </div>
+            <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav">
+                    {% for href, id, caption, icon in navigation_bar %}
+                    {% if id == "tasks" %}
+                    <li {% if id == active_page %} class="active" {% endif %} class="dropdown">
+                        <a class="dropdown-toggle" data-toggle="dropdown" href="#"><span class="fa fa-tasks"
+                                aria-hidden="true"></span>
+                            Tasks
+                            <span class="caret"></span></a>
+                        <ul class="dropdown-menu">
+                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/forecasting"
+                                    {% endif %}>Forecasts</a></li>
+                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/scheduling"
+                                    {% endif %}>Schedules</a></li>
+                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/labelling"
+                                    {% endif %}>Labels</a></li>
+                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/alerting"
+                                    {% endif %}>Alerts</a></li>
+                            <li {% if current_user.has_role('anonymous') %}class="disabled" {% endif %}><a
+                                    {% if not current_user.has_role('anonymous') %}href="/tasks/reporting"
+                                    {% endif %}>Reports</a></li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li {% if id == active_page %} class="active" {% endif %}
+                        {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) %}
+                        class="disabled" {% endif %}>
+                        <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) ) %}href="/{{ href|e }}"
+                            {% endif %}{% if id == 'docs' %} target="_blank" {% endif %}>
+                            <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
+                            {{ caption|e }}
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% endblock nav %}
+
+    {% if message and message != "" %}
+    <div class="col-sm-12 alert alert-info">{{ message}} </div>
+    {% endif %}
+    {% if (msg is defined) and msg %}
+    <div class="col-sm-12 alert alert-info">{{ msg }}</div>
+    {% endif %}
+
+    <!-- loading this earlier so templates can use it -->
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/jquery-3.1.0.min.js') }}"></script>
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/jquery.floatThead.min.js') }}"></script>
+
+    <!-- This should always be there, even on error pages  -->
+    <script type="text/javascript">
+        var timerangeStart = "{{ start_time }}";
+        var timerangeEnd = "{{ end_time }}";
+    </script>
+
+    {# Div blocks that child pages can reference #}
+    {% block divs %}
+
+
+    {% block datetimepicker %}
+
+    <div class="form-group row datetimepicker">
+        <div class="col-sm-2">
+            <div class="col-sm-1"><i class="icon-time center-icon"></i></div>
+        </div>
+        <div class="col-sm-10">
+            <label class="control-label">Time window</label>
+            <div class="btn-group btn-group-justified">
+                <input type="text" name="daterange" value="01/01/2015 1:30 PM - 01/01/2015 2:00 PM" />
+            </div>
+        </div>
+    </div>
+    <!-- form to refresh page -->
+    <form style="display: hidden" action="" method="POST" id="datepicker_form">
+        <input type="hidden" id="datepicker_form_start_time" name="start_time" value="{{ start_time }}" />
+        <input type="hidden" id="datepicker_form_end_time" name="end_time" value="{{ end_time }}" />
+    </form>
+
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/moment.min.js') }}"></script>
+    {% endblock datetimepicker %}
+
+    {% block forecastpicker %}
+
+    <div class="form-group row">
+        <div class="col-sm-2">
+            <div class="col-sm-1"><i class="icon-binoculars center-icon"></i></div>
+        </div>
+        <div class="col-sm-10">
+            <label class="control-label">Forecast (rolling)</label>
+            <!--<div class="btn-group btn-group-justified" role="group" aria-label="...">-->
+            <!--<a role="button" href="#" class="btn btn-default forecast-toggle active" forecast-type="rolling">Rolling</a>-->
+            <!--<a role="button" href="#" class="btn btn-default forecast-toggle" forecast-type="static">Static</a>-->
+            <!--</div>-->
+            <div>
+                <form action="" method="POST" id="forecast_horizon_form">
+                    <select class="form-control" id="forecast_horizon" name="forecast_horizon"
+                        onchange="this.form.submit()">
+                        {% for horizon in forecast_horizons %}
+                        <option value="{{ horizon }}" {% if horizon == active_forecast_horizon %} selected="selected"
+                            {% endif %}>with a horizon of {{ horizon }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% endblock forecastpicker %}
+
+    {% block attributions %}
+    <div id="att-text" style="display: none;">
+        <ul>
+            <li>Plots made with <a href="https://bokeh.pydata.org">Bokeh</a>.</li>
+            <li>Icons made by <a href="http://freepik.com">Freepik</a>, <a
+                    href="https://www.flaticon.com/authors/tomas-knop" title="Tomas Knop">Tomas Knop</a>, <a
+                    href="https://www.flaticon.com/authors/gregor-cresnar" title="Gregor Cresnar">Gregor Cresnar</a> and
+                <a href="https://www.flaticon.com/authors/those-icons" title="Those Icons">Those Icons</a> from <a
+                    href="http://flaticon.com">www.flaticon.com</a>.</li>
+        </ul>
+    </div>
+    {% endblock attributions %}
+
+    {% endblock divs %}
+
+
+    {#- Scripts used by all views (e.g. by navigation menu) -#}
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/bootstrap.min.js') }}"></script>
+
+    {% block scripts %}
+
+    <!-- External scripts -->
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/ion.rangeSlider.min.js') }}"></script>
+
+    <!-- Custom scripts -->
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}"></script>
+    {% if show_datepicker %}
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/daterangepicker-init.js') }}"></script>
+    {% endif %}
+
+    <!-- External scripts that should run after custom scripts -->
+    {% if show_datepicker %}
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/daterangepicker.js') }}"></script>
+    {% endif %}
+
+    {% endblock scripts %}
+
+    {% block paginate_tables_script %}
+    <script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script
+        src="{{ url_for('flexmeasures_ui.static', filename='js/external/dataTables.conditionalPaging.js') }}"></script>
+    {% endblock paginate_tables_script %}
+
+    <footer class="page-footer font-small pt-4 mt-4">
+        <div class="footer text-center">
+            <div class="container-fluid">
+                FlexMeasures technology is created by <a href="https://seita.nl/">Seita Flexible Energy</a>,
+                in cooperation with <a href="https://aoneeng.com/">A1 Engineering</a>
+                &copy
+                <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.
+                {% if app_running_since %}
+                <!-- We might render templates from plugins, where this meta info is not available -->
+                {% if current_user.has_role('anonymous') %}
+                <!--
+                                {% endif %}
+                            This app is running since {{ app_running_since }}
+                                {% if git_version != "Unknown" %}
+                                on version {{ git_version }}+{{ git_commits_since }}.
+                                {% else %}
+                                on revision {{ git_hash }}.
+                                {% endif %}
+                                {% if current_user.has_role('anonymous') %}
+                                -->
+                {% endif %}
+                {% endif %}
+            </div>
+            <div>
+                <a href="https://seita.nl/"><i class="icon-seita_bird supersize"></i></a>
+            </div>
+        </div>
+    </footer>
+    {% endblock body %}
+</body>
+
+</html>
+
+{% endblock base %}

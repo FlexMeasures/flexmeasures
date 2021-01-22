@@ -15,8 +15,8 @@ def load_requirements(use_case):
 
 
 setup(
-    name="bvp",
-    description="Balancing Valorisation Platform.",
+    name="flexmeasures",
+    description="FlexMeasures - A free platform for real-time optimization of flexible energy.",
     author="Seita BV",
     author_email="nicolas@seita.nl",
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
@@ -24,7 +24,7 @@ setup(
     install_requires=load_requirements("app"),
     setup_requires=["pytest-runner"],
     tests_require=load_requirements("test"),
-    packages=["bvp"],
+    packages=["flexmeasures"],
     include_package_data=True,
     # license="Apache",
     classifiers=[
@@ -35,8 +35,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     long_description="""\
-The *Balancing Valorisation Platform (BVP)* is a tool for scheduling balancing actions on behalf of the connected
-asset owners. Its purpose is to offer these balancing actions as one aggregated service to energy markets,
-realising the highest possible value for its users.
+The *FlexMeasures Platform* is a tool for scheduling flexible actions for energy assets.
+For this purpose, it performs monitoring, forecastig and scheduling services.
 """,
 )

@@ -22,45 +22,45 @@ An Aggregator can access the following services:
 Post prognosis
 --------------
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.post_prognosis
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.post_prognosis
 
 .. _post_price_data_aggregator:
 
 Post price data
 ---------------
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.post_price_data
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.post_price_data
 
 
-..  .. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.get_flex_request
+..  .. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.get_flex_request
 
-..  .. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.post_flex_offer
+..  .. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.post_flex_offer
 
-..  .. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.get_flex_order
+..  .. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.get_flex_order
 
 .. _get_meter_data_aggregator:
 
 Get meter data
 --------------
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.get_meter_data
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.get_meter_data
 
 .. _get_prognosis_aggregator:
 
 Get prognosis
 -------------
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.get_prognosis
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.get_prognosis
 
-..  .. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.get_udi_event
+..  .. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.get_udi_event
 
-..  .. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.post_device_message
+..  .. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.post_device_message

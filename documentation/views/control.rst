@@ -1,14 +1,14 @@
 .. _control:
 
 *****************
-Balancing actions
+Flexibility actions
 *****************
 
-Balancing actions have commercial value that users can valorise on.
-In the Balancing actions page, the BVP shows all balancing actions that the user can take for a selected time window.
-When the BVP has identified commercial value for balancing actions, the user is suggested to order them.
+Flexibility actions have commercial value that users can valorise on.
+In the Flexibility actions page, |FLEXMEASURES_PLATFORM_NAME| shows all flexibility actions that the user can take for a selected time window.
+When |FLEXMEASURES_PLATFORM_NAME| has identified commercial value for flexibility actions, the user is suggested to order them.
 The user can opt to automate this otherwise manual process.
-Listed balancing actions include previously ordered actions and currently offered actions.
+Listed flexibility actions include previously ordered actions and currently offered actions.
 Currently offered actions are presented as an order book, where they are sorted according to their commercial value.
 The user can place orders and check the expected value of offers.
 
@@ -19,16 +19,16 @@ The user can place orders and check the expected value of offers.
 
 .. _action_types:
 
-Types of balancing actions
+Types of flexibility actions
 ==========================
 
-The platform distinguishes between different types of balancing actions that an asset can take.
+The platform distinguishes between different types of flexibility actions that an asset can take.
 
 Curtailment
 -----------
 
 Curtailment happens when an asset temporarily lowers or stops its production or consumption.
-A defining feature of curtailment is that total production or consumption at the end of the balancing action has decreased.
+A defining feature of curtailment is that total production or consumption at the end of the flexibility action has decreased.
 
 - A typical example of curtailing production is when a wind turbine adjusts the pitch angle of its blades to decrease the generator torque.
 - An example of curtailing consumption is load shedding of energy intensive industries.
@@ -46,7 +46,7 @@ Shifting
 --------
 
 Shifting happens when an asset delays or advances its energy production or consumption.
-A defining feature of shifting is that total production or consumption at the end of the balancing action remains the same.
+A defining feature of shifting is that total production or consumption at the end of the flexibility action remains the same.
 
 - An example of delaying consumption is when a charging station postpones the charging process of an electric vehicle.
 - An example of advancing consumption is when a cooling unit starts to cool before the upper temperature bound was reached (pre-cooling).
@@ -61,9 +61,9 @@ This volume is a multiplication of the energy volume being shifted and the durat
 Visualisation of actions
 ========================
 
-Balancing actions cause changes to the power profile of an asset.
+Flexibility actions cause changes to the power profile of an asset.
 Depending on the time window selection and constraints set by the asset owner, the effects of an action may partially take place outside of the selected time window.
-Such effects are taken into account by the BVP and shown to the user, e.g. as a part of expected value calculations and power profile forecasts.
+Such effects are taken into account by |FLEXMEASURES_PLATFORM_NAME| and shown to the user, e.g. as a part of expected value calculations and power profile forecasts.
 
 
 .. image:: ../img/screenshot_control.png

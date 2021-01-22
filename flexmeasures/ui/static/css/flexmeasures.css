@@ -1,0 +1,459 @@
+body {
+    padding-top: 100px;  /* This default is overridden by flexmeasures.js to support a fluid navbar */
+}
+
+#alerts {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    width: 25%;
+    min-width: 200px;
+}
+
+.flashes {
+    list-style-type: none
+}
+
+.icon-column .text-muted {
+    color: #ddd;
+}
+
+.sample-plot {
+    height: 250px;
+}
+
+.data-set-plot {
+    height: 320px;
+}
+
+.legend {
+    width: 40px;
+    border-top: 2px solid black;
+    height: 0px;
+    display: block;
+    margin-top: 0.5em;
+}
+
+.noeva {
+    color: rgb(51, 122, 183);
+}
+
+.witheva {
+    color: rgb(255, 127, 14);
+}
+
+div.margin-top {
+    margin-top: 60px;
+}
+
+.form-horizontal .form-group:last-child, .form-horizontal .form-group.last {
+    margin-bottom: 0;
+}
+
+#demo-page-link {
+    display: none;
+}
+
+.icon-data-set-1:before {
+    content: "\f24e";
+}
+
+.icon-data-set-2:before {
+    content: "\f017";
+}
+
+.icon-data-set-3:before {
+    content: "\f073";
+}
+
+.icon-data-set-4:before {
+    content: "\f0d6";
+}
+
+.icon-data-set-11:before {
+    content: "\f24e";
+}
+
+.icon-data-set-12:before {
+    content: "\f017";
+}
+
+.icon-data-set-21:before {
+    content: "\f056";
+}
+
+.icon-data-set-22:before {
+    content: "\f056";
+}
+
+.icon-data-set-31:before {
+    content: "\f1b9";
+}
+
+.icon-data-set-32:before {
+    content: "\f1b9";
+}
+
+[class|=icon] img {
+    width: 20px;
+}
+
+div.attribution {
+    text-align: right;
+/*    display: flex;
+    align-content: flex-end;*/
+}
+
+.agg-group {
+    background-color: #F8F8F8;
+}
+
+.form-group.row {
+  display: flex;
+  display: -webkit-flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+#att-heading {
+    display: flex;
+    justify-content: flex-start;
+}
+
+div.heading-group {
+    display: flex;
+    align-items: center;
+}
+
+label.control-label {
+    /*display: flex;
+    align-content: flex-end;*/
+    color: #c21431;
+    /*margin-bottom: 0px;*/
+}
+
+.navbar-tool-name {
+    margin-right: 30px;
+    color: #c21431;
+}
+
+.datetimepicker input {
+    width: 100%;
+}
+
+p.error {
+    color: red;
+}
+
+
+/*
+ * Row with equal height columns
+ * --------------------------------------------------
+ */
+.eq-height {
+    display: flex;
+}
+
+.top-bottom {
+    display: flex;
+    flex-flow: column wrap;
+    justify-content: space-between;
+}
+
+.spread {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.justify {
+    text-align: justify;
+}
+
+#mapid {
+    width: 100%;
+    height: 400px;
+}
+
+
+/* control mockup - check later */
+
+table#control-actions tr.active b {
+    color: green;
+}
+
+
+/* table scrolling */
+
+.floatThead-wrapper table {
+    width: 100%;
+}
+.floatThead-wrapper thead {
+    background-color: #FFF;
+}
+
+.floatThead-wrapper th, td {
+    padding: 8px;
+}
+
+
+/* bootstrap works on tables with class="table" - here we override their nice styling only with respect to vertical alignment of table elements */
+
+.table > tbody > tr > td {
+     vertical-align: middle;
+}
+
+
+/* responsive buttons with nice word wrap */
+.btn-responsive {
+    white-space: normal !important;
+    word-wrap: break-word;
+}
+
+
+/**
+ * Datatables sorting icons on left when header is not right aligned
+ */
+
+table.dataTable thead tr th:not(.text-right).sorting_asc {
+  background: url("https://cdn.datatables.net/1.10.0/images/sort_asc.png") no-repeat center left;
+}
+table.dataTable thead tr th:not(.text-right).sorting_desc {
+  background: url("https://cdn.datatables.net/1.10.0/images/sort_desc.png") no-repeat center left;
+}
+table.dataTable thead tr th:not(.text-right).sorting {
+  background: url("https://cdn.datatables.net/1.10.0/images/sort_both.png") no-repeat center left;
+}
+table.dataTable thead tr th.no-sort {
+    padding: 9px;
+}
+table.dataTable thead tr th {
+    border-bottom: inherit;
+}
+table.dataTable.no-footer {
+    border-bottom: inherit !important;
+}
+.dataTables_length label, .dataTables_filter label {
+    font-weight: inherit;
+}
+
+/* extra buffer for bootstrap rows */
+.top-buffer { margin-top:15px; }
+
+
+/* footer */
+.footer {
+    color: darkgray;
+    font-size: tiny;
+    margin-top: 25px;
+}
+
+
+/* carousel */
+.carousel-container {
+    width: 500px;
+    height: 500px;
+    overflow: hidden;
+    position: relative;
+    padding:0;
+    border-radius: 25px;
+}
+.carousel {
+    width: 500px;
+    position: absolute;
+    left: 50%;
+    top: 0;
+    margin-left: -250px;
+}
+.carousel .item img {
+    display: block;
+    margin: 0 auto;
+    border-radius: 25px;
+}
+.carousel-control.left, .carousel-control.right {
+    background:transparent;
+}
+
+
+/* icons */
+i {
+    font-size: normal;
+    position: relative;
+}
+i:not(.supersize):before, i:not(.supersize):after {
+    font-size: 24px;
+}
+.supersize {
+    font-size: 48px;
+}
+
+/* icon on the left (use left-icon class) */
+:not(.map-icon) > i.left-icon {
+    left: 40px;
+}
+:not(.map-icon) > i.left-icon:after, :not(.map-icon) > i.left-icon:before {
+    position: absolute;
+    top: 0px;
+    left: -40px;
+}
+/* icon centered (use center-icon class) */
+i.center-icon {
+    right: 0px;
+}
+i.center-icon:after, i.center-icon:before {
+    position: absolute;
+    top: 0px;
+    right: -20px;
+}
+
+.icon-column {
+    text-align: right;
+    width: 6.5em;
+}
+
+.icon-column a {
+    margin-left: 10px;
+}
+
+
+/* map icons */
+.map-icon {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+.map-icon > i:before, .map-icon > i:after {
+    position: absolute;
+    top: -22px;
+    left: -16.5px;
+}
+.map-icon.opportunity {
+    color: #c21431;
+}
+.leaflet-marker-popup {
+    min-width: 240px;
+}
+
+
+/* rotating icons, because why not? */
+i.icon-wind:hover:before {
+    transform: rotate(720deg);
+    transform-origin: 37.4% 40.2%;
+    transition: transform 3.0s ease;
+}
+.over > i.icon-wind:before , i.icon-wind.over:before{
+    transform: rotate(720deg);
+    transform-origin: 37.4% 40.2%;
+    transition: transform 3.0s ease;
+}
+
+
+/* custom icons from https://erikflowers.github.io/weather-icons/ */
+
+[class^="wi wi-"]:before, [class*=" wi wi-"]:before {
+  font-family: "weathericons";
+  font-style: normal;
+  font-weight: normal;
+  speak: none;
+  display: inline-block;
+  text-decoration: inherit;
+  width: 1em;
+  margin-right: .2em;
+  text-align: center;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1em;
+  margin-left: .2em;
+}
+
+@font-face{font-family:weathericons;src:url(font/weathericons-regular-webfont.eot);src:url(font/weathericons-regular-webfont.eot?#iefix) format('embedded-opentype'),url(font/weathericons-regular-webfont.woff2) format('woff2'),url(font/weathericons-regular-webfont.woff) format('woff'),url(font/weathericons-regular-webfont.ttf) format('truetype'),url(font/weathericons-regular-webfont.svg#weather_iconsregular) format('svg');font-weight:400;font-style:normal}.wi{display:inline-block;font-family:weathericons;font-style:normal;font-weight:400;line-height:1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.wi-fw{text-align:center;width:1.4em}.wi-rotate-90{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=1);-webkit-transform:rotate(90deg);-ms-transform:rotate(90deg);transform:rotate(90deg)}.wi-rotate-180{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=2);-webkit-transform:rotate(180deg);-ms-transform:rotate(180deg);transform:rotate(180deg)}.wi-rotate-270{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=3);-webkit-transform:rotate(270deg);-ms-transform:rotate(270deg);transform:rotate(270deg)}.wi-flip-horizontal{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=0, mirror=1);-webkit-transform:scale(-1,1);-ms-transform:scale(-1,1);transform:scale(-1,1)}.wi-flip-vertical{filter:progid:DXImageTransform.Microsoft.BasicImage(rotation=2, mirror=1);-webkit-transform:scale(1,-1);-ms-transform:scale(1,-1);transform:scale(1,-1)}
+.icon-wind_speed:before { content: '\f0b1'; } /* wi-wind-direction */
+.icon-wind_direction:before { content: '\f050'; } /* wi-strong-wind */
+.icon-temperature:before { content: '\f053'; } /* wi-thermometer-exterior */
+.icon-radiation:before { content: '\f046'; } /* wi-horizon-alt */
+
+
+@font-face {
+  font-family: 'seita-webfont';
+  src: url('../font/seita-webfont.eot?93228496');
+  src: url('../font/seita-webfont.eot?93228496#iefix') format('embedded-opentype'),
+       url('../font/seita-webfont.woff2?93228496') format('woff2'),
+       url('../font/seita-webfont.woff?93228496') format('woff'),
+       url('../font/seita-webfont.ttf?93228496') format('truetype'),
+       url('../font/seita-webfont.svg?93228496#seita-webfont') format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+/* Chrome hack: SVG is rendered more smooth in Windozze. 100% magic, uncomment if you need it. */
+/* Note, that will break hinting! In other OS-es font will be not as sharp as it could be */
+/*
+@media screen and (-webkit-min-device-pixel-ratio:0) {
+  @font-face {
+    font-family: 'seita-webfont';
+    src: url('../font/seita-webfont.svg?93228496#seita-webfont') format('svg');
+  }
+}
+*/
+
+ [class^="icon-"]:before, [class*=" icon-"]:before, [class^="icon-"]:after, [class*=" icon-"]:after {
+  font-family: "seita-webfont";
+  font-style: normal;
+  font-weight: normal;
+  speak: none;
+
+  display: inline-block;
+  text-decoration: inherit;
+  width: 1em;
+  margin-right: .2em;
+  text-align: center;
+  /* opacity: .8; */
+
+  /* For safety - reset parent styles, that can break glyph codes*/
+  font-variant: normal;
+  text-transform: none;
+
+  /* fix buttons height, for twitter bootstrap */
+  line-height: 1em;
+
+  /* Animation center compensation - margins should be symmetric */
+  /* remove if not needed */
+  margin-left: .2em;
+
+  /* you can be more comfortable with increased icons size */
+  /* font-size: 120%; */
+
+  /* Font smoothing. That was taken from TWBS */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Uncomment for 3D effect */
+  /* text-shadow: 1px 1px 1px rgba(127, 127, 127, 0.3); */
+}
+
+.icon-wind:before { content: '\e80e'; } /* '' */
+.icon-wind:after { content: '\e80f'; } /* '' */
+.icon-battery:before { content: '\e801'; } /* '' */
+.icon-binoculars:before { content: '\e802'; } /* '' */
+.icon-building:before { content: '\e803'; } /* '' */
+.icon-calculator:before { content: '\e804'; } /* '' */
+.icon-charging_station:before { content: '\e805'; } /* '' */
+.icon-bidirectional_charging_station:before { content: '\e805'; } /* '' */
+.icon-one-way_evse:before { content: '\e805'; } /* '' */
+.icon-two-way_evse:before { content: '\e805'; } /* '' */
+.icon-house:before { content: '\e806'; } /* '' */
+.icon-market-EUR:before { content: '\e807'; } /* '' */
+.icon-market-KRW:before { content: '\e808'; } /* '' */
+.icon-solar:before { content: '\e809'; } /* '' */
+.icon-time:before { content: '\e80a'; } /* '' */
+.icon-seita_logo:before { content: '\e80b'; } /* '' */
+.icon-seita_bird:before { content: '\e80c'; } /* '' */
+.icon-seita:before { content: '\e80d'; } /* '' */
+.icon-wind-blades:before { content: '\e80e'; } /* '' */
+.icon-wind-tower:before { content: '\e80f'; } /* '' */
+
+.icon-batteries:before { content: '\e801'; } /* '' */
+.icon-buildings:before { content: '\e803'; } /* '' */
+.icon-charging_stations:before { content: '\e805'; } /* '' */
+.icon-bidirectional_charging_stations:before { content: '\e805'; } /* '' */

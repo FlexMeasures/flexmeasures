@@ -3,7 +3,7 @@
 Supplier
 ========
 
-For the BVP, the Supplier represents the balance responsible party that request flexibility from asset owners.
+For |FLEXMEASURES_PLATFORM_NAME|, the Supplier represents the balance responsible party that request flexibility from asset owners.
 
 A Supplier can access the following services:
 
@@ -18,22 +18,22 @@ A Supplier can access the following services:
 Get prognosis
 -------------
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.get_prognosis
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures.api_v1_1.get_prognosis
 
 .. _post_price_data_supplier:
 
 Post price data
 ---------------
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.post_price_data
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures.api_v1_1.post_price_data
 
-..  .. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.post_flex_request
+..  .. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures.api_v1_1.post_flex_request
 
-..  .. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.get_flex_offer
+..  .. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures.api_v1_1.get_flex_offer
 
-..  .. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.post_flex_order
+..  .. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures.api_v1_1.post_flex_order

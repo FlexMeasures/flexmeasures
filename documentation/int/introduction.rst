@@ -55,5 +55,5 @@ a Python wrapper for the Smappee API, which can retrieve sensor data and control
     https://github.com/EnergieID/smappy/wiki
 
 The API can be used to retrieve meter data (with a specific resolution) of individual devices using the `get_sensor_consumption` function.
-This data can then be sent to the BVP using the `post_meter_data` endpoint.
-In addition, device messages from the BVP intended to curtail consumption (for a specific duration) can be sent to individual devices using the `actuator_off` function.
+This data can then be sent to |FLEXMEASURES_PLATFORM_NAME| using the `post_meter_data` endpoint.
+In addition, device messages from |FLEXMEASURES_PLATFORM_NAME| intended to curtail consumption (for a specific duration) can be sent to individual devices using the `actuator_off` function.

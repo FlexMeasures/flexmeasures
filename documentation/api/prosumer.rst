@@ -19,53 +19,53 @@ A Prosumer can access the following services:
 Post meter data
 ---------------
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.post_meter_data
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.post_meter_data
 
 .. _post_prognosis_prosumer:
 
 Post prognosis
 --------------
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.post_prognosis
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.post_prognosis
 
 .. _get_meter_data_prosumer:
 
 Get meter data
 --------------
 
-A Prosumer can query the BVP web service for its own meter data using the *getMeterData* service.
+A Prosumer can query the |FLEXMEASURES_PLATFORM_NAME| web service for its own meter data using the *getMeterData* service.
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.get_meter_data
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.get_meter_data
 
 .. _get_prognosis_prosumer:
 
 Get prognosis
 -------------
 
-A Prosumer can query the BVP web service for prognoses of its own meter data using the *getPrognosis* service.
+A Prosumer can query the |FLEXMEASURES_PLATFORM_NAME| web service for prognoses of its own meter data using the *getPrognosis* service.
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_1.get_prognosis
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_1.get_prognosis
 
 .. _post_udi_event_prosumer:
 
 Post UDI event
 --------------
 
-A Prosumer can post its flexibility constraints to the BVP web service as UDI events using the *postUdiEvent* service.
+A Prosumer can post its flexibility constraints to the |FLEXMEASURES_PLATFORM_NAME| web service as UDI events using the *postUdiEvent* service.
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_2.post_udi_event
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_2.post_udi_event
 
 .. _get_device_message_prosumer:
 
 Get device message
 ------------------
 
-A Prosumer can query the BVP web service for control signals using the *getDeviceMessage* service.
+A Prosumer can query the |FLEXMEASURES_PLATFORM_NAME| web service for control signals using the *getDeviceMessage* service.
 
-.. autoflask:: bvp.app:create()
-    :endpoints: bvp_api_v1_2.get_device_message
+.. autoflask:: flexmeasures.app:create()
+    :endpoints: flexmeasures_api_v1_2.get_device_message
