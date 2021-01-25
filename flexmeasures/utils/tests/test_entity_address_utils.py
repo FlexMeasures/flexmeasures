@@ -56,16 +56,23 @@ from flexmeasures.utils.time_utils import get_first_day_of_next_month
             ),
             "event",
             "http://staging.flexmeasures.io:4444",
-            "ea1.2021-01.io.flexmeasures.staging:40:30:302:soc",
+            "ea1.2022-09.io.flexmeasures.staging:40:30:302:soc",
         ),
     ],
 )
-def test_build_entity_address(info: dict, entity_type: str, host: str, exp_result: str):
-    if exp_result.startswith("ea1"):
-        assert build_entity_address(info, entity_type, host) == exp_result
-    else:
-        with pytest.raises(EntityAddressException, match=exp_result):
-            build_entity_address(info, entity_type, host) == exp_result
+def test_build_entity_address(
+    app, info: dict, entity_type: str, host: str, exp_result: str
+):
+    with app.app_context():
+        app.config["FLEXMEASURES_HOSTS_AND_AUTH_START"] = {
+            "flexmeasures.io": "2021-01",
+            "staging.flexmeasures.io": "2022-09",
+        }
+        if exp_result.startswith("ea1"):
+            assert build_entity_address(info, entity_type, host) == exp_result
+        else:
+            with pytest.raises(EntityAddressException, match=exp_result):
+                build_entity_address(info, entity_type, host) == exp_result
 
 
 @pytest.mark.parametrize(
@@ -188,7 +195,7 @@ def test_reverse_domain_name():
     )
 
 
-def test_build_ea_scheme_and_naming_authority():
+def test_build_ea_scheme_and_naming_authority(app):
     assert build_ea_scheme_and_naming_authority(
         "localhost:5000"
     ) == "ea1.%s.localhost" % get_first_day_of_next_month().strftime("%Y-%m")
@@ -196,10 +203,15 @@ def test_build_ea_scheme_and_naming_authority():
         build_ea_scheme_and_naming_authority("flexmeasures.io")
         == "ea1.2021-01.io.flexmeasures"
     )
-    assert (
-        build_ea_scheme_and_naming_authority("company.flexmeasures.io")
-        == "ea1.2021-01.io.flexmeasures.company"
-    )
+    with app.app_context():
+        app.config["FLEXMEASURES_HOSTS_AND_AUTH_START"] = {
+            "flexmeasures.io": "2021-01",
+            "company.flexmeasures.io": "2020-04",
+        }
+        assert (
+            build_ea_scheme_and_naming_authority("company.flexmeasures.io")
+            == "ea1.2020-04.io.flexmeasures.company"
+        )
     assert (
         build_ea_scheme_and_naming_authority("company.flexmeasures.io", "1999-12")
         == "ea1.1999-12.io.flexmeasures.company"
