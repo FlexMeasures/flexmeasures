@@ -41,6 +41,6 @@ def test_error_handling(
     assert res.status_code == status_code
     assert "text/html" in res.content_type
     # test if we rendered the base template
-    assert b"- FlexMeasures Platform" in res.data
+    assert b"- FlexMeasures" in res.data
     if expected_message:
         assert expected_message.encode() in res.data

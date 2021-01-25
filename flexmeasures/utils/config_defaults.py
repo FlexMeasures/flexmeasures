@@ -64,6 +64,7 @@ class Config(object):
     FLEXMEASURES_MODE = ""
     FLEXMEASURES_PUBLIC_DEMO = False
     FLEXMEASURES_TIMEZONE = "Asia/Seoul"
+    FLEXMEASURES_SHOW_CONTROL_UI = False
     FLEXMEASURES_HIDE_NAN_IN_UI = False
     FLEXMEASURES_DEMO_YEAR = 2015
     # Configuration used for entity addressing:

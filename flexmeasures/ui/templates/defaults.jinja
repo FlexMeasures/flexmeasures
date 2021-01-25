@@ -3,9 +3,6 @@
 
 {# Front-end app naming #}
 
-{% set app_name = 'FlexMeasures Platform' %}
-{% set app_name_short = 'FlexMeasures' %}
-
 {% set show_queues = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
 
 
@@ -18,10 +15,12 @@
 {% do navigation_bar.append(('users', 'users', 'Users', 'users')) if current_user.has_role('admin') %}
 {% do navigation_bar.extend([
     ('portfolio', 'portfolio', 'Portfolio overview', 'briefcase'),
-    ('control', 'control', 'Balancing actions', 'wrench'),
     ('analytics', 'analytics', 'Analytics', 'bar-chart'),
     ('upload', 'upload', 'Upload data', 'cloud-upload'),
 ]) if current_user.is_authenticated %}
+{% do navigation_bar.extend([
+    ('control', 'control', 'Flexibility actions', 'wrench'),
+]) if FLEXMEASURES_SHOW_CONTROL_UI %}
 {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', 'tasks')) if show_queues %}
 {% do navigation_bar.append(('account', 'account', '', 'user')) if current_user.is_authenticated %}
 {% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists and current_user.is_authenticated %}

@@ -118,7 +118,12 @@ def add_jinja_filters(app):
 
 def add_jinja_variables(app):
     # Set variables for Jinja template context
-    for v in ("FLEXMEASURES_MODE", "FLEXMEASURES_PUBLIC_DEMO"):
+    for v in (
+        "FLEXMEASURES_MODE",
+        "FLEXMEASURES_PLATFORM_NAME",
+        "FLEXMEASURES_SHOW_CONTROL_UI",
+        "FLEXMEASURES_PUBLIC_DEMO",
+    ):
         app.jinja_env.globals[v] = app.config.get(v, "")
     app.jinja_env.globals["documentation_exists"] = (
         True

@@ -9,6 +9,7 @@ def test_dashboard_responds(client, as_prosumer):
         url_for("flexmeasures_ui.dashboard_view"), follow_redirects=True
     )
     assert dashboard.status_code == 200
+    assert b"This dashboard shows you" in dashboard.data
     assert b"Status of my assets" in dashboard.data
 
 

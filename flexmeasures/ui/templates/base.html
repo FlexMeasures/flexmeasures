@@ -7,7 +7,8 @@
 
 <head>
     {% block head %}
-    <title>{% block title %}{% endblock %} - {{ app_name }}</title>
+    <title>{% block title %}{% endblock %} - {{ FLEXMEASURES_PLATFORM_NAME }}
+    </title>
     {% endblock head %}
     <meta charset="windows-1252">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -64,7 +65,7 @@
                     <span class="icon-bar"></span>
                 </button>
                 <span class="navbar-brand">
-                    <a href="/"><span class="navbar-tool-name">{{ app_name_short }}</span></a>
+                    <a href="/"><span class="navbar-tool-name">{{ FLEXMEASURES_PLATFORM_NAME }}</span></a>
                     {{ self.title() }} {% if user_is_logged_in and not "Error" in self.title() %} for {{ user_name }} on
                     Jeju island {% endif %}
                 </span>
@@ -232,7 +233,7 @@
     <footer class="page-footer font-small pt-4 mt-4">
         <div class="footer text-center">
             <div class="container-fluid">
-                FlexMeasures technology is created by <a href="https://seita.nl/">Seita Flexible Energy</a>,
+                FlexMeasures technology is created by <a href="https://seita.nl/">Seita Energy Flexibility</a>,
                 in cooperation with <a href="https://aoneeng.com/">A1 Engineering</a>
                 &copy
                 <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.

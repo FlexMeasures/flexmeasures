@@ -17,16 +17,17 @@
                     actions (such as shifting or curtailing energy use).
                 </p>
                 <p>
-                    The FlexMeasures Platform is a tool for businesses operating electric devices.
+                    The {{ FLEXMEASURES_PLATFORM_NAME }} Platform is a tool for businesses operating electric devices.
                     Its purpose is to realise the best value for device owners by scheduling balancing actions.
-                    If the devices draw from or supply to the power grid, FlexMeasures can assist in
+                    If the devices draw from or supply to the power grid, {{ FLEXMEASURES_PLATFORM_NAME }} can assist in
                     selling balancing services to energy markets.
                     It fulfills this purpose with three services: Monitoring, forecasting and scheduling.
-                    FlexMeasures is designed as open-source software to empower energy service companies while they
+                    {{ FLEXMEASURES_PLATFORM_NAME }} is designed as open-source software to empower energy service
+                    companies while they
                     maintain autonomy over their operations and their technology roadmap.
                 </p>
                 <p>
-                    FlexMeasures is compliant with the Universal Smart Energy Framework (<a
+                    {{ FLEXMEASURES_PLATFORM_NAME }} is compliant with the Universal Smart Energy Framework (<a
                         href="https://www.usef.energy/download-the-framework/a-flexibility-market-design/">USEF</a>), a
                     “flexibility market design for the trading and commoditisation of energy flexibility and the
                     architecture, tools and rules to make it work effectively.
@@ -45,7 +46,7 @@
                     EVSE).
                 </p>
                 <p>
-                    FlexMeasures supports automated scheduling of charging profiles through its API.
+                    {{ FLEXMEASURES_PLATFORM_NAME }} supports automated scheduling of charging profiles through its API.
                     Charging profiles are optimised against applicable market conditions like wholesale prices and
                     contracted (time-of-use) tariffs.
                     Charging preferences can be set to reflect whether EV owners are in a hurry or parking for some
@@ -70,7 +71,9 @@
         <div class="col-sm-8">
             <div class="row eq-height">
                 <div class="col-sm-12">
-                    <h3>{% if user_is_admin %}FlexMeasures ― asset status:{% else %}Status of my assets:{% endif%}
+                    <h3>
+                        {% if user_is_admin %}{{ FLEXMEASURES_PLATFORM_NAME }} ― asset status:
+                        {% else %}Status of my assets:{% endif%}
                     </h3>
 
                     <div id="mapid"></div>
@@ -119,7 +122,7 @@
                             {% endif %}
                             {% if user_is_admin or FLEXMEASURES_MODE == "demo" %}
                             <tr>
-                                <td>FlexMeasures total:</td>
+                                <td>{{ FLEXMEASURES_PLATFORM_NAME }} total:</td>
 
                                 {% for asset_group in asset_groups %}
                                 {% if (FLEXMEASURES_MODE == "demo" and asset_groups[asset_group].count_all > 0) or (FLEXMEASURES_MODE != "demo" and asset_groups[asset_group].count > 0)%}
