@@ -228,7 +228,10 @@ def build_ea_scheme_and_naming_authority(
 
     if host_auth_start_month is None:
         config_var_domain_key = ".".join(
-            filter(lambda x: x, [domain_parts.domain, domain_parts.suffix])
+            filter(
+                lambda x: x,
+                [domain_parts.subdomain, domain_parts.domain, domain_parts.suffix],
+            )
         )
         if config_var_domain_key in current_app.config.get(
             "FLEXMEASURES_HOSTS_AND_AUTH_START", {}
@@ -239,7 +242,9 @@ def build_ea_scheme_and_naming_authority(
         elif domain_parts.domain in ("localhost", "127.0.0.1"):
             host_auth_start_month = get_first_day_of_next_month().strftime("%Y-%m")
         else:
-            raise Exception(f"Could not find out when authority for {host} started.")
+            raise Exception(
+                f"Could not find out when authority for {config_var_domain_key} started. Is FLEXMEASURES_HOSTS_AND_AUTH_START configured for it?"
+            )
     regex = r"^\d{4}-\d{2}$"
     if not re.search(regex, host_auth_start_month):
         raise ValueError(
