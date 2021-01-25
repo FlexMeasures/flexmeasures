@@ -1,8 +1,22 @@
 #!/bin/bash
 
-# Secret key is used by Flask for encrypting the session keys for example
+##############################################
+# This script sets up a new FlexMeasures instance
+##############################################
+
+
+# A secret key is used by Flask, for example, to encrypt the session
 mkdir -p ./instance
 head -c 24 /dev/urandom > ./instance/secret_key
+
+
+# Install dependencies
+apt-get update
+apt-get -y install postgresql-client coinor-cbc
+# set PGDB, PGUSER and PGPASSWORD as envs for this
+psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U $PGUSER $PGBD;
+make install-deps
+
 
 # Wait for the DB service to be up.
 

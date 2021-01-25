@@ -14,11 +14,7 @@ buildAndTestStep: &buildAndTestStep
     caches:
         - pip
     script:
-        - ci/SETUP.sh
-        - apt-get update
-        - apt-get -y install postgresql-client coinor-cbc
-        - PGPASSWORD=flexmeasures_test psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U flexmeasures_test flexmeasures_test;
-        - make install-deps
+        - PGDB=flexmeasures_test PGUSER=flexmeasures_test PGPASSWORD=flexmeasures_test ci/SETUP.sh
         - make test
     services:
         - postgres

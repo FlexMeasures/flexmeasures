@@ -1,10 +1,10 @@
 #!/bin/bash -e
 
-# The purpose of this script is to deploy built and tested code
-# to the staging server.
+# The purpose of this script is to deploy built and tested code to the staging server.
+# You can use a git post-receive hook to update your app afterwards (see ci/Readme.md)
 
-# Add PythonAnywhere as a git remote and push the code to that repo
-git remote add pythonanywhere seita@ssh.pythonanywhere.com:/home/seita/flexmeasures-staging/flexmeasures.git
+# Add a git remote (see ci/Readme.md for help)
+git remote add staging $STAGING_REMOTE_REPO
 
-# Push the branch being deployed to the PythonAnywhere remote. Also push any annotated tags (with a -m message).
-git push --follow-tags -u pythonanywhere $BITBUCKET_BRANCH
+# Push the branch being deployed to the git remote. Also push any annotated tags (with a -m message).
+git push --follow-tags --set-upstream staging $BITBUCKET_BRANCH

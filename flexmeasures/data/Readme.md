@@ -35,7 +35,10 @@ On Windows:
 
 (Otherwise, pandas can get confused with daylight saving time.)
 
-Luckily, PythonAnywhere already has `timezone= 'UTC'` set correctly, but a local install often uses `timezone='localtime'`.
+Luckily, many web hosters already have `timezone= 'UTC'` set correctly by default,
+but local postgres installations often use `timezone='localtime'`.
+
+In any case, check both your local installation and the server, like this:
 
 Find the `postgres.conf` file. Mine is at `/etc/postgresql/9.6/main/postgresql.conf`.
 You can also type `SHOW config_file;` in a postgres console session (as superuser) to find the config file.

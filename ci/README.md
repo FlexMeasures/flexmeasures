@@ -1,14 +1,21 @@
-# WSGI configuration
+# Continuous integration
+
+Here you can learn how to get FlexMeasures onto a server.
+
+We talk about serving FlexMeasures in a WSGI setting and deploying on a server via git.
+
+TODO: Dockerization
+
+
+## WSGI configuration
 
 Here is an example how to serve this application as WSGI app:
 
 
     # This file contains the WSGI configuration required to serve up your
-    # web application at http://<your-username>.pythonanywhere.com/
+    # web application.
     # It works by setting the variable 'application' to a WSGI handler of some
     # description.
-    #
-    # The below has been auto-generated for your Flask project
 
     import sys
     import os
@@ -25,37 +32,52 @@ Here is an example how to serve this application as WSGI app:
     from flexmeasures.app import create as create_app
     application = create_app()
 
-# Deployment
 
-To deploy the Seita FlexMeasures project on PythonAnywhere follow these steps.
+## Install the linear solver on the server
 
-## Bitbucket Pipelines
+To compute schedules, we use a linear optimization solver.
+The Cbc solver has to be installed from source, on the server where FlexMeasures runs.
+We provide [an example script](ci/install-cbc.sh) to do that, where you can also
+pass a directory for the installation.
+In case you want to install a later version, adapt the version in the script. 
 
-The Bitbucket Pipeline is configured with the bitbucket-pipelines.yml file.
-In this file we setup the project, run the tests and linters, and finish with deploying the code to PythonAnywhere.
 
-## Add PythonAnywhere Origin
+## Automate deployment via Bitbucket Pipelines
 
-The deployment uses the hooks functionality of Git. We add PythonAnywhere as a
-remote origin and push to the PythonAnywhere git repo. The step below requires that
-a deployment key be setup in the FlexMeasures repo. Once the code is built, the following
-Git remote is added and the code is pushed. The below step pushes to the FlexMeasures staging repo.
+The Bitbucket Pipeline is configured with the `bitbucket-pipelines.yml` file.
+It reacts to commits being made to the repository, but it can also inspire your custom deployment script.
+In this file we set up the app, run the tests and linters, and if the commit was on the master branch,
+we finish with deploying the code to a staging server (see below).
 
-```
-git remote add pythonanywhere seita@ssh.pythonanywhere.com:/home/seita/flexmeasures-staging
 
-git push --follow-tags -u pythonanywhere $BITBUCKET_BRANCH
-```
+## Deployment on the server via Git
 
-## Install Post-Receive Hook
+We support deployment of the FlexMeasures project on a staging server via Git checkout.
 
-On the PythonAnywhere server, ssh and install the Git Post Receive Hook
-in the repo where you wish to deploy the final code. This will be triggered when a push is received by the Bitbucket repo.
+The deployment uses git's ability to push code to a remote upstream repository.
+We trigger this deployment in `bitbucket-pipelines.yml` (see above)
+With the hooks functionality of Git, a post-receive script can then (re)start the FlexMeasures app.
 
-The script below can be a Post Receive Hook (save as `hooks/post-receive` in your remote origin repo and update paths).
+### Remote origin
+
+To see how a remote repo is added, see `DEPLOY.sh`. There, we add the remote and also push the current branch there.
+
+To make this work, we need three things:
+
+- Make sure the remote git repo exists (is cloned)
+- Add the setting `STAGING_REMOTE_REPO` to the deployment environment (e.g. Bitbucket pipelines). An example value is `seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git`.
+- Set up an SSH key for deployment in the deployment environment, so that the server accepts the code.
+
+
+### Install Post-Receive Hook
+
+Only pushing the code will not deploy the updated FlexMeasures. For this, we need to trigger a script.
+Log on to the server (via SSH) and install the Git Post Receive Hook in the remote repo where we deployed the code (see above). This hook will be triggered when a push is received from the deployment environment.
+
+The example script below can be a Post Receive Hook (save as `hooks/post-receive` in your remote origin repo and update paths).
 It will force checkout the master branch, update dependencies, upgrade the database structure,
 update the documentation and finally touch the wsgi.py file.
-This last step is documented by PythonAnywhere as a way to soft restart the running application.
+This last step is often a way to soft restart the running application, but here you need to adapt to your circumstances.
 
 
 ```#!/bin/bash
@@ -85,8 +107,3 @@ echo "RESTARTING APPLICATION ..."
 touch $PATH_TO_WSGI
 ```
 
-
-## Install the linear solver
-
-The Cbc solver has to be installed from source.
-We provide [an example script to that](ci/install-cbc.sh). You might want to install a later version, then adapt the version in the script. 

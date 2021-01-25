@@ -24,3 +24,5 @@ make install
 # adding new binaries to PATH
 # NOTE: This line might need to be added to your ~/.bashrc or the like
 export PATH=$PATH:$SOFTWARE_DIR/Cbc-2.9/bin
+
+echo "Done. The command 'cbc' should now work on this machine."

@@ -92,10 +92,6 @@ def create(env=None) -> Flask:
 
     register_api_at(app)
 
-    if app.cli:
-        with app.app_context():
-            import flexmeasures.utils.pa_ssl_cert_renewal  # noqa: F401
-
     # Profile endpoints (if needed, e.g. during development)
     @app.before_request
     def before_request():
