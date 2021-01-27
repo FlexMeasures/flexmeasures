@@ -23,7 +23,7 @@ from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, W
 from flexmeasures.data.models.user import User, Role, RolesUsers
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.data.queries.utils import read_sqlalchemy_results
+from flexmeasures.data.queries.utils import parse_sqlalchemy_results
 from flexmeasures.utils.time_utils import ensure_local_timezone
 from flexmeasures.data.transactional import as_transaction
 
@@ -573,12 +573,9 @@ def load_tables(
         and Path("%s/%s" % (backup_path, backup_name)).is_dir()
     ):
         affected_classes = get_affected_classes(structure, data)
-        sequence_names = [
-            s["sequence_name"]
-            for s in read_sqlalchemy_results(
-                db.session, "SELECT sequence_name from information_schema.sequences;"
-            )
-        ]
+        statement = "SELECT sequence_name from information_schema.sequences;"
+        data = db.session.execute(statement).fetchall()
+        sequence_names = [s["sequence_name"] for s in parse_sqlalchemy_results(data)]
         for c in affected_classes:
             file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
             sequence_name = "%s_id_seq" % c.__tablename__

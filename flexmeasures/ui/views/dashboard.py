@@ -1,10 +1,16 @@
 from bokeh.resources import CDN
-from flask import request, session, current_app
+from flask import request, current_app
 from flask_security import login_required
+from flask_security.core import current_user
 
+from flexmeasures.data.config import db
 from flexmeasures.ui.views import flexmeasures_ui
-from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
-from flexmeasures.data.services.resources import get_asset_group_queries, Resource
+from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, clear_session
+from flexmeasures.data.services.resources import (
+    get_asset_group_queries,
+    Resource,
+    get_center_location,
+)
 
 
 # Dashboard and main landing page
@@ -20,13 +26,7 @@ def dashboard_view():
     """
     msg = ""
     if "clear-session" in request.values:
-        for skey in [
-            k for k in session.keys() if k not in ("_id", "user_id", "csrf_token")
-        ]:
-            current_app.logger.info(
-                "Removing %s:%s from session ... " % (skey, session[skey])
-            )
-            del session[skey]
+        clear_session()
         msg = "Your session was cleared."
 
     aggregate_groups = ["renewables", "EVSE"]
@@ -47,9 +47,10 @@ def dashboard_view():
 
     return render_flexmeasures_template(
         "views/dashboard.html",
-        bokeh_html_embedded=bokeh_html_embedded,
-        show_map=True,
         message=msg,
+        bokeh_html_embedded=bokeh_html_embedded,
+        mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+        map_center=get_center_location(db, user=current_user),
         asset_groups=map_asset_groups,
         aggregate_groups=aggregate_groups,
     )

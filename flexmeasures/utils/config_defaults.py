@@ -54,6 +54,8 @@ class Config(object):
 
     DARK_SKY_API_KEY: Optional[str] = None
 
+    MAPBOX_ACCESS_TOKEN: Optional[str] = None
+
     JSONIFY_PRETTYPRINT_REGULAR = False
 
     RQ_DASHBOARD_POLL_INTERVAL: int = (

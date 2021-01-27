@@ -261,12 +261,13 @@
 
     // create Map with tiles
     var assetMap = L
-        .map('mapid', { center: [36.411455, 127.405048], zoom: 6, layers: tileLayer })
+        .map('mapid', { center: [{{ map_center[0] }}, {{ map_center[1] }}], zoom: 6 })
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
             });
         });
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
     var mcgLayerSupportGroup = L.markerClusterGroup.layerSupport();
     var control = L.control.layers(null, null, { collapsed: true });
 

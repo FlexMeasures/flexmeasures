@@ -204,7 +204,7 @@
                 $('[data-toggle="tooltip"]').tooltip();
             });
         });
-    tileLayer.addTo(assetMap);
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
 
     // create marker
     var {{ asset.asset_type_name | parameterize }}_icon = new L.DivIcon({

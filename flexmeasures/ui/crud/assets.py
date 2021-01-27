@@ -209,6 +209,7 @@ class AssetCrud(FlaskView):
             msg="",
             latest_measurement_time_str=latest_measurement_time_str,
             asset_plot_html=asset_plot_html,
+            mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
         )
 
     @login_required
@@ -304,6 +305,7 @@ class AssetCrud(FlaskView):
             msg=msg,
             latest_measurement_time_str=latest_measurement_time_str,
             asset_plot_html=asset_plot_html,
+            mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
         )
 
     @login_required

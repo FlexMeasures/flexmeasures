@@ -85,6 +85,16 @@ def render_flexmeasures_template(html_filename: str, **variables):
     return render_template(html_filename, **variables)
 
 
+def clear_session():
+    for skey in [
+        k for k in session.keys() if k not in ("_id", "user_id", "csrf_token")
+    ]:
+        current_app.logger.info(
+            "Removing %s:%s from session ... " % (skey, session[skey])
+        )
+        del session[skey]
+
+
 def set_time_range_for_session():
     """Set period (start_date, end_date and resolution) on session if they are not yet set.
     Also set the forecast horizon, if given."""

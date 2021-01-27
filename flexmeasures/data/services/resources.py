@@ -4,7 +4,7 @@ Generic services for accessing asset data.
 
 from __future__ import annotations
 from functools import cached_property, wraps
-from typing import List, Dict, Type, TypeVar, Union, Optional
+from typing import List, Dict, Tuple, Type, TypeVar, Union, Optional
 from datetime import datetime
 from flexmeasures.utils.flexmeasures_inflection import parameterize, pluralize
 from itertools import groupby
@@ -12,7 +12,7 @@ from itertools import groupby
 from flask_security.core import current_user
 import inflect
 import pandas as pd
-from sqlalchemy.orm.query import Query
+from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 
 from flexmeasures.data.models.assets import (
@@ -23,7 +23,8 @@ from flexmeasures.data.models.assets import (
 )
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.weather import Weather, WeatherSensor, WeatherSensorType
-from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.models.user import User
+from flexmeasures.data.queries.utils import simplify_index, parse_sqlalchemy_results
 from flexmeasures.data.services.time_series import aggregate_values
 from flexmeasures.utils.geo_utils import parse_lat_lng
 from flexmeasures.utils import coding_utils, time_utils
@@ -190,6 +191,32 @@ def mask_inaccessible_assets(
         else:
             asset_queries = asset_queries.filter_by(owner=current_user)
     return asset_queries
+
+
+def get_center_location(db: Session, user: Optional[User]) -> Tuple[float, float]:
+    """
+    Find the center position between all assets.
+    If user is passed and not admin then we only consider assets
+    owned by the user.
+    TODO: if we introduce accounts, this logic should look for these assets.
+    """
+    query = (
+        "Select (min(latitude) + max(latitude)) / 2 as latitude,"
+        " (min(longitude) + max(longitude)) / 2 as longitude"
+        " from asset"
+    )
+    if user and not user.has_role("admin"):
+        query += f" where owner_id = {user.id}"
+    locations: List[dict] = parse_sqlalchemy_results(
+        db.session.execute(query + ";").fetchall()
+    )
+    if (
+        len(locations) == 0
+        or locations[0]["latitude"] is None
+        or locations[0]["longitude"] is None
+    ):
+        return (52.38, 4.88)  # Amsterdam, NL
+    return locations[0]["latitude"], locations[0]["longitude"]
 
 
 def check_cache(attribute):
