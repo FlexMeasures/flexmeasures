@@ -1,0 +1,17 @@
+language: python
+python:
+  - "3.6"
+  - "3.7"
+  - "3.8"
+services:
+  - postgresql
+before_install:
+  - sudo apt-get -y install coinor-cbc
+install:
+  - make install
+before_script:
+  - psql -c "CREATE USER flexmeasures_test WITH UNENCRYPTED PASSWORD 'flexmeasures_test';" -U postgres
+  - psql -c "CREATE DATABASE flexmeasures_test WITH OWNER = flexmeasures_test;" -U postgres
+  - psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U flexmeasures_test flexmeasures_test;
+script:
+  - pytest
