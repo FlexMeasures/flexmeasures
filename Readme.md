@@ -1,7 +1,12 @@
 # The FlexMeasures Platform
 
+[![Build Status](https://travis-ci.com/SeitaBV/flexmeasures.svg?branch=main)](https://travis-ci.com/SeitaBV/flexmeasures)
+
 The *FlexMeasures Platform* is a tool for scheduling flexible actions for energy assets.
-For this purpose, it performs monitoring, forecastig and scheduling services.
+For this purpose, it performs monitoring, forecasting and scheduling services.
+
+Its role is to enhance energy services. Forecasts and schedules are made available via API.
+
 
 ## Build & Run
 

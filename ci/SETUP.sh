@@ -14,7 +14,7 @@ head -c 24 /dev/urandom > ./instance/secret_key
 apt-get update
 apt-get -y install postgresql-client coinor-cbc
 # set PGDB, PGUSER and PGPASSWORD as envs for this
-psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U $PGUSER $PGBD;
+psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U $PGUSER $PGDB;
 make install-deps
 
 
