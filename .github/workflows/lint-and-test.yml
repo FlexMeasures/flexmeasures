@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [ '3.6, '3.8' ]
+        python-version: [ '3.6', '3.8' ]
     name: Get Python (${{ matrix.python-version }}) and checkout Flexmeasures code
     steps:
       - uses: actions/setup-python@v2
