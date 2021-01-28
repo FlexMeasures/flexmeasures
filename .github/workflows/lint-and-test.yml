@@ -4,9 +4,9 @@ on: push
 
 jobs:
   checkout:
+    name: Get Python and checkout Flexmeasures code
     runs-on: ubuntu-latest
     steps:
-      - name: Get Python and checkout Flexmeasures code
       - uses: actions/setup-python@v2
         with:
           python-version: ['3.6', '3.8']
