@@ -15,13 +15,13 @@ test:
 # ---- Documentation ---
 
 update-docs:
-	pip install sphinx sphinxcontrib.httpdomain
+	pip3 install sphinx sphinxcontrib.httpdomain
 	cd documentation; make clean; make html; cd ..
 
 update-docs-pdf:
 	@echo "NOTE: PDF documentation requires packages (on Debian: latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended)"
 	@echo "NOTE: Currently, the docs require some pictures which are not in the git repo atm. Ask the devs."
-	pip install sphinx sphinxcontrib.httpdomain
+	pip3 install sphinx sphinxcontrib.httpdomain
 	cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
 
 # ---- Installation ---
@@ -29,13 +29,13 @@ update-docs-pdf:
 install: install-deps install-flexmeasures
 
 install-for-dev:
-	pip install -q pip-tools
+	pip3 install -q pip-tools
 	make freeze-deps
 	pip-sync requirements/app.txt requirements/dev.txt requirements/test.txt
 	make install-flexmeasures
 
 install-deps:
-	pip install -q pip-tools
+	pip3 install -q pip-tools
 	make freeze-deps
 	pip-sync requirements/app.txt
 
@@ -43,13 +43,13 @@ install-flexmeasures:
 	python setup.py develop
 
 freeze-deps:
-	pip install -q pip-tools
+	pip3 install -q pip-tools
 	pip-compile -o requirements/app.txt requirements/app.in
 	pip-compile -o requirements/dev.txt requirements/dev.in
 	pip-compile -o requirements/test.txt requirements/test.in
 
 upgrade-deps:
-	pip install -q pip-tools
+	pip3 install -q pip-tools
 	pip-compile --upgrade -o requirements/app.txt requirements/app.in
 	pip-compile --upgrade -o requirements/dev.txt requirements/dev.in
 	pip-compile --upgrade -o requirements/test.txt requirements/test.in
