@@ -4,12 +4,15 @@ on: push
 
 jobs:
   checkout:
-    name: Get Python and checkout Flexmeasures code
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '3.6, '3.8' ]
+    name: Get Python (${{ matrix.python-version }}) and checkout Flexmeasures code
     steps:
       - uses: actions/setup-python@v2
         with:
-          python-version: ['3.6', '3.8']
+          python-version: ${{ matrix.python-version }}
       - uses: actions/checkout@v2
   lint:
     needs: checkout
