@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@v2
       - uses: pre-commit/action@v2.0.0
       - run: make install-for-dev
+      - run: mkdir -p ./instance
+      - run: head -c 24 /dev/urandom > ./instance/secret_key
       - name: Run tests
         run: make test
         env:

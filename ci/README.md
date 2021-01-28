@@ -14,8 +14,7 @@ Here is an example how to serve this application as WSGI app:
 
     # This file contains the WSGI configuration required to serve up your
     # web application.
-    # It works by setting the variable 'application' to a WSGI handler of some
-    # description.
+    # It works by setting the variable 'application' to a WSGI handler of some description.
 
     import sys
     import os
@@ -75,7 +74,7 @@ Only pushing the code will not deploy the updated FlexMeasures. For this, we nee
 Log on to the server (via SSH) and install the Git Post Receive Hook in the remote repo where we deployed the code (see above). This hook will be triggered when a push is received from the deployment environment.
 
 The example script below can be a Post Receive Hook (save as `hooks/post-receive` in your remote origin repo and update paths).
-It will force checkout the master branch, update dependencies, upgrade the database structure,
+It will force checkout the main branch, update dependencies, upgrade the database structure,
 update the documentation and finally touch the wsgi.py file.
 This last step is often a way to soft restart the running application, but here you need to adapt to your circumstances.
 
