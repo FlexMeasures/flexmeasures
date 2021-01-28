@@ -3,19 +3,23 @@ name: lint-and-test
 on: push
 
 jobs:
-  lint:
+  checkout:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Get Python and checkout Flexmeasures code
       - uses: actions/setup-python@v2
         with:
           python-version: ['3.6', '3.8']
-      - uses: pre-commit/action@v2.0.0
-  build:
+      - uses: actions/checkout@v2
+  lint:
+    needs: checkout
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
-        uses: actions/checkout@v2
+      - uses: pre-commit/action@v2.0.0
+  build:
+    needs: checkout
+    runs-on: ubuntu-latest
+    steps:
       - name: Build code
         run: make install-for-dev
   test:
@@ -23,9 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run tests
-        uses: actions/setup-python@v2
-        with:
-          python-version: ['3.6', '3.8']
         run: make test
         env:
           POSTGRES_HOST: postgres
