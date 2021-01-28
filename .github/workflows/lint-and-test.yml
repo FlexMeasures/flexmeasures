@@ -6,10 +6,10 @@ on: push
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
+    strategy:  # TODO: make work with pre-commit
       matrix:
         python-version: [ '3.6', '3.8' ]
-    name: Test (${{ matrix.python-version }})
+    name: (${{ matrix.python-version }})
     steps:
       - uses: actions/setup-python@v2
         with:
