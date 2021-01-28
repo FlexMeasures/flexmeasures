@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:  # TODO: make work with pre-commit
       matrix:
-        python-version: [ '3.6', '3.8' ]
+        python-version: [ '3.8', '3.6' ]
     name: (${{ matrix.python-version }})
     steps:
       - uses: actions/setup-python@v2
