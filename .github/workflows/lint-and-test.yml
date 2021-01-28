@@ -2,33 +2,21 @@ name: lint-and-test
 
 on: push
 
+
 jobs:
-  checkout:
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: [ '3.6', '3.8' ]
-    name: Get Python (${{ matrix.python-version }}) and checkout Flexmeasures code
+    name: Test (${{ matrix.python-version }})
     steps:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
       - uses: actions/checkout@v2
-  lint:
-    needs: checkout
-    runs-on: ubuntu-latest
-    steps:
       - uses: pre-commit/action@v2.0.0
-  build:
-    needs: checkout
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build code
-        run: make install-for-dev
-  test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
+      - run: make install-for-dev
       - name: Run tests
         run: make test
         env:
