@@ -35,6 +35,7 @@ jobs:
       PGPORT: 5432
       PGUSER: flexmeasures_test
       PGDB: flexmeasures_test
+      PGPASSWORD: flexmeasures_test
 
     services:
       # Label used to access the service container
@@ -47,9 +48,5 @@ jobs:
           POSTGRES_DB: flexmeasures_test
         ports:
           - 5432:5432
-        # Set health checks to wait until postgres has started
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+        # needed because the postgres container does not provide a healthcheck
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
