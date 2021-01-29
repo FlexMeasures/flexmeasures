@@ -29,7 +29,6 @@ jobs:
       #- run: mkdir -p ./instance
       #- run: head -c 24 /dev/urandom > ./instance/secret_key
       - run: ci/SETUP.sh
-      - name: Run tests
       - run: make test
     env:
       PGHOST: postgres
