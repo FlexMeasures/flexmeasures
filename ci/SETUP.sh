@@ -21,7 +21,7 @@ make install-deps
 # Hack until this feature is ready: https://bitbucket.org/site/master/issues/15244/build-execution-should-wait-until-all
 statusFile=/tmp/postgres-status
 while [[ true ]]; do
-  telnet $PGHOST 5432 &> ${statusFile}
+  telnet $PGHOST $PGPORT &> ${statusFile}
   status=$(grep "Connection refused" ${statusFile} | wc -l)
   echo "Status: $status"
 
