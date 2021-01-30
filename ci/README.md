@@ -34,10 +34,19 @@ Here is an example how to serve this application as WSGI app:
 
 ## Install the linear solver on the server
 
-To compute schedules, we use a linear optimization solver.
-The Cbc solver has to be installed from source, on the server where FlexMeasures runs.
+To compute schedules, FlexMeasures uses the [Cbc](https://github.com/coin-or/Cbc) mixed integer linear optimization solver.
+It is used through [Pyomo](http://www.pyomo.org), so in principle supporting a [different solver](https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers) would be possible.
+
+Cbc needs to present on the server where FlexMeasures runs, under the `cbc` command.
+
+You can install it on Debian like this:
+
+    apt-get install coinor-cbc
+
+If you can't use the package manager on your host, the solver has to be installed from source.
 We provide [an example script](ci/install-cbc.sh) to do that, where you can also
 pass a directory for the installation.
+
 In case you want to install a later version, adapt the version in the script. 
 
 
