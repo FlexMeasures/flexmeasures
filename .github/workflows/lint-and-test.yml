@@ -52,6 +52,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     name: Deploy (to staging)
-    steps
-      - uses: nelonoel/branch-name@v1.0.1  # branch name available as $BRANCH_NAME
+    steps:
+      # makes branch name available as $BRANCH_NAME
+      - uses: nelonoel/branch-name@v1.0.1
       - run: ci/DEPLOY.sh
