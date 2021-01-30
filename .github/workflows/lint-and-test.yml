@@ -4,7 +4,18 @@ on: push
 
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    name: Check (on Python3.8)
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - uses: actions/checkout@v2
+      - uses: pre-commit/action@v2.0.0
+
   test:
+    needs: check
     runs-on: ubuntu-latest
     #strategy:  # TODO: make work with pre-commit
     #  matrix:
@@ -15,19 +26,6 @@ jobs:
         with:
           python-version: 3.8
       - uses: actions/checkout@v2
-      - uses: pre-commit/action@v2.0.0
-      #- name: Setup Postgres database
-      #  uses: Daniel-Marynicz/postgresql-action@master
-      #  with:
-      #    postgres_image_tag: 12-alpine
-      #    app_user: flexmeasures_test
-      #    app_user_password: flexmeasures_test
-      #    app_db: flexmeasures_test
-      #    postgres_extensions: cube,earthdistance    
-      #- run: make install-for-dev
-      #- run: psql -h postgres -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U flexmeasures_test flexmeasures_test;
-      #- run: mkdir -p ./instance
-      #- run: head -c 24 /dev/urandom > ./instance/secret_key
       - run: ci/SETUP.sh
       - run: make test
     env:
@@ -50,3 +48,10 @@ jobs:
           - 5432:5432
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    name: Deploy (to staging)
+    steps
+      - uses: nelonoel/branch-name@v1.0.1  # branch name available as $BRANCH_NAME
+      - run: ci/DEPLOY.sh
