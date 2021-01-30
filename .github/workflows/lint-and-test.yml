@@ -53,6 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Deploy (to staging)
     steps:
+      - uses: actions/checkout@v2
       # makes branch name available as $BRANCH_NAME
       - uses: nelonoel/branch-name@v1.0.1
       - run: ci/DEPLOY.sh
