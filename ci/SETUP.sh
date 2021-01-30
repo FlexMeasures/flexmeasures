@@ -12,7 +12,7 @@ head -c 24 /dev/urandom > ./instance/secret_key
 
 # Install dependencies
 # apt-get update
-apt-get -y install postgresql-client coinor-cbc
+sudo apt-get -y install postgresql-client coinor-cbc
 make install-deps
 
 
