@@ -20,7 +20,7 @@ jobs:
     #strategy:  # TODO: make work with pre-commit
     #  matrix:
     #    python-version: [ '3.8', '3.6' ]
-    name: Test (on Python3.8)
+    name: "Test (on Python3.8)"
     steps:
       - uses: actions/setup-python@v2
         with:
