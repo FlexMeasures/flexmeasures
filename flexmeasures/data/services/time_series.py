@@ -181,11 +181,7 @@ def query_time_series_data(
         if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
             df.index = df.index.map(lambda t: t.replace(year=datetime.now().year))
 
-        flexmeasures_sensor = find_sensor_by_name(name=generic_asset_name)
-        sensor = tb.Sensor(
-            name=generic_asset_name,
-            event_resolution=flexmeasures_sensor.event_resolution,
-        )
+        sensor = find_sensor_by_name(name=generic_asset_name)
         bdf = tb.BeliefsDataFrame(df.reset_index(), sensor=sensor)
 
         # re-sample data to the resolution we need to serve

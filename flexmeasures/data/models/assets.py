@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple, Union
 from datetime import timedelta
 
 import isodate
-
+import timely_beliefs as tb
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
@@ -68,7 +68,7 @@ class AssetType(db.Model):
         return "<AssetType %r>" % self.name
 
 
-class Asset(db.Model):
+class Asset(db.Model, tb.SensorDBMixin):
     """Each asset is an energy- consuming or producing hardware. """
 
     id = db.Column(db.Integer, primary_key=True)

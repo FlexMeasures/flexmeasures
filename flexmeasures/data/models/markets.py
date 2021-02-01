@@ -1,6 +1,7 @@
 from typing import Dict
 from datetime import timedelta
 
+import timely_beliefs as tb
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
@@ -40,7 +41,7 @@ class MarketType(db.Model):
         return "<MarketType %r>" % self.name
 
 
-class Market(db.Model):
+class Market(db.Model, tb.SensorDBMixin):
     """Each market is a pricing service."""
 
     id = db.Column(db.Integer, primary_key=True)

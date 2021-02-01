@@ -2,6 +2,7 @@ from typing import Dict, Tuple
 from datetime import timedelta
 import math
 
+import timely_beliefs as tb
 from sqlalchemy.orm import Query
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.expression import func
@@ -35,7 +36,7 @@ class WeatherSensorType(db.Model):
         return "<WeatherSensorType %r>" % self.name
 
 
-class WeatherSensor(db.Model):
+class WeatherSensor(db.Model, tb.SensorDBMixin):
     """A weather sensor has a location on Earth and measures weather values of a certain weather sensor type, such as
     temperature, wind speed and radiation."""
 
