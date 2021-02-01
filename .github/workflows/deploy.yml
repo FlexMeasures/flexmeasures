@@ -22,8 +22,8 @@ jobs:
       - name: Install SSH key
         uses: shimataro/ssh-key-action@v2
         with:
-          key: ${{ secrets.SSH_DEPLOYMENT_KEY }}
-          name: id_github
+          key: ${{ secrets.SSH_DEPLOYMENT_KEY }}  # private ssh key
+          # name: id_github
           known_hosts: ${{ secrets.KNOWN_DEPLOYMENT_HOSTS }}  # make via ssh-keyscan -t rsa <your host>
       - run: ci/DEPLOY.sh
     env:
