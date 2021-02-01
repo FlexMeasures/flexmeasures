@@ -1,0 +1,19 @@
+name: deploy-to-staging
+
+on: push
+
+jobs:
+  deploy:
+    name: Deploy (to staging)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for tests to pass
+        uses: lewagon/wait-on-check-action@v0.2
+        with:
+          ref: main
+          check-name: test # name of the job we wait for (omit to wait for all checks)
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 20 # seconds
+      - uses: actions/checkout@v2
+      - uses: nelonoel/branch-name@v1.0.1 # makes branch name available as $BRANCH_NAME
+      - run: ci/DEPLOY.sh
