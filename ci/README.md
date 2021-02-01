@@ -50,12 +50,12 @@ pass a directory for the installation.
 In case you want to install a later version, adapt the version in the script. 
 
 
-## Automate deployment via Bitbucket Pipelines
+## Automate deployment via Github actions
 
-The Bitbucket Pipeline is configured with the `bitbucket-pipelines.yml` file.
-It reacts to commits being made to the repository, but it can also inspire your custom deployment script.
-In this file we set up the app, run the tests and linters, and if the commit was on the master branch,
-we finish with deploying the code to a staging server (see below).
+Github action workflows are in th e `.github/workflows` directory.
+These workflows are triggered by commits being pushed to the repository, but it can also inspire your custom deployment script.
+In `lint-and-test.yml`, we set up the app, run the tests and linters.
+If testing succeeds and if the commit was on the `main` branch, `deploy.yml` deploys the code to a staging server (see below).
 
 
 ## Deployment on the server via Git
@@ -63,7 +63,7 @@ we finish with deploying the code to a staging server (see below).
 We support deployment of the FlexMeasures project on a staging server via Git checkout.
 
 The deployment uses git's ability to push code to a remote upstream repository.
-We trigger this deployment in `bitbucket-pipelines.yml` (see above)
+We trigger this deployment in `deploy.yml` (see above)
 With the hooks functionality of Git, a post-receive script can then (re)start the FlexMeasures app.
 
 ### Remote origin
@@ -73,8 +73,8 @@ To see how a remote repo is added, see `DEPLOY.sh`. There, we add the remote and
 To make this work, we need three things:
 
 - Make sure the remote git repo exists (is cloned)
-- Add the setting `STAGING_REMOTE_REPO` to the deployment environment (e.g. Bitbucket pipelines). An example value is `seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git`.
-- Set up an SSH key for deployment in the deployment environment, so that the server accepts the code.
+- Add the setting `STAGING_REMOTE_REPO` to the deployment environment (e.g. `deploy.yml` expects it in the repositiry secrets). An example value is `seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git`.
+- Set up an SSH_DEPLOYMENT_KEY for deployment in the deployment environment (e.g. ), so that the server accepts the code. The public part should be in `~/.ssh/authorized_keys` on your server.
 
 
 ### Install Post-Receive Hook
