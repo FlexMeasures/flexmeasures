@@ -4,7 +4,7 @@ on: push  # TODO: to main after it works on each branch
 
 jobs:
   deploy:
-    name: Deploy (to staging)
+    name: "Deploy (to staging)"
     runs-on: ubuntu-latest
     steps:
       - name: Wait for tests to pass
@@ -12,7 +12,7 @@ jobs:
         with:
           ref: ${{ github.ref }}
           # check-name: "Test (on Python3.8)" # name of the job we wait for (omit to wait for all checks)
-          running-workflow-name: 'deploy'  # name of the check that will wait for other checks
+          running-workflow-name: "Deploy (to staging)"  # name of the check that will wait for other checks
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 20 # seconds
       - uses: actions/checkout@v2
