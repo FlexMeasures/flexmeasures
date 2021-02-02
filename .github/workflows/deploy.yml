@@ -1,6 +1,9 @@
 name: deploy-to-staging
 
-on: push  # TODO: to main after it works on each branch
+on: 
+  push:
+    branches:
+      - main
 
 jobs:
   deploy:
