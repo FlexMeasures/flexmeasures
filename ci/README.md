@@ -2,7 +2,7 @@
 
 Here you can learn how to get FlexMeasures onto a server.
 
-We talk about serving FlexMeasures in a WSGI setting and deploying on a server via git.
+We talk about serving FlexMeasures in a WSGI setting, installing the linear solver and deploying on a (staging) server via git.
 
 TODO: Dockerization
 
@@ -52,35 +52,50 @@ In case you want to install a later version, adapt the version in the script.
 
 ## Automate deployment via Github actions
 
-Github action workflows are in th e `.github/workflows` directory.
-These workflows are triggered by commits being pushed to the repository, but it can also inspire your custom deployment script.
-In `lint-and-test.yml`, we set up the app, run the tests and linters.
-If testing succeeds and if the commit was on the `main` branch, `deploy.yml` deploys the code to a staging server (see below).
+Github action workflows are in the `.github/workflows` directory. We use them to build and deploy the project to our staging server.
 
+Documenting this might be useful for self-hosters, as well.
+The GitHub Actions workflows are triggered by commits being pushed to the repository, but it can also inspire your custom deployment script.
 
-## Deployment on the server via Git
+We'll refer to Github Actions as our "CI environment" and our staging server as the "deployment server". 
+
+- In `lint-and-test.yml`, we set up the app, then run the tests and linters.
+If testing succeeds and if the commit was on the `main` branch, `deploy.yml` deploys the code from the CI environment to the deployment server.
+
+- Of course, the CI environment needs to properly authenticate at the deployment server. 
+
+- With the hooks functionality of Git, a post-receive script can then (re-)start the FlexMeasures app on the deployment server.
+
+Let's review these three steps in detail:
+
+### Using git to deploy code (remote upstream)
 
 We support deployment of the FlexMeasures project on a staging server via Git checkout.
 
-The deployment uses git's ability to push code to a remote upstream repository.
-We trigger this deployment in `deploy.yml` (see above)
-With the hooks functionality of Git, a post-receive script can then (re)start the FlexMeasures app.
+The deployment uses git's ability to push code to a remote upstream repository. This repository needs to be installed on your staging server.
 
-### Remote origin
+We trigger this deployment in `deploy.yml` and it's being done in `DEPLOY.sh`. There, we add the remote and then push the current branch to it.
 
-To see how a remote repo is added, see `DEPLOY.sh`. There, we add the remote and also push the current branch there.
+We thus need to tell the deployment evnironment two things:
 
-To make this work, we need three things:
+- Add the setting `STAGING_REMOTE_REPO` as an environment variable on deployment environment (e.g. `deploy.yml` expects it in the Github repository secrets). An example value is `seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git`.
+- Make sure the env variable `BRANCH_NAME` is set, e.g. to "main", so that the deployment environment knows what exact code to push to your deployment server.
 
-- Make sure the remote git repo exists (is cloned)
-- Add the setting `STAGING_REMOTE_REPO` to the deployment environment (e.g. `deploy.yml` expects it in the repositiry secrets). An example value is `seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git`.
-- Set up an SSH_DEPLOYMENT_KEY for deployment in the deployment environment (e.g. ), so that the server accepts the code. The public part should be in `~/.ssh/authorized_keys` on your server.
+### Authenticate at the deployment server (with an ssh key)
 
+The CI environment needs to authenticate at the deployment server using an SSH key pair (use `ssh-keygen` to create one, using no password).
 
-### Install Post-Receive Hook
+To make this work, we need to configure the following:
 
-Only pushing the code will not deploy the updated FlexMeasures. For this, we need to trigger a script.
-Log on to the server (via SSH) and install the Git Post Receive Hook in the remote repo where we deployed the code (see above). This hook will be triggered when a push is received from the deployment environment.
+- Add the deployment server to `~/.ssh/known_hosts` of the deployment environment, so that the deployment environment knows it's okay to talk to the deployment server (e.g. `deploy.yml` expects it in the Github repository secrets as `KNOWN_DEPLOYMENT_HOSTS`). You can create this entry with `ssh-keyscan -t rsa <your host>`.
+- Add the private part of the ssh key pair as key in the deployment environment, so that the deployment server can accept the pushed code. (e.g. as `~/.ssh/id_rsa`). In `deploy.yml`, we expect it as the secret `SSH_DEPLOYMENT_KEY`, which addds the key for us.
+- Finally, the public part of the key pair should be in `~/.ssh/authorized_keys` on your deployment server.
+
+### (Re-)start FlexMeasures on the deployment server (install Post-Receive Hook)
+
+Only pushing the code will not actually deploy the updated FlexMeasures into a usable web app on the deployment server. For this, we need to trigger a script.
+
+Log on to the server (via SSH) and install a script to (re-)start FlexMeasures as a Git Post Receive Hook in the remote repo where we deployed the code (see above). This hook will be triggered when a push is received from the deployment environment.
 
 The example script below can be a Post Receive Hook (save as `hooks/post-receive` in your remote origin repo and update paths).
 It will force checkout the main branch, update dependencies, upgrade the database structure,
