@@ -66,6 +66,11 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
     )
 
     def __init__(self, **kwargs):
+        # Set default knowledge horizon function for a physical sensor
+        if "knowledge_horizon_fnc" not in kwargs:
+            kwargs["knowledge_horizon_fnc"] = "determine_ex_post_knowledge_horizon"
+        if "knowledge_horizon_par" not in kwargs:
+            kwargs["knowledge_horizon_par"] = {"ex_post_horizon": "PT0H"}
         super(WeatherSensor, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
 
