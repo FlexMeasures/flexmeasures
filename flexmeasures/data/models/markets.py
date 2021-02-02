@@ -1,5 +1,4 @@
 from typing import Dict
-from datetime import timedelta
 
 import timely_beliefs as tb
 from sqlalchemy.orm import Query
@@ -44,15 +43,10 @@ class MarketType(db.Model):
 class Market(db.Model, tb.SensorDBMixin):
     """Each market is a pricing service."""
 
-    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True)
     display_name = db.Column(db.String(80), default="", unique=True)
     market_type_name = db.Column(
         db.String(80), db.ForeignKey("market_type.name"), nullable=False
-    )
-    unit = db.Column(db.String(80), default="", nullable=False)
-    event_resolution = db.Column(
-        db.Interval(), nullable=False, default=timedelta(minutes=0)
     )
 
     def __init__(self, **kwargs):

@@ -1,5 +1,4 @@
 from typing import Dict, List, Tuple, Union
-from datetime import timedelta
 
 import isodate
 import timely_beliefs as tb
@@ -79,13 +78,6 @@ class Asset(db.Model, tb.SensorDBMixin):
     # The name of the assorted AssetType
     asset_type_name = db.Column(
         db.String(80), db.ForeignKey("asset_type.name"), nullable=False
-    )
-    unit = db.Column(db.String(80), default="", nullable=False)
-    # Expected resolution of time series for this sensor.
-    # Defaults to zero, as it can't be None (used for calculations during
-    # query building). You should set this to a realistic value!
-    event_resolution = db.Column(
-        db.Interval(), nullable=False, default=timedelta(minutes=0)
     )
     # How many MW at peak usage
     capacity_in_mw = db.Column(db.Float, nullable=False)
