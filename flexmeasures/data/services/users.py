@@ -11,6 +11,7 @@ from email_validator import (
     EmailNotValidError,
     EmailUndeliverableError,
 )
+from werkzeug.exceptions import NotFound
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -19,6 +20,16 @@ from flexmeasures.data.models.user import User, Role
 
 class InvalidFlexMeasuresUser(Exception):
     pass
+
+
+def get_user(id: str) -> User:
+    """ Get a user.
+    TODO: handle ValueError when a non-parseable id is passed
+    """
+    user: User = User.query.filter_by(id=int(id)).one_or_none()
+    if user is None:
+        raise NotFound
+    return user
 
 
 def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List[User]:

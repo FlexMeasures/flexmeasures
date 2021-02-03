@@ -9,10 +9,10 @@ from wtforms import StringField, FloatField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired
 from flask_security import roles_required
 from flask_security.recoverable import update_password, send_reset_password_instructions
-from werkzeug.exceptions import NotFound
 
 from flexmeasures.data.models.user import User
 from flexmeasures.data.services.users import (
+    get_user,
     get_users,
     toggle_activation_status_of,
     delete_user,
@@ -32,16 +32,6 @@ class UserForm(FlaskForm):
     last_login_at = DateTimeField("Last Login was at", validators=[DataRequired()])
     active = BooleanField("Activation Status", validators=[DataRequired()])
 
-
-# Some helpers
-
-
-# TODO: move to services, handle id not being parseable as int
-def get_user(id: str) -> User:
-    user: User = User.query.filter_by(id=int(id)).one_or_none()
-    if user is None:
-        raise NotFound
-    return user
 
 
 def render_user(user: Optional[User], msg: str = None):

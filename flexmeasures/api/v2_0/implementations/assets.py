@@ -111,8 +111,10 @@ def post():
 
 
 def check_asset(admins_only: bool = False):
-    """Decorator which loads an asset and
-    makes sure that 403 and 404 are raised:
+    """Decorator which loads an asset.
+    Raises 400 if that is not possible due to wrong parameters.
+    Raises 404 if asset not found.
+    Raises 403 if unauthorized: 
     Only admins (or owners if admins_only is False) can access the asset.
 
         @app.route('/asset/<id>')
