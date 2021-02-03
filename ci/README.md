@@ -37,7 +37,7 @@ Here is an example how to serve this application as WSGI app:
 To compute schedules, FlexMeasures uses the [Cbc](https://github.com/coin-or/Cbc) mixed integer linear optimization solver.
 It is used through [Pyomo](http://www.pyomo.org), so in principle supporting a [different solver](https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers) would be possible.
 
-Cbc needs to present on the server where FlexMeasures runs, under the `cbc` command.
+Cbc needs to be present on the server where FlexMeasures runs, under the `cbc` command.
 
 You can install it on Debian like this:
 
@@ -78,7 +78,7 @@ We trigger this deployment in `deploy.yml` and it's being done in `DEPLOY.sh`. T
 
 We thus need to tell the deployment evnironment two things:
 
-- Add the setting `STAGING_REMOTE_REPO` as an environment variable on deployment environment (e.g. `deploy.yml` expects it in the Github repository secrets). An example value is `seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git`.
+- Add the setting `STAGING_REMOTE_REPO` as an environment variable on the deployment environment (e.g. `deploy.yml` expects it in the Github repository secrets). An example value is `seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git`.
 - Make sure the env variable `BRANCH_NAME` is set, e.g. to "main", so that the deployment environment knows what exact code to push to your deployment server.
 
 ### Authenticate at the deployment server (with an ssh key)
