@@ -7,4 +7,4 @@
 git remote add staging $STAGING_REMOTE_REPO
 
 # Push the branch being deployed to the git remote. Also push any annotated tags (with a -m message).
-git push --follow-tags --set-upstream staging $BITBUCKET_BRANCH
+git push --follow-tags --set-upstream staging $BRANCH_NAME

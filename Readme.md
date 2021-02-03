@@ -1,7 +1,14 @@
 # The FlexMeasures Platform
 
+![lint-and-test](https://github.com/SeitaBV/flexmeasures/workflows/lint-and-test/badge.svg)
+[![](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 The *FlexMeasures Platform* is a tool for scheduling flexible actions for energy assets.
-For this purpose, it performs monitoring, forecastig and scheduling services.
+For this purpose, it performs monitoring, forecasting and scheduling services.
+
+Its role is to enhance energy services. Forecasts and schedules are made available via API.
+
 
 ## Build & Run
 

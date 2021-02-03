@@ -129,7 +129,7 @@ class TestingConfig(Config):
 
     SECURITY_PASSWORD_SALT = "$2b$19$abcdefghijklmnopqrstuv"
     SQLALCHEMY_DATABASE_URI = (
-        "postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1/flexmeasures_test"
+        "postgresql://flexmeasures_test:flexmeasures_test@localhost/flexmeasures_test"
     )
     # SQLALCHEMY_ECHO = True
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN = "test-task-check-token"
