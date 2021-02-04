@@ -6,7 +6,9 @@ Create Date: 2021-01-31 14:31:16.370110
 
 """
 from alembic import op
+import json
 import sqlalchemy as sa
+from timely_beliefs.sensors.func_store import knowledge_horizons
 
 
 # revision identifiers, used by Alembic.
@@ -15,21 +17,45 @@ down_revision = "564e8df4e3a9"
 branch_labels = None
 depends_on = None
 
+# set default parameters for the two default knowledge horizon functions
+ex_ante_default_par = {
+    knowledge_horizons.shorthands["EX_ANTE"].__code__.co_varnames[1]: "PT0H"
+}
+ex_post_default_par = {
+    knowledge_horizons.shorthands["EX_POST"].__code__.co_varnames[1]: "PT0H"
+}
+
 
 def upgrade():
 
     # Mix in timely_beliefs.Sensor with flexmeasures.Asset
     op.add_column(
-        "asset", sa.Column("knowledge_horizon_fnc", sa.String(length=80), nullable=True)
+        "asset",
+        sa.Column(
+            "knowledge_horizon_fnc",
+            sa.String(length=80),
+            nullable=True,
+            default="EX_POST",
+        ),
     )
     op.execute(
-        "update asset set knowledge_horizon_fnc = 'determine_ex_post_knowledge_horizon';"
+        "update asset set knowledge_horizon_fnc = 'EX_POST';"
     )  # default assumption that power measurements are known right after the fact
     op.alter_column("asset", "knowledge_horizon_fnc", nullable=False)
 
-    op.add_column("asset", sa.Column("knowledge_horizon_par", sa.JSON(), nullable=True))
+    op.add_column(
+        "asset",
+        sa.Column(
+            "knowledge_horizon_par",
+            sa.JSON(),
+            nullable=True,
+            default={
+                knowledge_horizons.shorthands["EX_POST"].__code__.co_varnames[1]: "PT0H"
+            },
+        ),
+    )
     op.execute(
-        """update asset set knowledge_horizon_par = '{"ex_post_horizon": "PT0H"}';"""
+        f"""update asset set knowledge_horizon_par = '{json.dumps(ex_post_default_par)}';"""
     )
     op.alter_column("asset", "knowledge_horizon_par", nullable=False)
 
@@ -40,27 +66,37 @@ def upgrade():
     # Mix in timely_beliefs.Sensor with flexmeasures.Market
     op.add_column(
         "market",
-        sa.Column("knowledge_horizon_fnc", sa.String(length=80), nullable=True),
+        sa.Column(
+            "knowledge_horizon_fnc",
+            sa.String(length=80),
+            nullable=True,
+            default="EX_ANTE",
+        ),
     )
     op.execute(
-        "update market set knowledge_horizon_fnc = 'determine_ex_ante_knowledge_horizon';"
+        "update market set knowledge_horizon_fnc = 'EX_ANTE';"
     )  # default assumption that prices are known before a transaction
     op.execute(
-        "update market set knowledge_horizon_fnc = 'determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock' where name='epex_da';"
+        "update market set knowledge_horizon_fnc = 'EX_ANTE_X_DAYS_AT_Y_OCLOCK' where name in ('epex_da', 'kpx_da');"
     )
     op.execute(
-        "update market set knowledge_horizon_fnc = 'determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock' where name='kpx_da';"
-    )
-    op.execute(
-        "update market set knowledge_horizon_fnc = 'determine_knowledge_horizon_for_fixed_knowledge_time' where name in ('kepco_cs_fast', 'kepco_cs_slow', 'kepco_cs_smart');"
+        "update market set knowledge_horizon_fnc = 'AT_DATE' where name in ('kepco_cs_fast', 'kepco_cs_slow', 'kepco_cs_smart');"
     )
     op.alter_column("market", "knowledge_horizon_fnc", nullable=False)
 
     op.add_column(
-        "market", sa.Column("knowledge_horizon_par", sa.JSON(), nullable=True)
+        "market",
+        sa.Column(
+            "knowledge_horizon_par",
+            sa.JSON(),
+            nullable=True,
+            default={
+                knowledge_horizons.shorthands["EX_ANTE"].__code__.co_varnames[1]: "PT0H"
+            },
+        ),
     )
     op.execute(
-        """update market set knowledge_horizon_par = '{"ex_ante_horizon": "PT0H"}';"""
+        f"""update market set knowledge_horizon_par = '{json.dumps(ex_ante_default_par)}';"""
     )
     op.execute(
         """update market set knowledge_horizon_par = '{"x": 1, "y": 12, "z": "Europe/Paris"}' where name='epex_da';"""
@@ -85,18 +121,31 @@ def upgrade():
     # Mix in timely_beliefs.Sensor with flexmeasures.WeatherSensor
     op.add_column(
         "weather_sensor",
-        sa.Column("knowledge_horizon_fnc", sa.String(length=80), nullable=True),
+        sa.Column(
+            "knowledge_horizon_fnc",
+            sa.String(length=80),
+            nullable=True,
+            default="EX_POST",
+        ),
     )
     op.execute(
-        "update weather_sensor set knowledge_horizon_fnc = 'determine_ex_post_knowledge_horizon';"
+        "update weather_sensor set knowledge_horizon_fnc = 'EX_POST';"
     )  # default assumption that weather measurements are known right after the fact
     op.alter_column("weather_sensor", "knowledge_horizon_fnc", nullable=False)
 
     op.add_column(
-        "weather_sensor", sa.Column("knowledge_horizon_par", sa.JSON(), nullable=True)
+        "weather_sensor",
+        sa.Column(
+            "knowledge_horizon_par",
+            sa.JSON(),
+            nullable=True,
+            default={
+                knowledge_horizons.shorthands["EX_POST"].__code__.co_varnames[1]: "PT0H"
+            },
+        ),
     )
     op.execute(
-        """update weather_sensor set knowledge_horizon_par = '{"ex_post_horizon": "PT0H"}';"""
+        f"""update weather_sensor set knowledge_horizon_par = '{json.dumps(ex_post_default_par)}';"""
     )
     op.alter_column("weather_sensor", "knowledge_horizon_par", nullable=False)
 
