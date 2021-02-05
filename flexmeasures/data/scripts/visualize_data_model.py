@@ -173,7 +173,7 @@ def show_image(graph, fb_viewer_command: str):
 
     Anyways, this is a good place to check for PIL and those two functions
     were containing almost identical logic - these two lines here are
-    an improvement. 
+    an improvement.
     """
     from io import BytesIO
 
