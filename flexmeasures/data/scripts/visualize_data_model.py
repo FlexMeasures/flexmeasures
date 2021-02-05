@@ -13,11 +13,12 @@ from sqlalchemy.orm import class_mapper
 """
 This is our dev script to make images displaying our data model.
 
-Much of this code is adapted from https://github.com/sqlalchemy/sqlalchemy/wiki/SchemaDisplay
-
 At the moment, this code requires an unreleased version of sqalchemy_schemadisplay, install it like this:
 
     pip install git+https://github.com/fschulze/sqlalchemy_schemadisplay.git@master
+
+
+See also https://github.com/fschulze/sqlalchemy_schemadisplay/issues/21
 
 For rendering of graphs (instead of saving a PNG), you'll need pillow:
 
@@ -164,6 +165,16 @@ def create_uml_pic(store: bool = False):
 
 @uses_dot
 def show_image(graph, fb_viewer_command: str):
+    """
+    Show an image created through sqlalchemy_schemdisplay.
+
+    We could also have used functions in there, but:
+    https://github.com/fschulze/sqlalchemy_schemadisplay/pull/14
+
+    Anyways, this is a good place to check for PIL and those two functions
+    were containing almost identical logic - these two lines here are
+    an improvement. 
+    """
     from io import BytesIO
 
     try:
