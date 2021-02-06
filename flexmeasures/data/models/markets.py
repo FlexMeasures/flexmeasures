@@ -53,10 +53,10 @@ class Market(db.Model, tb.SensorDBMixin):
     def __init__(self, **kwargs):
         # Set default knowledge horizon function for an economic sensor
         if "knowledge_horizon_fnc" not in kwargs:
-            kwargs["knowledge_horizon_fnc"] = "EX_ANTE"
+            kwargs["knowledge_horizon_fnc"] = knowledge_horizons.ex_ante.__name__
         if "knowledge_horizon_par" not in kwargs:
             kwargs["knowledge_horizon_par"] = {
-                knowledge_horizons.shorthands["EX_ANTE"].__code__.co_varnames[1]: "PT0H"
+                knowledge_horizons.ex_ante.__code__.co_varnames[1]: "PT0H"
             }
         super(Market, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()

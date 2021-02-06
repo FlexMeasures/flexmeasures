@@ -18,12 +18,8 @@ branch_labels = None
 depends_on = None
 
 # set default parameters for the two default knowledge horizon functions
-ex_ante_default_par = {
-    knowledge_horizons.shorthands["EX_ANTE"].__code__.co_varnames[1]: "PT0H"
-}
-ex_post_default_par = {
-    knowledge_horizons.shorthands["EX_POST"].__code__.co_varnames[1]: "PT0H"
-}
+ex_ante_default_par = {knowledge_horizons.ex_ante.__code__.co_varnames[1]: "PT0H"}
+ex_post_default_par = {knowledge_horizons.ex_post.__code__.co_varnames[1]: "PT0H"}
 
 
 def upgrade():
@@ -35,11 +31,11 @@ def upgrade():
             "knowledge_horizon_fnc",
             sa.String(length=80),
             nullable=True,
-            default="EX_POST",
+            default=knowledge_horizons.ex_post.__name__,
         ),
     )
     op.execute(
-        "update asset set knowledge_horizon_fnc = 'EX_POST';"
+        f"update asset set knowledge_horizon_fnc = '{knowledge_horizons.ex_post.__name__}';"
     )  # default assumption that power measurements are known right after the fact
     op.alter_column("asset", "knowledge_horizon_fnc", nullable=False)
 
@@ -49,9 +45,7 @@ def upgrade():
             "knowledge_horizon_par",
             sa.JSON(),
             nullable=True,
-            default={
-                knowledge_horizons.shorthands["EX_POST"].__code__.co_varnames[1]: "PT0H"
-            },
+            default={knowledge_horizons.ex_post.__code__.co_varnames[1]: "PT0H"},
         ),
     )
     op.execute(
@@ -70,17 +64,17 @@ def upgrade():
             "knowledge_horizon_fnc",
             sa.String(length=80),
             nullable=True,
-            default="EX_ANTE",
+            default=knowledge_horizons.ex_ante.__name__,
         ),
     )
     op.execute(
-        "update market set knowledge_horizon_fnc = 'EX_ANTE';"
+        f"update market set knowledge_horizon_fnc = '{knowledge_horizons.ex_ante.__name__}';"
     )  # default assumption that prices are known before a transaction
     op.execute(
-        "update market set knowledge_horizon_fnc = 'EX_ANTE_X_DAYS_AT_Y_OCLOCK' where name in ('epex_da', 'kpx_da');"
+        f"update market set knowledge_horizon_fnc = '{knowledge_horizons.x_days_ago_at_y_oclock.__name__}' where name in ('epex_da', 'kpx_da');"
     )
     op.execute(
-        "update market set knowledge_horizon_fnc = 'AT_DATE' where name in ('kepco_cs_fast', 'kepco_cs_slow', 'kepco_cs_smart');"
+        f"update market set knowledge_horizon_fnc = '{knowledge_horizons.at_date.__name__}' where name in ('kepco_cs_fast', 'kepco_cs_slow', 'kepco_cs_smart');"
     )
     op.alter_column("market", "knowledge_horizon_fnc", nullable=False)
 
@@ -90,9 +84,7 @@ def upgrade():
             "knowledge_horizon_par",
             sa.JSON(),
             nullable=True,
-            default={
-                knowledge_horizons.shorthands["EX_ANTE"].__code__.co_varnames[1]: "PT0H"
-            },
+            default={knowledge_horizons.ex_ante.__code__.co_varnames[1]: "PT0H"},
         ),
     )
     op.execute(
@@ -125,11 +117,11 @@ def upgrade():
             "knowledge_horizon_fnc",
             sa.String(length=80),
             nullable=True,
-            default="EX_POST",
+            default=knowledge_horizons.ex_post.__name__,
         ),
     )
     op.execute(
-        "update weather_sensor set knowledge_horizon_fnc = 'EX_POST';"
+        f"update weather_sensor set knowledge_horizon_fnc = '{knowledge_horizons.ex_post.__name__}';"
     )  # default assumption that weather measurements are known right after the fact
     op.alter_column("weather_sensor", "knowledge_horizon_fnc", nullable=False)
 
@@ -139,9 +131,7 @@ def upgrade():
             "knowledge_horizon_par",
             sa.JSON(),
             nullable=True,
-            default={
-                knowledge_horizons.shorthands["EX_POST"].__code__.co_varnames[1]: "PT0H"
-            },
+            default={knowledge_horizons.ex_post.__code__.co_varnames[1]: "PT0H"},
         ),
     )
     op.execute(
