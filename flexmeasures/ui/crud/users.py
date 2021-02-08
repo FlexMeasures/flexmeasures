@@ -33,7 +33,6 @@ class UserForm(FlaskForm):
     active = BooleanField("Activation Status", validators=[DataRequired()])
 
 
-
 def render_user(user: Optional[User], msg: str = None):
     user_form = UserForm()
     user_form.process(obj=user)

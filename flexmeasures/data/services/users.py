@@ -23,8 +23,8 @@ class InvalidFlexMeasuresUser(Exception):
 
 
 def get_user(id: str) -> User:
-    """ Get a user.
-    TODO: handle ValueError when a non-parseable id is passed
+    """Get a user.
+    TODO: remove when user crud uses the API
     """
     user: User = User.query.filter_by(id=int(id)).one_or_none()
     if user is None:

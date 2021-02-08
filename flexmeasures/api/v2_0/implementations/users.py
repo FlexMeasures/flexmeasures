@@ -1,3 +1,6 @@
+from functools import wraps
+
+from flask import current_app, abort
 from marshmallow import ValidationError, validate, validates, fields
 from webargs.flaskparser import use_args
 from flask_security import current_user
@@ -7,10 +10,10 @@ from pytz import all_timezones
 from flexmeasures.api import ma
 from flexmeasures.data.models.user import User as UserModel
 from flexmeasures.data.services.users import (
-    # get_user,
     get_users,
 )
 from flexmeasures.data.auth_setup import unauthorized_handler
+from flexmeasures.api.common.responses import required_info_missing
 
 """
 Plan:
@@ -43,9 +46,7 @@ user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 
 
-@use_args(
-    {"include_inactive": fields.Bool(missing=False)}, location="query", unknown=None
-)
+@use_args({"include_inactive": fields.Bool(missing=False)}, location="query")
 @as_json
 def get(args):
     """List all users.
@@ -57,11 +58,68 @@ def get(args):
     return users_schema.dump(users), 200
 
 
-'''
-@login_required
-@check_user()  # TODO
+def check_user(admins_only: bool = False):
+    """Decorator which loads a user.
+    Raises 400 if that is not possible due to wrong parameters.
+    Raises 404 if user is not found.
+    Raises 403 if unauthorized:
+    Only the user themselves or admins can access a user object.
+    The admins_only parameter can be used if not even the user themselves
+    should do be allowed.
+
+        @app.route('/user/<id>')
+        @check_user
+        def get_user(user):
+            return user_schema.dump(user), 200
+
+    The message must specify one id within the route.
+    """
+
+    def wrapper(fn):
+        @wraps(fn)
+        @as_json
+        def decorated_endpoint(*args, **kwargs):
+
+            args = list(args)
+            if len(args) == 0:
+                current_app.logger.warning("Request missing id.")
+                return required_info_missing(["id"])
+            if len(args) > 1:
+                print(args)
+                return (
+                    dict(
+                        status="UNEXPECTED_PARAMS",
+                        message="Only expected one parameter (id).",
+                    ),
+                    400,
+                )
+
+            try:
+                id = int(args[0])
+            except ValueError:
+                current_app.logger.warning("Cannot parse ID argument from request.")
+                return required_info_missing(["id"], "Cannot parse ID arg as int.")
+
+            user: UserModel = UserModel.query.filter_by(id=int(id)).one_or_none()
+
+            if user is None:
+                raise abort(404, f"User {id} not found")
+
+            if not current_user.has_role("admin"):
+                if admins_only or user.owner != current_user:
+                    return unauthorized_handler(None, [])
+
+            args = (user,)
+            return fn(*args, **kwargs)
+
+        return decorated_endpoint
+
+    return wrapper
+
+
+# @use_args({"id": fields.Int(required=True)}, location="path")
+@check_user()
 @as_json
 def fetch_one(user):
     """Fetch a given user"""
     return user_schema.dump(user), 200
-'''
