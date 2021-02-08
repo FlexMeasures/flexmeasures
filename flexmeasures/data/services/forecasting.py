@@ -74,7 +74,7 @@ def create_forecasting_jobs(
 
     If not given, relevant horizons are derived from the resolution of the posted data.
 
-    The job needs a model configurator, for which you can supply a model search term. If ommited, the
+    The job needs a model configurator, for which you can supply a model search term. If omitted, the
     current default model configuration will be used.
 
     It's possible to customize model parameters, but this feature is (currently) meant to only
