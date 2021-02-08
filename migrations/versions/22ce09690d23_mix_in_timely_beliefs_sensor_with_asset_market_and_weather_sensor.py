@@ -18,7 +18,7 @@ branch_labels = None
 depends_on = None
 
 # set default parameters for the two default knowledge horizon functions
-ex_ante_default_par = {knowledge_horizons.ex_ante.__code__.co_varnames[1]: "PT0H"}
+ex_ante_default_par = {knowledge_horizons.ex_ante.__code__.co_varnames[0]: "PT0H"}
 ex_post_default_par = {knowledge_horizons.ex_post.__code__.co_varnames[1]: "PT0H"}
 
 
@@ -84,7 +84,7 @@ def upgrade():
             "knowledge_horizon_par",
             sa.JSON(),
             nullable=True,
-            default={knowledge_horizons.ex_ante.__code__.co_varnames[1]: "PT0H"},
+            default=ex_ante_default_par,
         ),
     )
     op.execute(
