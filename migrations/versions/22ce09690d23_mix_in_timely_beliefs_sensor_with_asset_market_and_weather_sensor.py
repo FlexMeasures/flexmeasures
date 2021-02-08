@@ -71,9 +71,6 @@ def upgrade():
         f"update market set knowledge_horizon_fnc = '{knowledge_horizons.ex_ante.__name__}';"
     )  # default assumption that prices are known before a transaction
     op.execute(
-        f"update market set knowledge_horizon_fnc = '{knowledge_horizons.x_days_ago_at_y_oclock.__name__}' where name in ('epex_da', 'kpx_da');"
-    )
-    op.execute(
         f"update market set knowledge_horizon_fnc = '{knowledge_horizons.at_date.__name__}' where name in ('kepco_cs_fast', 'kepco_cs_slow', 'kepco_cs_smart');"
     )
     op.alter_column("market", "knowledge_horizon_fnc", nullable=False)
@@ -90,12 +87,6 @@ def upgrade():
     op.execute(
         f"""update market set knowledge_horizon_par = '{json.dumps(ex_ante_default_par)}';"""
     )
-    op.execute(
-        """update market set knowledge_horizon_par = '{"x": 1, "y": 12, "z": "Europe/Paris"}' where name='epex_da';"""
-    )  # gate closure at 12:00 on the preceding day, with expected price publication at 12.42 and 12.55 (from EPEX Spot Day-Ahead Multi-Regional Coupling, https://www.epexspot.com/en/downloads#rules-fees-processes )
-    op.execute(
-        """update market set knowledge_horizon_par = '{"x": 1, "y": 10, "z": "Asia/Seoul"}' where name='kpx_da';"""
-    )  # gate closure at 10.00 on the preceding day, with expected price publication at 15.00 (from KPX Power Market Operation, https://www.slideshare.net/sjchung0/power-market-operation )
     op.execute(
         """update market set knowledge_horizon_par = '{"knowledge_time": "2014-12-31 00:00:00+00:00"}' where name in ('kepco_cs_fast', 'kepco_cs_slow', 'kepco_cs_smart');"""
     )  # tariff publication date (unofficial)
@@ -144,6 +135,18 @@ def upgrade():
     )
     op.execute("update weather_sensor set timezone = 'Asia/Seoul';")
     op.alter_column("weather_sensor", "timezone", nullable=False)
+
+    # todo: execute after adding relevant tests and updating our strategy to create forecasting jobs when new information arrives
+    # op.execute(
+    #     f"update market set knowledge_horizon_fnc = '{knowledge_horizons.x_days_ago_at_y_oclock.__name__}' where name in ('epex_da', 'kpx_da');"
+    # )
+    # op.execute(
+    #     """update market set knowledge_horizon_par = '{"x": 1, "y": 12, "z": "Europe/Paris"}' where name='epex_da';"""
+    # )  # gate closure at 12:00 on the preceding day, with expected price publication at 12.42 and 12.55 (from EPEX Spot Day-Ahead Multi-Regional Coupling, https://www.epexspot.com/en/downloads#rules-fees-processes )
+    # op.execute(
+    #     """update market set knowledge_horizon_par = '{"x": 1, "y": 10, "z": "Asia/Seoul"}' where name='kpx_da';"""
+    # )  # gate closure at 10.00 on the preceding day, with expected price publication at 15.00 (from KPX Power Market Operation, https://www.slideshare.net/sjchung0/power-market-operation )
+    # todo: add statement to update the horizon for prices on these markets, in accordance with their new knowledge horizon function
 
 
 def downgrade():
