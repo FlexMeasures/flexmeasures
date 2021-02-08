@@ -13,7 +13,7 @@ from sqlalchemy.orm import class_mapper
 """
 This is our dev script to make images displaying our data model.
 
-At the moment, this code requires an unreleased version of sqalchemy_schemadisplay, install it like this:
+At the moment, this code requires an unreleased version of sqlalchemy_schemadisplay, install it like this:
 
     pip install git+https://github.com/fschulze/sqlalchemy_schemadisplay.git@master
 
@@ -166,7 +166,7 @@ def create_uml_pic(store: bool = False):
 @uses_dot
 def show_image(graph, fb_viewer_command: str):
     """
-    Show an image created through sqlalchemy_schemdisplay.
+    Show an image created through sqlalchemy_schemadisplay.
 
     We could also have used functions in there, but:
     https://github.com/fschulze/sqlalchemy_schemadisplay/pull/14
