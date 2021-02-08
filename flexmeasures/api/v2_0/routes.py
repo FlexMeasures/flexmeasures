@@ -11,15 +11,16 @@ from flexmeasures.api.v1_3 import implementations as v1_3_implementations
 from flexmeasures.api.v1_3 import routes as v1_3_routes
 
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
-from flexmeasures.api.v2_0.implementations import assets
+from flexmeasures.api.v2_0.implementations import assets, users
 
 
 # The service listing for this API version (import from previous version or update if needed)
 v2_0_service_listing = copy.deepcopy(v1_3_routes.v1_3_service_listing)
 v2_0_service_listing["version"] = "2.0"
 
-# Note: For the time being, no (USEF) role access is added to asset endpoints
+# Note: For the time being, no (USEF) role access is added to asset or user endpoints
 # TODO: Add role access when multi-tenancy is added
+# assets
 v2_0_service_listing["services"].append(
     {
         "name": "GET /assets",
@@ -52,6 +53,14 @@ v2_0_service_listing["services"].append(
         "name": "DELETE /assets/<id>",
         "access": [],
         "description": "Delete an asset and its data.",
+    },
+)
+# users
+v2_0_service_listing["services"].append(
+    {
+        "name": "GET /users",
+        "access": [],
+        "description": "List users.",
     },
 )
 
@@ -307,6 +316,46 @@ def delete_asset(id: int):
     :status 403: INVALID_SENDER
     """
     return assets.delete(id)
+
+
+@flexmeasures_api_v2_0.route("/users", methods=["GET"])
+@auth_token_required
+def get_users():
+    """API endpoint to get users.
+
+    .. :quickref: User; Download user list
+
+    This endpoint returns all accessible users.
+    The `owner_id` query parameter can be used to set an owner.
+    If no owner is set, all accessible assets are returned.
+    A non-admin user can only access its own assets.
+
+    **Example response**
+
+    An example of one user being returned:
+
+    .. sourcecode:: json
+
+        [
+            {
+                'active': True,
+                'email': 'test_prosumer@seita.nl',
+                'flexmeasures_roles': [1, 3],
+                'id': 1,
+                'timezone': 'Europe/Amsterdam',
+                'username': 'Test Prosumer'
+            }
+        ]
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_REQUEST
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    """
+    return users.get()
 
 
 # endpoints from earlier versions
