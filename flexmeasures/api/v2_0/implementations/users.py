@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import current_app, abort, request
+from flask import current_app, abort
 from marshmallow import ValidationError, validate, validates, fields
 from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_args
@@ -56,8 +56,8 @@ def get(args):
     return users_schema.dump(users), 200
 
 
-def check_user(admins_only: bool = False):
-    """Decorator which loads a user.
+def load_user(admins_only: bool = False):
+    """Decorator which loads a user by the Id expected in the path.
     Raises 400 if that is not possible due to wrong parameters.
     Raises 404 if user is not found.
     Raises 403 if unauthorized:
@@ -115,32 +115,26 @@ def check_user(admins_only: bool = False):
     return wrapper
 
 
-# @use_args({"id": fields.Int(required=True)}, location="path")
-@check_user()
+@load_user()
 @as_json
 def fetch_one(user):
     """Fetch a given user"""
     return user_schema.dump(user), 200
 
 
-@check_user()
+@load_user()
+@use_args(UserSchema(partial=True))
 @as_json
-def patch(user):
+def patch(db_user, user_data):
     """Update a user given its identifier"""
     ignored_fields = [
         "id",
-        "email",
-        "username",
-    ]  # TODO: allow to change email and username (we allow to change asset name)
-    relevant_data = {
-        k: v for k, v in request.json.items() if k not in ignored_fields
-    }  # TODO: with webargs? Probably better error with wrong types (not on db level).
-    user_data = user_schema.load(relevant_data, session=db.session, partial=True)
-    for k, v in user_data.items():
-        setattr(user, k, v)
-    db.session.add(user)
+    ]
+    for k, v in [(k, v) for k, v in user_data.items() if k not in ignored_fields]:
+        setattr(db_user, k, v)
+    db.session.add(db_user)
     try:
         db.session.commit()
     except IntegrityError as ie:
         return dict(message="Duplicate user already exists", detail=ie._message()), 400
-    return user_schema.dump(user), 200
+    return user_schema.dump(db_user), 200

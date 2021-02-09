@@ -98,9 +98,11 @@ def test_edit_user(client):
             "content-type": "application/json",
             "Authorization": prosumer_auth_token,
         },
-        json={"active": False},
+        json={"active": False, "id": 888},
     )
+    print("Server responded with:\n%s" % user_edit_response.json)
     assert user_edit_response.status_code == 200
     assert user_edit_response.json["active"] is False
     supplier = find_user_by_email("test_supplier@seita.nl")
     assert supplier.active is False
+    assert supplier.id == supplier_id
