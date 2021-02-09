@@ -1,6 +1,6 @@
 import copy
 
-from flask_security import auth_token_required
+from flask_security import auth_token_required, roles_required
 
 from flexmeasures.api.common.utils.api_utils import list_access, append_doc_of
 from flexmeasures.api.common.utils.decorators import as_response_type
@@ -18,7 +18,8 @@ from flexmeasures.api.v2_0.implementations import assets, users
 v2_0_service_listing = copy.deepcopy(v1_3_routes.v1_3_service_listing)
 v2_0_service_listing["version"] = "2.0"
 
-# TODO: Use https://github.com/marshmallow-code/apispec to support OpenApi
+# TODO: Use https://github.com/marshmallow-code/apispec and https://github.com/sveint/flask-swagger-ui
+#       to serve as OpenApi (swagger).
 
 # Note: For the time being, no (USEF) role access is added to asset or user endpoints
 # TODO: Add role access when multi-tenancy is added
@@ -322,6 +323,7 @@ def delete_asset(id: int):
 
 @flexmeasures_api_v2_0.route("/users", methods=["GET"])
 @auth_token_required
+@roles_required("admin")
 def get_users():
     """API endpoint to get users.
 
@@ -394,6 +396,54 @@ def get_user(id: int):
     :status 403: INVALID_SENDER
     """
     return users.fetch_one(id)
+
+
+@flexmeasures_api_v2_0.route("/user/<id>", methods=["PATCH"])
+@auth_token_required
+# @usef_roles_accepted(*list_access(v2_0_service_listing, "PATCH /assets"))
+def patch_user(id: int):
+    """API endpoint to patch user data.
+
+    .. :quickref: User; Patch data for an existing user
+
+    This endpoint sets data for an existing user.
+    Any subset of user fields can be sent.
+    Only the user themselves or adminst are allowed to update its data.
+
+    Several fields are not allowed to be updated, e.g. id. They are ignored.
+
+    **Example request**
+
+    .. sourcecode:: json
+
+        {
+            "active": false,
+        }
+
+    **Example response**
+
+    The whole user is returned in the response:
+
+    .. sourcecode:: json
+
+        {
+            'active': True,
+            'email': 'test_prosumer@seita.nl',
+            'flexmeasures_roles': [1, 3],
+            'id': 1,
+            'timezone': 'Europe/Amsterdam',
+            'username': 'Test Prosumer'
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: UPDATED
+    :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    """
+    return users.patch(id)
 
 
 # endpoints from earlier versions

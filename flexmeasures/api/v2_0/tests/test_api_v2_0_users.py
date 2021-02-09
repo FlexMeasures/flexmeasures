@@ -3,7 +3,7 @@ import pytest
 
 # from flexmeasures.data.models.user import User
 from flexmeasures.data.services.users import find_user_by_email
-from flexmeasures.api.tests.utils import get_auth_token  # , UserContext
+from flexmeasures.api.tests.utils import get_auth_token, UserContext
 
 
 @pytest.mark.parametrize("use_auth", [False, True])
@@ -66,3 +66,41 @@ def test_get_one_user(client):
     print("Server responded with:\n%s" % get_user_response.data)
     assert get_user_response.status_code == 200
     assert get_user_response.json["username"] == "Test Supplier"
+
+
+def test_edit_user(client):
+    with UserContext("test_supplier@seita.nl") as supplier:
+        supplier_auth_token = supplier.get_auth_token()  # supplier is no admin
+        supplier_id = supplier.id
+    with UserContext("test_prosumer@seita.nl") as prosumer:
+        prosumer_auth_token = prosumer.get_auth_token()  # prosumer is an admin
+        prosumer_id = prosumer.id
+    # without being the user themselves or an admin, the user cannot be edited
+    user_edit_response = client.patch(
+        url_for("flexmeasures_api_v2_0.patch_user", id=prosumer_id),
+        headers={
+            "content-type": "application/json",
+            "Authorization": supplier_auth_token,
+        },
+        json={},
+    )
+    assert user_edit_response.status_code == 403
+    user_edit_response = client.patch(
+        url_for("flexmeasures_api_v2_0.patch_user", id=supplier_id),
+        headers={"content-type": "application/json"},
+        json={},
+    )
+    assert user_edit_response.status_code == 401
+    # admin can deactivate supplier
+    user_edit_response = client.patch(
+        url_for("flexmeasures_api_v2_0.patch_user", id=supplier_id),
+        headers={
+            "content-type": "application/json",
+            "Authorization": prosumer_auth_token,
+        },
+        json={"active": False},
+    )
+    assert user_edit_response.status_code == 200
+    assert user_edit_response.json["active"] is False
+    supplier = find_user_by_email("test_supplier@seita.nl")
+    assert supplier.active is False

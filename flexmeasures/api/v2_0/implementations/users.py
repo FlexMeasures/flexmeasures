@@ -1,7 +1,8 @@
 from functools import wraps
 
-from flask import current_app, abort
+from flask import current_app, abort, request
 from marshmallow import ValidationError, validate, validates, fields
+from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_args
 from flask_security import current_user
 from flask_json import as_json
@@ -14,6 +15,7 @@ from flexmeasures.data.services.users import (
 )
 from flexmeasures.data.auth_setup import unauthorized_handler
 from flexmeasures.api.common.responses import required_info_missing
+from flexmeasures.data.config import db
 
 """
 Plan:
@@ -49,11 +51,7 @@ users_schema = UserSchema(many=True)
 @use_args({"include_inactive": fields.Bool(missing=False)}, location="query")
 @as_json
 def get(args):
-    """List all users.
-    Raise if a non-admin tries to use this endpoint.
-    """
-    if not current_user.has_role("admin"):
-        return unauthorized_handler(None, [])
+    """List all users."""
     users = get_users(only_active=not args["include_inactive"])
     return users_schema.dump(users), 200
 
@@ -106,7 +104,7 @@ def check_user(admins_only: bool = False):
                 raise abort(404, f"User {id} not found")
 
             if not current_user.has_role("admin"):
-                if admins_only or user.owner != current_user:
+                if admins_only or user != current_user:
                     return unauthorized_handler(None, [])
 
             args = (user,)
@@ -122,4 +120,27 @@ def check_user(admins_only: bool = False):
 @as_json
 def fetch_one(user):
     """Fetch a given user"""
+    return user_schema.dump(user), 200
+
+
+@check_user()
+@as_json
+def patch(user):
+    """Update a user given its identifier"""
+    ignored_fields = [
+        "id",
+        "email",
+        "username",
+    ]  # TODO: allow to change email and username (we allow to change asset name)
+    relevant_data = {
+        k: v for k, v in request.json.items() if k not in ignored_fields
+    }  # TODO: with webargs? Probably better error with wrong types (not on db level).
+    user_data = user_schema.load(relevant_data, session=db.session, partial=True)
+    for k, v in user_data.items():
+        setattr(user, k, v)
+    db.session.add(user)
+    try:
+        db.session.commit()
+    except IntegrityError as ie:
+        return dict(message="Duplicate user already exists", detail=ie._message()), 400
     return user_schema.dump(user), 200
