@@ -18,12 +18,13 @@ from flexmeasures.api.common.responses import required_info_missing
 from flexmeasures.data.config import db
 
 """
-Plan:
-1. GET /users using webargs
-2. Try using FLask-Smorest
-3. Get /users/{id}
-4. Other endpoints
-5. Make UI use this API
+API endpoints to manager users.
+
+Both POST (to create) and DELETE are not accesible via the API, but as CLI functions.
+
+TODO:
+- GET /users/<id>/password-reset
+- Make UI use API endpoints internally
 """
 
 
@@ -117,7 +118,7 @@ def load_user(admins_only: bool = False):
 
 @load_user()
 @as_json
-def fetch_one(user):
+def fetch_one(user: UserModel):
     """Fetch a given user"""
     return user_schema.dump(user), 200
 
@@ -125,7 +126,7 @@ def fetch_one(user):
 @load_user()
 @use_args(UserSchema(partial=True))
 @as_json
-def patch(db_user, user_data):
+def patch(db_user: UserModel, user_data: dict):
     """Update a user given its identifier"""
     ignored_fields = [
         "id",

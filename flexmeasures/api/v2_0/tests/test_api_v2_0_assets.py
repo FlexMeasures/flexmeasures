@@ -241,10 +241,10 @@ def test_delete_an_asset(client, db):
         existing_asset_id = prosumer.assets[0].id
 
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
-    edit_asset_response = client.delete(
+    delete_asset_response = client.delete(
         url_for("flexmeasures_api_v2_0.delete_asset", id=existing_asset_id),
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
-    assert edit_asset_response.status_code == 204
+    assert delete_asset_response.status_code == 204
     deleted_asset = Asset.query.filter_by(id=existing_asset_id).one_or_none()
     assert deleted_asset is None

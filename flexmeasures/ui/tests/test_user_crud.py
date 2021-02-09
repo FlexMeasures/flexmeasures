@@ -15,10 +15,6 @@ def test_user_crud_as_non_admin(client, as_prosumer):
     )
     assert user_page.status_code == 403
     user_page = client.get(
-        url_for("UserCrud:delete_with_data", id=prosumer2_id), follow_redirects=True
-    )
-    assert user_page.status_code == 403
-    user_page = client.get(
         url_for("UserCrud:reset_password_for", id=prosumer2_id), follow_redirects=True
     )
     assert user_page.status_code == 403
@@ -75,19 +71,6 @@ def test_deactivate_user(client, as_admin):
     )
     assert user_index.status_code == 200
     assert b"test_prosumer2@seita.nl" in user_index.data
-
-
-def test_delete_user(client, as_admin):
-    """ Test that deletion does not fail, test that user is not in list anymore"""
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl", keep_in_session=False)
-    user_page = client.get(
-        url_for("UserCrud:delete_with_data", id=prosumer2.id), follow_redirects=True
-    )
-    assert user_page.status_code == 200
-    assert b"have been deleted" in user_page.data
-    user_index = client.get(url_for("UserCrud:index"), follow_redirects=True)
-    assert user_index.status_code == 200
-    assert b"test_prosumer2@seita.nl" not in user_index.data
 
 
 def test_reset_password(app, client, as_admin):

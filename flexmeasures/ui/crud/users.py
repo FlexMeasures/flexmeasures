@@ -15,7 +15,6 @@ from flexmeasures.data.services.users import (
     get_user,
     get_users,
     toggle_activation_status_of,
-    delete_user,
 )
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 
@@ -62,17 +61,6 @@ class UserCrud(FlaskView):
         """GET from /users/<id>"""
         user: User = get_user(id)
         return render_user(user)
-
-    @roles_required("admin")
-    def delete_with_data(self, id: str):
-        """Delete via /users/delete_with_data/<id>"""
-        user: User = get_user(id)
-        username = user.username
-        delete_user(user)
-        return render_user(
-            None,
-            msg="User %s and assorted assets/readings have been deleted." % username,
-        )
 
     @roles_required("admin")
     def toggle_active(self, id: str):
