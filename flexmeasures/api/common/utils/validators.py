@@ -12,6 +12,11 @@ from flask import request, current_app
 from flask_json import as_json
 from flask_principal import Permission, RoleNeed
 from flask_security import current_user
+import marshmallow
+
+from webargs import fields
+from webargs.flaskparser import parser
+from webargs.multidictproxy import MultiDictProxy
 
 from flexmeasures.api.common.responses import (  # noqa: F401
     required_info_missing,
@@ -45,6 +50,18 @@ from flexmeasures.utils.time_utils import server_now
 
 
 p = inflect.engine()
+
+
+@parser.location_loader("args_and_json")
+def load_data(request, schema):
+    """
+    We allow data to come from either GET args or POST Json,
+    as validators can be attached to either
+    """
+    newdata = request.args.copy()
+    if request.mimetype == "application/json" and request.method == "POST":
+        newdata.update(request.get_json())
+    return MultiDictProxy(newdata, schema)
 
 
 def validate_user_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[int]:
@@ -186,16 +203,18 @@ def optional_duration_accepted(default_duration: timedelta):
         @wraps(fn)
         @as_json
         def decorated_service(*args, **kwargs):
-            form = get_form_from_request(request)
-            if form is None:
-                current_app.logger.warning(
-                    "Unsupported request method for unpacking 'duration' from request."
-                )
-                return invalid_method(request.method)
+            # TODO: marshmallow doesn't support timestamps in iso8601 str representation
+            duration_arg = parser.parse(
+                {"duration": fields.Str()},
+                request,
+                location="args_and_json",
+                unknown=marshmallow.EXCLUDE,
+            )
 
-            if "duration" in form:
+            if "duration" in duration_arg:
                 duration = validate_duration(
-                    form["duration"], kwargs.get("start", kwargs.get("datetime", None))
+                    duration_arg["duration"],
+                    kwargs.get("start", kwargs.get("datetime", None)),
                 )
                 if not duration:
                     extra_info = "Cannot parse 'duration' value."
