@@ -237,6 +237,46 @@
                 in cooperation with <a href="https://aoneeng.com/">A1 Engineering</a>
                 &copy
                 <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.
+
+                <a href="#" data-toggle="modal" data-target="#Credits">Credits</a>.
+
+                <!-- The modal -->
+                <div class="modal fade" id="Credits" tabindex="-1" role="dialog" aria-labelledby="modalLabelLarge" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="modalLabelLarge">Credits</h4>
+                </div>
+
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <h3>Images from <a href="https://seita.nl">Seita</a></h3>
+                            <div>FlexMeasures on laptop - image by Bobby Drake</div>
+                            <h3>Images from <a href="https://unsplash.com/" title="Unsplash">Unsplash</a></h3>
+                            <div><a href="https://unsplash.com/photos/sEv3Cx9GdqY">Tesla charging station</a> - image by <a href="https://www.chasealewis.com/" title="Chase Lewis">Chase Lewis</a></div>
+                            <div><a href="https://unsplash.com/photos/4m9j8TrudRs">Wind turbines on top of mountain</a> - image by <a href="https://www.tbk-f.com/" title="TJ K.">TJ K.</a></div>
+                        </div>
+                        <div class="col-sm-6">
+                            <h3>Icons from <a href="https://www.flaticon.com/" title="Flaticon">Flaticon</a></h3>
+                            <div><a href="https://www.flaticon.com/free-icon/wind-power_1085695">Wind turbine</a> - icon by <a href="https://www.flaticon.com/authors/good-ware" title="Good Ware">Good Ware</a> (made to spin by Seita)</div>
+                            <div><a href="https://www.flaticon.com/search?word=currency&author_id=258">Coins</a> - icons by <a href="https://www.flaticon.com/authors/pixelmeetup" title="Pixelmeetup">Pixelmeetup</a></div>
+                            <div>Other icons by <a href="https://www.freepik.com" title="Freepik">Freepik</a></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-header">
+                    We did our best to give credit to the original photographers and illustrators for the images included on this website. If we have not properly credited an original photographer or illustrator, please notifiy us and we will make the appropriate changes necessary.
+                </div>
+
+                </div>
+                </div>
+                </div>
+
                 {% if app_running_since %}
                 <!-- We might render templates from plugins, where this meta info is not available -->
                 {% if current_user.has_role('anonymous') %}
