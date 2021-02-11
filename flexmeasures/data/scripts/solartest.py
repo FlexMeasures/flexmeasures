@@ -26,7 +26,10 @@ locations = {
     "Dallas": (32.779167, -96.808891),
     "Cape Town": (-33.943707, 18.588740),  # check southern hemisphere, too
 }
-datetimes = [datetime(2021, 2, 10, tzinfo=pytz.utc) + timedelta(minutes=i) for i in range(24*60)]
+datetimes = [
+    datetime(2021, 2, 10, tzinfo=pytz.utc) + timedelta(minutes=i)
+    for i in range(24 * 60)
+]
 timezones = {k: tzwhere.tzNameAt(*v) for k, v in locations.items()}
 
 
@@ -34,9 +37,12 @@ def solarpy(latitude: float, longitude: float, dt: datetime, z: str) -> float:
     h = 0  # sea-level
     dt = dt.astimezone(pytz.timezone(z)).replace(tzinfo=None)  # local time
     dt = standard2solar_time(dt, longitude)  # solar time
-    vnorm = solar_vector_ned(dt, latitude)  # plane pointing directly to the sun -> for clear sky irradiance
+    vnorm = solar_vector_ned(
+        dt, latitude
+    )  # plane pointing directly to the sun -> for clear sky irradiance
     vnorm[-1] = vnorm[-1] * 0.99999  # avoid floating point error
     return irradiance_on_plane(vnorm, h, dt, latitude)
+
 
 def pysolar(latitude: float, longitude: float, dt: datetime) -> float:
     return compute_radiation(latitude, longitude, dt, cloud_coverage_in_percent=0)
