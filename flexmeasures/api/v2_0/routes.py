@@ -446,6 +446,32 @@ def patch_user(id: int):
     return users.patch(id)
 
 
+@flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["GET"])
+@auth_token_required
+# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /asset/<id>"))
+def reset_user_password(id: int):
+    """API endpoint to reset the user password. They'll get an email to choose a new password.
+
+    .. :quickref: User; Password reset
+
+    Send instructions to the user on how to reset the password.
+    For security reasons, (in case of worries the password might be compromised)
+    we set the current password to something random (and also send an email about that fact to the user)
+    unless the `only_send_email` parameter is passed with a truthy value in the query.
+
+    Only admins can use this endpoint.
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    """
+    return users.reset_password(id)
+
+
 # endpoints from earlier versions
 
 

@@ -1,10 +1,13 @@
 from functools import wraps
+import random
+import string
 
 from flask import current_app, abort
 from marshmallow import ValidationError, validate, validates, fields
 from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_args
 from flask_security import current_user
+from flask_security.recoverable import update_password, send_reset_password_instructions
 from flask_json import as_json
 from pytz import all_timezones
 
@@ -139,3 +142,18 @@ def patch(db_user: UserModel, user_data: dict):
     except IntegrityError as ie:
         return dict(message="Duplicate user already exists", detail=ie._message()), 400
     return user_schema.dump(db_user), 200
+
+
+@load_user(admins_only=True)
+@use_args({"only_send_email": fields.Bool(missing=False)}, location="query")
+@as_json
+def reset_password(user, args):
+    """Send a password reset link to the user.
+    Optionally reset their current password.
+    """
+    if args.get("only_send_email", False) is False:
+        new_random_password = "".join(
+            [random.choice(string.ascii_lowercase) for _ in range(24)]
+        )
+        update_password(user, new_random_password)
+    send_reset_password_instructions(user)
