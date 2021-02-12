@@ -142,7 +142,7 @@ def process_internal_api_response(
     return asset_data
 
 
-class AssetCrud(FlaskView):
+class AssetCrudUI(FlaskView):
     """
     These views help us offering a Jinja2-based UI.
     The main focus on logic is the API, so these views simply call the API functions,

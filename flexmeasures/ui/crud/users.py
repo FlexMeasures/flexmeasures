@@ -57,7 +57,7 @@ def process_internal_api_response(
     return user_data
 
 
-class UserCrud(FlaskView):
+class UserCrudUI(FlaskView):
     route_base = "/users"
     trailing_slash = False
 

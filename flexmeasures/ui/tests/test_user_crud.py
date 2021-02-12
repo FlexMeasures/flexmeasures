@@ -14,11 +14,11 @@ Actual logic is tested in the API tests.
     "view", ["index", "get", "toggle_active", "reset_password_for"]
 )
 def test_user_crud_as_non_admin(client, as_prosumer, view):
-    user_index = client.get(url_for("UserCrud:index"), follow_redirects=True)
+    user_index = client.get(url_for("UserCrudUI:index"), follow_redirects=True)
     assert user_index.status_code == 403
     prosumer2_id = find_user_by_email("test_prosumer2@seita.nl").id
     user_page = client.get(
-        url_for(f"UserCrud:{view}", id=prosumer2_id), follow_redirects=True
+        url_for(f"UserCrudUI:{view}", id=prosumer2_id), follow_redirects=True
     )
     assert user_page.status_code == 403
 
@@ -29,7 +29,7 @@ def test_user_list(client, as_admin, requests_mock):
         status_code=200,
         json=mock_user_response(multiple=True),
     )
-    user_index = client.get(url_for("UserCrud:index"), follow_redirects=True)
+    user_index = client.get(url_for("UserCrudUI:index"), follow_redirects=True)
     assert user_index.status_code == 200
     assert b"All active users" in user_index.data
     assert b"alex@seita.nl" in user_index.data
@@ -41,7 +41,7 @@ def test_user_page(client, as_admin, requests_mock):
     requests_mock.get(
         "http://localhost//api/v2_0/user/2", status_code=200, json=mock_user
     )
-    user_page = client.get(url_for("UserCrud:get", id=2), follow_redirects=True)
+    user_page = client.get(url_for("UserCrudUI:get", id=2), follow_redirects=True)
     assert user_page.status_code == 200
     assert (
         "Account overview for %s" % mock_user["username"]
@@ -59,7 +59,7 @@ def test_deactivate_user(client, as_admin, requests_mock):
     )
     # de-activate
     user_page = client.get(
-        url_for("UserCrud:toggle_active", id=prosumer2.id), follow_redirects=True
+        url_for("UserCrudUI:toggle_active", id=prosumer2.id), follow_redirects=True
     )
     assert user_page.status_code == 200
     assert prosumer2.username in str(user_page.data)
@@ -74,7 +74,7 @@ def test_reset_password(client, as_admin, requests_mock):
         status_code=200,
     )
     user_page = client.get(
-        url_for("UserCrud:reset_password_for", id=prosumer2.id),
+        url_for("UserCrudUI:reset_password_for", id=prosumer2.id),
         follow_redirects=True,
     )
     assert user_page.status_code == 200

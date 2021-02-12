@@ -15,7 +15,7 @@ The real logic tests are done in the api package, which is also the better place
 
 def test_assets_page_empty(db, client, requests_mock, as_prosumer):
     requests_mock.get("http://localhost//api/v2_0/assets", status_code=200, json={})
-    asset_index = client.get(url_for("AssetCrud:index"), follow_redirects=True)
+    asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
 
 
@@ -27,16 +27,16 @@ def test_assets_page_nonempty(db, client, requests_mock, as_prosumer, use_owned_
     )
     if use_owned_by:
         asset_index = client.get(
-            url_for("AssetCrud:owned_by", owner_id=mock_assets[0]["owner_id"])
+            url_for("AssetCrudUI:owned_by", owner_id=mock_assets[0]["owner_id"])
         )
     else:
-        asset_index = client.get(url_for("AssetCrud:index"))
+        asset_index = client.get(url_for("AssetCrudUI:index"))
     for asset in mock_assets:
         assert asset["display_name"].encode() in asset_index.data
 
 
 def test_new_asset_page(client, as_admin):
-    asset_page = client.get(url_for("AssetCrud:get", id="new"), follow_redirects=True)
+    asset_page = client.get(url_for("AssetCrudUI:get", id="new"), follow_redirects=True)
     assert asset_page.status_code == 200
     assert b"Creating a new asset" in asset_page.data
 
@@ -54,7 +54,7 @@ def test_asset_page(db, client, requests_mock, as_prosumer):
         f"http://localhost//api/v2_0/asset/{asset.id}", status_code=200, json=mock_asset
     )
     asset_page = client.get(
-        url_for("AssetCrud:get", id=asset.id), follow_redirects=True
+        url_for("AssetCrudUI:get", id=asset.id), follow_redirects=True
     )
     assert ("Edit asset %s" % mock_asset["display_name"]).encode() in asset_page.data
     assert str(mock_asset["capacity_in_mw"]).encode() in asset_page.data
@@ -68,7 +68,7 @@ def test_edit_asset(db, client, requests_mock, as_admin):
         "http://localhost//api/v2_0/asset/1", status_code=200, json=mock_asset
     )
     response = client.post(
-        url_for("AssetCrud:post", id=1),
+        url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
         data=mock_api_data_as_form_input(mock_asset),
     )
@@ -87,7 +87,7 @@ def test_add_asset(db, client, requests_mock, as_admin):
         "http://localhost//api/v2_0/assets", status_code=201, json=mock_asset
     )
     response = client.post(
-        url_for("AssetCrud:post", id="create"),
+        url_for("AssetCrudUI:post", id="create"),
         follow_redirects=True,
         data=mock_api_data_as_form_input(mock_asset),
     )
@@ -109,7 +109,7 @@ def test_add_asset_with_new_owner(client, requests_mock, as_admin):
     data = copy.deepcopy(mock_asset)
     data["new_owner_email"] = new_user_email
     response = client.post(
-        url_for("AssetCrud:post", id="create"),
+        url_for("AssetCrudUI:post", id="create"),
         follow_redirects=True,
         data=mock_api_data_as_form_input(data),
     )
@@ -123,7 +123,7 @@ def test_delete_asset(client, db, requests_mock, as_admin):
     requests_mock.delete("http://localhost//api/v2_0/asset/1", status_code=204, json={})
     requests_mock.get("http://localhost//api/v2_0/assets", status_code=200, json={})
     response = client.get(
-        url_for("AssetCrud:delete_with_data", id=1),
+        url_for("AssetCrudUI:delete_with_data", id=1),
         follow_redirects=True,
     )
     assert response.status_code == 200
