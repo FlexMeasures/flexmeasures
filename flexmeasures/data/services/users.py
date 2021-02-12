@@ -23,9 +23,7 @@ class InvalidFlexMeasuresUser(Exception):
 
 
 def get_user(id: str) -> User:
-    """Get a user.
-    TODO: remove when user crud uses the API
-    """
+    """Get a user, raise if not found."""
     user: User = User.query.filter_by(id=int(id)).one_or_none()
     if user is None:
         raise NotFound
@@ -133,11 +131,6 @@ def create_user(  # noqa: C901
     db.session.add(DataSource(user=user))
 
     return user
-
-
-def toggle_activation_status_of(user: User):
-    """Toggle the active attribute of user"""
-    user.active = not user.active
 
 
 def delete_user(user: User):

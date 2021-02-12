@@ -22,7 +22,7 @@ class Role(db.Model, RoleMixin):
     description = Column(String(255))
 
     def __repr__(self):
-        return "<Role:%s (ID:%d)>" % (self.description, self.id)
+        return "<Role:%s (ID:%d)>" % (self.name, self.id)
 
 
 class User(db.Model, UserMixin):
