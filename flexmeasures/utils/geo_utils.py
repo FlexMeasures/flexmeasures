@@ -1,8 +1,9 @@
 from typing import Tuple, Union
 from datetime import datetime
 
-from pysolar.solar import get_altitude
-from pysolar.radiation import get_radiation_direct
+from pvlib.location import Location
+from pvlib.forecast import ForecastModel
+import pandas as pd
 
 
 def parse_lat_lng(kwargs) -> Union[Tuple[float, float], Tuple[None, None]]:
@@ -36,15 +37,18 @@ def compute_radiation(
     latitude: float, longitude: float, dt: datetime, cloud_coverage_in_percent: int
 ) -> float:
     """Compute the radiation received on a location at a specific time.
-    This uses pysolar to compute clear-sky radiation and adjusts this for cloud coverage,
-    using an algorithm described at http://www.shodor.org/os411/courses/_master/tools/calculators/solarrad/
+    This uses pvlib to
+    1) compute clear-sky radiation as Global Horizontal Irradiance (GHI),
+       which includes both Direct Normal Irradiance (DNI)
+       and Diffuse Horizontal Irradiance (DHI).
+    2) adjust the GHI for cloud coverage, using an algorithm described in
+       Larson et. al. "Day-ahead forecasting of solar power output from
+         photovoltaic plants in the American Southwest" Renewable Energy
+         91, 11-20 (2016).
     """
-    altitude_deg = get_altitude(latitude, longitude, dt)
-
-    # pysolar's get_radiation_direct is not smart enough to return zeros at night.
-    if altitude_deg <= 0:
-        return 0
-
-    radiation_clear_sky = get_radiation_direct(dt, altitude_deg)
-
-    return radiation_clear_sky * (1 - 0.75 * (cloud_coverage_in_percent / 100) ** 3.4)
+    site = Location(latitude, longitude, tz=dt.tzinfo)
+    solpos = site.get_solarposition(pd.DatetimeIndex([dt]))
+    ghi = site.get_clearsky(pd.DatetimeIndex([dt]), solar_position=solpos).loc[dt][
+        "ghi"
+    ]
+    return ForecastModel.cloud_cover_to_ghi_linear(None, cloud_coverage_in_percent, ghi)
