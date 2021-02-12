@@ -1,0 +1,1 @@
+The FlexMeasures password for user {user.username} has been reset.
