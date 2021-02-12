@@ -72,6 +72,7 @@ def test_edit_user(client):
     with UserContext("test_supplier@seita.nl") as supplier:
         supplier_auth_token = supplier.get_auth_token()  # supplier is no admin
         supplier_id = supplier.id
+        supplier_password = supplier.password
     with UserContext("test_prosumer@seita.nl") as prosumer:
         prosumer_auth_token = prosumer.get_auth_token()  # prosumer is an admin
         prosumer_id = prosumer.id
@@ -91,7 +92,8 @@ def test_edit_user(client):
         json={},
     )
     assert user_edit_response.status_code == 401
-    # admin can deactivate supplier
+    # admin can deactivate supplier, other changes will be ignored
+    # (id is in the Userschema of the API, but we ignore it)
     user_edit_response = client.patch(
         url_for("flexmeasures_api_v2_0.patch_user", id=supplier_id),
         headers={
@@ -106,6 +108,25 @@ def test_edit_user(client):
     supplier = find_user_by_email("test_supplier@seita.nl")
     assert supplier.active is False
     assert supplier.id == supplier_id
+    assert supplier.password == supplier_password
+
+
+def test_edit_user_with_unexpected_fields(client):
+    """Sending unexpected fields is an Unprocessible Entity error."""
+    with UserContext("test_supplier@seita.nl") as supplier:
+        supplier_id = supplier.id
+    with UserContext("test_prosumer@seita.nl") as prosumer:
+        prosumer_auth_token = prosumer.get_auth_token()  # prosumer is an admin
+    user_edit_response = client.patch(
+        url_for("flexmeasures_api_v2_0.patch_user", id=supplier_id),
+        headers={
+            "content-type": "application/json",
+            "Authorization": prosumer_auth_token,
+        },
+        json={"active": False, "password": "I-should-not-be-sending-this"},
+    )
+    print("Server responded with:\n%s" % user_edit_response.json)
+    assert user_edit_response.status_code == 422
 
 
 @pytest.mark.parametrize(
@@ -122,6 +143,7 @@ def test_user_reset_password(app, client, sender, only_send_email):
     """
     Reset the password of supplier.
     Only the prosumer is allowed to do that (as admin).
+    We test if the only-email setting works.
     """
     with UserContext("test_supplier@seita.nl") as supplier:
         supplier_id = supplier.id

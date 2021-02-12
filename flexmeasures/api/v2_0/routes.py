@@ -66,6 +66,24 @@ v2_0_service_listing["services"].append(
         "description": "List users.",
     },
 )
+v2_0_service_listing["services"].append(
+    {
+        "name": "GET /user/<id>",
+        "description": "Get a user.",
+    },
+)
+v2_0_service_listing["services"].append(
+    {
+        "name": "PATCH /user/<id>",
+        "description": "Edit a user.",
+    },
+)
+v2_0_service_listing["services"].append(
+    {
+        "name": "GET /user/<id>/password-reset",
+        "description": "Reset a user's password.",
+    },
+)
 
 
 @flexmeasures_api_v2_0.route("/assets", methods=["GET"])

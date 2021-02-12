@@ -24,14 +24,14 @@ from flexmeasures.data.config import db
 API endpoints to manager users.
 
 Both POST (to create) and DELETE are not accesible via the API, but as CLI functions.
-
-TODO:
-- GET /users/<id>/password-reset
-- Make UI use API endpoints internally
 """
 
 
 class UserSchema(ma.SQLAlchemySchema):
+    """
+    This schema lists fields we support through this API (e.g. no password)
+    """
+
     class Meta:
         model = UserModel
 
@@ -131,10 +131,8 @@ def fetch_one(user: UserModel):
 @as_json
 def patch(db_user: UserModel, user_data: dict):
     """Update a user given its identifier"""
-    ignored_fields = [
-        "id",
-    ]
-    for k, v in [(k, v) for k, v in user_data.items() if k not in ignored_fields]:
+    allowed_fields = ["email", "username", "active", "timezone", "flexmeasures_roles"]
+    for k, v in [(k, v) for k, v in user_data.items() if k in allowed_fields]:
         setattr(db_user, k, v)
     db.session.add(db_user)
     try:
@@ -156,4 +154,5 @@ def reset_password(user, args):
             [random.choice(string.ascii_lowercase) for _ in range(24)]
         )
         update_password(user, new_random_password)
+        db.session.commit()
     send_reset_password_instructions(user)
