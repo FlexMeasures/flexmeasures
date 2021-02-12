@@ -1,92 +1,81 @@
-from flask import url_for, request
+from flask import url_for
+import pytest
+
 from flexmeasures.data.services.users import find_user_by_email
+from flexmeasures.ui.tests.utils import mock_user_response
+
+"""
+Testing if the UI crud views do auth checks and display answers.
+Actual logic is tested in the API tests.
+"""
 
 
-def test_user_crud_as_non_admin(client, as_prosumer):
+@pytest.mark.parametrize(
+    "view", ["index", "get", "toggle_active", "reset_password_for"]
+)
+def test_user_crud_as_non_admin(client, as_prosumer, view):
     user_index = client.get(url_for("UserCrud:index"), follow_redirects=True)
     assert user_index.status_code == 403
     prosumer2_id = find_user_by_email("test_prosumer2@seita.nl").id
     user_page = client.get(
-        url_for("UserCrud:get", id=prosumer2_id), follow_redirects=True
-    )
-    assert user_page.status_code == 403
-    user_page = client.get(
-        url_for("UserCrud:toggle_active", id=prosumer2_id), follow_redirects=True
-    )
-    assert user_page.status_code == 403
-    user_page = client.get(
-        url_for("UserCrud:reset_password_for", id=prosumer2_id), follow_redirects=True
+        url_for(f"UserCrud:{view}", id=prosumer2_id), follow_redirects=True
     )
     assert user_page.status_code == 403
 
 
-def test_user_list(client, as_admin):
+def test_user_list(client, as_admin, requests_mock):
+    requests_mock.get(
+        "http://localhost//api/v2_0/users",
+        status_code=200,
+        json=mock_user_response(multiple=True),
+    )
     user_index = client.get(url_for("UserCrud:index"), follow_redirects=True)
     assert user_index.status_code == 200
     assert b"All active users" in user_index.data
-    assert b"test_prosumer@seita.nl" in user_index.data
-    assert b"test_prosumer2@seita.nl" in user_index.data
+    assert b"alex@seita.nl" in user_index.data
+    assert b"bert@seita.nl" in user_index.data
 
 
-def test_user_page(client, as_admin):
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl", keep_in_session=False)
-    user_page = client.get(
-        url_for("UserCrud:get", id=prosumer2.id), follow_redirects=True
+def test_user_page(client, as_admin, requests_mock):
+    mock_user = mock_user_response(as_list=False)
+    requests_mock.get(
+        "http://localhost//api/v2_0/user/2", status_code=200, json=mock_user
     )
+    user_page = client.get(url_for("UserCrud:get", id=2), follow_redirects=True)
     assert user_page.status_code == 200
-    assert ("Account overview for %s" % prosumer2.username).encode() in user_page.data
-    assert prosumer2.email.encode() in user_page.data
+    assert (
+        "Account overview for %s" % mock_user["username"]
+    ).encode() in user_page.data
+    assert mock_user["email"].encode() in user_page.data
 
 
-def test_deactivate_user(client, as_admin):
-    """Switch prosumer2 to inactive, check user index, and re-activate him/her."""
+def test_deactivate_user(client, as_admin, requests_mock):
+    """Test it does not fail (logic is tested in API tests) and diplays an answer."""
     prosumer2 = find_user_by_email("test_prosumer2@seita.nl", keep_in_session=False)
+    requests_mock.patch(
+        f"http://localhost//api/v2_0/user/{prosumer2.id}",
+        status_code=200,
+        json={"active": False},
+    )
     # de-activate
     user_page = client.get(
         url_for("UserCrud:toggle_active", id=prosumer2.id), follow_redirects=True
     )
     assert user_page.status_code == 200
-    assert find_user_by_email("test_prosumer2@seita.nl").active is False
+    assert prosumer2.username in str(user_page.data)
     assert b"new activation status is now False" in user_page.data
-    # check index
-    user_index = client.get(url_for("UserCrud:index"), follow_redirects=True)
-    assert user_index.status_code == 200
-    assert b"All active users" in user_index.data
-    assert b"test_prosumer@seita.nl" in user_index.data
-    assert b"test_prosumer2@seita.nl" not in user_index.data
-    user_index = client.get(
-        url_for("UserCrud:index") + "?include_inactive=on", follow_redirects=True
-    )
-    assert user_index.status_code == 200
-    assert b"All users" in user_index.data
-    assert b"test_prosumer2@seita.nl" in user_index.data
-    # re-activate
-    user_page = client.get(
-        url_for("UserCrud:toggle_active", id=prosumer2.id), follow_redirects=True
-    )
-    assert user_page.status_code == 200
-    assert b"new activation status is now True" in user_page.data
-    user_index = client.get(
-        url_for("UserCrud:index", id=prosumer2.id), follow_redirects=True
-    )
-    assert user_index.status_code == 200
-    assert b"test_prosumer2@seita.nl" in user_index.data
 
 
-def test_reset_password(app, client, as_admin):
-    """Test it does not fail, test that user password has changed and they got a reset email"""
+def test_reset_password(client, as_admin, requests_mock):
+    """Test it does not fail (logic is tested in API tests) and diplays an answer."""
     prosumer2 = find_user_by_email("test_prosumer2@seita.nl", keep_in_session=False)
-    old_password = prosumer2.password
-    with app.mail.record_messages() as outbox:
-        user_page = client.get(
-            url_for("UserCrud:reset_password_for", id=prosumer2.id),
-            follow_redirects=True,
-        )
-        assert len(outbox) == 2
-        assert "has been reset" in outbox[0].subject
-        assert "reset instructions" in outbox[1].subject
-        assert "reset your password:\n\n%sreset/" % request.host_url in outbox[1].body
+    requests_mock.get(
+        f"http://localhost//api/v2_0/user/{prosumer2.id}/password-reset",
+        status_code=200,
+    )
+    user_page = client.get(
+        url_for("UserCrud:reset_password_for", id=prosumer2.id),
+        follow_redirects=True,
+    )
     assert user_page.status_code == 200
     assert b"has been changed to a random password" in user_page.data
-    prosumer2 = find_user_by_email("test_prosumer2@seita.nl")
-    assert old_password != prosumer2.password

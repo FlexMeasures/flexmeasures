@@ -87,7 +87,6 @@ def load_user(admins_only: bool = False):
                 current_app.logger.warning("Request missing id.")
                 return required_info_missing(["id"])
             if len(args) > 1:
-                print(args)
                 return (
                     dict(
                         status="UNEXPECTED_PARAMS",

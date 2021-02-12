@@ -1,22 +1,19 @@
-import random
-import string
-from typing import Optional
+from typing import Optional, Union
 
-from flask import request
+from flask import request, url_for
 from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired
 from flask_security import roles_required
-from flask_security.recoverable import update_password, send_reset_password_instructions
 
-from flexmeasures.data.models.user import User
+from flexmeasures.data.config import db
+from flexmeasures.data.models.user import User, Role
 from flexmeasures.data.services.users import (
     get_user,
-    get_users,
-    toggle_activation_status_of,
 )
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.ui.crud.api_wrapper import InternalApi
 
 """
 User Crud views for admins.
@@ -40,9 +37,26 @@ def render_user(user: Optional[User], msg: str = None):
     )
 
 
-# TODO: URLs should be /users/<id>/action
-# TODO: move to Flask-RestPlus - can all of them stay GET?
-# TODO: support JSON?
+def process_internal_api_response(
+    user_data: dict, user_id: Optional[int] = None, make_obj=False
+) -> Union[User, dict]:
+    """
+    Turn data from the internal API into something we can use to further populate the UI.
+    Either as an user object or a dict for form filling.
+    """
+    with db.session.no_autoflush:
+        role_ids = tuple(user_data["flexmeasures_roles"])
+        user_data["flexmeasures_roles"] = Role.query.filter(Role.id.in_(role_ids)).all()
+        user_data.pop("status", None)  # might have come from requests.response
+        if user_id:
+            user_data["id"] = user_id
+        if make_obj:
+            user = User(**user_data)
+            db.session.expunge(user)
+            return user
+    return user_data
+
+
 class UserCrud(FlaskView):
     route_base = "/users"
     trailing_slash = False
@@ -50,27 +64,41 @@ class UserCrud(FlaskView):
     @roles_required("admin")
     def index(self):
         """/users"""
-        only_active = request.args.get("include_inactive", "0") == "0"
-        users = get_users(only_active=only_active)
+        include_inactive = request.args.get("include_inactive", "0") != "0"
+        get_users_response = InternalApi().get(
+            url_for(
+                "flexmeasures_api_v2_0.get_users", include_inactive=include_inactive
+            )
+        )
+        users = [
+            process_internal_api_response(user, make_obj=True)
+            for user in get_users_response.json()
+        ]
         return render_flexmeasures_template(
-            "crud/users.html", users=users, include_inactive=not only_active
+            "crud/users.html", users=users, include_inactive=include_inactive
         )
 
     @roles_required("admin")
     def get(self, id: str):
         """GET from /users/<id>"""
-        user: User = get_user(id)
+        get_user_response = InternalApi().get(
+            url_for("flexmeasures_api_v2_0.get_user", id=id)
+        )
+        user = process_internal_api_response(get_user_response.json(), make_obj=True)
         return render_user(user)
 
     @roles_required("admin")
     def toggle_active(self, id: str):
         """Toggle activation status via /users/toggle_active/<id>"""
         user: User = get_user(id)
-        toggle_activation_status_of(user)
+        InternalApi().patch(
+            url_for("flexmeasures_api_v2_0.patch_user", id=id),
+            args={"active": not user.active},
+        )
         return render_user(
             user,
             msg="User %s's new activation status is now %s."
-            % (user.username, user.active),
+            % (user.username, not user.active),
         )
 
     @roles_required("admin")
@@ -79,11 +107,9 @@ class UserCrud(FlaskView):
         Set the password to something random (in case of worries the password might be compromised)
         and send instructions on how to reset."""
         user: User = get_user(id)
-        new_random_password = "".join(
-            [random.choice(string.ascii_lowercase) for _ in range(12)]
+        InternalApi().get(
+            url_for("flexmeasures_api_v2_0.reset_user_password", id=id),
         )
-        update_password(user, new_random_password)
-        send_reset_password_instructions(user)
         return render_user(
             user,
             msg="The user's password has been changed to a random password"
