@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
 """
-Quick script to compare clear-sky irradiation computations
+Quick script to compare clear-sky irradiance computations
 from three different libraries.
-
-There might be errors or misunderstandings still in here.
 """
 from typing import List, Dict
 from datetime import datetime, timedelta
@@ -34,34 +32,53 @@ datetimes = [DAY + timedelta(minutes=i * 20) for i in range(24 * 3)]
 timezones = {k: tzwhere.tzNameAt(*v) for k, v in locations.items()}
 
 
-def irradiation_by_solarpy(
-    latitude: float, longitude: float, dt: datetime, z: str
+def irradiance_by_solarpy(
+    latitude: float, longitude: float, dt: datetime, z: str, metric: str = "dni"
 ) -> float:
+    """Supports direct horizontal irradiance and direct normal irradiance."""
     h = 0  # sea-level
     dt = dt.astimezone(pytz.timezone(z)).replace(tzinfo=None)  # local time
     dt = solarpy.standard2solar_time(dt, longitude)  # solar time
-    vnorm = solarpy.solar_vector_ned(
-        dt, latitude
-    )  # plane pointing directly to the sun -> for clear sky irradiance
-    vnorm[-1] = vnorm[-1] * 0.99999  # avoid floating point error
+    if metric == "dhi":  # direct horizontal irradiance
+        vnorm = [0, 0, -1]  # plane pointing up
+    elif metric == "dni":  # direct normal irradiance
+        vnorm = solarpy.solar_vector_ned(
+            dt, latitude
+        )  # plane pointing directly to the sun
+        vnorm[-1] = vnorm[-1] * 0.99999  # avoid floating point error
+    else:
+        return NotImplemented
     return solarpy.irradiance_on_plane(vnorm, h, dt, latitude)
 
 
-def irradiation_by_pysolar(latitude: float, longitude: float, dt: datetime) -> float:
+def irradiance_by_pysolar(
+    latitude: float, longitude: float, dt: datetime, method: str = "dni"
+) -> float:
+    """Supports direct normal irradiance."""
     altitude_deg = pysolar.solar.get_altitude(latitude, longitude, dt)
-    return pysolar.radiation.get_radiation_direct(dt, altitude_deg)
+    if method == "dni":
+        return pysolar.radiation.get_radiation_direct(dt, altitude_deg)
+    else:
+        return NotImplemented
 
 
-def irradiation_by_pvlib(latitude: float, longitude: float, dt: datetime) -> float:
+def irradiance_by_pvlib(
+    latitude: float, longitude: float, dt: datetime, method: str = "dni"
+) -> float:
     """
+    Supports direct horizontal irradiance, direct normal irradiance and global horizontal irradiance.
     https://firstgreenconsulting.wordpress.com/2012/04/26/differentiate-between-the-dni-dhi-and-ghi/
     """
     site = pvlib.location.Location(latitude, longitude, tz=pytz.utc)
     solpos = site.get_solarposition(DatetimeIndex([dt]))
-    return site.get_clearsky(DatetimeIndex([dt]), solar_position=solpos).loc[dt]["ghi"]
+    irradiance = site.get_clearsky(DatetimeIndex([dt]), solar_position=solpos).loc[dt]
+    if method in ("ghi", "dni", "dhi"):
+        return irradiance[method]
+    else:
+        return NotImplemented
 
 
-def plot_irradiation(
+def plot_irradiance(
     city: str,
     datetimes: List[datetime],
     values: Dict[str, List[float]],
@@ -72,8 +89,8 @@ def plot_irradiation(
 
     ax.set(
         xlabel="Time (20m)",
-        ylabel="Irradiation (W/m²)",
-        title=f"Irradiation for {city} on {DAY.date()}",
+        ylabel="Direct Normal Irradiance (W/m²)",
+        title=f"Irradiance for {city} on {DAY.date()}",
     )
 
     # draw values
@@ -130,7 +147,7 @@ def plot_irradiation(
 
     plt.legend()
 
-    fig.savefig(f"test-irradiation-{city}.png")
+    fig.savefig(f"test-irradiance-{city}.png")
     plt.show()
 
 
@@ -147,13 +164,13 @@ if __name__ == "__main__":
         ]
 
         for dt in local_datetimes:
-            irrad_pysolar = irradiation_by_pysolar(lat, lon, dt)
+            irrad_pysolar = irradiance_by_pysolar(lat, lon, dt)
             values["pysolar"].append(irrad_pysolar)
-            irrad_solarpy = irradiation_by_solarpy(lat, lon, dt, timezone)
+            irrad_solarpy = irradiance_by_solarpy(lat, lon, dt, timezone)
             values["solarpy"].append(irrad_solarpy)
-            irrad_pvlib = irradiation_by_pvlib(lat, lon, dt)
+            irrad_pvlib = irradiance_by_pvlib(lat, lon, dt)
             values["pvlib"].append(irrad_pvlib)
             print(
                 f"For {city} at {dt} {timezones[city]} ― pysolar: {irrad_pysolar:.2f}, solarpy: {irrad_solarpy:.2f}, pvlib: {irrad_pvlib:.2f}"
             )
-        plot_irradiation(city, local_datetimes, values, sun_times)
+        plot_irradiance(city, local_datetimes, values, sun_times)
