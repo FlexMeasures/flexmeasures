@@ -72,9 +72,9 @@ def create_forecasting_jobs(
         2) forecast each quarter-hour from 9pm to 11pm, i.e. the 6h forecast
         3) forecast each quarter-hour from 3pm to 5pm the next day, i.e. the 1d forecast
 
-    If not given, relevant horizons are deduced from the resolution of the posted data.
+    If not given, relevant horizons are derived from the resolution of the posted data.
 
-    The job needs a model configurator, for which you can supply a model search term. If ommited, the
+    The job needs a model configurator, for which you can supply a model search term. If omitted, the
     current default model configuration will be used.
 
     It's possible to customize model parameters, but this feature is (currently) meant to only
