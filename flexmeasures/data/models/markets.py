@@ -1,6 +1,7 @@
 from typing import Dict
-from datetime import timedelta
 
+import timely_beliefs as tb
+from timely_beliefs.sensors.func_store import knowledge_horizons
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
@@ -40,21 +41,23 @@ class MarketType(db.Model):
         return "<MarketType %r>" % self.name
 
 
-class Market(db.Model):
+class Market(db.Model, tb.SensorDBMixin):
     """Each market is a pricing service."""
 
-    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True)
     display_name = db.Column(db.String(80), default="", unique=True)
     market_type_name = db.Column(
         db.String(80), db.ForeignKey("market_type.name"), nullable=False
     )
-    unit = db.Column(db.String(80), default="", nullable=False)
-    event_resolution = db.Column(
-        db.Interval(), nullable=False, default=timedelta(minutes=0)
-    )
 
     def __init__(self, **kwargs):
+        # Set default knowledge horizon function for an economic sensor
+        if "knowledge_horizon_fnc" not in kwargs:
+            kwargs["knowledge_horizon_fnc"] = knowledge_horizons.ex_ante.__name__
+        if "knowledge_horizon_par" not in kwargs:
+            kwargs["knowledge_horizon_par"] = {
+                knowledge_horizons.ex_ante.__code__.co_varnames[1]: "PT0H"
+            }
         super(Market, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
         if "display_name" not in kwargs:
