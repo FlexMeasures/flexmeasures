@@ -21,15 +21,15 @@ from flexmeasures.api.common.responses import required_info_missing
 from flexmeasures.data.config import db
 
 """
-API endpoints to manager users.
+API endpoints to manage users.
 
-Both POST (to create) and DELETE are not accesible via the API, but as CLI functions.
+Both POST (to create) and DELETE are not accessible via the API, but as CLI functions.
 """
 
 
 class UserSchema(ma.SQLAlchemySchema):
     """
-    This schema lists fields we support through this API (e.g. no password)
+    This schema lists fields we support through this API (e.g. no password).
     """
 
     class Meta:

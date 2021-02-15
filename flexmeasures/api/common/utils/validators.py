@@ -55,8 +55,8 @@ p = inflect.engine()
 @parser.location_loader("args_and_json")
 def load_data(request, schema):
     """
-    We allow data to come from either GET args or POST Json,
-    as validators can be attached to either
+    We allow data to come from either GET args or POST JSON,
+    as validators can be attached to either.
     """
     newdata = request.args.copy()
     if request.mimetype == "application/json" and request.method == "POST":
