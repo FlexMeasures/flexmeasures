@@ -42,7 +42,7 @@ def process_internal_api_response(
 ) -> Union[User, dict]:
     """
     Turn data from the internal API into something we can use to further populate the UI.
-    Either as an user object or a dict for form filling.
+    Either as a user object or a dict for form filling.
     """
     with db.session.no_autoflush:
         role_ids = tuple(user_data["flexmeasures_roles"])
