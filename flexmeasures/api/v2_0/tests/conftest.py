@@ -25,7 +25,7 @@ def setup_api_test_data(db):
 
     # an inactive user
     user_datastore.create_user(
-        username="incative test user",
+        username="inactive test user",
         email="inactive@seita.nl",
         password=hash_password("testtest"),
         active=False,
