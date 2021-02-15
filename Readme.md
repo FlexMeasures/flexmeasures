@@ -12,7 +12,7 @@ For this purpose, it performs monitoring, forecasting and scheduling services.
 
 Its role is to enhance energy services. Forecasts and schedules are made available via API (designed with [the USEF framework](https://usef.energy) in mind).
 
-![Integration view of the FlexMeasures platform architecture](https://seita.nl/wp-content/uploads/2021/02/FlexMeasures-HighLevel.png
+![Integration view of the FlexMeasures platform architecture](https://seita.nl/wp-content/uploads/2021/02/FlexMeasures-HighLevel.png)
 
 FlexMeasures is developed by [Seita BV](https://www.seita.nl) in The Netherlands, in cooperation with [A1 Engineering](http://aoneeng.com), Korea.
 

@@ -2,8 +2,8 @@
 
 Note: For developers, there is more detailed documentation available. Please consult the documentation next to the relevant code:
 
-* [General coding tips and maintenance](flexmeasures/README.md)
-* [Continuous Integration](ci/README.md)
+* [General coding tips and maintenance](flexmeasures/Readme.md)
+* [Continuous Integration](ci/Readme.md)
 * [Database management](flexmeasures/data/Readme.md)
 * [API development](flexmeasures/api/Readme.md)
 
