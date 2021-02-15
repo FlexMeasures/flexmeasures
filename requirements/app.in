@@ -25,9 +25,13 @@ redis; os_name=='nt'
 tldextract
 pyomo>=5.6
 forecastiopy
-pysolar
+pvlib
+# the following three are optional in pvlib, but we use them
+netCDF4
+siphon
+tables
 timetomodel>=0.6.8
-timely-beliefs>=1.2.0
+timely-beliefs>=1.2.1
 python-dotenv
 Flask-SSLify
 Flask_JSON
