@@ -8,7 +8,7 @@ from sqlalchemy.orm import Query
 from flexmeasures.data.config import db
 from flexmeasures.data.models.time_series import TimedValue
 from flexmeasures.utils.entity_address_utils import build_entity_address
-from flexmeasures.utils.flexmeasures_inflection import humanize, pluralize
+from flexmeasures.utils.flexmeasures_inflection import humanize, pluralize, parameterize
 
 
 class AssetType(db.Model):
@@ -72,7 +72,7 @@ class Asset(db.Model):
     """Each asset is an energy- consuming or producing hardware. """
 
     id = db.Column(db.Integer, primary_key=True)
-    # The name
+    # The name. It will get paramterised so it can be used in URLs
     name = db.Column(db.String(80), default="", unique=True)
     # The name we want to see (don't unnecessarily capitalize, so it can be used in a sentence)
     display_name = db.Column(db.String(80), default="", unique=True)
@@ -106,9 +106,9 @@ class Asset(db.Model):
 
     def __init__(self, **kwargs):
         super(Asset, self).__init__(**kwargs)
-        self.name = self.name.replace(" (MW)", "")
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
+        self.name = parameterize(self.name)
 
     asset_type = db.relationship("AssetType", backref=db.backref("assets", lazy=True))
     owner = db.relationship(
