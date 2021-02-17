@@ -383,7 +383,7 @@ def get_users():
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["GET"])
 @auth_token_required
-# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /asset/<id>"))
+# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
 def get_user(id: int):
     """API endpoint to get a user.
 
@@ -418,7 +418,7 @@ def get_user(id: int):
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["PATCH"])
 @auth_token_required
-# @usef_roles_accepted(*list_access(v2_0_service_listing, "PATCH /assets"))
+# @usef_roles_accepted(*list_access(v2_0_service_listing, "PATCH /user/<id>"))
 def patch_user(id: int):
     """API endpoint to patch user data.
 
@@ -466,7 +466,7 @@ def patch_user(id: int):
 
 @flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["GET"])
 @auth_token_required
-# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /asset/<id>"))
+# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
 def reset_user_password(id: int):
     """API endpoint to reset the user password. They'll get an email to choose a new password.
 

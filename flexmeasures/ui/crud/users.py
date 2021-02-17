@@ -17,6 +17,9 @@ from flexmeasures.ui.crud.api_wrapper import InternalApi
 
 """
 User Crud views for admins.
+
+Note: This uses the internal API 2.0 ― if these endpoints get updated in a later version,
+      we should change the version here.
 """
 
 
@@ -91,14 +94,17 @@ class UserCrudUI(FlaskView):
     def toggle_active(self, id: str):
         """Toggle activation status via /users/toggle_active/<id>"""
         user: User = get_user(id)
-        InternalApi().patch(
+        user_response = InternalApi().patch(
             url_for("flexmeasures_api_v2_0.patch_user", id=id),
             args={"active": not user.active},
+        )
+        patched_user: User = process_internal_api_response(
+            user_response.json(), make_obj=True
         )
         return render_user(
             user,
             msg="User %s's new activation status is now %s."
-            % (user.username, not user.active),
+            % (patched_user.username, patched_user.active),
         )
 
     @roles_required("admin")

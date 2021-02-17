@@ -25,6 +25,14 @@ from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
 
 
+"""
+Asset crud view.
+
+Note: This uses the internal API 2.0 ― if these endpoints get updated in a later version,
+      we should change the version here.
+"""
+
+
 class AssetForm(FlaskForm):
     """The default asset form only allows to edit the name, numbers and market."""
 

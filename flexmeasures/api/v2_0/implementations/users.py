@@ -153,5 +153,9 @@ def reset_password(user, args):
             [random.choice(string.ascii_lowercase) for _ in range(24)]
         )
         update_password(user, new_random_password)
-        db.session.commit()
+
     send_reset_password_instructions(user)
+
+    # commit only if sending instructions worked
+    if args.get("only_send_email", False) is False:
+        db.session.commit()
