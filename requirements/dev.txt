@@ -9,7 +9,7 @@ black==20.8b1             # via -r requirements/dev.in
 cfgv==3.2.0               # via pre-commit
 click==7.1.2              # via -c requirements/app.txt, -c requirements/test.txt, black
 distlib==0.3.1            # via virtualenv
-filelock==3.0.12          # via virtualenv
+filelock==3.0.12          # via -c requirements/app.txt, virtualenv
 flake8-blind-except==0.1.1  # via -r requirements/dev.in
 flake8==3.8.3             # via -r requirements/dev.in
 identify==1.5.0           # via pre-commit

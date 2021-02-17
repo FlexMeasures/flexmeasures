@@ -1,0 +1,2 @@
+- [ ] I agree to contribute to the project under Apache 2 License. 
+- [ ] To the best of my knowledge, the proposed patch is not based on a code under GPL or other license that is incompatible with FlexMeasures

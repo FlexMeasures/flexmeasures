@@ -26,12 +26,11 @@ setup(
     tests_require=load_requirements("test"),
     packages=["flexmeasures"],
     include_package_data=True,
-    # license="Apache",
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
         "Development Status :: 3 - Alpha",
-        "License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)",
+        "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
     ],
     long_description="""\
