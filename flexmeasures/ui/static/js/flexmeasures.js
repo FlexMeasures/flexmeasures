@@ -103,6 +103,7 @@ function ready() {
 
     $('#control-action-setting-offshore')
         .ionRangeSlider({
+            skin: "big",
             type: "single",
             grid: true,
             grid_snap: true,
@@ -125,6 +126,7 @@ function ready() {
         });
 
     $('#control-action-setting-battery').ionRangeSlider({
+        skin: "big",
         type: "single",
         grid: true,
         grid_snap: true,
