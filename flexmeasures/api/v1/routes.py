@@ -51,7 +51,7 @@ def get_meter_data():
 
         {
             "type": "GetMeterDataRequest",
-            "connection": "CS 1",
+            "connection": "cs_1",
             "start": "2015-01-01T00:00:00Z",
             "duration": "PT1H30M",
             "unit": "MW"
@@ -66,7 +66,7 @@ def get_meter_data():
 
         {
             "type": "GetMeterDataResponse",
-            "connection": "CS 1",
+            "connection": "cs_1",
             "values": [
                 306.66,
                 306.66,
@@ -117,8 +117,8 @@ def post_meter_data():
             "groups": [
                 {
                     "connections": [
-                        "CS 1",
-                        "CS 3"
+                        "cs_1",
+                        "cs_3"
                     ],
                     "values": [
                         306.66,
@@ -131,7 +131,7 @@ def post_meter_data():
                 },
                 {
                     "connections": [
-                        "CS 2"
+                        "cs_2"
                     ],
                     "values": [
                         306.66,

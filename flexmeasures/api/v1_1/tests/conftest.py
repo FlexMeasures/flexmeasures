@@ -44,7 +44,7 @@ def setup_api_test_data(db):
     test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
-    asset_names = ["CS 1", "CS 2", "CS 3"]
+    asset_names = ["cs_1", "cs_2", "cs_3"]
     assets: List[Asset] = []
     for asset_name in asset_names:
         asset = Asset(
@@ -61,9 +61,9 @@ def setup_api_test_data(db):
         db.session.add(asset)
 
     # Add power forecasts to the assets
-    cs_1 = Asset.query.filter(Asset.name == "CS 1").one_or_none()
-    cs_2 = Asset.query.filter(Asset.name == "CS 2").one_or_none()
-    cs_3 = Asset.query.filter(Asset.name == "CS 3").one_or_none()
+    cs_1 = Asset.query.filter(Asset.name == "cs_1").one_or_none()
+    cs_2 = Asset.query.filter(Asset.name == "cs_2").one_or_none()
+    cs_3 = Asset.query.filter(Asset.name == "cs_3").one_or_none()
     data_source = DataSource.query.filter(
         DataSource.user == test_prosumer
     ).one_or_none()

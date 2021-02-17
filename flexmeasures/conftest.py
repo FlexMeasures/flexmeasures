@@ -237,7 +237,7 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
 
     battery = Asset(
-        name="Test battery",
+        name="test_battery",
         asset_type_name="battery",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
@@ -255,7 +255,7 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
     db.session.add(battery)
 
     battery = Asset(
-        name="Test battery with no known prices",
+        name="test_battery_with_no_known_prices",
         asset_type_name="battery",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,

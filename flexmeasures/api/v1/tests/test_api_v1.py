@@ -196,7 +196,7 @@ def test_get_meter_data(db, app, client, message):
 
     All data should be in the database, and currently only the Prosumer data is returned.
     """
-    message["connection"] = "CS 5"
+    message["connection"] = "cs_5"
 
     # set up frame with expected values, and filter by source if needed
     expected_values = pd.concat(
@@ -235,7 +235,7 @@ def test_get_meter_data(db, app, client, message):
     ).sort_index()
 
     # check whether conftest.py did its job setting up the database with expected values
-    cs_5 = Asset.query.filter(Asset.name == "CS 5").one_or_none()
+    cs_5 = Asset.query.filter(Asset.name == "cs_5").one_or_none()
     verify_power_in_db(message, cs_5, expected_values, db, swapped_sign=True)
 
     # check whether the API returns the expected values (currently only the Prosumer data is returned)
@@ -303,7 +303,7 @@ def test_post_and_get_meter_data(db, app, client, post_message, get_message):
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
-    for asset_name in ("CS 1", "CS 2", "CS 3"):
+    for asset_name in ("cs_1", "cs_2", "cs_3"):
         if asset_name in str(post_message):
             asset = Asset.query.filter_by(name=asset_name).one_or_none()
             assert asset.id in [job.kwargs["asset_id"] for job in jobs]
@@ -356,6 +356,6 @@ def test_post_meter_data_to_different_resolutions(db, app, client):
         "assets do not have matching resolutions"
         in post_meter_data_response.json["message"]
     )
-    assert "CS 2" in post_meter_data_response.json["message"]
-    assert "CS 4" in post_meter_data_response.json["message"]
+    assert "cs_2" in post_meter_data_response.json["message"]
+    assert "cs_4" in post_meter_data_response.json["message"]
     assert post_meter_data_response.json["status"] == "INVALID_RESOLUTION"

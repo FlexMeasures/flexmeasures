@@ -14,7 +14,7 @@ from flexmeasures.data.models.assets import Asset
 
 @pytest.mark.parametrize("message", [message_for_get_device_message()])
 def test_get_device_message(client, message):
-    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+    asset = Asset.query.filter(Asset.name == "test_battery").one_or_none()
     message["event"] = message["event"] % (asset.owner_id, asset.id)
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     get_device_message_response = client.get(
@@ -54,7 +54,7 @@ def test_get_device_message(client, message):
 
 @pytest.mark.parametrize("message", [message_for_get_device_message(wrong_id=True)])
 def test_get_device_message_wrong_event_id(client, message):
-    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+    asset = Asset.query.filter(Asset.name == "test_battery").one_or_none()
     message["event"] = message["event"] % (asset.owner_id, asset.id)
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     get_device_message_response = client.get(
@@ -76,7 +76,7 @@ def test_get_device_message_wrong_event_id(client, message):
 )
 def test_get_device_message_unknown_prices(client, message):
     asset = Asset.query.filter(
-        Asset.name == "Test battery with no known prices"
+        Asset.name == "test_battery_with_no_known_prices"
     ).one_or_none()
     message["event"] = message["event"] % (asset.owner_id, asset.id)
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
@@ -95,7 +95,7 @@ def test_get_device_message_unknown_prices(client, message):
 def test_post_udi_event(app, message):
     auth_token = None
     with app.test_client() as client:
-        asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+        asset = Asset.query.filter(Asset.name == "test_battery").one_or_none()
         message["event"] = message["event"] % (asset.owner_id, asset.id)
         auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
         post_udi_event_response = client.post(
@@ -110,7 +110,7 @@ def test_post_udi_event(app, message):
     msg_dt = parse_datetime(message["datetime"])
 
     # test database state
-    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+    asset = Asset.query.filter(Asset.name == "test_battery").one_or_none()
     assert asset.soc_datetime == msg_dt
     assert asset.soc_in_mwh == message["value"] / 1000
     assert asset.soc_udi_event_id == 204
@@ -140,7 +140,7 @@ def test_post_udi_event(app, message):
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
 
     # test database state
-    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+    asset = Asset.query.filter(Asset.name == "test_battery").one_or_none()
     assert asset.soc_datetime == next_msg_dt
     assert asset.soc_in_mwh == message["value"] / 1000
     assert asset.soc_udi_event_id == 205
