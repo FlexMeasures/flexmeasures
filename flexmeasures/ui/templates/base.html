@@ -15,24 +15,22 @@
     <link rel="icon" href="favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
     <!-- Leaflet -->
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/leaflet.css') }}" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" rel="stylesheet" />
     <!-- Bootstrap -->
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/bootstrap.min.css') }}" rel="stylesheet" />
+    <link href="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" />
     {% if show_datepicker %}
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/daterangepicker.css') }}"
+    <link href="https://cdn.jsdelivr.net/npm/daterangepicker@3.1.0/daterangepicker.css"
         rel="stylesheet" />
     {% endif %}
     <!-- Fonts -->
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/font-awesome.min.css') }}"
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
         rel="stylesheet" />
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/weather-icons.min.css') }}"
         rel="stylesheet" />
     <!-- Ion range slider -->
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/ion.rangeSlider.css') }}"
-        rel="stylesheet" />
-    <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/ion.rangeSlider.skinCustom.css') }}"
+    <link href="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/css/ion.rangeSlider.css"
         rel="stylesheet" />
     <!-- Custom CSS -->
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/flexmeasures.css') }}" rel="stylesheet" />
@@ -44,7 +42,7 @@
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}"
         rel="stylesheet" />
     {% elif active_page in ("assets", "users", "portfolio") %}
-    <link href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.min.css" rel="stylesheet" />
+    <link href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css" rel="stylesheet" />
     {% endif %}
 </head>
 
@@ -124,8 +122,8 @@
     {% endif %}
 
     <!-- loading this earlier so templates can use it -->
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/jquery-3.1.0.min.js') }}"></script>
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/jquery.floatThead.min.js') }}"></script>
+    <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.5.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/floatthead/2.2.1/jquery.floatThead.min.js"></script>
 
     <!-- This should always be there, even on error pages  -->
     <script type="text/javascript">
@@ -156,7 +154,7 @@
         <input type="hidden" id="datepicker_form_end_time" name="end_time" value="{{ end_time }}" />
     </form>
 
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/moment.min.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     {% endblock datetimepicker %}
 
     {% block forecastpicker %}
@@ -191,11 +189,11 @@
     <div id="att-text" style="display: none;">
         <ul>
             <li>Plots made with <a href="https://bokeh.pydata.org">Bokeh</a>.</li>
-            <li>Icons made by <a href="http://freepik.com">Freepik</a>, <a
+            <li>Icons made by <a href="https://freepik.com">Freepik</a>, <a
                     href="https://www.flaticon.com/authors/tomas-knop" title="Tomas Knop">Tomas Knop</a>, <a
                     href="https://www.flaticon.com/authors/gregor-cresnar" title="Gregor Cresnar">Gregor Cresnar</a> and
                 <a href="https://www.flaticon.com/authors/those-icons" title="Those Icons">Those Icons</a> from <a
-                    href="http://flaticon.com">www.flaticon.com</a>.</li>
+                    href="https://flaticon.com">www.flaticon.com</a>.</li>
         </ul>
     </div>
     {% endblock attributions %}
@@ -204,12 +202,12 @@
 
 
     {#- Scripts used by all views (e.g. by navigation menu) -#}
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/bootstrap.min.js') }}"></script>
+    <script src="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/bootstrap.min.js"></script>
 
     {% block scripts %}
 
     <!-- External scripts -->
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/ion.rangeSlider.min.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
 
     <!-- Custom scripts -->
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}"></script>
@@ -219,15 +217,15 @@
 
     <!-- External scripts that should run after custom scripts -->
     {% if show_datepicker %}
-    <script src="{{ url_for('flexmeasures_ui.static', filename='js/external/daterangepicker.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker@3.1.0/daterangepicker.min.js"></script>
     {% endif %}
 
     {% endblock scripts %}
 
     {% block paginate_tables_script %}
-    <script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
     <script
-        src="{{ url_for('flexmeasures_ui.static', filename='js/external/dataTables.conditionalPaging.js') }}"></script>
+        src="https://cdn.datatables.net/plug-ins/1.10.22/features/conditionalPaging/dataTables.conditionalPaging.js"></script>
     {% endblock paginate_tables_script %}
 
     <footer class="page-footer font-small pt-4 mt-4">
