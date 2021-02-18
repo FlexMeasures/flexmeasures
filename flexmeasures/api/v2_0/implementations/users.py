@@ -142,20 +142,18 @@ def patch(db_user: UserModel, user_data: dict):
 
 
 @load_user(admins_only=True)
-@use_args({"only_send_email": fields.Bool(missing=False)}, location="query")
 @as_json
-def reset_password(user, args):
-    """Send a password reset link to the user.
-    Optionally reset their current password.
+def reset_password(user):
     """
-    if args.get("only_send_email", False) is False:
-        new_random_password = "".join(
-            [random.choice(string.ascii_lowercase) for _ in range(24)]
-        )
-        update_password(user, new_random_password)
+    Reset the user's current password.
+    Send a password reset link to the user.
+    """
+    new_random_password = "".join(
+        [random.choice(string.ascii_lowercase) for _ in range(24)]
+    )
+    update_password(user, new_random_password)
 
     send_reset_password_instructions(user)
 
     # commit only if sending instructions worked
-    if args.get("only_send_email", False) is False:
-        db.session.commit()
+    db.session.commit()

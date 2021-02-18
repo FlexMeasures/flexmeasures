@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import request, current_app, abort
+from flask import current_app, abort
 from flask_security import current_user
 from flask_json import as_json
 
@@ -80,23 +80,14 @@ def get(args):
 
 
 @as_json
-def post():
+@use_args(AssetSchema())
+def post(asset_data):
     """Create new asset"""
 
     if current_user.has_role("anonymous"):
         return unauthorized_handler(
             None, []
         )  # Disallow edit access, even to own assets TODO: review, such a role should not exist
-
-    if not current_user.has_role("admin"):
-        return unauthorized_handler(None, [])
-
-    try:
-        # TODO: better error message if several assets are being sent?
-        asset_data = asset_schema.load(request.json, session=db.session)
-    except ValidationError as ve:
-        current_app.logger.warning(ve.messages)
-        return dict(validation_errors=ve.messages), 400
 
     asset = AssetModel(**asset_data)
     db.session.add(asset)

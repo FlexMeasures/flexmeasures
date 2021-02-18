@@ -94,12 +94,10 @@ def test_edit_user(client):
     assert user_edit_response.status_code == 401
     # admin can deactivate supplier, other changes will be ignored
     # (id is in the Userschema of the API, but we ignore it)
+    headers = {"content-type": "application/json", "Authorization": prosumer_auth_token}
     user_edit_response = client.patch(
         url_for("flexmeasures_api_v2_0.patch_user", id=supplier_id),
-        headers={
-            "content-type": "application/json",
-            "Authorization": prosumer_auth_token,
-        },
+        headers=headers,
         json={"active": False, "id": 888},
     )
     print("Server responded with:\n%s" % user_edit_response.json)
@@ -112,7 +110,7 @@ def test_edit_user(client):
 
 
 def test_edit_user_with_unexpected_fields(client):
-    """Sending unexpected fields is an Unprocessible Entity error."""
+    """Sending unexpected fields (not in Schema) is an Unprocessible Entity error."""
     with UserContext("test_supplier@seita.nl") as supplier:
         supplier_id = supplier.id
     with UserContext("test_prosumer@seita.nl") as prosumer:
@@ -130,20 +128,19 @@ def test_edit_user_with_unexpected_fields(client):
 
 
 @pytest.mark.parametrize(
-    "sender,only_send_email",
+    "sender",
     (
-        ("", None),
-        ("test_supplier@seita.nl", None),
-        ("test_prosumer@seita.nl", None),
-        ("test_prosumer@seita.nl", True),
-        ("test_prosumer@seita.nl", False),
+        (""),
+        ("test_supplier@seita.nl"),
+        ("test_prosumer@seita.nl"),
+        ("test_prosumer@seita.nl"),
+        ("test_prosumer@seita.nl"),
     ),
 )
-def test_user_reset_password(app, client, sender, only_send_email):
+def test_user_reset_password(app, client, sender):
     """
     Reset the password of supplier.
     Only the prosumer is allowed to do that (as admin).
-    We test if the only-email setting works.
     """
     with UserContext("test_supplier@seita.nl") as supplier:
         supplier_id = supplier.id
@@ -151,13 +148,10 @@ def test_user_reset_password(app, client, sender, only_send_email):
     headers = {"content-type": "application/json"}
     if sender != "":
         headers["Authorization"] = (get_auth_token(client, sender, "testtest"),)
-    query = {}
-    if only_send_email is not None:
-        query["only_send_email"] = only_send_email
     with app.mail.record_messages() as outbox:
         pwd_reset_response = client.get(
             url_for("flexmeasures_api_v2_0.reset_user_password", id=supplier_id),
-            query_string=query,
+            query_string={},
             headers=headers,
         )
         print("Server responded with:\n%s" % pwd_reset_response.json)
@@ -173,15 +167,10 @@ def test_user_reset_password(app, client, sender, only_send_email):
         assert pwd_reset_response.status_code == 200
 
         supplier = find_user_by_email("test_supplier@seita.nl")
-        if only_send_email is True:
-            assert len(outbox) == 1
-            pwd_reset_instructions = outbox[0]
-            assert old_password == supplier.password
-        else:
-            assert len(outbox) == 2
-            assert "has been reset" in outbox[0].subject
-            pwd_reset_instructions = outbox[1]
-            assert old_password != supplier.password
+        assert len(outbox) == 2
+        assert "has been reset" in outbox[0].subject
+        pwd_reset_instructions = outbox[1]
+        assert old_password != supplier.password
         assert "reset instructions" in pwd_reset_instructions.subject
         assert (
             "reset your password:\n\n%sreset/" % request.host_url

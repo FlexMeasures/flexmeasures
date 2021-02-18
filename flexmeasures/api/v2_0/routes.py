@@ -141,6 +141,7 @@ def get_assets():
 
 @flexmeasures_api_v2_0.route("/assets", methods=["POST"])
 @auth_token_required
+@roles_required("admin")
 # @usef_roles_accepted(*list_access(v2_0_service_listing, "POST /assets"))
 def post_assets():
     """API endpoint to post a new asset.
@@ -466,7 +467,7 @@ def patch_user(id: int):
     return users.patch(id)
 
 
-@flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["GET"])
+@flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["PATCH"])
 @auth_token_required
 # @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
 def reset_user_password(id: int):
@@ -474,10 +475,9 @@ def reset_user_password(id: int):
 
     .. :quickref: User; Password reset
 
-    Send instructions to the user on how to reset the password.
-    For security reasons, (in case of worries the password might be compromised)
-    we set the current password to something random (and also send an email about that fact to the user)
-    unless the `only_send_email` parameter is passed with a truthy value in the query.
+    Reset the user's password, and send them instructions on how to reset the password.
+    This endoint is useful from a security standpoint, in case of worries the password might be compromised.
+    It sets the current password to something random and also send an email about that fact to the user.
 
     Only admins can use this endpoint.
 

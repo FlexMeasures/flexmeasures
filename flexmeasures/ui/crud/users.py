@@ -113,7 +113,7 @@ class UserCrudUI(FlaskView):
         Set the password to something random (in case of worries the password might be compromised)
         and send instructions on how to reset."""
         user: User = get_user(id)
-        InternalApi().get(
+        InternalApi().patch(
             url_for("flexmeasures_api_v2_0.reset_user_password", id=id),
         )
         return render_user(
