@@ -11,10 +11,12 @@ arrow==0.16.0             # via rq-dashboard
 attrs==20.2.0             # via jsonschema
 babel==2.8.0              # via flask-babelex
 bcrypt==3.2.0             # via -r requirements/app.in
+beautifulsoup4==4.9.3     # via siphon
 blinker==1.4              # via flask-mail, flask-principal
 bokeh==1.0.4              # via -r requirements/app.in, pandas-bokeh
 certifi==2020.6.20        # via matplotlib, requests
 cffi==1.14.2              # via bcrypt
+cftime==1.4.1             # via netcdf4
 chardet==3.0.4            # via requests
 click==7.1.2              # via -r requirements/app.in, flask, rq
 colour==0.1.5             # via -r requirements/app.in
@@ -53,46 +55,51 @@ markupsafe==1.1.1         # via jinja2, mako, wtforms
 marshmallow-sqlalchemy==0.23.1  # via -r requirements/app.in
 marshmallow==3.7.1        # via flask-marshmallow, marshmallow-sqlalchemy, webargs
 matplotlib==3.3.1         # via timetomodel
+netcdf4==1.5.5.1          # via -r requirements/app.in
 nose==1.3.7               # via pyutilib
-numpy==1.19.1             # via -r requirements/app.in, altair, bokeh, matplotlib, pandas, patsy, properscoring, scikit-learn, scipy, statsmodels, timely-beliefs, timetomodel
+numexpr==2.7.2            # via tables
+numpy==1.19.1             # via -r requirements/app.in, altair, bokeh, cftime, matplotlib, netcdf4, numexpr, pandas, patsy, properscoring, pvlib, scikit-learn, scipy, siphon, statsmodels, tables, timely-beliefs, timetomodel
 openturns==1.15           # via timely-beliefs
 packaging==20.4           # via bokeh
 pandas-bokeh==0.4.3       # via -r requirements/app.in
-pandas==1.2.0             # via -r requirements/app.in, altair, pandas-bokeh, statsmodels, timely-beliefs, timetomodel
+pandas==1.2.0             # via -r requirements/app.in, altair, pandas-bokeh, pvlib, siphon, statsmodels, timely-beliefs, timetomodel
 passlib==1.7.2            # via flask-security-too
 patsy==0.5.1              # via statsmodels
 pillow==7.2.0             # via bokeh, matplotlib
 ply==3.11                 # via pyomo
 properscoring==0.1        # via timely-beliefs
+protobuf==3.14.0          # via siphon
 pscript==0.7.4            # via -r requirements/app.in
 psycopg2-binary==2.8.6    # via -r requirements/app.in, timely-beliefs
+pvlib==0.8.1              # via -r requirements/app.in
 pycparser==2.20           # via cffi
-pyerf==1.0.1              # via timely-beliefs
 pyomo==5.7                # via -r requirements/app.in
 pyparsing==2.4.7          # via matplotlib, packaging
 pyrsistent==0.16.0        # via jsonschema
-pysolar==0.8              # via -r requirements/app.in
 python-dateutil==2.8.1    # via alembic, arrow, bokeh, matplotlib, pandas, timetomodel
 python-dotenv==0.14.0     # via -r requirements/app.in
 python-editor==1.0.4      # via alembic
-pytz==2020.1              # via -r requirements/app.in, babel, pandas, timely-beliefs, timetomodel, tzlocal
+pytz==2020.1              # via -r requirements/app.in, babel, pandas, pvlib, timely-beliefs, timetomodel, tzlocal
 pyutilib==6.0.0           # via pyomo
 pyyaml==5.3.1             # via bokeh
 redis==3.5.3              # via rq, rq-dashboard
 requests-file==1.5.1      # via tldextract
-requests==2.24.0          # via forecastiopy, requests-file, tldextract
+requests==2.24.0          # via forecastiopy, pvlib, requests-file, siphon, tldextract
 rq-dashboard==0.6.1       # via -r requirements/app.in
 rq==1.5.2                 # via -r requirements/app.in, rq-dashboard
 scikit-learn==0.23.2      # via sklearn
-scipy==1.5.2              # via properscoring, scikit-learn, statsmodels, timetomodel
+scipy==1.5.2              # via properscoring, pvlib, scikit-learn, statsmodels, timely-beliefs, timetomodel
 selenium==3.141.0         # via timely-beliefs
-six==1.15.0               # via altair, bcrypt, bokeh, cycler, flask-marshmallow, isodate, jsonschema, packaging, patsy, pyomo, python-dateutil, pyutilib, requests-file
+siphon==0.8.0             # via -r requirements/app.in
+six==1.15.0               # via altair, bcrypt, bokeh, cycler, flask-marshmallow, isodate, jsonschema, packaging, patsy, protobuf, pyomo, python-dateutil, pyutilib, requests-file
 sklearn==0.0              # via timetomodel
+soupsieve==2.2            # via beautifulsoup4
 speaklater==1.3           # via flask-babelex
 sqlalchemy==1.3.19        # via alembic, flask-sqlalchemy, marshmallow-sqlalchemy, timely-beliefs, timetomodel
 statsmodels==0.12.0       # via timetomodel
+tables==3.6.1             # via -r requirements/app.in
 threadpoolctl==2.1.0      # via scikit-learn
-timely-beliefs==1.0.0     # via -r requirements/app.in
+timely-beliefs==1.2.1     # via -r requirements/app.in
 timetomodel==0.6.8        # via -r requirements/app.in
 tldextract==3.1.0         # via -r requirements/app.in
 toolz==0.10.0             # via altair

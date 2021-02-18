@@ -1,8 +1,7 @@
 from typing import Dict, List, Tuple, Union
-from datetime import timedelta
 
 import isodate
-
+import timely_beliefs as tb
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
@@ -68,10 +67,9 @@ class AssetType(db.Model):
         return "<AssetType %r>" % self.name
 
 
-class Asset(db.Model):
+class Asset(db.Model, tb.SensorDBMixin):
     """Each asset is an energy- consuming or producing hardware. """
 
-    id = db.Column(db.Integer, primary_key=True)
     # The name
     name = db.Column(db.String(80), default="", unique=True)
     # The name we want to see (don't unnecessarily capitalize, so it can be used in a sentence)
@@ -79,13 +77,6 @@ class Asset(db.Model):
     # The name of the assorted AssetType
     asset_type_name = db.Column(
         db.String(80), db.ForeignKey("asset_type.name"), nullable=False
-    )
-    unit = db.Column(db.String(80), default="", nullable=False)
-    # Expected resolution of time series for this sensor.
-    # Defaults to zero, as it can't be None (used for calculations during
-    # query building). You should set this to a realistic value!
-    event_resolution = db.Column(
-        db.Interval(), nullable=False, default=timedelta(minutes=0)
     )
     # How many MW at peak usage
     capacity_in_mw = db.Column(db.Float, nullable=False)

@@ -20,7 +20,7 @@
 ]) if current_user.is_authenticated %}
 {% do navigation_bar.extend([
     ('control', 'control', 'Flexibility actions', 'wrench'),
-]) if FLEXMEASURES_SHOW_CONTROL_UI %}
+]) if FLEXMEASURES_SHOW_CONTROL_UI and current_user.is_authenticated %}
 {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', 'tasks')) if show_queues %}
 {% do navigation_bar.append(('account', 'account', '', 'user')) if current_user.is_authenticated %}
 {% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists and current_user.is_authenticated %}

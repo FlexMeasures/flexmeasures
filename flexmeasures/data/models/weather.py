@@ -1,7 +1,7 @@
 from typing import Dict, Tuple
-from datetime import timedelta
 import math
 
+import timely_beliefs as tb
 from sqlalchemy.orm import Query
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.expression import func
@@ -35,19 +35,14 @@ class WeatherSensorType(db.Model):
         return "<WeatherSensorType %r>" % self.name
 
 
-class WeatherSensor(db.Model):
+class WeatherSensor(db.Model, tb.SensorDBMixin):
     """A weather sensor has a location on Earth and measures weather values of a certain weather sensor type, such as
     temperature, wind speed and radiation."""
 
-    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True)
     display_name = db.Column(db.String(80), default="", unique=False)
     weather_sensor_type_name = db.Column(
         db.String(80), db.ForeignKey("weather_sensor_type.name"), nullable=False
-    )
-    unit = db.Column(db.String(80), default="", nullable=False)
-    event_resolution = db.Column(
-        db.Interval(), nullable=False, default=timedelta(minutes=0)
     )
     # latitude is the North/South coordinate
     latitude = db.Column(db.Float, nullable=False)

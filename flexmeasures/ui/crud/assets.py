@@ -10,13 +10,14 @@ from wtforms import StringField, DecimalField, IntegerField, SelectField
 from wtforms.validators import DataRequired
 from sqlalchemy.exc import IntegrityError
 
+from flexmeasures.data.config import db
 from flexmeasures.data.auth_setup import unauthorized_handler
 from flexmeasures.data.services.users import (
     get_users,
     create_user,
     InvalidFlexMeasuresUser,
 )
-from flexmeasures.data.services.resources import get_markets
+from flexmeasures.data.services.resources import get_markets, get_center_location
 from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.user import User
 from flexmeasures.data.models.markets import Market
@@ -196,7 +197,11 @@ class AssetCrudUI(FlaskView):
 
             asset_form = with_options(NewAssetForm())
             return render_flexmeasures_template(
-                "crud/asset_new.html", asset_form=asset_form, msg=""
+                "crud/asset_new.html",
+                asset_form=asset_form,
+                msg="",
+                map_center=get_center_location(db, user=current_user),
+                mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             )
 
         get_asset_response = InternalApi().get(
@@ -276,7 +281,11 @@ class AssetCrudUI(FlaskView):
             if asset is None:
                 msg = "Cannot create asset. " + error_msg
                 return render_flexmeasures_template(
-                    "crud/asset_new.html", asset_form=asset_form, msg=msg
+                    "crud/asset_new.html",
+                    asset_form=asset_form,
+                    msg=msg,
+                    map_center=get_center_location(db, user=current_user),
+                    mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
 
         else:
@@ -286,6 +295,8 @@ class AssetCrudUI(FlaskView):
                     "crud/asset_new.html",
                     asset_form=asset_form,
                     msg="Cannot edit asset.",
+                    map_center=get_center_location(db, user=current_user),
+                    mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
             patch_asset_response = InternalApi().patch(
                 url_for("flexmeasures_api_v2_0.patch_asset", id=id),
