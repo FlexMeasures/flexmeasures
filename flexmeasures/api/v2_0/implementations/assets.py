@@ -105,13 +105,15 @@ def load_asset(admins_only: bool = False):
     Raises 404 if asset not found.
     Raises 403 if unauthorized:
     Only admins (or owners if admins_only is False) can access the asset.
+    The admins_only parameter can be used if not even the user themselves
+    should be allowed.
 
         @app.route('/asset/<id>')
         @check_asset
         def get_asset(asset):
             return asset_schema.dump(asset), 200
 
-    The message must specify one id within the route.
+    The route must specify one parameter ― id.
     """
 
     def wrapper(fn):

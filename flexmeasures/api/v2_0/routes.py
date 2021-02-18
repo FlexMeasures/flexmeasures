@@ -428,7 +428,8 @@ def patch_user(id: int):
 
     This endpoint sets data for an existing user.
     Any subset of user fields can be sent.
-    Only the user themselves or admins are allowed to update its data.
+    Only the user themselves or admins are allowed to update its data,
+    while a non-admin can only edit a few of their own fields.
 
     Several fields are not allowed to be updated, e.g. id. They are ignored.
 

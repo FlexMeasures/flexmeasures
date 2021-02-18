@@ -67,14 +67,14 @@ def load_user(admins_only: bool = False):
     Raises 403 if unauthorized:
     Only the user themselves or admins can access a user object.
     The admins_only parameter can be used if not even the user themselves
-    should do be allowed.
+    should be allowed.
 
         @app.route('/user/<id>')
         @check_user
         def get_user(user):
             return user_schema.dump(user), 200
 
-    The message must specify one id within the route.
+    The route must specify one parameter ― id.
     """
 
     def wrapper(fn):
@@ -132,6 +132,9 @@ def patch(db_user: UserModel, user_data: dict):
     """Update a user given its identifier"""
     allowed_fields = ["email", "username", "active", "timezone", "flexmeasures_roles"]
     for k, v in [(k, v) for k, v in user_data.items() if k in allowed_fields]:
+        # Don't allow users who edit themselves to edit sensitive fields
+        if current_user.id == db_user.id and k in ("active", "flexmeasures_roles"):
+            return unauthorized_handler(None, [])
         setattr(db_user, k, v)
     db.session.add(db_user)
     try:
