@@ -250,6 +250,11 @@
                 next();
             });
         })
+        .bindTooltip("{{ asset.display_name }}",
+        {
+            permanent: false,
+            direction: 'right'
+        })
         .on('click', clickZoom)
         .on('click', lookForState);
     // .openPopup();
