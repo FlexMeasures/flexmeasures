@@ -167,13 +167,14 @@
 
     // create map
     var assetMap = L
-        .map('mapid', { center: [33.37, 126.57], zoom: 10 })
+        .map('mapid', { center: [{{ map_center[0] }}, {{ map_center[1] }}], zoom: 10})
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
             });
         });
-    tileLayer.addTo(assetMap);
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+
 
     var location_icon = new L.DivIcon({
         className: 'map-icon',
