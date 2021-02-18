@@ -69,7 +69,7 @@ def test_deactivate_user(client, as_admin, requests_mock):
 def test_reset_password(client, as_admin, requests_mock):
     """Test it does not fail (logic is tested in API tests) and displays an answer."""
     prosumer2 = find_user_by_email("test_prosumer2@seita.nl", keep_in_session=False)
-    requests_mock.get(
+    requests_mock.patch(
         f"http://localhost//api/v2_0/user/{prosumer2.id}/password-reset",
         status_code=200,
     )

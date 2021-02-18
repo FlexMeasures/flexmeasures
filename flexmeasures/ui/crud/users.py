@@ -48,14 +48,15 @@ def process_internal_api_response(
     Either as a user object or a dict for form filling.
     """
     with db.session.no_autoflush:
-        role_ids = tuple(user_data["flexmeasures_roles"])
+        role_ids = tuple(user_data.get("flexmeasures_roles", []))
         user_data["flexmeasures_roles"] = Role.query.filter(Role.id.in_(role_ids)).all()
         user_data.pop("status", None)  # might have come from requests.response
         if user_id:
             user_data["id"] = user_id
         if make_obj:
             user = User(**user_data)
-            db.session.expunge(user)
+            if user in db.session:
+                db.session.expunge(user)
             return user
     return user_data
 
