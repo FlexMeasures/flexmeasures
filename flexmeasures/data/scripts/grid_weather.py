@@ -10,7 +10,7 @@ from flask import Flask, current_app
 from forecastiopy import ForecastIO
 
 from flexmeasures.utils.time_utils import as_server_time, get_timezone
-from flexmeasures.utils.geo_utils import compute_radiation
+from flexmeasures.utils.geo_utils import compute_irradiance
 from flexmeasures.data.services.resources import find_closest_weather_sensor
 from flexmeasures.data.config import db
 from flexmeasures.data.transactional import task_with_status_report
@@ -385,11 +385,11 @@ def save_forecasts_in_db(
                     fc_value = fc[needed_response_label]
                     # the radiation is not available in dark sky -> we compute it ourselves
                     if flexmeasures_sensor_type == "radiation":
-                        fc_value = compute_radiation(
+                        fc_value = compute_irradiance(
                             location[0],
                             location[1],
                             fc_datetime,
-                            fc[needed_response_label] * 100,
+                            fc[needed_response_label],
                         )
 
                     db_forecasts.append(

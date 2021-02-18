@@ -12,9 +12,7 @@ head -c 24 /dev/urandom > ./instance/secret_key
 
 # Install dependencies
 apt-get update
-apt-get -y install postgresql-client coinor-cbc
-# set PGDB, PGUSER and PGPASSWORD as envs for this
-psql -h localhost -p 5432 -c "create extension if not exists cube; create extension if not exists earthdistance;" -U $PGUSER $PGBD;
+sudo apt-get -y install postgresql-client coinor-cbc
 make install-deps
 
 
@@ -23,7 +21,7 @@ make install-deps
 # Hack until this feature is ready: https://bitbucket.org/site/master/issues/15244/build-execution-should-wait-until-all
 statusFile=/tmp/postgres-status
 while [[ true ]]; do
-  telnet 127.0.0.1 5432 &> ${statusFile}
+  telnet $PGHOST $PGPORT &> ${statusFile}
   status=$(grep "Connection refused" ${statusFile} | wc -l)
   echo "Status: $status"
 
@@ -36,3 +34,5 @@ while [[ true ]]; do
     break;
   fi
 done
+
+psql -h $PGHOST -p $PGPORT -c "create extension if not exists cube; create extension if not exists earthdistance;" -U $PGUSER $PGDB;

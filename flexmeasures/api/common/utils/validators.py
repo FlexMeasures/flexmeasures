@@ -848,7 +848,7 @@ def post_data_checked_for_required_resolution(entity_type):  # noqa: C901
 
 def get_data_downsampling_allowed(entity_type):
     """Decorator which allows downsampling of data which a GET request returns.
-    It checks for a form paramater "resolution".
+    It checks for a form parameter "resolution".
     If that is given and is a multiple of the asset's event_resolution,
     downsampling is performed on the data. This is done by setting the "resolution"
     keyword parameter, which is obeyed by collect_time_series_data and used

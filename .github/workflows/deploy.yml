@@ -1,0 +1,33 @@
+name: deploy-to-staging
+
+on: 
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: "Deploy (main to staging)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for tests to pass
+        uses: lewagon/wait-on-check-action@v0.2
+        with:
+          ref: ${{ github.ref }}
+          # check-name: "Test (on Python3.8)" # name of the job we wait for (omit to wait for all checks)
+          running-workflow-name: "Deploy (main to staging)"  # name of the check that will wait for other checks
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 20 # seconds
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+          ref: 'main'
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_DEPLOYMENT_KEY }}  # private ssh key
+          known_hosts: ${{ secrets.KNOWN_DEPLOYMENT_HOSTS }}  # make via ssh-keyscan -t rsa <your host>
+      - run: ci/DEPLOY.sh
+    env:
+      BRANCH_NAME: main
+      STAGING_REMOTE_REPO: ${{ secrets.STAGING_REMOTE_REPO }}
