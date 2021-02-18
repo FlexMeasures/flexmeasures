@@ -313,6 +313,7 @@ def patch_asset(id: int):
     :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
+    :status 422: UNPROCESSABLE_ENTITY
     """
     return assets.patch(id)
 
@@ -460,6 +461,7 @@ def patch_user(id: int):
     :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
+    :status 422: UNPROCESSABLE_ENTITY
     """
     return users.patch(id)
 

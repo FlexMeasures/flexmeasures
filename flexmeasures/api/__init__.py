@@ -5,6 +5,10 @@ from flask_json import as_json
 from flask_login import current_user
 
 from flexmeasures.data.models.user import User
+from flexmeasures.api.common.utils.args_parsing import (
+    FMValidationError,
+    validation_error_handler,
+)
 
 # The api blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_api = Blueprint("flexmeasures_api", __name__)
@@ -79,6 +83,9 @@ def register_at(app: Flask):
     """This can be used to register this blueprint together with other api-related things"""
     global ma
     ma.init_app(app)
+
+    # handle API specific errors
+    app.register_error_handler(FMValidationError, validation_error_handler)
 
     app.register_blueprint(
         flexmeasures_api, url_prefix="/api"

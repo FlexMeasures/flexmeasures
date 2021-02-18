@@ -89,6 +89,7 @@ def get_device_message():
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD
+    :status 422: UNPROCESSABLE_ENTITY
     """
     return v1_2_implementations.get_device_message_response()
 

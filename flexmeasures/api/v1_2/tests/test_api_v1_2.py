@@ -34,6 +34,8 @@ def test_get_device_message(client, message):
         query_string=message,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % get_device_message_response_short.json)
+    assert get_device_message_response_short.status_code == 200
     assert (
         get_device_message_response_short.json["values"]
         == get_device_message_response.json["values"][0:24]
@@ -49,6 +51,25 @@ def test_get_device_message(client, message):
     assert (
         get_device_message_response_long.json["values"][0:192]
         == get_device_message_response.json["values"]
+    )
+
+
+def test_get_device_message_mistyped_duration(client):
+    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    message = message_for_get_device_message()
+    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+    message["event"] = message["event"] % (asset.owner_id, asset.id)
+    message["duration"] = "PTT6H"
+    get_device_message_response = client.get(
+        url_for("flexmeasures_api_v1_2.get_device_message"),
+        query_string=message,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % get_device_message_response.json)
+    assert get_device_message_response.status_code == 422
+    assert (
+        "Cannot parse PTT6H as ISO8601 duration"
+        in get_device_message_response.json["args_and_json"]["duration"][0]
     )
 
 
