@@ -38,7 +38,7 @@ def setup_api_test_data(db):
     test_prosumer = user_datastore.find_user(email="demo@seita.nl")
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
-    asset_names = ["cs_0"]
+    asset_names = ["CS 0"]
     assets: List[Asset] = []
     for asset_name in asset_names:
         asset = Asset(
@@ -63,7 +63,7 @@ def setup_api_test_data(db):
 
     # Create 5 test assets for the test_prosumer user
     test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
-    asset_names = ["cs_1", "cs_2", "cs_3", "cs_4", "cs_5"]
+    asset_names = ["CS 1", "CS 2", "CS 3", "CS 4", "CS 5"]
     assets: List[Asset] = []
     for asset_name in asset_names:
         asset = Asset(
@@ -76,13 +76,13 @@ def setup_api_test_data(db):
             unit="MW",
         )
         asset.owner = test_prosumer
-        if asset_name == "cs_4":
+        if asset_name == "CS 4":
             asset.event_resolution = timedelta(hours=1)
         assets.append(asset)
         db.session.add(asset)
 
     # Add power forecasts to one of the assets, for two sources
-    cs_5 = Asset.query.filter(Asset.name == "cs_5").one_or_none()
+    cs_5 = Asset.query.filter(Asset.name == "CS 5").one_or_none()
     test_supplier = user_datastore.find_user(email="test_supplier@seita.nl")
     prosumer_data_source = DataSource.query.filter(
         DataSource.user == test_prosumer

@@ -25,7 +25,7 @@ def message_for_get_prognosis(
         "duration": "PT1H30M",
         "horizon": "PT6H",
         "resolution": "PT15M",
-        "connections": ["cs_1", "cs_2", "cs_3"],
+        "connections": ["CS 1", "CS 2", "CS 3"],
         "unit": "MW",
     }
     if invalid_horizon:

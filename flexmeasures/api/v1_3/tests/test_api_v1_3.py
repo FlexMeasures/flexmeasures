@@ -21,7 +21,7 @@ from flexmeasures.utils.calculations import integrate_time_series
 
 @pytest.mark.parametrize("message", [message_for_get_device_message(wrong_id=True)])
 def test_get_device_message_wrong_event_id(client, message):
-    asset = Asset.query.filter(Asset.name == "test_battery").one_or_none()
+    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
     message["event"] = message["event"] % (asset.owner_id, asset.id)
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     get_device_message_response = client.get(
@@ -41,8 +41,8 @@ def test_get_device_message_wrong_event_id(client, message):
 @pytest.mark.parametrize(
     "message, asset_name",
     [
-        (message_for_post_udi_event(), "test_battery"),
-        (message_for_post_udi_event(targets=True), "test_charging_station"),
+        (message_for_post_udi_event(), "Test battery"),
+        (message_for_post_udi_event(targets=True), "Test charging station"),
     ],
 )
 def test_post_udi_event_and_get_device_message(app, message, asset_name):
@@ -204,7 +204,7 @@ def test_post_udi_event_and_get_device_message(app, message, asset_name):
 def test_post_udi_event_and_get_device_message_with_unknown_prices(app, message):
     auth_token = None
     with app.test_client() as client:
-        asset = Asset.query.filter(Asset.name == "test_battery").one_or_none()
+        asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
         asset_id = asset.id
         asset_owner_id = asset.owner_id
         message["event"] = message["event"] % (asset.owner_id, asset.id)

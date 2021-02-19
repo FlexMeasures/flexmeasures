@@ -24,7 +24,7 @@ def message_for_get_meter_data(
         "type": "GetMeterDataRequest",
         "start": "2015-01-01T00:00:00Z",
         "duration": "PT1H30M",
-        "connections": ["cs_1", "cs_2", "cs_3"],
+        "connections": ["CS 1", "CS 2", "CS 3"],
         "unit": "MW",
     }
     if no_connection:
@@ -35,7 +35,7 @@ def message_for_get_meter_data(
         message["connection"] = message["connections"][0]
         message.pop("connections", None)
     elif demo_connection:
-        message["connection"] = "cs_0"
+        message["connection"] = "CS 0"
         message.pop("connections", None)
     if no_unit:
         message.pop("unit", None)
@@ -61,13 +61,13 @@ def message_for_post_meter_data(
         "type": "PostMeterDataRequest",
         "groups": [
             {
-                "connections": ["cs_1", "cs_2"],
+                "connections": ["CS 1", "CS 2"],
                 "values": (
                     tile([306.66, 306.66, 0, 0, 306.66, 306.66], tile_n) * sign
                 ).tolist(),
             },
             {
-                "connection": ["cs_4" if different_target_resolutions else "cs_3"],
+                "connection": ["CS 4" if different_target_resolutions else "CS 3"],
                 "values": (
                     tile([306.66, 0, 0, 0, 306.66, 306.66], tile_n) * sign
                 ).tolist(),

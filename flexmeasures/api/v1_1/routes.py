@@ -89,10 +89,10 @@ def get_connection():
                 "ea1.2018-06.io.flexmeasures.company:3:1"
             ],
             "names": [
-                "cs_4",
-                "cs_3",
-                "cs_2",
-                "cs_1"
+                "CS 4",
+                "CS 3",
+                "CS 2",
+                "CS 1"
             ]
         }
 
@@ -289,7 +289,7 @@ def get_prognosis():
 
         {
             "type": "GetPrognosisRequest",
-            "connection": "cs_1",
+            "connection": "CS 1",
             "start": "2015-01-01T00:00:00Z",
             "duration": "PT1H30M",
             "horizon": "PT6H",
@@ -306,7 +306,7 @@ def get_prognosis():
 
         {
             "type": "GetPrognosisResponse",
-            "connection": "cs_1",
+            "connection": "CS 1",
             "values": [
                 306.66,
                 306.66,
@@ -357,8 +357,8 @@ def post_prognosis():
             "groups": [
                 {
                     "connections": [
-                        "cs_1",
-                        "cs_3"
+                        "CS 1",
+                        "CS 3"
                     ],
                     "values": [
                         300,
@@ -371,7 +371,7 @@ def post_prognosis():
                 },
                 {
                     "connections": [
-                        "cs_2"
+                        "CS 2"
                     ],
                     "values": [
                         300,

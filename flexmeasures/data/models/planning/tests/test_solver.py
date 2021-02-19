@@ -14,7 +14,7 @@ from flexmeasures.utils.time_utils import as_server_time
 
 def test_battery_solver_day_1():
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
-    battery = Asset.query.filter(Asset.name == "test_battery").one_or_none()
+    battery = Asset.query.filter(Asset.name == "Test battery").one_or_none()
     start = as_server_time(datetime(2015, 1, 1))
     end = as_server_time(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
@@ -35,7 +35,7 @@ def test_battery_solver_day_1():
 
 def test_battery_solver_day_2():
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
-    battery = Asset.query.filter(Asset.name == "test_battery").one_or_none()
+    battery = Asset.query.filter(Asset.name == "Test battery").one_or_none()
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
@@ -68,10 +68,10 @@ def test_battery_solver_day_2():
 @pytest.mark.parametrize(
     "target_soc, charging_station_name",
     [
-        (1, "test_charging_station"),
-        (5, "test_charging_station"),
-        (0, "test_charging_station_bidirectional"),
-        (5, "test_charging_station_bidirectional"),
+        (1, "Test charging station"),
+        (5, "Test charging station"),
+        (0, "Test charging station (bidirectional)"),
+        (5, "Test charging station (bidirectional)"),
     ],
 )
 def test_charging_station_solver_day_2(target_soc, charging_station_name):

@@ -17,7 +17,7 @@ def test_scheduling_a_battery(db, app):
     - schedule has been made
     """
 
-    battery = Asset.query.filter(Asset.name == "test_battery").one_or_none()
+    battery = Asset.query.filter(Asset.name == "Test battery").one_or_none()
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
@@ -63,7 +63,7 @@ def test_scheduling_a_charging_station(db, app):
     duration_until_target = timedelta(hours=2)
 
     charging_station = Asset.query.filter(
-        Asset.name == "test_charging_station"
+        Asset.name == "Test charging station"
     ).one_or_none()
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))

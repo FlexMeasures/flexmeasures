@@ -15,7 +15,7 @@ from flexmeasures.data.config import db
 from flexmeasures.api import ma
 from flexmeasures.api.common.utils.api_utils import get_form_from_request
 from flexmeasures.api.common.responses import required_info_missing
-from flexmeasures.utils.flexmeasures_inflection import parameterize
+from flexmeasures.utils.flexmeasures_inflection import humanize, parameterize
 
 
 class AssetSchema(ma.SQLAlchemySchema):
@@ -186,6 +186,8 @@ def patch(asset):
     for k, v in asset_data.items():
         if k == "name":
             asset.name = parameterize(v)
+        elif k == "display_name":
+            asset.display_name = humanize(v)
         else:
             setattr(asset, k, v)
     db.session.add(asset)
