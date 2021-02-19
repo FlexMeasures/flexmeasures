@@ -1,0 +1,5 @@
+{{ _('You can now choose a new FlexMeasures password.') }}
+
+{{ _('Click the link below to reset your password:') }}
+
+{{ reset_link }}

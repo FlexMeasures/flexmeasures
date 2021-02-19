@@ -1,11 +1,12 @@
 from functools import wraps
 
-from flask import request, current_app, abort
-from flask_security import login_required, current_user
+from flask import current_app, abort
+from flask_security import current_user
 from flask_json import as_json
 
 from marshmallow import ValidationError, validate, validates, fields, validates_schema
 from sqlalchemy.exc import IntegrityError
+from webargs.flaskparser import use_args
 
 from flexmeasures.data.services.resources import get_assets
 from flexmeasures.data.models.assets import Asset as AssetModel
@@ -13,7 +14,6 @@ from flexmeasures.data.models.user import User
 from flexmeasures.data.auth_setup import unauthorized_handler
 from flexmeasures.data.config import db
 from flexmeasures.api import ma
-from flexmeasures.api.common.utils.api_utils import get_form_from_request
 from flexmeasures.api.common.responses import required_info_missing
 
 
@@ -62,13 +62,12 @@ asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
 
 
-@login_required
+@use_args({"owner_id": fields.Int()}, location="query")
 @as_json
-def get():
+def get(args):
     """List all assets, or the ones owned by a certain user.
     Raise if a non-admin tries to see assets owned by someone else.
     """
-    args = get_form_from_request(request)
     if "owner_id" in args:
         # get_assets ignores owner_id if user is not admin. Here we want to raise a proper auth error.
         if not (current_user.has_role("admin") or args["owner_id"] == current_user.id):
@@ -80,25 +79,15 @@ def get():
     return assets_schema.dump(assets), 200
 
 
-@login_required
 @as_json
-def post():
+@use_args(AssetSchema())
+def post(asset_data):
     """Create new asset"""
 
     if current_user.has_role("anonymous"):
         return unauthorized_handler(
             None, []
         )  # Disallow edit access, even to own assets TODO: review, such a role should not exist
-
-    if not current_user.has_role("admin"):
-        return unauthorized_handler(None, [])
-
-    try:
-        # TODO: better error message if several assets are being sent?
-        asset_data = asset_schema.load(request.json, session=db.session)
-    except ValidationError as ve:
-        current_app.logger.warning(ve.messages)
-        return dict(validation_errors=ve.messages), 400
 
     asset = AssetModel(**asset_data)
     db.session.add(asset)
@@ -110,17 +99,21 @@ def post():
     return asset_schema.dump(asset), 201
 
 
-def check_asset(admins_only: bool = False):
-    """Decorator which loads an asset and
-    makes sure that 403 and 404 are raised:
+def load_asset(admins_only: bool = False):
+    """Decorator which loads an asset.
+    Raises 400 if that is not possible due to wrong parameters.
+    Raises 404 if asset not found.
+    Raises 403 if unauthorized:
     Only admins (or owners if admins_only is False) can access the asset.
+    The admins_only parameter can be used if not even the user themselves
+    should be allowed.
 
         @app.route('/asset/<id>')
         @check_asset
         def get_asset(asset):
             return asset_schema.dump(asset), 200
 
-    The message must specify one id within the route.
+    The route must specify one parameter ― id.
     """
 
     def wrapper(fn):
@@ -164,34 +157,30 @@ def check_asset(admins_only: bool = False):
     return wrapper
 
 
-@login_required
-@check_asset()
+@load_asset()
 @as_json
 def fetch_one(asset):
     """Fetch a given asset"""
     return asset_schema.dump(asset), 200
 
 
-@login_required
-@check_asset()
+@load_asset()
+@use_args(AssetSchema(partial=True))
 @as_json
-def patch(asset):
+def patch(db_asset, asset_data):
     """Update an asset given its identifier"""
     ignored_fields = ["id"]
-    relevant_data = {k: v for k, v in request.json.items() if k not in ignored_fields}
-    asset_data = asset_schema.load(relevant_data, session=db.session, partial=True)
-    for k, v in asset_data.items():
-        setattr(asset, k, v)
-    db.session.add(asset)
+    for k, v in [(k, v) for k, v in asset_data.items() if k not in ignored_fields]:
+        setattr(db_asset, k, v)
+    db.session.add(db_asset)
     try:
         db.session.commit()
     except IntegrityError as ie:
         return dict(message="Duplicate asset already exists", detail=ie._message()), 400
-    return asset_schema.dump(asset), 200
+    return asset_schema.dump(db_asset), 200
 
 
-@login_required
-@check_asset(admins_only=True)
+@load_asset(admins_only=True)
 @as_json
 def delete(asset):
     """Delete a task given its identifier"""

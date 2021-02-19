@@ -7,7 +7,6 @@ from flexmeasures.data.services.users import (
     create_user,
     find_user_by_email,
     delete_user,
-    toggle_activation_status_of,
     InvalidFlexMeasuresUser,
 )
 from flexmeasures.data.models.assets import Asset, Power
@@ -87,12 +86,3 @@ def test_delete_user(app):
     for asset_id in asset_ids:
         num_power_measurements = Power.query.filter(Power.asset_id == asset_id).count()
         assert num_power_measurements == 0
-
-
-def test_toggle_user_active_status(app):
-    prosumer: User = find_user_by_email("test_prosumer@seita.nl")
-    assert prosumer.active
-    toggle_activation_status_of(prosumer)
-    assert not prosumer.active
-    toggle_activation_status_of(prosumer)
-    assert prosumer.active

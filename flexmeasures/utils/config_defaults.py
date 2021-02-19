@@ -44,7 +44,14 @@ class Config(object):
 
     SECURITY_REGISTERABLE = False
     SECURITY_LOGIN_USER_TEMPLATE = "admin/login_user.html"
+    SECURITY_EMAIL_SUBJECT_PASSWORD_RESET = (
+        "Password reset instructions for your FlexMeasures account."
+    )
+    SECURITY_EMAIL_SUBJECT_PASSWORD_NOTICE = (
+        "Your FlexMeasures password has been reset."
+    )
     SECURITY_FORGOT_PASSWORD_TEMPLATE = "admin/forgot_password.html"
+    SECURITY_RECOVERABLE = True
     SECURITY_RESET_PASSWORD_TEMPLATE = "admin/reset_password.html"
     SECURITY_RECOVERABLE = True
     SECURITY_TOKEN_AUTHENTICATION_HEADER = "Authorization"

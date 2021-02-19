@@ -112,6 +112,7 @@ def test_alter_an_asset_wrongauth(client):
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={},
     )
+    print(f"Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 403
     # ... or edited ...
     asset_edit_response = client.patch(
@@ -151,6 +152,38 @@ def test_post_an_asset_with_existing_name(client):
     assert asset_creation.status_code == 400
     assert "already exists" in asset_creation.json["message"]
     assert "asset_name" in asset_creation.json["detail"]
+
+
+def test_post_an_asset_with_nonexisting_field(client):
+    """Posting a field that is unexpected leads to a 422"""
+    with UserContext("test_prosumer@seita.nl") as prosumer:
+        auth_token = prosumer.get_auth_token()
+    post_data = get_asset_post_data()
+    post_data["nnname"] = "This field does not exist"
+    asset_creation = client.post(
+        url_for("flexmeasures_api_v2_0.post_assets"),
+        json=post_data,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    assert asset_creation.status_code == 422
+    assert asset_creation.json["json"]["nnname"][0] == "Unknown field."
+
+
+def test_posting_multiple_assets(client):
+    """We can only send one at a time"""
+    with UserContext("test_prosumer@seita.nl") as prosumer:
+        auth_token = prosumer.get_auth_token()
+    post_data1 = get_asset_post_data()
+    post_data2 = get_asset_post_data()
+    post_data2["name"] = "Test battery 3"
+    asset_creation = client.post(
+        url_for("flexmeasures_api_v2_0.post_assets"),
+        json=[post_data1, post_data2],
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print(f"Response: {asset_creation.json}")
+    assert asset_creation.status_code == 422
+    assert asset_creation.json["json"]["_schema"][0] == "Invalid input type."
 
 
 def test_post_an_asset(client):
@@ -197,20 +230,20 @@ def test_post_an_asset_with_invalid_data(client, db):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_asset_response.json)
-    assert post_asset_response.status_code == 400
+    assert post_asset_response.status_code == 422
 
     assert (
         "Must be greater than or equal to 0"
-        in post_asset_response.json["validation_errors"]["capacity_in_mw"][0]
+        in post_asset_response.json["json"]["capacity_in_mw"][0]
     )
     assert (
         "greater than or equal to -180 and less than or equal to 180"
-        in post_asset_response.json["validation_errors"]["longitude"][0]
+        in post_asset_response.json["json"]["longitude"][0]
     )
-    assert "required field" in post_asset_response.json["validation_errors"]["unit"][0]
+    assert "required field" in post_asset_response.json["json"]["unit"][0]
     assert (
         "must be equal or higher than the minimum soc"
-        in post_asset_response.json["validation_errors"]["max_soc_in_mwh"]
+        in post_asset_response.json["json"]["max_soc_in_mwh"]
     )
 
     assert Asset.query.filter_by(owner_id=prosumer.id).count() == num_assets_before
@@ -241,10 +274,10 @@ def test_delete_an_asset(client, db):
         existing_asset_id = prosumer.assets[0].id
 
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
-    edit_asset_response = client.delete(
+    delete_asset_response = client.delete(
         url_for("flexmeasures_api_v2_0.delete_asset", id=existing_asset_id),
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
-    assert edit_asset_response.status_code == 204
+    assert delete_asset_response.status_code == 204
     deleted_asset = Asset.query.filter_by(id=existing_asset_id).one_or_none()
     assert deleted_asset is None

@@ -12,6 +12,10 @@ from flask import request, current_app
 from flask_json import as_json
 from flask_principal import Permission, RoleNeed
 from flask_security import current_user
+import marshmallow
+
+from webargs import fields
+from webargs.flaskparser import parser
 
 from flexmeasures.api.common.responses import (  # noqa: F401
     required_info_missing,
@@ -87,7 +91,7 @@ def include_current_user_source_id(source_ids: List[int]) -> List[int]:
     return list(set(source_ids))  # only unique source ids
 
 
-def validate_horizon(horizon_str: str) -> Tuple[Optional[timedelta], bool]:
+def parse_horizon(horizon_str: str) -> Tuple[Optional[timedelta], bool]:
     """
     Validates whether a horizon string represents a valid ISO 8601 (repeating) time interval.
 
@@ -123,12 +127,13 @@ def validate_horizon(horizon_str: str) -> Tuple[Optional[timedelta], bool]:
     return horizon, is_repetition
 
 
-def validate_duration(
+def parse_duration(
     duration_str: str, start: Optional[datetime] = None
 ) -> Union[timedelta, isodate.Duration, None]:
     """
-    Validates whether the string 'duration' is a valid ISO 8601 time interval.
+    Parses the 'duration' string into a Duration object.
     If needed, try deriving the timedelta from the actual time span (e.g. in case duration is 1 year).
+    If the string is not a valid ISO 8601 time interval, return None.
     """
     try:
         duration = isodate.parse_duration(duration_str)
@@ -140,6 +145,17 @@ def validate_duration(
             return isodate.parse_duration(duration_str)
     except (ISO8601Error, AttributeError):
         return None
+
+
+def validate_duration_field(duration_str):
+    """Validate a marshmallow ISO8601 duration field,
+    throw marshmallow validation error if it cannot be parsed."""
+    try:
+        isodate.parse_duration(duration_str)
+    except ISO8601Error as iso_err:
+        raise marshmallow.ValidationError(
+            f"Cannot parse {duration_str} as ISO8601 duration: {iso_err}"
+        )
 
 
 def parse_isodate_str(start: str) -> Union[datetime, None]:
@@ -186,16 +202,17 @@ def optional_duration_accepted(default_duration: timedelta):
         @wraps(fn)
         @as_json
         def decorated_service(*args, **kwargs):
-            form = get_form_from_request(request)
-            if form is None:
-                current_app.logger.warning(
-                    "Unsupported request method for unpacking 'duration' from request."
-                )
-                return invalid_method(request.method)
+            duration_arg = parser.parse(
+                {"duration": fields.Str(validate=validate_duration_field)},
+                request,
+                location="args_and_json",
+                unknown=marshmallow.EXCLUDE,
+            )
 
-            if "duration" in form:
-                duration = validate_duration(
-                    form["duration"], kwargs.get("start", kwargs.get("datetime", None))
+            if "duration" in duration_arg:
+                duration = parse_duration(
+                    duration_arg["duration"],
+                    kwargs.get("start", kwargs.get("datetime", None)),
                 )
                 if not duration:
                     extra_info = "Cannot parse 'duration' value."
@@ -316,7 +333,7 @@ def optional_prior_accepted(ex_post: bool = False):
                 prior = parse_isodate_str(form["prior"])
                 if ex_post is True:
                     start = parse_isodate_str(form["start"])
-                    duration = validate_duration(form["duration"], start)
+                    duration = parse_duration(form["duration"], start)
                     # todo: validate start and duration (refactor already duplicate code from period_required and optional_horizon_accepted)
                     knowledge_time = (
                         start + duration
@@ -380,7 +397,7 @@ def optional_horizon_accepted(  # noqa C901
 
             rolling = True
             if "horizon" in form:
-                horizon, rolling = validate_horizon(form["horizon"])
+                horizon, rolling = parse_horizon(form["horizon"])
                 if horizon is None:
                     current_app.logger.warning("Cannot parse 'horizon' value")
                     return invalid_horizon()
@@ -392,7 +409,7 @@ def optional_horizon_accepted(  # noqa C901
                 # A missing horizon is only accepted if the server can infer it
                 if "start" in form and "duration" in form:
                     start = parse_isodate_str(form["start"])
-                    duration = validate_duration(form["duration"], start)
+                    duration = parse_duration(form["duration"], start)
                     if not start:
                         extra_info = "Cannot parse 'start' value."
                         current_app.logger.warning(extra_info)
@@ -507,7 +524,7 @@ def period_required(fn):
             return invalid_period()
         kwargs["start"] = start
         if "duration" in form:
-            duration = validate_duration(form["duration"], start)
+            duration = parse_duration(form["duration"], start)
             if not duration:
                 current_app.logger.warning("Cannot parse 'duration' value")
                 return invalid_period()
@@ -865,7 +882,7 @@ def get_data_downsampling_allowed(entity_type):
                 return invalid_method(request.method)
 
             if "resolution" in form and form["resolution"]:
-                ds_resolution = validate_duration(form["resolution"])
+                ds_resolution = parse_duration(form["resolution"])
                 if ds_resolution is None:
                     return invalid_resolution_str(form["resolution"])
                 # Check if the resolution can be applied to all assets (if it is a multiple

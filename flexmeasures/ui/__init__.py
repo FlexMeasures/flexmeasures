@@ -29,11 +29,11 @@ flexmeasures_ui = Blueprint(
 def register_at(app: Flask):
     """This can be used to register this blueprint together with other ui-related things"""
 
-    from flexmeasures.ui.crud.assets import AssetCrud
-    from flexmeasures.ui.crud.users import UserCrud
+    from flexmeasures.ui.crud.assets import AssetCrudUI
+    from flexmeasures.ui.crud.users import UserCrudUI
 
-    AssetCrud.register(app)
-    UserCrud.register(app)
+    AssetCrudUI.register(app)
+    UserCrudUI.register(app)
 
     import flexmeasures.ui.views  # noqa: F401 this is necessary to load the views
 
