@@ -70,7 +70,6 @@ class AssetType(db.Model):
 class Asset(db.Model, tb.SensorDBMixin):
     """Each asset is an energy- consuming or producing hardware. """
 
-    id = db.Column(db.Integer, primary_key=True)
     # The name
     name = db.Column(db.String(80), default="", unique=True)
     # The name we want to see (don't unnecessarily capitalize, so it can be used in a sentence)
