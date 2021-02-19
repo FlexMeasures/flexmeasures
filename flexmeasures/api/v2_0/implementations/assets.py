@@ -15,7 +15,6 @@ from flexmeasures.data.config import db
 from flexmeasures.api import ma
 from flexmeasures.api.common.utils.api_utils import get_form_from_request
 from flexmeasures.api.common.responses import required_info_missing
-from flexmeasures.utils.flexmeasures_inflection import humanize, parameterize
 
 
 class AssetSchema(ma.SQLAlchemySchema):
@@ -43,9 +42,7 @@ class AssetSchema(ma.SQLAlchemySchema):
 
     id = ma.auto_field()
     name = ma.auto_field(required=True)
-    display_name = fields.Str(
-        validate=validate.Length(min=4)
-    )  # not required: can be derived from name
+    display_name = fields.Str(validate=validate.Length(min=4))
     unit = ma.auto_field(required=True)
     event_resolution = fields.TimeDelta(required=True, precision="minutes")
     capacity_in_mw = fields.Float(required=True, validate=validate.Range(min=0.0001))
@@ -184,12 +181,7 @@ def patch(asset):
     relevant_data = {k: v for k, v in request.json.items() if k not in ignored_fields}
     asset_data = asset_schema.load(relevant_data, session=db.session, partial=True)
     for k, v in asset_data.items():
-        if k == "name":
-            asset.name = parameterize(v)
-        elif k == "display_name":
-            asset.display_name = humanize(v)
-        else:
-            setattr(asset, k, v)
+        setattr(asset, k, v)
     db.session.add(asset)
     try:
         db.session.commit()

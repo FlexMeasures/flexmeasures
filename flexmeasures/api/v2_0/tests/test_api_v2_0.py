@@ -92,7 +92,7 @@ def test_get_assets(client, use_owner_id, num_assets):
 
     battery = {}
     for asset in get_assets_response.json:
-        if asset["name"] == "test_battery":
+        if asset["name"] == "Test battery":
             battery = asset
     assert battery
     assert battery["soc_datetime"] == "2015-01-01T00:00:00+00:00"
@@ -168,7 +168,7 @@ def test_post_an_asset(client):
     assert post_assets_response.status_code == 201
     assert post_assets_response.json["latitude"] == 30.1
 
-    asset: Asset = Asset.query.filter(Asset.name == "test_battery_2").one_or_none()
+    asset: Asset = Asset.query.filter(Asset.name == "Test battery 2").one_or_none()
     assert asset is not None
     assert asset.capacity_in_mw == 3
 
