@@ -255,7 +255,7 @@
             permanent: false,
             direction: 'right'
         })
-        .on('click', clickZoom)
+        .on('click', clickPan)
         .on('click', lookForState);
     // .openPopup();
     {{ asset_groups[asset_group].parameterized_name }}_markers.push(marker_for_{{ (asset.name | parameterize) }});
