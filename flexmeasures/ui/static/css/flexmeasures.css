@@ -327,12 +327,12 @@ i.center-icon:after, i.center-icon:before {
 .map-icon > i.overlay:before, .map-icon > i.overlay:after {
     font-size: 20px;
     z-index: 9;
-    right: -5px;
+    right: -13px;
     top: -40px;
 }
 .map-icon > i:before, .map-icon > i:after {
     position: absolute;
-    right: -25px;
+    right: -33px;
     top: -50px;
 }
 .map-icon.opportunity {
@@ -346,11 +346,21 @@ i.center-icon:after, i.center-icon:before {
     opacity: 0.7;
 }
 
+/* map icon alignment */
+.map-icon > i.icon-wind:before, .map-icon > i.icon-wind:after {
+    right: -16px !important;
+}
+.map-icon > i.icon-solar:before, .map-icon > i.icon-solar:after {
+    right: -14.5px !important;
+}
+.map-icon > i.icon-charging_station:before, .map-icon > i.icon-solar:after {
+    right: -15.5px !important;
+}
+.map-icon > i.icon-building:before, .map-icon > i.icon-solar:after {
+    right: -13px !important;
+}
 
 /* rotating icons, because why not? */
-.map-icon > i.icon-wind:before, .map-icon > i.icon-wind:after {
-    right: -8px !important;
-}
 i.icon-wind:hover:before {
     transform: rotate(720deg);
     transform-origin: 37.4% 40.2%;
