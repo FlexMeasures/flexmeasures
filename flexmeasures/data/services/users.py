@@ -106,10 +106,7 @@ def create_user(  # noqa: C901
     user = user_datastore.create_user(**kwargs)
 
     if user.password is None:
-        new_random_password = "".join(
-            [random.choice(string.ascii_lowercase) for _ in range(12)]
-        )
-        update_password(user, new_random_password)
+        set_random_password(user)
 
     # add roles to user (creating new roles if necessary)
     if user_roles:
@@ -131,6 +128,26 @@ def create_user(  # noqa: C901
     db.session.add(DataSource(user=user))
 
     return user
+
+
+def set_random_password(user: User):
+    """Randomise a user's password"""
+    new_random_password = "".join(
+        [random.choice(string.ascii_lowercase) for _ in range(24)]
+    )
+    update_password(user, new_random_password)
+
+
+def remove_cookie_and_token_access(user: User):
+    """
+    Remove access of current cookies and auth tokens for a user.
+    This might be useful if you feel their password, cookie or tokens
+    are compromised. in the former case, you can also call `set_random_password`.
+
+    You have to remember to commit the session after calling this function!
+    """
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    user_datastore.reset_user_access(user)
 
 
 def delete_user(user: User):
