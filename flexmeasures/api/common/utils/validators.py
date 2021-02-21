@@ -14,9 +14,9 @@ from flask_principal import Permission, RoleNeed
 from flask_security import current_user
 import marshmallow
 
-from webargs import fields
 from webargs.flaskparser import parser
 
+from flexmeasures.api.common.schemas import PeriodField
 from flexmeasures.api.common.responses import (  # noqa: F401
     required_info_missing,
     invalid_horizon,
@@ -147,17 +147,6 @@ def parse_duration(
         return None
 
 
-def validate_duration_field(duration_str):
-    """Validate a marshmallow ISO8601 duration field,
-    throw marshmallow validation error if it cannot be parsed."""
-    try:
-        isodate.parse_duration(duration_str)
-    except ISO8601Error as iso_err:
-        raise marshmallow.ValidationError(
-            f"Cannot parse {duration_str} as ISO8601 duration: {iso_err}"
-        )
-
-
 def parse_isodate_str(start: str) -> Union[datetime, None]:
     """
     Validates whether the string 'start' is a valid ISO 8601 datetime.
@@ -203,7 +192,7 @@ def optional_duration_accepted(default_duration: timedelta):
         @as_json
         def decorated_service(*args, **kwargs):
             duration_arg = parser.parse(
-                {"duration": fields.Str(validate=validate_duration_field)},
+                {"duration": PeriodField()},
                 request,
                 location="args_and_json",
                 unknown=marshmallow.EXCLUDE,

@@ -80,17 +80,17 @@ def create(env=None) -> Flask:
 
     register_db_at(app)
 
-    # Register the UI
-
-    from flexmeasures.ui import register_at as register_ui_at
-
-    register_ui_at(app)
-
     # Register the API
 
     from flexmeasures.api import register_at as register_api_at
 
     register_api_at(app)
+
+    # Register the UI
+
+    from flexmeasures.ui import register_at as register_ui_at
+
+    register_ui_at(app)
 
     # Profile endpoints (if needed, e.g. during development)
     @app.before_request

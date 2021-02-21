@@ -535,6 +535,16 @@ def make_power_figure(
     else:
         title = "Electricity production from %s" % resource_display_name
 
+    resolution_str = "?"
+    if data.index.freq is not None:
+        resolution_str = time_utils.freq_label_to_human_readable_label(
+            data.index.freqstr
+        )
+    elif "resolution" in session:
+        resolution_str = time_utils.freq_label_to_human_readable_label(
+            session["resolution"]
+        )
+
     return create_graph(
         data,
         unit="MW",
@@ -546,8 +556,7 @@ def make_power_figure(
         schedules=schedule_data,
         title=title,
         x_range=shared_x_range,
-        x_label="Time (resolution of %s)"
-        % time_utils.freq_label_to_human_readable_label(session["resolution"]),
+        x_label="Time (resolution of %s)" % resolution_str,
         y_label="Power (in MW)",
         show_y_floats=True,
         tools=tools,
