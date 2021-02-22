@@ -7,7 +7,7 @@ from flask_json import as_json
 
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 from flexmeasures.api.v2_0.routes import v2_0_service_listing
-from flexmeasures.api.common.schemas import PeriodField
+from flexmeasures.api.common.schemas import DurationField
 from flexmeasures.data.queries.analytics import get_power_data
 from flexmeasures.ui.views.analytics import make_power_figure
 
@@ -41,9 +41,9 @@ class ChartRequestSchema(Schema):
     resource = fields.Str(required=True)
     start_time = fields.DateTime(required=True)
     end_time = fields.DateTime(required=True)
-    resolution = PeriodField(required=True)
+    resolution = DurationField(required=True)
     show_consumption_as_positive = fields.Bool(missing=True)
-    forecast_horizon = PeriodField(missing="PT6H")
+    forecast_horizon = DurationField(missing="PT6H")  # TODO: HorizonField
 
 
 @flexmeasures_api_v2_0.route("/charts/power", methods=["POST"])

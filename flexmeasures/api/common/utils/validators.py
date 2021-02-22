@@ -16,7 +16,7 @@ import marshmallow
 
 from webargs.flaskparser import parser
 
-from flexmeasures.api.common.schemas import PeriodField
+from flexmeasures.api.common.schemas import DurationField
 from flexmeasures.api.common.responses import (  # noqa: F401
     required_info_missing,
     invalid_horizon,
@@ -134,15 +134,15 @@ def parse_duration(
     Parses the 'duration' string into a Duration object.
     If needed, try deriving the timedelta from the actual time span (e.g. in case duration is 1 year).
     If the string is not a valid ISO 8601 time interval, return None.
+
+    TODO: Deprecate for DurationField.
     """
     try:
         duration = isodate.parse_duration(duration_str)
-        if not isinstance(duration, timedelta):
-            if start:
-                return (start + duration) - start
-            return duration  # valid duration, but not a timedelta (e.g. "P1Y" could be leap year)
-        else:
-            return isodate.parse_duration(duration_str)
+        if not isinstance(duration, timedelta) and start:
+            return (start + duration) - start
+        # if not a timedelta, then it's a valid duration (e.g. "P1Y" could be leap year)
+        return duration
     except (ISO8601Error, AttributeError):
         return None
 
@@ -192,18 +192,18 @@ def optional_duration_accepted(default_duration: timedelta):
         @as_json
         def decorated_service(*args, **kwargs):
             duration_arg = parser.parse(
-                {"duration": PeriodField()},
+                {"duration": DurationField()},
                 request,
                 location="args_and_json",
                 unknown=marshmallow.EXCLUDE,
             )
-
             if "duration" in duration_arg:
-                duration = parse_duration(
-                    duration_arg["duration"],
+                duration = duration_arg["duration"]
+                duration = DurationField.ground_from(
+                    duration,
                     kwargs.get("start", kwargs.get("datetime", None)),
                 )
-                if not duration:
+                if not duration:  # TODO: deprecate
                     extra_info = "Cannot parse 'duration' value."
                     current_app.logger.warning(extra_info)
                     return invalid_period(extra_info)
