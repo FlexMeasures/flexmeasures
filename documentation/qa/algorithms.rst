@@ -7,7 +7,7 @@ What algorithms does the platform use?
 Forecasting
 -----------
 
-Forecasting algorithms are used by the Aggregator to assess the likelihood of future consumption/production and prices.
+Forecasting algorithms are used by |FLEXMEASURES_PLATFORM_NAME| to assess the likelihood of future consumption/production and prices.
 Weather forecasting is included in the platform, but is not the result of an internal algorithm (see :ref:`weather`).
 The performance of our algorithms is indicated by the mean absolute error (MAE) and the weighted absolute percentage error (WAPE).
 Power profiles on an asset level often include zero values, such that the mean absolute percentage error (MAPE), a common statistical measure of forecasting accuracy, is undefined.
@@ -15,21 +15,38 @@ For such profiles, it is more useful to report the WAPE, which is also known as 
 The MAE of a power profile gives an indication of the size of the uncertainty in consumption and production.
 This allows the user to compare an asset's predictability to its flexibility, i.e. to the size of possible flexibility actions.
 
-Benchmarks per asset type are listed below for various assets and forecasting horizons, given a 15-minute resolution:
+Example benchmarks per asset type are listed in the table below for various assets and forecasting horizons.
+|FLEXMEASURES_PLATFORM_NAME| updates the benchmarks automatically for the data currently selected by the user.
+Amongst other factors, accuracy is influenced by:
 
-+-------------------------+---------------+------------+---------------+----------------+-----------------+
-| Asset                   | Building      | CS         | Solar         | Wind (offshore)| Day-ahead market|
-+-------------------------+---------------+------------+---------------+----------------+-----------------+
-| Average power per asset | 182 kW        | 75 W       | 1.4 MW        | 31.8 MW        |                 |
-+=========================+===============+============+===============+================+=================+
-| WAPE (1 hour ahead)     | 6.6 %         | - %        | 16.3 %        | 21.2 %         | 12.0 %          |
-+-------------------------+---------------+------------+---------------+----------------+-----------------+
-| WAPE (6 hours ahead)    | 7.4 %         | - %        | 46.4 %        | 101.8 %        | 18.1 %          |
-+-------------------------+---------------+------------+---------------+----------------+-----------------+
-| WAPE (24 hours ahead)   | 7.6 %         | - %        | 46.1 %        | 101.1 %        | 19.6 %          |
-+-------------------------+---------------+------------+---------------+----------------+-----------------+
-| WAPE (48 hours ahead)   | 7.9 %         | - %        | 43.3 %        | 100.9 %        | 27.7 %          |
-+-------------------------+---------------+------------+---------------+----------------+-----------------+
+- The chosen metric (see below)
+- Resolution of the forecast
+- Horizon of the forecast
+- Asset type
+- Location / Weather conditions
+- Level of aggregation
+
+Accuracies in the table are reported as 1 minus WAPE, which can be interpreted as follows:
+
+- 100% accuracy denotes that all values are correct.
+- 50% accuracy denotes that, on average, the values are wrong by half of the reference value.
+- 0% accuracy denotes that, on average, the values are wrong by exactly the reference value (i.e. zeros or twice the reference value).
+- negative accuracy denotes that, on average, the values are off-the-chart wrong (by more than the reference value itself).
+
+
++---------------------------+---------------+---------------+---------------+-----------------+-----------------+
+| Asset                     | Building      | Charge Points | Solar         | Wind (offshore) | Day-ahead market|
++---------------------------+---------------+---------------+---------------+-----------------+-----------------+
+| Average power per asset   | 204 W         | 75 W          | 140 W         | 518 W           |                 |
++===========================+===============+===============+===============+=================+=================+
+| 1 - WAPE (1 hour ahead)   | 93.4 %        | 87.6 %        | 95.2 %        | 81.6 %          | 88.0 %          |
++---------------------------+---------------+---------------+---------------+-----------------+-----------------+
+| 1 - WAPE (6 hours ahead)  | 92.6 %        | 73.0 %        | 83.7 %        | 73.8 %          | 81.9 %          |
++---------------------------+---------------+---------------+---------------+-----------------+-----------------+
+| 1 - WAPE (24 hours ahead) | 92.4 %        | 65.2 %        | 46.1 %        | 60.1 %          | 81.4 %          |
++---------------------------+---------------+---------------+---------------+-----------------+-----------------+
+| 1 - WAPE (48 hours ahead) | 92.1 %        | 63.7 %        | 43.3 %        | 56.9 %          | 72.3 %          |
++---------------------------+---------------+---------------+---------------+-----------------+-----------------+
 
 Defaults:
 
