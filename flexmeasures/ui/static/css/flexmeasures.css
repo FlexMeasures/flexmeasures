@@ -318,16 +318,22 @@ i.center-icon:after, i.center-icon:before {
 
 /* map icons */
 .map-icon {
+    color: #ffffff;
     display: flex;
-    flex-wrap: nowrap;
     align-items: center;
     justify-content: center;
     font-size: 24px;
 }
+.map-icon > i.overlay:before, .map-icon > i.overlay:after {
+    font-size: 20px;
+    z-index: 9;
+    right: -13px;
+    top: -40px;
+}
 .map-icon > i:before, .map-icon > i:after {
     position: absolute;
-    top: -22px;
-    left: -16.5px;
+    right: -33px;
+    top: -50px;
 }
 .map-icon.opportunity {
     color: #c21431;
@@ -335,7 +341,24 @@ i.center-icon:after, i.center-icon:before {
 .leaflet-marker-popup {
     min-width: 240px;
 }
+.icon-empty-marker {
+    color: #000000;
+    opacity: 0.7;
+}
 
+/* map icon alignment */
+.map-icon > i.icon-wind:before, .map-icon > i.icon-wind:after {
+    right: -16px !important;
+}
+.map-icon > i.icon-solar:before, .map-icon > i.icon-solar:after {
+    right: -14.5px !important;
+}
+.map-icon > i.icon-charging_station:before, .map-icon > i.icon-solar:after {
+    right: -15.5px !important;
+}
+.map-icon > i.icon-building:before, .map-icon > i.icon-solar:after {
+    right: -13px !important;
+}
 
 /* rotating icons, because why not? */
 i.icon-wind:hover:before {
@@ -377,12 +400,12 @@ i.icon-wind:hover:before {
 
 @font-face {
   font-family: 'seita-webfont';
-  src: url('../font/seita-webfont.eot?93228496');
-  src: url('../font/seita-webfont.eot?93228496#iefix') format('embedded-opentype'),
-       url('../font/seita-webfont.woff2?93228496') format('woff2'),
-       url('../font/seita-webfont.woff?93228496') format('woff'),
-       url('../font/seita-webfont.ttf?93228496') format('truetype'),
-       url('../font/seita-webfont.svg?93228496#seita-webfont') format('svg');
+  src: url('../font/seita-webfont.eot?7470033');
+  src: url('../font/seita-webfont.eot?7470033#iefix') format('embedded-opentype'),
+       url('../font/seita-webfont.woff2?7470033') format('woff2'),
+       url('../font/seita-webfont.woff?7470033') format('woff'),
+       url('../font/seita-webfont.ttf?7470033') format('truetype'),
+       url('../font/seita-webfont.svg?7470033#seita-webfont') format('svg');
   font-weight: normal;
   font-style: normal;
 }
@@ -392,7 +415,7 @@ i.icon-wind:hover:before {
 @media screen and (-webkit-min-device-pixel-ratio:0) {
   @font-face {
     font-family: 'seita-webfont';
-    src: url('../font/seita-webfont.svg?93228496#seita-webfont') format('svg');
+    src: url('../font/seita-webfont.svg?7470033#seita-webfont') format('svg');
   }
 }
 */
@@ -401,7 +424,7 @@ i.icon-wind:hover:before {
   font-family: "seita-webfont";
   font-style: normal;
   font-weight: normal;
-  speak: none;
+  speak: never;
 
   display: inline-block;
   text-decoration: inherit;
@@ -452,6 +475,7 @@ i.icon-wind:hover:before {
 .icon-seita:before { content: '\e80d'; } /* '' */
 .icon-wind-blades:before { content: '\e80e'; } /* '' */
 .icon-wind-tower:before { content: '\e80f'; } /* '' */
+.icon-empty-marker:before { content: '\e810'; } /* '' */
 
 .icon-batteries:before { content: '\e801'; } /* '' */
 .icon-buildings:before { content: '\e803'; } /* '' */

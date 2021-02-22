@@ -171,10 +171,10 @@
 
     var {{ asset_groups[asset_group].parameterized_name }}_icon = new L.DivIcon({
         className: 'map-icon',
-        html: '<i class="{{ asset_groups[asset_group].unique_asset_types[0].name | asset_icon }}"></i>',
-        iconSize: [24, 24], // size of the icon
-        iconAnchor: [12, 12], // point of the icon which will correspond to marker's location
-        popupAnchor: [0, -12] // point from which the popup should open relative to the iconAnchor
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset_groups[asset_group].unique_asset_types[0].name | asset_icon }}"></i>',
+        iconSize: [100, 100], // size of the icon
+        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
     });
 
     var {{ asset_groups[asset_group].parameterized_name }}_opportunity_icon = new L.DivIcon({
@@ -250,7 +250,12 @@
                 next();
             });
         })
-        .on('click', clickZoom)
+        .bindTooltip("{{ asset.display_name }}",
+        {
+            permanent: false,
+            direction: 'right'
+        })
+        .on('click', clickPan)
         .on('click', lookForState);
     // .openPopup();
     {{ asset_groups[asset_group].parameterized_name }}_markers.push(marker_for_{{ (asset.name | parameterize) }});

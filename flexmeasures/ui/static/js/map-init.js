@@ -16,6 +16,11 @@ function addTileLayer(leafletMap, mapboxAccessToken) {
 }
 
 
-function clickZoom(e) {
-    assetMap.setView(e.target.getLatLng());
+function clickPan(e, data) {
+    // set view such that the target asset lies slightly below the center of the map
+    targetLatLng = e.target.getLatLng()
+    targetZoom = assetMap.getZoom()
+    targetPoint = assetMap.project(targetLatLng, targetZoom).subtract([0, 50]),
+    targetLatLng = assetMap.unproject(targetPoint, targetZoom);
+    assetMap.setView(targetLatLng, targetZoom);
 }

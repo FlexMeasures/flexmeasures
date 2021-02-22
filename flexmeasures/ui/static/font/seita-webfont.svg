@@ -1,7 +1,7 @@
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg xmlns="http://www.w3.org/2000/svg">
-<metadata>Copyright (C) 2019 by original authors @ fontello.com</metadata>
+<metadata>Copyright (C) 2021 by original authors @ fontello.com</metadata>
 <defs>
 <font id="seita-webfont" horiz-adv-x="1000" >
 <font-face font-family="seita-webfont" font-weight="400" font-stretch="normal" units-per-em="1000" ascent="850" descent="-150" />
@@ -37,6 +37,8 @@
 <glyph glyph-name="wind-blades" unicode="&#xe80e;" d="M416 395c48-34 197-127 335-115l0 1c-85 110-253 156-311 169 0-2 0-4 0-6 0-20-9-38-24-49z m0 0m-75 1c-17 13-25 35-22 56-58-11-229-50-318-156l0-1c138-17 290 70 340 101z m0 0m38 109c11 0 21-3 30-8 11 58 37 231-29 353l-2 0c-66-122-40-295-29-353 9 5 20 8 30 8z m0 0" horiz-adv-x="1000" />
 
 <glyph glyph-name="wind-tower" unicode="&#xe80f;" d="M306-78l147 0-55 485c20 10 28 35 18 55-10 21-35 29-55 19-20-11-28-36-18-56 4-8 10-14 18-18z m0 0m-9-73l164 0-5 45-154 0z m0 0" horiz-adv-x="1000" />
+
+<glyph glyph-name="empty-marker" unicode="&#xe810;" d="M500 850c-200 0-362-162-362-362 0-248 324-612 338-627 13-15 35-15 48 0 14 15 338 379 338 627 0 200-162 362-362 362z" horiz-adv-x="1000" />
 </font>
 </defs>
 </svg>
