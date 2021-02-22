@@ -11,6 +11,7 @@ from email_validator import (
     EmailNotValidError,
     EmailUndeliverableError,
 )
+from werkzeug.exceptions import NotFound
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -19,6 +20,14 @@ from flexmeasures.data.models.user import User, Role
 
 class InvalidFlexMeasuresUser(Exception):
     pass
+
+
+def get_user(id: str) -> User:
+    """Get a user, raise if not found."""
+    user: User = User.query.filter_by(id=int(id)).one_or_none()
+    if user is None:
+        raise NotFound
+    return user
 
 
 def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List[User]:
@@ -122,11 +131,6 @@ def create_user(  # noqa: C901
     db.session.add(DataSource(user=user))
 
     return user
-
-
-def toggle_activation_status_of(user: User):
-    """Toggle the active attribute of user"""
-    user.active = not user.active
 
 
 def delete_user(user: User):

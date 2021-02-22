@@ -56,6 +56,12 @@ Utility functions that are commonly shared between endpoint implementations of d
 where we distinguish between response decorators, request validators and other utils.
 
 
+UI Crud
+-------
+
+In `ui/crud`, we support FlexMeasures' in-built UI with Flask endpoints, which then talk to our internal API.
+The routes used there point to an API version. You should consider updating them to point to your new version.
+
 Testing
 -------
 

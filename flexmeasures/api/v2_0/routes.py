@@ -1,6 +1,6 @@
 import copy
 
-from flask_security import auth_token_required
+from flask_security import auth_token_required, roles_required
 
 from flexmeasures.api.common.utils.api_utils import list_access, append_doc_of
 from flexmeasures.api.common.utils.decorators import as_response_type
@@ -11,15 +11,19 @@ from flexmeasures.api.v1_3 import implementations as v1_3_implementations
 from flexmeasures.api.v1_3 import routes as v1_3_routes
 
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
-from flexmeasures.api.v2_0.implementations import assets
+from flexmeasures.api.v2_0.implementations import assets, users
 
 
 # The service listing for this API version (import from previous version or update if needed)
 v2_0_service_listing = copy.deepcopy(v1_3_routes.v1_3_service_listing)
 v2_0_service_listing["version"] = "2.0"
 
-# Note: For the time being, no (USEF) role access is added to asset endpoints
+# TODO: Use https://github.com/marshmallow-code/apispec and https://github.com/sveint/flask-swagger-ui
+#       to serve as OpenApi (swagger).
+
+# Note: For the time being, no (USEF) role access is added to asset or user endpoints
 # TODO: Add role access when multi-tenancy is added
+# assets
 v2_0_service_listing["services"].append(
     {
         "name": "GET /assets",
@@ -52,6 +56,32 @@ v2_0_service_listing["services"].append(
         "name": "DELETE /assets/<id>",
         "access": [],
         "description": "Delete an asset and its data.",
+    },
+)
+# users
+v2_0_service_listing["services"].append(
+    {
+        "name": "GET /users",
+        "access": [],
+        "description": "List users.",
+    },
+)
+v2_0_service_listing["services"].append(
+    {
+        "name": "GET /user/<id>",
+        "description": "Get a user.",
+    },
+)
+v2_0_service_listing["services"].append(
+    {
+        "name": "PATCH /user/<id>",
+        "description": "Edit a user.",
+    },
+)
+v2_0_service_listing["services"].append(
+    {
+        "name": "GET /user/<id>/password-reset",
+        "description": "Reset a user's password.",
     },
 )
 
@@ -111,6 +141,7 @@ def get_assets():
 
 @flexmeasures_api_v2_0.route("/assets", methods=["POST"])
 @auth_token_required
+@roles_required("admin")
 # @usef_roles_accepted(*list_access(v2_0_service_listing, "POST /assets"))
 def post_assets():
     """API endpoint to post a new asset.
@@ -283,6 +314,7 @@ def patch_asset(id: int):
     :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
+    :status 422: UNPROCESSABLE_ENTITY
     """
     return assets.patch(id)
 
@@ -307,6 +339,158 @@ def delete_asset(id: int):
     :status 403: INVALID_SENDER
     """
     return assets.delete(id)
+
+
+@flexmeasures_api_v2_0.route("/users", methods=["GET"])
+@auth_token_required
+@roles_required("admin")
+def get_users():
+    """API endpoint to get users.
+
+    .. :quickref: User; Download user list
+
+    This endpoint returns all accessible users.
+    By default, only active users are returned.
+    The `include_inactive` query parameter can be used to also fetch
+    inactive users.
+    Only admins can use this endpoint.
+
+    **Example response**
+
+    An example of one user being returned:
+
+    .. sourcecode:: json
+
+        [
+            {
+                'active': True,
+                'email': 'test_prosumer@seita.nl',
+                'flexmeasures_roles': [1, 3],
+                'id': 1,
+                'timezone': 'Europe/Amsterdam',
+                'username': 'Test Prosumer'
+            }
+        ]
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_REQUEST
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    """
+    return users.get()
+
+
+@flexmeasures_api_v2_0.route("/user/<id>", methods=["GET"])
+@auth_token_required
+# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
+def get_user(id: int):
+    """API endpoint to get a user.
+
+    .. :quickref: User; Get a user
+
+    This endpoint gets a user.
+    Only admins or the user themselves can use this endpoint.
+
+    **Example response**
+
+    .. sourcecode:: json
+
+        {
+            'active': True,
+            'email': 'test_prosumer@seita.nl',
+            'flexmeasures_roles': [1, 3],
+            'id': 1,
+            'timezone': 'Europe/Amsterdam',
+            'username': 'Test Prosumer'
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    """
+    return users.fetch_one(id)
+
+
+@flexmeasures_api_v2_0.route("/user/<id>", methods=["PATCH"])
+@auth_token_required
+# @usef_roles_accepted(*list_access(v2_0_service_listing, "PATCH /user/<id>"))
+def patch_user(id: int):
+    """API endpoint to patch user data.
+
+    .. :quickref: User; Patch data for an existing user
+
+    This endpoint sets data for an existing user.
+    Any subset of user fields can be sent.
+    Only the user themselves or admins are allowed to update its data,
+    while a non-admin can only edit a few of their own fields.
+
+    Several fields are not allowed to be updated, e.g. id. They are ignored.
+
+    **Example request**
+
+    .. sourcecode:: json
+
+        {
+            "active": false,
+        }
+
+    **Example response**
+
+    The whole user is returned in the response:
+
+    .. sourcecode:: json
+
+        {
+            'active': True,
+            'email': 'test_prosumer@seita.nl',
+            'flexmeasures_roles': [1, 3],
+            'id': 1,
+            'timezone': 'Europe/Amsterdam',
+            'username': 'Test Prosumer'
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: UPDATED
+    :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 422: UNPROCESSABLE_ENTITY
+    """
+    return users.patch(id)
+
+
+@flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["PATCH"])
+@auth_token_required
+# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
+def reset_user_password(id: int):
+    """API endpoint to reset the user password. They'll get an email to choose a new password.
+
+    .. :quickref: User; Password reset
+
+    Reset the user's password, and send them instructions on how to reset the password.
+    This endoint is useful from a security standpoint, in case of worries the password might be compromised.
+    It sets the current password to something random and also send an email about that fact to the user.
+
+    Only admins can use this endpoint.
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    """
+    return users.reset_password(id)
 
 
 # endpoints from earlier versions

@@ -12,7 +12,11 @@ import click
 import getpass
 
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
-from flexmeasures.data.services.users import create_user
+from flexmeasures.data.services.users import (
+    create_user,
+    find_user_by_email,
+    delete_user,
+)
 from flexmeasures.data.scripts.data_gen import get_affected_classes
 
 
@@ -49,6 +53,20 @@ def new_user(
         user_roles=roles,
         check_deliverability=False,
     )
+    app.db.session.commit()
+
+
+@app.cli.command()
+@click.option("--email")
+def delete_user_and_data(email: str):
+    """
+    Delete a user, which also deletes their data.
+    """
+    the_user = find_user_by_email(email)
+    if the_user is None:
+        print(f"Could not find user with email address '{email}' ...")
+        return
+    delete_user(the_user)
     app.db.session.commit()
 
 

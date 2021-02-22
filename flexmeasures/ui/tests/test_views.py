@@ -31,7 +31,7 @@ def test_portfolio_responds(client, as_prosumer):
 
 def test_assets_responds(client, requests_mock, as_prosumer):
     requests_mock.get("http://localhost//api/v2_0/assets", status_code=200, json={})
-    assets_page = client.get(url_for("AssetCrud:index"), follow_redirects=True)
+    assets_page = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert assets_page.status_code == 200
     assert b"All assets" in assets_page.data
 

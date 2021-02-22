@@ -66,6 +66,7 @@ def parse_as_list(
     return connections
 
 
+# TODO: we should be using webargs to get data from a request, it's more descriptive and has error handling
 def get_form_from_request(_request) -> Union[dict, None]:
     if _request.method == "GET":
         d = _request.args.to_dict(
