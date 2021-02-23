@@ -8,6 +8,7 @@ v2.0 | 2021-02-23
 
 - [**Breaking change**] Switched the interpretation of horizons to rolling horizons.
 - [**Breaking change**] Deprecated the use of ISO 8601 repeating time intervals to denote rolling horizons.
+- [**Breaking change**] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API version below v2.0.
 - Introduced the "prior" parameter for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints.
 - Changed the Introduction section:
 

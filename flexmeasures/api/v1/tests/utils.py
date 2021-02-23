@@ -75,6 +75,7 @@ def message_for_post_meter_data(
         ],
         "start": "2015-01-01T00:00:00Z",
         "duration": duration_isoformat(timedelta(hours=1.5 * tile_n)),
+        "horizon": "PT0H",
         "unit": "MW",
     }
     if no_connection:
