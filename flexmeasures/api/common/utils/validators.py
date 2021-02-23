@@ -307,7 +307,7 @@ def optional_user_sources_accepted(
     return wrapper
 
 
-def optional_prior_accepted(ex_post: bool = False):
+def optional_prior_accepted(ex_post: bool = False, infer_missing: bool = True):
     """Decorator which specifies that a GET or POST request accepts an optional prior.
     It parses relevant form data and sets the "prior" keyword param.
 
@@ -316,6 +316,7 @@ def optional_prior_accepted(ex_post: bool = False):
     -   This results in the filter belief_time_window = (None, prior)
 
     Optionally, an ex_post flag can be passed to the decorator to indicate that only ex-post datetimes are allowed.
+    For POST requests, set infer_missing is True to have servers not in play mode derive a prior from the server time.
     """
 
     def wrapper(fn):
@@ -341,7 +342,14 @@ def optional_prior_accepted(ex_post: bool = False):
                     if prior < knowledge_time:
                         extra_info = "Meter data can only be observed after the fact."
                         return invalid_horizon(extra_info)
+            elif (
+                infer_missing is True
+                and current_app.config.get("FLEXMEASURES_MODE", "") != "play"
+            ):
+                # A missing prior is inferred by the server (if not in play mode)
+                prior = server_now()
             else:
+                # Otherwise, a missing prior is fine (a horizon may still be inferred by the server)
                 prior = None
 
             kwargs["prior"] = prior
@@ -382,8 +390,7 @@ def optional_horizon_accepted(  # noqa C901
             return 'Meter data posted'
 
     If the message specifies a "horizon", it should be in accordance with the ISO 8601 standard.
-    If no "horizon" is specified for a POST request, it is determined by the server.
-    Servers in play mode use 0 hours as a default horizon, while other servers derive the horizon from the server time.
+    For POST requests, set infer_missing is True to have servers in play mode use 0 hours as a default horizon.
     """
 
     def wrapper(fn):
@@ -410,40 +417,14 @@ def optional_horizon_accepted(  # noqa C901
                 elif rolling is True and accept_repeating_interval is False:
                     extra_info = "The use of ISO 8601 repeating time intervals has been deprecated since API version 2.0."
                     return invalid_horizon(extra_info)
-            elif infer_missing is True:
-                # A missing horizon is only accepted if a prior is set or the server can infer the horizon
-                if "prior" in form:
-                    horizon = None
-                elif current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-                    horizon = timedelta(hours=0)
-                elif "start" in form and "duration" in form:
-                    start = parse_isodate_str(form["start"])
-                    duration = parse_duration(form["duration"], start)
-                    if not start:
-                        extra_info = "Cannot parse 'start' value."
-                        current_app.logger.warning(extra_info)
-                        return invalid_period(extra_info)
-                    if start.tzinfo is None:
-                        current_app.logger.warning(
-                            "Cannot parse timezone of 'start' value"
-                        )
-                        return invalid_timezone(
-                            "Start time should explicitly state a timezone."
-                        )
-                    if not duration:
-                        extra_info = "Cannot parse 'duration' value."
-                        current_app.logger.warning(extra_info)
-                        return invalid_period(extra_info)
-                    horizon = start + duration - server_now()
-                    rolling = False
-                else:
-                    current_app.logger.warning(
-                        "Request missing both 'horizon', 'start' and 'duration'."
-                    )
-                    extra_info = "Specify a 'horizon' value, or 'start' and 'duration' values so that the horizon can be inferred."
-                    return invalid_horizon(extra_info)
+            elif (
+                infer_missing is True
+                and current_app.config.get("FLEXMEASURES_MODE", "") == "play"
+            ):
+                # A missing horizon is set to zero for servers in play mode
+                horizon = timedelta(hours=0)
             else:
-                # Otherwise, a missing horizon is fine
+                # Otherwise, a missing horizon is fine (a prior may still be inferred by the server)
                 horizon = None
 
             kwargs["horizon"] = horizon
