@@ -87,10 +87,11 @@ def get_power_chart(chart_request):
             {
                 method: "GET",
                 mode: "cors",
-                headers:{
-                            "Content-Type": "application/json",
-                            "Authorization": "<users auth token>"
-                        },
+                headers:
+                    {
+                        "Content-Type": "application/json",
+                        "Authorization": "<users auth token>"
+                    },
             })
             .then(function(response) { return response.json(); })
             .then(function(item) { Bokeh.embed.embed_item(item, "<ID of the div >"); });
@@ -123,5 +124,6 @@ def get_power_chart(chart_request):
         schedule_data=data[2],
         show_consumption_as_positive=chart_request["show_consumption_as_positive"],
         shared_x_range=None,
+        sizing_mode="scale_both",
     )
     return json_item(figure)

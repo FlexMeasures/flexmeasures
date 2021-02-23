@@ -251,6 +251,7 @@ def create_graph(  # noqa: C901
     show_y_floats: bool = False,
     non_negative_only: bool = False,
     tools: List[str] = None,
+    sizing_mode="scale_width",
 ) -> Figure:
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
@@ -310,7 +311,7 @@ def create_graph(  # noqa: C901
         tools=tools,
         h_symmetry=False,
         v_symmetry=False,
-        sizing_mode="scale_width",
+        sizing_mode=sizing_mode,
         outline_line_color="#666666",
     )
 

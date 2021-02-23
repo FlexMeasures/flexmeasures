@@ -58,7 +58,7 @@ def register_at(app: Flask):
     add_jinja_filters(app)
     add_jinja_variables(app)
 
-    # re-register api blueprint so it'll register the chart views (see views.charts)
+    # re-register api blueprint so it'll register the chart views (the ones in views.charts)
     app.register_blueprint(
         flexmeasures_api_v2_0, url_prefix="/api/v2_0", first_registration=False
     )

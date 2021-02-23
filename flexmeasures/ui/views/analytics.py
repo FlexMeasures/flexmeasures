@@ -528,6 +528,7 @@ def make_power_figure(
     show_consumption_as_positive: bool,
     shared_x_range: Range1d,
     tools: List[str] = None,
+    sizing_mode="scale_width",
 ) -> Figure:
     """Make a bokeh figure for power consumption or generation"""
     if show_consumption_as_positive:
@@ -560,6 +561,7 @@ def make_power_figure(
         y_label="Power (in MW)",
         show_y_floats=True,
         tools=tools,
+        sizing_mode=sizing_mode,
     )
 
 
@@ -569,6 +571,7 @@ def make_prices_figure(
     shared_x_range: Range1d,
     selected_market: Market,
     tools: List[str] = None,
+    sizing_mode="scale_width",
 ) -> Figure:
     """Make a bokeh figure for price data"""
     return create_graph(
@@ -583,6 +586,7 @@ def make_prices_figure(
         y_label="Price (in %s)" % selected_market.unit,
         show_y_floats=True,
         tools=tools,
+        sizing_mode=sizing_mode,
     )
 
 
@@ -593,6 +597,7 @@ def make_weather_figure(
     shared_x_range: Range1d,
     weather_sensor: WeatherSensor,
     tools: List[str] = None,
+    sizing_mode="scale_width",
 ) -> Figure:
     """Make a bokeh figure for weather data"""
     # Todo: plot average temperature/total_radiation/wind_speed for asset groups, and update title accordingly
@@ -623,6 +628,7 @@ def make_weather_figure(
         legend_location="top_right",
         show_y_floats=True,
         tools=tools,
+        sizing_mode=sizing_mode,
     )
 
 
@@ -634,6 +640,7 @@ def make_revenues_costs_figure(
     shared_x_range: Range1d,
     selected_market: Market,
     tools: List[str] = None,
+    sizing_mode="scale_width",
 ) -> Figure:
     """Make a bokeh figure for revenues / costs data"""
     if show_consumption_as_positive:
@@ -655,6 +662,7 @@ def make_revenues_costs_figure(
         y_label="%s (in %s)" % (rev_cost_str, selected_market.unit[:3]),
         show_y_floats=True,
         tools=tools,
+        sizing_mode=sizing_mode,
     )
 
 
