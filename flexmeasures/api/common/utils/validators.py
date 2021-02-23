@@ -423,6 +423,9 @@ def optional_horizon_accepted(  # noqa C901
             ):
                 # A missing horizon is set to zero for servers in play mode
                 horizon = timedelta(hours=0)
+            elif infer_missing is True and accept_repeating_interval is True:
+                extra_info = "Horizon inference deprecated for API versions below v2.0."
+                return invalid_horizon(extra_info)
             else:
                 # Otherwise, a missing horizon is fine (a prior may still be inferred by the server)
                 horizon = None
