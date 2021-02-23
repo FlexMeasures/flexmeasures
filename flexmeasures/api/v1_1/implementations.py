@@ -66,7 +66,7 @@ def get_connection_response():
 @type_accepted("PostPriceDataRequest")
 @units_accepted("price", "EUR/MWh", "KRW/kWh")
 @assets_required("market")
-@optional_horizon_accepted()
+@optional_horizon_accepted(accept_repeating_interval=True)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("market")
@@ -163,7 +163,7 @@ def post_price_data_response(
 @type_accepted("PostWeatherDataRequest")
 @unit_required
 @assets_required("sensor")
-@optional_horizon_accepted()
+@optional_horizon_accepted(accept_repeating_interval=True)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("sensor")
@@ -267,7 +267,7 @@ def post_weather_data_response(  # noqa: C901
 @units_accepted("power", "MW")
 @assets_required("connection")
 @optional_user_sources_accepted()
-@optional_horizon_accepted(infer_missing=False)
+@optional_horizon_accepted(infer_missing=False, accept_repeating_interval=True)
 @optional_prior_accepted()
 @period_required
 @get_data_downsampling_allowed("connection")
@@ -309,7 +309,7 @@ def get_prognosis_response(
 @units_accepted("power", "MW")
 @assets_required("connection")
 @values_required
-@optional_horizon_accepted(ex_post=False)
+@optional_horizon_accepted(ex_post=False, accept_repeating_interval=True)
 @period_required
 @post_data_checked_for_required_resolution("connection")
 @as_json

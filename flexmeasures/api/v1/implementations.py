@@ -48,7 +48,9 @@ from flexmeasures.api.common.utils.validators import (
 @units_accepted("power", "MW")
 @assets_required("connection")
 @optional_user_sources_accepted(default_source="MDC")
-@optional_horizon_accepted(ex_post=True, infer_missing=False)
+@optional_horizon_accepted(
+    ex_post=True, infer_missing=False, accept_repeating_interval=True
+)
 @optional_prior_accepted(ex_post=True)
 @period_required
 @get_data_downsampling_allowed("connection")
@@ -98,7 +100,7 @@ def get_meter_data_response(
 @units_accepted("power", "MW")
 @assets_required("connection")
 @values_required
-@optional_horizon_accepted(ex_post=True)
+@optional_horizon_accepted(ex_post=True, accept_repeating_interval=True)
 @period_required
 @post_data_checked_for_required_resolution("connection")
 @as_json

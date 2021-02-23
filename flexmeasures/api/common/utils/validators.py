@@ -353,12 +353,14 @@ def optional_prior_accepted(ex_post: bool = False):
 
 
 def optional_horizon_accepted(  # noqa C901
-    ex_post: bool = False, infer_missing: bool = True
+    ex_post: bool = False,
+    infer_missing: bool = True,
+    accept_repeating_interval: bool = False,
 ):
     """Decorator which specifies that a GET or POST request accepts an optional horizon.
     It parses relevant form data and sets the "horizon" keyword param.
-    For POST requests, the "rolling" keyword param is also set.
-    # todo: deprecate the rolling keyword param in favour of an optional "prior" parameter for POST requests
+    If accept_repeating_interval is True, the "rolling" keyword param is also set
+    (this was used for POST requests before v2.0)
 
     Interpretation for GET requests:
     -   Denotes "at least <horizon> before the fact (positive horizon),
@@ -381,7 +383,7 @@ def optional_horizon_accepted(  # noqa C901
 
     If the message specifies a "horizon", it should be in accordance with the ISO 8601 standard.
     If no "horizon" is specified for a POST request, it is determined by the server.
-    The play server uses 0 hours as a default horizon, while other servers derive the horizon from the server time.
+    Servers in play mode use 0 hours as a default horizon, while other servers derive the horizon from the server time.
     """
 
     def wrapper(fn):
@@ -405,9 +407,16 @@ def optional_horizon_accepted(  # noqa C901
                     if horizon > timedelta(hours=0):
                         extra_info = "Meter data must have a zero or negative horizon to indicate observations after the fact."
                         return invalid_horizon(extra_info)
+                elif rolling is True and accept_repeating_interval is False:
+                    extra_info = "The use of ISO 8601 repeating time intervals has been deprecated since API version 2.0."
+                    return invalid_horizon(extra_info)
             elif infer_missing is True:
-                # A missing horizon is only accepted if the server can infer it
-                if "start" in form and "duration" in form:
+                # A missing horizon is only accepted if a prior is set or the server can infer the horizon
+                if "prior" in form:
+                    horizon = None
+                elif current_app.config.get("FLEXMEASURES_MODE", "") == "play":
+                    horizon = timedelta(hours=0)
+                elif "start" in form and "duration" in form:
                     start = parse_isodate_str(form["start"])
                     duration = parse_duration(form["duration"], start)
                     if not start:
@@ -425,10 +434,7 @@ def optional_horizon_accepted(  # noqa C901
                         extra_info = "Cannot parse 'duration' value."
                         current_app.logger.warning(extra_info)
                         return invalid_period(extra_info)
-                    if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-                        horizon = timedelta(hours=0)
-                    else:
-                        horizon = start + duration - server_now()
+                    horizon = start + duration - server_now()
                     rolling = False
                 else:
                     current_app.logger.warning(
@@ -441,7 +447,7 @@ def optional_horizon_accepted(  # noqa C901
                 horizon = None
 
             kwargs["horizon"] = horizon
-            if infer_missing is True:
+            if infer_missing is True and accept_repeating_interval is True:
                 kwargs["rolling"] = rolling
             return fn(*args, **kwargs)
 
