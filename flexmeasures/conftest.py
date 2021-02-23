@@ -107,7 +107,7 @@ def setup_markets(db):
         market_type=day_ahead,
         event_resolution=timedelta(hours=1),
         unit="EUR/MWh",
-        knowledge_horizon_fnc="determine_ex_ante_knowledge_horizon_for_x_days_ago_at_y_oclock",
+        knowledge_horizon_fnc="x_days_ago_at_y_oclock",
         knowledge_horizon_par={"x": 1, "y": 12, "z": "Europe/Paris"},
     )
     db.session.add(epex_da)
