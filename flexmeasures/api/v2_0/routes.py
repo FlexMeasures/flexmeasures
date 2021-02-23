@@ -11,7 +11,7 @@ from flexmeasures.api.v1_3 import implementations as v1_3_implementations
 from flexmeasures.api.v1_3 import routes as v1_3_routes
 
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
-from flexmeasures.api.v2_0.implementations import assets, users
+from flexmeasures.api.v2_0 import implementations as v2_0_implementations
 
 
 # The service listing for this API version (import from previous version or update if needed)
@@ -136,7 +136,7 @@ def get_assets():
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     """
-    return assets.get()
+    return v2_0_implementations.assets.get()
 
 
 @flexmeasures_api_v2_0.route("/assets", methods=["POST"])
@@ -208,7 +208,7 @@ def post_assets():
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     """
-    return assets.post()
+    return v2_0_implementations.assets.post()
 
 
 @flexmeasures_api_v2_0.route("/asset/<id>", methods=["GET"])
@@ -253,7 +253,7 @@ def get_asset(id: int):
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     """
-    return assets.fetch_one(id)
+    return v2_0_implementations.assets.fetch_one(id)
 
 
 @flexmeasures_api_v2_0.route("/asset/<id>", methods=["PATCH"])
@@ -316,7 +316,7 @@ def patch_asset(id: int):
     :status 403: INVALID_SENDER
     :status 422: UNPROCESSABLE_ENTITY
     """
-    return assets.patch(id)
+    return v2_0_implementations.assets.patch(id)
 
 
 @flexmeasures_api_v2_0.route("/asset/<id>", methods=["DELETE"])
@@ -338,7 +338,7 @@ def delete_asset(id: int):
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     """
-    return assets.delete(id)
+    return v2_0_implementations.assets.delete(id)
 
 
 @flexmeasures_api_v2_0.route("/users", methods=["GET"])
@@ -380,7 +380,7 @@ def get_users():
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     """
-    return users.get()
+    return v2_0_implementations.users.get()
 
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["GET"])
@@ -415,7 +415,7 @@ def get_user(id: int):
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     """
-    return users.fetch_one(id)
+    return v2_0_implementations.users.fetch_one(id)
 
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["PATCH"])
@@ -465,7 +465,7 @@ def patch_user(id: int):
     :status 403: INVALID_SENDER
     :status 422: UNPROCESSABLE_ENTITY
     """
-    return users.patch(id)
+    return v2_0_implementations.users.patch(id)
 
 
 @flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["PATCH"])
@@ -491,7 +491,7 @@ def reset_user_password(id: int):
     :status 401: UNAUTHORIZED
     :status 403: INVALID_SENDER
     """
-    return users.reset_password(id)
+    return v2_0_implementations.users.reset_password(id)
 
 
 # endpoints from earlier versions
@@ -512,7 +512,7 @@ def get_connection():
 @usef_roles_accepted(*list_access(v2_0_service_listing, "postPriceData"))
 @append_doc_of(v1_3_routes.post_price_data)
 def post_price_data():
-    return v1_1_implementations.post_price_data_response()
+    return v2_0_implementations.sensors.post_price_data_response()
 
 
 @flexmeasures_api_v2_0.route("/postWeatherData", methods=["POST"])
