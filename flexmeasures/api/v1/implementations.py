@@ -51,7 +51,7 @@ from flexmeasures.api.common.utils.validators import (
 @optional_horizon_accepted(
     ex_post=True, infer_missing=False, accept_repeating_interval=True
 )
-@optional_prior_accepted(ex_post=True)
+@optional_prior_accepted(ex_post=True, infer_missing=False)
 @period_required
 @get_data_downsampling_allowed("connection")
 @as_json

@@ -268,7 +268,7 @@ def post_weather_data_response(  # noqa: C901
 @assets_required("connection")
 @optional_user_sources_accepted()
 @optional_horizon_accepted(infer_missing=False, accept_repeating_interval=True)
-@optional_prior_accepted()
+@optional_prior_accepted(infer_missing=False)
 @period_required
 @get_data_downsampling_allowed("connection")
 @as_json
