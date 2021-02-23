@@ -6,6 +6,7 @@ from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_json import FlaskJSON
+from flask_cors import CORS
 
 from redis import Redis
 from rq import Queue
@@ -43,6 +44,7 @@ def create(env=None) -> Flask:
 
     app.mail = Mail(app)
     FlaskJSON(app)
+    cors = CORS(app)
 
     # configure Redis (for redis queue)
     if app.testing:

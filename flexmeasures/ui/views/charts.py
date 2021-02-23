@@ -1,9 +1,8 @@
 from flask_security import roles_accepted
+from flask_json import as_json
 from bokeh.embed import json_item
 from marshmallow import Schema, fields
 from webargs.flaskparser import use_args
-from flask_cors import cross_origin
-from flask_json import as_json
 
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 from flexmeasures.api.v2_0.routes import v2_0_service_listing
@@ -47,7 +46,6 @@ class ChartRequestSchema(Schema):
 
 
 @flexmeasures_api_v2_0.route("/charts/power", methods=["GET"])
-@cross_origin()  # origins=["localhost"])
 @roles_accepted("admin", "Prosumer")
 @use_args(ChartRequestSchema(), location="querystring")
 @as_json
@@ -85,9 +83,10 @@ def get_power_chart(chart_request):
     .. sourcecode:: javascript
 
         <script>
-            fetch('http://localhost:5000/charts/power?' + urlData.toString(),
+            fetch('http://localhost:5000/api/v2_0/charts/power?' + urlData.toString(),
             {
-                method: "POST",
+                method: "GET",
+                mode: "cors",
                 headers:{
                             "Content-Type": "application/json",
                             "Authorization": "<users auth token>"
