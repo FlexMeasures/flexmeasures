@@ -3,10 +3,20 @@
 API change log
 ===============
 
+v2.0 | 2021-02-23
+"""""""""""""""""
+
+- [**Breaking change**] Switched the interpretation of horizons to rolling horizons.
+- [**Breaking change**] Deprecated the use of ISO 8601 repeating time intervals to denote rolling horizons.
+- Introduced the "prior" parameter for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints.
+- Changed the Introduction section:
+
+    - Rewrote the subsection on prognoses to explain the horizon and prior parameters
+
 v2.0 | 2020-11-14
 """""""""""""""""""
 
-- REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE)
+- REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
 
 v1.3-7 | 2020-12-16
 """""""""""""""""""
