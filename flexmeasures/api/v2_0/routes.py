@@ -510,8 +510,81 @@ def get_connection():
 @as_response_type("PostPriceDataResponse")
 @auth_token_required
 @usef_roles_accepted(*list_access(v2_0_service_listing, "postPriceData"))
-@append_doc_of(v1_3_routes.post_price_data)
 def post_price_data():
+    """API endpoint to post price data.
+
+    .. :quickref: User; Upload price data to the platform
+
+    **Optional parameters**
+
+    - "horizon" (see :ref:`prognoses`)
+    - "prior" (see :ref:`prognoses`)
+
+    **Example request**
+
+    This "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
+    for the EPEX SPOT day-ahead auction.
+    The prior indicates that the prices were published at 1pm on December 31st 2020.
+
+    .. code-block:: json
+
+        {
+            "type": "PostPriceDataRequest",
+            "market": "ea1.2018-06.localhost:epex_da",
+            "values": [
+                52.37,
+                51.14,
+                49.09,
+                48.35,
+                48.47,
+                49.98,
+                58.7,
+                67.76,
+                69.21,
+                70.26,
+                70.46,
+                70,
+                70.7,
+                70.41,
+                70,
+                64.53,
+                65.92,
+                69.72,
+                70.51,
+                75.49,
+                70.35,
+                70.01,
+                66.98,
+                58.61
+            ],
+            "start": "2021-01-01T00:00:00+01:00",
+            "duration": "PT24H",
+            "prior": "2020-12-31T13:00:00+01:00",
+            "unit": "EUR/MWh"
+        }
+
+    **Example response**
+
+    This "PostPriceDataResponse" message indicates that the prices have been processed without any error.
+
+    .. sourcecode:: json
+
+        {
+            "type": "PostPriceDataResponse",
+            "status": "PROCESSED",
+            "message": "Request has been processed."
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, REQUIRED_INFO_MISSING, UNRECOGNIZED_ASSET or UNRECOGNIZED_MARKET
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 405: INVALID_METHOD
+
+    """
     return v2_0_implementations.sensors.post_price_data_response()
 
 
