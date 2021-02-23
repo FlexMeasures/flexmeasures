@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from marshmallow import fields
 import isodate
 from isodate.isoerror import ISO8601Error
+import pandas as pd
 
 from flexmeasures.api.common.utils.args_parsing import FMValidationError
 
@@ -49,8 +50,15 @@ class DurationField(fields.Str):
         converting to a datetime.timedelta is not possible (no obvious
         number of days). In this case, `_deserialize` returned an
         `isodate.Duration`. We can derive the timedelta by grounding to an
-        actual time span, for which we require a start datetime.
+        actual time span, for which we require a timezone-aware start datetime.
         """
         if isinstance(duration, isodate.Duration) and start:
-            return (start + duration) - start
+            years = duration.years
+            months = duration.months
+            days = duration.days
+            seconds = duration.tdelta.seconds
+            offset = pd.DateOffset(
+                years=years, months=months, days=days, seconds=seconds
+            )
+            return (pd.Timestamp(start) + offset).to_pydatetime() - start
         return duration
