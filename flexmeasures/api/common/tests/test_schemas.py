@@ -2,9 +2,8 @@ from datetime import datetime, timedelta
 
 import pytest
 import isodate
-from marshmallow import ValidationError
 
-from flexmeasures.api.common.schemas import DurationField
+from flexmeasures.api.common.schemas import DurationField, DurationValidationError
 
 
 @pytest.mark.parametrize(
@@ -59,6 +58,6 @@ def test_duration_field_nominal_grounded(
 )
 def test_duration_field_invalid(duration_input, error_msg):
     df = DurationField()
-    with pytest.raises(ValidationError) as ve:
+    with pytest.raises(DurationValidationError) as ve:
         df.deserialize(duration_input, None, None)
     assert error_msg in str(ve)

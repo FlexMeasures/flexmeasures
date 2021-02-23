@@ -1,9 +1,15 @@
 from typing import Union, Optional
 from datetime import datetime, timedelta
 
-from marshmallow import fields, ValidationError
+from marshmallow import fields
 import isodate
 from isodate.isoerror import ISO8601Error
+
+from flexmeasures.api.common.utils.args_parsing import FMValidationError
+
+
+class DurationValidationError(FMValidationError):
+    status = "INVALID_PERIOD"  # USEF error status
 
 
 class DurationField(fields.Str):
@@ -22,7 +28,7 @@ class DurationField(fields.Str):
         try:
             return isodate.parse_duration(value)
         except ISO8601Error as iso_err:
-            raise ValidationError(
+            raise DurationValidationError(
                 f"Cannot parse {value} as ISO8601 duration: {iso_err}"
             )
 
