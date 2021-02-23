@@ -4,7 +4,7 @@ import pytest
 import pytz
 import isodate
 
-from flexmeasures.api.common.schemas import DurationField, DurationValidationError
+from flexmeasures.api.common.schemas.times import DurationField, DurationValidationError
 
 
 @pytest.mark.parametrize(
