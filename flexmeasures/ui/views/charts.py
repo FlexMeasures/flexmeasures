@@ -26,7 +26,7 @@ When we move forward, we'll review the architecture.
 
 v2_0_service_listing["services"].append(
     {
-        "name": "POST /charts/power",
+        "name": "GET /charts/power",
         "access": ["admin", "Prosumer"],
         "description": "Get a Bokeh chart for power data to embed in web pages.",
     },
@@ -46,10 +46,10 @@ class ChartRequestSchema(Schema):
     forecast_horizon = DurationField(missing="PT6H")  # TODO: HorizonField
 
 
-@flexmeasures_api_v2_0.route("/charts/power", methods=["POST"])
+@flexmeasures_api_v2_0.route("/charts/power", methods=["GET"])
 @cross_origin()  # origins=["localhost"])
 @roles_accepted("admin", "Prosumer")
-@use_args(ChartRequestSchema())
+@use_args(ChartRequestSchema(), location="querystring")
 @as_json
 def get_power_chart(chart_request):
     """API endpoint to get a chart for power data which can be embedded in web pages.
@@ -85,20 +85,19 @@ def get_power_chart(chart_request):
     .. sourcecode:: javascript
 
         <script>
-            fetch('http://localhost:5000/charts/power',
+            fetch('http://localhost:5000/charts/power?' + urlData.toString(),
             {
                 method: "POST",
                 headers:{
                             "Content-Type": "application/json",
                             "Authorization": "<users auth token>"
                         },
-                body: JSON.stringify(data),
             })
             .then(function(response) { return response.json(); })
             .then(function(item) { Bokeh.embed.embed_item(item, "<ID of the div >"); });
         </script>
 
-    where `data` contains the chart request parameters (see above).
+    where `urlData` is a `URLSearchData` object and contains the chart request parameters (see above).
 
     :reqheader Authorization: The authentication token
     :reqheader Content-Type: application/json
