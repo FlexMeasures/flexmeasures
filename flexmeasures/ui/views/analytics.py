@@ -537,7 +537,7 @@ def make_power_figure(
         title = "Electricity production from %s" % resource_display_name
 
     resolution_str = "?"
-    if data.index.freq is not None:
+    if hasattr(data.index, "freq") and data.index.freq is not None:
         resolution_str = time_utils.freq_label_to_human_readable_label(
             data.index.freqstr
         )

@@ -42,7 +42,10 @@ class ChartRequestSchema(Schema):
     end_time = fields.DateTime(required=True)
     resolution = DurationField(required=True)
     show_consumption_as_positive = fields.Bool(missing=True)
-    forecast_horizon = DurationField(missing="PT6H")  # TODO: HorizonField
+    show_individual_traces_for = fields.Str(
+        missing="none", validate=lambda x: x in ("none", "schedules", "power")
+    )
+    forecast_horizon = DurationField(missing="PT6H")  # TODO: HorizonField?
 
 
 @flexmeasures_api_v2_0.route("/charts/power", methods=["GET"])
@@ -111,7 +114,7 @@ def get_power_chart(chart_request):
     data = get_power_data(
         resource=chart_request["resource"],
         show_consumption_as_positive=chart_request["show_consumption_as_positive"],
-        showing_individual_traces_for="none",  # TODO: parameterise
+        showing_individual_traces_for=chart_request["show_individual_traces_for"],
         metrics={},  # will be stored here, we don't need them for now
         query_window=(chart_request["start_time"], chart_request["end_time"]),
         resolution=chart_request["resolution"],
