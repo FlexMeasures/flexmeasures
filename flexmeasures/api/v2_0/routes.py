@@ -80,7 +80,7 @@ v2_0_service_listing["services"].append(
 )
 v2_0_service_listing["services"].append(
     {
-        "name": "GET /user/<id>/password-reset",
+        "name": "PATCH /user/<id>/password-reset",
         "description": "Reset a user's password.",
     },
 )
@@ -470,7 +470,7 @@ def patch_user(id: int):
 
 @flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["PATCH"])
 @auth_token_required
-# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
+# @usef_roles_accepted(*check_access(v2_0_service_listing, "PATCH /user/<id>password-reset"))
 def reset_user_password(id: int):
     """API endpoint to reset the user password. They'll get an email to choose a new password.
 
