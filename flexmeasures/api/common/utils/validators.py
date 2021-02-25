@@ -316,7 +316,8 @@ def optional_prior_accepted(ex_post: bool = False, infer_missing: bool = True):
     -   This results in the filter belief_time_window = (None, prior)
 
     Optionally, an ex_post flag can be passed to the decorator to indicate that only ex-post datetimes are allowed.
-    For POST requests, set infer_missing is True to have servers not in play mode derive a prior from the server time.
+    As a useful setting (at least for POST requests), set infer_missing to True to have servers
+    (that are not in play mode) derive a prior from the server time.
     """
 
     def wrapper(fn):
@@ -366,9 +367,8 @@ def optional_horizon_accepted(  # noqa C901
     accept_repeating_interval: bool = False,
 ):
     """Decorator which specifies that a GET or POST request accepts an optional horizon.
-    It parses relevant form data and sets the "horizon" keyword param.
-    If accept_repeating_interval is True, the "rolling" keyword param is also set
-    (this was used for POST requests before v2.0)
+    The horizon should be in accordance with the ISO 8601 standard.
+    It parses relevant form data and sets the "horizon" keyword param (a timedelta).
 
     Interpretation for GET requests:
     -   Denotes "at least <horizon> before the fact (positive horizon),
@@ -380,17 +380,18 @@ def optional_horizon_accepted(  # noqa C901
         or at <horizon> after the fact (negative horizon)"
     -   this results in the assignment belief_horizon = horizon
 
-    For POST requests, if no horizon is specified, it is determined by the server based on when the API endpoint was called.
-    Optionally, an ex_post flag can be passed to the decorator to indicate that only non-positive horizons are allowed.
-    Example:
+    For example:
 
         @app.route('/postMeterData')
         @optional_horizon_accepted()
         def post_meter_data(horizon):
             return 'Meter data posted'
 
-    If the message specifies a "horizon", it should be in accordance with the ISO 8601 standard.
-    For POST requests, set infer_missing is True to have servers in play mode use 0 hours as a default horizon.
+    :param ex_post:                   if True, only non-positive horizons are allowed.
+    :param infer_missing:             if True, servers that are in play mode assume that the belief_horizon of posted
+                                      values is 0 hours. This setting is meant to be used for POST requests.
+    :param accept_repeating_interval: if True, the "rolling" keyword param is also set
+                                      (this was used for POST requests before v2.0)
     """
 
     def wrapper(fn):
@@ -415,7 +416,8 @@ def optional_horizon_accepted(  # noqa C901
                         extra_info = "Meter data must have a zero or negative horizon to indicate observations after the fact."
                         return invalid_horizon(extra_info)
                 elif rolling is True and accept_repeating_interval is False:
-                    extra_info = "The use of ISO 8601 repeating time intervals has been deprecated since API version 2.0."
+                    extra_info = "API versions 2.0 and higher use regular ISO 8601 durations instead of repeating time intervals. " \
+                                 "For example: R/P1D should be replaced by P1D."
                     return invalid_horizon(extra_info)
             elif (
                 infer_missing is True
@@ -424,7 +426,7 @@ def optional_horizon_accepted(  # noqa C901
                 # A missing horizon is set to zero for servers in play mode
                 horizon = timedelta(hours=0)
             elif infer_missing is True and accept_repeating_interval is True:
-                extra_info = "Horizon inference deprecated for API versions below v2.0."
+                extra_info = "Missing horizons are no longer accepted for API versions below v2.0."
                 return invalid_horizon(extra_info)
             else:
                 # Otherwise, a missing horizon is fine (a prior may still be inferred by the server)
