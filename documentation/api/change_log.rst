@@ -12,7 +12,7 @@ v2.0 | 2021-02-23
 - Introduced the "prior" parameter for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints.
 - Changed the Introduction section:
 
-    - Rewrote the subsection on prognoses to explain the horizon and prior parameters
+    - Rewrote the subsection on prognoses to explain the horizon and prior parameters.
 
 v2.0 | 2020-11-14
 """""""""""""""""""
