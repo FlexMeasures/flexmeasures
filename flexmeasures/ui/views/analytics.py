@@ -528,12 +528,23 @@ def make_power_figure(
     show_consumption_as_positive: bool,
     shared_x_range: Range1d,
     tools: List[str] = None,
+    sizing_mode="scale_width",
 ) -> Figure:
     """Make a bokeh figure for power consumption or generation"""
     if show_consumption_as_positive:
         title = "Electricity consumption of %s" % resource_display_name
     else:
         title = "Electricity production from %s" % resource_display_name
+
+    resolution_str = "?"
+    if hasattr(data.index, "freq") and data.index.freq is not None:
+        resolution_str = time_utils.freq_label_to_human_readable_label(
+            data.index.freqstr
+        )
+    elif "resolution" in session:
+        resolution_str = time_utils.freq_label_to_human_readable_label(
+            session["resolution"]
+        )
 
     return create_graph(
         data,
@@ -546,11 +557,11 @@ def make_power_figure(
         schedules=schedule_data,
         title=title,
         x_range=shared_x_range,
-        x_label="Time (resolution of %s)"
-        % time_utils.freq_label_to_human_readable_label(session["resolution"]),
+        x_label="Time (resolution of %s)" % resolution_str,
         y_label="Power (in MW)",
         show_y_floats=True,
         tools=tools,
+        sizing_mode=sizing_mode,
     )
 
 
@@ -560,6 +571,7 @@ def make_prices_figure(
     shared_x_range: Range1d,
     selected_market: Market,
     tools: List[str] = None,
+    sizing_mode="scale_width",
 ) -> Figure:
     """Make a bokeh figure for price data"""
     return create_graph(
@@ -574,6 +586,7 @@ def make_prices_figure(
         y_label="Price (in %s)" % selected_market.unit,
         show_y_floats=True,
         tools=tools,
+        sizing_mode=sizing_mode,
     )
 
 
@@ -584,6 +597,7 @@ def make_weather_figure(
     shared_x_range: Range1d,
     weather_sensor: WeatherSensor,
     tools: List[str] = None,
+    sizing_mode="scale_width",
 ) -> Figure:
     """Make a bokeh figure for weather data"""
     # Todo: plot average temperature/total_radiation/wind_speed for asset groups, and update title accordingly
@@ -614,6 +628,7 @@ def make_weather_figure(
         legend_location="top_right",
         show_y_floats=True,
         tools=tools,
+        sizing_mode=sizing_mode,
     )
 
 
@@ -625,6 +640,7 @@ def make_revenues_costs_figure(
     shared_x_range: Range1d,
     selected_market: Market,
     tools: List[str] = None,
+    sizing_mode="scale_width",
 ) -> Figure:
     """Make a bokeh figure for revenues / costs data"""
     if show_consumption_as_positive:
@@ -646,6 +662,7 @@ def make_revenues_costs_figure(
         y_label="%s (in %s)" % (rev_cost_str, selected_market.unit[:3]),
         show_y_floats=True,
         tools=tools,
+        sizing_mode=sizing_mode,
     )
 
 

@@ -15,6 +15,7 @@ from flexmeasures.utils.time_utils import (
     localized_datetime_str,
     naturalized_datetime_str,
 )
+from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 
 # The ui blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_ui = Blueprint(
@@ -56,6 +57,11 @@ def register_at(app: Flask):
     add_html_error_views(app)
     add_jinja_filters(app)
     add_jinja_variables(app)
+
+    # re-register api blueprint so it'll register the chart views (the ones in views.charts)
+    app.register_blueprint(
+        flexmeasures_api_v2_0, url_prefix="/api/v2_0", first_registration=False
+    )
 
 
 def register_rq_dashboard(app):

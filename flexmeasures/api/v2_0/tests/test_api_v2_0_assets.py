@@ -166,7 +166,7 @@ def test_post_an_asset_with_nonexisting_field(client):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     assert asset_creation.status_code == 422
-    assert asset_creation.json["json"]["nnname"][0] == "Unknown field."
+    assert asset_creation.json["message"]["json"]["nnname"][0] == "Unknown field."
 
 
 def test_posting_multiple_assets(client):
@@ -183,7 +183,7 @@ def test_posting_multiple_assets(client):
     )
     print(f"Response: {asset_creation.json}")
     assert asset_creation.status_code == 422
-    assert asset_creation.json["json"]["_schema"][0] == "Invalid input type."
+    assert asset_creation.json["message"]["json"]["_schema"][0] == "Invalid input type."
 
 
 def test_post_an_asset(client):
@@ -234,16 +234,16 @@ def test_post_an_asset_with_invalid_data(client, db):
 
     assert (
         "Must be greater than or equal to 0"
-        in post_asset_response.json["json"]["capacity_in_mw"][0]
+        in post_asset_response.json["message"]["json"]["capacity_in_mw"][0]
     )
     assert (
         "greater than or equal to -180 and less than or equal to 180"
-        in post_asset_response.json["json"]["longitude"][0]
+        in post_asset_response.json["message"]["json"]["longitude"][0]
     )
-    assert "required field" in post_asset_response.json["json"]["unit"][0]
+    assert "required field" in post_asset_response.json["message"]["json"]["unit"][0]
     assert (
         "must be equal or higher than the minimum soc"
-        in post_asset_response.json["json"]["max_soc_in_mwh"]
+        in post_asset_response.json["message"]["json"]["max_soc_in_mwh"]
     )
 
     assert Asset.query.filter_by(owner_id=prosumer.id).count() == num_assets_before
