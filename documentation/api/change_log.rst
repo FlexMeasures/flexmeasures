@@ -14,6 +14,11 @@ v2.0 | 2021-02-23
 
     - Rewrote the subsection on prognoses to explain the horizon and prior parameters.
 
+v2.0 | 2021-02-19
+"""""""""""""""""""
+
+- REST endpoints for managing users: `/users/` (GET), `/user/<id>` (GET, PATCH) and `/user/<id>/password-reset` (PATCH).
+
 v2.0 | 2020-11-14
 """""""""""""""""""
 
