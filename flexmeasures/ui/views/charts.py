@@ -45,7 +45,7 @@ class ChartRequestSchema(Schema):
     show_individual_traces_for = fields.Str(
         missing="none", validate=lambda x: x in ("none", "schedules", "power")
     )
-    forecast_horizon = DurationField(missing="PT6H")  # TODO: HorizonField?
+    forecast_horizon = DurationField(missing="PT6H")
 
 
 @flexmeasures_api_v2_0.route("/charts/power", methods=["GET"])

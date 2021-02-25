@@ -61,9 +61,9 @@ class Config(object):
 
     # Allowed cross-origins. Set to "*" to allow all. For development (e.g. javascript on localhost) you might use "null" here
     CORS_ORIGINS: Union[List[str], str] = []
-    # this can be a dict with all possible options as value per regex
-    CORS_RESOURCES = [r"/api/*"]
-    CORS_SUPPORTS_CREDENTIALS = True
+    # this can be a dict with all possible options as value per regex, see https://flask-cors.readthedocs.io/en/latest/configuration.html
+    CORS_RESOURCES: Union[dict, list, str] = [r"/api/*"]
+    CORS_SUPPORTS_CREDENTIALS: bool = True
 
     DARK_SKY_API_KEY: Optional[str] = None
 
