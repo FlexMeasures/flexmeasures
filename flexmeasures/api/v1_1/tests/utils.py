@@ -49,20 +49,22 @@ def message_for_get_prognosis(
 
 
 def message_for_post_price_data(
-    invalid_unit: bool = False,
     tile_n: int = 1,
     compress_n: int = 1,
     duration: Optional[timedelta] = None,
+    invalid_unit: bool = False,
 ) -> dict:
     """
     The default message has 24 hourly values.
 
-    :param tile_n: Tile the price profile back to back to obtain price data for n days (default = 1).
-    :param compress_n: Compress the price profile to obtain price data with a coarser resolution (default = 1),
-                       e.g. compress=4 leads to a resolution of 4 hours.
-    :param duration: Set a duration explicitly to obtain price data with a coarser or finer resolution (default is equal to 24 hours * tile_n),
-                     e.g. (assuming tile_n=1) duration=timedelta(hours=6) leads to a resolution of 15 minutes,
-                     and duration=timedelta(hours=48) leads to a resolution of 2 hours.
+    :param tile_n:       Tile the price profile back to back to obtain price data for n days (default = 1).
+    :param compress_n:   Compress the price profile to obtain price data with a coarser resolution (default = 1),
+                         e.g. compress=4 leads to a resolution of 4 hours.
+    :param duration:     Set a duration explicitly to obtain price data with a coarser or finer resolution
+                         (the default is equal to 24 hours * tile_n),
+                         e.g. (assuming tile_n=1) duration=timedelta(hours=6) leads to a resolution of 15 minutes,
+                         and duration=timedelta(hours=48) leads to a resolution of 2 hours.
+    :param invalid_unit: Choose an invalid unit for the test market (epex_da).
     """
     message = {
         "type": "PostPriceDataRequest",
@@ -96,7 +98,7 @@ def message_for_post_price_data(
             ],
             tile_n,
         ).tolist(),
-        "start": "2015-01-01T15:00:00+09:00",
+        "start": "2021-01-06T00:00:00+01:00",
         "duration": duration_isoformat(timedelta(hours=24 * tile_n)),
         "horizon": duration_isoformat(timedelta(hours=11 + 24 * tile_n)),
         "unit": "EUR/MWh",

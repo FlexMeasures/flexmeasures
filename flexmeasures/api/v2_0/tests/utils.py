@@ -4,11 +4,13 @@ from datetime import timedelta
 from isodate import duration_isoformat, parse_duration, parse_datetime
 
 import pandas as pd
-from numpy import tile
 import timely_beliefs as tb
 
 from flexmeasures.data.models.markets import Market, Price
-from flexmeasures.api.v1_1.tests.utils import get_market
+from flexmeasures.api.v1_1.tests.utils import (
+    get_market,
+    message_for_post_price_data as v1_1_message_for_post_price_data,
+)
 
 
 def get_asset_post_data() -> dict:
@@ -27,66 +29,34 @@ def get_asset_post_data() -> dict:
 
 
 def message_for_post_price_data(
-    invalid_unit: bool = False,
     tile_n: int = 1,
     compress_n: int = 1,
     duration: Optional[timedelta] = None,
+    invalid_unit: bool = False,
     no_horizon: bool = False,
     prior_instead_of_horizon: bool = False,
 ) -> dict:
     """
     The default message has 24 hourly values.
 
-    :param tile_n: Tile the price profile back to back to obtain price data for n days (default = 1).
-    :param compress_n: Compress the price profile to obtain price data with a coarser resolution (default = 1),
-                       e.g. compress=4 leads to a resolution of 4 hours.
-    :param duration: Set a duration explicitly to obtain price data with a coarser or finer resolution (default is equal to 24 hours * tile_n),
-                     e.g. (assuming tile_n=1) duration=timedelta(hours=6) leads to a resolution of 15 minutes,
-                     and duration=timedelta(hours=48) leads to a resolution of 2 hours.
+    :param tile_n:       Tile the price profile back to back to obtain price data for n days (default = 1).
+    :param compress_n:   Compress the price profile to obtain price data with a coarser resolution (default = 1),
+                         e.g. compress=4 leads to a resolution of 4 hours.
+    :param duration:     Set a duration explicitly to obtain price data with a coarser or finer resolution
+                         (the default is equal to 24 hours * tile_n),
+                         e.g. (assuming tile_n=1) duration=timedelta(hours=6) leads to a resolution of 15 minutes,
+                         and duration=timedelta(hours=48) leads to a resolution of 2 hours.
+    :param invalid_unit: Choose an invalid unit for the test market (epex_da).
+    :param no_horizon:   Remove the horizon parameter.
+    :param prior_instead_of_horizon: Remove the horizon parameter and replace it with a prior parameter.
     """
-    message = {
-        "type": "PostPriceDataRequest",
-        "market": "ea1.2018-06.localhost:epex_da",
-        "values": tile(
-            [
-                52.37,
-                51.14,
-                49.09,
-                48.35,
-                48.47,
-                49.98,
-                58.7,
-                67.76,
-                69.21,
-                70.26,
-                70.46,
-                70,
-                70.7,
-                70.41,
-                70,
-                64.53,
-                65.92,
-                69.72,
-                70.51,
-                75.49,
-                70.35,
-                70.01,
-                66.98,
-                58.61,
-            ],
-            tile_n,
-        ).tolist(),
-        "start": "2021-01-06T00:00:00+01:00",
-        "duration": duration_isoformat(timedelta(hours=24 * tile_n)),
-        "horizon": duration_isoformat(timedelta(hours=0)),
-        "unit": "EUR/MWh",
-    }
-    if duration is not None:
-        message["duration"] = duration
-    if compress_n > 1:
-        message["values"] = message["values"][::compress_n]
-    if invalid_unit:
-        message["unit"] = "KRW/kWh"  # That is, an invalid unit for EPEX SPOT.
+    message = v1_1_message_for_post_price_data(
+        tile_n=tile_n,
+        compress_n=compress_n,
+        duration=duration,
+        invalid_unit=invalid_unit,
+    )
+    message["horizon"] = duration_isoformat(timedelta(hours=0))
     if no_horizon or prior_instead_of_horizon:
         message.pop("horizon", None)
     if prior_instead_of_horizon:
