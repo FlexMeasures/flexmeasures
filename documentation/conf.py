@@ -19,7 +19,7 @@ from datetime import datetime
 from humanize import naturaldelta
 
 from flexmeasures.app import create as create_app
-from flexmeasures.ui.utils.view_utils import get_git_description
+from flexmeasures import __version__
 
 sys.path.insert(0, os.path.abspath(".."))
 flexmeasures_app = create_app()
@@ -32,10 +32,9 @@ copyright = f"{datetime.now().year}, Seita Energy Flexibility, developed in part
 author = "Seita B.V."
 
 # The short X.Y version
-git_version, git_commits_since, git_hash = get_git_description()
-version = f"{git_version} + {git_commits_since} commits (revision {git_hash})"
+version = __version__
 # The full version, including alpha/beta/rc tags
-release = version
+release = __version__
 
 rst_prolog = f"""
     .. |FLEXMEASURES_PLATFORM_NAME| replace:: {flexmeasures_app.config.get("FLEXMEASURES_PLATFORM_NAME")}
