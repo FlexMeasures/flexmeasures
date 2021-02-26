@@ -73,8 +73,9 @@ def create(env=None) -> Flask:
 
     # Some basic security measures
 
-    install_secret_key(app)
-    SSLify(app)
+    if not app.env == "documentation":
+        install_secret_key(app)
+        SSLify(app)
 
     # Register database and models, including user auth security measures
 
