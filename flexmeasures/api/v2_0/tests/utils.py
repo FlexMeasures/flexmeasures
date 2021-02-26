@@ -91,6 +91,7 @@ def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
             .join(Market)
             .filter(Market.name == market.name)
         )
+    # todo: after basing Price on TimedBelief, we should be able to get a BeliefsDataFrame from the query directly
     df = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
     )
