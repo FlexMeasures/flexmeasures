@@ -2,21 +2,16 @@ from typing import Union, Optional, Tuple
 from datetime import timedelta
 import copy
 
-from flask import request, url_for, current_app
+from flask import url_for, current_app
 from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
 from wtforms import StringField, DecimalField, IntegerField, SelectField
 from wtforms.validators import DataRequired
-from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.config import db
 from flexmeasures.data.auth_setup import unauthorized_handler
-from flexmeasures.data.services.users import (
-    get_users,
-    create_user,
-    InvalidFlexMeasuresUser,
-)
+from flexmeasures.data.services.users import get_users
 from flexmeasures.data.services.resources import get_markets, get_center_location
 from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.user import User
@@ -85,8 +80,6 @@ class AssetForm(FlaskForm):
         data["max_soc_in_mwh"] = float(data["max_soc_in_mwh"])
         data["longitude"] = float(data["longitude"])
         data["latitude"] = float(data["latitude"])
-        if "owner" in data:
-            data["owner_id"] = data.pop("owner")
 
         if "csrf_token" in data:
             del data["csrf_token"]
@@ -95,23 +88,21 @@ class AssetForm(FlaskForm):
 
     def process_api_validation_errors(self, api_response: dict):
         """Process form errors from the API for the WTForm"""
-        if (
-            not isinstance(api_response, dict)
-            or "validation_errors" not in api_response
-        ):
+        if not isinstance(api_response, dict):
             return
-        for field in list(self._fields.keys()):
-            if field in list(api_response["validation_errors"].keys()):
-                self._fields[field].errors.append(
-                    api_response["validation_errors"][field]
-                )
+        for error_header in ("json", "validation_errors"):
+            if error_header not in api_response:
+                continue
+            for field in list(self._fields.keys()):
+                if field in list(api_response[error_header].keys()):
+                    self._fields[field].errors.append(api_response[error_header][field])
 
 
 class NewAssetForm(AssetForm):
     """Here, in addition, we allow to set asset type and owner."""
 
     asset_type_name = SelectField("Asset type", validators=[DataRequired()])
-    owner = SelectField("Owner", coerce=int)
+    owner_id = SelectField("Owner", coerce=int)
 
 
 def with_options(
@@ -121,8 +112,8 @@ def with_options(
         form.asset_type_name.choices = [("none chosen", "--Select type--")] + [
             (atype.name, atype.display_name) for atype in AssetType.query.all()
         ]
-    if "owner" in form:
-        form.owner.choices = [(-1, "--Select existing or add new below--")] + [
+    if "owner_id" in form:
+        form.owner_id.choices = [(-1, "--Select existing--")] + [
             (o.id, o.username) for o in get_users(role_name="Prosumer")
         ]
     if "market_id" in form:
@@ -237,11 +228,7 @@ class AssetCrudUI(FlaskView):
         if id == "create":
             asset_form = with_options(NewAssetForm())
 
-            # We make our own auth check here because set_owner might alter the DB;
-            # otherwise we trust the API is handling auth.
-            if not current_user.has_role("admin"):
-                return unauthorized_handler(None, [])
-            owner, owner_error = set_owner(asset_form, create_if_not_exists=True)
+            owner, owner_error = set_owner(asset_form)
             market, market_error = set_market(asset_form)
 
             if asset_form.asset_type_name.data == "none chosen":
@@ -252,7 +239,7 @@ class AssetCrudUI(FlaskView):
             # Fill up the form with useful errors for the user
             if owner_error is not None:
                 form_valid = False
-                asset_form.owner.errors.append(owner_error)
+                asset_form.owner_id.errors.append(owner_error)
             if market_error is not None:
                 form_valid = False
                 asset_form.market_id.errors.append(market_error)
@@ -262,7 +249,7 @@ class AssetCrudUI(FlaskView):
                 post_asset_response = InternalApi().post(
                     url_for("flexmeasures_api_v2_0.post_assets"),
                     args=asset_form.to_json(),
-                    do_not_raise_for=[400],
+                    do_not_raise_for=[400, 422],
                 )
 
                 if post_asset_response.status_code in (200, 201):
@@ -301,7 +288,7 @@ class AssetCrudUI(FlaskView):
             patch_asset_response = InternalApi().patch(
                 url_for("flexmeasures_api_v2_0.patch_asset", id=id),
                 args=asset_form.to_json(),
-                do_not_raise_for=[400],
+                do_not_raise_for=[400, 422],
             )
             asset_dict = patch_asset_response.json()
             if patch_asset_response.status_code in (200, 201):
@@ -338,32 +325,19 @@ class AssetCrudUI(FlaskView):
         )
 
 
-def set_owner(
-    asset_form: NewAssetForm, create_if_not_exists: bool = False
-) -> Tuple[Optional[User], Optional[str]]:
+def set_owner(asset_form: NewAssetForm) -> Tuple[Optional[User], Optional[str]]:
     """Set a user as owner for the to-be-created asset.
     Return the user (if available and an error message)"""
     owner = None
     owner_error = None
 
-    if asset_form.owner.data == -1 and create_if_not_exists:
-        new_owner_email = request.form.get("new_owner_email", "")
-        if new_owner_email.startswith("--Type"):
-            owner_error = "Either pick an existing user as owner or enter an email address for the new owner."
-        else:
-            try:
-                owner = create_user(email=new_owner_email, user_roles=["Prosumer"])
-            except InvalidFlexMeasuresUser as ibe:
-                owner_error = str(ibe)
-            except IntegrityError as ie:
-                owner_error = "New owner cannot be created: %s" % str(ie)
-            if owner:
-                asset_form.owner.choices.append((owner.id, owner.username))
+    if asset_form.owner_id.data == -1:
+        owner_error = "Pick an existing owner."
     else:
-        owner = User.query.filter_by(id=int(asset_form.owner.data)).one_or_none()
+        owner = User.query.filter_by(id=int(asset_form.owner_id.data)).one_or_none()
 
     if owner:
-        asset_form.owner.data = owner.id
+        asset_form.owner_id.data = owner.id
     else:
         current_app.logger.error(owner_error)
     return owner, owner_error
@@ -382,4 +356,6 @@ def set_market(asset_form: NewAssetForm) -> Tuple[Optional[Market], Optional[str
 
     if market:
         asset_form.market_id.data = market.id
+    else:
+        current_app.logger.error(market_error)
     return market, market_error
