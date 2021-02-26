@@ -405,8 +405,10 @@ def optional_horizon_accepted(  # noqa C901
                         extra_info = "Meter data must have a zero or negative horizon to indicate observations after the fact."
                         return invalid_horizon(extra_info)
                 elif rolling is True and accept_repeating_interval is False:
-                    extra_info = "API versions 2.0 and higher use regular ISO 8601 durations instead of repeating time intervals. " \
-                                 "For example: R/P1D should be replaced by P1D."
+                    extra_info = (
+                        "API versions 2.0 and higher use regular ISO 8601 durations instead of repeating time intervals. "
+                        "For example: R/P1D should be replaced by P1D."
+                    )
                     return invalid_horizon(extra_info)
             elif (
                 infer_missing is True
