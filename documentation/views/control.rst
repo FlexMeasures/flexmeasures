@@ -5,8 +5,8 @@ Flexibility actions
 *****************
 
 Flexibility actions have commercial value that users can valorise on.
-In the Flexibility actions page, |FLEXMEASURES_PLATFORM_NAME| shows all flexibility actions that the user can take for a selected time window.
-When |FLEXMEASURES_PLATFORM_NAME| has identified commercial value for flexibility actions, the user is suggested to order them.
+In the Flexibility actions page, FlexMeasures shows all flexibility actions that the user can take for a selected time window.
+When FlexMeasures has identified commercial value for flexibility actions, the user is suggested to order them.
 The user can opt to automate this otherwise manual process.
 Listed flexibility actions include previously ordered actions and currently offered actions.
 Currently offered actions are presented as an order book, where they are sorted according to their commercial value.
@@ -63,7 +63,7 @@ Visualisation of actions
 
 Flexibility actions cause changes to the power profile of an asset.
 Depending on the time window selection and constraints set by the asset owner, the effects of an action may partially take place outside of the selected time window.
-Such effects are taken into account by |FLEXMEASURES_PLATFORM_NAME| and shown to the user, e.g. as a part of expected value calculations and power profile forecasts.
+Such effects are taken into account by FlexMeasures and shown to the user, e.g. as a part of expected value calculations and power profile forecasts.
 
 
 .. image:: ../img/screenshot_control.png

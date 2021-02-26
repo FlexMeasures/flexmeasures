@@ -3,7 +3,7 @@
 Supplier
 ========
 
-For |FLEXMEASURES_PLATFORM_NAME|, the Supplier represents the balance responsible party that request flexibility from asset owners.
+For FlexMeasures, the Supplier represents the balance responsible party that request flexibility from asset owners.
 
 A Supplier can access the following services:
 

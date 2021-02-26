@@ -3,13 +3,13 @@
 .. _services:
 
 **************************************************
-Services of the |FLEXMEASURES_PLATFORM_NAME| Platform
+Services of the FlexMeasures Platform
 **************************************************
 
 Monitoring
 -------------
 
-The |FLEXMEASURES_PLATFORM_NAME| platform continuously reads in meter data from your assets. To assist your maintenance, it can alert you to situations which need your attention:
+The FlexMeasures platform continuously reads in meter data from your assets. To assist your maintenance, it can alert you to situations which need your attention:
 
 * Breaches of thresholds (protect devices)
 * Data gaps & strange outliers (assure data quality)
@@ -19,7 +19,7 @@ The |FLEXMEASURES_PLATFORM_NAME| platform continuously reads in meter data from 
 Forecasting
 --------------
 
-The |FLEXMEASURES_PLATFORM_NAME| platform continuously creates forecasts for the rest of day.
+The FlexMeasures platform continuously creates forecasts for the rest of day.
 
 All relevant data should be forecasted:
 
@@ -31,7 +31,7 @@ All relevant data should be forecasted:
 Scheduling
 --------------
 
-The |FLEXMEASURES_PLATFORM_NAME| platform optimizes schedules for your flexible assets. This is where energy flexibility is valorized!
+The FlexMeasures platform optimizes schedules for your flexible assets. This is where energy flexibility is valorized!
 
 Examples are:
 
