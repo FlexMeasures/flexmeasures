@@ -478,7 +478,8 @@ def reset_user_password(id: int):
 
     Reset the user's password, and send them instructions on how to reset the password.
     This endoint is useful from a security standpoint, in case of worries the password might be compromised.
-    It sets the current password to something random and also send an email about that fact to the user.
+    It sets the current password to something random, invalidates cookies and auth tokens,
+    and also sends an email for resetting the password to the user.
 
     Only admins can use this endpoint.
 

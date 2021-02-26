@@ -11,6 +11,8 @@ from flexmeasures.ui.views.state import state_view  # noqa: F401
 
 from flexmeasures.ui.views.account import account_view  # noqa: F401  # noqa: F401
 
+from flexmeasures.ui.views.charts import get_power_chart  # noqa: F401
+
 
 @flexmeasures_ui.route("/docs")
 def docs_view():

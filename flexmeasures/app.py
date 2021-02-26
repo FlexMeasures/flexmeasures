@@ -6,6 +6,7 @@ from flask.cli import load_dotenv
 from flask_mail import Mail
 from flask_sslify import SSLify
 from flask_json import FlaskJSON
+from flask_cors import CORS
 
 from redis import Redis
 from rq import Queue
@@ -43,6 +44,7 @@ def create(env=None) -> Flask:
 
     app.mail = Mail(app)
     FlaskJSON(app)
+    cors = CORS(app)
 
     # configure Redis (for redis queue)
     if app.testing:
@@ -80,17 +82,17 @@ def create(env=None) -> Flask:
 
     register_db_at(app)
 
-    # Register the UI
-
-    from flexmeasures.ui import register_at as register_ui_at
-
-    register_ui_at(app)
-
     # Register the API
 
     from flexmeasures.api import register_at as register_api_at
 
     register_api_at(app)
+
+    # Register the UI
+
+    from flexmeasures.ui import register_at as register_ui_at
+
+    register_ui_at(app)
 
     # Profile endpoints (if needed, e.g. during development)
     @app.before_request

@@ -69,7 +69,7 @@ def test_get_device_message_mistyped_duration(client):
     assert get_device_message_response.status_code == 422
     assert (
         "Cannot parse PTT6H as ISO8601 duration"
-        in get_device_message_response.json["args_and_json"]["duration"][0]
+        in get_device_message_response.json["message"]["args_and_json"]["duration"][0]
     )
 
 

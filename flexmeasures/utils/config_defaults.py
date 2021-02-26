@@ -1,6 +1,6 @@
 from datetime import timedelta
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 
 """
 This lays out our configuration requirements and allows to set trivial defaults, per environment adjustable.
@@ -58,6 +58,12 @@ class Config(object):
     SECURITY_TOKEN_MAX_AGE = 60 * 60 * 6  # six hours
     SECURITY_TRACKABLE = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: Optional[str] = None
+
+    # Allowed cross-origins. Set to "*" to allow all. For development (e.g. javascript on localhost) you might use "null" here
+    CORS_ORIGINS: Union[List[str], str] = []
+    # this can be a dict with all possible options as value per regex, see https://flask-cors.readthedocs.io/en/latest/configuration.html
+    CORS_RESOURCES: Union[dict, list, str] = [r"/api/*"]
+    CORS_SUPPORTS_CREDENTIALS: bool = True
 
     DARK_SKY_API_KEY: Optional[str] = None
 

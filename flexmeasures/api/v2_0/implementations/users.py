@@ -1,13 +1,11 @@
 from functools import wraps
-import random
-import string
 
 from flask import current_app, abort
 from marshmallow import ValidationError, validate, validates, fields
 from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_args
 from flask_security import current_user
-from flask_security.recoverable import update_password, send_reset_password_instructions
+from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from pytz import all_timezones
 
@@ -15,6 +13,8 @@ from flexmeasures.api import ma
 from flexmeasures.data.models.user import User as UserModel
 from flexmeasures.data.services.users import (
     get_users,
+    set_random_password,
+    remove_cookie_and_token_access,
 )
 from flexmeasures.data.auth_setup import unauthorized_handler
 from flexmeasures.api.common.responses import required_info_missing
@@ -136,6 +136,8 @@ def patch(db_user: UserModel, user_data: dict):
         if current_user.id == db_user.id and k in ("active", "flexmeasures_roles"):
             return unauthorized_handler(None, [])
         setattr(db_user, k, v)
+        if k == "active" and v is False:
+            remove_cookie_and_token_access(db_user)
     db.session.add(db_user)
     try:
         db.session.commit()
@@ -148,15 +150,12 @@ def patch(db_user: UserModel, user_data: dict):
 @as_json
 def reset_password(user):
     """
-    Reset the user's current password.
+    Reset the user's current password, cookies and auth tokens.
     Send a password reset link to the user.
     """
-    new_random_password = "".join(
-        [random.choice(string.ascii_lowercase) for _ in range(24)]
-    )
-    update_password(user, new_random_password)
-
+    set_random_password(user)
+    remove_cookie_and_token_access(user)
     send_reset_password_instructions(user)
 
-    # commit only if sending instructions worked
+    # commit only if sending instructions worked, as well
     db.session.commit()

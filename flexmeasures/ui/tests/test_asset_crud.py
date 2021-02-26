@@ -1,5 +1,4 @@
 from flask import url_for
-import copy
 
 import pytest
 
@@ -97,25 +96,6 @@ def test_add_asset(db, client, requests_mock, as_admin):
     assert mock_asset["display_name"] in str(response.data)
     assert str(mock_asset["latitude"]) in str(response.data)
     assert str(mock_asset["longitude"]) in str(response.data)
-
-
-def test_add_asset_with_new_owner(client, requests_mock, as_admin):
-    """Test roundtrip and expect new user (new owner) in db"""
-    mock_asset = mock_asset_response(owner_id=-1, as_list=False)
-    requests_mock.post(
-        "http://localhost//api/v2_0/assets", status_code=201, json=mock_asset
-    )
-    new_user_email = "test_prosumer_new_owner@seita.nl"
-    data = copy.deepcopy(mock_asset)
-    data["new_owner_email"] = new_user_email
-    response = client.post(
-        url_for("AssetCrudUI:post", id="create"),
-        follow_redirects=True,
-        data=mock_api_data_as_form_input(data),
-    )
-    assert response.status_code == 200
-    assert b"Creation was successful" in response.data
-    assert find_user_by_email(new_user_email)
 
 
 def test_delete_asset(client, db, requests_mock, as_admin):
