@@ -61,8 +61,12 @@ def create_user(  # noqa: C901
     check_deliverability: bool = True,
     **kwargs
 ) -> User:
-    """Convenience wrapper to create a new User object and new Role objects (if user roles do not already exist),
-    and new DataSource object that corresponds to the user."""
+    """
+    Convenience wrapper to create a new User object and new Role objects (if user roles do not already exist),
+    and new DataSource object that corresponds to the user.
+
+    Remember to commit the session after calling this function!
+    """
 
     # Check necessary input explicitly before anything happens
     if "email" not in kwargs:
@@ -106,10 +110,7 @@ def create_user(  # noqa: C901
     user = user_datastore.create_user(**kwargs)
 
     if user.password is None:
-        new_random_password = "".join(
-            [random.choice(string.ascii_lowercase) for _ in range(12)]
-        )
-        update_password(user, new_random_password)
+        set_random_password(user)
 
     # add roles to user (creating new roles if necessary)
     if user_roles:
@@ -133,12 +134,39 @@ def create_user(  # noqa: C901
     return user
 
 
+def set_random_password(user: User):
+    """
+    Randomise a user's password.
+
+    Remember to commit the session after calling this function!
+    """
+    new_random_password = "".join(
+        [random.choice(string.ascii_lowercase) for _ in range(24)]
+    )
+    update_password(user, new_random_password)
+
+
+def remove_cookie_and_token_access(user: User):
+    """
+    Remove access of current cookies and auth tokens for a user.
+    This might be useful if you feel their password, cookie or tokens
+    are compromised. in the former case, you can also call `set_random_password`.
+
+    Remember to commit the session after calling this function!
+    """
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    user_datastore.reset_user_access(user)
+
+
 def delete_user(user: User):
-    """Delete the user (and also his assets and power measurements!). Deleting oneself is not allowed."""
+    """
+    Delete the user (and also his assets and power measurements!). Deleting oneself is not allowed.
+
+    Remember to commit the session after calling this function!
+    """
     if hasattr(current_user, "id") and user.id == current_user.id:
         raise Exception("You cannot delete yourself.")
-    else:
-        user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-        user_datastore.delete_user(user)
-        db.session.delete(user)
-        current_app.logger.info("Deleted %s." % user)
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    user_datastore.delete_user(user)
+    db.session.delete(user)
+    current_app.logger.info("Deleted %s." % user)
