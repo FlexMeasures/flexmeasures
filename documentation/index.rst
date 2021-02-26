@@ -53,10 +53,6 @@ The platform operator of FlexMeasures can be an Aggregator.
 
     api/introduction
     api/simulation
-    api/prosumer
-    api/supplier
-    api/aggregator
-    api/mdc
     api/v2_0
     api/v1_3
     api/v1_2

@@ -83,6 +83,10 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 exclude_patterns.append("int/*.rst")
 exclude_patterns.append("qa/*.rst")
 exclude_patterns.append("tut/*.rst")
+exclude_patterns.append("api/aggregator.rst")
+exclude_patterns.append("api/mdc.rst")
+exclude_patterns.append("api/prosumer.rst")
+exclude_patterns.append("api/supplier.rst")
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"
