@@ -6,22 +6,24 @@
 # full list see the documentation:
 # http://www.sphinx-doc.org/en/stable/config
 
-# -- Path setup --------------------------------------------------------------
-
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-#
 import os
 import sys
 from datetime import datetime
 
 from humanize import naturaldelta
 
-from flexmeasures.app import create as create_app
-from flexmeasures import __version__
 
+# If extensions (or modules to document with autodoc) are in another directory,
+# add these directories to sys.path here. If the directory is relative to the
+# documentation root, use os.path.abspath to make it absolute, like shown here.
+#
+
+# Insert FlexMeasures' path into the system.
 sys.path.insert(0, os.path.abspath(".."))
+from flexmeasures.app import create as create_app  # noqa: E402
+from flexmeasures import __version__  # noqa: E402
+
+
 flexmeasures_app = create_app()
 
 
