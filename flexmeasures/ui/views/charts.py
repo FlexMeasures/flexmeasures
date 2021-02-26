@@ -1,7 +1,7 @@
 from flask_security import roles_accepted
 from flask_json import as_json
 from bokeh.embed import json_item
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 from webargs.flaskparser import use_args
 
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
@@ -43,7 +43,7 @@ class ChartRequestSchema(Schema):
     resolution = DurationField(required=True)
     show_consumption_as_positive = fields.Bool(missing=True)
     show_individual_traces_for = fields.Str(
-        missing="none", validate=lambda x: x in ("none", "schedules", "power")
+        missing="none", validate=validate.OneOf(["none", "schedules", "power"])
     )
     forecast_horizon = DurationField(missing="PT6H")
 
