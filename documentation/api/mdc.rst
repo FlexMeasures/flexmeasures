@@ -13,5 +13,5 @@ specified in the service contract between Prosumer and Aggregator. In this examp
 the meter data in 15-minute intervals and only after 1.30am. It is desirable to send meter readings in 5-minute
 intervals (or with an even finer granularity), and as soon as possible after measurement.
 
-.. autoflask:: flexmeasures.app:create()
+.. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.post_meter_data

@@ -18,7 +18,7 @@ A Supplier can access the following services:
 Get prognosis
 -------------
 
-.. autoflask:: flexmeasures.app:create()
+.. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures.api_v1_1.get_prognosis
 
 .. _post_price_data_supplier:
@@ -26,14 +26,14 @@ Get prognosis
 Post price data
 ---------------
 
-.. autoflask:: flexmeasures.app:create()
+.. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures.api_v1_1.post_price_data
 
-..  .. autoflask:: flexmeasures.app:create()
+..  .. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures.api_v1_1.post_flex_request
 
-..  .. autoflask:: flexmeasures.app:create()
+..  .. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures.api_v1_1.get_flex_offer
 
-..  .. autoflask:: flexmeasures.app:create()
+..  .. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures.api_v1_1.post_flex_order

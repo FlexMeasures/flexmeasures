@@ -1,4 +1,3 @@
-# .readthedocs.yaml
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
@@ -16,7 +15,4 @@ formats:
 python:
   version: 3.8
   install:
-  - requirements: requirements/app.txt
   - requirements: documentation/requirements.txt
-  - method: pip
-    path: .

@@ -155,3 +155,7 @@ class TestingConfig(Config):
     FLEXMEASURES_PLANNING_HORIZON = timedelta(
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests
+
+
+class DocumentationConfig(Config):
+    pass

@@ -46,9 +46,15 @@ def configure_logging():
 def read_config(app):
     """Read configuration from various expected sources, complain if not setup correctly. """
 
-    if app.env not in ("development", "testing", "staging", "production"):
+    if app.env not in (
+        "documentation",
+        "development",
+        "testing",
+        "staging",
+        "production",
+    ):
         print(
-            'Flask(flexmeasures) environment needs to be either "development", "testing", "staging" or "production".'
+            'Flask(flexmeasures) environment needs to be either "documentation", "development", "testing", "staging" or "production".'
         )
         sys.exit(2)
 
@@ -64,7 +70,7 @@ def read_config(app):
         pass
 
     # Check for missing values. Testing might affect only specific functionality (-> dev's responsibility)
-    if not app.testing:
+    if not app.testing and app.env != "documentation":
         missing_settings = check_config_completeness(app)
         if len(missing_settings) > 0:
             if not os.path.exists(env_config_path):
