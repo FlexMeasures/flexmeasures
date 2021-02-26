@@ -11,10 +11,6 @@ from flask_cors import CORS
 from redis import Redis
 from rq import Queue
 
-from flexmeasures.utils.config_utils import read_config, configure_logging
-from flexmeasures.utils.app_utils import install_secret_key
-from flexmeasures.utils.error_utils import add_basic_error_handlers
-
 
 def create(env=None) -> Flask:
     """
@@ -22,6 +18,10 @@ def create(env=None) -> Flask:
     Set the environment by setting FLASK_ENV as environment variable (also possible in .env).
     Or, overwrite any FLASK_ENV setting by passing an env in directly (useful for testing for instance).
     """
+
+    from flexmeasures.utils.config_utils import read_config, configure_logging
+    from flexmeasures.utils.app_utils import install_secret_key
+    from flexmeasures.utils.error_utils import add_basic_error_handlers
 
     # Create app
 
