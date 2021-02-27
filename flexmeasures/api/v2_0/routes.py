@@ -592,9 +592,75 @@ def post_price_data():
 @as_response_type("PostWeatherDataResponse")
 @auth_token_required
 @usef_roles_accepted(*list_access(v2_0_service_listing, "postWeatherData"))
-@append_doc_of(v1_3_routes.post_weather_data)
 def post_weather_data():
-    return v1_1_implementations.post_weather_data_response()
+    """API endpoint to post weather data, such as:
+
+    - "radiation" (with kW/m² as unit)
+    - "temperature" (with °C as unit)
+    - "wind_speed" (with m/s as unit)
+
+    The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
+
+    .. :quickref: User; Upload weather data to the platform
+
+    **Optional parameters**
+
+    - "horizon" (see :ref:`prognoses`)
+    - "prior" (see :ref:`prognoses`)
+
+    **Example request**
+
+    This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm
+    for a weather sensor located at latitude 33.4843866 and longitude 126.477859. The forecasts were made at noon.
+
+    .. code-block:: json
+
+        {
+            "type": "PostWeatherDataRequest",
+            "groups": [
+                {
+                    "sensor": "ea1.2018-06.localhost:temperature:33.4843866:126.477859",
+                    "values": [
+                        20.04,
+                        20.23,
+                        20.41,
+                        20.51,
+                        20.55,
+                        20.57
+                    ]
+                }
+            ],
+            "start": "2015-01-01T15:00:00+09:00",
+            "duration": "PT1H30M",
+            "prior": "2015-01-01T12:00:00+09:00",
+            "unit": "°C"
+        }
+
+    It is allowed to send higher resolutions (in this example for instance, 30 minutes) which will be upsampled.
+
+    **Example response**
+
+    This "PostWeatherDataResponse" message indicates that the forecast has been processed without any error.
+
+    .. sourcecode:: json
+
+        {
+            "type": "PostWeatherDataResponse",
+            "status": "PROCESSED",
+            "message": "Request has been processed."
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, REQUIRED_INFO_MISSING, UNRECOGNIZED_ASSET or UNRECOGNIZED_SENSOR
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 405: INVALID_METHOD
+
+    """
+    return v2_0_implementations.sensors.post_weather_data_response()
 
 
 @flexmeasures_api_v2_0.route("/getPrognosis", methods=["GET"])
