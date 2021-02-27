@@ -1,4 +1,7 @@
-from flexmeasures.api.common.utils.api_utils import save_to_db
+from flexmeasures.api.common.utils.api_utils import (
+    save_to_db,
+    determine_belief_horizons,
+)
 
 from datetime import timedelta
 
@@ -51,6 +54,11 @@ def post_price_data_response(  # noqa C901
     resolution,
 ):
 
+    # additional validation, todo: to be moved into Marshmallow
+    if horizon is None and prior is None:
+        extra_info = "Missing horizon or prior."
+        return invalid_horizon(extra_info)
+
     current_app.logger.info("POSTING PRICE DATA")
 
     data_source = get_or_create_user_data_source(current_user)
@@ -73,32 +81,12 @@ def post_price_data_response(  # noqa C901
             elif unit != market.unit:
                 return invalid_unit("%s prices" % market.display_name, [market.unit])
 
+            # Convert to timely-beliefs terminology
+            event_starts, event_values, belief_horizons = determine_belief_horizons(
+                value_group, start, resolution, horizon, prior, market
+            )
+
             # Create new Price objects
-            resolution = duration / len(value_group)
-            event_starts = [start + j * resolution for j in range(len(value_group))]
-            event_values = [value for value in value_group]
-            if horizon is not None and prior is not None:
-                belief_horizons_from_horizon = [horizon] * len(value_group)
-                belief_horizons_from_prior = [
-                    event_start - prior - market.knowledge_horizon(event_start)
-                    for event_start in event_starts
-                ]
-                belief_horizons = [
-                    max(a, b)
-                    for a, b in zip(
-                        belief_horizons_from_horizon, belief_horizons_from_prior
-                    )
-                ]
-            elif horizon is not None:
-                belief_horizons = [horizon] * len(value_group)
-            elif prior is not None:
-                belief_horizons = [
-                    event_start - prior - market.knowledge_horizon(event_start)
-                    for event_start in event_starts
-                ]
-            else:
-                extra_info = "Missing horizon or prior."
-                return invalid_horizon(extra_info)
             prices.extend(
                 [
                     Price(
