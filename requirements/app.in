@@ -20,8 +20,9 @@ click
 email_validator
 rq
 rq-dashboard
-rq-win; os_name=='nt'
-redis; os_name=='nt'
+# the following two use environment markers (see PEP 496)
+rq-win; os_name in ('nt', 'win')
+redis; os_name in ('nt', 'win')
 tldextract
 pyomo>=5.6
 forecastiopy
