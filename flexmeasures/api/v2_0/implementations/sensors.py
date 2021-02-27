@@ -1,17 +1,8 @@
-from flexmeasures.api.common.utils.api_utils import (
-    save_to_db,
-    determine_belief_horizons,
-)
-
 from datetime import timedelta
 
 from flask import current_app
 from flask_security import current_user
 
-from flexmeasures.utils.entity_address_utils import (
-    parse_entity_address,
-    EntityAddressException,
-)
 from flexmeasures.api.common.responses import (
     invalid_domain,
     invalid_horizon,
@@ -20,8 +11,13 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.api.common.utils.api_utils import (
     get_or_create_user_data_source,
+    get_weather_sensor_by,
+    save_to_db,
+    determine_belief_horizons,
 )
 from flexmeasures.api.common.utils.validators import (
+    unit_required,
+    valid_sensor_units,
     type_accepted,
     units_accepted,
     assets_required,
@@ -32,7 +28,12 @@ from flexmeasures.api.common.utils.validators import (
     values_required,
 )
 from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
+from flexmeasures.utils.entity_address_utils import (
+    parse_entity_address,
+    EntityAddressException,
+)
 
 
 @type_accepted("PostPriceDataRequest")
@@ -117,3 +118,93 @@ def post_price_data_response(  # noqa C901
                 )
 
     return save_to_db(prices, forecasting_jobs)
+
+
+@type_accepted("PostWeatherDataRequest")
+@unit_required
+@assets_required("sensor")
+@optional_horizon_accepted()
+@optional_prior_accepted()
+@values_required
+@period_required
+@post_data_checked_for_required_resolution("sensor")
+def post_weather_data_response(  # noqa: C901
+    unit,
+    generic_asset_name_groups,
+    horizon,
+    prior,
+    value_groups,
+    start,
+    duration,
+    resolution,
+):
+    # additional validation, todo: to be moved into Marshmallow
+    if horizon is None and prior is None:
+        extra_info = "Missing horizon or prior."
+        return invalid_horizon(extra_info)
+
+    current_app.logger.info("POSTING WEATHER DATA")
+    data_source = get_or_create_user_data_source(current_user)
+    weather_measurements = []
+    forecasting_jobs = []
+    for sensor_group, value_group in zip(generic_asset_name_groups, value_groups):
+        for sensor in sensor_group:
+
+            # Parse the entity address
+            try:
+                ea = parse_entity_address(sensor, entity_type="sensor")
+            except EntityAddressException as eae:
+                return invalid_domain(str(eae))
+            weather_sensor_type_name = ea["weather_sensor_type_name"]
+            latitude = ea["latitude"]
+            longitude = ea["longitude"]
+
+            # Check whether the unit is valid for this sensor type (e.g. no m/s allowed for temperature data)
+            accepted_units = valid_sensor_units(weather_sensor_type_name)
+            if unit not in accepted_units:
+                return invalid_unit(weather_sensor_type_name, accepted_units)
+
+            weather_sensor = get_weather_sensor_by(
+                weather_sensor_type_name, latitude, longitude
+            )
+
+            # Convert to timely-beliefs terminology
+            event_starts, event_values, belief_horizons = determine_belief_horizons(
+                value_group, start, resolution, horizon, prior, weather_sensor
+            )
+
+            # Create new Weather objects
+            weather_measurements.extend(
+                [
+                    Weather(
+                        datetime=event_start,
+                        value=event_value,
+                        horizon=belief_horizon,
+                        market_id=weather_sensor.id,
+                        data_source_id=data_source.id,
+                    )
+                    for event_start, event_value, belief_horizon in zip(
+                        event_starts, event_values, belief_horizons
+                    )
+                ]
+            )
+
+            # make forecasts, but only if the sent-in values are not forecasts themselves (and also not in play)
+            if current_app.config.get(
+                "FLEXMEASURES_MODE", ""
+            ) != "play" and horizon <= timedelta(
+                hours=0
+            ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
+                forecasting_jobs.extend(
+                    create_forecasting_jobs(
+                        "Weather",
+                        weather_sensor.id,
+                        start,
+                        start + duration,
+                        resolution=duration / len(value_group),
+                        horizons=[horizon],
+                        enqueue=False,  # will enqueue later, only if we successfully saved weather measurements
+                    )
+                )
+
+    return save_to_db(weather_measurements, forecasting_jobs)
