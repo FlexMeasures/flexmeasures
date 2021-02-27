@@ -5,20 +5,16 @@ from datetime import datetime as datetime_type, timedelta
 from flask import request
 from flask_json import as_json
 from flask_security import current_user
-from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
 )
-from flexmeasures.data.config import db
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.services.resources import get_assets
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
-from flexmeasures.data.utils import save_to_session
 from flexmeasures.api.common.responses import (
-    already_received_and_successfully_processed,
     invalid_domain,
     invalid_role,
     power_value_too_big,
@@ -29,6 +25,7 @@ from flexmeasures.api.common.responses import (
 from flexmeasures.api.common.utils.api_utils import (
     groups_to_dict,
     get_or_create_user_data_source,
+    save_to_db,
 )
 from flexmeasures.api.common.utils.validators import (
     type_accepted,
@@ -318,25 +315,4 @@ def create_connection_and_value_groups(  # noqa: C901
                     )
                 )
 
-    current_app.logger.info("SAVING TO DB AND QUEUEING...")
-    try:
-        save_to_session(power_measurements)
-        db.session.flush()
-        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
-        db.session.commit()
-        return request_processed()
-    except IntegrityError as e:
-        current_app.logger.warning(e)
-        db.session.rollback()
-
-        # Allow meter data to be replaced only in play mode
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            save_to_session(power_measurements, overwrite=True)
-            [
-                current_app.queues["forecasting"].enqueue_job(job)
-                for job in forecasting_jobs
-            ]
-            db.session.commit()
-            return request_processed()
-        else:
-            return already_received_and_successfully_processed()
+    return save_to_db(power_measurements, forecasting_jobs)

@@ -1,19 +1,18 @@
+from flexmeasures.api.common.utils.api_utils import save_to_db
+
 from datetime import timedelta
 
 from flask import current_app
 from flask_security import current_user
-from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
 )
 from flexmeasures.api.common.responses import (
-    already_received_and_successfully_processed,
     invalid_domain,
     invalid_horizon,
     invalid_unit,
-    request_processed,
     unrecognized_market,
 )
 from flexmeasures.api.common.utils.api_utils import (
@@ -29,9 +28,7 @@ from flexmeasures.api.common.utils.validators import (
     period_required,
     values_required,
 )
-from flexmeasures.data.config import db
 from flexmeasures.data.models.markets import Market, Price
-from flexmeasures.data.utils import save_to_session
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 
 
@@ -131,26 +128,4 @@ def post_price_data_response(  # noqa C901
                     enqueue=False,  # will enqueue later, only if we successfully saved prices
                 )
 
-    # Put these into the database
-    current_app.logger.info("SAVING TO DB...")
-    try:
-        save_to_session(prices)
-        db.session.flush()
-        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
-        db.session.commit()
-        return request_processed()
-    except IntegrityError as e:
-        current_app.logger.warning(e)
-        db.session.rollback()
-
-        # Allow price data to be replaced only in play mode
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            save_to_session(prices, overwrite=True)
-            [
-                current_app.queues["forecasting"].enqueue_job(job)
-                for job in forecasting_jobs
-            ]
-            db.session.commit()
-            return request_processed()
-        else:
-            return already_received_and_successfully_processed()
+    return save_to_db(prices, forecasting_jobs)
