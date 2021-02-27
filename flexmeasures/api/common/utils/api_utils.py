@@ -399,3 +399,29 @@ def save_to_db(
             return request_processed()
         else:
             return already_received_and_successfully_processed()
+
+
+def determine_belief_horizons(event_values, start, resolution, horizon, prior, sensor):
+    """Determine belief horizons given a horizon, prior, or both,
+    and taking into account the sensor's knowledge horizon function."""
+    event_starts = [start + j * resolution for j in range(len(event_values))]
+    if horizon is not None and prior is not None:
+        belief_horizons_from_horizon = [horizon] * len(event_values)
+        belief_horizons_from_prior = [
+            event_start - prior - sensor.knowledge_horizon(event_start)
+            for event_start in event_starts
+        ]
+        belief_horizons = [
+            max(a, b)
+            for a, b in zip(belief_horizons_from_horizon, belief_horizons_from_prior)
+        ]
+    elif horizon is not None:
+        belief_horizons = [horizon] * len(event_values)
+    elif prior is not None:
+        belief_horizons = [
+            event_start - prior - sensor.knowledge_horizon(event_start)
+            for event_start in event_starts
+        ]
+    else:
+        raise ValueError("Missing horizon or prior.")
+    return event_starts, event_values, belief_horizons
