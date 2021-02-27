@@ -6,15 +6,23 @@ from json import loads as parse_json, JSONDecodeError
 from flask import current_app
 from inflection import pluralize
 from numpy import array
+from rq.job import Job
+from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.weather import WeatherSensor
+from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.models.user import User
+from flexmeasures.data.utils import save_to_session
 from flexmeasures.utils.entity_address_utils import parse_entity_address
-from flexmeasures.api.common.responses import unrecognized_sensor
+from flexmeasures.api.common.responses import (
+    unrecognized_sensor,
+    ResponseTuple,
+    request_processed,
+    already_received_and_successfully_processed,
+)
 
 
 def list_access(service_listing, service_name):
@@ -356,3 +364,38 @@ def get_generic_asset(asset_descriptor, entity_type):
             ea["longitude"],
         )
     return None
+
+
+def save_to_db(
+    timed_values: List[Union[Power, Price, Weather]], forecasting_jobs: List[Job]
+) -> ResponseTuple:
+    """Put the timed values into the database and create forecasting jobs.
+
+    Data can only be replaced on servers in play mode.
+
+    :param timed_values: list of Power, Price or Weather values to be saved
+    :param forecasting_jobs: list of forecasting Jobs for redis queues.
+    :returns: ResponseTuple
+    """
+    current_app.logger.info("SAVING TO DB AND QUEUEING...")
+    try:
+        save_to_session(timed_values)
+        db.session.flush()
+        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
+        db.session.commit()
+        return request_processed()
+    except IntegrityError as e:
+        current_app.logger.warning(e)
+        db.session.rollback()
+
+        # Allow data to be replaced only in play mode
+        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
+            save_to_session(timed_values, overwrite=True)
+            [
+                current_app.queues["forecasting"].enqueue_job(job)
+                for job in forecasting_jobs
+            ]
+            db.session.commit()
+            return request_processed()
+        else:
+            return already_received_and_successfully_processed()
