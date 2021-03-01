@@ -7,7 +7,7 @@ What algorithms does the platform use?
 Forecasting
 -----------
 
-Forecasting algorithms are used by |FLEXMEASURES_PLATFORM_NAME| to assess the likelihood of future consumption/production and prices.
+Forecasting algorithms are used by FlexMeasures to assess the likelihood of future consumption/production and prices.
 Weather forecasting is included in the platform, but is not the result of an internal algorithm (see :ref:`weather`).
 The performance of our algorithms is indicated by the mean absolute error (MAE) and the weighted absolute percentage error (WAPE).
 Power profiles on an asset level often include zero values, such that the mean absolute percentage error (MAPE), a common statistical measure of forecasting accuracy, is undefined.
@@ -16,7 +16,7 @@ The MAE of a power profile gives an indication of the size of the uncertainty in
 This allows the user to compare an asset's predictability to its flexibility, i.e. to the size of possible flexibility actions.
 
 Example benchmarks per asset type are listed in the table below for various assets and forecasting horizons.
-|FLEXMEASURES_PLATFORM_NAME| updates the benchmarks automatically for the data currently selected by the user.
+FlexMeasures updates the benchmarks automatically for the data currently selected by the user.
 Amongst other factors, accuracy is influenced by:
 
 - The chosen metric (see below)

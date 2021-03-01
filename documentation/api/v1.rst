@@ -6,7 +6,7 @@ Version 1.0
 Summary
 -------
 
-.. qrefflask:: flexmeasures.app:create()
+.. qrefflask:: flexmeasures.app:create(env="documentation")
     :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v1
     :order: path
     :include-empty-docstring:
@@ -14,7 +14,7 @@ Summary
 API Details
 -----------
 
-.. autoflask:: flexmeasures.app:create()
+.. autoflask:: flexmeasures.app:create(env="documentation")
     :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v1
     :order: path
     :include-empty-docstring:

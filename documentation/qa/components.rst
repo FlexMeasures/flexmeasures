@@ -1,7 +1,7 @@
 .. _components:
 
 *********************************************
-What components does |FLEXMEASURES_PLATFORM_NAME| consist of?
+What components does FlexMeasures consist of?
 *********************************************
 
 

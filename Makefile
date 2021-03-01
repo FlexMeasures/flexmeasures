@@ -15,7 +15,7 @@ test:
 # ---- Documentation ---
 
 update-docs:
-	pip3 install sphinx sphinxcontrib.httpdomain
+	pip3 install sphinx sphinx-rtd-theme sphinxcontrib.httpdomain
 	cd documentation; make clean; make html; cd ..
 
 update-docs-pdf:
