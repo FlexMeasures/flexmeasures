@@ -35,6 +35,6 @@ setup(
     ],
     long_description="""\
 The *FlexMeasures Platform* is a tool for scheduling flexible actions for energy assets.
-For this purpose, it performs monitoring, forecastig and scheduling services.
+For this purpose, it performs monitoring, forecasting and scheduling services.
 """,
 )
