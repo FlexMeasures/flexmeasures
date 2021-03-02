@@ -1,6 +1,8 @@
 # flake8: noqa: E402
 import os
 import time
+from typing import Optional
+
 from flask import Flask, g, request
 from flask.cli import load_dotenv
 from flask_mail import Mail
@@ -12,11 +14,14 @@ from redis import Redis
 from rq import Queue
 
 
-def create(env=None) -> Flask:
+def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> Flask:
     """
     Create a Flask app and configure it.
+
     Set the environment by setting FLASK_ENV as environment variable (also possible in .env).
     Or, overwrite any FLASK_ENV setting by passing an env in directly (useful for testing for instance).
+
+    A path to a config file can be passed in (but can also be set as the FLEXMEASURES_PATH_TO_CONFIG env var)
     """
 
     from flexmeasures.utils.config_utils import read_config, configure_logging
@@ -37,7 +42,7 @@ def create(env=None) -> Flask:
 
     # App configuration
 
-    read_config(app)
+    read_config(app, path_to_config=path_to_config)
     if app.debug and not app.testing and not app.cli:
         print(app.config)
     add_basic_error_handlers(app)

@@ -1,9 +1,12 @@
 import os
 import sys
 import logging
+from typing import Optional
 from datetime import datetime
 from logging.config import dictConfig as loggingDictConfig
+from pathlib import Path
 
+from flask import Flask
 from inflection import camelize
 
 from flexmeasures.utils.config_defaults import Config as DefaultConfig
@@ -43,7 +46,7 @@ def configure_logging():
     loggingDictConfig(flexmeasures_logging_config)
 
 
-def read_config(app):
+def read_config(app: Flask, path_to_config: Optional[str]):
     """Read configuration from various expected sources, complain if not setup correctly. """
 
     if app.env not in (
@@ -58,14 +61,20 @@ def read_config(app):
         )
         sys.exit(2)
 
+    # Load default config settings
     app.config.from_object(
         "flexmeasures.utils.config_defaults.%sConfig" % camelize(app.env)
     )
 
-    env_config_path = "%s/%s_config.py" % (app.root_path, app.env)
+    # Now read user config.
+    if path_to_config is None:
+        if "FLEXMEASURES_PATH_TO_CONFIG" in os.environ:
+            path_to_config = os.environ["FLEXMEASURES_PATH_TO_CONFIG"]
+        else:
+            path_to_config = str(Path.home().joinpath(".flexmeasures.conf"))
 
     try:
-        app.config.from_pyfile(env_config_path)
+        app.config.from_pyfile(path_to_config)
     except FileNotFoundError:
         pass
 
@@ -73,11 +82,11 @@ def read_config(app):
     if not app.testing and app.env != "documentation":
         missing_settings = check_config_completeness(app)
         if len(missing_settings) > 0:
-            if not os.path.exists(env_config_path):
+            if not os.path.exists(path_to_config):
                 print(
-                    'Missing configuration settings: %s\nAs FLASK_ENV=%s, please provide the file "%s"'
-                    " in the flexmeasures directory, and include these settings."
-                    % (", ".join(missing_settings), app.env, env_config_path)
+                    'Missing configuration settings: %s\nPlease provide the file "%s"'
+                    " and include these settings."
+                    % (", ".join(missing_settings), path_to_config)
                 )
             else:
                 print(
@@ -87,8 +96,8 @@ def read_config(app):
 
     # Set the desired logging level on the root logger (controlling extension logging level)
     # and this app's logger.
-    logging.getLogger().setLevel(app.config.get("LOGGING_LEVEL"))
-    app.logger.setLevel(app.config.get("LOGGING_LEVEL"))
+    logging.getLogger().setLevel(app.config.get("LOGGING_LEVEL", "INFO"))
+    app.logger.setLevel(app.config.get("LOGGING_LEVEL", "INFO"))
     # print("Logging level is %s" % logging.getLevelName(app.logger.level))
 
     app.config["START_TIME"] = datetime.utcnow()
