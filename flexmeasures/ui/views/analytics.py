@@ -550,7 +550,7 @@ def make_power_figure(
         data,
         unit="MW",
         legend_location="top_right",
-        legend_labels=("Actual", "Forecast")
+        legend_labels=("Actual", "Forecast", None)
         if schedule_data is None or schedule_data["event_value"].isnull().all()
         else ("Actual", "Forecast", "Schedule"),
         forecasts=forecast_data,

@@ -31,14 +31,12 @@ if [ "$1" = "dev" ]; then
             echo "Only numbers in the dev tag please! (leave out x.y.z.dev)"
             exit 2
         fi
-        echo "Using $dev_number as dev build number ..."
     else
-        revisioncount=`git log --oneline | wc -l`
-        projectversion=`git describe --tags --always --long`
-        cleanversion=${projectversion//[a-z]/}  # only numbers
-        dev_number=$cleanversion$revisioncount
-        echo "Using $dev_number as dev build number ..."
+        echo "Looking up the number of revisions to use as dev release identifier ... "
+        dev_number=`git log --oneline | wc -l`
     fi
+    
+    echo "Using $dev_number as dev build number ..."
 
     python setup.py -q alias -u dev egg_info --tag-build=.dev$dev_number
     python setup.py dev sdist
