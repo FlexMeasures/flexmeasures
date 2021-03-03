@@ -66,13 +66,16 @@ def read_config(app: Flask, path_to_config: Optional[str]):
         "flexmeasures.utils.config_defaults.%sConfig" % camelize(app.env)
     )
 
-    # Now read user config.
+    # Now read user config, if possible. If no explicit path is given, try home dir first, then instance dir
+    if path_to_config is not None and not os.path.exists(path_to_config):
+        print(f"Cannot find config file {path_to_config}!")
+        sys.exit(2)
+    path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
+    path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
     if path_to_config is None:
-        if "FLEXMEASURES_PATH_TO_CONFIG" in os.environ:
-            path_to_config = os.environ["FLEXMEASURES_PATH_TO_CONFIG"]
-        else:
-            path_to_config = str(Path.home().joinpath(".flexmeasures.conf"))
-
+        path_to_config = path_to_config_home
+        if not os.path.exists(path_to_config):
+            path_to_config = path_to_config_instance
     try:
         app.config.from_pyfile(path_to_config)
     except FileNotFoundError:
@@ -84,14 +87,11 @@ def read_config(app: Flask, path_to_config: Optional[str]):
         if len(missing_settings) > 0:
             if not os.path.exists(path_to_config):
                 print(
-                    'Missing configuration settings: %s\nPlease provide the file "%s"'
-                    " and include these settings."
-                    % (", ".join(missing_settings), path_to_config)
+                    f"Missing configuration settings: {', '.join(missing_settings)}\n"
+                    f"Please provide these settings in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
                 )
             else:
-                print(
-                    "Missing configuration settings: %s" % ", ".join(missing_settings)
-                )
+                print(f"Missing configuration settings: {', '.join(missing_settings)}")
             sys.exit(2)
 
     # Set the desired logging level on the root logger (controlling extension logging level)

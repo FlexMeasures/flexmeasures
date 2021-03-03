@@ -21,11 +21,11 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
     Set the environment by setting FLASK_ENV as environment variable (also possible in .env).
     Or, overwrite any FLASK_ENV setting by passing an env in directly (useful for testing for instance).
 
-    A path to a config file can be passed in (but can also be set as the FLEXMEASURES_PATH_TO_CONFIG env var)
+    A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories)
     """
 
     from flexmeasures.utils.config_utils import read_config, configure_logging
-    from flexmeasures.utils.app_utils import install_secret_key
+    from flexmeasures.utils.app_utils import set_secret_key
     from flexmeasures.utils.error_utils import add_basic_error_handlers
 
     # Create app
@@ -79,7 +79,7 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
     # Some basic security measures
 
     if not app.env == "documentation":
-        install_secret_key(app)
+        set_secret_key(app)
         SSLify(app)
 
     # Register database and models, including user auth security measures

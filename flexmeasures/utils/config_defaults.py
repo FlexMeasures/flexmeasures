@@ -18,6 +18,7 @@ class Config(object):
     DEBUG = False
     LOGGING_LEVEL = logging.WARNING
     CSRF_ENABLED = True
+    SECRET_KEY: Optional[str] = None
 
     SQLALCHEMY_DATABASE_URI: Optional[str] = None
     # https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
