@@ -29,6 +29,11 @@ setup(
     tests_require=load_requirements("test"),
     packages=find_packages(),
     include_package_data=True,
+    entry_points={
+        "console_scripts": [
+            "flexmeasures=flexmeasures.utils.app_utils:flexmeasures_cli"
+        ],
+    },
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",

@@ -1,6 +1,17 @@
 import os
 import sys
 
+import click
+from flask.cli import FlaskGroup
+
+from flexmeasures.app import create as create_app
+
+
+@click.group(cls=FlaskGroup, create_app=create_app)
+def flexmeasures_cli():
+    """Management scripts for the FlexMeasures platform."""
+    pass
+
 
 def set_secret_key(app, filename="secret_key"):
     """Set the SECRET_KEY or exit.
