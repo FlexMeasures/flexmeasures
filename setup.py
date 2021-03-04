@@ -28,7 +28,7 @@ setup(
     setup_requires=["pytest-runner"],
     tests_require=load_requirements("test"),
     packages=find_packages(),
-    include_package_data=True,
+    include_package_data=True,  # see MANIFEST.in
     entry_points={
         "console_scripts": [
             "flexmeasures=flexmeasures.utils.app_utils:flexmeasures_cli"
