@@ -24,14 +24,16 @@ BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
 
 
 @app.cli.command()
-@click.option("--username")
-@click.option("--email")
+@click.option("--username", required=True)
+@click.option("--email", required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option("--timezone", help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'")
 def new_user(
     username: str, email: str, roles: List[str], timezone: str = "Europe/Amsterdam"
 ):
     """
+    Create a FlexMeasures user.
+
     The `users create` task from Flask Security Too is too simple for us.
     Use this to add email, timezone and roles.
     """
