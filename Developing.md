@@ -47,3 +47,14 @@ You can add --cov-report=html after which a htmlcov/index.html is generated.
 It's also possible to use:
 
     python setup.py test
+
+
+## Versioning
+
+We use [setuptool_scm](https://github.com/pypa/setuptools_scm/) for versioning, which bases the FlexMeasures version on the latest git tag and the commits since then.
+
+So as a developer, it's crucial to use git tags for versions only.
+
+We use semantic versioning, and we always include the patch version, not only max and min, so that setuptools_scm makes the correct guess about the next minor version. Thus, we should use `2.0.0` instead of `2.0`.
+
+See `to_pypi.sh` for more commentary on the development versions.
