@@ -280,8 +280,12 @@ def set_individual_traces_for_session():
 
 
 def get_git_description() -> Tuple[str, int, str]:
-    """Return the latest git version (tag) as a string, the number of commits since then as an int and the
-    current commit hash as string."""
+    """
+    Get information about the SCM (git) state if possible (if a .git directory exists).
+
+    Returns the latest git version (tag) as a string, the number of commits since then as an int and the
+    current commit hash as string.
+    """
 
     def _minimal_ext_cmd(cmd: list):
         # construct minimal environment
@@ -299,25 +303,22 @@ def get_git_description() -> Tuple[str, int, str]:
     version = "Unknown"
     commits_since = 0
     sha = "Unknown"
-    try:
+
+    path_to_flexmeasures_root = os.path.join(
+        os.path.dirname(__file__), "..", "..", ".."
+    )
+    if os.path.exists(os.path.join(path_to_flexmeasures_root, ".git")):
         commands = ["git", "describe", "--always", "--long"]
-        path_to_flexmeasures = os.path.join(os.path.dirname(__file__), "..", "..", "..")
-        if not os.path.exists(os.path.join(path_to_flexmeasures, ".git")):
-            # convention if we are operating in a non-git checkout, could be made configurable
-            commands.insert(
-                1,
-                "--git-dir=%s"
-                % os.path.join(path_to_flexmeasures, "..", "flexmeasures.git"),
-            )
-        git_output = _minimal_ext_cmd(commands)
-        components = git_output.strip().decode("ascii").split("-")
-        if not (len(components) == 1 and components[0] == ""):
-            sha = components.pop()
-            if len(components) > 0:
-                commits_since = int(components.pop())
-                version = "-".join(components)
-    except OSError as ose:
-        current_app.logger.warning("Problem when reading git describe: %s" % ose)
+        try:
+            git_output = _minimal_ext_cmd(commands)
+            components = git_output.strip().decode("ascii").split("-")
+            if not (len(components) == 1 and components[0] == ""):
+                sha = components.pop()
+                if len(components) > 0:
+                    commits_since = int(components.pop())
+                    version = "-".join(components)
+        except OSError as ose:
+            current_app.logger.warning("Problem when reading git describe: %s" % ose)
 
     return version, commits_since, sha
 
