@@ -3,57 +3,29 @@
 
 # Script to release FlexMeasures to Pypi
 #
-# Either as dev package:    ./to_pypi.sh dev [some_number]  # will compile a number from the git revision of not given
-# Or as official release:   ./to_pypi release
+# The version comes from setuptools_scm. See `python setup.py --version`.
+#
+# This version includes a .devN identifier, where N is the number of commits since the last version tag.
+#
+# Note that the only way to create a new dev release is to add another commit on your development branch.
+#
+# Let's explore the topic of dev releases: 
+# We've disabled setuptools_scm's ability to add a local scheme (git commit and date), as that
+# isn't formatted in a way that Pypi accepts it.
+# 
+# We can not add a local version identifier ("+N") which is allowed in PEP 440 but explicitly disallowed by Pypi.
+# 
+# If we'd add a number to .devN (.devNN), the ordering of dev versions would be disturbed after the next local commit.
+# 
+# So we'll use these tools as the experts intend us to.
+#
+# If you want, you can read more about acceptable versions in PEP 440: https://www.python.org/dev/peps/pep-0440/
 
-
-read -p "Are you sure you don't have a config file within these folders (which might get sent along)? [yN] " -n 1 -r
-echo    # move to a new line
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
-    echo "Exiting ..."
-    exit 1
-fi
-echo "Alright, then ..."
 
 rm -rf build/* dist/*
-
 pip -q install twine
 
-python setup.py -q alias -u release egg_info -Db ""
+python setup.py egg_info sdist
+python setup.py egg_info bdist_wheel
 
-# TODO: if ".dev" in version, then make a dev build
-#       (with everything after .dev input for --tag-build)
-#       So we remove the $1 and $2 parameters.
-#       It could be that pypi will reject that (not only letter,
-#       so maybe we can filter those out)
-
-if [ "$1" = "dev" ]; then
-    if [ "$2" != "" ]; then
-        dev_number=$2
-        cleandevtag=${dev_number//[^0-9]/}  # only numbers
-        if [ "$cleandevtag" != "$dev_number" ]; then
-            echo "Only numbers in the dev tag please! (leave out x.y.z.dev)"
-            exit 2
-        fi
-    else
-        echo "Looking up the number of revisions to use as dev release identifier ... "
-        dev_number=`git log --oneline | wc -l`
-    fi
-    
-    echo "Using $dev_number as dev build number ..."
-
-    python setup.py -q alias -u dev egg_info --tag-build=.dev$dev_number
-    python setup.py dev sdist
-    python setup.py dev bdist_wheel
-elif [ "$1" = "release" ]; then
-    python setup.py release sdist
-    python setup.py release bdist_wheel
-else
-    echo "Argument needs to be release or dev"
-    exit 2
-fi
-
-#exit
-
-twine upload --verbose dist/*
+twine upload dist/*

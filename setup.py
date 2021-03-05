@@ -22,11 +22,11 @@ setup(
     url="https://github.com/seitabv/flexmeasures",
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
     install_requires=load_requirements("app"),
-    setup_requires=["pytest-runner", "setuptools_scm"],
-    use_scm_version=True,
     tests_require=load_requirements("test"),
+    setup_requires=["pytest-runner", "setuptools_scm"],
+    use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
     packages=find_packages(),
-    include_package_data=True,  # see MANIFEST.in
+    include_package_data=True,  # setuptools_scm takes care of adding the files in SCM
     entry_points={
         "console_scripts": [
             "flexmeasures=flexmeasures.utils.app_utils:flexmeasures_cli"
