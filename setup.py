@@ -1,7 +1,5 @@
 from setuptools import setup, find_packages
 
-from flexmeasures import __version__
-
 
 def load_requirements(use_case):
     reqs = []
@@ -23,9 +21,9 @@ setup(
     author_email="nicolas@seita.nl",
     url="https://github.com/seitabv/flexmeasures",
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
-    version=__version__,
     install_requires=load_requirements("app"),
-    setup_requires=["pytest-runner"],
+    setup_requires=["pytest-runner", "setuptools_scm"],
+    use_scm_version=True,
     tests_require=load_requirements("test"),
     packages=find_packages(),
     include_package_data=True,  # see MANIFEST.in

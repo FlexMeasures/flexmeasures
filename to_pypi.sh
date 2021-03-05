@@ -22,6 +22,11 @@ pip -q install twine
 
 python setup.py -q alias -u release egg_info -Db ""
 
+# TODO: if ".dev" in version, then make a dev build
+#       (with everything after .dev input for --tag-build)
+#       So we remove the $1 and $2 parameters.
+#       It could be that pypi will reject that (not only letter,
+#       so maybe we can filter those out)
 
 if [ "$1" = "dev" ]; then
     if [ "$2" != "" ]; then
@@ -48,5 +53,7 @@ else
     echo "Argument needs to be release or dev"
     exit 2
 fi
+
+#exit
 
 twine upload --verbose dist/*
