@@ -21,6 +21,7 @@ setup(
     author_email="nicolas@seita.nl",
     url="https://github.com/seitabv/flexmeasures",
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
+    python_requires=">=3.7.1",  # not enforced, just info
     install_requires=load_requirements("app"),
     tests_require=load_requirements("test"),
     setup_requires=["pytest-runner", "setuptools_scm"],
@@ -34,7 +35,7 @@ setup(
     },
     classifiers=[
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
         "Development Status :: 3 - Alpha",
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",

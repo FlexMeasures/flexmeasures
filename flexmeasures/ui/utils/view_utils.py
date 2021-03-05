@@ -3,7 +3,6 @@ import os
 import subprocess
 from typing import Tuple, List, Optional
 from datetime import datetime
-from pkg_resources import get_distribution
 
 from flask import render_template, request, session, current_app
 from bokeh.resources import CDN
@@ -12,6 +11,7 @@ from werkzeug.exceptions import BadRequest
 import iso8601
 import pytz
 
+from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User
@@ -63,7 +63,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
         session.get("forecast_horizon", "")
     )
 
-    variables["flexmeasures_version"] = get_distribution("flexmeasures").version
+    variables["flexmeasures_version"] = flexmeasures_version
 
     (
         variables["git_version"],

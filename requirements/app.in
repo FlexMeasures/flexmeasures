@@ -34,6 +34,8 @@ tables
 timetomodel>=0.6.8
 timely-beliefs>=1.2.1
 python-dotenv
+# a backport, not needed in Python3.8
+importlib_metadata
 Flask-SSLify
 Flask_JSON
 Flask-SQLAlchemy>=2.4.3
