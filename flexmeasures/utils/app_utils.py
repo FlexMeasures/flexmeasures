@@ -18,7 +18,7 @@ def set_secret_key(app, filename="secret_key"):
 
     We first check if it is already in the config.
 
-    Then we look fir it in environment var FLEXMEASURES_SECRET_KEY.
+    Then we look for it in environment var SECRET_KEY.
 
     Finally, we look for `filename` in the app's instance directory.
 
@@ -40,7 +40,9 @@ def set_secret_key(app, filename="secret_key"):
             """
         Error:  No secret key set.
 
-        You can add the SECRET_KEY setting to your conf file.
+        You can add the SECRET_KEY setting to your conf file:
+
+        echo "SECRET_KEY=\\"`head -c 24 /dev/urandom`\\"" >> your-flexmeasures.cfg
 
         OR you can add an env var:
 
