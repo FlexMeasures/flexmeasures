@@ -3,6 +3,14 @@ FlexMeasures Changelog
 **********************
 
 
+v0.2.4 | March XX, 2021
+===========================
+
+Infrastructure / Support
+----------------------
+* FlexMeasures can be installed with `pip` and CLI commands can be run with `flexmeasures` [see `PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
+
+
 v0.2.3 | February 27, 2021
 ===========================
 
@@ -21,7 +29,7 @@ Bugfixes
 * Password reset link on account page was broken [see `PR #23 <http://www.github.com/SeitaBV/flexmeasures/pull/23>`_]
  
 
-Infrastructure/Support
+Infrastructure / Support
 ----------------------
 * CI via Github Actions [see `PR #1 <http://www.github.com/SeitaBV/flexmeasures/pull/1>`_]
 * Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`__ lib: Sensors [see `PR #13 <http://www.github.com/SeitaBV/flexmeasures/pull/13>`_]
