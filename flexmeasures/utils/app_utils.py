@@ -40,7 +40,7 @@ def set_secret_key(app, filename="secret_key"):
             """
         Error:  No secret key set.
 
-        You can add the SECRET_KEY setting to your conf file:
+        You can add the SECRET_KEY setting to your conf file (this example works only on Unix):
 
         echo "SECRET_KEY=\\"`head -c 24 /dev/urandom`\\"" >> your-flexmeasures.cfg
 

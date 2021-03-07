@@ -24,6 +24,7 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
     A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories)
     """
 
+    from flexmeasures.utils import config_defaults
     from flexmeasures.utils.config_utils import read_config, configure_logging
     from flexmeasures.utils.app_utils import set_secret_key
     from flexmeasures.utils.error_utils import add_basic_error_handlers
@@ -39,12 +40,12 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
         app.env = env
         if env == "testing":
             app.testing = True
+        if env == "development":
+            app.debug = config_defaults.DevelopmentConfig.DEBUG
 
     # App configuration
 
     read_config(app, path_to_config=path_to_config)
-    if app.debug and not app.testing and not app.cli:
-        print(app.config)
     add_basic_error_handlers(app)
 
     app.mail = Mail(app)
@@ -80,9 +81,12 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     if not app.env == "documentation":
         set_secret_key(app)
+        if "SECURITY_PASSWORD_SALT" not in app.config:
+            app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
+    if not app.env in ("documentation", "development"):
         SSLify(app)
 
-    # Register database and models, including user auth security measures
+    # Register database and models, including user auth security handlers
 
     from flexmeasures.data import register_at as register_db_at
 

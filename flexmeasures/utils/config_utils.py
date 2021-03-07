@@ -1,7 +1,7 @@
 import os
 import sys
 import logging
-from typing import Optional
+from typing import Optional, List, Tuple
 from datetime import datetime
 from logging.config import dictConfig as loggingDictConfig
 from pathlib import Path
@@ -9,7 +9,11 @@ from pathlib import Path
 from flask import Flask
 from inflection import camelize
 
-from flexmeasures.utils.config_defaults import Config as DefaultConfig
+from flexmeasures.utils.config_defaults import (
+    Config as DefaultConfig,
+    required,
+    warnable,
+)
 
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -85,14 +89,19 @@ def read_config(app: Flask, path_to_config: Optional[str]):
     if not app.testing and app.env != "documentation":
         missing_settings = check_config_completeness(app)
         if len(missing_settings) > 0:
+            print(
+                f"Missing the required configuration settings: {', '.join(missing_settings)}"
+            )
             if not os.path.exists(path_to_config):
                 print(
-                    f"Missing configuration settings: {', '.join(missing_settings)}\n"
                     f"Please provide these settings in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
                 )
-            else:
-                print(f"Missing configuration settings: {', '.join(missing_settings)}")
             sys.exit(2)
+        missing_fields, config_warnings = get_config_warnings(app)
+        if len(config_warnings) > 0:
+            for warning in config_warnings:
+                print(f"Warning: {warning}")
+            print(f"You might consider setting {', '.join(missing_fields)}.")
 
     # Set the desired logging level on the root logger (controlling extension logging level)
     # and this app's logger.
@@ -103,14 +112,30 @@ def read_config(app: Flask, path_to_config: Optional[str]):
     app.config["START_TIME"] = datetime.utcnow()
 
 
-def check_config_completeness(app):
+def check_config_completeness(app) -> List[str]:
     """Check if all settings we expect are not None. Return the ones that are None."""
-    expected_settings = []
-    for attr in [
+    expected_settings = [s for s in get_configuration_keys(app) if s in required]
+    return [s for s in expected_settings if app.config.get(s) is None]
+
+
+def get_config_warnings(app) -> Tuple[List[str], List[str]]:
+    """return missing settings and the warnings for them."""
+    missing_settings = []
+    config_warnings = []
+    for setting, warning in warnable.items():
+        if app.config.get(setting) is None:
+            missing_settings.append(setting)
+            config_warnings.append(warning)
+    config_warnings = list(set(config_warnings))
+    return missing_settings, config_warnings
+
+
+def get_configuration_keys(app) -> List[str]:
+    """
+    Collect all members of DefaultConfig who are not in-built fields or callables.
+    """
+    return [
         a
         for a in DefaultConfig.__dict__
-        if not a.startswith("__") and a in DefaultConfig.required
-    ]:
-        if not callable(getattr(DefaultConfig, attr)):
-            expected_settings.append(attr)
-    return [s for s in expected_settings if app.config.get(s) is None]
+        if not a.startswith("__") and not callable(getattr(DefaultConfig, a))
+    ]

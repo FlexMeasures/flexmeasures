@@ -21,11 +21,28 @@ Install all dependencies including the ones needed for development:
 
     make install-for-dev
 
+## Configuration
+
+Follow the confguration Quickstart advice in `Installation.md`.
+
+
+## Loading data
+
+If you have a SQL Dump file, you can load that:
+
+    psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
+
+
+
 ## Run locally
 
 Now, to start the web application, you can run:
 
-    python flexmeasures/run-local.py
+    flexmeasures run
+
+Or:
+
+    python run-local.py
 
 And access the server at http://localhost:5000
 
@@ -58,3 +75,5 @@ So as a developer, it's crucial to use git tags for versions only.
 We use semantic versioning, and we always include the patch version, not only max and min, so that setuptools_scm makes the correct guess about the next minor version. Thus, we should use `2.0.0` instead of `2.0`.
 
 See `to_pypi.sh` for more commentary on the development versions.
+
+Our API has its own version, which moves much slower. This is important to explicitly support outside apps who were coded against older versions. 

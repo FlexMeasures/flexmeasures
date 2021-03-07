@@ -112,7 +112,9 @@ def db_populate(
     to_date: str = "2015-12-31",
     asset: str = None,
 ):
-    """Initialize the database with static values."""
+    """Initialize the database with static values.
+    TODO: split into a function for structural data and one for forecasts.
+    """
     if structure:
         from flexmeasures.data.scripts.data_gen import populate_structure
 
@@ -242,7 +244,7 @@ def db_reset(
 @click.option(
     "--data/--no-data",
     default=False,
-    help="Save (time series) data. Only do this for small data sets!",
+    help="Save (time series) data to a backup. Only do this for small data sets!",
 )
 def db_save(
     name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False

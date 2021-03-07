@@ -1,6 +1,6 @@
 from datetime import timedelta
 import logging
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 
 """
 This lays out our configuration requirements and allows to set trivial defaults, per environment adjustable.
@@ -101,18 +101,21 @@ class Config(object):
     FLEXMEASURES_REDIS_DB_NR = 0  # Redis per default has 16 databases, [0-15]
     FLEXMEASURES_REDIS_PASSWORD = None
 
-    #  names of settings which cannot be None
-    required: List[str] = [
-        "SQLALCHEMY_DATABASE_URI",
-        "MAIL_SERVER",
-        "MAIL_PORT",
-        "MAIL_USE_TLS",
-        "MAIL_USE_SSL",
-        "MAIL_USERNAME",
-        "MAIL_DEFAULT_SENDER",
-        "MAIL_PASSWORD",
-        "SECURITY_PASSWORD_SALT",
-    ]
+
+#  names of settings which cannot be None
+required: List[str] = ["SQLALCHEMY_DATABASE_URI"]
+
+#  settings whose absence should trigger a warning
+mail_warning = "Without complete mail settings, FlexMeasures will not be able to send mails to users, e.g. for password resets!"
+warnable: Dict[str, str] = {
+    "MAIL_SERVER": mail_warning,
+    "MAIL_PORT": mail_warning,
+    "MAIL_USE_TLS": mail_warning,
+    "MAIL_USE_SSL": mail_warning,
+    "MAIL_USERNAME": mail_warning,
+    "MAIL_DEFAULT_SENDER": mail_warning,
+    "MAIL_PASSWORD": mail_warning,
+}
 
 
 class ProductionConfig(Config):
