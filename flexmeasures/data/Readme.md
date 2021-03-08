@@ -113,7 +113,7 @@ On the to-be-exported database:
 
 Note that we only dump the data here. Locally, we create a fresh database with the structure being based on the data model given by the local codebase:
 
-    flask db-reset
+    flexmeasures db-reset
 
 Then we import the data dump we made earlier:
 
@@ -128,17 +128,17 @@ Note: To make sure passwords will be decrypted correctly when you authenticate, 
 
 First of all, you can get the database structure with
 
-    flask db upgrade
+    flexmeasures db upgrade
 
 Note: If you develop code (and might want to make changes to the data model), you should also check out the maintenance section about database migrations.
 
 You can create users with the `new-user` command. Check it out:
 
-    flask new-user --help
+    flexmeasures new-user --help
 
 You can create some pre-determined asset types and data sources with this command:
 
-    flask db-populate --structure
+    flexmeasures db-populate --structure
 
 TODO: We should instead offer CLI commands to be able to create asset types as needed.
 
@@ -148,13 +148,13 @@ TODO: We still need a decent way to load in metering data, e.g. from CSV - often
 
 You can create forecasts for your existing metered data with this command:
 
-    flask db-populate --forecasts
+    flexmeasures db-populate --forecasts
 
 Check out it's `--help` content to learn more. You can set which assets and which time window you want to forecast. At the time of writing, the forecasts horizons are fixed to 1, 6, 24 and 48 hours. Of course, making forecasts takes a while for a larger dataset.
 
 Just to note: There is also a command to get rid of data:
 
-    flask db_depopulate --structure --data --forecasts
+    flexmeasures db_depopulate --structure --data --forecasts
 
 ## Visualize the data model
 
@@ -173,17 +173,19 @@ e.g. dev, staging and production can be kept in sync.
 
 ## Make first migration
 
-Run these commands from the repository root directory (read below comments first):
+Run the
+  se commands from the repository root directory (read below comments first):
+    :status 422: UNPROCESSABLE_ENTITY
 
-    flask db init
-    flask db migrate
-    flask db upgrade
+    flexmeasures db init
+    flexmeasures db migrate
+    flexmeasures db upgrade
 
-The first command (`flask db init`) is only needed here once, it initialises the alembic migration tool.
+The first command (`flexmeasures db init`) is only needed here once, it initialises the alembic migration tool.
 The second command generates the SQL for your current db model and the third actually gives you the db structure.
 
 With every migration, you get a new migration step in `migrations/versions`. Be sure to add that to `git`,
-as future calls to `flask db upgrade` will need those steps, and they might happen on another computer.
+as future calls to `flexmeasures db upgrade` will need those steps, and they might happen on another computer.
 
 Hint: You can edit these migrations steps, if you want.
 
@@ -191,14 +193,14 @@ Hint: You can edit these migrations steps, if you want.
 
 Just to be clear that the `db init` command is needed only at the beginning - you usually do, if your model changed:
 
-    flask db migrate --message "Please explain what you did, it helps for later"
-    flask db upgrade
+    flexmeasures db migrate --message "Please explain what you did, it helps for later"
+    flexmeasures db upgrade
 
 ## Get database structure updated
 
 The goal is that on any other computer, you can always execute
 
-    flask db upgrade
+    flexmeasures db upgrade
 
 to have the database structure up-to-date with all migrations.
 
@@ -206,13 +208,13 @@ to have the database structure up-to-date with all migrations.
 
 The history of migrations is at your fingertips:
 
-    flask db current
-    flask db history
+    flexmeasures db current
+    flexmeasures db history
 
 You can move back and forth through the history:
 
-    flask db downgrade
-    flask db upgrade
+    flexmeasures db downgrade
+    flexmeasures db upgrade
 
 Both of these accept a specific revision id parameter, as well.
 
@@ -245,7 +247,7 @@ It relies on a Redis server, which is has to be installed locally, or used on a 
 
 Forecasting jobs are usually created (and enqueued) when new data comes in via the API. To asynchronously work on these forecasting jobs, run this in a console:
 
-    flask run_forecasting_worker
+    flexmeasures run_forecasting_worker
 
 You should be able to run multiple workers in parallel, if necessary. You can add the `--name` argument to keep them a bit more organized.
 
