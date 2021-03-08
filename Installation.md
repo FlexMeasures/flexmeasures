@@ -8,15 +8,18 @@ Install dependencies and the `flexmeasures` platform itself:
     pip install flexmeasures
 
 
-## Quickstart: database, a user & asset
+## Quickstart: database, one user & one asset
 
 ### Preparing the time series database
 
 * Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See `data/Readme.md` for instructions on this.
 * Tell `flexmeasures` about it:
+
     `export SQLALCHEMY_DATABASE_URI='postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`
+  
   (on Windows, use `set` instead of `export`)
 * Create the Postgres DB structure for FlexMeasures:
+
     `flexmeasures db upgrade`
 
 Note that for a more permanent configuration, you can create your FlexMeasures configuration file at `~/.flexmeasures.cfg`.
@@ -25,43 +28,51 @@ TODO: the configuration file can also be in the Flask instance directory.
 
 ### Configure environment
 
-Set an env variable to indicate in which environment you are operating (one out of development|testing|staging|production), e.g.:
+Set an environment variable to indicate in which environment you are operating (one out of development|testing|staging|production), e.g.:
 
    `echo "FLASK_ENV=development" >> .env`
 
 or:
 
-   `export FLASK_ENV=production`
-   
-(on Windows, use `set` instead of `export`)
-
-The default is `production`, which will not work well on localhost due to SSL issues. 
-
-
-## Make a secret key for sessions
-
-Set a secret key which is used to sign user cookies and re-salt their passwords.
-
-   `echo "SECRET_KEY=something-secret`
+   `export FLASK_ENV=development`
 
 (on Windows, use `set` instead of `export`)
 
-We recommend you add this setting to your config file (see above). 
+Note: The default is `production`, which will not work well on localhost due to SSL issues. 
+
+
+### Make a secret key for sessions and password salts
+
+Set a secret key which is used to sign user sessions and re-salt their passwords. The simplest way is again with an environment variable, like this:
+
+   `export "SECRET_KEY=something-secret"`
+
+(on Windows, use `set` instead of `export`)
+
+Actually, we recommend you add this setting to your config file (see above). Here is a Pythonic way to generate good random string for this:
+
+    `python -c "import secrets; print(secrets.token_urlsafe())"`
 
 
 ### Add a user
 
+FlexMeasures is a web-based platform, so we need a user account:
+
 `flexmeasures --username <your-username> --email <your-email-address>`
+
+(this will ask you to set a password for the user)
 
 
 ### Add structure
 
-Populate the database with some standard asset tyes:
+Populate the database with some standard energy asset types:
 
    `flexmeasures db_populate --structure`
 
 
 ### Run FlexMeasures
+
+It's finally time to start running FlexMeasures:
 
 `flexmeasures run`
 
@@ -76,24 +87,24 @@ Often, that requires a WSGI script. We provide an example WSGI script in [the CI
 
 Head over to `http://localhost:5000/assets` and add a new asset there.
 
-TODO: For this we should also make a CLI function.
+TODO: [issue 57](https://github.com/SeitaBV/flexmeasures/issues/57) should create a CLI function for this.
 
-Note: You can also use the API to create assets (e.g. through a script or a custom frontend application, see our API documentation).
+Note: You can also use the [`POST /api/v2_0/assets`](https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-assets) endpoint in the FlexMeasures API to create an asset.
 
 ### Add data
 
-TODO: issue 56 should create a CLI function for this.
+You can use the [`POST /api/v2_0/postMeterData`](https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-postMeterData) endpoint in the FlexMeasures API to send meter data.
 
-Note: You can also use the API to send meter dat.a
+TODO: [issue 56](https://github.com/SeitaBV/flexmeasures/issues/56) should create a CLI function for adding a lot of data at once, from a CSV dataset.
 
-You can add forecasts for your meter data with the `db_populate` command, here is an example:
-   
+Also, you can add forecasts for your meter data with the `db_populate` command, here is an example:
+
    `flexmeasures db_populate --forecasts --from-date 2020-03-08 --to-date 2020-04-08 --asset-type Asset --asset my-solar-panel `
 
 Note: You can also use the API to send forecast data.
 
 
-## Other settings for full functionality
+## Other settings, for full functionality
 
 ### Set mail settings
 
@@ -102,7 +113,9 @@ For FlexMeasures to be able to send email to users (e.g. for resetting passwords
 
 ### Preparing the job queue database
 
-To let FlexMeasures queue forecasting and scheduling jobs, install a Redis server and configure access to it within FlexMeasures' config file (see above). You can find the default settings in `flexmeasures/utils/config_defaults.py`.
+To let FlexMeasures queue forecasting and scheduling jobs, install a Redis server and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in `flexmeasures/utils/config_defaults.py`.
+
+When forecasts are generated they should be visible at `http://localhost:5000/analytics` but you can also access them via the FlexMeasures API at [GET  /api/v2_0/getPrognosis](https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#get--api-v2_0-getPrognosis).
 
 TODO: more detail
 
@@ -119,8 +132,8 @@ Installing Cbc can be done on Unix via:
 
 We provide a script for installing from source (without requiring `sudo` rights) in [the CI Readme](ci/Readme.md).
 
-More information (e.g. for installing on Windows) on [the website](https://projects.coin-or.org/Cbc).
+More information (e.g. for installing on Windows) on [the Cbc website](https://projects.coin-or.org/Cbc).
 
-
+When schedules are generated they should be visible at `http://localhost:5000/analytics` but you can also access them via the FlexMeasures API at [GET  /api/v2_0/getDeviceMessage](https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#get--api-v2_0-getDeviceMessage).
 
 
