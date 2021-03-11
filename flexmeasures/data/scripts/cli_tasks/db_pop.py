@@ -27,7 +27,11 @@ BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
 @click.option("--username", required=True)
 @click.option("--email", required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
-@click.option("--timezone", help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'")
+@click.option(
+    "--timezone",
+    default="Europe/Amsterdam",
+    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+)
 def new_user(
     username: str, email: str, roles: List[str], timezone: str = "Europe/Amsterdam"
 ):
