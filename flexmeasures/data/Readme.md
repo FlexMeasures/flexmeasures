@@ -126,7 +126,7 @@ Note: To make sure passwords will be decrypted correctly when you authenticate, 
 
 ### Create data manually
 
-First of all, you can get the database structure with
+First, you can get the database structure with:
 
     flexmeasures db upgrade
 
