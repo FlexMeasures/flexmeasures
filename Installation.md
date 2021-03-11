@@ -58,7 +58,7 @@ Actually, we recommend you add this setting to your config file (see above). Her
 
 FlexMeasures is a web-based platform, so we need a user account:
 
-`flexmeasures --username <your-username> --email <your-email-address>`
+`flexmeasures new-user --username <your-username> --email <your-email-address>`
 
 (this will ask you to set a password for the user)
 
