@@ -62,7 +62,7 @@ v1_1_service_listing = {
 def get_connection():
     """API endpoint to get the user's connections as entity addresses ordered from newest to oldest.
 
-    .. :quickref: Data; Retrieve entity addresses of connections
+    .. :quickref: Asset; Retrieve entity addresses of connections
 
 
     **Example request**
@@ -271,7 +271,7 @@ def post_weather_data():
 def get_prognosis():
     """API endpoint to get prognosis.
 
-    .. :quickref: Control; Download prognosis from the platform
+    .. :quickref: Data; Download prognosis from the platform
 
     **Optional parameters**
 
@@ -339,7 +339,7 @@ def get_prognosis():
 def post_prognosis():
     """API endpoint to post prognoses about meter data.
 
-    .. :quickref: Control; Upload prognosis to the platform
+    .. :quickref: Data; Upload prognosis to the platform
 
     **Optional parameters**
 
