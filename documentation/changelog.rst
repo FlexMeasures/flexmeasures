@@ -3,6 +3,15 @@ FlexMeasures Changelog
 **********************
 
 
+v0.2.4 | March XX, 2021
+===========================
+
+Bugfixes
+--------
+
+* Show screenshots in documentation [see `PR #XX <http://www.github.com/SeitaBV/flexmeasures/pull/XX>`_]
+
+
 v0.2.3 | February 27, 2021
 ===========================
 
