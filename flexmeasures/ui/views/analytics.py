@@ -672,6 +672,8 @@ def determine_resolution(data: pd.DataFrame) -> str:
     Lastly, we try the session.
     If nothing can be found this way, the resulting string is "?"
     """
+    if hasattr(data, "event_resolution"):  # BeliefsDataFrame
+        freq_str = time_utils.timedelta_to_pandas_freq_str(data.event_resolution)
     if hasattr(data.index, "freqstr") and data.index.freqstr is not None:
         freq_str = data.index.freqstr
     elif hasattr(data.index, "inferred_freq") and data.index.inferred_freq is not None:
