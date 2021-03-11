@@ -72,7 +72,7 @@ When suggested changes exist in flexible schedules during the selected time wind
 Changes to the power profile due to flexible schedules
 =====================================================
 
-As we also discuss on the :ref:`control` page, a crucial goal of FlexMeasures is to visualise the opportunities within flexible schedules.
+A crucial goal of FlexMeasures is to visualise the opportunities within flexible schedules.
 This goal is not yet completely realised, but we show a mock here of how this could like when realised: 
 
 Just below the power profile, the net effect of flexible schedules that have previously been compute by FlexMeasures is plotted.
@@ -91,6 +91,4 @@ Opportunities to valorise on flexibility
 When flexibility opportunities exist in the selected time window, plots are overlaid with highlights indicating time slots
 in which flexible scheduling adjustments can be taken in the future or were missed in the past.
 The default time window (the next 24 hours) shows immediately upcoming opportunities to valorise on flexibility opportunities.
-The user could learn more about identified opportunities on a yet-to-be-developed view which goes further into details ― an example 
-of such a page is described on the :ref:`control` page.
-
+The user could learn more about identified opportunities on a yet-to-be-developed view which goes further into details.

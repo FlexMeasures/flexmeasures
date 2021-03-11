@@ -43,7 +43,6 @@ The platform operator of FlexMeasures can be an Aggregator.
 
     views/dashboard
     views/portfolio
-    views/control
     views/analytics
     views/admin
 
