@@ -40,7 +40,7 @@ def new_user(
     try:
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
-        print("Timezone %s is unkown!" % timezone)
+        print("Timezone %s is unknown!" % timezone)
         return
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
