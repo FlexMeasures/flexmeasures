@@ -122,7 +122,7 @@ TODO: more detail
 
 ### Install an LP solver
 
-For planning balancing actions, the flexmeasures platform uses a linear program solver. Currently that is the Cbc solver. See the `FLEXMEASURES_LP_SOLVER` config setting if you want to change to a different solver.
+For planning balancing actions, the FlexMeasures platform uses a linear program solver. Currently that is the Cbc solver. See the `FLEXMEASURES_LP_SOLVER` config setting if you want to change to a different solver.
 
 Installing Cbc can be done on Unix via:
 
