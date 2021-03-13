@@ -79,7 +79,7 @@ Giving the first user the `admin` role is probably what you want.
 
 Populate the database with some standard energy asset types:
 
-   `flexmeasures db_populate --structure`
+   `flexmeasures db-populate --structure`
 
 
 ### Run FlexMeasures
@@ -111,7 +111,7 @@ TODO: [issue 56](https://github.com/SeitaBV/flexmeasures/issues/56) should creat
 
 Also, you can add forecasts for your meter data with the `db_populate` command, here is an example:
 
-   `flexmeasures db_populate --forecasts --from-date 2020-03-08 --to-date 2020-04-08 --asset-type Asset --asset my-solar-panel `
+   `flexmeasures db-populate --forecasts --from-date 2020-03-08 --to-date 2020-04-08 --asset-type Asset --asset my-solar-panel `
 
 Note: You can also use the API to send forecast data.
 
@@ -125,7 +125,7 @@ For FlexMeasures to be able to send email to users (e.g. for resetting passwords
 
 ### Install an LP solver
 
-For planning balancing actions, the flexmeasures platform uses a linear program solver. Currently that is the Cbc solver. See the `FLEXMEASURES_LP_SOLVER` config setting if you want to change to a different solver.
+For planning balancing actions, the FlexMeasures platform uses a linear program solver. Currently that is the Cbc solver. See the `FLEXMEASURES_LP_SOLVER` config setting if you want to change to a different solver.
 
 Installing Cbc can be done on Unix via:
 
