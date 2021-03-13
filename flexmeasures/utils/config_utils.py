@@ -85,7 +85,9 @@ def read_config(app: Flask, path_to_config: Optional[str]):
     except FileNotFoundError:
         pass
 
-    # Check for missing values. Testing might affect only specific functionality (-> dev's responsibility)
+    # Check for missing values.
+    # Testing might affect only specific functionality (-> dev's responsibility)
+    # Documentation runs fine without them.
     if not app.testing and app.env != "documentation":
         missing_settings = check_config_completeness(app)
         if len(missing_settings) > 0:
@@ -94,7 +96,11 @@ def read_config(app: Flask, path_to_config: Optional[str]):
             )
             if not os.path.exists(path_to_config):
                 print(
-                    f"Please provide these settings in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
+                    f"You can provide these settings in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
+                )
+            else:
+                print(
+                    f"Please provide these settings in your config file ({path_to_config})."
                 )
             sys.exit(2)
         missing_fields, config_warnings = get_config_warnings(app)

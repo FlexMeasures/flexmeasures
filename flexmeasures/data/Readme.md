@@ -97,7 +97,7 @@ Write:
 
     SQLALCHEMY_DATABASE_URI = "postgresql://flexmeasures:<password>@127.0.0.1/flexmeasures"
 
-into the config file you are using, e.g. flexmeasures/development_config.py
+into the config file you are using, e.g. ~/flexmeasures.cfg
 
 ## Get structure (and some data) into place
 
@@ -173,9 +173,7 @@ e.g. dev, staging and production can be kept in sync.
 
 ## Make first migration
 
-Run the
-  se commands from the repository root directory (read below comments first):
-    :status 422: UNPROCESSABLE_ENTITY
+Run these commands from the repository root directory (read below comments first):
 
     flexmeasures db init
     flexmeasures db migrate
@@ -247,7 +245,7 @@ It relies on a Redis server, which is has to be installed locally, or used on a 
 
 Forecasting jobs are usually created (and enqueued) when new data comes in via the API. To asynchronously work on these forecasting jobs, run this in a console:
 
-    flexmeasures run_forecasting_worker
+    flexmeasures run_worker --queue forecasting
 
 You should be able to run multiple workers in parallel, if necessary. You can add the `--name` argument to keep them a bit more organized.
 
