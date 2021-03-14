@@ -103,7 +103,7 @@ class Config(object):
 
 
 #  names of settings which cannot be None
-required: List[str] = ["SQLALCHEMY_DATABASE_URI"]
+required: List[str] = ["SECRET_KEY", "SQLALCHEMY_DATABASE_URI"]
 
 #  settings whose absence should trigger a warning
 mail_warning = "Without complete mail settings, FlexMeasures will not be able to send mails to users, e.g. for password resets!"

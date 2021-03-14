@@ -84,6 +84,9 @@ def read_config(app: Flask, path_to_config: Optional[str]):
         app.config.from_pyfile(path_to_config)
     except FileNotFoundError:
         pass
+    # Finally, all required varaiables can be set as env var:
+    for req_var in required:
+        app.config[req_var] = os.getenv(req_var, app.config.get(req_var, None))
 
     # Check for missing values.
     # Testing might affect only specific functionality (-> dev's responsibility)

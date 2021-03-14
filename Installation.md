@@ -21,7 +21,7 @@ Set a secret key which is used to sign user sessions and re-salt their passwords
 
 This suffices for a quick start.
 
-()If you want to consistenly use FlexMeasures, we recommend you add this setting to your config file at `~/.flexmeasures.cfg` and use a truly random string. Here is a Pythonic way to generate a good secret key:
+If you want to consistenly use FlexMeasures, we recommend you add this setting to your config file at `~/.flexmeasures.cfg` and use a truly random string. Here is a Pythonic way to generate a good secret key:
 
     `python -c "import secrets; print(secrets.token_urlsafe())"`
 
@@ -45,21 +45,17 @@ Note that for a more permanent configuration, you can create your FlexMeasures c
     `SQLALCHEMY_DATABASE_URI='postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`
 
 
-
-TODO: the configuration file can also be in the Flask instance directory.
-
-
 ### Configure environment
 
 Set an environment variable to indicate in which environment you are operating (one out of development|testing|staging|production), e.g.:
 
-   `echo "FLASK_ENV=development" >> .env`
-
-or:
-
    `export FLASK_ENV=development`
 
 (on Windows, use `set` instead of `export`)
+
+or:
+
+   `echo "FLASK_ENV=development" >> .env`
 
 Note: The default is `production`, which will not work well on localhost due to SSL issues. 
 
@@ -90,8 +86,7 @@ It's finally time to start running FlexMeasures:
 
 (This might print some warnings, see the next section where we go into more detail)
 
-Note that in a production context, you shouldn't run a script - hand the `app` object to a WSGI process, as your platform of choice describes.
-
+Note: In a production context, you shouldn't run a script - hand the `app` object to a WSGI process, as your platform of choice describes.
 Often, that requires a WSGI script. We provide an example WSGI script in [the CI Readme](ci/Readme.md).
 
 
