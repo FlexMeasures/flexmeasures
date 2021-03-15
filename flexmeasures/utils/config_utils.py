@@ -92,18 +92,14 @@ def read_config(app: Flask, path_to_config: Optional[str]):
     # Testing might affect only specific functionality (-> dev's responsibility)
     # Documentation runs fine without them.
     if not app.testing and app.env != "documentation":
-        missing_settings = check_config_completeness(app)
-        if len(missing_settings) > 0:
-            print(
-                f"Missing the required configuration settings: {', '.join(missing_settings)}"
-            )
+        if not are_required_settings_complete(app):
             if not os.path.exists(path_to_config):
                 print(
-                    f"You can provide these settings in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
+                    f"You can provide these settings ― as environment variables or in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
                 )
             else:
                 print(
-                    f"Please provide these settings in your config file ({path_to_config})."
+                    f"Please provide these settings ― as environment variables or in your config file ({path_to_config})."
                 )
             sys.exit(2)
         missing_fields, config_warnings = get_config_warnings(app)
@@ -121,10 +117,19 @@ def read_config(app: Flask, path_to_config: Optional[str]):
     app.config["START_TIME"] = datetime.utcnow()
 
 
-def check_config_completeness(app) -> List[str]:
-    """Check if all settings we expect are not None. Return the ones that are None."""
+def are_required_settings_complete(app) -> bool:
+    """
+    Check if all settings we expect are not None. Return False if they are not.
+    Printout helpful advice.
+    """
     expected_settings = [s for s in get_configuration_keys(app) if s in required]
-    return [s for s in expected_settings if app.config.get(s) is None]
+    missing_settings = [s for s in expected_settings if app.config.get(s) is None]
+    if len(missing_settings) > 0:
+        print(
+            f"Missing the required configuration settings: {', '.join(missing_settings)}"
+        )
+        return False
+    return True
 
 
 def get_config_warnings(app) -> Tuple[List[str], List[str]]:
