@@ -1,21 +1,22 @@
 # Installing & Running FlexMeasures
 
 
-## Install FlexMeasures
+## Quickstart
+
+This section walks you through getting FlexMeasures to run with the least effort. We'll cover making a secret key, connecting a database and creating one user & one asset.
+
+### Install FlexMeasures
 
 Install dependencies and the `flexmeasures` platform itself:
 
     pip install flexmeasures
 
 
-## Quickstart: database, one user & one asset
-
-
 ### Make a secret key for sessions and password salts
 
 Set a secret key which is used to sign user sessions and re-salt their passwords. The quickest way is with an environment variable, like this:
 
-   `export "SECRET_KEY=something-secret"`
+   `export SECRET_KEY=something-secret`
 
 (on Windows, use `set` instead of `export`)
 
@@ -26,28 +27,9 @@ If you want to consistenly use FlexMeasures, we recommend you add this setting t
     `python -c "import secrets; print(secrets.token_urlsafe())"`
 
 
-### Preparing the time series database
-
-* Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See `data/Readme.md` (section "Getting ready to use") for instructions on this.
-* Tell `flexmeasures` about it:
-
-    `export SQLALCHEMY_DATABASE_URI='postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`
-  
-  (on Windows, use `set` instead of `export`)
-* Create the Postgres DB structure for FlexMeasures:
-
-    `flexmeasures db upgrade`
-
-This suffices for a quick start.
-
-Note that for a more permanent configuration, you can create your FlexMeasures configuration file at `~/.flexmeasures.cfg` and add this:
-
-    `SQLALCHEMY_DATABASE_URI='postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`
-
-
 ### Configure environment
 
-Set an environment variable to indicate in which environment you are operating (one out of development|testing|staging|production), e.g.:
+Set an environment variable to indicate in which environment you are operating (one out of development|testing|staging|production). We'll go with `development` here:
 
    `export FLASK_ENV=development`
 
@@ -58,6 +40,27 @@ or:
    `echo "FLASK_ENV=development" >> .env`
 
 Note: The default is `production`, which will not work well on localhost due to SSL issues. 
+
+
+
+### Preparing the time series database
+
+* Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See `data/Readme.md` (section "Getting ready to use") for instructions on this.
+* Tell `flexmeasures` about it:
+
+    `export SQLALCHEMY_DATABASE_URI="postgresql://<user>:<password>@<host-address>[:<port>]/<db>"`
+
+  If you install this on localhost, `host-address` is `127.0.0.1` and the port can be left out.
+  (on Windows, use `set` instead of `export`)
+* Create the Postgres DB structure for FlexMeasures:
+
+    `flexmeasures db upgrade`
+
+This suffices for a quick start.
+
+Note that for a more permanent configuration, you can create your FlexMeasures configuration file at `~/.flexmeasures.cfg` and add this:
+
+    `SQLALCHEMY_DATABASE_URI="postgresql://<user>:<password>@<host-address>[:<port>]/<db>"`
 
 
 ### Add a user
