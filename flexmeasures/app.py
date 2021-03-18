@@ -81,7 +81,7 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     if not app.env == "documentation":
         set_secret_key(app)
-        if "SECURITY_PASSWORD_SALT" not in app.config:
+        if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
             app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if not app.env in ("documentation", "development"):
         SSLify(app)
