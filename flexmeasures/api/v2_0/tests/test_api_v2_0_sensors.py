@@ -7,7 +7,7 @@ from flexmeasures.api.common.utils.api_utils import get_generic_asset
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v2_0.tests.utils import (
     message_for_post_price_data,
-    verify_prices_in_db,
+    verify_sensor_data_in_db,
 )
 
 
@@ -36,7 +36,9 @@ def test_post_price_data_2_0(db, app, post_message):
         assert post_price_data_response.status_code == 200
         assert post_price_data_response.json["type"] == "PostPriceDataResponse"
 
-    verify_prices_in_db(post_message, post_message["values"], db)
+    verify_sensor_data_in_db(
+        post_message, post_message["values"], db, entity_type="market"
+    )
 
     # look for Forecasting jobs in queue
     assert (
