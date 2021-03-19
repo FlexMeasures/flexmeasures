@@ -8,11 +8,13 @@ v0.2.4 | March XX, 2021
 
 Bugfixes
 --------
+* Show screenshots in documentation and add some missing content [see `PR #60 <http://www.github.com/SeitaBV/flexmeasures/pull/60>`_]
 * Documentation listed 2.0 API endpoints twice [see `PR #59 <http://www.github.com/SeitaBV/flexmeasures/pull/59>`_]
 
 Infrastructure/Support
 ----------------------
 * Added concept pages to documentation [see `PR #65 <http://www.github.com/SeitaBV/flexmeasures/pull/65>`_]
+
 
 
 v0.2.3 | February 27, 2021

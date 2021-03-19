@@ -54,7 +54,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     views/admin
 
 .. toctree::
-    :caption: API Documentation
+    :caption: The API 
     :maxdepth: 1
 
     api/introduction
