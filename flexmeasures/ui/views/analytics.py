@@ -547,7 +547,8 @@ def make_power_figure(
         schedules=schedule_data,
         title=title,
         x_range=shared_x_range,
-        x_label="Time (resolution of %s)" % determine_resolution(data),
+        x_label="Time (resolution of %s)"
+        % determine_resolution(data, forecast_data, schedule_data),
         y_label="Power (in MW)",
         show_y_floats=True,
         tools=tools,
@@ -571,7 +572,7 @@ def make_prices_figure(
         forecasts=forecast_data,
         title=f"Prices for {selected_market.display_name}",
         x_range=shared_x_range,
-        x_label="Time (resolution of %s)" % determine_resolution(data),
+        x_label="Time (resolution of %s)" % determine_resolution(data, forecast_data),
         y_label="Price (in %s)" % selected_market.unit,
         show_y_floats=True,
         tools=tools,
@@ -611,7 +612,7 @@ def make_weather_figure(
         forecasts=forecast_data,
         title=title,
         x_range=shared_x_range,
-        x_label="Time (resolution of %s)" % determine_resolution(data),
+        x_label="Time (resolution of %s)" % determine_resolution(data, forecast_data),
         y_label=weather_axis_label,
         legend_location="top_right",
         show_y_floats=True,
@@ -645,7 +646,7 @@ def make_revenues_costs_figure(
         forecasts=forecast_data,
         title=f"{rev_cost_str} for {resource_display_name} (on {selected_market.display_name})",
         x_range=shared_x_range,
-        x_label="Time (resolution of %s)" % determine_resolution(data),
+        x_label="Time (resolution of %s)" % determine_resolution(data, forecast_data),
         y_label="%s (in %s)" % (rev_cost_str, selected_market.unit[:3]),
         show_y_floats=True,
         tools=tools,
@@ -665,21 +666,34 @@ def revenue_unit_factor(quantity_unit: str, price_unit: str) -> float:
         raise NotImplementedError
 
 
-def determine_resolution(data: pd.DataFrame) -> str:
+def determine_resolution(
+    data: pd.DataFrame,
+    forecasts: Optional[pd.DataFrame] = None,
+    schedules: Optional[pd.DataFrame] = None,
+) -> str:
     """
     Determine the resolution to be displayed under the plot.
     We try to get it from the DataFrame's meta data, or guess from the actual data.
     Lastly, we try the session.
     If nothing can be found this way, the resulting string is "?"
     """
-    if hasattr(data, "event_resolution"):  # BeliefsDataFrame
-        freq_str = time_utils.timedelta_to_pandas_freq_str(data.event_resolution)
-    elif hasattr(data.index, "freqstr") and data.index.freqstr is not None:
-        freq_str = data.index.freqstr
-    elif hasattr(data.index, "inferred_freq") and data.index.inferred_freq is not None:
-        freq_str = data.index.inferred_freq
-    elif "resolution" in session:
-        freq_str = session["resolution"]
-    else:
-        return "?"
-    return time_utils.freq_label_to_human_readable_label(freq_str)
+
+    def determine_resolution_for(df: pd.DataFrame) -> str:
+        if hasattr(df, "event_resolution"):  # BeliefsDataFrame
+            freq_str = time_utils.timedelta_to_pandas_freq_str(df.event_resolution)
+        elif hasattr(df.index, "freqstr") and df.index.freqstr is not None:
+            freq_str = data.index.freqstr
+        elif hasattr(df.index, "inferred_freq") and df.index.inferred_freq is not None:
+            freq_str = df.index.inferred_freq
+        elif "resolution" in session:
+            freq_str = session["resolution"]
+        else:
+            return "?"
+        return time_utils.freq_label_to_human_readable_label(freq_str)
+
+    resolution = determine_resolution_for(data)
+    if resolution == "?" and forecasts is not None:
+        resolution = determine_resolution_for(forecasts)
+    if resolution == "?" and schedules is not None:
+        resolution = determine_resolution_for(schedules)
+    return resolution
