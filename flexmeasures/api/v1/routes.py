@@ -36,7 +36,7 @@ def get_meter_data():
 
     .. :quickref: User; Download meter data from the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "resolution" (see :ref:`resolutions`)
     - "horizon" (see :ref:`beliefs`)
@@ -101,7 +101,7 @@ def post_meter_data():
 
     .. :quickref: User; Upload meter data to the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "horizon" (see :ref:`prognoses`)
 

@@ -515,7 +515,7 @@ def post_price_data():
 
     .. :quickref: User; Upload price data to the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "horizon" (see :ref:`prognoses`)
     - "prior" (see :ref:`prognoses`)
@@ -603,7 +603,7 @@ def post_weather_data():
 
     .. :quickref: User; Upload weather data to the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "horizon" (see :ref:`prognoses`)
     - "prior" (see :ref:`prognoses`)
@@ -699,7 +699,7 @@ def post_prognosis():
 
     .. :quickref: User; Upload prognosis to the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "horizon" (see :ref:`prognoses`)
     - "prior" (see :ref:`prognoses`)
