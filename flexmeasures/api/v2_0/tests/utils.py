@@ -6,9 +6,9 @@ from isodate import duration_isoformat, parse_duration, parse_datetime
 import pandas as pd
 import timely_beliefs as tb
 
+from flexmeasures.api.common.utils.api_utils import get_generic_asset
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.api.v1_1.tests.utils import (
-    get_market,
     message_for_post_price_data as v1_1_message_for_post_price_data,
 )
 
@@ -68,7 +68,7 @@ def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     """util method to verify that price data ended up in the database"""
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
-    market: Market = get_market(post_message)
+    market: Market = get_generic_asset(post_message["market"], "market")
     resolution = market.event_resolution
     if "horizon" in post_message:
         horizon = parse_duration(post_message["horizon"])
