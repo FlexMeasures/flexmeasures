@@ -60,7 +60,7 @@ def post_price_data_response(  # noqa C901
     start,
     duration,
     resolution,
-):
+) -> ResponseTuple:
 
     # additional validation, todo: to be moved into Marshmallow
     if horizon is None and prior is None:
@@ -144,7 +144,7 @@ def post_weather_data_response(  # noqa: C901
     start,
     duration,
     resolution,
-):
+) -> ResponseTuple:
     # additional validation, todo: to be moved into Marshmallow
     if horizon is None and prior is None:
         extra_info = "Missing horizon or prior."
