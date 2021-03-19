@@ -41,11 +41,17 @@ def test_user_page(client, as_admin, requests_mock):
     requests_mock.get(
         "http://localhost//api/v2_0/user/2", status_code=200, json=mock_user
     )
+    requests_mock.get(
+        "http://localhost//api/v2_0/assets",
+        status_code=200,
+        json=[{}, {}, {}],  # we only care about the length
+    )
     user_page = client.get(url_for("UserCrudUI:get", id=2), follow_redirects=True)
     assert user_page.status_code == 200
     assert (
         "Account overview for %s" % mock_user["username"]
     ).encode() in user_page.data
+    assert (">3</a>").encode() in user_page.data  # this is the asset cound
     assert mock_user["email"].encode() in user_page.data
 
 
