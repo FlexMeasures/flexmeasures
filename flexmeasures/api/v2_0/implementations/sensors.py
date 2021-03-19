@@ -181,7 +181,7 @@ def post_weather_data_response(  # noqa: C901
                         datetime=event_start,
                         value=event_value,
                         horizon=belief_horizon,
-                        market_id=weather_sensor.id,
+                        sensor_id=weather_sensor.id,
                         data_source_id=data_source.id,
                     )
                     for event_start, event_value, belief_horizon in zip(
