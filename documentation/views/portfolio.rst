@@ -5,8 +5,8 @@ Portfolio overview
 ******************
 
 The portfolio overview shows results and opportunities regarding the user's asset portfolio.
-The view serves to get an overview over the portfolio's energy status and also to estimate
-the upcoming opportunities of flexible schedules.
+The view serves to get an overview over the portfolio's energy status and can be viewed with either
+the consumption or the generation side aggregated.
 
 In particular, the page contains:
 
@@ -78,7 +78,7 @@ This goal is not yet completely realised, but we show a mock here of how this co
 Just below the power profile, the net effect of flexible schedules that have previously been computed by FlexMeasures is plotted.
 The profile indicates the change in power resulting from schedules that are planned in the future, as well as from schedules that had been planned in the past.
 Positive values indicate an increase in production or a decrease in consumption, both of which result in an increased load on the network.
-For short-term flexibility changes, this is sometimes called up-regulation.
+For short-term changes in power due to activation of flexibility, this is sometimes called up-regulation.
 Negative values indicate a decrease in production or an increase in consumption, which result in a decreased load on the network (down-regulation).
 When flexibility opportunities exist in the selected time window, the plot is overlaid with highlights (see :ref:`portfolio_flexibility_opportunities` ).
 
