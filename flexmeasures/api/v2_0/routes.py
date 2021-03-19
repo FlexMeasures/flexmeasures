@@ -685,9 +685,83 @@ def get_meter_data():
 @as_response_type("PostMeterDataResponse")
 @auth_token_required
 @usef_roles_accepted(*list_access(v2_0_service_listing, "postMeterData"))
-@append_doc_of(v1_3_routes.post_meter_data)
 def post_meter_data():
-    return v1_implementations.post_meter_data_response()
+    """API endpoint to post meter data.
+
+    .. :quickref: User; Upload meter data to the platform
+
+    **Optional fields**
+
+    - "horizon" (see :ref:`prognoses`)
+    - "prior" (see :ref:`prognoses`)
+
+    **Example request**
+
+    This "PostMeterDataRequest" message posts measured consumption for 15-minute intervals between 0.00am and 1.30am for
+    charging stations 1, 2 and 3 (negative values denote production).
+
+    .. code-block:: json
+
+        {
+            "type": "PostMeterDataRequest",
+            "groups": [
+                {
+                    "connections": [
+                        "CS 1",
+                        "CS 3"
+                    ],
+                    "values": [
+                        306.66,
+                        306.66,
+                        0,
+                        0,
+                        306.66,
+                        306.66
+                    ]
+                },
+                {
+                    "connections": [
+                        "CS 2"
+                    ],
+                    "values": [
+                        306.66,
+                        0,
+                        0,
+                        0,
+                        306.66,
+                        306.66
+                    ]
+                }
+            ],
+            "start": "2021-01-01T00:00:00Z",
+            "duration": "PT1H30M",
+            "unit": "MW"
+        }
+
+    It is allowed to send higher resolutions (in this example for instance, 30 minutes) which will be upsampled.
+
+    **Example response**
+
+    This "PostMeterDataResponse" message indicates that the measurement has been processed without any error.
+
+    .. sourcecode:: json
+
+        {
+            "type": "PostMeterDataResponse",
+            "status": "PROCESSED",
+            "message": "Request has been processed."
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_DOMAIN, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, REQUIRED_INFO_MISSING, UNRECOGNIZED_ASSET or UNRECOGNIZED_CONNECTION_GROUP
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 405: INVALID_METHOD
+    """
+    return v2_0_implementations.post_meter_data_response()
 
 
 @flexmeasures_api_v2_0.route("/postPrognosis", methods=["POST"])
