@@ -27,7 +27,7 @@ def get_device_message():
 
     .. :quickref: Control; Download control signal from the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "duration" (6 hours by default; can be increased to plan further into the future)
 

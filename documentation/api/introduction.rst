@@ -4,7 +4,7 @@ Introduction
 ============
 
 This document details the Application Programming Interface (API) of the FlexMeasures web service. The API supports user automation for flexibility valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
-We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io. 
+We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
 
 
 New versions of the API are released on:
@@ -13,7 +13,7 @@ New versions of the API are released on:
 
     https://company.flexmeasures.io/api
 
-A list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a *getService* request. An optional parameter "access" can be used to specify a user role for which to obtain only the relevant services.
+A list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a *getService* request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
 
 **Example request**
 
@@ -313,14 +313,14 @@ Beliefs
 ^^^^^^^
 
 By regarding all time series data as beliefs that have been recorded at a certain time, data can be filtered accordingly.
-Some GET endpoints have two optional timing parameters to allow such filtering.
-The "prior" parameter (a timestamp) can be used to select beliefs recorded before some moment in time.
+Some GET endpoints have two optional timing fields to allow such filtering.
+The "prior" field (a timestamp) can be used to select beliefs recorded before some moment in time.
 It can be used to "time-travel" to see the state of information at some moment in the past.
-In addition, the "horizon" parameter (a duration) can be used to select beliefs recorded before some moment in time, relative to each event.
+In addition, the "horizon" field (a duration) can be used to select beliefs recorded before some moment in time, relative to each event.
 For example, to filter out meter readings communicated within a day (denoted by a negative horizon) or forecasts created at least a day beforehand (denoted by a positive horizon).
 In addition to these two timing filters, beliefs can be filtered by their source (see :ref:`sources`).
 
-The two timing parameters follow the ISO 8601 standard and are interpreted as follows:
+The two timing fields follow the ISO 8601 standard and are interpreted as follows:
 
 - "horizon": recorded at least <duration> before the fact (indicated by a positive horizon), or at most <duration> after the fact (indicated by a negative horizon).
 - "prior": recorded prior to <timestamp>.
@@ -334,22 +334,22 @@ For example:
         "prior": "2020-08-01T17:00:00Z"
     }
 
-These parameters denote that the data should have been recorded at least 6 hours before the fact (i.e. forecasts) and prior to 5 PM on August 1st 2020 (UTC).
+These fields denote that the data should have been recorded at least 6 hours before the fact (i.e. forecasts) and prior to 5 PM on August 1st 2020 (UTC).
 
 .. _prognoses:
 
 Prognoses
 ^^^^^^^^^
 
-Some POST endpoints have two optional parameters to allow setting the time at which beliefs are recorded explicitly.
+Some POST endpoints have two optional fields to allow setting the time at which beliefs are recorded explicitly.
 This is useful to keep an accurate history of what was known at what time, especially for prognoses.
 If not used, |FLEXMEASURES_PLATFORM_NAME| will infer the prior from the arrival time of the message.
 
-The "prior" parameter (a timestamp) can be used to set a single time at which the entire prognosis was recorded.
-Alternatively, the "horizon" parameter (a duration) can be used to set the recording times relative to each prognosed event.
-In case both parameters are set, the earliest recording time is determined.
+The "prior" field (a timestamp) can be used to set a single time at which the entire prognosis was recorded.
+Alternatively, the "horizon" field (a duration) can be used to set the recording times relative to each prognosed event.
+In case both fields are set, the earliest recording time is determined.
 
-The two timing parameters follow the ISO 8601 standard and are interpreted as follows:
+The two timing fields follow the ISO 8601 standard and are interpreted as follows:
 
 .. code-block:: json
 

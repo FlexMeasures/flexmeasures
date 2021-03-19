@@ -9,14 +9,14 @@ v2.0 | 2021-02-23
 - [**Breaking change**] Switched the interpretation of horizons to rolling horizons.
 - [**Breaking change**] Deprecated the use of ISO 8601 repeating time intervals to denote rolling horizons.
 - [**Breaking change**] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API version below v2.0.
-- Introduced the "prior" parameter for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints.
+- Introduced the "prior" field for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints.
 - Changed the Introduction section:
 
-    - Rewrote the subsection on prognoses to explain the horizon and prior parameters.
+    - Rewrote the subsection on prognoses to explain the horizon and prior fields.
 
 - Changed the Simulation section:
 
-    - Rewrote relevant examples using horizon and prior parameters.
+    - Rewrote relevant examples using horizon and prior fields.
 
 v2.0 | 2021-02-19
 """""""""""""""""""
@@ -33,17 +33,17 @@ v1.3-7 | 2020-12-16
 
 *Affects all versions since v1.0*.
 
-- Separated the dual purpose of the "horizon" parameter in the *getMeterData* and *getPrognosis* endpoints by introducing the "prior" parameter:
+- Separated the dual purpose of the "horizon" field in the *getMeterData* and *getPrognosis* endpoints by introducing the "prior" field:
 
-    - The "horizon" parameter in GET endpoints is now always interpreted as a rolling horizon, regardless of whether it is stated as an ISO 8601 repeating time interval.
-    - The *getMeterData* and *getPrognosis* endpoints now accept an optional "prior" parameter to select only data recorded before a certain ISO 8601 timestamp (replacing the unintuitive usage of the horizon field for specifying a latest time of belief).
+    - The "horizon" field in GET endpoints is now always interpreted as a rolling horizon, regardless of whether it is stated as an ISO 8601 repeating time interval.
+    - The *getMeterData* and *getPrognosis* endpoints now accept an optional "prior" field to select only data recorded before a certain ISO 8601 timestamp (replacing the unintuitive usage of the horizon field for specifying a latest time of belief).
 
 v1.3-6 | 2020-12-11
 """""""""""""""""""
 
 *Affects all versions since v1.0*.
 
-- The *getMeterData* and *getPrognosis* endpoints now return the INVALID_SOURCE status 400 response in case the optional "source" parameter is used and no relevant sources can be found.
+- The *getMeterData* and *getPrognosis* endpoints now return the INVALID_SOURCE status 400 response in case the optional "source" field is used and no relevant sources can be found.
 
 v1.3-5 | 2020-10-29
 """""""""""""""""""
@@ -52,7 +52,7 @@ v1.3-5 | 2020-10-29
 
 - Endpoints to POST meter data will now check incoming data to see if the required asset's resolution is being used ― upsampling is done if possible.
   These endpoints can now return the REQUIRED_INFO_MISSING status 400 response.
-- Endpoints to GET meter data will return data in the asset's resolution ― downsampling to the "resolution" parameter is done if possible.
+- Endpoints to GET meter data will return data in the asset's resolution ― downsampling to the "resolution" field is done if possible.
 - As they need to determine the asset, all of the mentioned POST and GET endpoints can now return the UNRECOGNIZED_ASSET status 4000 response.
 
 v1.3-4 | 2020-06-18
