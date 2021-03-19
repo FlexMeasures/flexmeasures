@@ -1,6 +1,7 @@
 .. _algorithms:
 
-What algorithms does the platform use?
+
+Algorithms
 ==========================================
 
 
@@ -89,7 +90,7 @@ Defaults:
 Planning
 --------
 
-Based on decisions about control actions, a planning algorithm is used by the Aggregator (in case of explicit DR) or by the Energy Service Company (in case of implicit DR)
+Based on decisions about control opportunities, a planning algorithm is used by the Aggregator (in case of explicit DR) or by the Energy Service Company (in case of implicit DR)
 to form instructions for the Prosumer's flexible assets.
 
 Defaults:

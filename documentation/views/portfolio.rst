@@ -5,7 +5,9 @@ Portfolio overview
 ******************
 
 The portfolio overview shows results and opportunities regarding the user's asset portfolio.
-The view serves to quickly identify upcoming opportunities to valorise on flexibility actions.
+The view serves to get an overview over the portfolio's energy status and can be viewed with either
+the consumption or the generation side aggregated.
+
 In particular, the page contains:
 
 .. contents::
@@ -62,20 +64,17 @@ When flexibility opportunities exist in the selected time window, the plot is ov
 
 .. _portfolio_flexibility_effects:
 
-Changes to the power profile due to flexibility actions
+Changes to the power profile due to flexibility activations
 =====================================================
 
 Just below the power profile, the net effect of flexibility actions that have previously been ordered is plotted.
 The profile indicates the change in power resulting from actions that are planned in the future, and from actions that had been planned in the past.
-Positive values indicate an increase in production or a decrease in consumption, both of which result in an increased load on the network.
-For short-term flexibility actions, this is sometimes called up-regulation.
-Negative values indicate a decrease in production or an increase in consumption, which result in a decreased load on the network (down-regulation).
 When flexibility opportunities exist in the selected time window, the plot is overlaid with highlights (see :ref:`portfolio_flexibility_opportunities` ).
 
 
 .. _portfolio_flexibility_opportunities:
 
-Opportunities to valorise on flexibility actions
+Opportunities to valorise on flexibility activations
 ==============================================
 
 When flexibility opportunities exist in the selected time window, plots are overlaid with highlights indicating time slots in which flexibility actions can be taken in the future or were missed in the past.
@@ -87,3 +86,6 @@ The user can follow up on identified opportunities by taking a flexibility actio
     :target: ../../../../../../portfolio
     :align: center
 ..    :scale: 40%
+
+
+.. note:: Read more on flexibility opportunities and activations on :ref:`benefits_of_flex`

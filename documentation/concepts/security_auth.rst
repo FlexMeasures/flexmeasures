@@ -1,6 +1,6 @@
-.. _data:
+.. _security:
 
-How is security taken into account?
+Security aspects
 ====================================
 
 Data

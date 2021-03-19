@@ -25,11 +25,6 @@ Therefore, this documentation uses USEF terminology, e.g. for role definitions.
 The intended users of FlexMeasures are a Supplier (energy company) and its Prosumers (asset owners who have energy contracts with that Supplier).
 The platform operator of FlexMeasures can be an Aggregator.
 
-.. toctree::
-    :caption: Purpose
-    :maxdepth: 1
-    services
-    benefits
 
 .. toctree::
    :maxdepth: 1
@@ -38,7 +33,18 @@ The platform operator of FlexMeasures can be an Aggregator.
    changelog
 
 .. toctree::
-    :caption: The pages
+    :caption: Concepts
+    :maxdepth: 1
+
+    concepts/services
+    concepts/benefits
+    concepts/benefits_of_flex
+    concepts/algorithms
+    concepts/security_auth
+
+
+.. toctree::
+    :caption: The in-built UI
     :maxdepth: 1
 
     views/dashboard
@@ -46,17 +52,6 @@ The platform operator of FlexMeasures can be an Aggregator.
     views/control
     views/analytics
     views/admin
-
-
-.. toctree::
-    :maxdepth: 1
-    :caption: Tutorials
-
-    tut/supplier
-    tut/prosumer
-    tut/aggregator
-    tut/esco
-
 
 .. toctree::
     :caption: API Documentation
@@ -77,18 +72,6 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 2
 
     int/introduction
-
-
-.. toctree::
-    :caption: Narrative contents
-    :maxdepth: 2
-
-    qa/users
-    qa/assets
-    qa/markets
-    qa/components
-    qa/algorithms
-    qa/data
 
 
 Code documentation

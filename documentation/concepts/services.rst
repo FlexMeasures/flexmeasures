@@ -3,7 +3,7 @@
 .. _services:
 
 **************************************************
-Services of the FlexMeasures Platform
+Services 
 **************************************************
 
 Monitoring
