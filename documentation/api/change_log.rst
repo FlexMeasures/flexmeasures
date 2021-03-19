@@ -14,6 +14,10 @@ v2.0 | 2021-02-23
 
     - Rewrote the subsection on prognoses to explain the horizon and prior parameters.
 
+- Changed the Simulation section:
+
+    - Rewrote relevant examples using horizon and prior parameters.
+
 v2.0 | 2021-02-19
 """""""""""""""""""
 

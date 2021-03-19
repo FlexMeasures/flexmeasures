@@ -86,7 +86,8 @@ Weather data can be posted for the following three types of weather sensors:
 
 The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
 
-This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm for a weather sensor located at latitude 33.4843866 and longitude 126.477859. The forecasts were made at noon.
+This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm for a weather sensor located at latitude 33.4843866 and longitude 126.477859.
+The forecasts were made at noon.
 
 .. code-block:: json
 
@@ -103,20 +104,22 @@ This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute 
             ],
             "start": "2015-01-01T15:00:00+09:00",
             "duration": "PT1H30M",
-            "horizon": "PT4H30M",
+            "prior": "2015-01-01T12:00:00+09:00",
             "unit": "°C"
         }
 
 Observations vs forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To post an observation rather than a forecast, simply set the horizon to "PT0H".
+To post an observation rather than a forecast, simply set the prior to the moment at which the observations were made, e.g. at "2015-01-01T16:30:00+09:00".
 This denotes that the observation was made exactly after realisation of this list of temperature readings, i.e. at 4.30pm.
 
-Alternatively, to indicate that each individual observation was made directly after the end of its 15-minute interval (i.e. at 3.15pm, 3.30pm and so on), set the horizon to "R/PT0H".
+Alternatively, to indicate that each individual observation was made directly after the end of its 15-minute interval (i.e. at 3.15pm, 3.30pm and so on), set a horizon to "PT0H" instead of a prior.
 
 Finally, delays in reading out sensor data can be simulated by setting the horizon field to a negative value.
-For example, a horizon of "-PT1H" would denote that this list of temperature readings was observed one hour after the fact (i.e. at 5.30pm).
+For example, a horizon of "-PT1H" would denote that each temperature reading was observed one hour after the fact (i.e. at 4.15pm, 4.30 pm and so on).
+
+See :ref:`prognoses` for more information regarding the prior and horizon fields.
 
 
 Posting price data
@@ -339,7 +342,7 @@ This example requests a prognosis with a rolling horizon of 6 hours before reali
         "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT24H",
-        "horizon": "R/PT6H",
+        "horizon": "PT6H",
         "resolution": "PT15M",
         "unit": "MW"
     }
