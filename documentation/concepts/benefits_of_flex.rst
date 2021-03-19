@@ -3,6 +3,10 @@
 Benefits from energy flexibility
 ====================================
 
+.. contents::
+    :local:
+    :depth: 1
+
 
 Flexibility opportunities and activation
 -----------------------------------------
