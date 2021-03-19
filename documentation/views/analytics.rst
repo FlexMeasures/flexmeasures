@@ -20,7 +20,7 @@ In particular, the page contains:
 
 .. _analytics_controls:
 
-Data Filtering
+Data filtering
 =============
 
 FlexMeasures offers data analytics on various aggregation levels: per asset, per asset type or even per higher aggregation levels like all renewables.

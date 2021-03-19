@@ -75,7 +75,7 @@ Changes to the power profile due to flexible schedules
 A crucial goal of FlexMeasures is to visualise the opportunities within flexible schedules.
 This goal is not yet completely realised, but we show a mock here of how this could like when realised: 
 
-Just below the power profile, the net effect of flexible schedules that have previously been compute by FlexMeasures is plotted.
+Just below the power profile, the net effect of flexible schedules that have previously been computed by FlexMeasures is plotted.
 The profile indicates the change in power resulting from schedules that are planned in the future, as well as from schedules that had been planned in the past.
 Positive values indicate an increase in production or a decrease in consumption, both of which result in an increased load on the network.
 For short-term flexibility changes, this is sometimes called up-regulation.
