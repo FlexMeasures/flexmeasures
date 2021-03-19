@@ -3,6 +3,10 @@
 Benefits from energy flexibility
 ====================================
 
+FlexMeasures was created so that the value of energy flexibility can be realised.
+This will make energy cheaper to use less CO2.
+Here, we define a few terms around this idea, which come up in other parts of this documentation.
+
 .. contents::
     :local:
     :depth: 1
