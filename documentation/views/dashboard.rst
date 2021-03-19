@@ -5,7 +5,7 @@ Dashboard
 *********
 
 The dashboard shows where the user's assets are located and how many different asset types are connected to the platform.
-The view serves to quickly identify the status of assets, such as whether they are taking part in any flexibility actions or whether there are upcoming opportunities to valorise on flexibility actions.
+The view serves to quickly identify the status of assets, such as whether there are upcoming opportunities to valorise on flexibility actions.
 In particular, the page contains:
 
 .. contents::
@@ -13,13 +13,19 @@ In particular, the page contains:
     :depth: 1
 
 
+.. image:: https://github.com/SeitaBV/screenshots/raw/main/screenshot_dashboard.png
+    :align: center
+..    :scale: 40%
+
+
 .. _dashboard_map:
 
 Interactive map of assets
 =========================
 
-The map shows all of the user's assets, using color codes to indicate whether the platform has identified upcoming flexibility opportunities.
-Clicking on an asset allows the user to navigate to the :ref:`control` page to verify the offered flexibility action and to possibly order the action.
+The map shows all of the user's assets with icons for each asset type.
+Clicking on an asset allows the user to see its current state (e.g. latest measurement of wind power production) and to navigate to the :ref:`analaytics` page
+to see more details, for instance forecasts.
 
 
 .. _dashboard_summary:
@@ -27,10 +33,6 @@ Clicking on an asset allows the user to navigate to the :ref:`control` page to v
 Summary of asset types
 ======================
 
-The summary below the map lists all asset types that the user has hooked up to the platform.
+The summary below the map lists all asset types that the user has hooked up to the platform and how many of each there are.
+Clicking on the asset type name leads to the :ref:`analaytics` page, where data is shown aggregated for that asset type. 
 
-
-.. image:: ../img/screenshot_dashboard.png
-    :target: ../../../../../../dashboard
-    :align: center
-..    :scale: 40%
