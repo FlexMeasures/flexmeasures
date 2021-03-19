@@ -129,3 +129,16 @@ def verify_sensor_data_in_db(
     if swapped_sign:
         bdf["event_value"] = -bdf["event_value"]
     assert bdf["event_value"].tolist() == values
+
+
+def message_for_post_prognosis():
+    message = {
+        "type": "PostPrognosisRequest",
+        "connection": "ea1.2018-06.localhost:1:1",
+        "values": [300, 300, 300, 0, 0, 300],
+        "start": "2021-01-01T00:00:00Z",
+        "duration": "PT1H30M",
+        "prior": "2020-12-31T18:00:00Z",
+        "unit": "MW",
+    }
+    return message
