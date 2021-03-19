@@ -2,7 +2,7 @@ import isodate
 from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime as datetime_type, timedelta
 
-from flask import request
+from flask import current_app, request
 from flask_json import as_json
 from flask_security import current_user
 import timely_beliefs as tb
@@ -239,9 +239,9 @@ def create_connection_and_value_groups(  # noqa: C901
 
     If power values are not forecasts, forecasting jobs are created.
     """
-    from flask import current_app
 
     current_app.logger.info("POSTING POWER DATA")
+
     data_source = get_or_create_user_data_source(current_user)
     user_assets = get_assets()
     if not user_assets:

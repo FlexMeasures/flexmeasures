@@ -151,7 +151,9 @@ def post_weather_data_response(  # noqa: C901
     duration,
     resolution,
 ):
+
     current_app.logger.info("POSTING WEATHER DATA")
+
     data_source = get_or_create_user_data_source(current_user)
     weather_measurements = []
     forecasting_jobs = []
