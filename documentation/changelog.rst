@@ -9,6 +9,7 @@ v0.2.4 | March XX, 2021
 Bugfixes
 --------
 * Documentation listed 2.0 API endpoints twice [see `PR #59 <http://www.github.com/SeitaBV/flexmeasures/pull/59>`_]
+* User page did not list number of assets correctly [see `PR #64 <http://www.github.com/SeitaBV/flexmeasures/pull/64>`_]
 
 
 v0.2.3 | February 27, 2021
