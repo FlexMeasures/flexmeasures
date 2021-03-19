@@ -6,7 +6,7 @@ from isodate import duration_isoformat, parse_duration, parse_datetime
 import pandas as pd
 from numpy import tile
 
-from flexmeasures.utils.entity_address_utils import parse_entity_address
+from flexmeasures.api.common.utils.api_utils import get_generic_asset
 from flexmeasures.data.models.markets import Market, Price
 
 
@@ -139,20 +139,12 @@ def message_for_post_weather_data(
     return message
 
 
-def get_market(post_message) -> Optional[Market]:
-    """util method to get market from our post message"""
-    market_info = parse_entity_address(post_message["market"], "market")
-    if market_info is None:
-        return None
-    return Market.query.filter_by(name=market_info["market_name"]).one_or_none()
-
-
 def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     """util method to verify that price data ended up in the database"""
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
     horizon = parse_duration(post_message["horizon"])
-    market: Market = get_market(post_message)
+    market: Market = get_generic_asset(post_message["market"], "market")
     resolution = market.event_resolution
     query = (
         db.session.query(Price.value, Price.horizon)

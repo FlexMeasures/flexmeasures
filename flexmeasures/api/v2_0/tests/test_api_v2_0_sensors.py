@@ -3,10 +3,8 @@ import pytest
 from datetime import timedelta
 from iso8601 import parse_date
 
+from flexmeasures.api.common.utils.api_utils import get_generic_asset
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.v1_1.tests.utils import (
-    get_market,
-)
 from flexmeasures.api.v2_0.tests.utils import (
     message_for_post_price_data,
     verify_prices_in_db,
@@ -46,7 +44,7 @@ def test_post_price_data_2_0(db, app, post_message):
     )  # only one market is affected, but two horizons
     horizons = [timedelta(hours=24), timedelta(hours=48)]
     jobs = sorted(app.queues["forecasting"].jobs, key=lambda x: x.kwargs["horizon"])
-    market = get_market(post_message)
+    market = get_generic_asset(post_message["market"], "market")
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
