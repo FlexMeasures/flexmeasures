@@ -345,7 +345,9 @@ def get_weather_sensor_by(
     return weather_sensor
 
 
-def get_generic_asset(asset_descriptor, entity_type):
+def get_generic_asset(
+    asset_descriptor, entity_type
+) -> Union[Asset, Market, WeatherSensor, None]:
     """
     Get a generic asset from form information
     # TODO: After refactoring, unify 3 generic_asset cases -> 1 sensor case
