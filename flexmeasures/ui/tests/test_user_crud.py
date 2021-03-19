@@ -51,7 +51,7 @@ def test_user_page(client, as_admin, requests_mock):
     assert (
         "Account overview for %s" % mock_user["username"]
     ).encode() in user_page.data
-    assert (">3</a>").encode() in user_page.data  # this is the asset cound
+    assert (">3</a>").encode() in user_page.data  # this is the asset count
     assert mock_user["email"].encode() in user_page.data
 
 
