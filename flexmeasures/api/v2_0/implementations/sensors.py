@@ -218,6 +218,38 @@ def post_weather_data_response(  # noqa: C901
     return save_to_db(weather_measurements, forecasting_jobs)
 
 
+@type_accepted("PostMeterDataRequest")
+@units_accepted("power", "MW")
+@assets_required("connection")
+@values_required
+@optional_horizon_accepted(ex_post=True)
+@optional_prior_accepted(ex_post=True)
+@period_required
+@post_data_checked_for_required_resolution("connection")
+@as_json
+def post_meter_data_response(
+    unit,
+    generic_asset_name_groups,
+    value_groups,
+    horizon,
+    prior,
+    start,
+    duration,
+    resolution,
+) -> ResponseTuple:
+    return post_power_data(
+        unit,
+        generic_asset_name_groups,
+        value_groups,
+        horizon,
+        prior,
+        start,
+        duration,
+        resolution,
+        create_forecasting_jobs_too=True,
+    )
+
+
 @type_accepted("PostPrognosisRequest")
 @units_accepted("power", "MW")
 @assets_required("connection")
@@ -237,6 +269,31 @@ def post_prognosis_response(
     duration,
     resolution,
 ) -> ResponseTuple:
+    return post_power_data(
+        unit,
+        generic_asset_name_groups,
+        value_groups,
+        horizon,
+        prior,
+        start,
+        duration,
+        resolution,
+        create_forecasting_jobs_too=False,
+    )
+
+
+def post_power_data(
+    unit,
+    generic_asset_name_groups,
+    value_groups,
+    horizon,
+    prior,
+    start,
+    duration,
+    resolution,
+    create_forecasting_jobs_too,
+):
+
     # additional validation, todo: to be moved into Marshmallow
     if horizon is None and prior is None:
         extra_info = "Missing horizon or prior."
@@ -250,6 +307,7 @@ def post_prognosis_response(
         current_app.logger.info("User doesn't seem to have any assets")
     user_asset_ids = [asset.id for asset in user_assets]
     power_measurements = []
+    forecasting_jobs = []
     for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
         for connection in connection_group:
 
@@ -304,4 +362,16 @@ def post_prognosis_response(
                 ]
             )
 
-    return save_to_db(power_measurements, forecasting_jobs=[])
+            if create_forecasting_jobs_too:
+                forecasting_jobs.extend(
+                    create_forecasting_jobs(
+                        "Power",
+                        asset_id,
+                        start,
+                        start + duration,
+                        resolution=duration / len(value_group),
+                        enqueue=False,  # will enqueue later, only if we successfully saved power measurements
+                    )
+                )
+
+    return save_to_db(power_measurements, forecasting_jobs)
