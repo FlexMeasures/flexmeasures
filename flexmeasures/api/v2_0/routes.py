@@ -690,6 +690,90 @@ def post_meter_data():
     return v1_implementations.post_meter_data_response()
 
 
+@flexmeasures_api_v2_0.route("/postPrognosis", methods=["POST"])
+@as_response_type("PostPrognosisResponse")
+@auth_token_required
+@usef_roles_accepted(*list_access(v2_0_service_listing, "postPrognosis"))
+def post_prognosis():
+    """API endpoint to post prognoses about meter data.
+
+    .. :quickref: User; Upload prognosis to the platform
+
+    **Optional parameters**
+
+    - "horizon" (see :ref:`prognoses`)
+    - "prior" (see :ref:`prognoses`)
+
+    **Example request**
+
+    This "PostPrognosisRequest" message posts prognosed consumption for 15-minute intervals between 0.00am and 1.30am for
+    charging stations 1, 2 and 3 (negative values denote production), prognosed at 6pm the previous day.
+
+    .. code-block:: json
+
+        {
+            "type": "PostPrognosisRequest",
+            "groups": [
+                {
+                    "connections": [
+                        "ea1.2018-06.localhost:1:3",
+                        "ea1.2018-06.localhost:1:4"
+                    ],
+                    "values": [
+                        300,
+                        300,
+                        300,
+                        0,
+                        0,
+                        300
+                    ]
+                },
+                {
+                    "connections": [
+                        "ea1.2018-06.localhost:1:5"
+                    ],
+                    "values": [
+                        300,
+                        0,
+                        0,
+                        0,
+                        300,
+                        300
+                    ]
+                }
+            ],
+            "start": "2021-01-01T00:00:00Z",
+            "duration": "PT1H30M",
+            "prior": "2020-12-31T18:00:00Z",
+            "unit": "MW"
+        }
+
+    It is allowed to send higher resolutions (in this example for instance, 30 minutes) which will be upsampled.
+
+    **Example response**
+
+    This "PostPrognosisResponse" message indicates that the prognosis has been processed without any error.
+
+    .. sourcecode:: json
+
+        {
+            "type": "PostPrognosisResponse",
+            "status": "PROCESSED",
+            "message": "Request has been processed."
+        }
+
+    :reqheader Authorization: The authentication token
+    :reqheader Content-Type: application/json
+    :resheader Content-Type: application/json
+    :status 200: PROCESSED
+    :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_UNIT, REQUIRED_INFO_MISSING, UNRECOGNIZED_ASSET or UNRECOGNIZED_CONNECTION_GROUP
+    :status 401: UNAUTHORIZED
+    :status 403: INVALID_SENDER
+    :status 405: INVALID_METHOD
+    """
+    return v2_0_implementations.sensors.post_prognosis_response()
+
+
 @flexmeasures_api_v2_0.route("/getService", methods=["GET"])
 @as_response_type("GetServiceResponse")
 @append_doc_of(v1_3_routes.get_service)

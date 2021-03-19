@@ -1,13 +1,18 @@
 from datetime import timedelta
 
 from flask import current_app
+from flask_json import as_json
 from flask_security import current_user
 
 from flexmeasures.api.common.responses import (
     invalid_domain,
     invalid_horizon,
     invalid_unit,
+    power_value_too_big,
+    power_value_too_small,
     unrecognized_market,
+    unrecognized_connection_group,
+    ResponseTuple,
 )
 from flexmeasures.api.common.utils.api_utils import (
     get_or_create_user_data_source,
@@ -27,9 +32,11 @@ from flexmeasures.api.common.utils.validators import (
     period_required,
     values_required,
 )
+from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
+from flexmeasures.data.services.resources import get_assets
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
@@ -209,3 +216,92 @@ def post_weather_data_response(  # noqa: C901
                 )
 
     return save_to_db(weather_measurements, forecasting_jobs)
+
+
+@type_accepted("PostPrognosisRequest")
+@units_accepted("power", "MW")
+@assets_required("connection")
+@values_required
+@optional_horizon_accepted(ex_post=False)
+@optional_prior_accepted(ex_post=False)
+@period_required
+@post_data_checked_for_required_resolution("connection")
+@as_json
+def post_prognosis_response(
+    unit,
+    generic_asset_name_groups,
+    value_groups,
+    horizon,
+    prior,
+    start,
+    duration,
+    resolution,
+) -> ResponseTuple:
+    # additional validation, todo: to be moved into Marshmallow
+    if horizon is None and prior is None:
+        extra_info = "Missing horizon or prior."
+        return invalid_horizon(extra_info)
+
+    current_app.logger.info("POSTING POWER DATA")
+
+    data_source = get_or_create_user_data_source(current_user)
+    user_assets = get_assets()
+    if not user_assets:
+        current_app.logger.info("User doesn't seem to have any assets")
+    user_asset_ids = [asset.id for asset in user_assets]
+    power_measurements = []
+    for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
+        for connection in connection_group:
+
+            # TODO: get asset through util function after refactoring
+            # Parse the entity address
+            try:
+                connection = parse_entity_address(connection, entity_type="connection")
+            except EntityAddressException as eae:
+                return invalid_domain(str(eae))
+            asset_id = connection["asset_id"]
+
+            # Look for the Asset object
+            if asset_id in user_asset_ids:
+                asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
+            else:
+                current_app.logger.warning("Cannot identify connection %s" % connection)
+                return unrecognized_connection_group()
+
+            # Validate the sign of the values (following USEF specs with positive consumption and negative production)
+            if asset.is_pure_consumer and any(v < 0 for v in value_group):
+                extra_info = (
+                    "Connection %s is registered as a pure consumer and can only receive non-negative values."
+                    % asset.entity_address
+                )
+                return power_value_too_small(extra_info)
+            elif asset.is_pure_producer and any(v > 0 for v in value_group):
+                extra_info = (
+                    "Connection %s is registered as a pure producer and can only receive non-positive values."
+                    % asset.entity_address
+                )
+                return power_value_too_big(extra_info)
+
+            # Convert to timely-beliefs terminology
+            event_starts, event_values, belief_horizons = determine_belief_horizons(
+                value_group, start, resolution, horizon, prior, asset
+            )
+
+            # Create new Power objects
+            power_measurements.extend(
+                [
+                    Power(
+                        datetime=event_start,
+                        value=event_value
+                        * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
+                        horizon=belief_horizon,
+                        asset_id=asset.id,
+                        data_source_id=data_source.id,
+                    )
+                    for event_start, event_value, belief_horizon in zip(
+                        event_starts, event_values, belief_horizons
+                    )
+                ]
+            )
+
+    return save_to_db(power_measurements, forecasting_jobs=[])
