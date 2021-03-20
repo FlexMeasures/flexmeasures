@@ -161,7 +161,7 @@ def create_hover_tool(  # noqa: C901
 
 def make_range(
     index: pd.DatetimeIndex, other_index: pd.DatetimeIndex = None
-) -> Union[None, Range1d]:
+) -> Optional[Range1d]:
     """Make a 1D range of values from a datetime index or two. Useful to share axis among Bokeh Figures."""
     index = tz_index_naively(index)
     other_index = tz_index_naively(other_index)
@@ -245,13 +245,13 @@ def create_graph(  # noqa: C901
         "Forecast",
         "Schedules",
     ),
-    x_range: Range1d = None,
-    forecasts: pd.DataFrame = None,
-    schedules: pd.DataFrame = None,
+    x_range: Optional[Range1d] = None,
+    forecasts: Optional[pd.DataFrame] = None,
+    schedules: Optional[pd.DataFrame] = None,
     show_y_floats: bool = False,
     non_negative_only: bool = False,
-    tools: List[str] = None,
-    sizing_mode="scale_width",
+    tools: Optional[List[str]] = None,
+    sizing_mode: str = "scale_width",
 ) -> Figure:
     """
     Create a Bokeh graph. As of now, assumes x data is datetimes and y data is numeric. The former is not set in stone.
@@ -282,6 +282,10 @@ def create_graph(  # noqa: C901
     # Set x range
     if x_range is None:
         x_range = make_range(data.index)
+        if x_range is None and schedules is not None:
+            x_range = make_range(schedules.index)
+        if x_range is None and forecasts is not None:
+            x_range = make_range(forecasts.index)
     data = tz_index_naively(data)
 
     # Set default y range in case there is no data from which to derive a range
