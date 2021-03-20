@@ -535,6 +535,8 @@ def make_power_figure(
         title = "Electricity consumption of %s" % resource_display_name
     else:
         title = "Electricity production from %s" % resource_display_name
+    if data.empty:
+        title = title.replace("Electricity", "Prognosed")
 
     return create_graph(
         data,
