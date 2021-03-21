@@ -345,3 +345,28 @@ def db_dump():
         click.echo("db dump successful")
     else:
         click.echo("db dump unsuccessful")
+
+
+@app.cli.command()
+@click.argument("file", type=click.Path(exists=True))
+def db_restore(file: str):
+    """Restore the database used by the app, from a given database dump file."""
+
+    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    db_host_and_db_name = db_uri.split("@")[-1]
+    click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
+    command_for_restoring = f"pg_restore -d {db_uri} {file}"
+    try:
+        proc = subprocess.Popen(command_for_restoring, shell=True)  # , env={
+        # 'PGPASSWORD': DB_PASSWORD
+        # })
+        proc.wait()
+        restore_success = 1
+
+    except Exception as e:
+        restore_success = 0
+        click.echo(f"Exception happened during restore: {e}")
+    if restore_success:
+        click.echo("db restore successful")
+    else:
+        click.echo("db restore unsuccessful")
