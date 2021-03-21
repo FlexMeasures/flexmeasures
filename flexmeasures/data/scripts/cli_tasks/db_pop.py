@@ -1,6 +1,7 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
 from datetime import timedelta
+import subprocess
 from typing import List
 
 import pandas as pd
@@ -321,3 +322,26 @@ def create_power_forecasts(
         end_of_roll=pd.Timestamp(to_date).tz_localize(timezone)
         - timedelta(hours=horizon_hours),
     )
+
+
+@app.cli.command()
+def db_dump():
+    """Create a database dump of the database used by the app."""
+    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    db_host_and_db_name = db_uri.split("@")[-1]
+    click.echo(f"Backing up {db_host_and_db_name} database")
+    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file=pgbackup_`date +%F-%H%M`.dump {db_uri}"
+    try:
+        proc = subprocess.Popen(command_for_dumping, shell=True)  # , env={
+        # 'PGPASSWORD': DB_PASSWORD
+        # })
+        proc.wait()
+        dump_success = 1
+
+    except Exception as e:
+        dump_success = 0
+        click.echo(f"Exception happened during dump: {e}")
+    if dump_success:
+        click.echo("db dump successful")
+    else:
+        click.echo("db dump unsuccessful")
