@@ -32,11 +32,15 @@ class UserForm(FlaskForm):
     active = BooleanField("Activation Status", validators=[DataRequired()])
 
 
-def render_user(user: Optional[User], msg: str = None):
+def render_user(user: Optional[User], asset_count: int = 0, msg: str = None):
     user_form = UserForm()
     user_form.process(obj=user)
     return render_flexmeasures_template(
-        "crud/user.html", user=user, user_form=user_form, msg=msg
+        "crud/user.html",
+        user=user,
+        user_form=user_form,
+        asset_count=asset_count,
+        msg=msg,
     )
 
 
@@ -88,8 +92,16 @@ class UserCrudUI(FlaskView):
         get_user_response = InternalApi().get(
             url_for("flexmeasures_api_v2_0.get_user", id=id)
         )
-        user = process_internal_api_response(get_user_response.json(), make_obj=True)
-        return render_user(user)
+        user: User = process_internal_api_response(
+            get_user_response.json(), make_obj=True
+        )
+        asset_count = 0
+        if user:
+            get_users_assets_response = InternalApi().get(
+                url_for("flexmeasures_api_v2_0.get_assets", owner_id=user.id)
+            )
+            asset_count = len(get_users_assets_response.json())
+        return render_user(user, asset_count=asset_count)
 
     @roles_required("admin")
     def toggle_active(self, id: str):
