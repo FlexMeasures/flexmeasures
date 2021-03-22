@@ -329,8 +329,9 @@ def db_dump():
     """Create a database dump of the database used by the app."""
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     db_host_and_db_name = db_uri.split("@")[-1]
+    db_name = db_host_and_db_name.split("/")[-1]
     click.echo(f"Backing up {db_host_and_db_name} database")
-    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file=pgbackup_`date +%F-%H%M`.dump {db_uri}"
+    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file=pgbackup_{db_name}_`date +%F-%H%M`.dump {db_uri}"
     try:
         proc = subprocess.Popen(command_for_dumping, shell=True)  # , env={
         # 'PGPASSWORD': DB_PASSWORD
