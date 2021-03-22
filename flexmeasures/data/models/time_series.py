@@ -153,3 +153,7 @@ class TimedValue(object):
             resolution=resolution,
             sum_multiple=sum_multiple,
         )
+
+
+class Sensor(db.Model, tb.SensorDBMixin):
+    """A sensor measures events. """
