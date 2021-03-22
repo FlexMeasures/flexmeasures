@@ -58,7 +58,7 @@ This may in fact not be needed:
 From the terminal:
 
 Open a console (use your Windows key and type `cmd`).
-Proceed to create a database as the postgres superuser (using your postgres user password)::
+Proceed to create a database as the postgres superuser (using your postgres user password):
 
     sudo -i -u postgres
     createdb -U postgres flexmeasures
