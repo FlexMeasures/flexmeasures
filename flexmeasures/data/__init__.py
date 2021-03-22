@@ -11,7 +11,7 @@ from flexmeasures.data.transactional import after_request_exception_rollback_ses
 def register_at(app: Flask):
     # First configure the central db object and Alembic's migration tool
     configure_db_for(app)
-    Migrate(app, db, directory=os.path.join(app.root_path, "migrations"))
+    Migrate(app, db, directory=os.path.join(app.root_path, "data", "migrations"))
 
     configure_auth(app, db)
 
