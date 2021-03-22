@@ -1,6 +1,6 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import subprocess
 from typing import List
 
@@ -329,9 +329,11 @@ def db_dump():
     """Create a database dump of the database used by the app."""
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     db_host_and_db_name = db_uri.split("@")[-1]
-    db_name = db_host_and_db_name.split("/")[-1]
     click.echo(f"Backing up {db_host_and_db_name} database")
-    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file=pgbackup_{db_name}_`date +%F-%H%M`.dump {db_uri}"
+    db_name = db_host_and_db_name.split("/")[-1]
+    time_of_saving = datetime.now().strftime("%F-%H%M")
+    dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
+    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
     try:
         proc = subprocess.Popen(command_for_dumping, shell=True)  # , env={
         # 'PGPASSWORD': DB_PASSWORD
@@ -343,7 +345,7 @@ def db_dump():
         dump_success = 0
         click.echo(f"Exception happened during dump: {e}")
     if dump_success:
-        click.echo("db dump successful")
+        click.echo(f"db dump successful: saved to {dump_filename}")
     else:
         click.echo("db dump unsuccessful")
 
