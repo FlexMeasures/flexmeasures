@@ -73,6 +73,7 @@ def get_power_chart(chart_request):
             "resolution": "PT15M",
             "consumption_as_positive": true
             "resolution": "PT6H",
+            "show_individual_traces_for": "none"  // can be power or schedules
         }
 
     On your webpage, you need to include the Bokeh libraries, e.g.:

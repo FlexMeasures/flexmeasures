@@ -62,7 +62,7 @@ v1_1_service_listing = {
 def get_connection():
     """API endpoint to get the user's connections as entity addresses ordered from newest to oldest.
 
-    .. :quickref: User; Retrieve entity addresses of connections
+    .. :quickref: Asset; Retrieve entity addresses of connections
 
 
     **Example request**
@@ -115,7 +115,7 @@ def get_connection():
 def post_price_data():
     """API endpoint to post price data.
 
-    .. :quickref: User; Upload price data to the platform
+    .. :quickref: Data; Upload price data to the platform
 
     **Optional parameters**
 
@@ -203,7 +203,7 @@ def post_weather_data():
 
     The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
 
-    .. :quickref: User; Upload weather data to the platform
+    .. :quickref: Data; Upload weather data to the platform
 
     **Optional parameters**
 
@@ -271,7 +271,7 @@ def post_weather_data():
 def get_prognosis():
     """API endpoint to get prognosis.
 
-    .. :quickref: User; Download prognosis from the platform
+    .. :quickref: Data; Download prognosis from the platform
 
     **Optional parameters**
 
@@ -339,7 +339,7 @@ def get_prognosis():
 def post_prognosis():
     """API endpoint to post prognoses about meter data.
 
-    .. :quickref: User; Upload prognosis to the platform
+    .. :quickref: Data; Upload prognosis to the platform
 
     **Optional parameters**
 

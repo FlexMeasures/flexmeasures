@@ -193,7 +193,7 @@ def replace_source_with_label(data: pd.DataFrame) -> pd.DataFrame:
             data["label"] = data["source"].apply(
                 lambda x: capitalize(x.label)
                 if isinstance(x, DataSource)
-                else x.capitalize()
+                else str(x).capitalize()
             )
             data.drop("source", axis=1, inplace=True)
     return data
