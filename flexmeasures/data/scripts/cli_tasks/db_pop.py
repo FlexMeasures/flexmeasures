@@ -353,7 +353,15 @@ def db_dump():
 @app.cli.command()
 @click.argument("file", type=click.Path(exists=True))
 def db_restore(file: str):
-    """Restore the database used by the app, from a given database dump file."""
+    """Restore the database used by the app, from a given database dump file, after you've reset the database.
+
+    From the command line:
+
+        % db-dump
+        % db-reset
+        % db-restore FILE
+
+    """
 
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     db_host_and_db_name = db_uri.split("@")[-1]
