@@ -62,10 +62,15 @@ def analytics_view():
         group for group in asset_groups if asset_groups[group].count() > 0
     ]
     selected_resource = set_session_resource(assets, asset_group_names)
+    if selected_resource is None:
+        raise Exception(
+            "No assets exist yet, so the analytics view will not work. Please add an asset!"
+        )
+
     selected_market = set_session_market(selected_resource)
     sensor_types = get_sensor_types(selected_resource)
-    selected_sensor_type = set_session_sensor_type(sensor_types)
     session_asset_types = selected_resource.unique_asset_types
+    selected_sensor_type = set_session_sensor_type(sensor_types)
     set_individual_traces_for_session()
     view_shows_individual_traces = (
         session["showing_individual_traces_for"] in ("power", "schedules")
@@ -84,6 +89,8 @@ def analytics_view():
     # Only show production positive if all assets are producers
     show_consumption_as_positive = False if showing_pure_production_data else True
 
+    # ---- Get data
+
     data, metrics, weather_type, selected_weather_sensor = get_data_and_metrics(
         query_window,
         resolution,
@@ -97,59 +104,20 @@ def analytics_view():
         selected_resource.assets,
     )
 
+    # TODO: get rid of these hacks, which we use because we mock the current year's data from 2015 data in demo mode
+    # Our demo server uses 2015 data as if it's the current year's data. Here we mask future beliefs.
+    if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
+        data = filter_for_past_data(data)
+        data = filter_forecasts_for_limited_time_window(data)
+
+    # ---- Making figures
+
     # Set shared x range
     shared_x_range = Range1d(start=query_window[0], end=query_window[1])
     shared_x_range2 = Range1d(
         start=query_window[0], end=query_window[1]
     )  # only needed if we draw two legends (if individual traces are on)
 
-    # TODO: get rid of this hack, which we use because we mock the current year's data from 2015 data in demo mode
-    # Our demo server uses 2015 data as if it's the current year's data. Here we mask future beliefs.
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
-
-        most_recent_quarter = time_utils.get_most_recent_quarter()
-
-        # Show only past data, pretending we're in the current year
-        if not data["power"].empty:
-            data["power"] = data["power"].loc[
-                data["power"].index.get_level_values("event_start")
-                < most_recent_quarter
-            ]
-        if not data["prices"].empty:
-            data["prices"] = data["prices"].loc[
-                data["prices"].index < most_recent_quarter + timedelta(hours=24)
-            ]  # keep tomorrow's prices
-        if not data["weather"].empty:
-            data["weather"] = data["weather"].loc[
-                data["weather"].index < most_recent_quarter
-            ]
-        if not data["rev_cost"].empty:
-            data["rev_cost"] = data["rev_cost"].loc[
-                data["rev_cost"].index.get_level_values("event_start")
-                < most_recent_quarter
-            ]
-
-        # Show forecasts only up to a limited horizon
-        horizon_days = 10  # keep a 10 day forecast
-        max_forecast_datetime = most_recent_quarter + timedelta(hours=horizon_days * 24)
-        if not data["power_forecast"].empty:
-            data["power_forecast"] = data["power_forecast"].loc[
-                data["power_forecast"].index < max_forecast_datetime
-            ]
-        if not data["prices_forecast"].empty:
-            data["prices_forecast"] = data["prices_forecast"].loc[
-                data["prices_forecast"].index < max_forecast_datetime
-            ]
-        if not data["weather_forecast"].empty:
-            data["weather_forecast"] = data["weather_forecast"].loc[
-                data["weather_forecast"].index < max_forecast_datetime
-            ]
-        if not data["rev_cost_forecast"].empty:
-            data["rev_cost_forecast"] = data["rev_cost_forecast"].loc[
-                data["rev_cost_forecast"].index < max_forecast_datetime
-            ]
-
-    # Making figures
     tools = ["box_zoom", "reset", "save"]
     power_fig = make_power_figure(
         selected_resource.display_name,
@@ -518,6 +486,53 @@ def get_data_and_metrics(
         showing_individual_traces_for in ("power", "schedules"),
     )
     return data, metrics, weather_type, selected_sensor
+
+
+def filter_for_past_data(data):
+    """ Make sure we only show past data, useful for demo mode """
+    most_recent_quarter = time_utils.get_most_recent_quarter()
+
+    if not data["power"].empty:
+        data["power"] = data["power"].loc[
+            data["power"].index.get_level_values("event_start") < most_recent_quarter
+        ]
+    if not data["prices"].empty:
+        data["prices"] = data["prices"].loc[
+            data["prices"].index < most_recent_quarter + timedelta(hours=24)
+        ]  # keep tomorrow's prices
+    if not data["weather"].empty:
+        data["weather"] = data["weather"].loc[
+            data["weather"].index < most_recent_quarter
+        ]
+    if not data["rev_cost"].empty:
+        data["rev_cost"] = data["rev_cost"].loc[
+            data["rev_cost"].index.get_level_values("event_start") < most_recent_quarter
+        ]
+    return data
+
+
+def filter_forecasts_for_limited_time_window(data):
+    """ Show forecasts only up to a limited horizon """
+    most_recent_quarter = time_utils.get_most_recent_quarter()
+    horizon_days = 10  # keep a 10 day forecast
+    max_forecast_datetime = most_recent_quarter + timedelta(hours=horizon_days * 24)
+    if not data["power_forecast"].empty:
+        data["power_forecast"] = data["power_forecast"].loc[
+            data["power_forecast"].index < max_forecast_datetime
+        ]
+    if not data["prices_forecast"].empty:
+        data["prices_forecast"] = data["prices_forecast"].loc[
+            data["prices_forecast"].index < max_forecast_datetime
+        ]
+    if not data["weather_forecast"].empty:
+        data["weather_forecast"] = data["weather_forecast"].loc[
+            data["weather_forecast"].index < max_forecast_datetime
+        ]
+    if not data["rev_cost_forecast"].empty:
+        data["rev_cost_forecast"] = data["rev_cost_forecast"].loc[
+            data["rev_cost_forecast"].index < max_forecast_datetime
+        ]
+    return data
 
 
 def make_power_figure(
