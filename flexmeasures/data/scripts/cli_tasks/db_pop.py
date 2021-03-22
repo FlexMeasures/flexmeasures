@@ -339,14 +339,10 @@ def db_dump():
         # 'PGPASSWORD': DB_PASSWORD
         # })
         proc.wait()
-        dump_success = 1
+        click.echo(f"db dump successful: saved to {dump_filename}")
 
     except Exception as e:
-        dump_success = 0
         click.echo(f"Exception happened during dump: {e}")
-    if dump_success:
-        click.echo(f"db dump successful: saved to {dump_filename}")
-    else:
         click.echo("db dump unsuccessful")
 
 
@@ -372,12 +368,8 @@ def db_restore(file: str):
         # 'PGPASSWORD': DB_PASSWORD
         # })
         proc.wait()
-        restore_success = 1
+        click.echo("db restore successful")
 
     except Exception as e:
-        restore_success = 0
         click.echo(f"Exception happened during restore: {e}")
-    if restore_success:
-        click.echo("db restore successful")
-    else:
         click.echo("db restore unsuccessful")
