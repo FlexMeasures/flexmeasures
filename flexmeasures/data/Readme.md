@@ -105,7 +105,7 @@ You need data to enjoy the benefits of FlexMeasures or to develop features for i
 
 ### Import from another database
 
-Here is a short recipe to import data from a database (e.g. a demo database) into your local system.
+Here is a short recipe to import data from a FlexMeasures database (e.g. a demo database) into your local system.
 
 On the to-be-exported database:
 
