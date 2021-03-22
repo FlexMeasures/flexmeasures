@@ -209,7 +209,7 @@ def simplify_index(
                 else:
                     raise KeyError(f"Level {col} not found")
     bdf.index = bdf.index.get_level_values("event_start")
-    return pd.DataFrame(bdf)
+    return bdf
 
 
 def multiply_dataframe_with_deterministic_beliefs(

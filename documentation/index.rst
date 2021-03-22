@@ -38,12 +38,11 @@ The platform operator of FlexMeasures can be an Aggregator.
    changelog
 
 .. toctree::
-    :caption: The pages
+    :caption: The in-built UI
     :maxdepth: 1
 
     views/dashboard
     views/portfolio
-    views/control
     views/analytics
     views/admin
 
@@ -59,7 +58,7 @@ The platform operator of FlexMeasures can be an Aggregator.
 
 
 .. toctree::
-    :caption: API Documentation
+    :caption: The API 
     :maxdepth: 1
 
     api/introduction
@@ -86,7 +85,6 @@ The platform operator of FlexMeasures can be an Aggregator.
     qa/users
     qa/assets
     qa/markets
-    qa/components
     qa/algorithms
     qa/data
 
