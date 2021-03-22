@@ -1,12 +1,13 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import MetaData
+import sqlalchemy as sa
 from flask_sqlalchemy import SQLAlchemy
 from flask import Flask
 
 from flexmeasures.data.models import naming_convention
 
 
-db: SQLAlchemy = None  # type: ignore
+db: sa = None  # typed attributes unavailable in flask-sqlalchemy, see https://github.com/pallets/flask-sqlalchemy/issues/867
 Base = None  # type: ignore
 session_options = None
 
