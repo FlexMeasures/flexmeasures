@@ -347,7 +347,7 @@ If not used, |FLEXMEASURES_PLATFORM_NAME| will infer the prior from the arrival 
 
 The "prior" field (a timestamp) can be used to set a single time at which the entire prognosis was recorded.
 Alternatively, the "horizon" field (a duration) can be used to set the recording times relative to each prognosed event.
-In case both fields are set, the earliest recording time is determined.
+In case both fields are set, the earliest possible recording time is determined and recorded for each prognosed event.
 
 The two timing fields follow the ISO 8601 standard and are interpreted as follows:
 
