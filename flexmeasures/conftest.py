@@ -24,6 +24,7 @@ from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
+from flexmeasures.data.models.time_series import Sensor
 
 
 """
@@ -372,6 +373,16 @@ def add_weather_sensors(db: SQLAlchemy):
         unit="°C",
     )
     db.session.add(sensor)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def add_sensors(db: SQLAlchemy):
+    """Add some generic sensors."""
+    height_sensor = Sensor(
+        name="my daughter's height",
+        unit="m",
+    )
+    db.session.add(height_sensor)
 
 
 @pytest.fixture(scope="function", autouse=True)
