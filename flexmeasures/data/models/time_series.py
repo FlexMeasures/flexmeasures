@@ -14,10 +14,15 @@ from flexmeasures.data.queries.utils import (
     exclude_source_type_filter,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
+from flexmeasures.utils.entity_address_utils import build_entity_address
 
 
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
+
+    @property
+    def entity_address(self) -> str:
+        return build_entity_address(dict(sensor_id=self.id), "sensor")
 
 
 class TimedValue(object):

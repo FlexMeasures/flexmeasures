@@ -72,7 +72,9 @@ def build_entity_address(
             return ""
         return f":{entity_info[field]}"
 
-    if entity_type == "connection":
+    if entity_type == "sensor":
+        locally_unique_str = f"{build_field('sensor_id')}"
+    elif entity_type == "connection":
         locally_unique_str = (
             f"{build_field('owner_id', required=False)}{build_field('asset_id')}"
         )
@@ -87,7 +89,7 @@ def build_entity_address(
     return build_ea_scheme_and_naming_authority(host) + locally_unique_str
 
 
-def parse_entity_address(entity_address: str, entity_type: str) -> dict:
+def parse_entity_address(entity_address: str, entity_type: str) -> dict:  # noqa: C901
     """
     Parses a generic asset name into an info dict.
 
@@ -98,6 +100,8 @@ def parse_entity_address(entity_address: str, entity_type: str) -> dict:
 
     For example:
 
+        sensor = ea1.2021-01.io.flexmeasures:42
+        sensor = ea1.2021-01.io.flexmeasures:<sensor_id>
         connection = ea1.2021-01.localhost:40:30
         connection = ea1.2021-01.io.flexmeasures:<owner_id>:<asset_id>
         weather_sensor = ea1.2021-01.io.flexmeasures:temperature:52:73.0
@@ -123,10 +127,27 @@ def parse_entity_address(entity_address: str, entity_type: str) -> dict:
             f"After '{ADDR_SCHEME}.', a date spec of the format {date_regex} is expected."
         )
     # Also the entity type
-    if entity_type not in ("connection", "weather_sensor", "market", "event"):
+    if entity_type not in ("sensor", "connection", "weather_sensor", "market", "event"):
         raise EntityAddressException(f"Unrecognized entity type: {entity_type}")
 
-    if entity_type == "connection":
+    if entity_type == "sensor":
+        match = re.search(
+            r"^"
+            r"(?P<scheme>.+)\."
+            fr"(?P<naming_authority>{date_regex}\.[^:]+)"  # everything until the colon (no port)
+            r":"
+            r"(?P<sensor_id>\d+)"
+            r"$",
+            entity_address,
+        )
+        if match:
+            value_types = {
+                "scheme": str,
+                "naming_authority": str,
+                "sensor_id": int,
+            }
+            return _typed_regex_results(match, value_types)
+    elif entity_type == "connection":
         match = re.search(
             r"^"
             r"(?P<scheme>.+)\."
