@@ -105,11 +105,11 @@ You need data to enjoy the benefits of FlexMeasures or to develop features for i
 
 ### Import from another database
 
-Here is a short recipe to import data from a database (e.g. a demo database) into your local system.
+Here is a short recipe to import data from a FlexMeasures database (e.g. a demo database) into your local system.
 
 On the to-be-exported database:
 
-    pg_dump --host=YOUR_URL --port=YOUR_PORT --username=YOUR_USER --no-privileges --no-owner --data-only --format=c --file=pgbackup_`date +%F-%H%M`.dump YOUR_DB_NAME
+    flask db-dump
 
 Note that we only dump the data here. Locally, we create a fresh database with the structure being based on the data model given by the local codebase:
 
@@ -117,7 +117,7 @@ Note that we only dump the data here. Locally, we create a fresh database with t
 
 Then we import the data dump we made earlier:
 
-    pg_restore -U YOUR_DEV_USER --password -h 127.0.0.1 -d YOUR_DEV_DB_NAME ~/Downloads/pgbackup_YOUR_DATETIME.dump
+    flask db-restore <DATABASE DUMP FILENAME>
 
 A potential `alembic_version` error should not prevent other data tables from being restored.
 You can also choose to import a complete db dump into a freshly created database, of course.

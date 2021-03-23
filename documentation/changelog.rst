@@ -11,8 +11,11 @@ Bugfixes
 * Show screenshots in documentation and add some missing content [see `PR #60 <http://www.github.com/SeitaBV/flexmeasures/pull/60>`_]
 * Documentation listed 2.0 API endpoints twice [see `PR #59 <http://www.github.com/SeitaBV/flexmeasures/pull/59>`_]
 * Better xrange and title if only schedules are plotted [see `PR #67 <http://www.github.com/SeitaBV/flexmeasures/pull/67>`_]
+* User page did not list number of assets correctly [see `PR #64 <http://www.github.com/SeitaBV/flexmeasures/pull/64>`_]
 
-
+Infrastructure/Support
+----------------------
+* Dump and restore postgres database as CLI commands [see `PR #68 <https://github.com/SeitaBV/flexmeasures/pull/68>`_]
 
 v0.2.3 | February 27, 2021
 ===========================
