@@ -72,7 +72,7 @@ def post_price_data_response(  # noqa C901
     data_source = get_or_create_user_data_source(current_user)
     prices = []
     forecasting_jobs = []
-    for market_group, value_group in zip(generic_asset_name_groups, value_groups):
+    for market_group, event_values in zip(generic_asset_name_groups, value_groups):
         for market in market_group:
 
             # Parse the entity address
@@ -90,8 +90,8 @@ def post_price_data_response(  # noqa C901
                 return invalid_unit("%s prices" % market.display_name, [market.unit])
 
             # Convert to timely-beliefs terminology
-            event_starts, event_values, belief_horizons = determine_belief_horizons(
-                value_group, start, resolution, horizon, prior, market
+            event_starts, belief_horizons = determine_belief_horizons(
+                event_values, start, resolution, horizon, prior, market
             )
 
             # Create new Price objects
@@ -119,7 +119,7 @@ def post_price_data_response(  # noqa C901
                     market.id,
                     max(start, start + duration - timedelta(hours=24)),
                     start + duration,
-                    resolution=duration / len(value_group),
+                    resolution=duration / len(event_values),
                     horizons=[timedelta(hours=24), timedelta(hours=48)],
                     enqueue=False,  # will enqueue later, only if we successfully saved prices
                 )
@@ -155,7 +155,7 @@ def post_weather_data_response(  # noqa: C901
     data_source = get_or_create_user_data_source(current_user)
     weather_measurements = []
     forecasting_jobs = []
-    for sensor_group, value_group in zip(generic_asset_name_groups, value_groups):
+    for sensor_group, event_values in zip(generic_asset_name_groups, value_groups):
         for sensor in sensor_group:
 
             # Parse the entity address
@@ -177,8 +177,8 @@ def post_weather_data_response(  # noqa: C901
             )
 
             # Convert to timely-beliefs terminology
-            event_starts, event_values, belief_horizons = determine_belief_horizons(
-                value_group, start, resolution, horizon, prior, weather_sensor
+            event_starts, belief_horizons = determine_belief_horizons(
+                event_values, start, resolution, horizon, prior, weather_sensor
             )
 
             # Create new Weather objects
@@ -209,7 +209,7 @@ def post_weather_data_response(  # noqa: C901
                         weather_sensor.id,
                         start,
                         start + duration,
-                        resolution=duration / len(value_group),
+                        resolution=duration / len(event_values),
                         horizons=[horizon],
                         enqueue=False,  # will enqueue later, only if we successfully saved weather measurements
                     )
@@ -308,7 +308,7 @@ def post_power_data(
     user_asset_ids = [asset.id for asset in user_assets]
     power_measurements = []
     forecasting_jobs = []
-    for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
+    for connection_group, event_values in zip(generic_asset_name_groups, value_groups):
         for connection in connection_group:
 
             # TODO: get asset through util function after refactoring
@@ -327,13 +327,13 @@ def post_power_data(
                 return unrecognized_connection_group()
 
             # Validate the sign of the values (following USEF specs with positive consumption and negative production)
-            if asset.is_pure_consumer and any(v < 0 for v in value_group):
+            if asset.is_pure_consumer and any(v < 0 for v in event_values):
                 extra_info = (
                     "Connection %s is registered as a pure consumer and can only receive non-negative values."
                     % asset.entity_address
                 )
                 return power_value_too_small(extra_info)
-            elif asset.is_pure_producer and any(v > 0 for v in value_group):
+            elif asset.is_pure_producer and any(v > 0 for v in event_values):
                 extra_info = (
                     "Connection %s is registered as a pure producer and can only receive non-positive values."
                     % asset.entity_address
@@ -341,8 +341,8 @@ def post_power_data(
                 return power_value_too_big(extra_info)
 
             # Convert to timely-beliefs terminology
-            event_starts, event_values, belief_horizons = determine_belief_horizons(
-                value_group, start, resolution, horizon, prior, asset
+            event_starts, belief_horizons = determine_belief_horizons(
+                event_values, start, resolution, horizon, prior, asset
             )
 
             # Create new Power objects
@@ -369,7 +369,7 @@ def post_power_data(
                         asset_id,
                         start,
                         start + duration,
-                        resolution=duration / len(value_group),
+                        resolution=duration / len(event_values),
                         enqueue=False,  # will enqueue later, only if we successfully saved power measurements
                     )
                 )

@@ -426,4 +426,4 @@ def determine_belief_horizons(event_values, start, resolution, horizon, prior, s
         ]
     else:
         raise ValueError("Missing horizon or prior.")
-    return event_starts, event_values, belief_horizons
+    return event_starts, belief_horizons
