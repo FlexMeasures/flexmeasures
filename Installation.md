@@ -22,7 +22,7 @@ Set a secret key which is used to sign user sessions and re-salt their passwords
 
 This suffices for a quick start.
 
-If you want to consistenly use FlexMeasures, we recommend you add this setting to your config file at `~/.flexmeasures.cfg` and use a truly random string. Here is a Pythonic way to generate a good secret key:
+If you want to consistently use FlexMeasures, we recommend you add this setting to your config file at `~/.flexmeasures.cfg` and use a truly random string. Here is a Pythonic way to generate a good secret key:
 
     `python -c "import secrets; print(secrets.token_urlsafe())"`
 
