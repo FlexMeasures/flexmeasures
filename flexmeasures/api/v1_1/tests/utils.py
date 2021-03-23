@@ -1,5 +1,5 @@
 """Useful test messages"""
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from datetime import timedelta
 from isodate import duration_isoformat, parse_duration, parse_datetime
 
@@ -51,7 +51,7 @@ def message_for_get_prognosis(
 def message_for_post_price_data(
     tile_n: int = 1,
     compress_n: int = 1,
-    duration: Optional[timedelta] = None,
+    duration: Optional[Union[timedelta, str]] = None,
     invalid_unit: bool = False,
 ) -> dict:
     """
@@ -60,7 +60,8 @@ def message_for_post_price_data(
     :param tile_n:       Tile the price profile back to back to obtain price data for n days (default = 1).
     :param compress_n:   Compress the price profile to obtain price data with a coarser resolution (default = 1),
                          e.g. compress=4 leads to a resolution of 4 hours.
-    :param duration:     Set a duration explicitly to obtain price data with a coarser or finer resolution
+    :param duration:     timedelta or iso8601 string
+                         Set a duration explicitly to obtain price data with a coarser or finer resolution
                          (the default is equal to 24 hours * tile_n),
                          e.g. (assuming tile_n=1) duration=timedelta(hours=6) leads to a resolution of 15 minutes,
                          and duration=timedelta(hours=48) leads to a resolution of 2 hours.
@@ -104,7 +105,11 @@ def message_for_post_price_data(
         "unit": "EUR/MWh",
     }
     if duration is not None:
-        message["duration"] = duration
+        message["duration"] = (
+            duration_isoformat(duration)
+            if isinstance(duration, timedelta)
+            else duration
+        )
     if compress_n > 1:
         message["values"] = message["values"][::compress_n]
     if invalid_unit:
