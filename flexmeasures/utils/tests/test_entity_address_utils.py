@@ -14,6 +14,18 @@ from flexmeasures.utils.time_utils import get_first_day_of_next_month
     "info, entity_type, host, exp_result",
     [
         (
+            dict(sensor_id=42),
+            "sensor",
+            "flexmeasures.io",
+            "ea1.2021-01.io.flexmeasures:42",
+        ),
+        (
+            dict(asset_id=42),
+            "sensor",
+            "flexmeasures.io",
+            "required field 'sensor_id'",
+        ),
+        (
             dict(owner_id=3, asset_id=40),
             "connection",
             "flexmeasures.io",
