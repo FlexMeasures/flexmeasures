@@ -23,6 +23,7 @@ from flexmeasures.data.services.users import create_user, find_user_by_email
 from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 
 
 """
@@ -342,6 +343,35 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
     )
     bidirectional_charging_station.owner = test_prosumer
     db.session.add(bidirectional_charging_station)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def add_weather_sensors(db: SQLAlchemy):
+    """Add some weather sensors and weather sensor types."""
+
+    test_sensor_type = WeatherSensorType(name="wind_speed")
+    db.session.add(test_sensor_type)
+    sensor = WeatherSensor(
+        name="wind_speed_sensor",
+        weather_sensor_type_name="wind_speed",
+        event_resolution=timedelta(minutes=5),
+        latitude=33.4843866,
+        longitude=126,
+        unit="m/s",
+    )
+    db.session.add(sensor)
+
+    test_sensor_type = WeatherSensorType(name="temperature")
+    db.session.add(test_sensor_type)
+    sensor = WeatherSensor(
+        name="temperature_sensor",
+        weather_sensor_type_name="temperature",
+        event_resolution=timedelta(minutes=5),
+        latitude=33.4843866,
+        longitude=126.0,
+        unit="°C",
+    )
+    db.session.add(sensor)
 
 
 @pytest.fixture(scope="function", autouse=True)
