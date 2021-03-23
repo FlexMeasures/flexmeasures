@@ -20,7 +20,6 @@ def setup_api_test_data(db):
 
     from flexmeasures.data.models.user import User, Role
     from flexmeasures.data.models.assets import Asset, AssetType
-    from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
@@ -97,30 +96,5 @@ def setup_api_test_data(db):
         power_forecasts.append(p_2)
         power_forecasts.append(p_3)
     db.session.bulk_save_objects(power_forecasts)
-
-    # Create 2 weather sensors
-    test_sensor_type = WeatherSensorType(name="wind_speed")
-    db.session.add(test_sensor_type)
-    sensor = WeatherSensor(
-        name="wind_speed_sensor",
-        weather_sensor_type_name="wind_speed",
-        event_resolution=timedelta(minutes=5),
-        latitude=33.4843866,
-        longitude=126,
-        unit="m/s",
-    )
-    db.session.add(sensor)
-
-    test_sensor_type = WeatherSensorType(name="temperature")
-    db.session.add(test_sensor_type)
-    sensor = WeatherSensor(
-        name="temperature_sensor",
-        weather_sensor_type_name="temperature",
-        event_resolution=timedelta(minutes=5),
-        latitude=33.4843866,
-        longitude=126,
-        unit="°C",
-    )
-    db.session.add(sensor)
 
     print("Done setting up data for API v1.1 tests")
