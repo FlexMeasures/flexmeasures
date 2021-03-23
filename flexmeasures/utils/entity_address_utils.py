@@ -59,9 +59,10 @@ def build_entity_address(
     Returns the address as string.
     """
     if host is None:
-        # TODO: Assume localhost if request is not given either (for tests/simulations),
-        #       or should we raise?
-        host = urlparse(request.url).netloc
+        try:
+            host = urlparse(request.url).netloc
+        except RuntimeError:
+            host = "localhost"
 
     def build_field(field: str, required: bool = True):
         if required and field not in entity_info:
@@ -89,7 +90,10 @@ def build_entity_address(
     return build_ea_scheme_and_naming_authority(host) + locally_unique_str
 
 
-def parse_entity_address(entity_address: str, entity_type: str) -> dict:  # noqa: C901
+def parse_entity_address(  # noqa: C901
+    entity_address: str,
+    entity_type: str,
+) -> dict:
     """
     Parses a generic asset name into an info dict.
 
@@ -254,14 +258,14 @@ def build_ea_scheme_and_naming_authority(
                 [domain_parts.subdomain, domain_parts.domain, domain_parts.suffix],
             )
         )
-        if config_var_domain_key in current_app.config.get(
+        if domain_parts.domain in ("localhost", "127.0.0.1"):
+            host_auth_start_month = get_first_day_of_next_month().strftime("%Y-%m")
+        elif config_var_domain_key in current_app.config.get(
             "FLEXMEASURES_HOSTS_AND_AUTH_START", {}
         ):
             host_auth_start_month = current_app.config.get(
                 "FLEXMEASURES_HOSTS_AND_AUTH_START", {}
             )[config_var_domain_key]
-        elif domain_parts.domain in ("localhost", "127.0.0.1"):
-            host_auth_start_month = get_first_day_of_next_month().strftime("%Y-%m")
         else:
             raise Exception(
                 f"Could not find out when authority for {config_var_domain_key} started. Is FLEXMEASURES_HOSTS_AND_AUTH_START configured for it?"
