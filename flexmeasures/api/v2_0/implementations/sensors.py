@@ -18,7 +18,7 @@ from flexmeasures.api.common.utils.api_utils import (
     get_or_create_user_data_source,
     get_weather_sensor_by,
     save_to_db,
-    determine_belief_horizons,
+    determine_belief_timing,
 )
 from flexmeasures.api.common.utils.validators import (
     unit_required,
@@ -90,7 +90,7 @@ def post_price_data_response(  # noqa C901
                 return invalid_unit("%s prices" % market.display_name, [market.unit])
 
             # Convert to timely-beliefs terminology
-            event_starts, belief_horizons = determine_belief_horizons(
+            event_starts, belief_horizons = determine_belief_timing(
                 event_values, start, resolution, horizon, prior, market
             )
 
@@ -177,7 +177,7 @@ def post_weather_data_response(  # noqa: C901
             )
 
             # Convert to timely-beliefs terminology
-            event_starts, belief_horizons = determine_belief_horizons(
+            event_starts, belief_horizons = determine_belief_timing(
                 event_values, start, resolution, horizon, prior, weather_sensor
             )
 
@@ -341,7 +341,7 @@ def post_power_data(
                 return power_value_too_big(extra_info)
 
             # Convert to timely-beliefs terminology
-            event_starts, belief_horizons = determine_belief_horizons(
+            event_starts, belief_horizons = determine_belief_timing(
                 event_values, start, resolution, horizon, prior, asset
             )
 
