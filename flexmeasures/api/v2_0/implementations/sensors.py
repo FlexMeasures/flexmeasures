@@ -134,7 +134,7 @@ def post_price_data_response(  # noqa C901
 @optional_prior_accepted()
 @values_required
 @period_required
-@post_data_checked_for_required_resolution("sensor")
+@post_data_checked_for_required_resolution("weather_sensor")
 def post_weather_data_response(  # noqa: C901
     unit,
     generic_asset_name_groups,
@@ -160,7 +160,7 @@ def post_weather_data_response(  # noqa: C901
 
             # Parse the entity address
             try:
-                ea = parse_entity_address(sensor, entity_type="sensor")
+                ea = parse_entity_address(sensor, entity_type="weather_sensor")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
             weather_sensor_type_name = ea["weather_sensor_type_name"]
