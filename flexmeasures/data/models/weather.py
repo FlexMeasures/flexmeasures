@@ -9,8 +9,9 @@ from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.time_series import Sensor, TimedValue
-from flexmeasures.utils.geo_utils import parse_lat_lng
+from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
+from flexmeasures.utils.geo_utils import parse_lat_lng
 
 
 class WeatherSensorType(db.Model):
@@ -77,6 +78,17 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
         super(WeatherSensor, self).__init__(**kwargs)
         self.id = new_sensor_id
         self.name = self.name.replace(" ", "_").lower()
+
+    @property
+    def entity_address(self) -> str:
+        return build_entity_address(
+            dict(
+                weather_sensor_type_name=self.weather_sensor_type_name,
+                latitude=self.latitude,
+                longitude=self.longitude,
+            ),
+            "weather_sensor",
+        )
 
     @property
     def weather_unit(self) -> float:
