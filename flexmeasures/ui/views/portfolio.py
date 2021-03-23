@@ -84,14 +84,6 @@ def portfolio_view():  # noqa: C901
         if sum_dict
         else pd.DataFrame()
     )
-    stack_dict = (
-        rename_event_value_column_to_resource_name(supply_resources_df_dict).values()
-        if show_summed == "consumption"
-        else rename_event_value_column_to_resource_name(
-            demand_resources_df_dict
-        ).values()
-    )
-    df_stacked_data = pd.concat(stack_dict, axis=1) if stack_dict else pd.DataFrame()
 
     # Create summed plot
     power_sum_df = data_or_zeroes(power_sum_df, start, end, resolution)
@@ -115,6 +107,14 @@ def portfolio_view():  # noqa: C901
     fig_profile.plot_width = 900
 
     # Create stacked plot
+    stack_dict = (
+        rename_event_value_column_to_resource_name(supply_resources_df_dict).values()
+        if show_summed == "consumption"
+        else rename_event_value_column_to_resource_name(
+            demand_resources_df_dict
+        ).values()
+    )
+    df_stacked_data = pd.concat(stack_dict, axis=1) if stack_dict else pd.DataFrame()
     df_stacked_data = data_or_zeroes(df_stacked_data, start, end, resolution)
     df_stacked_areas = stack_df(df_stacked_data)
 
@@ -146,7 +146,9 @@ def portfolio_view():  # noqa: C901
     flex_info = {}
     if current_app.config.get("FLEXMEASURES_MODE") == "demo":
         flex_info = mock_flex_info(assets, represented_asset_types)
-        fig_actions = mock_flex_figure(fig_profile, x_range, power_sum_df)
+        fig_actions = mock_flex_figure(
+            x_range, power_sum_df.index, fig_profile.plot_width
+        )
         mock_flex_action_in_main_figure(fig_profile)
         portfolio_plots_script, portfolio_plots_divs = components(
             (fig_profile, fig_actions)
@@ -160,10 +162,10 @@ def portfolio_view():  # noqa: C901
         markets=markets,
         production_per_asset=production_per_asset,
         consumption_per_asset=consumption_per_asset,
-        sum_production=sum(production_per_asset_type.values()),
-        sum_consumption=sum(consumption_per_asset_type.values()),
         production_per_asset_type=production_per_asset_type,
         consumption_per_asset_type=consumption_per_asset_type,
+        sum_production=sum(production_per_asset_type.values()),
+        sum_consumption=sum(consumption_per_asset_type.values()),
         flex_info=flex_info,
         portfolio_plots_script=portfolio_plots_script,
         portfolio_plots_divs=portfolio_plots_divs,
@@ -244,10 +246,8 @@ def mock_flex_info(assets, represented_asset_types) -> dict:
     return flex_info
 
 
-def mock_flex_figure(fig_profile, x_range, power_sum_df) -> Figure:
-    df_actions = pd.DataFrame(index=power_sum_df.index, columns=["event_value"]).fillna(
-        0
-    )
+def mock_flex_figure(x_range, x_index, fig_width) -> Figure:
+    df_actions = pd.DataFrame(index=x_index, columns=["event_value"]).fillna(0)
     next_action_hour4 = get_flex_action_hour(4)
     if next_action_hour4 in df_actions.index:
         if current_user.is_authenticated:
@@ -284,7 +284,7 @@ def mock_flex_figure(fig_profile, x_range, power_sum_df) -> Figure:
         y_label="Power (in MW)",
     )
     fig_actions.plot_height = 150
-    fig_actions.plot_width = fig_profile.plot_width
+    fig_actions.plot_width = fig_width
     fig_actions.xaxis.visible = False
 
     if current_user.is_authenticated and (
