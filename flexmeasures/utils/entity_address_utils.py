@@ -121,10 +121,10 @@ def parse_entity_address(entity_address: str, entity_type: str) -> dict:  # noqa
         raise EntityAddressException(
             f"A valid type 1 USEF entity address starts with '{ADDR_SCHEME}', please review {entity_address}"
         )
-    date_regex = r"[0-9]{4}-[0-9]{2}"
+    date_regex = r"([0-9]{4})-(0[1-9]|1[012])"
     if not re.search(fr"^{date_regex}$", entity_address[4:11]):
         raise EntityAddressException(
-            f"After '{ADDR_SCHEME}.', a date spec of the format {date_regex} is expected."
+            f"After '{ADDR_SCHEME}.', a date specification of the format {date_regex} is expected."
         )
     # Also the entity type
     if entity_type not in ("sensor", "connection", "weather_sensor", "market", "event"):
