@@ -4,12 +4,21 @@
 Algorithms
 ==========================================
 
+.. contents::
+    :local:
+    :depth: 2
+
 
 Forecasting
 -----------
 
 Forecasting algorithms are used by FlexMeasures to assess the likelihood of future consumption/production and prices.
-Weather forecasting is included in the platform, but is not the result of an internal algorithm (see :ref:`weather`).
+Weather forecasting is included in the platform, but is usually not the result of an internal algorithm (weather forecast services are being used by import scripts, e.g. with `this tool <https://github.com/SeitaBV/weatherforecaststorage>`_).
+
+FlexMeasures uses linear regression and falls back to naive forecasting of the last known value if errors happen. 
+What mght be even more important than the type of algorithm is the features handed to the model ― lagged values (e.g. value of the same time yesterday) and regressors (e.g. wind speed prediction to forecast wind power production).
+
+
 The performance of our algorithms is indicated by the mean absolute error (MAE) and the weighted absolute percentage error (WAPE).
 Power profiles on an asset level often include zero values, such that the mean absolute percentage error (MAPE), a common statistical measure of forecasting accuracy, is undefined.
 For such profiles, it is more useful to report the WAPE, which is also known as the volume weighted MAPE.
@@ -64,35 +73,58 @@ Improvements:
 - Most assets have yearly seasonalities (e.g. wind, solar) and therefore forecasts would benefit from >= 2 years of history.
 
 
-Broker
-------
+Scheduling 
+------------
 
-A broker algorithm is used by the Aggregator to analyse flexibility in the Supplier's portfolio of assets, and to suggest the most valuable DR actions to take for each time slot.
-The actions are presented to the Supplier as flexibility offers in the form of an order book.
+Based on decisions about control opportunities, a planning algorithm is used by the Aggregator (in case of explicit DR) or by the Energy Service Company (in case of implicit DR) to form instructions for the Prosumer's flexible assets.
 
-Defaults:
+Storage devices
+^^^^^^^^^^^^^^^
 
--
+So far, FlexMeasures provides algorithms for storage ― for batteries (e.g. home batteries or EVs) and car charging stations.
+We thus cover the asset types "battery", "one-way_evse" and "two-way_evse".
 
-Trading
--------
+These algorithms schedule the storage assets based directly on the latest beliefs regarding market prices, within the specified time window.
+They are mixed integer linear programs, which are configured in FlexMeasures and then handed to a dedicated solver.
 
+For all scheduling algorithms, a starting state of charge (SOC) as well as a set of SOC targets can be given. If not there is no starting SOC given, FlexMeausures tries to retrieve the current state of charge from the asset (if that is the valid one at the start). If that is not possible, we set the starting SOC to 0. Note that some assets don't use the concept of a state of charge, so without SOC targets and limits the starting SOC doesn't matter.
+
+Also, per default we incentivise the algorithms to prefer scheduling charging now rather than later, and discharging later rather than now.
+We achieve this by adding a tiny artificial price slope. We penalise the future with at most 1 per thousand times the price spread. This behaviour can be turned off with the `prefer_charging_sooner` parameter set to `False`.
+
+.. note:: For the resulting consumption schedule, consumption is defined as positive values.
+    
+
+Possible future work on algorithms
+-----------------------------------
+
+Enabling more algorihtmic expression in FlexMeasures is crucial. This are a few ideas for future work. Some of them are excellent topics for Bachelor or Master theses. so get in touch if that is of interest to you.
+
+More configurable forecasting
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+On the roadmap for FlexMeasures is to make features easier to configure, especially regressors.
+Furthermore, we plan to add more types of forecasting algorithms, like random forest or even LSTM.
+
+
+Other optimisation goals for scheduling
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Next to market prices, optimisation goals like reduced CO2 emissions are sometimes required. There are mutiple ways to measure this, e.g. against the CO2 mix in the grid, or the use of fossil fuels.
+
+
+Scheduling of other flexible asset types
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Next to storage, there are other interesting flexible assets which can require specific implementations. For shifting, there are heatpumps or other buffers. For curtailment, there are windmills or solar panels.
+
+.. note:: See :ref:`opportunity_types` for more info on shifting and curtailement.
+
+Broker algorithm
+^^^^^^^^^^^^^^^^^
+A broker algorithm is used by the Aggregator to analyse flexibility in the Supplier's portfolio of assets, and to suggest the most valuable DR actions to take for each time slot. The differences to single-asset scheduling are that these actions are based on a helicopter perspective (the aggregator optimises a portfolio, not a simgle asset) and that the flexibility offers are presented to the Supplier in the form of an order book.
+
+
+Trading algorithm
+^^^^^^^^^^^^^^^^^^
 A trading algorithm is used to assist the Supplier with its decision-making across time slots, based on the order books made by the broker (see above).
 The algorithm suggests which offers should be accepted next, and the Supplier may automate its decision-making by letting the algorithm place orders on its behalf.
 
-Defaults:
-
-- (Myopic greedy strategy) Order all flexibility with a positive expected value in the first available timeslot, then those in the second available timeslot, and so on.
-
-
-
-
-Planning
---------
-
-Based on decisions about control opportunities, a planning algorithm is used by the Aggregator (in case of explicit DR) or by the Energy Service Company (in case of implicit DR)
-to form instructions for the Prosumer's flexible assets.
-
-Defaults:
-
-- 
+A default approach would be a myopic greedy strategy ― order all flexibility opprtunities with a positive expected value in the first available timeslot, then those in the second available timeslot, and so on.
