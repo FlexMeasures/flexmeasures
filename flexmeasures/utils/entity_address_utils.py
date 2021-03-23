@@ -98,14 +98,14 @@ def parse_entity_address(entity_address: str, entity_type: str) -> dict:
 
     For example:
 
-        connection = ea1.2018-06.localhost:40:30
-        connection = ea1.2018-06.io.flexmeasures:<owner_id>:<asset_id>
-        weather_sensor = ea1.2018-06.io.flexmeasures:temperature:52:73.0
-        weather_sensor = ea1.2018-06.io.flexmeasures:<sensor_type>:<latitude>:<longitude>
-        market = ea1.2018-06.io.flexmeasures:epex_da
-        market = ea1.2018-06.io.flexmeasures:<market_name>
-        event = ea1.2018-06.io.flexmeasures:40:30:302:soc
-        event = ea1.2018-06.io.flexmeasures:<owner_id>:<asset_id>:<event_id>:<event_type>
+        connection = ea1.2021-01.localhost:40:30
+        connection = ea1.2021-01.io.flexmeasures:<owner_id>:<asset_id>
+        weather_sensor = ea1.2021-01.io.flexmeasures:temperature:52:73.0
+        weather_sensor = ea1.2021-01.io.flexmeasures:<sensor_type>:<latitude>:<longitude>
+        market = ea1.2021-01.io.flexmeasures:epex_da
+        market = ea1.2021-01.io.flexmeasures:<market_name>
+        event = ea1.2021-01.io.flexmeasures:40:30:302:soc
+        event = ea1.2021-01.io.flexmeasures:<owner_id>:<asset_id>:<event_id>:<event_type>
 
     Returns a dictionary with scheme, naming_authority and various other fields,
     depending on the entity type (see examples above).
