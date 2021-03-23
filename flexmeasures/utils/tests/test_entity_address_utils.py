@@ -98,7 +98,7 @@ def test_build_entity_address(
         (
             "connection",
             "ea1.2018-RR.localhost:40:30",
-            "date spec of the format",
+            "date specification",
         ),
         (
             "weather_sensor",
