@@ -1,6 +1,7 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
+import subprocess
 from typing import List
 
 import pandas as pd
@@ -321,3 +322,54 @@ def create_power_forecasts(
         end_of_roll=pd.Timestamp(to_date).tz_localize(timezone)
         - timedelta(hours=horizon_hours),
     )
+
+
+@app.cli.command()
+def db_dump():
+    """Create a database dump of the database used by the app."""
+    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    db_host_and_db_name = db_uri.split("@")[-1]
+    click.echo(f"Backing up {db_host_and_db_name} database")
+    db_name = db_host_and_db_name.split("/")[-1]
+    time_of_saving = datetime.now().strftime("%F-%H%M")
+    dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
+    command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
+    try:
+        proc = subprocess.Popen(command_for_dumping, shell=True)  # , env={
+        # 'PGPASSWORD': DB_PASSWORD
+        # })
+        proc.wait()
+        click.echo(f"db dump successful: saved to {dump_filename}")
+
+    except Exception as e:
+        click.echo(f"Exception happened during dump: {e}")
+        click.echo("db dump unsuccessful")
+
+
+@app.cli.command()
+@click.argument("file", type=click.Path(exists=True))
+def db_restore(file: str):
+    """Restore the database used by the app, from a given database dump file, after you've reset the database.
+
+    From the command line:
+
+        % db-dump
+        % db-reset
+        % db-restore FILE
+
+    """
+
+    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    db_host_and_db_name = db_uri.split("@")[-1]
+    click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
+    command_for_restoring = f"pg_restore -d {db_uri} {file}"
+    try:
+        proc = subprocess.Popen(command_for_restoring, shell=True)  # , env={
+        # 'PGPASSWORD': DB_PASSWORD
+        # })
+        proc.wait()
+        click.echo("db restore successful")
+
+    except Exception as e:
+        click.echo(f"Exception happened during restore: {e}")
+        click.echo("db restore unsuccessful")
