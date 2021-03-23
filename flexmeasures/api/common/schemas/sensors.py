@@ -80,6 +80,7 @@ class SensorField(fields.Str):
                     )
         except EntityAddressException as eae:
             raise EntityAddressValidationError(str(eae))
+        return NotImplemented
 
     def _serialize(
         self, value: Union[Sensor, Asset, Market, WeatherSensor], attr, data, **kwargs
