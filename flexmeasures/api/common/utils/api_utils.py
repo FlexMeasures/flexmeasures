@@ -1,6 +1,6 @@
-from typing import List, Union, Sequence
+from typing import List, Sequence, Tuple, Union
 import copy
-from datetime import timedelta
+from datetime import datetime, timedelta
 from json import loads as parse_json, JSONDecodeError
 
 from flask import current_app
@@ -8,6 +8,7 @@ from inflection import pluralize
 from numpy import array
 from rq.job import Job
 from sqlalchemy.exc import IntegrityError
+import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.models.assets import Asset, Power
@@ -403,9 +404,21 @@ def save_to_db(
             return already_received_and_successfully_processed()
 
 
-def determine_belief_horizons(event_values, start, resolution, horizon, prior, sensor):
-    """Determine belief horizons given a horizon, prior, or both,
-    and taking into account the sensor's knowledge horizon function."""
+def determine_belief_timing(
+    event_values: list,
+    start: datetime,
+    resolution: timedelta,
+    horizon: timedelta,
+    prior: datetime,
+    sensor: tb.Sensor,
+) -> Tuple[List[datetime], List[timedelta]]:
+    """Determine event starts from start, resolution and len(event_values),
+    and belief horizons from horizon, prior, or both, taking into account
+    the sensor's knowledge horizon function.
+
+    In case both horizon and prior is set, we take the greatest belief horizon,
+    which represents the earliest belief time.
+    """
     event_starts = [start + j * resolution for j in range(len(event_values))]
     if horizon is not None and prior is not None:
         belief_horizons_from_horizon = [horizon] * len(event_values)
