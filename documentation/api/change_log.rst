@@ -3,7 +3,7 @@
 API change log
 ===============
 
-v2.0 | 2021-02-23
+v2.0 | 2021-03-23
 """""""""""""""""
 
 - [**Breaking change**] Switched the interpretation of horizons to rolling horizons.
