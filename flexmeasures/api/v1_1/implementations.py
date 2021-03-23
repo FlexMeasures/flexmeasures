@@ -13,6 +13,7 @@ from flexmeasures.api.common.responses import (
     invalid_domain,
     invalid_unit,
     unrecognized_market,
+    ResponseTuple,
 )
 from flexmeasures.api.common.utils.api_utils import (
     save_to_db,
@@ -177,6 +178,9 @@ def post_weather_data_response(  # noqa: C901
             weather_sensor = get_weather_sensor_by(
                 weather_sensor_type_name, latitude, longitude
             )
+            if type(weather_sensor) == ResponseTuple:
+                # Error message telling the user about the nearest weather sensor they can post to
+                return weather_sensor
 
             # Create new Weather objects
             for j, value in enumerate(value_group):

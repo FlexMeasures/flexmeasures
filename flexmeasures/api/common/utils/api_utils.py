@@ -296,7 +296,7 @@ def get_or_create_user_data_source(user: User) -> DataSource:
 
 def get_weather_sensor_by(
     weather_sensor_type_name: str, latitude: float = 0, longitude: float = 0
-) -> WeatherSensor:
+) -> Union[WeatherSensor, ResponseTuple]:
     """
     Search a weather sensor by type and location.
     Can create a weather sensor if needed (depends on API mode)
