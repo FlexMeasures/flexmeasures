@@ -55,7 +55,7 @@ Name being used in headings
 Default: `"FlexMeasures"`
 
 ### FLEXMEASURES_HIDE_NAN_IN_UI
-Whether to display the word "nan" if any value in metrics tables is `NaN`.
+Whether to hide the word "nan" if any value in metrics tables is `NaN`.
 
 Default: `False`
 
@@ -137,7 +137,7 @@ This is actually part of Flask - but is also used by Flask-Security to sign all 
 
 It is critical this is set to a strong value. For python3 consider using: `secrets.token_urlsafe()`
 
-You can also set this in a file (which some Flask tutorials advised). leave this setting set to `None` to get more instructions.
+You can also set this in a file (which some Flask tutorials advised). Leave this setting set to `None` to get more instructions.
 
 Default: `None`
 
