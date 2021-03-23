@@ -19,7 +19,7 @@ In an energy system with flexible energy assets present (e.g. batteries, heating
 opportunities to activate such flexibility.
 
 The opportunity lies in waiting with a planned comsumption or generation action ("shifting") or to
-adapt an action ("curtailment") ― see :ref:`opportunity_types` for a deeper discussion.
+adapt an action ("curtailment") ― see :ref:`opportunity_types` for a deeper discussion. Often, such opprtunities are discussed under the label "demand reponse".
 
 Within FlexMeasures, this opportunity can be regarded as the difference between suggested schedules (the activation of flexibility) and forecasts (how the assets are expected to act without activation of flexibility).
 
@@ -31,7 +31,7 @@ For short-term changes in power due to activation of flexibility opportunities, 
 On the other hand, negative values indicate a decrease in production or an increase in consumption,
 which result in a decreased load on the network (`"down-regulation"`).
 
-Finally, flexibility actions have commercial value that users can valorise on. This value can fall to the platform operator or be shared among stakeholders. We talk more about this in :ref:`activation_profits`.
+Finally, flexibility activations have commercial value that users can valorise on. This value can fall to the platform operator or be shared among stakeholders. We talk more about this in :ref:`activation_profits`.
 
 
 .. _opportunity_types:

@@ -6,12 +6,12 @@ Planning ahead allows flexible assets to serve the whole system with their flexi
 e.g. by shifting or curtailing energy use.
 This can also be profitable for their owners.
 
-The FlexMeasures Platform is a tool for scheduling flexible actions for energy assets.
+The FlexMeasures Platform is a tool for scheduling flexibility activations for energy assets.
 For this purpose, it performs three services:
 
 * Monitoring of incoming measurements
 * Forecasting of expected measurements
-* Scheduling flexible actions with custom optimization
+* Scheduling flexibility activations with custom optimization
 
 For more on FlexMeasures services, read :ref:`services`.
 

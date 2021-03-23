@@ -23,7 +23,7 @@ The performance of our algorithms is indicated by the mean absolute error (MAE) 
 Power profiles on an asset level often include zero values, such that the mean absolute percentage error (MAPE), a common statistical measure of forecasting accuracy, is undefined.
 For such profiles, it is more useful to report the WAPE, which is also known as the volume weighted MAPE.
 The MAE of a power profile gives an indication of the size of the uncertainty in consumption and production.
-This allows the user to compare an asset's predictability to its flexibility, i.e. to the size of possible flexibility actions.
+This allows the user to compare an asset's predictability to its flexibility, i.e. to the size of possible flexibility activations.
 
 Example benchmarks per asset type are listed in the table below for various assets and forecasting horizons.
 FlexMeasures updates the benchmarks automatically for the data currently selected by the user.
@@ -119,7 +119,7 @@ Next to storage, there are other interesting flexible assets which can require s
 
 Broker algorithm
 ^^^^^^^^^^^^^^^^^
-A broker algorithm is used by the Aggregator to analyse flexibility in the Supplier's portfolio of assets, and to suggest the most valuable DR actions to take for each time slot. The differences to single-asset scheduling are that these actions are based on a helicopter perspective (the aggregator optimises a portfolio, not a simgle asset) and that the flexibility offers are presented to the Supplier in the form of an order book.
+A broker algorithm is used by the Aggregator to analyse flexibility in the Supplier's portfolio of assets, and to suggest the most valuable flexibility activations to take for each time slot. The differences to single-asset scheduling are that these activations are based on a helicopter perspective (the aggregator optimises a portfolio, not a simgle asset) and that the flexibility offers are presented to the Supplier in the form of an order book.
 
 
 Trading algorithm

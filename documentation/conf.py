@@ -178,7 +178,7 @@ texinfo_documents = [
         f"{project} Documentation",
         author,
         project,
-        f"The {project} Platform is a tool for scheduling flexible energy actions on behalf of the connected asset owners.",
+        f"The {project} Platform is a tool for scheduling energy flexibility activations on behalf of the connected asset owners.",
         "Miscellaneous",
     )
 ]

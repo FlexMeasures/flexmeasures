@@ -5,7 +5,7 @@ Dashboard
 *********
 
 The dashboard shows where the user's assets are located and how many different asset types are connected to the platform.
-The view serves to quickly identify the status of assets, such as whether there are upcoming opportunities to valorise on flexibility actions.
+The view serves to quickly identify the status of assets, such as whether there are upcoming opportunities to valorise on flexibility activations.
 In particular, the page contains:
 
 .. contents::
