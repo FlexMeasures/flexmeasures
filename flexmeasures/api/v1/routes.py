@@ -34,7 +34,7 @@ v1_service_listing = {
 def get_meter_data():
     """API endpoint to get meter data.
 
-    .. :quickref: User; Download meter data from the platform
+    .. :quickref: Data; Download meter data from the platform
 
     **Optional fields**
 
@@ -99,7 +99,7 @@ def get_meter_data():
 def post_meter_data():
     """API endpoint to post meter data.
 
-    .. :quickref: User; Upload meter data to the platform
+    .. :quickref: Data; Upload meter data to the platform
 
     **Optional fields**
 

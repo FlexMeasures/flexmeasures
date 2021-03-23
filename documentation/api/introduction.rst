@@ -3,8 +3,8 @@
 Introduction
 ============
 
-This document details the Application Programming Interface (API) of the |FLEXMEASURES_PLATFORM_NAME| web service. The API supports user automation for flexibility valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
-We assume in this document that the |FLEXMEASURES_PLATFORM_NAME| instance you want to connect to is hosted at https://company.flexmeasures.io. 
+This document details the Application Programming Interface (API) of the FlexMeasures web service. The API supports user automation for flexibility valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
+We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
 
 
 New versions of the API are released on:
@@ -13,7 +13,7 @@ New versions of the API are released on:
 
     https://company.flexmeasures.io/api
 
-A list of services offered by (a version of) the |FLEXMEASURES_PLATFORM_NAME| web service can be obtained by sending a *getService* request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
+A list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a *getService* request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
 
 **Example request**
 

@@ -22,7 +22,7 @@ An Aggregator can access the following services:
 Post prognosis
 --------------
 
-.. autoflask:: flexmeasures.app:create()
+.. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.post_prognosis
 
 .. _post_price_data_aggregator:
@@ -30,17 +30,17 @@ Post prognosis
 Post price data
 ---------------
 
-.. autoflask:: flexmeasures.app:create()
+.. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.post_price_data
 
 
-..  .. autoflask:: flexmeasures.app:create()
+..  .. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.get_flex_request
 
-..  .. autoflask:: flexmeasures.app:create()
+..  .. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.post_flex_offer
 
-..  .. autoflask:: flexmeasures.app:create()
+..  .. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.get_flex_order
 
 .. _get_meter_data_aggregator:
@@ -48,7 +48,7 @@ Post price data
 Get meter data
 --------------
 
-.. autoflask:: flexmeasures.app:create()
+.. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.get_meter_data
 
 .. _get_prognosis_aggregator:
@@ -56,11 +56,11 @@ Get meter data
 Get prognosis
 -------------
 
-.. autoflask:: flexmeasures.app:create()
+.. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.get_prognosis
 
-..  .. autoflask:: flexmeasures.app:create()
+..  .. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.get_udi_event
 
-..  .. autoflask:: flexmeasures.app:create()
+..  .. autoflask:: flexmeasures.app:create(env="documentation")
     :endpoints: flexmeasures_api_v1_1.post_device_message

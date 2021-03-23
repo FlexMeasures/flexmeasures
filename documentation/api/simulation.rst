@@ -3,7 +3,7 @@
 Simulation
 ==========
 
-This document details examples for using a |FLEXMEASURES_PLATFORM_NAME| server for simulation.
+This document details examples for using a FlexMeasures server for simulation.
 The API on a server that is set up for simulation is extended with several features that make it possible to run simulations of energy flows and control actions.
 Please read the :ref:`api_introduction` for explanations of the message fields, specifically regarding:
 
@@ -186,7 +186,7 @@ Posting power data
 ------------------
 
 For power data, USEF specifies separate message types for observations and forecasts.
-Correspondingly, |FLEXMEASURES_PLATFORM_NAME| uses separate endpoints to communicate these messages.
+Correspondingly, FlexMeasures uses separate endpoints to communicate these messages.
 Observations of power data can be posted to the following POST endpoint:
 
 .. code-block:: html
@@ -324,7 +324,7 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
 Getting prognoses
 -----------------
 
-Prognoses are power forecasts that are used by |FLEXMEASURES_PLATFORM_NAME| to determine the best control signals to valorise on
+Prognoses are power forecasts that are used by FlexMeasures to determine the best control signals to valorise on
 balancing opportunities. Researchers can check the accuracy of these forecasts by downloading the prognoses and
 comparing them against the meter data, i.e. the realised power measurements.
 A prognosis can be requested for a single asset at the following GET endpoint:
@@ -350,7 +350,7 @@ This example requests a prognosis with a rolling horizon of 6 hours before reali
 Posting flexibility constraints
 -------------------------------
 
-Prosumers that have Active Demand & Supply can post the constraints of their flexible devices to |FLEXMEASURES_PLATFORM_NAME| at the
+Prosumers that have Active Demand & Supply can post the constraints of their flexible devices to FlexMeasures at the
 following POST endpoint:
 
 .. code-block:: html
@@ -391,7 +391,7 @@ As an example, consider the same UDI event as above with an additional target va
 Getting control signals
 -----------------------
 
-A Prosumer can query |FLEXMEASURES_PLATFORM_NAME| for control signals for its flexible devices using the following GET endpoint:
+A Prosumer can query FlexMeasures for control signals for its flexible devices using the following GET endpoint:
 
 
 .. code-block:: html
@@ -408,7 +408,7 @@ This example requests a control signal for UDI event 203 posted previously.
             "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc"
         }
 
-The following example response indicates that |FLEXMEASURES_PLATFORM_NAME| planned ahead 45 minutes.
+The following example response indicates that FlexMeasures planned ahead 45 minutes.
 The list of consecutive power values represents the target consumption of the battery (negative values for production).
 Each value represents the average power over a 15 minute time interval.
 

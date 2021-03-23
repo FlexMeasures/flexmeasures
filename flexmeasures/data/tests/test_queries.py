@@ -9,6 +9,7 @@ import timely_beliefs as tb
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.queries.utils import (
     multiply_dataframe_with_deterministic_beliefs,
+    simplify_index,
 )
 
 
@@ -199,3 +200,18 @@ def test_multiplication_with_both_empty_dataframe():
 
     df = multiply_dataframe_with_deterministic_beliefs(df1, df2)
     pd.testing.assert_frame_equal(df, df_compare)
+
+
+def test_simplify_index():
+    """Check whether simplify_index retains the event resolution."""
+    wind_device_1 = Asset.query.filter_by(name="wind-asset-1").one_or_none()
+    bdf: tb.BeliefsDataFrame = Power.collect(
+        wind_device_1.name,
+        (
+            datetime(2015, 1, 1, tzinfo=pytz.utc),
+            datetime(2015, 1, 2, tzinfo=pytz.utc),
+        ),
+        resolution=timedelta(minutes=15),
+    )
+    df = simplify_index(bdf)
+    assert df.event_resolution == timedelta(minutes=15)

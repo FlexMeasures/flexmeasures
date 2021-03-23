@@ -6,41 +6,33 @@
 # full list see the documentation:
 # http://www.sphinx-doc.org/en/stable/config
 
-# -- Path setup --------------------------------------------------------------
+import os
+import sys
+from datetime import datetime
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
-import sys
-from datetime import datetime
 
-from humanize import naturaldelta
-
-from flexmeasures.app import create as create_app
-from flexmeasures.ui.utils.view_utils import get_git_description
-
+# Insert FlexMeasures' path into the system.
 sys.path.insert(0, os.path.abspath(".."))
-flexmeasures_app = create_app()
+from flexmeasures import __version__  # noqa: E402
 
 
 # -- Project information -----------------------------------------------------
 
-project = flexmeasures_app.config.get("FLEXMEASURES_PLATFORM_NAME")
+project = "FlexMeasures"
 copyright = f"{datetime.now().year}, Seita Energy Flexibility, developed in partnership with A1 Engineering, South Korea"
 author = "Seita B.V."
 
 # The short X.Y version
-git_version, git_commits_since, git_hash = get_git_description()
-version = f"{git_version} + {git_commits_since} commits (revision {git_hash})"
+version = __version__
 # The full version, including alpha/beta/rc tags
-release = version
+release = __version__
 
-rst_prolog = f"""
-    .. |FLEXMEASURES_PLATFORM_NAME| replace:: {flexmeasures_app.config.get("FLEXMEASURES_PLATFORM_NAME")}
-    .. |FLEXMEASURES_PLANNING_HORIZON| replace:: {naturaldelta(flexmeasures_app.config.get("FLEXMEASURES_PLANNING_HORIZON"))}
-    .. |FLEXMEASURES_PLANNING_TTl| replace:: {naturaldelta(flexmeasures_app.config.get("FLEXMEASURES_PLANNING_TTL"))}
+rst_prolog = """
 """
 
 # -- General configuration ---------------------------------------------------
@@ -53,6 +45,7 @@ rst_prolog = f"""
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx.ext.coverage",
@@ -85,15 +78,15 @@ language = None
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-if flexmeasures_app.config.get("FLEXMEASURES_MODE", "") == "demo":
-    exclude_patterns.append("api/*.rst")
-if flexmeasures_app.config.get("FLEXMEASURES_MODE", "") != "play":
-    exclude_patterns.append("api/simulation.rst")
 
 # Todo: these are not mature enough yet for release
 exclude_patterns.append("int/*.rst")
 exclude_patterns.append("qa/*.rst")
 exclude_patterns.append("tut/*.rst")
+exclude_patterns.append("api/aggregator.rst")
+exclude_patterns.append("api/mdc.rst")
+exclude_patterns.append("api/prosumer.rst")
+exclude_patterns.append("api/supplier.rst")
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"
@@ -104,9 +97,7 @@ pygments_style = "sphinx"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-# html_theme = 'alabaster'
-html_theme = "sphinx_rtd_flexmeasures_theme"
-html_theme_path = ["_themes"]
+html_theme = "sphinx_rtd_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -216,6 +207,8 @@ def setup(sphinx_app):
 
     # sphinx_app.add_config_value('RELEASE_LEVEL', 'alpha', 'env')
     sphinx_app.add_config_value(
-        "FLEXMEASURES_MODE", flexmeasures_app.config.get("FLEXMEASURES_MODE", ""), "env"
+        "FLEXMEASURES_MODE",
+        "live",
+        "env",  # hard-coded, documentation is not server-specific for the time being
     )
     sphinx_app.add_css_file("css/custom.css")

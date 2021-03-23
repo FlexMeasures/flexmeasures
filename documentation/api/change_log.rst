@@ -1,7 +1,7 @@
 .. _change_log:
 
-Change log
-==========
+API change log
+===============
 
 v2.0 | 2021-02-23
 """""""""""""""""
@@ -58,7 +58,7 @@ v1.3-5 | 2020-10-29
 v1.3-4 | 2020-06-18
 """""""""""""""""""
 
-- Improved support for use cases of the *getDeviceMessage* endpoint in which a longer duration, between posting UDI events and retrieving device messages based on those UDI events, is required; the default *time to live* of UDI event identifiers is prolonged from 500 seconds to 7 days, and can be set as a config variable (currently set to |FLEXMEASURES_PLANNING_TTL|)
+- Improved support for use cases of the *getDeviceMessage* endpoint in which a longer duration, between posting UDI events and retrieving device messages based on those UDI events, is required; the default *time to live* of UDI event identifiers is prolonged from 500 seconds to 7 days, and can be set as a config variable (`FLEXMEASURES_PLANNING_TTL`)
 
 v1.3-3 | 2020-06-07
 """""""""""""""""""
@@ -74,7 +74,7 @@ v1.3-2 | 2020-03-11
 v1.3-1 | 2020-02-08
 """""""""""""""""""
 
-- Backend change: the default planning horizon can now be set in |FLEXMEASURES_PLATFORM_NAME|'s configuration (currently set to |FLEXMEASURES_PLANNING_HORIZON|)
+- Backend change: the default planning horizon can now be set in FlexMeasures's configuration (`FLEXMEASURES_PLANNING_HORIZON`)
 
 v1.3-0 | 2020-01-28
 """""""""""""""""""

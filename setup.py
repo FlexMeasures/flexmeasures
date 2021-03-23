@@ -1,5 +1,7 @@
 from setuptools import setup
 
+from flexmeasures import __version__
+
 
 def load_requirements(use_case):
     reqs = []
@@ -20,7 +22,7 @@ setup(
     author="Seita BV",
     author_email="nicolas@seita.nl",
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
-    version="0.3.1",
+    version=__version__,
     install_requires=load_requirements("app"),
     setup_requires=["pytest-runner"],
     tests_require=load_requirements("test"),
@@ -35,6 +37,6 @@ setup(
     ],
     long_description="""\
 The *FlexMeasures Platform* is a tool for scheduling flexible actions for energy assets.
-For this purpose, it performs monitoring, forecastig and scheduling services.
+For this purpose, it performs monitoring, forecasting and scheduling services.
 """,
 )

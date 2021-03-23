@@ -25,7 +25,7 @@ v1_3_service_listing["version"] = "1.3"
 def get_device_message():
     """API endpoint to get device message.
 
-    .. :quickref: User; Download control signal from the platform
+    .. :quickref: Control; Download control signal from the platform
 
     **Optional fields**
 
@@ -82,7 +82,7 @@ def get_device_message():
 def post_udi_event():
     """API endpoint to post UDI event.
 
-    .. :quickref: User; Upload flexibility constraints to the platform
+    .. :quickref: Control; Upload flexibility constraints to the platform
 
     **Example request A**
 
