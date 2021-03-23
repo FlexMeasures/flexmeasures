@@ -360,7 +360,7 @@ def get_generic_asset(
         return Asset.query.filter(Asset.id == ea["asset_id"]).one_or_none()
     elif entity_type == "market":
         return Market.query.filter(Market.name == ea["market_name"]).one_or_none()
-    elif entity_type == "sensor":
+    elif entity_type == "weather_sensor":
         return get_weather_sensor_by(
             ea["weather_sensor_type_name"],
             ea["latitude"],

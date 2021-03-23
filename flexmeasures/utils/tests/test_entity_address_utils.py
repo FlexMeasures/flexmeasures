@@ -37,7 +37,7 @@ from flexmeasures.utils.time_utils import get_first_day_of_next_month
                 latitude=52,
                 longitude=73.0,
             ),
-            "sensor",
+            "weather_sensor",
             "flexmeasures.io",
             "ea1.2021-01.io.flexmeasures:temperature:52:73.0",
         ),
@@ -89,7 +89,7 @@ def test_build_entity_address(
             "date spec of the format",
         ),
         (
-            "sensor",
+            "weather_sensor",
             "ea1.2018-04.localhost:5000:40:30",
             "Could not parse",  # no sensor type (which starts with a letter)
         ),
@@ -110,7 +110,7 @@ def test_build_entity_address(
             dict(naming_authority="2018-06.io.flexmeasures", owner_id=40, asset_id=30),
         ),
         (
-            "sensor",
+            "weather_sensor",
             "ea1.2018-06.io.flexmeasures:temperature:-52:73.0",
             dict(
                 naming_authority="2018-06.io.flexmeasures",
@@ -161,7 +161,7 @@ def test_parse_entity_address(entity_type, entity_address, exp_result):
                 assert res[field] == exp_result[field]
         if entity_type == "market":
             assert res["market_name"] == exp_result["market_name"]
-        if entity_type == "sensor":
+        if entity_type == "weather_sensor":
             for field in ("weather_sensor_type_name", "latitude", "longitude"):
                 assert res[field] == exp_result[field]
         if entity_type == "event":

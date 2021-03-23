@@ -76,7 +76,7 @@ def verify_sensor_data_in_db(
     elif entity_type == "market":
         sensor_type = Market
         data_type = Price
-    elif entity_type == "sensor":
+    elif entity_type == "weather_sensor":
         sensor_type = WeatherSensor
         data_type = Weather
     else:

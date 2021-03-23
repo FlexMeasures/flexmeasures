@@ -76,7 +76,7 @@ def build_entity_address(
         locally_unique_str = (
             f"{build_field('owner_id', required=False)}{build_field('asset_id')}"
         )
-    elif entity_type == "sensor":
+    elif entity_type == "weather_sensor":
         locally_unique_str = f"{build_field('weather_sensor_type_name')}{build_field('latitude')}{build_field('longitude')}"
     elif entity_type == "market":
         locally_unique_str = f"{build_field('market_name')}"
@@ -100,8 +100,8 @@ def parse_entity_address(entity_address: str, entity_type: str) -> dict:
 
         connection = ea1.2018-06.localhost:40:30
         connection = ea1.2018-06.io.flexmeasures:<owner_id>:<asset_id>
-        sensor = ea1.2018-06.io.flexmeasures:temperature:52:73.0
-        sensor = ea1.2018-06.io.flexmeasures:<sensor_type>:<latitude>:<longitude>
+        weather_sensor = ea1.2018-06.io.flexmeasures:temperature:52:73.0
+        weather_sensor = ea1.2018-06.io.flexmeasures:<sensor_type>:<latitude>:<longitude>
         market = ea1.2018-06.io.flexmeasures:epex_da
         market = ea1.2018-06.io.flexmeasures:<market_name>
         event = ea1.2018-06.io.flexmeasures:40:30:302:soc
@@ -123,7 +123,7 @@ def parse_entity_address(entity_address: str, entity_type: str) -> dict:
             f"After '{ADDR_SCHEME}.', a date spec of the format {date_regex} is expected."
         )
     # Also the entity type
-    if entity_type not in ("connection", "sensor", "market", "event"):
+    if entity_type not in ("connection", "weather_sensor", "market", "event"):
         raise EntityAddressException(f"Unrecognized entity type: {entity_type}")
 
     if entity_type == "connection":
@@ -145,7 +145,7 @@ def parse_entity_address(entity_address: str, entity_type: str) -> dict:
                 "asset_id": int,
             }
             return _typed_regex_results(match, value_types)
-    elif entity_type == "sensor":
+    elif entity_type == "weather_sensor":
         match = re.search(
             r"^"
             r"(?P<scheme>.+)"
