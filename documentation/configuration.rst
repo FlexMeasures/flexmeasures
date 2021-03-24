@@ -1,4 +1,4 @@
-.. _configuration::
+.. _configuration:
 
 Configuration
 =============
@@ -9,7 +9,7 @@ Required settings (e.g. postgres db) are marked with a double star (**).
 To enable easier quickstart tutorials, these settings can be set by env vars.
 Recommended settings (e.g. mail, redis) are marked by one star (*).
 
-Note: FlexMeasures is best configured via a config file. The config file for FlexMeasures can be placed in one of two locations: 
+.. note:: FlexMeasures is best configured via a config file. The config file for FlexMeasures can be placed in one of two locations: 
 
 
 * in the user's home directory (e.g. ``~/.flexmeasures.cfg`` on Unix). In this case, note the dot at the beginning of the filename!
@@ -33,10 +33,13 @@ This is used to turn on certain extra behaviours.
 
 Default: ``""``
 
+
+.. _solver-config:
+
 FLEXMEASURES_LP_SOLVER
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The command to run the scheduling solver.
+The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Other values might be ``cplex`` or ``glpk``. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
 
 Default: ``"cbc"``
 
@@ -118,11 +121,13 @@ DARK_SKY_API_KEY
 
 Token for accessing the DarkSky weather forecasting service.
 
-Note: DarkSky will be soon (Aug 1, 2021) become non-public, so thay are not giving out new tokens. We'll use another service soon, `see this issue <https://github.com/SeitaBV/flexmeasures/issues/3>`_.
+.. note:: DarkSky will be soon (Aug 1, 2021) become non-public, so thay are not giving out new tokens. We'll use another service soon, `see this issue <https://github.com/SeitaBV/flexmeasures/issues/3>`_.
 
 This is unfortunate. In the meantime, if you can't find anybody lending their token, you can add weather forecasts to the FlexMeasures db yourself. 
 
 Default: ``None``
+
+.. _mapbox_access_token:
 
 MAPBOX_ACCESS_TOKEN
 ^^^^^^^^^^^^^^^^^^^
@@ -179,8 +184,9 @@ Used to sign user sessions and also as extra salt (a.k.a. pepper) for password s
 This is actually part of Flask - but is also used by Flask-Security to sign all tokens.
 
 It is critical this is set to a strong value. For python3 consider using: ``secrets.token_urlsafe()``
+You can also set this in a file (which some Flask tutorials advise).
 
-You can also set this in a file (which some Flask tutorials advised). Leave this setting set to ``None`` to get more instructions.
+.. note:: Leave this setting set to ``None`` to get more instructions when you attempt to run FlexMeasures.
 
 Default: ``None``
 
@@ -232,9 +238,12 @@ CORS_SUPPORTS_CREDENTIALS
 
 Allows users to make authenticated requests. If true, injects the Access-Control-Allow-Credentials header in responses. This allows cookies and credentials to be submitted across domains.
 
-Note:  This option cannot be used in conjunction with a “*” origin
+.. note::  This option cannot be used in conjunction with a “*” origin.
 
 Default: ``True``
+
+
+.. _mail-config:
 
 Mail
 ----
@@ -294,11 +303,14 @@ Default:
    )
 
 MAIL_PASSWORD
---------------
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Password of mail system user.
 
 Default: ``None``
+
+
+.. _redis-config:
 
 Redis
 -----

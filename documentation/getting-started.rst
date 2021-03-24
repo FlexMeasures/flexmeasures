@@ -57,13 +57,14 @@ or:
 
    echo "FLASK_ENV=development" >> .env
 
-Note: The default is ``production``\ , which will not work well on localhost due to SSL issues. 
+.. note:: The default is ``production``\ , which will not work well on localhost due to SSL issues. 
+
 
 Preparing the time series database
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
-* Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See ``data/Readme.md`` (section "Getting ready to use") for instructions on this.
+* Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See :ref:`dev-data` (section "Getting ready to use") for instructions on this.
 * 
   Tell ``flexmeasures`` about it:
 
@@ -83,11 +84,11 @@ Preparing the time series database
 
 This suffices for a quick start.
 
-Note that for a more permanent configuration, you can create your FlexMeasures configuration file at ``~/.flexmeasures.cfg`` and add this:
+.. note:: For a more permanent configuration, you can create your FlexMeasures configuration file at ``~/.flexmeasures.cfg`` and add this:
 
-.. code-block::
+    .. code-block::
 
-   SQLALCHEMY_DATABASE_URI="postgresql://<user>:<password>@<host-address>[:<port>]/<db>"
+        SQLALCHEMY_DATABASE_URI="postgresql://<user>:<password>@<host-address>[:<port>]/<db>"
 
 
 
@@ -125,10 +126,10 @@ It's finally time to start running FlexMeasures:
 (This might print some warnings, see the next section where we go into more detail)
 
 .. note:: In a production context, you shouldn't run a script - hand the ``app`` object to a WSGI process, as your platform of choice describes.
-Often, that requires a WSGI script. We provide an example WSGI script in `the CI Readme <ci/Readme.md>`_.
+Often, that requires a WSGI script. We provide an example WSGI script in :ref:`continuous_integration`.
 
 You can visit ``http://localhost:5000`` now to see if the app's UI works.
-When you see the dashboard, the map will not work. For that, you'll need to get your MAPBOX_ACCESS_TOKEN and add it to your config file (see :ref:`configuration` for details).
+When you see the dashboard, the map will not work. For that, you'll need to get your :ref:`mapbox_access_token` and add it to your config file.
 
 Add your first asset
 ^^^^^^^^^^^^^^^^^^^^
@@ -137,12 +138,12 @@ Head over to ``http://localhost:5000/assets`` and add a new asset there.
 
 .. note:: `issue 57 <https://github.com/SeitaBV/flexmeasures/issues/57>`_ should create a CLI function for this.
 
-Note: You can also use the `\ ``POST /api/v2_0/assets`` <https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
+.. note:: You can also use the `POST /api/v2_0/assets <https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
 
 Add data
 ^^^^^^^^
 
-You can use the `\ ``POST /api/v2_0/postMeterData`` <https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-postMeterData>`_ endpoint in the FlexMeasures API to send meter data.
+You can use the `POST /api/v2_0/postMeterData <https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-postMeterData>`_ endpoint in the FlexMeasures API to send meter data.
 
 .. note::  `issue 56 <https://github.com/SeitaBV/flexmeasures/issues/56>`_ should create a CLI function for adding a lot of data at once, from a CSV dataset.
 
@@ -162,12 +163,12 @@ Other settings, for full functionality
 Set mail settings
 ^^^^^^^^^^^^^^^^^
 
-For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email account which can do that (e.g. GMail). Set the MAIL_* settings in your configuration, see :ref:`configuration`.
+For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email account which can do that (e.g. GMail). Set the MAIL_* settings in your configuration, see :ref:`mail-config`.
 
 Install an LP solver
 ^^^^^^^^^^^^^^^^^^^^
 
-For planning balancing actions, the FlexMeasures platform uses a linear program solver. Currently that is the Cbc solver. See the ``FLEXMEASURES_LP_SOLVER`` config setting if you want to change to a different solver.
+For planning balancing actions, the FlexMeasures platform uses a linear program solver. Currently that is the Cbc solver. See :ref:`solver-config` if you want to change to a different solver.
 
 Installing Cbc can be done on Unix via:
 
@@ -178,7 +179,7 @@ Installing Cbc can be done on Unix via:
 
 (also available in different popular package managers).
 
-We provide a script for installing from source (without requiring ``sudo`` rights) in `the CI Readme <ci/Readme.md>`_.
+We provide a script for installing from source (without requiring ``sudo`` rights) in :ref:`continuous_integration`.
 
 More information (e.g. for installing on Windows) on `the Cbc website <https://projects.coin-or.org/Cbc>`_.
 
@@ -196,7 +197,7 @@ To collect weather measurements and forecasts, there is a task you could run per
 Preparing the job queue database and start workers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To let FlexMeasures queue forecasting and scheduling jobs, install a `Redis <https://redis.io/>`_ server and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in :ref:`configuration`.
+To let FlexMeasures queue forecasting and scheduling jobs, install a `Redis <https://redis.io/>`_ server and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in :ref:`redis-config`.
 
 Then run one worker for each kind of job (in a separate terminal):
 

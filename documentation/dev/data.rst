@@ -1,3 +1,4 @@
+.. _dev-data:
 
 Handling data
 =============================
@@ -8,8 +9,14 @@ We also spend a few words on coding with database transactions in mind.
 
 Finally, we'll discuss how FlexMeasures is using Redis and redis-queues. When setting up on Windows, a guide to install the Redis-based queuing system for handling (forecasting) jobs.
 
+
+.. contents:: Table of contents
+    :local:
+    :depth: 2
+
+
 Getting ready to use
-====================
+----------------------
 
 Notes: 
 
@@ -18,7 +25,7 @@ Notes:
 * The name ``flexmeasures_test`` for the test database is good to keep this way, as automated tests are looking for that database / user / password. 
 
 Install
--------
+^^^^^^^^^^^^^
 
 On Unix:
 
@@ -37,7 +44,7 @@ On Windows:
 * ``conda install psycopg2``
 
 Make sure postgres represents datetimes in UTC timezone
--------------------------------------------------------
+^^^^^^^^^^^^^
 
 (Otherwise, pandas can get confused with daylight saving time.)
 
@@ -54,7 +61,7 @@ Find the ``timezone`` setting and set it to 'UTC'.
 Then restart the postgres server.
 
 Setup the "flexmeasures" Unix user
-----------------------------------
+^^^^^^^^^^^^^
 
 This may in fact not be needed:
 
@@ -64,7 +71,7 @@ This may in fact not be needed:
 
 
 Create "flexmeasures" and "flexmeasures_test" databases and users
------------------------------------------------------------------
+^^^^^^^^^^^^^
 
 From the terminal:
 
@@ -118,7 +125,7 @@ Finally, try logging in as the flexmeasures user once:
 
 
 Configure FlexMeasures app for that database
---------------------------------------------
+^^^^^^^^^^^^^
 
 Write:
 
@@ -130,12 +137,12 @@ Write:
 into the config file you are using, e.g. ~/flexmeasures.cfg
 
 Get structure (and some data) into place
-----------------------------------------
+^^^^^^^^^^^^^
 
 You need data to enjoy the benefits of FlexMeasures or to develop features for it. In this section, there are some ways to get started.
 
 Import from another database
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+""""""""""""""""""""""""""""""
 
 Here is a short recipe to import data from a FlexMeasures database (e.g. a demo database) into your local system.
 
@@ -146,7 +153,9 @@ On the to-be-exported database:
    flask db-dump
 
 
-Note that we only dump the data here. Locally, we create a fresh database with the structure being based on the data model given by the local codebase:
+.. note:: Only the data gets dumped here.
+
+Then, we create the structure in our database anew, based on the data model given by the local codebase:
 
 .. code-block::
 
@@ -166,7 +175,7 @@ You can also choose to import a complete db dump into a freshly created database
 .. note:: To make sure passwords will be decrypted correctly when you authenticate, set the same SECURITY_PASSWORD_SALT value in your config as the one that was in use when the dumped passwords were encrypted! 
 
 Create data manually
-^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""
 
 First, you can get the database structure with:
 
@@ -214,7 +223,7 @@ Just to note: There is also a command to get rid of data:
 
 
 Visualize the data model
-------------------------
+--------------------------
 
 You can visualise the data model like this:
 
@@ -227,14 +236,14 @@ This will generate a picture based on the model code.
 You can also generate picture based on the actual database, see inside the Makefile. 
 
 Maintenance
-===========
+----------------
 
 Maintenance is supported with the alembic tool. It reacts automatically
 to almost all changes in the SQLAlchemy code. With alembic, multiple databases,
 e.g. dev, staging and production can be kept in sync.
 
 Make first migration
---------------------
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Run these commands from the repository root directory (read below comments first):
 
@@ -254,7 +263,7 @@ as future calls to ``flexmeasures db upgrade`` will need those steps, and they m
 Hint: You can edit these migrations steps, if you want.
 
 Make another migration
-----------------------
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Just to be clear that the ``db init`` command is needed only at the beginning - you usually do, if your model changed:
 
@@ -265,7 +274,7 @@ Just to be clear that the ``db init`` command is needed only at the beginning - 
 
 
 Get database structure updated
-------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^
 
 The goal is that on any other computer, you can always execute
 
@@ -277,7 +286,7 @@ The goal is that on any other computer, you can always execute
 to have the database structure up-to-date with all migrations.
 
 Working with the migration history
-----------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^
 
 The history of migrations is at your fingertips:
 
@@ -298,7 +307,7 @@ You can move back and forth through the history:
 Both of these accept a specific revision id parameter, as well.
 
 Check out database status
--------------------------
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Log in into the database:
 
@@ -322,19 +331,19 @@ To log out:
 
 
 Transaction management
-======================
+-----------------------
 
 It is really useful (and therefore an industry standard) to bundle certain database actions within a transaction. Transactions are atomic - either the actions in them all run or the transaction gets rolled back. This keeps the database in a sane state and really helps having expectations during debugging.
 
 Please see the package ``flexmeasures.data.transactional`` for details on how a FlexMeasures developer should make use of this concept.
 If you are writing a script or a view, you will find there the necessary structural help to bundle your work in a transaction.
 
-Redis and redis queues
-======================
+Redis and redis queue
+-----------------------
 
 FlexMeasures supports jobs (e.g. forecasting) running asynchronously to the main FlexMeasures application using `Redis Queue <http://python-rq.org/>`_.
 
-It relies on a Redis server, which is has to be installed locally, or used on a separate host. In the latter case, configure URL, password and database number in your FlexMeasures config file.
+It relies on a Redis server, which is has to be installed locally, or used on a separate host. In the latter case, configure :ref:`redis-config` details in your FlexMeasures config file.
 
 Forecasting jobs are usually created (and enqueued) when new data comes in via the API. To asynchronously work on these forecasting jobs, run this in a console:
 
@@ -348,7 +357,7 @@ You should be able to run multiple workers in parallel, if necessary. You can ad
 The FlexMeasures unit tests use fakeredis to simulate this task queueing, with no configuration required.
 
 Inspect the queue and jobs
---------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The first option to inspect the state of the ``forecasting`` queue should be via the formiddable `RQ dashboard <https://github.com/Parallels/rq-dashboard>`_. If you have admin rights, you can access it at ``your-flexmeasures-url/rq/``\ , so for instance ``http://localhost:5000/rq/``. You can also start RQ dashboard yourself (but you need to know the redis server credentials):
 
@@ -381,9 +390,9 @@ Finally, you can also inspect the queue and jobs via a console (\ `see the nice 
 
 
 Redis queues on Windows
------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-On Unix, the rq system is automatically set up as part of FlexMeasures's `main setup <README.md#Dependencies>`_ (the ``rq`` dependency).
+On Unix, the rq system is automatically set up as part of FlexMeasures's `main setup (the ``rq`` dependency).
 
 However, rq is not functional on Windows](http://python-rq.org/docs) without the Windows Subsystem for Linux.
 
