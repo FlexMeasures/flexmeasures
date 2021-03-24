@@ -8,7 +8,7 @@ from sqlalchemy.orm import configure_mappers
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
-@app.cli.command("run_worker")
+@app.cli.command("run-worker")
 @click.option(
     "--name",
     default=None,
@@ -51,7 +51,7 @@ def run_worker(name: str, queue: str):
     worker.work()
 
 
-@app.cli.command("clear_queue")
+@app.cli.command("clear-queue")
 @click.option(
     "--queue",
     default=None,

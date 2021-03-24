@@ -1,6 +1,8 @@
 # flake8: noqa: E402
 import os
 import time
+from typing import Optional
+
 from flask import Flask, g, request
 from flask.cli import load_dotenv
 from flask_mail import Mail
@@ -12,15 +14,19 @@ from redis import Redis
 from rq import Queue
 
 
-def create(env=None) -> Flask:
+def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> Flask:
     """
     Create a Flask app and configure it.
+
     Set the environment by setting FLASK_ENV as environment variable (also possible in .env).
     Or, overwrite any FLASK_ENV setting by passing an env in directly (useful for testing for instance).
+
+    A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories)
     """
 
+    from flexmeasures.utils import config_defaults
     from flexmeasures.utils.config_utils import read_config, configure_logging
-    from flexmeasures.utils.app_utils import install_secret_key
+    from flexmeasures.utils.app_utils import set_secret_key
     from flexmeasures.utils.error_utils import add_basic_error_handlers
 
     # Create app
@@ -34,12 +40,12 @@ def create(env=None) -> Flask:
         app.env = env
         if env == "testing":
             app.testing = True
+        if env == "development":
+            app.debug = config_defaults.DevelopmentConfig.DEBUG
 
     # App configuration
 
-    read_config(app)
-    if app.debug and not app.testing and not app.cli:
-        print(app.config)
+    read_config(app, path_to_config=path_to_config)
     add_basic_error_handlers(app)
 
     app.mail = Mail(app)
@@ -74,10 +80,13 @@ def create(env=None) -> Flask:
     # Some basic security measures
 
     if not app.env == "documentation":
-        install_secret_key(app)
+        set_secret_key(app)
+        if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
+            app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
+    if not app.env in ("documentation", "development"):
         SSLify(app)
 
-    # Register database and models, including user auth security measures
+    # Register database and models, including user auth security handlers
 
     from flexmeasures.data import register_at as register_db_at
 

@@ -1,44 +1,131 @@
-# Building & Running FlexMeasures
+# Installing & Running FlexMeasures
 
 
-## Dependencies
+## Quickstart
+
+This section walks you through getting FlexMeasures to run with the least effort. We'll cover making a secret key, connecting a database and creating one user & one asset.
+
+### Install FlexMeasures
 
 Install dependencies and the `flexmeasures` platform itself:
 
-      make install
+    pip install flexmeasures
 
-## Configure environment
 
-* Set an env variable to indicate in which environment you are operating (one out of development|testing|staging|production), e.g.:
+### Make a secret key for sessions and password salts
 
-    `echo "FLASK_ENV=development" >> .env`
+Set a secret key which is used to sign user sessions and re-salt their passwords. The quickest way is with an environment variable, like this:
 
-    `export FLASK_ENV=production`
-* If you need to customise settings, create `flexmeasures/<development|testing|staging|production>_config.py` and add required settings.
-  If you're unsure what you need, just continue for now and the app will tell you what it misses.
+   `export SECRET_KEY=something-secret`
 
-## Make a secret key for sessions
+(on Windows, use `set` instead of `export`)
 
-    mkdir -p /path/to/flexmeasures/instance
-    head -c 24 /dev/urandom > /path/to/flexmeasures/instance/secret_key
+This suffices for a quick start.
 
-## Preparing the time series database
+If you want to consistently use FlexMeasures, we recommend you add this setting to your config file at `~/.flexmeasures.cfg` and use a truly random string. Here is a Pythonic way to generate a good secret key:
 
-* Make sure you have a Postgres (Version 9+) database. See `data/Readme.md` for instructions on this.
-* Tell `flexmeasures` about it. Either you are using the default for the environment you're in (see `flexmeasures/utils/config_defaults`),
-   or you can configure your own connection string: In `flexmeasures/<development|testing|staging|production>_conf.py`,
-  set the variable `SQLALCHEMY_DATABASE_URI = 'postgresql://<user>:<password>@<host-address>[:<port>]/<db>'`
-* Run `flask db upgrade` to create the Postgres DB structure.
+    `python -c "import secrets; print(secrets.token_urlsafe())"`
 
-## Preparing the job queue database
 
-To let FlexMeasures queue forecasting and scheduling jobs, install a Redis server and configure access to it within FlexMeasures' config file (see above). You can find the default settings in `flexmeasures/utils/config_defaults.py`.
+### Configure environment
 
-TODO: more detail
+Set an environment variable to indicate in which environment you are operating (one out of development|testing|staging|production). We'll go with `development` here:
 
-## Install an LP solver
+   `export FLASK_ENV=development`
 
-For planning balancing actions, the flexmeasures platform uses a linear program solver. Currently that is the Cbc solver. See the `FLEXMEASURES_LP_SOLVER` config setting if you want to change to a different solver.
+(on Windows, use `set` instead of `export`)
+
+or:
+
+   `echo "FLASK_ENV=development" >> .env`
+
+Note: The default is `production`, which will not work well on localhost due to SSL issues. 
+
+
+
+### Preparing the time series database
+
+* Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See `data/Readme.md` (section "Getting ready to use") for instructions on this.
+* Tell `flexmeasures` about it:
+
+    `export SQLALCHEMY_DATABASE_URI="postgresql://<user>:<password>@<host-address>[:<port>]/<db>"`
+
+  If you install this on localhost, `host-address` is `127.0.0.1` and the port can be left out.
+  (on Windows, use `set` instead of `export`)
+* Create the Postgres DB structure for FlexMeasures:
+
+    `flexmeasures db upgrade`
+
+This suffices for a quick start.
+
+Note that for a more permanent configuration, you can create your FlexMeasures configuration file at `~/.flexmeasures.cfg` and add this:
+
+    `SQLALCHEMY_DATABASE_URI="postgresql://<user>:<password>@<host-address>[:<port>]/<db>"`
+
+
+### Add a user
+
+FlexMeasures is a web-based platform, so we need a user account:
+
+`flexmeasures new-user --username <your-username> --email <your-email-address> --roles=admin`
+
+* This will ask you to set a password for the user.
+* Giving the first user the `admin` role is probably what you want.
+
+
+### Add structure
+
+Populate the database with some standard energy asset types:
+
+   `flexmeasures db-populate --structure`
+
+
+### Run FlexMeasures
+
+It's finally time to start running FlexMeasures:
+
+`flexmeasures run`
+
+(This might print some warnings, see the next section where we go into more detail)
+
+Note: In a production context, you shouldn't run a script - hand the `app` object to a WSGI process, as your platform of choice describes.
+Often, that requires a WSGI script. We provide an example WSGI script in [the CI Readme](ci/Readme.md).
+
+You can visit `http://localhost:5000` now to see if the app's UI works.
+When you see the dashboard, the map will not work. For that, you'll need to get your MAPBOX_ACCESS_TOKEN and add it to your config file (see Configuration.md for details).
+
+
+### Add your first asset 
+
+Head over to `http://localhost:5000/assets` and add a new asset there.
+
+TODO: [issue 57](https://github.com/SeitaBV/flexmeasures/issues/57) should create a CLI function for this.
+
+Note: You can also use the [`POST /api/v2_0/assets`](https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-assets) endpoint in the FlexMeasures API to create an asset.
+
+### Add data
+
+You can use the [`POST /api/v2_0/postMeterData`](https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-postMeterData) endpoint in the FlexMeasures API to send meter data.
+
+TODO: [issue 56](https://github.com/SeitaBV/flexmeasures/issues/56) should create a CLI function for adding a lot of data at once, from a CSV dataset.
+
+Also, you can add forecasts for your meter data with the `db_populate` command, here is an example:
+
+   `flexmeasures db-populate --forecasts --from-date 2020-03-08 --to-date 2020-04-08 --asset-type Asset --asset my-solar-panel `
+
+Note: You can also use the API to send forecast data.
+
+
+## Other settings, for full functionality
+
+### Set mail settings
+
+For FlexMeasures to be able to send email to users (e.g. for resetting passwords), you need an email account which can do that (e.g. GMail). Set the MAIL_* settings in your configuration, see [the Configuration documentation](Configuration.md).
+
+
+### Install an LP solver
+
+For planning balancing actions, the FlexMeasures platform uses a linear program solver. Currently that is the Cbc solver. See the `FLEXMEASURES_LP_SOLVER` config setting if you want to change to a different solver.
 
 Installing Cbc can be done on Unix via:
 
@@ -48,29 +135,31 @@ Installing Cbc can be done on Unix via:
 
 We provide a script for installing from source (without requiring `sudo` rights) in [the CI Readme](ci/Readme.md).
 
-More information (e.g. for installing on Windows) on [the website](https://projects.coin-or.org/Cbc).
+More information (e.g. for installing on Windows) on [the Cbc website](https://projects.coin-or.org/Cbc).
 
 
-## Run
+### Start collecting weather data
 
-Now, to start the web application, you can run:
+To collect weather measurements and forecasts, there is a task you could run periodically, probably once per hour. Here is an example:
 
-    python flexmeasures/run-local.py
-
-But in a production context, you shouldn't run a script - hand the `app` object to a WSGI process, as your platform of choice describes.
-
-Often, that requires a WSGI script. We provide an example WSGI script in [the CI Readme](ci/Readme.md).
+    flexmeasures collect-weather-data--location 33.4366,126.5269 --store-in-db 
 
 
-## Loading data
+### Preparing the job queue database and start workers
 
-If you have a SQL Dump file, you can load that:
+To let FlexMeasures queue forecasting and scheduling jobs, install a [Redis](https://redis.io/) server and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in [the Configuration documentation](Configuration.md).
 
-    psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
+Then run one worker for each kind of job (in a separate terminal):
 
-Else, you can populate some standard data, most of which comes from files:
+    flexmeasures run-worker --queue forecasting
+    flexmeasures run-worker --queue scheduling
 
-* Finally, run `flask db_populate --structure --data --small` to load this data into the database.
-  The `--small` parameter will only load four assets and four days, so use this first to try things out. TODO: check which command is possible at the moment. Also add a TODO saying where we want to go with this (support for loading data).
+You can also clear the job queues:
 
+    flexmeasures clear-queue --queue forecasting
+    flexmeasures clear-queue --queue scheduling
+
+When the main FlexMeasures process runs (e.g. by `flexmeasures run`), the queues of forecasting and scheduling jobs can be visited at `http://localhost:5000/tasks/forecasting` and `http://localhost:5000/tasks/schedules`, respectively (by admins).
+
+When forecasts and schedules have been generated, they should be visible at `http://localhost:5000/analytics`. You can also access forecasts via the FlexMeasures API at [GET  /api/v2_0/getPrognosis](https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#get--api-v2_0-getPrognosis), and schedules via [GET  /api/v2_0/getDeviceMessage](https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#get--api-v2_0-getDeviceMessage). 
 

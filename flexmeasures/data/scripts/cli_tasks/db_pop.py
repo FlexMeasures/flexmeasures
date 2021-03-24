@@ -25,21 +25,27 @@ BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
 
 
 @app.cli.command()
-@click.option("--username")
-@click.option("--email")
+@click.option("--username", required=True)
+@click.option("--email", required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
-@click.option("--timezone", help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'")
+@click.option(
+    "--timezone",
+    default="Europe/Amsterdam",
+    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+)
 def new_user(
     username: str, email: str, roles: List[str], timezone: str = "Europe/Amsterdam"
 ):
     """
+    Create a FlexMeasures user.
+
     The `users create` task from Flask Security Too is too simple for us.
     Use this to add email, timezone and roles.
     """
     try:
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
-        print("Timezone %s is unkown!" % timezone)
+        print("Timezone %s is unknown!" % timezone)
         return
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
@@ -111,7 +117,9 @@ def db_populate(
     to_date: str = "2015-12-31",
     asset: str = None,
 ):
-    """Initialize the database with static values."""
+    """Initialize the database with static values.
+    TODO: split into a function for structural data and one for forecasts.
+    """
     if structure:
         from flexmeasures.data.scripts.data_gen import populate_structure
 
@@ -241,7 +249,7 @@ def db_reset(
 @click.option(
     "--data/--no-data",
     default=False,
-    help="Save (time series) data. Only do this for small data sets!",
+    help="Save (time series) data to a backup. Only do this for small data sets!",
 )
 def db_save(
     name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False
