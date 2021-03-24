@@ -138,6 +138,12 @@ We provide a script for installing from source (without requiring `sudo` rights)
 More information (e.g. for installing on Windows) on [the Cbc website](https://projects.coin-or.org/Cbc).
 
 
+### Start collecting weather data
+
+To collect weather measurements and forecasts, there is a task you could run periodically, probably once per hour. Here is an example:
+
+    flexmeasures collect-weather-data--location 33.4366,126.5269 --store-in-db 
+
 
 ### Preparing the job queue database and start workers
 
@@ -145,8 +151,13 @@ To let FlexMeasures queue forecasting and scheduling jobs, install a [Redis](htt
 
 Then run one worker for each kind of job (in a separate terminal):
 
-    flexmeasures run_worker --queue forecasting
-    flexmeasures run_worker --queue scheduling
+    flexmeasures run-worker --queue forecasting
+    flexmeasures run-worker --queue scheduling
+
+You can also clear the job queues:
+
+    flexmeasures clear-queue --queue forecasting
+    flexmeasures clear-queue --queue scheduling
 
 When the main FlexMeasures process runs (e.g. by `flexmeasures run`), the queues of forecasting and scheduling jobs can be visited at `http://localhost:5000/tasks/forecasting` and `http://localhost:5000/tasks/schedules`, respectively (by admins).
 
