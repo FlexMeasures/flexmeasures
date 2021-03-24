@@ -10,6 +10,8 @@ Note: For developers, there is more detailed documentation available. Please con
 
 ## Virtual environment
 
+Using a virtual enviornment is best practice for Python developers. We also stringly recommend using a dedicated one for your work on FlexMeasures, as our make target (see below) will use `pip-sync` to install dependencies, which could interfere with some libraries you already have installed.
+
 * Make a virtual environment: `python3.8 -m venv flexmeasures-venv` or use a different tool like `mkvirtualenv` or virtualenvwrapper. You can also use
   an [Anaconda distribution](https://conda.io/docs/user-guide/tasks/manage-environments.html) as base with `conda create -n flexmeasures-venv python=3.8`.
 * Activate it, e.g.: `source flexmeasures-venv/bin/activate`
