@@ -69,9 +69,8 @@ FlexMeasures is a web-based platform, so we need a user account:
 
 `flexmeasures new-user --username <your-username> --email <your-email-address> --roles=admin`
 
-(this will ask you to set a password for the user)
-
-Giving the first user the `admin` role is probably what you want.
+* This will ask you to set a password for the user.
+* Giving the first user the `admin` role is probably what you want.
 
 
 ### Add structure
@@ -91,6 +90,9 @@ It's finally time to start running FlexMeasures:
 
 Note: In a production context, you shouldn't run a script - hand the `app` object to a WSGI process, as your platform of choice describes.
 Often, that requires a WSGI script. We provide an example WSGI script in [the CI Readme](ci/Readme.md).
+
+You can visit `http://localhost:5000` now to see if the app's UI works.
+When you see the dashboard, the map will not work. For that, you'll need to get your MAPBOX_ACCESS_TOKEN and add it to your config file (see Configuration.md for details).
 
 
 ### Add your first asset 

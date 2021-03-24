@@ -88,12 +88,14 @@ Default: `timedelta(hours=2 * 24)`
 ### DARK_SKY_API_KEY
 Token for accessing the DarkSky weather forecasting service.
 
-Note: this will be soon become non-public, so we'll use another service.
+Note: DarkSky will be soon (Aug 1, 2021) become non-public, so thay are not giving out new tokens. We'll use another service soon, [see this issue](https://github.com/SeitaBV/flexmeasures/issues/3).
+
+This is unfortunate. In the meantime, if you can't find anybody lending their token, you can add weather forecasts to the FlexMeasures db yourself. 
 
 Default: `None`
 
 ### MAPBOX_ACCESS_TOKEN
-Token for accessing the mapbox API (for displaying maps on the dashboard and asset pages).
+Token for accessing the mapbox API (for displaying maps on the dashboard and asset pages). You can learn how to obtain one [here](https://docs.mapbox.com/help/glossary/access-token/)
 
 Default: `None`
 
