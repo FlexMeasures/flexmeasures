@@ -35,6 +35,8 @@ The platform operator of FlexMeasures can be an Aggregator.
    :maxdepth: 1
    :hidden:
 
+   getting-started
+   configuration
    changelog
 
 .. toctree::
@@ -69,6 +71,15 @@ The platform operator of FlexMeasures can be an Aggregator.
     api/v1_1
     api/v1
     api/change_log
+
+
+.. toctree::
+    :caption: Developers
+    :maxdepth: 1
+
+    dev/introduction
+    dev/data
+    dev/ci
 
 
 .. toctree::
