@@ -154,7 +154,7 @@ Check out it's `--help` content to learn more. You can set which assets and whic
 
 Just to note: There is also a command to get rid of data:
 
-    flexmeasures db_depopulate --structure --data --forecasts
+    flexmeasures db-depopulate --structure --data --forecasts
 
 ## Visualize the data model
 
