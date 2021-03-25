@@ -18,8 +18,8 @@ Flexibility opportunities and their activation
 In an energy system with flexible energy assets present (e.g. batteries, heating/cooling), there exist 
 opportunities to activate such flexibility.
 
-The opportunity lies in waiting with a planned comsumption or generation action ("shifting") or to
-adapt an action ("curtailment") ― see :ref:`opportunity_types` for a deeper discussion. Often, such opprtunities are discussed under the label "demand reponse".
+The opportunity lies in waiting with a planned consumption or generation action ("shifting") or to
+adapt an action ("curtailment") ― see :ref:`opportunity_types` for a deeper discussion. Often, such opportunities are discussed under the label "demand response".
 
 Within FlexMeasures, this opportunity can be regarded as the difference between suggested schedules (the activation of flexibility) and forecasts (how the assets are expected to act without activation of flexibility).
 
