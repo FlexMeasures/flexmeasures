@@ -42,6 +42,7 @@ flask==1.1.2              # via -r requirements/app.in, flask-babelex, flask-cla
 forecastiopy==0.22        # via -r requirements/app.in
 humanize==2.6.0           # via -r requirements/app.in
 idna==2.10                # via email-validator, requests, tldextract
+importlib-metadata==3.7.0  # via -r requirements/app.in
 inflect==4.1.0            # via -r requirements/app.in
 inflection==0.5.1         # via -r requirements/app.in
 iso8601==0.1.12           # via -r requirements/app.in
@@ -111,6 +112,7 @@ webargs==7.0.1            # via -r requirements/app.in
 werkzeug==1.0.1           # via flask
 wtforms==2.3.3            # via flask-wtf
 xlrd==1.2.0               # via -r requirements/app.in
+zipp==3.4.1               # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

@@ -6,7 +6,7 @@
 # ---- Development ---
 
 run-local:
-	python flexmeasures/run-local.py
+	python run-local.py
 
 test:
 	make install-for-dev

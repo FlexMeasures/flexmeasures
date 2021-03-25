@@ -4,6 +4,7 @@ from flask_security.utils import verify_password
 from flask_json import as_json
 from flask_login import current_user
 
+from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.data.models.user import User
 from flexmeasures.api.common.utils.args_parsing import (
     FMValidationError,
@@ -75,6 +76,7 @@ def get_versions() -> dict:
         "/api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: "
         "/api/requestAuthToken",
         "versions": ["v1", "v1_1", "v1_2", "v1_3", "v2_0"],
+        "flexmeasures_version": flexmeasures_version,
     }
     return response
 

@@ -1,6 +1,6 @@
 from datetime import timedelta
 import logging
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Tuple
 
 """
 This lays out our configuration requirements and allows to set trivial defaults, per environment adjustable.
@@ -15,14 +15,14 @@ class Config(object):
     Otherwise, set to None, so that it can be set either by subclasses or the env-specific config script.
     """
 
-    DEBUG = False
-    LOGGING_LEVEL = logging.WARNING
-    CSRF_ENABLED = True
+    DEBUG: bool = False
+    LOGGING_LEVEL: int = logging.WARNING
+    SECRET_KEY: Optional[str] = None
 
     SQLALCHEMY_DATABASE_URI: Optional[str] = None
     # https://stackoverflow.com/questions/33738467/how-do-i-know-if-i-can-disable-sqlalchemy-track-modifications
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
+    SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
+    SQLALCHEMY_ENGINE_OPTIONS: dict = {
         "pool_recycle": 299,  # https://www.pythonanywhere.com/forums/topic/2599/
         # "pool_timeout": 20,
         "pool_pre_ping": True,  # https://docs.sqlalchemy.org/en/13/core/pooling.html#disconnect-handling-pessimistic
@@ -31,10 +31,10 @@ class Config(object):
         },  # https://stackoverflow.com/a/59932909/13775459
     }
 
-    MAIL_SERVER: Optional[str] = None
-    MAIL_PORT: Optional[str] = None
-    MAIL_USE_TLS: Optional[str] = None
-    MAIL_USE_SSL: Optional[str] = None
+    MAIL_SERVER: Optional[str] = "localhost"
+    MAIL_PORT: Optional[int] = 25
+    MAIL_USE_TLS: Optional[bool] = False
+    MAIL_USE_SSL: Optional[bool] = False
     MAIL_USERNAME: Optional[str] = None
     MAIL_DEFAULT_SENDER = (
         "FlexMeasures",
@@ -69,49 +69,57 @@ class Config(object):
 
     MAPBOX_ACCESS_TOKEN: Optional[str] = None
 
-    JSONIFY_PRETTYPRINT_REGULAR = False
+    JSONIFY_PRETTYPRINT_REGULAR: bool = False
 
     RQ_DASHBOARD_POLL_INTERVAL: int = (
         3000  # Web interface poll period for updates in ms
     )
 
-    FLEXMEASURES_PLATFORM_NAME = "FlexMeasures"
-    FLEXMEASURES_MODE = ""
-    FLEXMEASURES_PUBLIC_DEMO = False
-    FLEXMEASURES_TIMEZONE = "Asia/Seoul"
-    FLEXMEASURES_SHOW_CONTROL_UI = False
-    FLEXMEASURES_HIDE_NAN_IN_UI = False
-    FLEXMEASURES_DEMO_YEAR = 2015
+    FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
+    FLEXMEASURES_MODE: str = ""
+    FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
+    FLEXMEASURES_SHOW_CONTROL_UI: bool = False
+    FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
+    FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: Optional[Tuple] = None
+    FLEXMEASURES_DEMO_YEAR: Optional[int] = None
     # Configuration used for entity addressing:
-    # we list the domain on which FlexMeasures runs
+    # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration
-    FLEXMEASURES_HOSTS_AND_AUTH_START = {"flexmeasures.io": "2021-01"}
+    FLEXMEASURES_HOSTS_AND_AUTH_START: dict = {"flexmeasures.io": "2021-01"}
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
-    FLEXMEASURES_DB_BACKUP_PATH = "migrations/dumps"
-    FLEXMEASURES_LP_SOLVER = "cbc"
+    FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
+    FLEXMEASURES_LP_SOLVER: str = "cbc"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: Optional[str] = None
-    FLEXMEASURES_PA_DOMAIN_NAMES: List[str] = []
-    FLEXMEASURES_REDIS_URL = "localhost"
-    FLEXMEASURES_REDIS_PORT = 6379
-    FLEXMEASURES_REDIS_DB_NR = 0  # Redis per default has 16 databases, [0-15]
-    FLEXMEASURES_REDIS_PASSWORD = None
+    FLEXMEASURES_REDIS_URL: str = "localhost"
+    FLEXMEASURES_REDIS_PORT: int = 6379
+    FLEXMEASURES_REDIS_DB_NR: int = 0  # Redis per default has 16 databases, [0-15]
+    FLEXMEASURES_REDIS_PASSWORD: Optional[str] = None
 
-    #  names of settings which cannot be None
-    required: List[str] = [
-        "SQLALCHEMY_DATABASE_URI",
-        "MAIL_SERVER",
-        "MAIL_PORT",
-        "MAIL_USE_TLS",
-        "MAIL_USE_SSL",
-        "MAIL_USERNAME",
-        "MAIL_DEFAULT_SENDER",
-        "MAIL_PASSWORD",
-        "SECURITY_PASSWORD_SALT",
-    ]
+
+#  names of settings which cannot be None
+#  SECRET_KEY is also required but utils.app_utils.set_secret_key takes care of this better.
+required: List[str] = ["SQLALCHEMY_DATABASE_URI"]
+
+#  settings whose absence should trigger a warning
+mail_warning = "Without complete mail settings, FlexMeasures will not be able to send mails to users, e.g. for password resets!"
+redis_warning = "Without complete redis connection settings, FlexMeasures will not be able to run forecasting and scheduling job queues."
+warnable: Dict[str, str] = {
+    "MAIL_SERVER": mail_warning,
+    "MAIL_PORT": mail_warning,
+    "MAIL_USE_TLS": mail_warning,
+    "MAIL_USE_SSL": mail_warning,
+    "MAIL_USERNAME": mail_warning,
+    "MAIL_DEFAULT_SENDER": mail_warning,
+    "MAIL_PASSWORD": mail_warning,
+    "FLEXMEASURES_REDIS_URL": redis_warning,
+    "FLEXMEASURES_REDIS_PORT": redis_warning,
+    "FLEXMEASURES_REDIS_DB_NR": redis_warning,
+    "FLEXMEASURES_REDIS_PASSWORD": redis_warning,
+}
 
 
 class ProductionConfig(Config):

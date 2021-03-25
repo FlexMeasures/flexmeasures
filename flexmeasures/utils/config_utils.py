@@ -1,12 +1,19 @@
 import os
 import sys
 import logging
+from typing import Optional, List, Tuple
 from datetime import datetime
 from logging.config import dictConfig as loggingDictConfig
+from pathlib import Path
 
+from flask import Flask
 from inflection import camelize
 
-from flexmeasures.utils.config_defaults import Config as DefaultConfig
+from flexmeasures.utils.config_defaults import (
+    Config as DefaultConfig,
+    required,
+    warnable,
+)
 
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -43,7 +50,7 @@ def configure_logging():
     loggingDictConfig(flexmeasures_logging_config)
 
 
-def read_config(app):
+def read_config(app: Flask, path_to_config: Optional[str]):
     """Read configuration from various expected sources, complain if not setup correctly. """
 
     if app.env not in (
@@ -58,50 +65,91 @@ def read_config(app):
         )
         sys.exit(2)
 
+    # Load default config settings
     app.config.from_object(
         "flexmeasures.utils.config_defaults.%sConfig" % camelize(app.env)
     )
 
-    env_config_path = "%s/%s_config.py" % (app.root_path, app.env)
-
+    # Now read user config, if possible. If no explicit path is given, try home dir first, then instance dir
+    if path_to_config is not None and not os.path.exists(path_to_config):
+        print(f"Cannot find config file {path_to_config}!")
+        sys.exit(2)
+    path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
+    path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
+    if path_to_config is None:
+        path_to_config = path_to_config_home
+        if not os.path.exists(path_to_config):
+            path_to_config = path_to_config_instance
     try:
-        app.config.from_pyfile(env_config_path)
+        app.config.from_pyfile(path_to_config)
     except FileNotFoundError:
         pass
+    # Finally, all required varaiables can be set as env var:
+    for req_var in required:
+        app.config[req_var] = os.getenv(req_var, app.config.get(req_var, None))
 
-    # Check for missing values. Testing might affect only specific functionality (-> dev's responsibility)
+    # Check for missing values.
+    # Testing might affect only specific functionality (-> dev's responsibility)
+    # Documentation runs fine without them.
     if not app.testing and app.env != "documentation":
-        missing_settings = check_config_completeness(app)
-        if len(missing_settings) > 0:
-            if not os.path.exists(env_config_path):
+        if not are_required_settings_complete(app):
+            if not os.path.exists(path_to_config):
                 print(
-                    'Missing configuration settings: %s\nAs FLASK_ENV=%s, please provide the file "%s"'
-                    " in the flexmeasures directory, and include these settings."
-                    % (", ".join(missing_settings), app.env, env_config_path)
+                    f"You can provide these settings ― as environment variables or in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
                 )
             else:
                 print(
-                    "Missing configuration settings: %s" % ", ".join(missing_settings)
+                    f"Please provide these settings ― as environment variables or in your config file ({path_to_config})."
                 )
             sys.exit(2)
+        missing_fields, config_warnings = get_config_warnings(app)
+        if len(config_warnings) > 0:
+            for warning in config_warnings:
+                print(f"Warning: {warning}")
+            print(f"You might consider setting {', '.join(missing_fields)}.")
 
     # Set the desired logging level on the root logger (controlling extension logging level)
     # and this app's logger.
-    logging.getLogger().setLevel(app.config.get("LOGGING_LEVEL"))
-    app.logger.setLevel(app.config.get("LOGGING_LEVEL"))
+    logging.getLogger().setLevel(app.config.get("LOGGING_LEVEL", "INFO"))
+    app.logger.setLevel(app.config.get("LOGGING_LEVEL", "INFO"))
     # print("Logging level is %s" % logging.getLevelName(app.logger.level))
 
     app.config["START_TIME"] = datetime.utcnow()
 
 
-def check_config_completeness(app):
-    """Check if all settings we expect are not None. Return the ones that are None."""
-    expected_settings = []
-    for attr in [
+def are_required_settings_complete(app) -> bool:
+    """
+    Check if all settings we expect are not None. Return False if they are not.
+    Printout helpful advice.
+    """
+    expected_settings = [s for s in get_configuration_keys(app) if s in required]
+    missing_settings = [s for s in expected_settings if app.config.get(s) is None]
+    if len(missing_settings) > 0:
+        print(
+            f"Missing the required configuration settings: {', '.join(missing_settings)}"
+        )
+        return False
+    return True
+
+
+def get_config_warnings(app) -> Tuple[List[str], List[str]]:
+    """return missing settings and the warnings for them."""
+    missing_settings = []
+    config_warnings = []
+    for setting, warning in warnable.items():
+        if app.config.get(setting) is None:
+            missing_settings.append(setting)
+            config_warnings.append(warning)
+    config_warnings = list(set(config_warnings))
+    return missing_settings, config_warnings
+
+
+def get_configuration_keys(app) -> List[str]:
+    """
+    Collect all members of DefaultConfig who are not in-built fields or callables.
+    """
+    return [
         a
         for a in DefaultConfig.__dict__
-        if not a.startswith("__") and a in DefaultConfig.required
-    ]:
-        if not callable(getattr(DefaultConfig, attr)):
-            expected_settings.append(attr)
-    return [s for s in expected_settings if app.config.get(s) is None]
+        if not a.startswith("__") and not callable(getattr(DefaultConfig, a))
+    ]

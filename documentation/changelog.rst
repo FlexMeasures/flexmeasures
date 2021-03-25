@@ -7,7 +7,8 @@ v0.2.4 | March XX, 2021
 ===========================
 
 New features
-------------
+-----------
+* FlexMeasures can be installed with `pip` and its CLI commands can be run with `flexmeasures` [see `PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
 * Optionally setting recording time when posting data [see `PR #41 <http://www.github.com/SeitaBV/flexmeasures/pull/41>`_]
 
 Bugfixes
@@ -17,9 +18,12 @@ Bugfixes
 * User page did not list number of assets correctly [see `PR #64 <http://www.github.com/SeitaBV/flexmeasures/pull/64>`_]
 * Missing *postPrognosis* endpoint for >1.0 API blueprints [part of `PR #41 <http://www.github.com/SeitaBV/flexmeasures/pull/41>`_]
 
-Infrastructure/Support
+Infrastructure / Support
 ----------------------
 * Dump and restore postgres database as CLI commands [see `PR #68 <https://github.com/SeitaBV/flexmeasures/pull/68>`_]
+* Improved installation tutorial as part of [`PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
+
+
 
 v0.2.3 | February 27, 2021
 ===========================
@@ -39,7 +43,7 @@ Bugfixes
 * Password reset link on account page was broken [see `PR #23 <http://www.github.com/SeitaBV/flexmeasures/pull/23>`_]
  
 
-Infrastructure/Support
+Infrastructure / Support
 ----------------------
 * CI via Github Actions [see `PR #1 <http://www.github.com/SeitaBV/flexmeasures/pull/1>`_]
 * Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`__ lib: Sensors [see `PR #13 <http://www.github.com/SeitaBV/flexmeasures/pull/13>`_]

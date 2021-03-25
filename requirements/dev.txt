@@ -28,6 +28,7 @@ toml==0.10.1              # via -c requirements/test.txt, black, pre-commit
 typed-ast==1.4.1          # via black, mypy
 typing-extensions==3.7.4.3  # via black, mypy
 virtualenv==20.0.31       # via pre-commit
+watchdog==2.0.2           # via -r requirements/dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

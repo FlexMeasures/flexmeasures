@@ -275,20 +275,20 @@
                 </div>
                 </div>
 
-                {% if app_running_since %}
                 <!-- We might render templates from plugins, where this meta info is not available -->
-                {% if current_user.has_role('anonymous') %}
-                <!--
-                                {% endif %}
-                            This app is running since {{ app_running_since }}
-                                {% if git_version != "Unknown" %}
-                                on version {{ git_version }}+{{ git_commits_since }}.
-                                {% else %}
-                                on revision {{ git_hash }}.
-                                {% endif %}
-                                {% if current_user.has_role('anonymous') %}
-                                -->
+                {% if app_running_since %}
+                    This app is running since {{ app_running_since }}
                 {% endif %}
+                {% if not current_user.has_role('anonymous') %}
+                    {% if flexmeasures_version %}
+                        on version {{ flexmeasures_version }}
+                    {% else %}
+                        {% if git_version != "Unknown" %}
+                        on version {{ git_version }}+{{ git_commits_since }}.
+                        {% else %}
+                        on revision {{ git_hash }}.
+                        {% endif %}
+                    {% endif %}
                 {% endif %}
             </div>
             <div>

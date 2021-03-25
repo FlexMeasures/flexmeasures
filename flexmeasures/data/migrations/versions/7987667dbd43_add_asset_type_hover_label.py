@@ -23,7 +23,7 @@ def upgrade():
     )
     # ### end Alembic commands ###
     op.drop_constraint(
-        constraint_name="asset_asset_type_name_fkey",
+        constraint_name="asset_asset_type_name_asset_type_fkey",
         table_name="asset",
         type_="foreignkey",
     )
@@ -46,7 +46,7 @@ def upgrade():
         "UPDATE asset SET asset_type_name = 'two-way_evse' where asset_type_name = 'bidirectional_charging_station'"
     )
     op.create_foreign_key(
-        constraint_name="asset_asset_type_name_fkey",
+        constraint_name="asset_asset_type_name_asset_type_fkey",
         source_table="asset",
         referent_table="asset_type",
         local_cols=["asset_type_name"],
@@ -65,7 +65,7 @@ def downgrade():
     op.drop_column("asset_type", "hover_label")
     # ### end Alembic commands ###
     op.drop_constraint(
-        constraint_name="asset_asset_type_name_fkey",
+        constraint_name="asset_asset_type_name_asset_type_fkey",
         table_name="asset",
         type_="foreignkey",
     )
@@ -88,7 +88,7 @@ def downgrade():
         "UPDATE asset SET asset_type_name = 'bidirectional_charging_station' where asset_type_name = 'two-way_evse'"
     )
     op.create_foreign_key(
-        constraint_name="asset_asset_type_name_fkey",
+        constraint_name="asset_asset_type_name_asset_type_fkey",
         source_table="asset",
         referent_table="asset_type",
         local_cols=["asset_type_name"],
