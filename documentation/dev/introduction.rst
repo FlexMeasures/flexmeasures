@@ -15,7 +15,7 @@ Getting started
 Virtual environment
 ^^^^^^^^^^^^^^^^^^^^
 
-Using a virtual enviornment is best practice for Python developers. We also stringly recommend using a dedicated one for your work on FlexMeasures, as our make target (see below) will use ``pip-sync`` to install dependencies, which could interfere with some libraries you already have installed.
+Using a virtual environment is best practice for Python developers. We also strongly recommend using a dedicated one for your work on FlexMeasures, as our make target (see below) will use ``pip-sync`` to install dependencies, which could interfere with some libraries you already have installed.
 
 
 * Make a virtual environment: ``python3.8 -m venv flexmeasures-venv`` or use a different tool like ``mkvirtualenv`` or virtualenvwrapper. You can also use
