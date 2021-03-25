@@ -1,5 +1,4 @@
-from flexmeasures.data.services.users import find_user_by_email
-from typing import Optional
+from typing import Optional, Union
 from datetime import timedelta
 from isodate import duration_isoformat, parse_duration, parse_datetime
 
@@ -10,6 +9,7 @@ from flexmeasures.api.common.utils.api_utils import get_generic_asset
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.weather import WeatherSensor, Weather
+from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.v1_1.tests.utils import (
     message_for_post_price_data as v1_1_message_for_post_price_data,
 )
@@ -84,8 +84,10 @@ def verify_sensor_data_in_db(
 
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
-    market: Market = get_generic_asset(post_message[entity_type], entity_type)
-    resolution = market.event_resolution
+    sensor: Union[Asset, Market, WeatherSensor] = get_generic_asset(
+        post_message[entity_type], entity_type
+    )
+    resolution = sensor.event_resolution
     if "horizon" in post_message:
         horizon = parse_duration(post_message["horizon"])
         query = (
@@ -95,7 +97,7 @@ def verify_sensor_data_in_db(
             )
             .filter(data_type.horizon == horizon)
             .join(sensor_type)
-            .filter(sensor_type.name == market.name)
+            .filter(sensor_type.name == sensor.name)
         )
     else:
         query = (
@@ -109,7 +111,7 @@ def verify_sensor_data_in_db(
             )
             # .filter(data_type.horizon == (data_type.datetime + resolution) - prior)  # only for sensors with 0-hour ex_post knowledge horizon function
             .join(sensor_type)
-            .filter(sensor_type.name == market.name)
+            .filter(sensor_type.name == sensor.name)
         )
     # todo: after basing Price on TimedBelief, we should be able to get a BeliefsDataFrame from the query directly
     df = pd.DataFrame(
@@ -122,7 +124,7 @@ def verify_sensor_data_in_db(
             "horizon": "belief_horizon",
         }
     )
-    bdf = tb.BeliefsDataFrame(df, sensor=market, source="Some source")
+    bdf = tb.BeliefsDataFrame(df, sensor=sensor, source="Some source")
     if "prior" in post_message:
         prior = parse_datetime(post_message["prior"])
         bdf = bdf.fixed_viewpoint(prior)
