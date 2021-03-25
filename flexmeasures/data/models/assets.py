@@ -105,13 +105,13 @@ class Asset(db.Model, tb.SensorDBMixin):
             new_sensor = Sensor(name=kwargs["name"])
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
-            new_sensor_id = new_sensor.id
+            sensor_id = new_sensor.id
         else:
             # The UI may initialize Asset objects from API form data with a known id
-            new_sensor_id = kwargs["id"]
+            sensor_id = kwargs["id"]
 
         super(Asset, self).__init__(**kwargs)
-        self.id = new_sensor_id
+        self.id = sensor_id
         self.name = self.name.replace(" (MW)", "")
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
