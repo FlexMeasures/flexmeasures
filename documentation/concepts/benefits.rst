@@ -30,7 +30,7 @@ As FlexMeasures is open source, they can choose to host it themselves or let a t
 
 Profit sharing
 ---------------
-The platform operator (as ESCO or aggregator) and asset owners can share the profit made from flexibility activations between them.
+The platform operator (as ESCo or Aggregator) and asset owners can share the profit made from flexibility activations between them.
 FlexMeasures plans on providing basic accounting for this.
 
 
