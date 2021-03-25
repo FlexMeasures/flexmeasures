@@ -98,7 +98,7 @@ We achieve this by adding a tiny artificial price slope. We penalise the future 
 Possible future work on algorithms
 -----------------------------------
 
-Enabling more algorihtmic expression in FlexMeasures is crucial. This are a few ideas for future work. Some of them are excellent topics for Bachelor or Master theses. so get in touch if that is of interest to you.
+Enabling more algorithmic expression in FlexMeasures is crucial. This are a few ideas for future work. Some of them are excellent topics for Bachelor or Master theses. so get in touch if that is of interest to you.
 
 More configurable forecasting
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
