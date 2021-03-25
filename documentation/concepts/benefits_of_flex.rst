@@ -76,9 +76,9 @@ The net effect of a shifting action is measured in terms of an energy-time volum
 This volume is a multiplication of the energy volume being shifted and the duration of that shift.
 
 
-.. _activation_profits
+.. _activation_profits:
 
-Profits of flexiblity activation 
+Profits of flexibility activation
 ---------------
 
 The realised value from activating flexibility opportunities has to be computed and accounted for.
