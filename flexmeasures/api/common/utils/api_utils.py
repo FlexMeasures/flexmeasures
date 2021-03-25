@@ -1,20 +1,29 @@
-from typing import List, Union, Sequence
+from typing import List, Sequence, Tuple, Union
 import copy
-from datetime import timedelta
+from datetime import datetime, timedelta
 from json import loads as parse_json, JSONDecodeError
 
 from flask import current_app
 from inflection import pluralize
 from numpy import array
+from rq.job import Job
+from sqlalchemy.exc import IntegrityError
+import timely_beliefs as tb
 
 from flexmeasures.data import db
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.weather import WeatherSensor
+from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.models.user import User
+from flexmeasures.data.utils import save_to_session
 from flexmeasures.utils.entity_address_utils import parse_entity_address
-from flexmeasures.api.common.responses import unrecognized_sensor
+from flexmeasures.api.common.responses import (
+    unrecognized_sensor,
+    ResponseTuple,
+    request_processed,
+    already_received_and_successfully_processed,
+)
 
 
 def list_access(service_listing, service_name):
@@ -337,7 +346,9 @@ def get_weather_sensor_by(
     return weather_sensor
 
 
-def get_generic_asset(asset_descriptor, entity_type):
+def get_generic_asset(
+    asset_descriptor, entity_type
+) -> Union[Asset, Market, WeatherSensor, None]:
     """
     Get a generic asset from form information
     # TODO: After refactoring, unify 3 generic_asset cases -> 1 sensor case
@@ -356,3 +367,79 @@ def get_generic_asset(asset_descriptor, entity_type):
             ea["longitude"],
         )
     return None
+
+
+def save_to_db(
+    timed_values: List[Union[Power, Price, Weather]], forecasting_jobs: List[Job]
+) -> ResponseTuple:
+    """Put the timed values into the database and create forecasting jobs.
+
+    Data can only be replaced on servers in play mode.
+
+    :param timed_values: list of Power, Price or Weather values to be saved
+    :param forecasting_jobs: list of forecasting Jobs for redis queues.
+    :returns: ResponseTuple
+    """
+    current_app.logger.info("SAVING TO DB AND QUEUEING...")
+    try:
+        save_to_session(timed_values)
+        db.session.flush()
+        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
+        db.session.commit()
+        return request_processed()
+    except IntegrityError as e:
+        current_app.logger.warning(e)
+        db.session.rollback()
+
+        # Allow data to be replaced only in play mode
+        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
+            save_to_session(timed_values, overwrite=True)
+            [
+                current_app.queues["forecasting"].enqueue_job(job)
+                for job in forecasting_jobs
+            ]
+            db.session.commit()
+            return request_processed()
+        else:
+            return already_received_and_successfully_processed()
+
+
+def determine_belief_timing(
+    event_values: list,
+    start: datetime,
+    resolution: timedelta,
+    horizon: timedelta,
+    prior: datetime,
+    sensor: tb.Sensor,
+) -> Tuple[List[datetime], List[timedelta]]:
+    """Determine event starts from start, resolution and len(event_values),
+    and belief horizons from horizon, prior, or both, taking into account
+    the sensor's knowledge horizon function.
+
+    In case both horizon and prior is set, we take the greatest belief horizon,
+    which represents the earliest belief time.
+    """
+    event_starts = [start + j * resolution for j in range(len(event_values))]
+    belief_horizons_from_horizon = None
+    belief_horizons_from_prior = None
+    if horizon is not None:
+        belief_horizons_from_horizon = [horizon] * len(event_values)
+        if prior is None:
+            return event_starts, belief_horizons_from_horizon
+    if prior is not None:
+        belief_horizons_from_prior = [
+            event_start - prior - sensor.knowledge_horizon(event_start)
+            for event_start in event_starts
+        ]
+        if horizon is None:
+            return event_starts, belief_horizons_from_prior
+    if (
+        belief_horizons_from_horizon is not None
+        and belief_horizons_from_prior is not None
+    ):
+        belief_horizons = [
+            max(a, b)
+            for a, b in zip(belief_horizons_from_horizon, belief_horizons_from_prior)
+        ]
+        return event_starts, belief_horizons
+    raise ValueError("Missing horizon or prior.")

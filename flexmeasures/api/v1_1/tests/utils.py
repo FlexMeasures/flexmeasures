@@ -6,7 +6,7 @@ from isodate import duration_isoformat, parse_duration, parse_datetime
 import pandas as pd
 from numpy import tile
 
-from flexmeasures.utils.entity_address_utils import parse_entity_address
+from flexmeasures.api.common.utils.api_utils import get_generic_asset
 from flexmeasures.data.models.markets import Market, Price
 
 
@@ -49,20 +49,22 @@ def message_for_get_prognosis(
 
 
 def message_for_post_price_data(
-    invalid_unit: bool = False,
     tile_n: int = 1,
     compress_n: int = 1,
     duration: Optional[timedelta] = None,
+    invalid_unit: bool = False,
 ) -> dict:
     """
     The default message has 24 hourly values.
 
-    :param tile_n: Tile the price profile back to back to obtain price data for n days (default = 1).
-    :param compress_n: Compress the price profile to obtain price data with a coarser resolution (default = 1),
-                       e.g. compress=4 leads to a resolution of 4 hours.
-    :param duration: Set a duration explicitly to obtain price data with a coarser or finer resolution (default is equal to 24 hours * tile_n),
-                     e.g. (assuming tile_n=1) duration=timedelta(hours=6) leads to a resolution of 15 minutes,
-                     and duration=timedelta(hours=48) leads to a resolution of 2 hours.
+    :param tile_n:       Tile the price profile back to back to obtain price data for n days (default = 1).
+    :param compress_n:   Compress the price profile to obtain price data with a coarser resolution (default = 1),
+                         e.g. compress=4 leads to a resolution of 4 hours.
+    :param duration:     Set a duration explicitly to obtain price data with a coarser or finer resolution
+                         (the default is equal to 24 hours * tile_n),
+                         e.g. (assuming tile_n=1) duration=timedelta(hours=6) leads to a resolution of 15 minutes,
+                         and duration=timedelta(hours=48) leads to a resolution of 2 hours.
+    :param invalid_unit: Choose an invalid unit for the test market (epex_da).
     """
     message = {
         "type": "PostPriceDataRequest",
@@ -96,7 +98,7 @@ def message_for_post_price_data(
             ],
             tile_n,
         ).tolist(),
-        "start": "2015-01-01T15:00:00+09:00",
+        "start": "2021-01-06T00:00:00+01:00",
         "duration": duration_isoformat(timedelta(hours=24 * tile_n)),
         "horizon": duration_isoformat(timedelta(hours=11 + 24 * tile_n)),
         "unit": "EUR/MWh",
@@ -137,20 +139,12 @@ def message_for_post_weather_data(
     return message
 
 
-def get_market(post_message) -> Optional[Market]:
-    """util method to get market from our post message"""
-    market_info = parse_entity_address(post_message["market"], "market")
-    if market_info is None:
-        return None
-    return Market.query.filter_by(name=market_info["market_name"]).one_or_none()
-
-
 def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     """util method to verify that price data ended up in the database"""
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
     horizon = parse_duration(post_message["horizon"])
-    market: Market = get_market(post_message)
+    market: Market = get_generic_asset(post_message["market"], "market")
     resolution = market.event_resolution
     query = (
         db.session.query(Price.value, Price.horizon)

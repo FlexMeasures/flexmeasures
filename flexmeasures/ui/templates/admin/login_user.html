@@ -26,14 +26,14 @@
             <form action="/reset" method="get">
                 <button class="btn btn-sm btn-responsive btn-link" type="submit">Forgot password?</button>
             </form>
-            {% if FLEXMEASURES_PUBLIC_DEMO %}
+            {% if FLEXMEASURES_MODE == "demo" and FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS %}
             <div class="alert alert-info col-sm-8">
                 <h2>Interested in a demo?</h2>
                 <p>
                     Simply log in to our demo account.
                 <ul>
-                    <li>Email: demo at seita.nl</li>
-                    <li>Password: flexdemo</li>
+                    <li>Email: {{ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS[0] }}</li>
+                    <li>Password: {{ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS[1] }}</li>
                 </ul>
                 </p>
             </div>

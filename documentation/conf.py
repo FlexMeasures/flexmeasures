@@ -6,19 +6,14 @@
 # full list see the documentation:
 # http://www.sphinx-doc.org/en/stable/config
 
-import os
-import sys
 from datetime import datetime
+from pkg_resources import get_distribution
 
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-
-# Insert FlexMeasures' path into the system.
-sys.path.insert(0, os.path.abspath(".."))
-from flexmeasures import __version__  # noqa: E402
 
 
 # -- Project information -----------------------------------------------------
@@ -27,10 +22,10 @@ project = "FlexMeasures"
 copyright = f"{datetime.now().year}, Seita Energy Flexibility, developed in partnership with A1 Engineering, South Korea"
 author = "Seita B.V."
 
-# The short X.Y version
-version = __version__
 # The full version, including alpha/beta/rc tags
-release = __version__
+release = get_distribution("flexmeasures").version
+# The short X.Y.Z version
+version = ".".join(release.split(".")[:3])
 
 rst_prolog = """
 """

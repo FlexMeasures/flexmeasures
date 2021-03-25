@@ -34,10 +34,7 @@ def as_transaction(db_function):
             the_db = db
         # run actual function, handle any exceptions and re-raise
         try:
-            if db_obj_passed:
-                db_function(*args[1:], **kwargs)
-            else:
-                db_function(*args, **kwargs)
+            db_function(*args, **kwargs)
             the_db.session.commit()
         except Exception as e:
             current_app.logger.error(

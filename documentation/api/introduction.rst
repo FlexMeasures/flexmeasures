@@ -4,7 +4,7 @@ Introduction
 ============
 
 This document details the Application Programming Interface (API) of the FlexMeasures web service. The API supports user automation for flexibility valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
-We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io. 
+We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
 
 
 New versions of the API are released on:
@@ -13,7 +13,7 @@ New versions of the API are released on:
 
     https://company.flexmeasures.io/api
 
-A list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a *getService* request. An optional parameter "access" can be used to specify a user role for which to obtain only the relevant services.
+A list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a *getService* request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
 
 **Example request**
 
@@ -307,12 +307,64 @@ For version 1 of the API, only univariate timeseries data is expected to be comm
 - "start" should be a timestamp on the hour or a multiple of 15 minutes thereafter, and
 - "duration" should be a multiple of 15 minutes.
 
+.. _beliefs:
+
+Beliefs
+^^^^^^^
+
+By regarding all time series data as beliefs that have been recorded at a certain time, data can be filtered accordingly.
+Some GET endpoints have two optional timing fields to allow such filtering.
+The "prior" field (a timestamp) can be used to select beliefs recorded before some moment in time.
+It can be used to "time-travel" to see the state of information at some moment in the past.
+In addition, the "horizon" field (a duration) can be used to select beliefs recorded before some moment in time, relative to each event.
+For example, to filter out meter readings communicated within a day (denoted by a negative horizon) or forecasts created at least a day beforehand (denoted by a positive horizon).
+In addition to these two timing filters, beliefs can be filtered by their source (see :ref:`sources`).
+
+The two timing fields follow the ISO 8601 standard and are interpreted as follows:
+
+- "horizon": recorded at least <duration> before the fact (indicated by a positive horizon), or at most <duration> after the fact (indicated by a negative horizon).
+- "prior": recorded prior to <timestamp>.
+
+For example:
+
+.. code-block:: json
+
+    {
+        "horizon": "PT6H",
+        "prior": "2020-08-01T17:00:00Z"
+    }
+
+These fields denote that the data should have been recorded at least 6 hours before the fact (i.e. forecasts) and prior to 5 PM on August 1st 2020 (UTC).
+
 .. _prognoses:
 
 Prognoses
 ^^^^^^^^^
 
-When POSTing a prognosis, the message should state a time horizon, i.e. the duration between the time at which the prognosis was made and the time of realisation (commonly at the end of the prognosed time interval). The horizon can be stated explicitly by including a "horizon", consistent with the ISO 8601 standard, as follows:
+Some POST endpoints have two optional fields to allow setting the time at which beliefs are recorded explicitly.
+This is useful to keep an accurate history of what was known at what time, especially for prognoses.
+If not used, |FLEXMEASURES_PLATFORM_NAME| will infer the prior from the arrival time of the message.
+
+The "prior" field (a timestamp) can be used to set a single time at which the entire prognosis was recorded.
+Alternatively, the "horizon" field (a duration) can be used to set the recording times relative to each prognosed event.
+In case both fields are set, the earliest possible recording time is determined and recorded for each prognosed event.
+
+The two timing fields follow the ISO 8601 standard and are interpreted as follows:
+
+.. code-block:: json
+
+    {
+        "values": [
+            10,
+            5,
+            8
+        ],
+        "start": "2016-05-01T13:00:00Z",
+        "duration": "PT45M",
+        "prior": "2016-05-01T07:45:00Z",
+    }
+
+This message implies that the entire prognosis was recorded at 7:45 AM UTC, i.e. 6 hours before the end of the entire time interval.
 
 .. code-block:: json
 
@@ -327,26 +379,11 @@ When POSTing a prognosis, the message should state a time horizon, i.e. the dura
         "horizon": "PT6H"
     }
 
-This message implies that the entire prognosis was made at 7:45 AM UTC, i.e. 6 hours before the end of the time interval.
-Alternatively, a rolling horizon can be stated as an ISO 8601 repeating time interval:
+This message implies that all prognosed values were recorded 6 hours in advance.
+That is, the value for 1:00-1:15 PM was made at 7:15 AM, the value for 1:15-1:30 PM was made at 7:30 AM, and the value for 1:30-1:45 PM was made at 7:45 AM.
 
-.. code-block:: json
-
-    {
-        "values": [
-            10,
-            5,
-            8
-        ],
-        "start": "2016-05-01T13:00:00Z",
-        "duration": "PT45M",
-        "horizon": "R/PT6H"
-    }
-
-Here, the number of repetitions and the repeat rule is omitted as it is implied by our notation for univariate timeseries (a complete representation of the "horizon" would have been "R3/PT6H/FREQ=MI;INTR=15").
-This message implies that the value for 1:00-1:15 PM was made at 7:15 AM, the value for 1:15-1:30 PM was made at 7:30 AM, and the value for 1:30-1:45 PM was made at 7:45 AM.
-
-A "horizon" may be omitted, in which case the web service will infer the horizon from the arrival time of the message. Negative horizons may also be stated (breaking with the ISO 8601 standard) to indicate a prognosis about something that has already happened (i.e. after the fact, or simply *ex post*). For example, the following message implies that the entire prognosis was made at 1:55 PM UTC, 10 minutes after the fact:
+Negative horizons may also be stated (breaking with the ISO 8601 standard) to indicate a prognosis about something that has already happened (i.e. after the fact, or simply *ex post*).
+For example, the following message implies that all prognosed values were made 10 minutes after the fact:
 
 .. code-block:: json
 
@@ -361,37 +398,8 @@ A "horizon" may be omitted, in which case the web service will infer the horizon
         "horizon": "-PT10M"
     }
 
-For a rolling horizon indicating a prognosis 10 minutes after the start of each 15-minute interval, the "horizon" would have been "R/PT5M" since in fact only the last 5 minutes of each interval occurs before the fact (*ex ante*).
-That is, for ex-ante prognoses, the timeseries resolution (here 15 minutes) is included in the horizon, because the horizon is relative to the end of the timeseries.
-
-.. _beliefs:
-
-Beliefs
-^^^^^^^
-
-By regarding all time series data as beliefs that have been recorded at a certain time, data can be filtered accordingly.
-Some GET endpoints have two optional timing parameters to allow such filtering.
-The "prior" parameter (a timestamp) can be used to select beliefs recorded before some moment in time.
-It can be used to "time-travel" to see the state of information at some moment in the past.
-In addition, the "horizon" parameter (a duration) can be used to select beliefs recorded before some moment in time, relative to each event.
-For example, to filter out meter readings communicated within a day (denoted by a negative horizon) or forecasts created at least a day beforehand (denoted by a positive horizon).
-In addition to these two timing filters, beliefs can be filtered by their source (see :ref:`sources`).
-
-The two timing parameters follow the ISO 8601 standard and are interpreted as follows:
-
-- "horizon": recorded at least <duration> before the fact (indicated by a positive horizon), or at most <duration> after the fact (indicated by a negative horizon).
-- "prior": recorded prior to <timestamp>.
-
-For example:
-
-.. code-block:: json
-
-    {
-        "horizon": "PT6H",
-        "prior": "2020-08-01T17:00:00Z"
-    }
-
-These parameters denote that the data should have been recorded at least 6 hours before the fact (i.e. forecasts) and prior to 5 PM on August 1st 2020 (UTC).
+Note that, for a horizon indicating a prognosis 10 minutes after the *start* of each 15-minute interval, the "horizon" would have been "PT5M".
+This denotes that the prognosed interval has 5 minutes left to be concluded.
 
 .. _resolutions:
 

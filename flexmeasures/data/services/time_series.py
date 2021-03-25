@@ -238,28 +238,23 @@ def drop_non_unique_ids(
 def convert_query_window_for_demo(
     query_window: Tuple[datetime, datetime]
 ) -> Tuple[datetime, datetime]:
+    demo_year = current_app.config.get("FLEXMEASURES_DEMO_YEAR", None)
+    if demo_year is None:
+        return query_window
     try:
-        start = query_window[0].replace(
-            year=current_app.config.get("FLEXMEASURES_DEMO_YEAR")
-        )
+        start = query_window[0].replace(year=demo_year)
     except ValueError as e:
         # Expand the query_window in case a leap day was selected
         if "day is out of range for month" in str(e):
-            start = (query_window[0] - timedelta(days=1)).replace(
-                year=current_app.config.get("FLEXMEASURES_DEMO_YEAR")
-            )
+            start = (query_window[0] - timedelta(days=1)).replace(year=demo_year)
         else:
             start = query_window[0]
     try:
-        end = query_window[-1].replace(
-            year=current_app.config.get("FLEXMEASURES_DEMO_YEAR")
-        )
+        end = query_window[-1].replace(year=demo_year)
     except ValueError as e:
         # Expand the query_window in case a leap day was selected
         if "day is out of range for month" in str(e):
-            end = (query_window[-1] + timedelta(days=1)).replace(
-                year=current_app.config.get("FLEXMEASURES_DEMO_YEAR")
-            )
+            end = (query_window[-1] + timedelta(days=1)).replace(year=demo_year)
         else:
             end = query_window[-1]
     return start, end
