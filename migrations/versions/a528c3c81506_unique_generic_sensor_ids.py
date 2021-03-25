@@ -89,8 +89,8 @@ def upgrade_schema_new_sensors():
 def upgrade_data():
     """Data migration to update the ids of old sensors."""
 
-    # Upgrade schema to support data upgrade
-    temporary_schema_upgrades()
+    # To support data upgrade, cascade upon updating ids
+    recreate_sensor_fks(recreate_with_cascade_on_update=True)
 
     # Declare ORM table views
     t_assets = sa.Table(
@@ -191,8 +191,8 @@ def upgrade_data():
     session.add_all(new_sensors)
     session.commit()
 
-    # Downgrade schema after supporting data upgrade
-    temporary_schema_downgrades()
+    # After supporting data upgrade, stop cascading upon updating ids
+    recreate_sensor_fks(recreate_with_cascade_on_update=False)
 
     # Finally, help out the autoincrement of the Sensor table
     t_sensors = sa.Table(
@@ -253,8 +253,8 @@ def downgrade_data():
 
     Note that downgraded ids are not guaranteed to be the same as during upgrade."""
 
-    # Upgrade schema to support data downgrade
-    temporary_schema_upgrades()
+    # To support data downgrade, cascade upon updating ids
+    recreate_sensor_fks(recreate_with_cascade_on_update=True)
 
     # Declare ORM table views
     t_markets = sa.Table(
@@ -318,8 +318,8 @@ def downgrade_data():
             .values(id=new_id)
         )
 
-    # Downgrade schema after supporting data downgrade
-    temporary_schema_downgrades()
+    # After supporting data downgrade, stop cascading upon updating ids
+    recreate_sensor_fks(recreate_with_cascade_on_update=False)
 
 
 def downgrade_schema_new_sensors():
@@ -327,7 +327,7 @@ def downgrade_schema_new_sensors():
     op.drop_table("sensor")
 
 
-def temporary_schema_upgrades():
+def recreate_sensor_fks(recreate_with_cascade_on_update: bool):
     """Schema migration to make foreign id keys cascade on update."""
     op.drop_constraint("asset_market_id_market_fkey", "asset", type_="foreignkey")
     op.create_foreign_key(
@@ -336,7 +336,7 @@ def temporary_schema_upgrades():
         "market",
         ["market_id"],
         ["id"],
-        onupdate="CASCADE",
+        onupdate="CASCADE" if recreate_with_cascade_on_update else None,
     )
     op.drop_constraint("price_market_id_market_fkey", "price", type_="foreignkey")
     op.create_foreign_key(
@@ -345,7 +345,7 @@ def temporary_schema_upgrades():
         "market",
         ["market_id"],
         ["id"],
-        onupdate="CASCADE",
+        onupdate="CASCADE" if recreate_with_cascade_on_update else None,
     )
     op.drop_constraint(
         "weather_sensor_id_weather_sensor_fkey", "weather", type_="foreignkey"
@@ -356,29 +356,7 @@ def temporary_schema_upgrades():
         "weather_sensor",
         ["sensor_id"],
         ["id"],
-        onupdate="CASCADE",
-    )
-
-
-def temporary_schema_downgrades():
-    """Schema migration to stop making foreign id keys cascade on update."""
-    op.drop_constraint("asset_market_id_market_fkey", "asset", type_="foreignkey")
-    op.create_foreign_key(
-        "asset_market_id_market_fkey", "asset", "market", ["market_id"], ["id"]
-    )
-    op.drop_constraint("price_market_id_market_fkey", "price", type_="foreignkey")
-    op.create_foreign_key(
-        "price_market_id_market_fkey", "price", "market", ["market_id"], ["id"]
-    )
-    op.drop_constraint(
-        "weather_sensor_id_weather_sensor_fkey", "weather", type_="foreignkey"
-    )
-    op.create_foreign_key(
-        "weather_sensor_id_weather_sensor_fkey",
-        "weather",
-        "weather_sensor",
-        ["sensor_id"],
-        ["id"],
+        onupdate="CASCADE" if recreate_with_cascade_on_update else None,
     )
 
 
