@@ -108,7 +108,7 @@ Furthermore, we plan to add more types of forecasting algorithms, like random fo
 
 Other optimisation goals for scheduling
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Next to market prices, optimisation goals like reduced CO2 emissions are sometimes required. There are mutiple ways to measure this, e.g. against the CO2 mix in the grid, or the use of fossil fuels.
+Next to market prices, optimisation goals like reduced CO₂ emissions are sometimes required. There are mutiple ways to measure this, e.g. against the CO₂ mix in the grid, or the use of fossil fuels.
 
 
 Scheduling of other flexible asset types

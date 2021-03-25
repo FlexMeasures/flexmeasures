@@ -4,7 +4,7 @@ Benefits from energy flexibility
 ====================================
 
 FlexMeasures was created so that the value of energy flexibility can be realised.
-This will make energy cheaper to use, and can also reduce CO2 emissions.
+This will make energy cheaper to use, and can also reduce CO₂ emissions.
 Here, we define a few terms around this idea, which come up in other parts of this documentation.
 
 .. contents::
@@ -89,7 +89,7 @@ Both of these activities depend on the context in which FlexMeasures is being us
 Computing value
 ^^^^^^^^^^^^^^^^
 
-The computation of the value is what drives the scheduling optimization. This value is usually monetary, and in that case there should be some form of market configured. This can be a constant or time-of-use tariff, or a real market. However, there are other possibilities, for instance if the optimisation goal is to minimise the CO2 consumption. The realised value is avoided CO2, whcih is probably not easy to translate into a monetary value.
+The computation of the value is what drives the scheduling optimization. This value is usually monetary, and in that case there should be some form of market configured. This can be a constant or time-of-use tariff, or a real market. However, there are other possibilities, for instance if the optimisation goal is to minimise the CO₂ consumption. The realised value is avoided CO₂, whcih is probably not easy to translate into a monetary value.
 
 
 Accounting / Sharing value
