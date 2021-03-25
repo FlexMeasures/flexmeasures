@@ -97,13 +97,13 @@ Accounting / Sharing value
 
 The realisation of payments is outside of FlexMeasures scope, but it can provide the accounting to enable them (as was said above, this is usually a part of the optimisation problem formulation).
 
-However, next to fueling algorithmic optimization, the value of energy flexibility also drives project partipation. Accounting plays an important role here.
+However, next to fueling algorithmic optimization, the value of energy flexibility also drives project participation. Accounting plays an important role here.
 
 There are different roles in a modern smart energy system (e.g. "Prosumer", "DSO", Aggregator", "ESCo"),
 and they all enjoy the benefits of flexibility  in different ways
 (see for example `this resource <https://www.usef.energy/role-specific-benefits/>`_ for more details).
 
-In our opinion, the only way to successful implmentation of energy flexbility is if profits 
+In our opinion, the only way to successful implementation of energy flexibility is if profits
 are shared between these stakeholders. This assumes contractual relationships. Use cases which FlexMeasures 
 can support well are the following relationships:
 
