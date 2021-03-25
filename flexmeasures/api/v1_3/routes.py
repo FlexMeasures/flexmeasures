@@ -27,7 +27,7 @@ def get_device_message():
 
     .. :quickref: Control; Download control signal from the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "duration" (6 hours by default; can be increased to plan further into the future)
 
@@ -198,6 +198,15 @@ def get_meter_data():
 @append_doc_of(v1_2_routes.post_meter_data)
 def post_meter_data():
     return v1_implementations.post_meter_data_response()
+
+
+@flexmeasures_api_v1_3.route("/postPrognosis", methods=["POST"])
+@as_response_type("PostPrognosisResponse")
+@auth_token_required
+@usef_roles_accepted(*list_access(v1_3_service_listing, "postPrognosis"))
+@append_doc_of(v1_2_routes.post_prognosis)
+def post_prognosis():
+    return v1_1_implementations.post_prognosis_response()
 
 
 @flexmeasures_api_v1_3.route("/getService", methods=["GET"])

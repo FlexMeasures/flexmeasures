@@ -9,12 +9,14 @@ v0.2.4 | March XX, 2021
 New features
 -----------
 * FlexMeasures can be installed with `pip` and its CLI commands can be run with `flexmeasures` [see `PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
+* Optionally setting recording time when posting data [see `PR #41 <http://www.github.com/SeitaBV/flexmeasures/pull/41>`_]
 
 Bugfixes
 --------
 * Show screenshots in documentation and add some missing content [see `PR #60 <http://www.github.com/SeitaBV/flexmeasures/pull/60>`_]
 * Documentation listed 2.0 API endpoints twice [see `PR #59 <http://www.github.com/SeitaBV/flexmeasures/pull/59>`_]
 * User page did not list number of assets correctly [see `PR #64 <http://www.github.com/SeitaBV/flexmeasures/pull/64>`_]
+* Missing *postPrognosis* endpoint for >1.0 API blueprints [part of `PR #41 <http://www.github.com/SeitaBV/flexmeasures/pull/41>`_]
 
 Infrastructure / Support
 ----------------------

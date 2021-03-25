@@ -117,7 +117,7 @@ def post_price_data():
 
     .. :quickref: Data; Upload price data to the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "horizon" (see :ref:`prognoses`)
 
@@ -205,7 +205,7 @@ def post_weather_data():
 
     .. :quickref: Data; Upload weather data to the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "horizon" (see :ref:`prognoses`)
 
@@ -273,7 +273,7 @@ def get_prognosis():
 
     .. :quickref: Data; Download prognosis from the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "resolution" (see :ref:`resolutions`)
     - "horizon" (see :ref:`beliefs`)
@@ -341,7 +341,7 @@ def post_prognosis():
 
     .. :quickref: Data; Upload prognosis to the platform
 
-    **Optional parameters**
+    **Optional fields**
 
     - "horizon" (see :ref:`prognoses`)
 

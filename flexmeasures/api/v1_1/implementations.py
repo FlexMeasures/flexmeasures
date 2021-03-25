@@ -4,20 +4,18 @@ from datetime import timedelta
 from flask import current_app
 from flask_json import as_json
 from flask_security import current_user
-from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
 )
 from flexmeasures.api.common.responses import (
-    already_received_and_successfully_processed,
     invalid_domain,
     invalid_unit,
-    request_processed,
     unrecognized_market,
 )
 from flexmeasures.api.common.utils.api_utils import (
+    save_to_db,
     get_or_create_user_data_source,
 )
 from flexmeasures.api.common.utils.validators import (
@@ -39,10 +37,8 @@ from flexmeasures.api.v1.implementations import (
     create_connection_and_value_groups,
 )
 from flexmeasures.api.common.utils.api_utils import get_weather_sensor_by
-from flexmeasures.data.config import db
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.weather import Weather
-from flexmeasures.data.utils import save_to_session
 from flexmeasures.data.services.resources import get_assets
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 
@@ -66,7 +62,7 @@ def get_connection_response():
 @type_accepted("PostPriceDataRequest")
 @units_accepted("price", "EUR/MWh", "KRW/kWh")
 @assets_required("market")
-@optional_horizon_accepted()
+@optional_horizon_accepted(accept_repeating_interval=True)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("market")
@@ -135,35 +131,13 @@ def post_price_data_response(
                     enqueue=False,  # will enqueue later, only if we successfully saved prices
                 )
 
-    # Put these into the database
-    current_app.logger.info("SAVING TO DB...")
-    try:
-        save_to_session(prices)
-        db.session.flush()
-        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
-        db.session.commit()
-        return request_processed()
-    except IntegrityError as e:
-        current_app.logger.warning(e)
-        db.session.rollback()
-
-        # Allow price data to be replaced only in play mode
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            save_to_session(prices, overwrite=True)
-            [
-                current_app.queues["forecasting"].enqueue_job(job)
-                for job in forecasting_jobs
-            ]
-            db.session.commit()
-            return request_processed()
-        else:
-            return already_received_and_successfully_processed()
+    return save_to_db(prices, forecasting_jobs)
 
 
 @type_accepted("PostWeatherDataRequest")
 @unit_required
 @assets_required("sensor")
-@optional_horizon_accepted()
+@optional_horizon_accepted(accept_repeating_interval=True)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("sensor")
@@ -177,7 +151,9 @@ def post_weather_data_response(  # noqa: C901
     duration,
     resolution,
 ):
+
     current_app.logger.info("POSTING WEATHER DATA")
+
     data_source = get_or_create_user_data_source(current_user)
     weather_measurements = []
     forecasting_jobs = []
@@ -238,37 +214,15 @@ def post_weather_data_response(  # noqa: C901
                     )
                 )
 
-    # Put these into the database
-    current_app.logger.info("SAVING TO DB...")
-    try:
-        save_to_session(weather_measurements)
-        db.session.flush()
-        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
-        db.session.commit()
-        return request_processed()
-    except IntegrityError as e:
-        current_app.logger.warning(e)
-        db.session.rollback()
-
-        # Allow meter data to be replaced only in play mode
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            save_to_session(weather_measurements, overwrite=True)
-            [
-                current_app.queues["forecasting"].enqueue_job(job)
-                for job in forecasting_jobs
-            ]
-            db.session.commit()
-            return request_processed()
-        else:
-            return already_received_and_successfully_processed()
+    return save_to_db(weather_measurements, forecasting_jobs)
 
 
 @type_accepted("GetPrognosisRequest")
 @units_accepted("power", "MW")
 @assets_required("connection")
 @optional_user_sources_accepted()
-@optional_horizon_accepted(infer_missing=False)
-@optional_prior_accepted()
+@optional_horizon_accepted(infer_missing=False, accept_repeating_interval=True)
+@optional_prior_accepted(infer_missing=False)
 @period_required
 @get_data_downsampling_allowed("connection")
 @as_json
@@ -309,7 +263,7 @@ def get_prognosis_response(
 @units_accepted("power", "MW")
 @assets_required("connection")
 @values_required
-@optional_horizon_accepted(ex_post=False)
+@optional_horizon_accepted(ex_post=False, accept_repeating_interval=True)
 @period_required
 @post_data_checked_for_required_resolution("connection")
 @as_json
