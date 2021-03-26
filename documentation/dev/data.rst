@@ -399,7 +399,7 @@ Finally, you can also inspect the queue and jobs via a console (\ `see the nice 
 Redis queues on Windows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-On Unix, the rq system is automatically set up as part of FlexMeasures's `main setup (the ``rq`` dependency).
+On Unix, the rq system is automatically set up as part of FlexMeasures's main setup (the ``rq`` dependency).
 
 However, rq is `not functional on Windows <http://python-rq.org/docs>`_ without the Windows Subsystem for Linux.
 

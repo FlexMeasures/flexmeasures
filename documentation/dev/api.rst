@@ -24,7 +24,7 @@ Whether we need a new API version or not, doesn't have a clear set of rules yet.
 Certainly backward-incopatible changes should require one, but as you'll see, there is also certain iverhead in creating
 a new version, so a careful trade-off is advised.
 
-.. note:: Foor the rest of this guide we'll assume your new API version is ``v1_1``.
+.. note:: For the rest of this guide we'll assume your new API version is ``v1_1``.
 
 
 Set up new module with routes
