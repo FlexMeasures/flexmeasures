@@ -95,7 +95,7 @@ Testing
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If you changed an endpoint in the new version, write a test for it.
-No need to repeat tests for unchanged endpoints.
+Usually, there is no need to copy the tests for unchanged endpoints, if not a major API version is being released.
 
 Test the entire api or just your new version:
 
