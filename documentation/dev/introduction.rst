@@ -171,4 +171,4 @@ I added this to my ~/.bashrc, so I only need to type ``fm`` to get started and h
    }
 
 
-.. noite:: All paths depend on your local environment, of course.
+.. note:: All paths depend on your local environment, of course.
