@@ -13,7 +13,7 @@ For this purpose, it performs three services:
 * Forecasting of expected measurements
 * Scheduling flexible actions with custom optimization
 
-For more on FlexMeasures services, read :ref:`services`.
+For more on FlexMeasures services, read :ref:`services`. Or head right over to :ref:`getting_started`.
 
 
 Using FlexMeasures benefits operators as well as asset owners,

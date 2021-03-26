@@ -138,12 +138,12 @@ Head over to ``http://localhost:5000/assets`` and add a new asset there.
 
 .. note:: `issue 57 <https://github.com/SeitaBV/flexmeasures/issues/57>`_ should create a CLI function for this.
 
-.. note:: You can also use the `POST /api/v2_0/assets <https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
+.. note:: You can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
 
 Add data
 ^^^^^^^^
 
-You can use the `POST /api/v2_0/postMeterData <https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#post--api-v2_0-postMeterData>`_ endpoint in the FlexMeasures API to send meter data.
+You can use the `POST /api/v2_0/postMeterData <api/v2_0.html#post--api-v2_0-postMeterData>`_ endpoint in the FlexMeasures API to send meter data.
 
 .. note::  `issue 56 <https://github.com/SeitaBV/flexmeasures/issues/56>`_ should create a CLI function for adding a lot of data at once, from a CSV dataset.
 
@@ -217,4 +217,4 @@ You can also clear the job queues:
 
 When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
 
-When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/analytics``. You can also access forecasts via the FlexMeasures API at `GET  /api/v2_0/getPrognosis <https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#get--api-v2_0-getPrognosis>`_\ , and schedules via `GET  /api/v2_0/getDeviceMessage <https://flexmeasures.readthedocs.io/en/latest/api/v2_0.html#get--api-v2_0-getDeviceMessage>`_. 
+When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/analytics``. You can also access forecasts via the FlexMeasures API at `GET  /api/v2_0/getPrognosis <api/v2_0.html#get--api-v2_0-getPrognosis>`_\ , and schedules via `GET  /api/v2_0/getDeviceMessage <api/v2_0.html#get--api-v2_0-getDeviceMessage>`_. 
