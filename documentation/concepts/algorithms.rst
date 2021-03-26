@@ -113,9 +113,10 @@ Next to market prices, optimisation goals like reduced CO₂ emissions are somet
 
 Scheduling of other flexible asset types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Next to storage, there are other interesting flexible assets which can require specific implementations. For shifting, there are heatpumps or other buffers. For curtailment, there are windmills or solar panels.
+Next to storage, there are other interesting flexible assets which can require specific implementations.
+For shifting, there are heat pumps and other buffers. For curtailment, there are wind turbines and solar panels.
 
-.. note:: See :ref:`opportunity_types` for more info on shifting and curtailement.
+.. note:: See :ref:`opportunity_types` for more info on shifting and curtailment.
 
 Broker algorithm
 ^^^^^^^^^^^^^^^^^
