@@ -112,11 +112,14 @@ See ``to_pypi.sh`` for more commentary on the development versions.
 Our API has its own version, which moves much slower. This is important to explicitly support outside apps who were coded against older versions. 
 
 
-Auto-formatting
----------------
+Auto-applying formatting and code style suggestions
+-----------------------------------------------------
 
-We use `Black <https://github.com/ambv/black>`_ to format our Python code and thus find real problems faster.
-``Black`` can be installed in your editor, but we also use it as a pre-commit hook. To activate that behaviour, do:
+We use `Black <https://github.com/ambv/black>`_ to format our Python code and `Flake8 <https://flake8.pycqa.org>`_ to enforce the PEP8 style guide and linting.
+We also run `mypy <http://mypy-lang.org/>`_ on many files to do some static type checking.
+
+We do this so real problems are found faster and the discussion about formatting is limited.
+All of these can be installed by using ``pip``, but we recommend using them as a pre-commit hook. To activate that behaviour, do:
 
 .. code-block:: bash
 
@@ -126,14 +129,14 @@ We use `Black <https://github.com/ambv/black>`_ to format our Python code and th
 
 in your virtual environment.
 
-Now each git commit will first run ``black --diff`` over the files affected by the commit
-(\ ``pre-commit`` will install ``black`` into its own structure on the first run).
-If ``black`` proposes to edit any file, the commit is aborted (saying that it "failed"), 
-and the proposed changes are printed for you to review.
+Now each git commit will first run ``flake8``, then ``black`` and finally ``mypy`` over the files affected by the commit
+(\ ``pre-commit`` will install these tools into its own structure on the first run).
 
-With ``git ls-files -m | grep ".py" | xargs black`` you can apply the formatting, 
-and make them part of your next commit (\ ``git ls-files`` cannot list added files,
-so they need to be black-formatted separately).
+This is also what happens automatically server-side when code is committed to a branch (via Github Actions), but having those tests locally as well will help you spot these issues faster.
+
+If ``flake8``, ``black`` or ``mypy`` propose changes to any file, the commit is aborted (saying that it "failed"). 
+The changes proposed by ``black`` are implemented automatically (you can review them with `git diff`). Some of them might even resolve the ``flake8`` warnings :)
+
 
 
 A hint about using notebooks
