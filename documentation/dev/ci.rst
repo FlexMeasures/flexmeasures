@@ -16,7 +16,7 @@ WSGI configuration
 
 Here is an example how to serve FlexMeasures as WSGI app:
 
-.. code-block::
+.. code-block:: python
 
    # This file contains the WSGI configuration required to serve up your
    # web application.
@@ -49,7 +49,7 @@ Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc``
 
 You can install it on Debian like this:
 
-.. code-block::
+.. code-block:: bash
 
    apt-get install coinor-cbc
 
@@ -126,7 +126,9 @@ It will force checkout the main branch, update dependencies, upgrade the databas
 update the documentation and finally touch the wsgi.py file.
 This last step is often a way to soft restart the running application, but here you need to adapt to your circumstances.
 
-.. code-block:: #!/bin/bash
+.. code-block:: bash
+
+    #!/bin/bash
 
    PATH_TO_GIT_WORK_TREE=/path/to/where/you/want/to/checkout/code/to
    ACTIVATE_VENV="command-to-activate-your-venv"

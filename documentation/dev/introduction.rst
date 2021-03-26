@@ -27,7 +27,7 @@ Dependencies
 
 Install all dependencies including the ones needed for development:
 
-.. code-block::
+.. code-block:: bash
 
    make install-for-dev
 
@@ -43,7 +43,7 @@ Loading data
 
 If you have a SQL Dump file, you can load that:
 
-.. code-block::
+.. code-block:: bash
 
    psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
 
@@ -53,14 +53,14 @@ Run locally
 
 Now, to start the web application, you can run:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures run
 
 
 Or:
 
-.. code-block::
+.. code-block:: bash
 
    python run-local.py
 
@@ -74,7 +74,7 @@ Tests
 
 You can run automated tests with:
 
-.. code-block::
+.. code-block:: bash
 
    make test
 
@@ -83,7 +83,7 @@ which behind the curtains installs dependencies and calls pytest.
 
 A coverage report can be created like this:
 
-.. code-block::
+.. code-block:: bash
 
    pytest --cov=flexmeasures --cov-config .coveragerc
 
@@ -92,7 +92,7 @@ You can add --cov-report=html after which a htmlcov/index.html is generated.
 
 It's also possible to use:
 
-.. code-block::
+.. code-block:: bash
 
    python setup.py test
 
@@ -118,7 +118,7 @@ Auto-formatting
 We use `Black <https://github.com/ambv/black>`_ to format our Python code and thus find real problems faster.
 ``Black`` can be installed in your editor, but we also use it as a pre-commit hook. To activate that behaviour, do:
 
-.. code-block::
+.. code-block:: bash
 
    pip install pre-commit
    pre-commit install
@@ -141,7 +141,7 @@ A hint about using notebooks
 
 If you edit notebooks, make sure results do not end up in git:
 
-.. code-block::
+.. code-block:: bash
 
    conda install -c conda-forge nbstripout
    nbstripout --install
@@ -156,7 +156,7 @@ A hint for Unix developers
 
 I added this to my ~/.bashrc, so I only need to type ``fm`` to get started and have the ssh agent set up, as well as up-to-date code and dependencies in place.
 
-.. code-block::
+.. code-block:: bash
 
    addssh(){
        eval `ssh-agent -s`

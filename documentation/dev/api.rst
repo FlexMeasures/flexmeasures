@@ -34,14 +34,14 @@ In ``flexmeasures/api`` create a new module (folder with ``__init__.py``\ ).
 Copy over the ``routes.py`` from the previous API version.
 By default we import all routes from the previous version:
 
-.. code-block::
+.. code-block:: python
 
    from flexmeasures.api.v1 import routes as v1_routes, implementations as v1_implementations
 
 
 Set the service listing for this version (or overwrite completely if needed):
 
-.. code-block::
+.. code-block:: python
 
    v1_1_service_listing = copy.deepcopy(v1_routes.v1_service_listing)
    v1_1_service_listing["version"] = "1.1"
@@ -49,7 +49,7 @@ Set the service listing for this version (or overwrite completely if needed):
 
 Then update and redecorate each API endpoint as follows:
 
-.. code-block::
+.. code-block:: python
 
    @flexmeasures_api.route("/getService", methods=["GET"])
    @as_response_type("GetServiceResponse")
@@ -66,7 +66,7 @@ Change all references to the version name in the new file (for example: ``flexme
 
 In ``flexmeasures/api/__init__.py`` update the version listing in ``get_versions()`` and register a blueprint for the new api version by adding:
 
-.. code-block::
+.. code-block:: python
 
    from flexmeasures.api.v1_1 import register_at as v1_1_register_at
    v1_1_register_at(app) 
@@ -99,7 +99,7 @@ No need to repeat tests for unchanged endpoints.
 
 Test the entire api or just your new version:
 
-.. code-block::
+.. code-block:: bash
 
    pytest -k api
    pytest -k v1_1
@@ -116,7 +116,7 @@ Documentation
 
 In ``documentation/api`` start a new specification ``v1_1.rst`` with contents like this:
 
-.. code-block::
+.. code-block:: RST
 
     .. _v1_1:
 
@@ -145,7 +145,7 @@ to include the new version in the table of contents.
 
 You're not done. Several sections in the API documentation list endpoints as examples. If you want other developers to use your new API version, make sure those examples reference the latest endpoints. Remember that `Sphinx autoflask <https://sphinxcontrib-httpdomain.readthedocs.io/en/stable/#module-sphinxcontrib.autohttp.flask>`_ likes to prefix the names of endpoints with the blueprint’s name, for example:
 
-.. code-block::
+.. code-block:: RST
 
     .. autoflask:: flexmeasures.app:create()
        :endpoints: flexmeasures_api_v1_1.post_meter_data

@@ -29,7 +29,7 @@ Install
 
 On Unix:
 
-.. code-block::
+.. code-block:: bash
 
    sudo apt-get install postgresql
    pip install psycopg2-binary
@@ -65,7 +65,7 @@ Setup the "flexmeasures" Unix user
 
 This may in fact not be needed:
 
-.. code-block::
+.. code-block:: bash
 
    sudo /usr/sbin/adduser flexmeasures
 
@@ -78,7 +78,7 @@ From the terminal:
 Open a console (use your Windows key and type ``cmd``\ ).
 Proceed to create a database as the postgres superuser (using your postgres user password):
 
-.. code-block::
+.. code-block:: bash
 
    sudo -i -u postgres
    createdb -U postgres flexmeasures
@@ -90,7 +90,7 @@ Proceed to create a database as the postgres superuser (using your postgres user
 
 Or, from within Postgres console:
 
-.. code-block::
+.. code-block:: sql
 
    CREATE USER flexmeasures WITH UNENCRYPTED PASSWORD 'this-is-your-secret-choice';
    CREATE DATABASE flexmeasures WITH OWNER = flexmeasures;
@@ -100,15 +100,18 @@ Or, from within Postgres console:
 
 Log in as the postgres superuser and connect to your newly-created database:
 
-.. code-block::
+.. code-block:: bash
 
    sudo -u postgres psql
+
+.. code-block:: sql
+
    \connect flexmeasures
 
 
 Add the following extensions while logged in as the postgres superuser:
 
-.. code-block::
+.. code-block:: sql
 
    CREATE EXTENSION cube;
    CREATE EXTENSION earthdistance;
@@ -118,9 +121,12 @@ Connect to the ``flexmeasures_test`` database and repeat creating these extensio
 
 Finally, try logging in as the flexmeasures user once:
 
-.. code-block::
+.. code-block:: bash
 
    psql -U flexmeasures --password -h 127.0.0.1 -d flexmeasures
+
+.. code-block:: sql
+
    \q
 
 
@@ -129,7 +135,7 @@ Configure FlexMeasures app for that database
 
 Write:
 
-.. code-block::
+.. code-block:: python
 
    SQLALCHEMY_DATABASE_URI = "postgresql://flexmeasures:<password>@127.0.0.1/flexmeasures"
 
@@ -148,7 +154,7 @@ Here is a short recipe to import data from a FlexMeasures database (e.g. a demo 
 
 On the to-be-exported database:
 
-.. code-block::
+.. code-block:: bash
 
    flask db-dump
 
@@ -157,14 +163,14 @@ On the to-be-exported database:
 
 Then, we create the structure in our database anew, based on the data model given by the local codebase:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db-reset
 
 
 Then we import the data dump we made earlier:
 
-.. code-block::
+.. code-block:: bash
 
    flask db-restore <DATABASE DUMP FILENAME>
 
@@ -179,7 +185,7 @@ Create data manually
 
 First, you can get the database structure with:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db upgrade
 
@@ -188,14 +194,14 @@ First, you can get the database structure with:
 
 You can create users with the ``new-user`` command. Check it out:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures new-user --help
 
 
 You can create some pre-determined asset types and data sources with this command:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db-populate --structure
 
@@ -208,7 +214,7 @@ You can create assets in the FlexMeasures UI. TODO: maybe a CLI command would he
 
 You can create forecasts for your existing metered data with this command:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db-populate --forecasts
 
@@ -217,7 +223,7 @@ Check out it's ``--help`` content to learn more. You can set which assets and wh
 
 Just to note: There is also a command to get rid of data:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db-depopulate --structure --data --forecasts
 
@@ -227,7 +233,7 @@ Visualize the data model
 
 You can visualise the data model like this:
 
-.. code-block::
+.. code-block:: bash
 
    make show-data-model
 
@@ -247,7 +253,7 @@ Make first migration
 
 Run these commands from the repository root directory (read below comments first):
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db init
    flexmeasures db migrate
@@ -267,7 +273,7 @@ Make another migration
 
 Just to be clear that the ``db init`` command is needed only at the beginning - you usually do, if your model changed:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db migrate --message "Please explain what you did, it helps for later"
    flexmeasures db upgrade
@@ -278,7 +284,7 @@ Get database structure updated
 
 The goal is that on any other computer, you can always execute
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db upgrade
 
@@ -290,7 +296,7 @@ Working with the migration history
 
 The history of migrations is at your fingertips:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db current
    flexmeasures db history
@@ -298,7 +304,7 @@ The history of migrations is at your fingertips:
 
 You can move back and forth through the history:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures db downgrade
    flexmeasures db upgrade
@@ -311,21 +317,21 @@ Check out database status
 
 Log in into the database:
 
-.. code-block::
+.. code-block:: bash
 
    psql -U flexmeasures --password -h 127.0.0.1 -d flexmeasures
 
 
 with the password from flexmeasures/development_config.py. Check which tables are there:
 
-.. code-block::
+.. code-block:: sql
 
    \dt
 
 
 To log out:
 
-.. code-block::
+.. code-block:: sql
 
    \q
 
@@ -347,7 +353,7 @@ It relies on a Redis server, which is has to be installed locally, or used on a 
 
 Forecasting jobs are usually created (and enqueued) when new data comes in via the API. To asynchronously work on these forecasting jobs, run this in a console:
 
-.. code-block::
+.. code-block:: bash
 
    flexmeasures run_worker --queue forecasting
 
@@ -361,7 +367,7 @@ Inspect the queue and jobs
 
 The first option to inspect the state of the ``forecasting`` queue should be via the formiddable `RQ dashboard <https://github.com/Parallels/rq-dashboard>`_. If you have admin rights, you can access it at ``your-flexmeasures-url/rq/``\ , so for instance ``http://localhost:5000/rq/``. You can also start RQ dashboard yourself (but you need to know the redis server credentials):
 
-.. code-block::
+.. code-block:: bash
 
    pip install rq-dashboard
    rq-dashboard --redis-host my.ip.addr.ess --redis-password secret --redis-database 0
@@ -371,7 +377,7 @@ RQ dashboard shows you ongoing and failed jobs, and you can see the error messag
 
 Finally, you can also inspect the queue and jobs via a console (\ `see the nice RQ documentation <http://python-rq.org/docs/>`_\ ), which is more powerful. Here is an example of inspecting the finished jobs and their results:
 
-.. code-block::
+.. code-block:: python
 
    from redis import Redis
    from rq import Queue
