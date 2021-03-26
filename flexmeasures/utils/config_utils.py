@@ -71,35 +71,25 @@ def read_config(app: Flask, path_to_config: Optional[str]):
     )
 
     # Now read user config, if possible. If no explicit path is given, try home dir first, then instance dir
-    if path_to_config is not None and not os.path.exists(path_to_config):
-        print(f"Cannot find config file {path_to_config}!")
-        sys.exit(2)
     path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
     path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
-    if path_to_config is None:
-        path_to_config = path_to_config_home
-        if not os.path.exists(path_to_config):
-            path_to_config = path_to_config_instance
-    try:
-        app.config.from_pyfile(path_to_config)
-    except FileNotFoundError:
-        pass
-    # Finally, all required varaiables can be set as env var:
-    for req_var in required:
-        app.config[req_var] = os.getenv(req_var, app.config.get(req_var, None))
+    if not app.testing:
+        used_path_to_config = read_custom_config(
+            app, path_to_config, path_to_config_home, path_to_config_instance
+        )
 
     # Check for missing values.
     # Testing might affect only specific functionality (-> dev's responsibility)
     # Documentation runs fine without them.
     if not app.testing and app.env != "documentation":
         if not are_required_settings_complete(app):
-            if not os.path.exists(path_to_config):
+            if not os.path.exists(used_path_to_config):
                 print(
                     f"You can provide these settings ― as environment variables or in your config file (e.g. {path_to_config_home} or {path_to_config_instance})."
                 )
             else:
                 print(
-                    f"Please provide these settings ― as environment variables or in your config file ({path_to_config})."
+                    f"Please provide these settings ― as environment variables or in your config file ({used_path_to_config})."
                 )
             sys.exit(2)
         missing_fields, config_warnings = get_config_warnings(app)
@@ -115,6 +105,31 @@ def read_config(app: Flask, path_to_config: Optional[str]):
     # print("Logging level is %s" % logging.getLevelName(app.logger.level))
 
     app.config["START_TIME"] = datetime.utcnow()
+
+
+def read_custom_config(
+    app, suggested_path_to_config, path_to_config_home, path_to_config_instance
+) -> str:
+    """ read in a custom config file or env vars. Return the path to the config file."""
+    if suggested_path_to_config is not None and not os.path.exists(
+        suggested_path_to_config
+    ):
+        print(f"Cannot find config file {suggested_path_to_config}!")
+        sys.exit(2)
+    if suggested_path_to_config is None:
+        path_to_config = path_to_config_home
+        if not os.path.exists(path_to_config):
+            path_to_config = path_to_config_instance
+    else:
+        path_to_config = suggested_path_to_config
+    try:
+        app.config.from_pyfile(path_to_config)
+    except FileNotFoundError:
+        pass
+    # Finally, all required varaiables can be set as env var:
+    for req_var in required:
+        app.config[req_var] = os.getenv(req_var, app.config.get(req_var, None))
+    return path_to_config
 
 
 def are_required_settings_complete(app) -> bool:
