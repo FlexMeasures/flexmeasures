@@ -7,7 +7,7 @@ The FlexMeasures API is the main way that third-parties can automate their inter
 
 This is a small guide for creating new versions of the API and its docs.
 
-.. note:: TODO: a guide for endpoint design, e.g. Marshmallow, custom USEF-like responses, validators (common code shared between endpoints).
+.. todo:: A guide for endpoint design, e.g. Marshmallow, custom USEF-like responses, validators (common code shared between endpoints).
 
 .. contents:: Table of contents
     :local:

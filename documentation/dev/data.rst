@@ -206,11 +206,12 @@ You can create some pre-determined asset types and data sources with this comman
    flexmeasures db-populate --structure
 
 
-.. note:: We should instead offer CLI commands to be able to create asset types as needed.
+.. todo:: We should instead offer CLI commands to be able to create asset types as needed.
 
-You can create assets in the FlexMeasures UI. TODO: maybe a CLI command would help to script all data creation.
+You can create assets in the FlexMeasures UI.
 
-.. note:: We still need a decent way to load in metering data, e.g. from CSV - often, a custom loading script will be necessary anyways)
+.. todo:: Maybe a CLI command would help to script all data creation.
+.. todo:: We still need a decent way to load in metering data, e.g. from CSV - often, a custom loading script will be necessary anyways.
 
 You can create forecasts for your existing metered data with this command:
 

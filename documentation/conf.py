@@ -46,6 +46,7 @@ extensions = [
     "sphinx.ext.coverage",
     "sphinx.ext.imgmath",
     "sphinx.ext.ifconfig",
+    "sphinx.ext.todo",
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",
 ]
@@ -82,6 +83,9 @@ exclude_patterns.append("api/aggregator.rst")
 exclude_patterns.append("api/mdc.rst")
 exclude_patterns.append("api/prosumer.rst")
 exclude_patterns.append("api/supplier.rst")
+
+# Whether to show todo notes in the documentation
+todo_include_todos = True
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"
