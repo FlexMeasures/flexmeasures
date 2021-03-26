@@ -27,6 +27,7 @@ def register_at(app: Flask):
         with app.app_context():
             import flexmeasures.data.scripts.cli_tasks.background_workers
             import flexmeasures.data.scripts.cli_tasks.db_pop
+            import flexmeasures.data.scripts.cli_tasks.db_ops
             import flexmeasures.data.scripts.cli_tasks.data_collection
             import flexmeasures.data.scripts.cli_tasks.testing  # noqa: F401
 

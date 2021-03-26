@@ -3,8 +3,10 @@
 from flask import current_app as app
 import click
 
+from flexmeasures.data.scripts.cli_tasks.db_pop import fm_data
 
-@app.cli.command()
+
+@fm_data.command()
 @click.option(
     "--region",
     type=str,

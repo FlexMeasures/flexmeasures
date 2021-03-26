@@ -23,7 +23,8 @@ from flexmeasures.data.services.forecasting import (
 )
 
 
-@app.cli.command()
+# un-comment to test as CLI function
+# @app.cli.command()
 def test_making_forecasts():
     """
     Manual test to enqueue and process a forecasting job via redis queue
@@ -70,7 +71,8 @@ def test_making_forecasts():
     )
 
 
-@app.cli.command()
+# un-comment to test as CLI function
+# @app.cli.command()
 @click.option("--asset-type", help="Asset type name.")
 @click.option("--asset", help="Asset name.")
 @click.option(
