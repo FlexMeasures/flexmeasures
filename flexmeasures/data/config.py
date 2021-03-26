@@ -38,10 +38,10 @@ def configure_db_for(app: Flask):
         # they will be registered properly on the metadata. Otherwise
         # you will have to import them first before calling configure_db().
         from flexmeasures.data.models import (  # noqa: F401
-            assets,
-            data_sources,
             markets,
+            assets,
             weather,
+            data_sources,
             user,
             task_runs,
             forecasting,

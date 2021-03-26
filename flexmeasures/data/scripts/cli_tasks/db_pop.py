@@ -19,6 +19,7 @@ from flexmeasures.data.services.users import (
     delete_user,
 )
 from flexmeasures.data.scripts.data_gen import get_affected_classes
+from flexmeasures.data.models.assets import Asset, AssetSchema
 
 
 BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
@@ -30,12 +31,10 @@ BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--timezone",
-    default="Europe/Amsterdam",
+    default="UTC",
     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
-def new_user(
-    username: str, email: str, roles: List[str], timezone: str = "Europe/Amsterdam"
-):
+def new_user(username: str, email: str, roles: List[str], timezone: str):
     """
     Create a FlexMeasures user.
 
@@ -46,13 +45,13 @@ def new_user(
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
         print("Timezone %s is unknown!" % timezone)
-        return
+        raise click.Abort
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
     if pwd1 != pwd2:
         print("Passwords do not match!")
-        return
-    create_user(
+        raise click.Abort
+    created_user = create_user(
         username=username,
         email=email,
         password=hash_password(pwd1),
@@ -61,6 +60,7 @@ def new_user(
         check_deliverability=False,
     )
     app.db.session.commit()
+    print(f"Successfully created user {created_user}")
 
 
 @app.cli.command()
@@ -75,6 +75,69 @@ def delete_user_and_data(email: str):
         return
     delete_user(the_user)
     app.db.session.commit()
+
+
+@app.cli.command()
+@click.option("--name", required=True)
+@click.option("--asset-type-name", required=True)
+@click.option("--unit", required=True, help="e.g. MW, kW/h", default="MW")
+@click.option("--capacity-in-MW", required=True, type=float)
+@click.option(
+    "--event-resolution",
+    required=True,
+    type=int,
+    help="Expected resolution of the data in minutes",
+)
+@click.option(
+    "--latitude",
+    required=True,
+    type=float,
+    help="Latitude of the asset's location",
+)
+@click.option(
+    "--longitude",
+    required=True,
+    type=float,
+    help="Longitude of the asset's location",
+)
+@click.option(
+    "--owner-id", required=True, type=int, help="Id of the user who owns this asset."
+)
+@click.option(
+    "--market-id",
+    required=True,
+    type=int,
+    help="Id of the market used to price this asset.",
+)
+@click.option(
+    "--timezone",
+    default="UTC",
+    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+)
+def new_asset(**args):
+    """
+    Create a new asset.
+    """
+    try:
+        pytz.timezone(args["timezone"])
+    except pytz.UnknownTimeZoneError:
+        print("Timezone %s is unknown!" % args["timezone"])
+        raise click.Abort
+    # TODO: if no market, select dummy market
+    errors = AssetSchema().validate(args)
+    if errors:
+        print(
+            f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more."
+        )
+        raise click.Abort
+    args["event_resolution"] = timedelta(minutes=args["event_resolution"])
+    asset = Asset(**args)
+    app.db.session.add(asset)
+    app.db.session.commit()
+    print(
+        f"Successfully created asset with ID:{asset.id}."
+        f" You can access it at its entity address {asset.entity_address}"
+    )
 
 
 # @app.before_first_request
