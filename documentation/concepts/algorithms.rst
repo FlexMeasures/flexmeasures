@@ -120,7 +120,8 @@ For shifting, there are heat pumps and other buffers. For curtailment, there are
 
 Broker algorithm
 ^^^^^^^^^^^^^^^^^
-A broker algorithm is used by the Aggregator to analyse flexibility in the Supplier's portfolio of assets, and to suggest the most valuable flexibility activations to take for each time slot. The differences to single-asset scheduling are that these activations are based on a helicopter perspective (the aggregator optimises a portfolio, not a simgle asset) and that the flexibility offers are presented to the Supplier in the form of an order book.
+A broker algorithm is used by the Aggregator to analyse flexibility in the Supplier's portfolio of assets, and to suggest the most valuable flexibility activations to take for each time slot.
+The differences to single-asset scheduling are that these activations are based on a helicopter perspective (the Aggregator optimises a portfolio, not a single asset) and that the flexibility offers are presented to the Supplier in the form of an order book.
 
 
 Trading algorithm
@@ -128,4 +129,4 @@ Trading algorithm
 A trading algorithm is used to assist the Supplier with its decision-making across time slots, based on the order books made by the broker (see above).
 The algorithm suggests which offers should be accepted next, and the Supplier may automate its decision-making by letting the algorithm place orders on its behalf.
 
-A default approach would be a myopic greedy strategy ― order all flexibility opprtunities with a positive expected value in the first available timeslot, then those in the second available timeslot, and so on.
+A default approach would be a myopic greedy strategy ― order all flexibility opportunities with a positive expected value in the first available timeslot, then those in the second available timeslot, and so on.
