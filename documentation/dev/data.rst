@@ -401,7 +401,7 @@ Redis queues on Windows
 
 On Unix, the rq system is automatically set up as part of FlexMeasures's `main setup (the ``rq`` dependency).
 
-However, rq is not functional on Windows](http://python-rq.org/docs) without the Windows Subsystem for Linux.
+However, rq is `not functional on Windows <http://python-rq.org/docs>`_ without the Windows Subsystem for Linux.
 
 On these versions of Windows, FlexMeasures's queuing system uses an extension of Redis Queue called ``rq-win``.
 This is also an automatically installed dependency of FlexMeasures.
