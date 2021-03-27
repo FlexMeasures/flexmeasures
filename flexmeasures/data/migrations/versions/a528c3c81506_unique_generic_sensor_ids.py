@@ -201,10 +201,10 @@ def upgrade_data():
         sa.Column("id", sa.Integer),
     )
     sequence_name = "%s_id_seq" % t_sensors.name
-    # Set table seq to max id of all old sensors combined
+    # Set next id for table seq to just after max id of all old sensors combined
     connection.execute(
         "SELECT setval('%s', %s, true);"
-        % (sequence_name, max_asset_id + max_market_id + max_weather_sensor_id)
+        % (sequence_name, max_asset_id + max_market_id + max_weather_sensor_id + 1)
     )
 
 
