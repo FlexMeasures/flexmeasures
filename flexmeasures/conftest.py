@@ -177,7 +177,7 @@ def setup_assets(db, setup_roles_users, setup_markets):
 
 @pytest.fixture(scope="function", autouse=True)
 def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
-    """Add one day of market prices for the EPEX day-ahead market."""
+    """Add two days of market prices for the EPEX day-ahead market."""
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
     data_source = DataSource.query.filter_by(
         name="Seita", type="demo script"
