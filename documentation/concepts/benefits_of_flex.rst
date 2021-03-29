@@ -25,11 +25,11 @@ Within FlexMeasures, this opportunity can be regarded as the difference between 
 
 What does it mean to activate flexibility from such an opportunity?
 
-Positive values in the aforementioned differences indicate an increase in production or a decrease in consumption on activation, both of which result in an increased load on the network.
+Positive values in the aforementioned differences indicate an increase in production or a decrease in consumption on activation, both of which result in an increased grid frequency.
 For short-term changes in power due to activation of flexibility opportunities, this is sometimes called `"up-regulation"`.
 
 On the other hand, negative values indicate a decrease in production or an increase in consumption,
-which result in a decreased load on the network (`"down-regulation"`).
+which result in a decreased grid frequency (`"down-regulation"`).
 
 Finally, flexibility activations have commercial value that users can valorise on. This value can fall to the platform operator or be shared among stakeholders. We talk more about this in :ref:`activation_profits`.
 
