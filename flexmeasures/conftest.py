@@ -23,6 +23,7 @@ from flexmeasures.data.services.users import create_user, find_user_by_email
 from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
 """
@@ -173,6 +174,28 @@ def setup_assets(db, setup_roles_users, setup_markets):
             )
             p.asset = asset
             db.session.add(p)
+
+
+@pytest.fixture(scope="function")
+def setup_beliefs(db: SQLAlchemy, setup_markets) -> int:
+    """
+    :returns: the number of beliefs set up
+    """
+    sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    data_source = DataSource.query.filter_by(
+        name="Seita", type="demo script"
+    ).one_or_none()
+    beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            source_id=data_source.id,
+            event_value=21,
+            event_start="2021-03-28 16:00",
+            belief_horizon=timedelta(0),
+        )
+    ]
+    db.session.add_all(beliefs)
+    return len(beliefs)
 
 
 @pytest.fixture(scope="function", autouse=True)
