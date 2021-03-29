@@ -22,8 +22,13 @@ from flexmeasures.data.services.forecasting import (
     handle_forecasting_exception,
 )
 
+"""
+These functions are meant for FlexMeasures developers to manually test some internal 
+functionality.
+They are not registered as app command per default, as we don't need to show them to users. 
+"""
 
-# un-comment to test as CLI function
+# un-comment to use as CLI function
 # @app.cli.command()
 def test_making_forecasts():
     """
@@ -71,7 +76,7 @@ def test_making_forecasts():
     )
 
 
-# un-comment to test as CLI function
+# un-comment to use as CLI function
 # @app.cli.command()
 @click.option("--asset-type", help="Asset type name.")
 @click.option("--asset", help="Asset name.")

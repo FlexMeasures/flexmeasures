@@ -1,6 +1,7 @@
 """
 Populate the database with data we know or read in.
 """
+from typing import List, Optional
 from pathlib import Path
 from shutil import rmtree
 from datetime import datetime, timedelta
@@ -128,25 +129,13 @@ def populate_structure(db: SQLAlchemy):
 @as_transaction  # noqa: C901
 def populate_time_series_forecasts(  # noqa: C901
     db: SQLAlchemy,
-    generic_asset_type: str = None,
-    generic_asset_name: str = None,
-    from_date: str = "2015-02-08",
-    to_date: str = "2015-12-31",
+    horizons: List[timedelta],
+    start: datetime,
+    end: datetime,
+    generic_asset_type: Optional[str] = None,
+    generic_asset_id: Optional[int] = None,
 ):
-    start = ensure_local_timezone(
-        datetime.strptime(from_date, "%Y-%m-%d"), tz_name=LOCAL_TIME_ZONE
-    )
-    end = ensure_local_timezone(
-        datetime.strptime(to_date, "%Y-%m-%d") + timedelta(days=1),
-        tz_name=LOCAL_TIME_ZONE,
-    )
     training_and_testing_period = timedelta(days=30)
-    horizons = (
-        timedelta(hours=1),
-        timedelta(hours=6),
-        timedelta(hours=24),
-        timedelta(hours=48),
-    )
 
     click.echo(
         "Populating the database %s with time series forecasts of %s ahead ..."
@@ -161,7 +150,7 @@ def populate_time_series_forecasts(  # noqa: C901
     # List all generic assets for which to forecast.
     # Look into asset type if no asset name is given. If an asset name is given,
     generic_assets = []
-    if generic_asset_name is None:
+    if generic_asset_id is None:
         if generic_asset_type is None or generic_asset_type == "WeatherSensor":
             sensors = WeatherSensor.query.all()
             generic_assets.extend(sensors)
@@ -179,18 +168,16 @@ def populate_time_series_forecasts(  # noqa: C901
             return
         if generic_asset_type == "WeatherSensor":
             sensors = WeatherSensor.query.filter(
-                WeatherSensor.name == generic_asset_name
+                WeatherSensor.id == generic_asset_id
             ).one_or_none()
             if sensors is not None:
                 generic_assets.append(sensors)
         if generic_asset_type == "Asset":
-            assets = Asset.query.filter(Asset.name == generic_asset_name).one_or_none()
+            assets = Asset.query.filter(Asset.id == generic_asset_id).one_or_none()
             if assets is not None:
                 generic_assets.append(assets)
         if generic_asset_type == "Market":
-            markets = Market.query.filter(
-                Market.name == generic_asset_name
-            ).one_or_none()
+            markets = Market.query.filter(Market.id == generic_asset_id).one_or_none()
             if markets is not None:
                 generic_assets.append(markets)
     if not generic_assets:
@@ -334,15 +321,19 @@ def depopulate_structure(db: SQLAlchemy):
 
 
 @as_transaction
-def depopulate_data(
-    db: SQLAlchemy, generic_asset_type: str = None, generic_asset_name: str = None
+def depopulate_measurements(
+    db: SQLAlchemy,
+    generic_asset_type: Optional[str] = None,
+    generic_asset_id: Optional[id] = None,
 ):
     click.echo("Depopulating (time series) data from the database %s ..." % db.engine)
     num_prices_deleted = 0
     num_power_measurements_deleted = 0
     num_weather_measurements_deleted = 0
 
-    if generic_asset_name is None:
+    # TODO: simplify this when sensors moved to one unified table
+
+    if generic_asset_id is None:
         if generic_asset_type is None or generic_asset_type == "Market":
             num_prices_deleted = (
                 db.session.query(Price)
@@ -370,7 +361,7 @@ def depopulate_data(
         if generic_asset_type == "Market":
             market = (
                 db.session.query(Market)
-                .filter(Market.name == generic_asset_name)
+                .filter(Market.id == generic_asset_id)
                 .one_or_none()
             )
             if market is not None:
@@ -386,7 +377,7 @@ def depopulate_data(
         elif generic_asset_type == "Asset":
             asset = (
                 db.session.query(Asset)
-                .filter(Asset.name == generic_asset_name)
+                .filter(Asset.id == generic_asset_id)
                 .one_or_none()
             )
             if asset is not None:
@@ -402,7 +393,7 @@ def depopulate_data(
         elif generic_asset_type == "WeatherSensor":
             sensor = (
                 db.session.query(WeatherSensor)
-                .filter(WeatherSensor.name == generic_asset_name)
+                .filter(WeatherSensor.id == generic_asset_id)
                 .one_or_none()
             )
             if sensor is not None:
@@ -421,21 +412,25 @@ def depopulate_data(
 
 
 @as_transaction
-def depopulate_forecasts(
-    db: SQLAlchemy, generic_asset_type: str = None, generic_asset_name: str = None
+def depopulate_prognoses(
+    db: SQLAlchemy,
+    generic_asset_type: Optional[str] = None,
+    generic_asset_id: Optional[id] = None,
 ):
     click.echo(
-        "Depopulating (time series) forecasts data from the database %s ..." % db.engine
+        "Depopulating (time series) forecasts and schedules data from the database %s ..."
+        % db.engine
     )
     num_prices_deleted = 0
     num_power_measurements_deleted = 0
     num_weather_measurements_deleted = 0
 
-    # Clear all forecasting jobs
-    num_jobs_deleted = app.queues["forecasting"].empty()
+    # Clear all jobs
+    num_forecasting_jobs_deleted = app.queues["forecasting"].empty()
+    num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
 
     # Clear all forecasts (data with positive horizon)
-    if generic_asset_name is None:
+    if generic_asset_id is None:
         if generic_asset_type is None or generic_asset_type == "Market":
             num_prices_deleted = (
                 db.session.query(Price)
@@ -456,14 +451,14 @@ def depopulate_forecasts(
             )
     else:
         click.echo(
-            "Depopulating (time series) forecasts for %s from the database %s ..."
-            % (generic_asset_name, db.engine)
+            "Depopulating (time series) forecasts and schedules for %s from the database %s ..."
+            % (generic_asset_id, db.engine)
         )
 
         if generic_asset_type == "Market":
             market = (
                 db.session.query(Market)
-                .filter(Market.name == generic_asset_name)
+                .filter(Market.id == generic_asset_id)
                 .one_or_none()
             )
             if market is not None:
@@ -479,7 +474,7 @@ def depopulate_forecasts(
         if generic_asset_type == "Asset":
             asset = (
                 db.session.query(Asset)
-                .filter(Asset.name == generic_asset_name)
+                .filter(Asset.id == generic_asset_id)
                 .one_or_none()
             )
             if asset is not None:
@@ -495,7 +490,7 @@ def depopulate_forecasts(
         if generic_asset_type == "WeatherSensor":
             sensor = (
                 db.session.query(WeatherSensor)
-                .filter(WeatherSensor.name == generic_asset_name)
+                .filter(WeatherSensor.id == generic_asset_id)
                 .one_or_none()
             )
             if sensor is not None:
@@ -507,7 +502,8 @@ def depopulate_forecasts(
                 )
             else:
                 num_weather_measurements_deleted = 0
-    click.echo("Deleted %d Forecast Jobs" % num_jobs_deleted)
+    click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
+    click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
     click.echo("Deleted %d Price Forecasts" % num_prices_deleted)
     click.echo("Deleted %d Power Forecasts" % num_power_measurements_deleted)
     click.echo("Deleted %d Weather Forecasts" % num_weather_measurements_deleted)
@@ -609,7 +605,7 @@ def load_tables(
         )
 
 
-def get_affected_classes(structure: bool = True, data: bool = False):
+def get_affected_classes(structure: bool = True, data: bool = False) -> List:
     affected_classes = []
     if structure:
         affected_classes += [

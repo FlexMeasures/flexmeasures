@@ -134,9 +134,9 @@ def restore(file: str):
 
     From the command line:
 
-        % db-dump
-        % db-reset
-        % db-restore FILE
+        % flexmeasures db-ops dump
+        % flexmeasures db-ops reset
+        % flexmeasures db-ops restore FILE
 
     """
 
