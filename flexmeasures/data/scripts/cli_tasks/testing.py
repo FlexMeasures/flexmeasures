@@ -24,6 +24,55 @@ from flexmeasures.data.services.forecasting import (
 
 
 @app.cli.command()
+def add_me():
+    import pytz
+
+    from flexmeasures.data.models.markets import Market, Price
+    from flexmeasures.data.config import db
+
+    market = Market(
+        name="test",
+        event_resolution=timedelta(days=365),
+        market_type_name="tou_tariff",
+        unit="EUR/MWh",
+    )
+    db.session.add(market)
+
+    prices = [
+        Price(
+            value=50,
+            datetime=datetime(2021, 1, 29, tzinfo=pytz.utc),
+            horizon=timedelta(),
+            data_source_id=1,
+            market=market,
+        ),
+        Price(
+            value=50,
+            datetime=datetime(2015, 1, 29, tzinfo=pytz.utc),
+            horizon=timedelta(),
+            data_source_id=1,
+            market=market,
+        ),
+    ]
+    db.session.add_all(prices)
+
+    db.session.commit()
+
+
+@app.cli.command()
+def delete_me():
+    from flexmeasures.data.models.markets import Market, Price
+    from flexmeasures.data.config import db
+
+    market = Market.query.filter(Market.name == "test").one_or_none()
+    prices = Price.query.filter(Price.market == market).all()
+    for price in prices:
+        db.session.delete(price)
+    db.session.delete(market)
+    db.session.commit()
+
+
+@app.cli.command()
 def test_making_forecasts():
     """
     Manual test to enqueue and process a forecasting job via redis queue
