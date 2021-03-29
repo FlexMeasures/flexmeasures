@@ -80,8 +80,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param source: search only beliefs by this source (pass its name or id) or list of sources
         """
         return cls.query_all(
-            db.session,
-            sensor,
+            session=db.session,
+            sensor=sensor,
             event_before=event_time_window[1],
             event_not_before=event_time_window[0],
             belief_before=belief_time_window[1],
@@ -97,15 +97,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param bdf: the BeliefsDataFrame to be persisted
         :param commit_transaction: set to False if you're interested in persisting other data as well within one atomic transaction
         """
-        belief_records = (
-            bdf.convert_index_from_belief_time_to_horizon()
-            .reset_index()
-            .to_dict("records")
+        return cls.add_all(
+            session=db.session,
+            beliefs_data_frame=bdf,
+            commit_transaction=commit_transaction,
         )
-        beliefs = [cls(**dict(**d, sensor=bdf.sensor)) for d in belief_records]
-        db.session.add_all(beliefs)
-        if commit_transaction:
-            db.session.commit()
 
     def __repr__(self) -> str:
         """timely-beliefs representation of timed beliefs."""
