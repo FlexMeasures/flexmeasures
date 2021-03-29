@@ -76,7 +76,8 @@ Improvements:
 Scheduling 
 ------------
 
-Based on decisions about control opportunities, a planning algorithm is used by the Aggregator (in case of explicit DR) or by the Energy Service Company (in case of implicit DR) to form instructions for the Prosumer's flexible assets.
+Given price conditions or other conditions of relevance, a scheduling algorithm is used by the Aggregator (in case of explicit DR) or by the Energy Service Company (in case of implicit DR) to form a recommended schedule for the Prosumer's flexible assets.
+
 
 Storage devices
 ^^^^^^^^^^^^^^^
@@ -87,7 +88,7 @@ We thus cover the asset types "battery", "one-way_evse" and "two-way_evse".
 These algorithms schedule the storage assets based directly on the latest beliefs regarding market prices, within the specified time window.
 They are mixed integer linear programs, which are configured in FlexMeasures and then handed to a dedicated solver.
 
-For all scheduling algorithms, a starting state of charge (SOC) as well as a set of SOC targets can be given. If not there is no starting SOC given, FlexMeausures tries to retrieve the current state of charge from the asset (if that is the valid one at the start). If that is not possible, we set the starting SOC to 0. Note that some assets don't use the concept of a state of charge, so without SOC targets and limits the starting SOC doesn't matter.
+For all scheduling algorithms, a starting state of charge (SOC) as well as a set of SOC targets can be given. If no SOC is available, we set the starting SOC to 0. 
 
 Also, per default we incentivise the algorithms to prefer scheduling charging now rather than later, and discharging later rather than now.
 We achieve this by adding a tiny artificial price slope. We penalise the future with at most 1 per thousand times the price spread. This behaviour can be turned off with the `prefer_charging_sooner` parameter set to `False`.
