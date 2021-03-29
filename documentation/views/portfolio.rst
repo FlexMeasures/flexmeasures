@@ -20,14 +20,14 @@ In particular, the page contains:
 ..    :scale: 40%
 
 
-.. _portfolio_financial_statements:
+.. _portfolio_statements:
 
-Financial statements about energy and flexibility opportunities
+Statements about energy and flex activations
 =======================================================
 
 The financial statements separate the effects of energy consumption/production and flexible schedules over two tables.
 
-Statements about energy
+Energy summary
 -----------------------
 
 The top table lists the effects of energy trading for each asset type in the user's portfolio.
@@ -36,11 +36,12 @@ Production and consumption values are total volumes within the selected time win
 
 Costs and revenues are calculated based on the relevant market prices for the user within the selected time window.
 A consumer will only have costs, while a prosumer may have both costs and revenues.
-A supplier always has both costs and revenues, since it trades energy both with its customers and with external markets.
-Finally, the financial statements show the total profit or loss per asset.
+A supplier has revenues, since it sells energy to yhr other roles within FlexMeasures. 
+
+Finally, the financial statements show the total profit or loss per asset type.
 
 
-Statements about flexible schedules
+Market status
 ----------------------------------
 .. note:: This feature is mocked for now.
 
