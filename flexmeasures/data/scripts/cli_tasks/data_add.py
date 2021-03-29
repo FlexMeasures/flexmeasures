@@ -14,6 +14,7 @@ import getpass
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import Asset, AssetSchema
+from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorSchema
 
 
 @click.group("add")
@@ -96,24 +97,15 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
 @click.option(
     "--timezone",
     default="UTC",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="timezone as string, e.g. 'UTC' (default) or 'Europe/Amsterdam'.",
 )
 def new_asset(**args):
     """
     Create a new asset.
     """
-    try:
-        pytz.timezone(args["timezone"])
-    except pytz.UnknownTimeZoneError:
-        print("Timezone %s is unknown!" % args["timezone"])
-        raise click.Abort
+    check_timezone(args["timezone"])
     # TODO: if no market, select dummy market
-    errors = AssetSchema().validate(args)
-    if errors:
-        print(
-            f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more."
-        )
-        raise click.Abort
+    check_errors(AssetSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     asset = Asset(**args)
     app.db.session.add(asset)
@@ -122,6 +114,45 @@ def new_asset(**args):
         f"Successfully created asset with ID:{asset.id}."
         f" You can access it at its entity address {asset.entity_address}"
     )
+
+
+@fm_add_data.command("weather-sensor")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option("--weather-sensor-type-name", required=True)
+@click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
+@click.option(
+    "--event-resolution",
+    required=True,
+    type=int,
+    help="Expected resolution of the data in minutes",
+)
+@click.option(
+    "--latitude",
+    required=True,
+    type=float,
+    help="Latitude of the sensor's location",
+)
+@click.option(
+    "--longitude",
+    required=True,
+    type=float,
+    help="Longitude of the sensor's location",
+)
+@click.option(
+    "--timezone",
+    default="UTC",
+    help="timezone as string, e.g. 'UTC' (default) or 'Europe/Amsterdam'",
+)
+def add_weather_sensor(**args):
+    """Add a weather sensor"""
+    check_timezone(args["timezone"])
+    check_errors(WeatherSensorSchema().validate(args))
+    args["event_resolution"] = timedelta(minutes=args["event_resolution"])
+    sensor = WeatherSensor(**args)
+    app.db.session.add(sensor)
+    app.db.session.commit()
+    print(f"Successfully created sensor with ID:{sensor.id}.")
 
 
 # @app.before_first_request
@@ -271,3 +302,19 @@ def collect_weather_data(region, location, num_cells, method, store_in_db):
 
 
 app.cli.add_command(fm_add_data)
+
+
+def check_timezone(timezone):
+    try:
+        pytz.timezone(timezone)
+    except pytz.UnknownTimeZoneError:
+        print("Timezone %s is unknown!" % timezone)
+        raise click.Abort
+
+
+def check_errors(errors: list):
+    if errors:
+        print(
+            f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more."
+        )
+        raise click.Abort

@@ -4,8 +4,10 @@ from datetime import datetime as datetime_type, timedelta
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
+from marshmallow import Schema, fields
 
 from flexmeasures.data.config import db
+from flexmeasures.data import ma
 from flexmeasures.data.queries.utils import (
     add_belief_timing_filter,
     add_user_source_filter,
@@ -14,6 +16,26 @@ from flexmeasures.data.queries.utils import (
     exclude_source_type_filter,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
+
+
+class SensorSchema(Schema):
+    """
+    Base sensor schema.
+
+    Here we include all fields which are implemented by timely_beliefs.SensorDBMixin
+    All classes inheriting from timely beliefs sensor don't need to repeat these.
+    In a while, this schema can represent our unified Sensor class.
+
+    When subclassing, also subclass from `ma.SQLAlchemySchema` and add your own DB model class, e.g.:
+
+        class Meta:
+            model = Asset
+    """
+
+    name = ma.auto_field(required=True)
+    unit = ma.auto_field(required=True)
+    timezone = ma.auto_field()
+    event_resolution = fields.TimeDelta(required=True, precision="minutes")
 
 
 class TimedValue(object):

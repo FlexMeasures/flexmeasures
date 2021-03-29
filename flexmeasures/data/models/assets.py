@@ -7,7 +7,7 @@ from marshmallow import ValidationError, validate, validates, fields, validates_
 
 from flexmeasures.data.config import db
 from flexmeasures.data import ma
-from flexmeasures.data.models.time_series import TimedValue
+from flexmeasures.data.models.time_series import SensorSchema, TimedValue
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.user import User
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -164,7 +164,7 @@ class Asset(db.Model, tb.SensorDBMixin):
         )
 
 
-class AssetSchema(ma.SQLAlchemySchema):
+class AssetSchema(SensorSchema, ma.SQLAlchemySchema):
     """
     Asset schema, with validations.
     """
@@ -211,10 +211,7 @@ class AssetSchema(ma.SQLAlchemySchema):
                 raise ValidationError(errors)
 
     id = ma.auto_field()
-    name = ma.auto_field(required=True)
     display_name = fields.Str(validate=validate.Length(min=4))
-    unit = ma.auto_field(required=True)
-    event_resolution = fields.TimeDelta(required=True, precision="minutes")
     capacity_in_mw = fields.Float(required=True, validate=validate.Range(min=0.0001))
     min_soc_in_mwh = fields.Float(validate=validate.Range(min=0))
     max_soc_in_mwh = fields.Float(validate=validate.Range(min=0))
@@ -224,7 +221,6 @@ class AssetSchema(ma.SQLAlchemySchema):
     latitude = fields.Float(required=True, validate=validate.Range(min=-90, max=90))
     longitude = fields.Float(required=True, validate=validate.Range(min=-180, max=180))
     asset_type_name = ma.auto_field(required=True)
-    timezone = ma.auto_field()
     owner_id = ma.auto_field(required=True)
     market_id = ma.auto_field(required=True)
 
