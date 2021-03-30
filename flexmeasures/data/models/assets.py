@@ -7,7 +7,7 @@ from marshmallow import ValidationError, validate, validates, fields, validates_
 
 from flexmeasures.data.config import db
 from flexmeasures.data import ma
-from flexmeasures.data.models.time_series import SensorSchema, TimedValue
+from flexmeasures.data.models.time_series import Sensor, SensorSchema, TimedValue
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.user import User
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -74,6 +74,9 @@ class AssetType(db.Model):
 class Asset(db.Model, tb.SensorDBMixin):
     """Each asset is an energy- consuming or producing hardware. """
 
+    id = db.Column(
+        db.Integer, db.ForeignKey("sensor.id"), primary_key=True, autoincrement=True
+    )
     # The name
     name = db.Column(db.String(80), default="", unique=True)
     # The name we want to see (don't unnecessarily capitalize, so it can be used in a sentence)
@@ -100,7 +103,19 @@ class Asset(db.Model, tb.SensorDBMixin):
     market_id = db.Column(db.Integer, db.ForeignKey("market.id"), nullable=True)
 
     def __init__(self, **kwargs):
+
+        # Create a new Sensor with unique id across assets, markets and weather sensors
+        if "id" not in kwargs:
+            new_sensor = Sensor(name=kwargs["name"])
+            db.session.add(new_sensor)
+            db.session.flush()  # generates the pkey for new_sensor
+            sensor_id = new_sensor.id
+        else:
+            # The UI may initialize Asset objects from API form data with a known id
+            sensor_id = kwargs["id"]
+
         super(Asset, self).__init__(**kwargs)
+        self.id = sensor_id
         self.name = self.name.replace(" (MW)", "")
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)

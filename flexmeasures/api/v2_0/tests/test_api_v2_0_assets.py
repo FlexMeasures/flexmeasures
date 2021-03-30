@@ -251,7 +251,6 @@ def test_post_an_asset_with_invalid_data(client, db):
 def test_edit_an_asset(client, db):
     with UserContext("test_prosumer@seita.nl") as prosumer:
         existing_asset = prosumer.assets[1]
-    existing_asset = Asset.query.filter_by(id=1).one_or_none()
 
     post_data = dict(latitude=10, id=999)  # id will be ignored
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")

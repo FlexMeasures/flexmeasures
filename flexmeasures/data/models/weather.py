@@ -9,8 +9,9 @@ from sqlalchemy.schema import UniqueConstraint
 from marshmallow import ValidationError, validates, validate, fields
 
 from flexmeasures.data.config import db
+
 from flexmeasures.data import ma
-from flexmeasures.data.models.time_series import SensorSchema, TimedValue
+from flexmeasures.data.models.time_series import Sensor, SensorSchema, TimedValue
 from flexmeasures.utils.geo_utils import parse_lat_lng
 from flexmeasures.utils.flexmeasures_inflection import humanize
 
@@ -41,6 +42,9 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
     """A weather sensor has a location on Earth and measures weather values of a certain weather sensor type, such as
     temperature, wind speed and radiation."""
 
+    id = db.Column(
+        db.Integer, db.ForeignKey("sensor.id"), primary_key=True, autoincrement=True
+    )
     name = db.Column(db.String(80), unique=True)
     display_name = db.Column(db.String(80), default="", unique=False)
     weather_sensor_type_name = db.Column(
@@ -62,7 +66,19 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
     )
 
     def __init__(self, **kwargs):
+
+        # Create a new Sensor with unique id across assets, markets and weather sensors
+        if "id" not in kwargs:
+            new_sensor = Sensor(name=kwargs["name"])
+            db.session.add(new_sensor)
+            db.session.flush()  # generates the pkey for new_sensor
+            new_sensor_id = new_sensor.id
+        else:
+            # The UI may initialize WeatherSensor objects from API form data with a known id
+            new_sensor_id = kwargs["id"]
+
         super(WeatherSensor, self).__init__(**kwargs)
+        self.id = new_sensor_id
         self.name = self.name.replace(" ", "_").lower()
 
     @property

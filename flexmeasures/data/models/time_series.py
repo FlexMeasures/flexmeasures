@@ -18,6 +18,10 @@ from flexmeasures.data.queries.utils import (
 from flexmeasures.data.services.time_series import collect_time_series_data
 
 
+class Sensor(db.Model, tb.SensorDBMixin):
+    """A sensor measures events. """
+
+    
 class SensorSchema(Schema):
     """
     Base sensor schema.

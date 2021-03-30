@@ -78,7 +78,7 @@ using the following JSON message for the POST request data:
         "password": "<user password>"
     }
 
-Note that each access token has a limited lifetime, see :ref:`auth`.
+.. note:: Each access token has a limited lifetime, see :ref:`auth`.
 
 
 Roles

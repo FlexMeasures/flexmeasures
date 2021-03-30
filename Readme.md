@@ -20,5 +20,5 @@ FlexMeasures is developed by [Seita BV](https://www.seita.nl) in The Netherlands
 We made FlexMeasures freely available under the Apache2.0 licence. Please get in contact if you use FlexMeasures or are considering it. More information on [FlexMeasures.io](https://flexmeasures.io).
 
 
-Follow-up for advice for [installing](Installation.md) and [developing](Developing.md).
+Head over to our documentation on [getting started](https://flexmeasures.readthedocs.io/en/latest/getting-started.html)!
 

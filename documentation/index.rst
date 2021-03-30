@@ -13,7 +13,7 @@ For this purpose, it performs three services:
 * Forecasting of expected measurements
 * Scheduling flexible actions with custom optimization
 
-For more on FlexMeasures services, read :ref:`services`.
+For more on FlexMeasures services, read :ref:`services`. Or head right over to :ref:`getting_started`.
 
 
 Using FlexMeasures benefits operators as well as asset owners,
@@ -35,6 +35,8 @@ The platform operator of FlexMeasures can be an Aggregator.
    :maxdepth: 1
    :hidden:
 
+   getting-started
+   configuration
    changelog
 
 .. toctree::
@@ -69,6 +71,16 @@ The platform operator of FlexMeasures can be an Aggregator.
     api/v1_1
     api/v1
     api/change_log
+
+
+.. toctree::
+    :caption: Developers
+    :maxdepth: 1
+
+    dev/introduction
+    dev/data
+    dev/api
+    dev/ci
 
 
 .. toctree::

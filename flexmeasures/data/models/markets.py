@@ -5,7 +5,7 @@ from timely_beliefs.sensors.func_store import knowledge_horizons
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.time_series import TimedValue
+from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.utils.flexmeasures_inflection import humanize
 
 
@@ -44,6 +44,9 @@ class MarketType(db.Model):
 class Market(db.Model, tb.SensorDBMixin):
     """Each market is a pricing service."""
 
+    id = db.Column(
+        db.Integer, db.ForeignKey("sensor.id"), primary_key=True, autoincrement=True
+    )
     name = db.Column(db.String(80), unique=True)
     display_name = db.Column(db.String(80), default="", unique=True)
     market_type_name = db.Column(
@@ -58,7 +61,19 @@ class Market(db.Model, tb.SensorDBMixin):
             kwargs["knowledge_horizon_par"] = {
                 knowledge_horizons.ex_ante.__code__.co_varnames[1]: "PT0H"
             }
+
+        # Create a new Sensor with unique id across assets, markets and weather sensors
+        if "id" not in kwargs:
+            new_sensor = Sensor(name=kwargs["name"])
+            db.session.add(new_sensor)
+            db.session.flush()  # generates the pkey for new_sensor
+            new_sensor_id = new_sensor.id
+        else:
+            # The UI may initialize Market objects from API form data with a known id
+            new_sensor_id = kwargs["id"]
+
         super(Market, self).__init__(**kwargs)
+        self.id = new_sensor_id
         self.name = self.name.replace(" ", "_").lower()
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
