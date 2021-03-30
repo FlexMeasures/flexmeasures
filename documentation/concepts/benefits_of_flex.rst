@@ -15,31 +15,43 @@ Here, we define a few terms around this idea, which come up in other parts of th
 Flexibility opportunities and their activation
 -----------------------------------------
 
+Opportunities
+^^^^^^^^^^^^^^
+
 In an energy system with flexible energy assets present (e.g. batteries, heating/cooling), there exist 
-opportunities to activate such flexibility.
+opportunities to profit from activating their flexibility.
 
-The opportunity lies in waiting with a planned consumption or generation action ("shifting") or to
-adapt an action ("curtailment") ― see :ref:`opportunity_types` for a deeper discussion. Often, such opportunities are discussed under the label "demand response".
+Energy flexibility can come from the ability to store energy ("storage"), to delay (or advance) planned consumption or production ("shifting"), the ability to lower production ("curtailment"), or the ability to increase or decrease consumption ("demand response") ― see :ref:`flexibility_types` for a deeper discussion.
 
-Within FlexMeasures, this opportunity can be regarded as the difference between suggested schedules (the activation of flexibility) and forecasts (how the assets are expected to act without activation of flexibility).
+Under a given incentive, this flexibility represents an opportunity to profit by scheduling consumption or production differently than originally planned.
+Within FlexMeasures, flexibility is represented as the difference between a suggested schedule and a given baseline. By default, a baseline is determined by our own forecasts.
 
-What does it mean to activate flexibility from such an opportunity?
+Opportunities are expressed with respect to given economical and ecological incentives.
+For example, a suggested schedule may represent an opportunity to save X EUR and Y tonnes of CO₂.
 
-Positive values in the aforementioned differences indicate an increase in production or a decrease in consumption on activation, both of which result in an increased grid frequency.
-For short-term changes in power due to activation of flexibility opportunities, this is sometimes called `"up-regulation"`.
+Activation
+^^^^^^^^^^^^^^^
 
-On the other hand, negative values indicate a decrease in production or an increase in consumption,
-which result in a decreased grid frequency (`"down-regulation"`).
+The activation of a flexibility opportunity happens in a context (where the incentives are defined). Often, the context is a market. We recommend `the USEF white paper on the flexibility value chain <https://www.usef.energy/app/uploads/2018/11/USEF-White-paper-Flexibility-Value-Chain-2018-version-1.0_Oct18.pdf>`_ for an excellent introduction of who can benefit from energy flexibility and how it can be delivered. The high-level take-aways are these: There are various roles (e.g. Prosumer, DSO, Aggregator) and often the value from flexibility comes from various sources, so that "value stacking" is the way that the overall value from flexibility is defined for a project.
 
-Finally, flexibility activations have commercial value that users can valorise on. This value can fall to the platform operator or be shared among stakeholders. We talk more about this in :ref:`activation_profits`.
+The overall value, which is created by activating flexibility opportunities, can fall to the platform operator or be shared among stakeholders (who have different roles, see above). We talk more about this in :ref:`activation_profits`.
 
 
-.. _opportunity_types:
+An example: the balancing market
+----------------------------------------
+An example for such a market is the balancing market, which has the aim to bring the grid frequency back to a target level within a matter of minutes. Consider the aforementioned differences between suggested schedules and a given baseline.
+In the context of the balancing market, a positive difference indicates an increase in production or a decrease in consumption on activation, both of which result in an increased grid frequency (back towards the target frequency).
 
-Types of flexibility opportunities
+The balancing market pays for such services, and they are often referred to as `"up-regulation"`
+It works the other way around: negative differences indicate a decrease in production or an increase in consumption, which result in a decreased grid frequency (`"down-regulation"`).
+
+
+.. _flexibility_types:
+
+Types of flexibility
 --------------------------------------
 
-The FlexMeasures platform distinguishes between different types of flexibility opportunities and the type of action to take advantage of it. We explain them in more detail, together with examples.
+The FlexMeasures platform distinguishes between different types of flexibility. We explain them here in more detail, together with examples.
 
 
 Curtailment
@@ -81,15 +93,15 @@ This volume is a multiplication of the energy volume being shifted and the durat
 Profits of flexibility activation
 ---------------
 
-The realised value from activating flexibility opportunities has to be computed and accounted for.
-Both of these activities depend on the context in which FlexMeasures is being used, and we expect that it will be often have to implemented in a custom manner (much as the actual scheduling optimization).
+The realised value from activating flexibility has to be computed and accounted for.
+Both of these activities depend on the context in which FlexMeasures is being used, and we expect that it will often have to be implemented in a custom manner (much as the actual scheduling optimization).
 
-.. note:: Making it possible to configure custom scheduling and value accounting is on the roadmap for FlexMeasures.
+.. todo:: Making it possible to configure custom scheduling and value accounting is on the roadmap for FlexMeasures.
 
 Computing value
 ^^^^^^^^^^^^^^^^
 
-The computation of the value is what drives the scheduling optimization. This value is usually monetary, and in that case there should be some form of market configured. This can be a constant or time-of-use tariff, or a real market. However, there are other possibilities, for instance if the optimisation goal is to minimise the CO₂ consumption. The realised value is avoided CO₂, whcih is probably not easy to translate into a monetary value.
+The computation of the value is what drives the scheduling optimization. This value is usually monetary, and in that case there should be some form of market configured. This can be a constant or time-of-use tariff, or a real market. However, there are other possibilities, for instance if the optimisation goal is to minimise the CO₂ consumption. Then, the realised value is avoided CO₂, which nowadays has an assumed value, e.g. in `the EU ETS carbon market <https://ember-climate.org/data/carbon-price-viewer/>`_.
 
 
 Accounting / Sharing value
@@ -97,7 +109,7 @@ Accounting / Sharing value
 
 The realisation of payments is outside of FlexMeasures scope, but it can provide the accounting to enable them (as was said above, this is usually a part of the optimisation problem formulation).
 
-However, next to fueling algorithmic optimization, the value of energy flexibility also drives project participation. Accounting plays an important role here.
+However, next to fueling algorithmic optimization, the way that the value of energy flexibility is shared among the stakeholders will also be an important driver for project participation. Accounting plays an important role here.
 
 There are different roles in a modern smart energy system (e.g. "Prosumer", "DSO", Aggregator", "ESCo"),
 and they all enjoy the benefits of flexibility  in different ways

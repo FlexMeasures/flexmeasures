@@ -117,7 +117,7 @@ Scheduling of other flexible asset types
 Next to storage, there are other interesting flexible assets which can require specific implementations.
 For shifting, there are heat pumps and other buffers. For curtailment, there are wind turbines and solar panels.
 
-.. note:: See :ref:`opportunity_types` for more info on shifting and curtailment.
+.. note:: See :ref:`flexibility_types` for more info on shifting and curtailment.
 
 Broker algorithm
 ^^^^^^^^^^^^^^^^^

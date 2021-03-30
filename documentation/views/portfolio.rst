@@ -46,7 +46,7 @@ Market status
 .. note:: This feature is mocked for now.
 
 The bottom table lists the effects of flexible schedules for each asset type in the user's portfolio.
-Separate columns are stated for each type of scheduled deviation from the status quo, e.g. curtailment and shifting (see :ref:`opportunity_types`), with relevant total volumes within the selected time window.
+Separate columns are stated for each type of scheduled deviation from the status quo, e.g. curtailment and shifting (see :ref:`flexibility_types`), with relevant total volumes within the selected time window.
 [#f1]_
 
 Costs and revenues are calculated based on the following internal method for profit sharing:
