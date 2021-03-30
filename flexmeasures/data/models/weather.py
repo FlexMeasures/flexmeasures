@@ -165,7 +165,9 @@ class WeatherSensorSchema(SensorSchema, ma.SQLAlchemySchema):
 
     @validates("name")
     def validate_name(self, name: str):
-        sensor = WeatherSensor.query.filter(WeatherSensor.name == name).one_or_none()
+        sensor = WeatherSensor.query.filter(
+            WeatherSensor.name == name.lower()
+        ).one_or_none()
         if sensor:
             raise ValidationError(
                 f"A weather sensor with the name {name} already exists."

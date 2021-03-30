@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.serializer import loads, dumps
 from timetomodel.forecasting import make_rolling_forecasts
 from timetomodel.exceptions import MissingData, NaNData
+import pytz
 from humanize import naturaldelta
 import inflect
 
@@ -111,6 +112,58 @@ def add_asset_types(db: SQLAlchemy):
     )
 
 
+def add_weather_sensor_types(db: SQLAlchemy):
+    db.session.add(WeatherSensorType(name="temperature"))
+    db.session.add(WeatherSensorType(name="wind_speed"))
+    db.session.add(WeatherSensorType(name="radiation"))
+
+
+def add_market_types(db: SQLAlchemy):
+    db.session.add(
+        MarketType(
+            name="day_ahead",
+            display_name="day-ahead market",
+            daily_seasonality=True,
+            weekly_seasonality=True,
+            yearly_seasonality=True,
+        )
+    )
+    db.session.add(
+        MarketType(
+            name="tou_tariff",
+            display_name="time-of use tariff",
+            daily_seasonality=True,
+            weekly_seasonality=False,
+            yearly_seasonality=True,
+        )
+    )
+
+
+def add_dummy_tou_market(db: SQLAlchemy):
+    """
+    Add a dummy time-of-use market with a 1-year resolution.
+    Also add a few price points, each covering a whole year.
+    """
+    market = Market(
+        name="dummy-tou",
+        event_resolution=timedelta(days=365),
+        market_type_name="tou_tariff",
+        unit="EUR/MWh",
+    )
+    db.session.add(market)
+    source = DataSource.query.filter(DataSource.name == "Seita").one_or_none()
+    for year in range(2015, 2025):
+        db.session.add(
+            Price(
+                value=50,
+                datetime=datetime(year, 1, 1, tzinfo=pytz.utc),
+                horizon=timedelta(0),
+                data_source_id=source.id,
+                market=market,
+            )
+        )
+
+
 # ------------ Main functions --------------------------------
 # These can registered at the app object as cli functions
 
@@ -118,12 +171,21 @@ def add_asset_types(db: SQLAlchemy):
 @as_transaction
 def populate_structure(db: SQLAlchemy):
     """
-    Add all meta data for assets, markets, users
+    Add initial meta data for assets, markets, data sources
     """
     click.echo("Populating the database %s with structural data ..." % db.engine)
-    add_asset_types(db)
     add_data_sources(db)
-    click.echo("DB now has %d AssetTypes" % db.session.query(AssetType).count())
+    add_asset_types(db)
+    add_weather_sensor_types(db)
+    add_market_types(db)
+    add_dummy_tou_market(db)
+    click.echo("DB now has %d AssetType(s)" % db.session.query(AssetType).count())
+    click.echo(
+        "DB now has %d WeatherSensorType(s)"
+        % db.session.query(WeatherSensorType).count()
+    )
+    click.echo("DB now has %d MarketType(s)" % db.session.query(MarketType).count())
+    click.echo("DB now has %d Market(s)" % db.session.query(Market).count())
 
 
 @as_transaction  # noqa: C901

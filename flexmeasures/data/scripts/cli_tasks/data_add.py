@@ -14,6 +14,7 @@ import getpass
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import Asset, AssetSchema
+from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorSchema
 
 
@@ -90,9 +91,8 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
 )
 @click.option(
     "--market-id",
-    required=True,
     type=int,
-    help="Id of the market used to price this asset.",
+    help="Id of the market used to price this asset. Defaults to a dummy TOU market.",
 )
 @click.option(
     "--timezone",
@@ -104,7 +104,15 @@ def new_asset(**args):
     Create a new asset.
     """
     check_timezone(args["timezone"])
-    # TODO: if no market, select dummy market
+    # if no market given, select dummy market
+    if args["market_id"] is None:
+        dummy_market = Market.query.filter(Market.name == "dummy-tou").one_or_none()
+        if not dummy_market:
+            print(
+                "No market ID given and also no dummy TOU market available. Maybe add structure first."
+            )
+            raise click.Abort()
+        args["market_id"] = dummy_market.id
     check_errors(AssetSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     asset = Asset(**args)
@@ -155,7 +163,6 @@ def add_weather_sensor(**args):
     print(f"Successfully created sensor with ID:{sensor.id}.")
 
 
-# @app.before_first_request
 @fm_add_data.command("structure")
 @with_appcontext
 def add_initial_structure():
