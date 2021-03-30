@@ -5,10 +5,10 @@ Flexibility opportunities
 *****************
 
 Flexibility opportunities have commercial value that users can valorise on.
-When FlexMeasures has identified commercial value for flexibility opportunities, the user is suggested to act on them.
-This might happen in an automated fashion (scripts reading out suggested flexible schedules from the FlexMeasures API and implementing them to local operations if possible) or manually (operators seeing opportunities in the FlexMeasures UI).
+When FlexMeasures has identified commercial value of flexibility, the user is suggested to act on it.
+This might happen in an automated fashion (scripts reading out suggested schedules from the FlexMeasures API and implementing them to local operations if possible) or manually (operators agreeing with the opportunities identified by FlexMeasures and acting on the suggested schedules).
 
-For this latter case, in the Flexibility opportunities page (a yet-to-be designed feature discussed below), FlexMeasures shows all flexibility opportunities that the user can take for a selected time window.
+For this latter case, in the Flexibility opportunities web-page (a yet-to-be designed UI feature discussed below), FlexMeasures could show all flexibility opportunities that the user can act on for a selected time window.
 
 .. contents::
     :local:
