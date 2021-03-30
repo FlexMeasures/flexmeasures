@@ -43,6 +43,7 @@ On Windows:
 * Add the lib and bin directories to your Windows path: http://bobbyong.com/blog/installing-postgresql-on-windoes/
 * ``conda install psycopg2``
 
+
 Make sure postgres represents datetimes in UTC timezone
 ^^^^^^^^^^^^^
 
@@ -59,6 +60,7 @@ You can also type ``SHOW config_file;`` in a postgres console session (as superu
 Find the ``timezone`` setting and set it to 'UTC'.
 
 Then restart the postgres server.
+
 
 Setup the "flexmeasures" Unix user
 ^^^^^^^^^^^^^
@@ -142,10 +144,12 @@ Write:
 
 into the config file you are using, e.g. ~/flexmeasures.cfg
 
+
 Get structure (and some data) into place
 ^^^^^^^^^^^^^
 
 You need data to enjoy the benefits of FlexMeasures or to develop features for it. In this section, there are some ways to get started.
+
 
 Import from another database
 """"""""""""""""""""""""""""""
@@ -156,7 +160,7 @@ On the to-be-exported database:
 
 .. code-block:: bash
 
-   flask db-dump
+   flexmeasures db-ops dump
 
 
 .. note:: Only the data gets dumped here.
@@ -165,14 +169,14 @@ Then, we create the structure in our database anew, based on the data model give
 
 .. code-block:: bash
 
-   flexmeasures db-reset
+   flexmeasures db-ops reset
 
 
 Then we import the data dump we made earlier:
 
 .. code-block:: bash
 
-   flask db-restore <DATABASE DUMP FILENAME>
+   flask db-ops restore <DATABASE DUMP FILENAME>
 
 
 A potential ``alembic_version`` error should not prevent other data tables from being restored.
@@ -196,14 +200,14 @@ You can create users with the ``new-user`` command. Check it out:
 
 .. code-block:: bash
 
-   flexmeasures new-user --help
+   flexmeasures add user --help
 
 
 You can create some pre-determined asset types and data sources with this command:
 
 .. code-block:: bash
 
-   flexmeasures db-populate --structure
+   flexmeasures add structure
 
 
 .. todo:: We should instead offer CLI commands to be able to create asset types as needed.
@@ -217,16 +221,21 @@ You can create forecasts for your existing metered data with this command:
 
 .. code-block:: bash
 
-   flexmeasures db-populate --forecasts
+   flexmeasures add forecasts
 
 
-Check out it's ``--help`` content to learn more. You can set which assets and which time window you want to forecast. At the time of writing, the forecasts horizons are fixed to 1, 6, 24 and 48 hours. Of course, making forecasts takes a while for a larger dataset.
+Check out it's ``--help`` content to learn more. You can set which assets and which time window you want to forecast. Of course, making forecasts takes a while for a larger dataset. You can also simply queue a job with this command.
 
-Just to note: There is also a command to get rid of data:
+Just to note: There are also commands to get rid of data, e.g.:
 
 .. code-block:: bash
 
-   flexmeasures db-depopulate --structure --data --forecasts
+   flexmeasures delete structure
+   flexmeasures delete measurements
+   flexmeasures delete forecasts
+
+Check out the :ref:`cli` documentation for more details.
+
 
 
 Visualize the data model
@@ -248,6 +257,7 @@ Maintenance
 Maintenance is supported with the alembic tool. It reacts automatically
 to almost all changes in the SQLAlchemy code. With alembic, multiple databases,
 e.g. dev, staging and production can be kept in sync.
+
 
 Make first migration
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -345,6 +355,7 @@ It is really useful (and therefore an industry standard) to bundle certain datab
 Please see the package ``flexmeasures.data.transactional`` for details on how a FlexMeasures developer should make use of this concept.
 If you are writing a script or a view, you will find there the necessary structural help to bundle your work in a transaction.
 
+
 Redis and redis queue
 -----------------------
 
@@ -356,12 +367,13 @@ Forecasting jobs are usually created (and enqueued) when new data comes in via t
 
 .. code-block:: bash
 
-   flexmeasures run_worker --queue forecasting
+   flexmeasures jobs run_worker --queue forecasting
 
 
 You should be able to run multiple workers in parallel, if necessary. You can add the ``--name`` argument to keep them a bit more organized.
 
 The FlexMeasures unit tests use fakeredis to simulate this task queueing, with no configuration required.
+
 
 Inspect the queue and jobs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

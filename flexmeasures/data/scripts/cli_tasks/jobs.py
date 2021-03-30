@@ -30,8 +30,9 @@ def fm_jobs():
 )
 def run_worker(name: str, queue: str):
     """
-    Use this CLI task to let a worker process forecasting and/or scheduling jobs.
-    It uses the app context to find out which redis queues to use.
+    Start a worker process for forecasting and/or scheduling jobs.
+
+    We use the app context to find out which redis queues to use.
     """
 
     q_list = parse_queue_list(queue)
@@ -68,8 +69,9 @@ def run_worker(name: str, queue: str):
 )
 def clear_queue(queue: str):
     """
-    Use this CLI task to clear a queue.
-    It uses the app context to find out which redis queues to use.
+    Clear a job queue.
+
+    We use the app context to find out which redis queues to use.
     """
 
     q_list = parse_queue_list(queue)

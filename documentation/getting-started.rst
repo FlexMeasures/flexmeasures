@@ -99,20 +99,50 @@ FlexMeasures is a web-based platform, so we need a user account:
 
 .. code-block::
 
-   flexmeasures new-user --username <your-username> --email <your-email-address> --roles=admin
+   flexmeasures add user --username <your-username> --email <your-email-address> --roles=admin
 
 
 * This will ask you to set a password for the user.
 * Giving the first user the ``admin`` role is probably what you want.
 
+
 Add structure
 ^^^^^^^^^^^^^
 
-Populate the database with some standard energy asset types:
+Populate the database with some standard energy asset types, weather sensor types and a dummy market:
 
 .. code-block::
 
-   flexmeasures db-populate --structure
+   flexmeasures add structure
+
+
+Add your first weather sensor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Weather plays a role for almost all use cases. FlexMeasure supports a few weather sensor types out of the box ("temperature", "wind_speed" and "radiation"), but you you need to decide which ones you need and where they are located. Let's use the ``flexmeasures`` :ref:`cli` to add one:
+
+.. code-block::
+
+   flexmeasures add weather-sensor --name a-temperature-sensor --weather-sensor-type-name temperature --unit C --event-resolution 15 --latitude 33 --longitude 2.4
+
+
+Add your first asset
+^^^^^^^^^^^^^^^^^^^^
+
+There are three ways to add assets:
+
+Head over to ``http://localhost:5000/assets`` and add a new asset there.
+
+Or, use the ``flexmeasures`` :ref:`cli`:
+
+.. code-block::
+
+    flexmeasures add asset --name TestA --asset-type-name battery --capacity-in-MW 30 --event-resolution 2 --latitude 65 --longitude 123.76 --owner-id 1
+
+Here, I left off the ``--market-id`` parameter, because in this quickstart scenario I'm fine with the dummy market created with ``flexmeasures add structure`` above. For the ownership, I got my user ID from the output of ``flexmeasures add user`` above, or I can browse to `FlexMeasure's user listing <http://localhost:5000/users>`_ and hover over my username.
+
+Finally, you can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
+
 
 Run FlexMeasures
 ^^^^^^^^^^^^^^^^
@@ -125,20 +155,11 @@ It's finally time to start running FlexMeasures:
 
 (This might print some warnings, see the next section where we go into more detail)
 
-.. note:: In a production context, you shouldn't run a script - hand the ``app`` object to a WSGI process, as your platform of choice describes.
-Often, that requires a WSGI script. We provide an example WSGI script in :ref:`continuous_integration`.
+.. note:: In a production context, you shouldn't run a script - hand the ``app`` object to a WSGI process, as your platform of choice describes. Often, that requires a WSGI script. We provide an example WSGI script in :ref:`continuous_integration`.
 
 You can visit ``http://localhost:5000`` now to see if the app's UI works.
 When you see the dashboard, the map will not work. For that, you'll need to get your :ref:`mapbox_access_token` and add it to your config file.
 
-Add your first asset
-^^^^^^^^^^^^^^^^^^^^
-
-Head over to ``http://localhost:5000/assets`` and add a new asset there.
-
-.. note:: `issue 57 <https://github.com/SeitaBV/flexmeasures/issues/57>`_ should create a CLI function for this.
-
-.. note:: You can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
 
 Add data
 ^^^^^^^^
@@ -147,11 +168,11 @@ You can use the `POST /api/v2_0/postMeterData <api/v2_0.html#post--api-v2_0-post
 
 .. note::  `issue 56 <https://github.com/SeitaBV/flexmeasures/issues/56>`_ should create a CLI function for adding a lot of data at once, from a CSV dataset.
 
-Also, you can add forecasts for your meter data with the ``db_populate`` command, here is an example:
+Also, you can add forecasts for your meter data with the ``flexmeasures add`` command, here is an example:
 
 .. code-block::
 
-   flexmeasures db-populate --forecasts --from-date 2020-03-08 --to-date 2020-04-08 --asset-type Asset --asset my-solar-panel
+   flexmeasures add forecasts --from-date 2020-03-08 --to-date 2020-04-08 --asset-type Asset --asset my-solar-panel
 
 .. note:: You can also use the API to send forecast data.
 
@@ -186,12 +207,13 @@ More information (e.g. for installing on Windows) on `the Cbc website <https://p
 Start collecting weather data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To collect weather measurements and forecasts, there is a task you could run periodically, probably once per hour. Here is an example:
+To collect weather measurements and forecasts from the DarkSky API, there is a task you could run periodically, probably once per hour. Here is an example:
 
 .. code-block::
 
-   flexmeasures collect-weather-data--location 33.4366,126.5269 --store-in-db 
+   flexmeasures add external-weather-forecasts --location 33.4366,126.5269 --store-in-db 
 
+.. note::  DarkSky is not handing out tokens anymore, as they have been bought by Apple, see `issue 3 <https://github.com/SeitaBV/flexmeasures/issues/56>`_ 
 
 
 Preparing the job queue database and start workers

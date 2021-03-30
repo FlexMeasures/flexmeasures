@@ -121,9 +121,7 @@ DARK_SKY_API_KEY
 
 Token for accessing the DarkSky weather forecasting service.
 
-.. note:: DarkSky will be soon (Aug 1, 2021) become non-public, so thay are not giving out new tokens. We'll use another service soon, `see this issue <https://github.com/SeitaBV/flexmeasures/issues/3>`_.
-
-This is unfortunate. In the meantime, if you can't find anybody lending their token, you can add weather forecasts to the FlexMeasures db yourself. 
+.. note:: DarkSky will be soon (Aug 1, 2021) become non-public, so thay are not giving out new tokens. We'll use another service soon, `see this issue <https://github.com/SeitaBV/flexmeasures/issues/3>`_. This is unfortunate. In the meantime, if you can't find anybody lending their token, you can add weather forecasts to the FlexMeasures database yourself. 
 
 Default: ``None``
 

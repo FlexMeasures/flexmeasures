@@ -153,7 +153,7 @@ def new_asset(**args):
     help="timezone as string, e.g. 'UTC' (default) or 'Europe/Amsterdam'",
 )
 def add_weather_sensor(**args):
-    """Add a weather sensor"""
+    """Add a weather sensor."""
     check_timezone(args["timezone"])
     check_errors(WeatherSensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
