@@ -5,7 +5,7 @@ FlexMeasures CLI Changelog
 **********************
 
 
-v1 | March XX, 2021
+since v0.2.4 | March XX, 2021
 =====================
 
 * Refactor CLI into the main groups ``add``, ``delete``, ``jobs`` and ``db-ops``
