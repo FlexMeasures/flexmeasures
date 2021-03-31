@@ -3,22 +3,23 @@
 Command Line Interface (CLI)
 =============================
 
-FlexMeasures comes with a command-line utility, which helps to to manage data.
+FlexMeasures comes with a command-line utility, which helps to manage data.
 Below, we list all available commands.
 
 Each command has more extensive documentation if you call it with ``--help``.
 
 We keep track of changes to these commands in :ref:`cli-changelog`.
-You can also get the current overview over the commands yiu have available by:
+You can also get the current overview over the commands you have available by:
 
 .. code-block::
 
     flexmeasures --help
 
-This will also show commands made available through Flask and the installed extensions (e.g. `Flask-Security <https://flask-security-too.readthedocs.io>`_, or `Flask-Migrate <https://flask-migrate.readthedocs.io>`_). These are also very interesting for admins (and partially come up in this documentation).
+This also shows admin commands made available through Flask and installed extensions (such as `Flask-Security <https://flask-security-too.readthedocs.io>`_ and `Flask-Migrate <https://flask-migrate.readthedocs.io>`_),
+of which some are referred to in this documentation.
 
 
-``add`` : Add data
+``add`` - Add data
 --------------
 
 ================================================= =======================================
@@ -31,7 +32,7 @@ This will also show commands made available through Flask and the installed exte
 ================================================= =======================================
 
 
-``delete`` : Delete data
+``delete`` - Delete data
 --------------
 
 ================================================= =======================================
@@ -43,7 +44,7 @@ This will also show commands made available through Flask and the installed exte
 ================================================= =======================================
 
 
-``jobs`` : Job queueing
+``jobs`` - Job queueing
 --------------
 
 ================================================= =======================================
@@ -52,7 +53,7 @@ This will also show commands made available through Flask and the installed exte
 ================================================= =======================================
 
 
-``db-ops`` : Operations on the whole database
+``db-ops`` - Operations on the whole database
 --------------
 
 ================================================= =======================================

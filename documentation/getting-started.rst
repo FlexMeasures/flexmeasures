@@ -119,11 +119,13 @@ Populate the database with some standard energy asset types, weather sensor type
 Add your first weather sensor
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Weather plays a role for almost all use cases. FlexMeasure supports a few weather sensor types out of the box ("temperature", "wind_speed" and "radiation"), but you you need to decide which ones you need and where they are located. Let's use the ``flexmeasures`` :ref:`cli` to add one:
+Weather plays a role for almost all use cases.
+FlexMeasures supports a few weather sensor types out of the box ("temperature", "wind_speed" and "radiation"), but you need to decide which ones you need and where they are located.
+Let's use the ``flexmeasures`` :ref:`cli` to add one:
 
 .. code-block::
 
-   flexmeasures add weather-sensor --name a-temperature-sensor --weather-sensor-type-name temperature --unit C --event-resolution 15 --latitude 33 --longitude 2.4
+   flexmeasures add weather-sensor --name "my rooftop thermometer" --weather-sensor-type-name temperature --unit °C --event-resolution 15 --latitude 33 --longitude 2.4
 
 
 Add your first asset
@@ -137,9 +139,10 @@ Or, use the ``flexmeasures`` :ref:`cli`:
 
 .. code-block::
 
-    flexmeasures add asset --name TestA --asset-type-name battery --capacity-in-MW 30 --event-resolution 2 --latitude 65 --longitude 123.76 --owner-id 1
+    flexmeasures add asset --name "my basement battery pack" --asset-type-name battery --capacity-in-MW 30 --event-resolution 2 --latitude 65 --longitude 123.76 --owner-id 1
 
-Here, I left off the ``--market-id`` parameter, because in this quickstart scenario I'm fine with the dummy market created with ``flexmeasures add structure`` above. For the ownership, I got my user ID from the output of ``flexmeasures add user`` above, or I can browse to `FlexMeasure's user listing <http://localhost:5000/users>`_ and hover over my username.
+Here, I left out the ``--market-id`` parameter, because in this quickstart scenario I'm fine with the dummy market created with ``flexmeasures add structure`` above.
+For the ownership, I got my user ID from the output of ``flexmeasures add user`` above, or I can browse to `FlexMeasures' user listing <http://localhost:5000/users>`_ and hover over my username.
 
 Finally, you can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
 
@@ -155,7 +158,8 @@ It's finally time to start running FlexMeasures:
 
 (This might print some warnings, see the next section where we go into more detail)
 
-.. note:: In a production context, you shouldn't run a script - hand the ``app`` object to a WSGI process, as your platform of choice describes. Often, that requires a WSGI script. We provide an example WSGI script in :ref:`continuous_integration`.
+.. note:: In a production context, you shouldn't run a script - hand the ``app`` object to a WSGI process, as your platform of choice describes.
+          Often, that requires a WSGI script. We provide an example WSGI script in :ref:`continuous_integration`.
 
 You can visit ``http://localhost:5000`` now to see if the app's UI works.
 When you see the dashboard, the map will not work. For that, you'll need to get your :ref:`mapbox_access_token` and add it to your config file.
@@ -213,7 +217,7 @@ To collect weather measurements and forecasts from the DarkSky API, there is a t
 
    flexmeasures add external-weather-forecasts --location 33.4366,126.5269 --store-in-db 
 
-.. note::  DarkSky is not handing out tokens anymore, as they have been bought by Apple, see `issue 3 <https://github.com/SeitaBV/flexmeasures/issues/56>`_ 
+.. note::  DarkSky is not handing out tokens anymore, as they have been bought by Apple (see `issue 3 <https://github.com/SeitaBV/flexmeasures/issues/56>`_).
 
 
 Preparing the job queue database and start workers

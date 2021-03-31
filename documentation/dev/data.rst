@@ -224,9 +224,10 @@ You can create forecasts for your existing metered data with this command:
    flexmeasures add forecasts
 
 
-Check out it's ``--help`` content to learn more. You can set which assets and which time window you want to forecast. Of course, making forecasts takes a while for a larger dataset. You can also simply queue a job with this command.
+Check out it's ``--help`` content to learn more. You can set which assets and which time window you want to forecast. Of course, making forecasts takes a while for a larger dataset.
+You can also simply queue a job with this command (and run a worker to process the :ref:`redis-queue`).
 
-Just to note: There are also commands to get rid of data, e.g.:
+Just to note, there are also commands to get rid of data, such as:
 
 .. code-block:: bash
 
@@ -256,7 +257,7 @@ Maintenance
 
 Maintenance is supported with the alembic tool. It reacts automatically
 to almost all changes in the SQLAlchemy code. With alembic, multiple databases,
-e.g. dev, staging and production can be kept in sync.
+such as development, staging and production databases can be kept in sync.
 
 
 Make first migration
@@ -356,7 +357,9 @@ Please see the package ``flexmeasures.data.transactional`` for details on how a 
 If you are writing a script or a view, you will find there the necessary structural help to bundle your work in a transaction.
 
 
-Redis and redis queue
+.. _redis-queue:
+
+Redis queue
 -----------------------
 
 FlexMeasures supports jobs (e.g. forecasting) running asynchronously to the main FlexMeasures application using `Redis Queue <http://python-rq.org/>`_.
@@ -378,7 +381,7 @@ The FlexMeasures unit tests use fakeredis to simulate this task queueing, with n
 Inspect the queue and jobs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The first option to inspect the state of the ``forecasting`` queue should be via the formiddable `RQ dashboard <https://github.com/Parallels/rq-dashboard>`_. If you have admin rights, you can access it at ``your-flexmeasures-url/rq/``\ , so for instance ``http://localhost:5000/rq/``. You can also start RQ dashboard yourself (but you need to know the redis server credentials):
+The first option to inspect the state of the ``forecasting`` queue should be via the formidable `RQ dashboard <https://github.com/Parallels/rq-dashboard>`_. If you have admin rights, you can access it at ``your-flexmeasures-url/rq/``\ , so for instance ``http://localhost:5000/rq/``. You can also start RQ dashboard yourself (but you need to know the redis server credentials):
 
 .. code-block:: bash
 

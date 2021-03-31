@@ -201,7 +201,7 @@ def add_initial_structure():
     multiple=True,
     type=click.Choice(["1", "6", "24", "48"]),
     default=["1", "6", "24", "48"],
-    help="Forecasting horizon in hours. This argument can be given mu;tiple times.",
+    help="Forecasting horizon in hours. This argument can be given multiple times.",
 )
 @click.option(
     "--as-job",

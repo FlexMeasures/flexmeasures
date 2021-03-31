@@ -13,7 +13,7 @@ Recommended settings (e.g. mail, redis) are marked by one star (*).
 
 
 * in the user's home directory (e.g. ``~/.flexmeasures.cfg`` on Unix). In this case, note the dot at the beginning of the filename!
-* in the apps's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``.
+* in the app's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``.
 
 Basic functionality
 -------------------
@@ -85,7 +85,7 @@ Default: ``False``
 RQ_DASHBOARD_POLL_INTERVAL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Interval in which viewing the queues dashboard refreshes itself, in miliseconds.
+Interval in which viewing the queues dashboard refreshes itself, in milliseconds.
 
 Default: ``3000`` (3 seconds) 
 
@@ -121,7 +121,10 @@ DARK_SKY_API_KEY
 
 Token for accessing the DarkSky weather forecasting service.
 
-.. note:: DarkSky will be soon (Aug 1, 2021) become non-public, so thay are not giving out new tokens. We'll use another service soon, `see this issue <https://github.com/SeitaBV/flexmeasures/issues/3>`_. This is unfortunate. In the meantime, if you can't find anybody lending their token, you can add weather forecasts to the FlexMeasures database yourself. 
+.. note:: DarkSky will soon become non-public (Aug 1, 2021), so they are not giving out new tokens.
+          We'll use another service soon (`see this issue <https://github.com/SeitaBV/flexmeasures/issues/3>`_).
+          This is unfortunate.
+          In the meantime, if you can't find anybody lending their token, consider posting weather forecasts to the FlexMeasures database yourself.
 
 Default: ``None``
 
