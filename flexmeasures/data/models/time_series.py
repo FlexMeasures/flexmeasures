@@ -6,7 +6,6 @@ from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.queries.utils import (
     add_belief_timing_filter,
     add_user_source_filter,
@@ -87,7 +86,6 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             belief_before=belief_time_window[1],
             belief_not_before=belief_time_window[0],
             source=source,
-            source_cls=DataSource,
         )
 
     @classmethod

@@ -224,8 +224,8 @@ def test_query_beliefs(setup_beliefs):
     sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
     source = DataSource.query.filter_by(name="Seita").one_or_none()
     bdfs = [
-        TimedBelief.search(sensor, source=source.id),
-        sensor.search_beliefs(source=source.id),
+        TimedBelief.search(sensor, source=source),
+        sensor.search_beliefs(source=source),
         tb.BeliefsDataFrame(sensor.beliefs),  # doesn't allow filtering
     ]
     for bdf in bdfs:
