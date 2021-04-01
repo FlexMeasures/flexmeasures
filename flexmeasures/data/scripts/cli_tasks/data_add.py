@@ -118,10 +118,8 @@ def new_asset(**args):
     asset = Asset(**args)
     app.db.session.add(asset)
     app.db.session.commit()
-    print(
-        f"Successfully created asset with ID:{asset.id}."
-        f" You can access it at its entity address {asset.entity_address}"
-    )
+    print(f"Successfully created asset with ID:{asset.id}.")
+    print(f" You can access it at its entity address {asset.entity_address}")
 
 
 @fm_add_data.command("weather-sensor")
@@ -161,6 +159,8 @@ def add_weather_sensor(**args):
     app.db.session.add(sensor)
     app.db.session.commit()
     print(f"Successfully created sensor with ID:{sensor.id}.")
+    # TODO: uncomment when #66 has landed
+    # print(f" You can access it at its entity address {sensor.entity_address}")
 
 
 @fm_add_data.command("structure")
