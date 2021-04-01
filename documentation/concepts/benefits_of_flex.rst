@@ -12,14 +12,14 @@ Here, we define a few terms around this idea, which come up in other parts of th
     :depth: 2
 
 
-Flexibility opportunities and their activation
+Flexibility opportunities and activation
 -----------------------------------------
 
 Opportunities
 ^^^^^^^^^^^^^^
 
-In an energy system with flexible energy assets present (e.g. batteries, heating/cooling), there exist 
-opportunities to profit from activating their flexibility.
+In an energy system with flexible energy assets present (e.g. batteries, heating/cooling), there are
+opportunities to profit from the availability and activation of their flexibility.
 
 Energy flexibility can come from the ability to store energy ("storage"), to delay (or advance) planned consumption or production ("shifting"), the ability to lower production ("curtailment"), or the ability to increase or decrease consumption ("demand response") ― see :ref:`flexibility_types` for a deeper discussion.
 
@@ -33,16 +33,23 @@ For example, a suggested schedule may represent an opportunity to save X EUR and
 Activation
 ^^^^^^^^^^^^^^^
 
-The activation of a flexibility opportunity usually happens in a context of incentives. Often, that context is a market.
+The activation of flexibility usually happens in a context of incentives. Often, that context is a market.
 We recommend `the USEF white paper on the flexibility value chain <https://www.usef.energy/app/uploads/2018/11/USEF-White-paper-Flexibility-Value-Chain-2018-version-1.0_Oct18.pdf>`_ for an excellent introduction of who can benefit from energy flexibility and how it can be delivered.
-The high-level takeaways are these: There are various roles (e.g. Prosumer, DSO, Aggregator) and often the value from flexibility comes from various sources, so that "value stacking" is the way that the overall value from flexibility is defined for a project.
+The high-level takeaways are these:
 
-The overall value, which is created by activating flexibility opportunities, can fall to the platform operator or be shared among stakeholders (who have different roles, see above). We talk more about this in :ref:`activation_profits`.
+- the value of flexibility flows back to Prosumers along a chain of roles involved in the activation of their flexibility: the **Flexibility Value Chain**.
+- a portfolio of flexible assets (and even individual assets) may provide services in multiple contexts in the same period: **value stacking**.
+- **Explicit demand-side flexibility** services involve Aggregators, while **implicit demand-side flexibility** services involve Energy Service Companies (ESCos).
+- Many remuneration components for flexibility services requires the determination of a baseline according to some **baseline methodology**.
+- Both availability and activation of flexibility have value.
+
+The overall value (from availability and activation of flexibility), and how this value is shared amongst stakeholders in the various roles in the Flexibility Value Chain, can be accounted for by the platform operator.
+We talk more about this in :ref:`activation_profits`.
 
 
 An example: the balancing market
 ----------------------------------------
-An example of a market on which flexibility opportunities can be activated is the balancing market, which has the aim to bring the grid frequency back to a target level within a matter of minutes.
+An example of a market on which flexibility can be activated is the balancing market, which is meant to bring the grid frequency back to a target level within a matter of minutes.
 Consider the aforementioned differences between suggested schedules and a given baseline.
 In the context of the balancing market, differences indicating an increase in production or a decrease in consumption on activation both result in an increasing grid frequency (back towards the target frequency).
 
@@ -62,7 +69,7 @@ Curtailment
 ^^^^^^^^^^^^^^
 
 Curtailment happens when an asset temporarily lowers or stops its production or consumption.
-A defining feature of curtailment is that total production or consumption at the end of the flexibility opportunity has decreased.
+A defining feature of curtailment is that total production or consumption decreases when this this flexibility is activated.
 
 - A typical example of curtailing production is when a wind turbine adjusts the pitch angle of its blades to decrease the generator torque.
 - An example of curtailing consumption is load shedding of energy intensive industries.
@@ -80,7 +87,7 @@ Shifting
 ^^^^^^^^^^^^^^
 
 Shifting happens when an asset delays or advances its energy production or consumption.
-A defining feature of shifting is that total production or consumption at the end of the flexibility opportunity remains the same.
+A defining feature of shifting is that total production or consumption remains the same when this flexibility is activated.
 
 - An example of delaying consumption is when a charging station postpones the charging process of an electric vehicle.
 - An example of advancing consumption is when a cooling unit starts to cool before the upper temperature bound was reached (pre-cooling).
@@ -115,7 +122,7 @@ Then, the realised value is avoided CO₂, which nowadays has an assumed value, 
 Accounting / Sharing value
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The realisation of payments is outside of FlexMeasures scope, but it can provide the accounting to enable them (as was said above, this is usually a part of the optimisation problem formulation).
+The realisation of payments is outside of the scope of FlexMeasures, but it can provide the accounting to enable them (as was said above, this is usually a part of the optimisation problem formulation).
 
 However, next to fuelling algorithmic optimization, the way that the value of energy flexibility is shared among the stakeholders will also be an important driver for project participation. Accounting plays an important role here.
 
