@@ -143,6 +143,11 @@ def add_dummy_tou_market(db: SQLAlchemy):
     """
     Add a dummy time-of-use market with a 1-year resolution.
     Also add a few price points, each covering a whole year.
+
+    Note that for this market, the leap years will not have a price on
+    December 31st. To fix that, we should use 366 days as resolution,
+    but test what that involves on that day, or we need timely-beliefs to switch
+    to defining sensor event resolutions as nominal durations.
     """
     market = Market(
         name="dummy-tou",
