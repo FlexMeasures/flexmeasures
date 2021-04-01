@@ -10,8 +10,8 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.data.config import db
 from flexmeasures.data.scripts.data_gen import (
-    depopulate_data,
-    depopulate_forecasts,
+    depopulate_measurements,
+    depopulate_prognoses,
     depopulate_structure,
     get_affected_classes,
     load_tables,
@@ -52,8 +52,8 @@ def restore_data_response():
     # Reset in play mode only (this endpoint should not have been registered otherwise)
     assert app.config.get("FLEXMEASURES_MODE", "") == "play"
     if delete_data:
-        depopulate_forecasts(db)
-        depopulate_data(db)
+        depopulate_prognoses(db)
+        depopulate_measurements(db)
     if delete_structure:
         depopulate_structure(db)
 

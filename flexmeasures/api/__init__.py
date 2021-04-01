@@ -1,5 +1,4 @@
 from flask import Flask, Blueprint, request
-from flask_marshmallow import Marshmallow
 from flask_security.utils import verify_password
 from flask_json import as_json
 from flask_login import current_user
@@ -13,8 +12,6 @@ from flexmeasures.api.common.utils.args_parsing import (
 
 # The api blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_api = Blueprint("flexmeasures_api", __name__)
-
-ma: Marshmallow = Marshmallow()
 
 
 @flexmeasures_api.route("/requestAuthToken", methods=["POST"])
@@ -83,8 +80,6 @@ def get_versions() -> dict:
 
 def register_at(app: Flask):
     """This can be used to register this blueprint together with other api-related things"""
-    global ma
-    ma.init_app(app)
 
     # handle API specific errors
     app.register_error_handler(FMValidationError, validation_error_handler)

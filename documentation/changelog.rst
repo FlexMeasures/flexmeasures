@@ -8,8 +8,9 @@ v0.2.4 | March XX, 2021
 
 New features
 -----------
-* FlexMeasures can be installed with `pip` and its CLI commands can be run with `flexmeasures` [see `PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
+* FlexMeasures can be installed with ``pip`` and its CLI commands can be run with ``flexmeasures`` [see `PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
 * Optionally setting recording time when posting data [see `PR #41 <http://www.github.com/SeitaBV/flexmeasures/pull/41>`_]
+* Add assets and weather sensors with CLI commands [see `PR #74 <https://github.com/SeitaBV/flexmeasures/pull/74>`_]
 
 Bugfixes
 --------
