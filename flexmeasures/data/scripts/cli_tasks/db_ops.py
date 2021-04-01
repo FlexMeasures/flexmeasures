@@ -14,27 +14,16 @@ BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
 
 @click.group("db-ops")
 def fm_db_ops():
-    """FlexMeasures: Reset/Dump/Load/Restore/Save the DB."""
+    """FlexMeasures: Reset, Dump/Restore or Save/Load the DB data."""
 
 
 @fm_db_ops.command()
 @with_appcontext
-@click.option("--load", help="Reset to static data from file.")
-@click.option("--dir", default=BACKUP_PATH, help="Directory for loading backups.")
-@click.option(
-    "--structure/--no-structure",
-    default=False,
-    help="Load structural data like asset (types), market (types),"
-    " weather (sensors), users, roles.",
-)
-@click.option("--data/--no-data", default=False, help="Load (time series) data.")
-def reset(
-    load: str = None, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False
-):
-    """Reset database, with options to load fresh data."""
+def reset():
+    """Reset database data and re-create tables from data model."""
     if not app.debug:
         prompt = (
-            "This deletes all data and resets the structure on %s.\nDo you want to continue?"
+            "This deletes all data and re-creates the tables on %s.\nDo you want to continue?"
             % app.db.engine
         )
         if not click.confirm(prompt):
@@ -45,14 +34,6 @@ def reset(
     current_version = migrate.current()
     reset_db(app.db)
     migrate.stamp(current_version)
-
-    if load:
-        if not data and not structure:
-            click.echo("Neither --data nor --structure given ... loading nothing.")
-            return
-        from flexmeasures.data.scripts.data_gen import load_tables
-
-        load_tables(app.db, load, structure, data, dir)
 
 
 @fm_db_ops.command()
@@ -71,7 +52,7 @@ def reset(
     help="Save (time series) data to a backup. Only do this for small data sets!",
 )
 def save(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False):
-    """Save structure of the database to a backup file."""
+    """Backup db content to files."""
     if name:
         from flexmeasures.data.scripts.data_gen import save_tables
 
@@ -94,7 +75,7 @@ def save(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool =
 )
 @click.option("--data/--no-data", default=False, help="Load (time series) data.")
 def load(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool = False):
-    """Load structure and/or data for the database from a backup file."""
+    """Load backed-up contents (see `db-ops save`), run `reset` first."""
     if name:
         from flexmeasures.data.scripts.data_gen import load_tables
 
@@ -106,7 +87,7 @@ def load(name: str, dir: str = BACKUP_PATH, structure: bool = True, data: bool =
 @fm_db_ops.command()
 @with_appcontext
 def dump():
-    """Create a database dump of the database used by the app."""
+    """Create a dump of all current data (using `pg_dump`)."""
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Backing up {db_host_and_db_name} database")
@@ -130,7 +111,7 @@ def dump():
 @with_appcontext
 @click.argument("file", type=click.Path(exists=True))
 def restore(file: str):
-    """Restore the database used by the app, from a given database dump file, after you've reset the database.
+    """Restore the dump file, see `db-ops dump` (run `reset` first).
 
     From the command line:
 

@@ -69,8 +69,8 @@ def confirm_deletion(
 )
 def delete_structure(force):
     """
-    Delete structural data like asset (types), market (types),
-    weather (sensors), users, roles.
+    Delete all structural (non time-series) data like assets (types),
+    markets (types) and weather sensors (types) and users.
     """
     if not force:
         confirm_deletion(structure=True)

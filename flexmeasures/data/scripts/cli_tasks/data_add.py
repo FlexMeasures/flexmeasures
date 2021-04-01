@@ -166,7 +166,7 @@ def add_weather_sensor(**args):
 @fm_add_data.command("structure")
 @with_appcontext
 def add_initial_structure():
-    """Initialize the database with static values."""
+    """Initialize structural data like asset types, market types and weather sensor types."""
     from flexmeasures.data.scripts.data_gen import populate_structure
 
     populate_structure(app.db)
@@ -298,7 +298,7 @@ def create_forecasts(
 )
 def collect_weather_data(region, location, num_cells, method, store_in_db):
     """
-    Collect weather forecasts from the DarkSkye API
+    Collect weather forecasts from the DarkSky API
 
     This function can get weather data for one location or for several location within
     a geometrical grid (See the --location parameter).
