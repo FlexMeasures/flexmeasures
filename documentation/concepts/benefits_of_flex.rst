@@ -24,7 +24,8 @@ opportunities to profit from activating their flexibility.
 Energy flexibility can come from the ability to store energy ("storage"), to delay (or advance) planned consumption or production ("shifting"), the ability to lower production ("curtailment"), or the ability to increase or decrease consumption ("demand response") ― see :ref:`flexibility_types` for a deeper discussion.
 
 Under a given incentive, this flexibility represents an opportunity to profit by scheduling consumption or production differently than originally planned.
-Within FlexMeasures, flexibility is represented as the difference between a suggested schedule and a given baseline. By default, a baseline is determined by our own forecasts.
+Within FlexMeasures, flexibility is represented as the difference between a suggested schedule and a given baseline.
+By default, a baseline is determined by our own forecasts.
 
 Opportunities are expressed with respect to given economical and ecological incentives.
 For example, a suggested schedule may represent an opportunity to save X EUR and Y tonnes of CO₂.
@@ -32,18 +33,21 @@ For example, a suggested schedule may represent an opportunity to save X EUR and
 Activation
 ^^^^^^^^^^^^^^^
 
-The activation of a flexibility opportunity happens in a context (where the incentives are defined). Often, the context is a market. We recommend `the USEF white paper on the flexibility value chain <https://www.usef.energy/app/uploads/2018/11/USEF-White-paper-Flexibility-Value-Chain-2018-version-1.0_Oct18.pdf>`_ for an excellent introduction of who can benefit from energy flexibility and how it can be delivered. The high-level take-aways are these: There are various roles (e.g. Prosumer, DSO, Aggregator) and often the value from flexibility comes from various sources, so that "value stacking" is the way that the overall value from flexibility is defined for a project.
+The activation of a flexibility opportunity usually happens in a context of incentives. Often, that context is a market.
+We recommend `the USEF white paper on the flexibility value chain <https://www.usef.energy/app/uploads/2018/11/USEF-White-paper-Flexibility-Value-Chain-2018-version-1.0_Oct18.pdf>`_ for an excellent introduction of who can benefit from energy flexibility and how it can be delivered.
+The high-level takeaways are these: There are various roles (e.g. Prosumer, DSO, Aggregator) and often the value from flexibility comes from various sources, so that "value stacking" is the way that the overall value from flexibility is defined for a project.
 
 The overall value, which is created by activating flexibility opportunities, can fall to the platform operator or be shared among stakeholders (who have different roles, see above). We talk more about this in :ref:`activation_profits`.
 
 
 An example: the balancing market
 ----------------------------------------
-An example for such a market is the balancing market, which has the aim to bring the grid frequency back to a target level within a matter of minutes. Consider the aforementioned differences between suggested schedules and a given baseline.
-In the context of the balancing market, a positive difference indicates an increase in production or a decrease in consumption on activation, both of which result in an increased grid frequency (back towards the target frequency).
+An example of a market on which flexibility opportunities can be activated is the balancing market, which has the aim to bring the grid frequency back to a target level within a matter of minutes.
+Consider the aforementioned differences between suggested schedules and a given baseline.
+In the context of the balancing market, differences indicating an increase in production or a decrease in consumption on activation both result in an increasing grid frequency (back towards the target frequency).
 
-The balancing market pays for such services, and they are often referred to as `"up-regulation"`
-It works the other way around: negative differences indicate a decrease in production or an increase in consumption, which result in a decreased grid frequency (`"down-regulation"`).
+The balancing market pays for such services, and they are often referred to as `"up-regulation"`.
+It works the other way around, too: differences indicating a decrease in production or an increase in consumption both result in a decreasing grid frequency (`"down-regulation"`).
 
 
 .. _flexibility_types:
@@ -101,7 +105,11 @@ Both of these activities depend on the context in which FlexMeasures is being us
 Computing value
 ^^^^^^^^^^^^^^^^
 
-The computation of the value is what drives the scheduling optimization. This value is usually monetary, and in that case there should be some form of market configured. This can be a constant or time-of-use tariff, or a real market. However, there are other possibilities, for instance if the optimisation goal is to minimise the CO₂ consumption. Then, the realised value is avoided CO₂, which nowadays has an assumed value, e.g. in `the EU ETS carbon market <https://ember-climate.org/data/carbon-price-viewer/>`_.
+The computation of the value is what drives the scheduling optimization.
+This value is usually monetary, and in that case there should be some form of market configured.
+This can be a constant or time-of-use tariff, or a real market.
+However, there are other possibilities, for instance if the optimisation goal is to minimise CO₂ emissions.
+Then, the realised value is avoided CO₂, which nowadays has an assumed value, e.g. in `the EU ETS carbon market <https://ember-climate.org/data/carbon-price-viewer/>`_.
 
 
 Accounting / Sharing value
