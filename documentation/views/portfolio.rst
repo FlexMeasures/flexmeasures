@@ -36,7 +36,7 @@ Production and consumption values are total volumes within the selected time win
 
 Costs and revenues are calculated based on the relevant market prices for the user within the selected time window.
 A consumer will only have costs, while a prosumer may have both costs and revenues.
-A supplier has revenues, since it sells energy to yhr other roles within FlexMeasures. 
+A supplier has revenues, since it sells energy to the other roles within FlexMeasures. 
 
 Finally, the financial statements show the total profit or loss per asset type.
 

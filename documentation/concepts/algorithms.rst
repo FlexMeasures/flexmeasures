@@ -16,7 +16,7 @@ Forecasting algorithms are used by FlexMeasures to assess the likelihood of futu
 Weather forecasting is included in the platform, but is usually not the result of an internal algorithm (weather forecast services are being used by import scripts, e.g. with `this tool <https://github.com/SeitaBV/weatherforecaststorage>`_).
 
 FlexMeasures uses linear regression and falls back to naive forecasting of the last known value if errors happen. 
-What mght be even more important than the type of algorithm is the features handed to the model ― lagged values (e.g. value of the same time yesterday) and regressors (e.g. wind speed prediction to forecast wind power production).
+What might be even more important than the type of algorithm is the features handed to the model ― lagged values (e.g. value of the same time yesterday) and regressors (e.g. wind speed prediction to forecast wind power production).
 
 
 The performance of our algorithms is indicated by the mean absolute error (MAE) and the weighted absolute percentage error (WAPE).
@@ -64,13 +64,13 @@ Defaults:
 - Lagged outcome variables are selected based on the periodicity of the asset (e.g. daily and/or weekly).
 - Common external variables are weather forecasts of temperature, wind speed and irradiation.
 - Timeseries data with frequent zero values are transformed using a customised Box-Cox transformation.
-- To avoid overfitting, cross-validation is used.
-- Before fitting, explicit annotations of expert knowledge to the model (like the definition of asset-specific seasonalities and special time events) are possible.
+- To avoid over-fitting, cross-validation is used.
+- Before fitting, explicit annotations of expert knowledge to the model (like the definition of asset-specific seasonality and special time events) are possible.
 - The model is currently fit each day for each asset and for each horizon.
 
 Improvements:
 
-- Most assets have yearly seasonalities (e.g. wind, solar) and therefore forecasts would benefit from >= 2 years of history.
+- Most assets have yearly seasonality (e.g. wind, solar) and therefore forecasts would benefit from >= 2 years of history.
 
 
 Scheduling 
@@ -109,7 +109,7 @@ Furthermore, we plan to add more types of forecasting algorithms, like random fo
 
 Other optimisation goals for scheduling
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Next to market prices, optimisation goals like reduced CO₂ emissions are sometimes required. There are mutiple ways to measure this, e.g. against the CO₂ mix in the grid, or the use of fossil fuels.
+Next to market prices, optimisation goals like reduced CO₂ emissions are sometimes required. There are multiple ways to measure this, e.g. against the CO₂ mix in the grid, or the use of fossil fuels.
 
 
 Scheduling of other flexible asset types

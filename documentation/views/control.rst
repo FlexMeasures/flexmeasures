@@ -33,6 +33,6 @@ An example how this could look like is below.
 The operator can select flexibility opportunities which have a value attached to them and see the effects on the power profile in a visual manner.
 
 Listed flexibility opportunities include previously realised opportunities and currently offered opportunities.
-Currently offered opportunties are presented as an order book, where they are sorted according to their commercial value.
+Currently offered opportunities are presented as an order book, where they are sorted according to their commercial value.
 
 Of course, depending on the time window selection and constraints set by the asset owner, the effects of an opportunity may partially take place outside of the selected time window.
