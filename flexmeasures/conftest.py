@@ -188,9 +188,9 @@ def setup_beliefs(db: SQLAlchemy, setup_markets) -> int:
     beliefs = [
         TimedBelief(
             sensor=sensor,
-            source_id=data_source.id,
+            source=data_source,
             event_value=21,
-            event_start="2021-03-28 16:00",
+            event_start="2021-03-28 16:00+01",
             belief_horizon=timedelta(0),
         )
     ]

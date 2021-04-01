@@ -4,6 +4,7 @@ from datetime import datetime as datetime_type, timedelta
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
+import timely_beliefs.utils as tb_utils
 
 from flexmeasures.data.config import db
 from flexmeasures.data.queries.utils import (
@@ -18,6 +19,11 @@ from flexmeasures.data.services.time_series import collect_time_series_data
 
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
+
+    def __init__(self, name: str, **kwargs):
+        tb.SensorDBMixin.__init__(self, name, **kwargs)
+        tb_utils.remove_class_init_kwargs(tb.SensorDBMixin, kwargs)
+        db.Model.__init__(self, **kwargs)
 
     def search_beliefs(
         self,
@@ -48,7 +54,10 @@ class Sensor(db.Model, tb.SensorDBMixin):
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
-    """A timed belief holds a precisely timed record of a belief about an event."""
+    """A timed belief holds a precisely timed record of a belief about an event.
+
+    It also records the source of the belief, and the sensor that the event pertains to.
+    """
 
     @declared_attr
     def source_id(cls):
@@ -56,6 +65,16 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
     sensor = db.relationship("Sensor", backref=db.backref("beliefs", lazy=True))
     source = db.relationship("DataSource", backref=db.backref("beliefs", lazy=True))
+
+    def __init__(
+        self,
+        sensor: tb.DBSensor,
+        source: tb.DBBeliefSource,
+        **kwargs,
+    ):
+        tb.TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
+        tb_utils.remove_class_init_kwargs(tb.TimedBeliefDBMixin, kwargs)
+        db.Model.__init__(self, **kwargs)
 
     @classmethod
     def search(
