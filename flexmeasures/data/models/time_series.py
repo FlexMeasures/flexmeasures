@@ -37,7 +37,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param event_time_window: search only events within this time window
         :param belief_time_window: search only beliefs within this time window
         :param source: search only beliefs by this source (pass its name or id) or list of sources"""
-        return TimedBelief.search_all(
+        return TimedBelief.search(
             sensor=self,
             event_time_window=event_time_window,
             belief_time_window=belief_time_window,
@@ -59,7 +59,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     source = db.relationship("DataSource", backref=db.backref("beliefs", lazy=True))
 
     @classmethod
-    def search_all(
+    def search(
         cls,
         sensor: Sensor,
         event_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
@@ -79,7 +79,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param belief_time_window: search only beliefs within this time window
         :param source: search only beliefs by this source (pass its name or id) or list of sources
         """
-        return cls.query_all(
+        return cls.search_session(
             session=db.session,
             sensor=sensor,
             event_before=event_time_window[1],
@@ -91,13 +91,15 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         )
 
     @classmethod
-    def persist_all(cls, bdf: tb.BeliefsDataFrame, commit_transaction: bool = True):
-        """Persist a BeliefsDataFrame as timed beliefs in the database.
+    def add(cls, bdf: tb.BeliefsDataFrame, commit_transaction: bool = True):
+        """Add a BeliefsDataFrame as timed beliefs in the database.
 
         :param bdf: the BeliefsDataFrame to be persisted
-        :param commit_transaction: set to False if you're interested in persisting other data as well within one atomic transaction
+        :param commit_transaction: if True, the session is committed
+                                   if False, you can still add other data to the session
+                                   and commit it all within an atomic transaction
         """
-        return cls.add_all(
+        return cls.add_to_session(
             session=db.session,
             beliefs_data_frame=bdf,
             commit_transaction=commit_transaction,
