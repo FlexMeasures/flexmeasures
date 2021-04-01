@@ -11,7 +11,7 @@ For this purpose, it performs three services:
 
 * Monitoring of incoming measurements
 * Forecasting of expected measurements
-* Scheduling flexibility activations with custom optimization
+* Scheduling flexibility activations with custom optimisation
 
 For more on FlexMeasures services, read :ref:`services`.
 

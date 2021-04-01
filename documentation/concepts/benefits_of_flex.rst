@@ -105,14 +105,14 @@ Profits of flexibility activation
 ---------------
 
 The realised value from activating flexibility has to be computed and accounted for.
-Both of these activities depend on the context in which FlexMeasures is being used, and we expect that it will often have to be implemented in a custom manner (much as the actual scheduling optimization).
+Both of these activities depend on the context in which FlexMeasures is being used, and we expect that it will often have to be implemented in a custom manner (much as the actual scheduling optimisation).
 
 .. todo:: Making it possible to configure custom scheduling and value accounting is on the roadmap for FlexMeasures.
 
 Computing value
 ^^^^^^^^^^^^^^^^
 
-The computation of the value is what drives the scheduling optimization.
+The computation of the value is what drives the scheduling optimisation.
 This value is usually monetary, and in that case there should be some form of market configured.
 This can be a constant or time-of-use tariff, or a real market.
 However, there are other possibilities, for instance if the optimisation goal is to minimise CO₂ emissions.
@@ -124,7 +124,7 @@ Accounting / Sharing value
 
 The realisation of payments is outside of the scope of FlexMeasures, but it can provide the accounting to enable them (as was said above, this is usually a part of the optimisation problem formulation).
 
-However, next to fuelling algorithmic optimization, the way that the value of energy flexibility is shared among the stakeholders will also be an important driver for project participation. Accounting plays an important role here.
+However, next to fuelling algorithmic optimisation, the way that the value of energy flexibility is shared among the stakeholders will also be an important driver for project participation. Accounting plays an important role here.
 
 There are different roles in a modern smart energy system (e.g. "Prosumer", "DSO", Aggregator", "ESCo"),
 and they all enjoy the benefits of flexibility  in different ways
