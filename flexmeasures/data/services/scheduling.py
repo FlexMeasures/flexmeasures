@@ -125,7 +125,7 @@ def make_schedule(
         )
     else:
         raise ValueError(
-            "Scheduling is not supported for asset type %s." % asset.asset_type
+            "Scheduling is not (yet) supported for asset type %s." % asset.asset_type
         )
 
     data_source = get_data_source(

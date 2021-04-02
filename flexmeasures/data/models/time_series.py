@@ -5,8 +5,10 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
+from marshmallow import Schema, fields
 
 from flexmeasures.data.config import db
+from flexmeasures.data import ma
 from flexmeasures.data.queries.utils import (
     add_belief_timing_filter,
     add_user_source_filter,
@@ -125,6 +127,26 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def __repr__(self) -> str:
         """timely-beliefs representation of timed beliefs."""
         return tb.TimedBelief.__repr__(self)
+
+
+class SensorSchema(Schema):
+    """
+    Base sensor schema.
+
+    Here we include all fields which are implemented by timely_beliefs.SensorDBMixin
+    All classes inheriting from timely beliefs sensor don't need to repeat these.
+    In a while, this schema can represent our unified Sensor class.
+
+    When subclassing, also subclass from `ma.SQLAlchemySchema` and add your own DB model class, e.g.:
+
+        class Meta:
+            model = Asset
+    """
+
+    name = ma.auto_field(required=True)
+    unit = ma.auto_field(required=True)
+    timezone = ma.auto_field()
+    event_resolution = fields.TimeDelta(required=True, precision="minutes")
 
 
 class TimedValue(object):

@@ -6,6 +6,7 @@
 Detailed documentation of all internal modules
 ===============================================
 
+.. todo:: This is not yet complete, see `issue #52 <http://www.github.com/SeitaBV/flexmeasures/pull/52>`_
 
 
 app

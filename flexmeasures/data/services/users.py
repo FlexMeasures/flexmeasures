@@ -160,7 +160,11 @@ def remove_cookie_and_token_access(user: User):
 
 def delete_user(user: User):
     """
-    Delete the user (and also his assets and power measurements!). Deleting oneself is not allowed.
+    Delete the user (and also his assets and power measurements!).
+
+    The deletion cascades to the user's assets (sensors), and from there to the beliefs which reference these assets (sensors).
+
+    Deleting oneself is not allowed.
 
     Remember to commit the session after calling this function!
     """

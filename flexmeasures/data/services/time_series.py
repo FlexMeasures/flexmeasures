@@ -260,20 +260,6 @@ def convert_query_window_for_demo(
     return start, end
 
 
-def convert_values_for_demo(values: pd.DataFrame, resolution: str, as_beliefs: bool):
-    values.index = values.index.map(lambda t: t.replace(year=datetime.now().year))
-    if not values.empty:
-        values = values.reindex(
-            pd.date_range(values.index[0], values.index[-1], freq=resolution)
-        )
-        if values.index[0].is_leap_year:
-            values["y"].loc[(values.index.month == 2) & (values.index.day == 29)] = 0
-    if as_beliefs:
-        values["label"] = values["label"].fillna("")
-        values["horizon"] = values["horizon"].fillna({i: [] for i in values.index})
-    return values
-
-
 def aggregate_values(bdf_dict: Dict[str, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
 
     # todo: test this function rigorously, e.g. with empty bdfs in bdf_dict

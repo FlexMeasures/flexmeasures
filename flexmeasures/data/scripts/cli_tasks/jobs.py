@@ -2,13 +2,20 @@ from typing import List
 
 import click
 from flask import current_app as app
+from flask.cli import with_appcontext
 from rq import Queue, Worker
 from sqlalchemy.orm import configure_mappers
 
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
-@app.cli.command("run-worker")
+@click.group("jobs")
+def fm_jobs():
+    """FlexMeasures: Job queueing."""
+
+
+@fm_jobs.command("run-worker")
+@with_appcontext
 @click.option(
     "--name",
     default=None,
@@ -23,8 +30,9 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
 )
 def run_worker(name: str, queue: str):
     """
-    Use this CLI task to let a worker process forecasting and/or scheduling jobs.
-    It uses the app context to find out which redis queues to use.
+    Start a worker process for forecasting and/or scheduling jobs.
+
+    We use the app context to find out which redis queues to use.
     """
 
     q_list = parse_queue_list(queue)
@@ -51,7 +59,8 @@ def run_worker(name: str, queue: str):
     worker.work()
 
 
-@app.cli.command("clear-queue")
+@fm_jobs.command("clear-queue")
+@with_appcontext
 @click.option(
     "--queue",
     default=None,
@@ -60,8 +69,9 @@ def run_worker(name: str, queue: str):
 )
 def clear_queue(queue: str):
     """
-    Use this CLI task to clear a queue.
-    It uses the app context to find out which redis queues to use.
+    Clear a job queue.
+
+    We use the app context to find out which redis queues to use.
     """
 
     q_list = parse_queue_list(queue)
@@ -90,3 +100,6 @@ def parse_queue_list(queue_names_str: str) -> List[Queue]:
         else:
             raise ValueError(f"Unknown queue '{q_name}'.")
     return q_list
+
+
+app.cli.add_command(fm_jobs)

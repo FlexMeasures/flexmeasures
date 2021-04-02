@@ -167,9 +167,8 @@ Some deeper explanations about an entity address:
 - The reversed domain name is taken from the naming authority (person or organization) creating this entity address
 - The locally unique string can be used for local purposes, and FlexMeasures uses it to identify the resource (more information in parse_entity_address).
 
-TODO: This needs to be in the FlexMeasures documentation.
-
 [1] https://www.usef.energy/app/uploads/2020/01/USEF-Flex-Trading-Protocol-Specifications-1.01.pdf
+
 [2] https://tools.ietf.org/html/rfc3720
 
 
@@ -258,7 +257,7 @@ In case of a single group of connections, the message may be flattened to:
 Timeseries
 ^^^^^^^^^^
 
-Timestamps and durations are consistent with the ISO 8601 standard. All timestamps in requests to the API must be timezone aware. The timezone indication "Z" indicates a zero offset from UTC. Additionally, we use the following shorthand for sequential values within a time interval:
+Timestamps and durations are consistent with the ISO 8601 standard. All timestamps in requests to the API must be timezone-aware. The timezone indication "Z" indicates a zero offset from UTC. Additionally, we use the following shorthand for sequential values within a time interval:
 
 .. code-block:: json
 
@@ -343,7 +342,7 @@ Prognoses
 
 Some POST endpoints have two optional fields to allow setting the time at which beliefs are recorded explicitly.
 This is useful to keep an accurate history of what was known at what time, especially for prognoses.
-If not used, |FLEXMEASURES_PLATFORM_NAME| will infer the prior from the arrival time of the message.
+If not used, FlexMeasures will infer the prior from the arrival time of the message.
 
 The "prior" field (a timestamp) can be used to set a single time at which the entire prognosis was recorded.
 Alternatively, the "horizon" field (a duration) can be used to set the recording times relative to each prognosed event.

@@ -3,13 +3,26 @@ FlexMeasures Changelog
 **********************
 
 
-v0.2.4 | March XX, 2021
+v0.2.5 | April XX, 2021
+===========================
+
+Infrastructure / Support
+----------------------
+* Updated dependencies, including Flask-Security-Too [see `PR #82 <http://www.github.com/SeitaBV/flexmeasures/pull/82>`_]
+
+
+
+
+v0.2.4 | April 2, 2021
 ===========================
 
 New features
 -----------
-* FlexMeasures can be installed with `pip` and its CLI commands can be run with `flexmeasures` [see `PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
+* FlexMeasures can be installed with ``pip`` and its CLI commands can be run with ``flexmeasures`` [see `PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
 * Optionally setting recording time when posting data [see `PR #41 <http://www.github.com/SeitaBV/flexmeasures/pull/41>`_]
+* Add assets and weather sensors with CLI commands [see `PR #74 <https://github.com/SeitaBV/flexmeasures/pull/74>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v024-pip-install-cli-commands-belief-time-api/>`__.
 
 Bugfixes
 --------
@@ -21,10 +34,12 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Added concept pages to documentation [see `PR #65 <http://www.github.com/SeitaBV/flexmeasures/pull/65>`_]
 * Dump and restore postgres database as CLI commands [see `PR #68 <https://github.com/SeitaBV/flexmeasures/pull/68>`_]
 * Improved installation tutorial as part of [`PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
 * Moved developer docs from Readmes into the main documentation  [see `PR #73 <https://github.com/SeitaBV/flexmeasures/pull/73>`_]
 * Ensured unique sensor ids for all sensors [see `PR #70 <https://github.com/SeitaBV/flexmeasures/pull/70>`_ and (fix) `PR #77 <https://github.com/SeitaBV/flexmeasures/pull/77>`_]
+
 
 
 

@@ -3,7 +3,7 @@
 .. _services:
 
 **************************************************
-Services of the FlexMeasures Platform
+Services 
 **************************************************
 
 Monitoring
@@ -31,7 +31,7 @@ All relevant data should be forecasted:
 Scheduling
 --------------
 
-The FlexMeasures platform optimizes schedules for your flexible assets. This is where energy flexibility is valorized!
+The FlexMeasures platform optimises schedules for your flexible assets. This is where energy flexibility is valorised!
 
 Examples are:
 
