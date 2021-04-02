@@ -158,9 +158,8 @@ def add_weather_sensor(**args):
     sensor = WeatherSensor(**args)
     app.db.session.add(sensor)
     app.db.session.commit()
-    print(f"Successfully created sensor with ID:{sensor.id}.")
-    # TODO: uncomment when #66 has landed
-    # print(f" You can access it at its entity address {sensor.entity_address}")
+    print(f"Successfully created weather sensor with ID:{sensor.id}.")
+    print(f" You can access it at its entity address {sensor.entity_address}")
 
 
 @fm_add_data.command("structure")
