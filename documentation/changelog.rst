@@ -9,6 +9,7 @@ v0.2.5 | April XX, 2021
 Infrastructure / Support
 ----------------------
 * Updated dependencies, including Flask-Security-Too [see `PR #82 <http://www.github.com/SeitaBV/flexmeasures/pull/82>`_]
+* Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <http://www.github.com/SeitaBV/flexmeasures/pull/79>`_]
 
 
 
