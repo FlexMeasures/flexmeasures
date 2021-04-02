@@ -129,7 +129,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         return tb.TimedBelief.__repr__(self)
 
 
-class SensorSchema(Schema):
+class SensorSchemaMixin(Schema):
     """
     Base sensor schema.
 
@@ -147,6 +147,15 @@ class SensorSchema(Schema):
     unit = ma.auto_field(required=True)
     timezone = ma.auto_field()
     event_resolution = fields.TimeDelta(required=True, precision="minutes")
+
+
+class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
+    """
+    Sensor schema, with validations.
+    """
+
+    class Meta:
+        model = Sensor
 
 
 class TimedValue(object):

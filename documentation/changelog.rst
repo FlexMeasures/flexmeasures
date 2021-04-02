@@ -6,6 +6,10 @@ FlexMeasures Changelog
 v0.2.5 | April XX, 2021
 ===========================
 
+New features
+-----------
+* Add sensors with CLI command [see `PR #83 <https://github.com/SeitaBV/flexmeasures/pull/83>`_]
+
 Infrastructure / Support
 ----------------------
 * Updated dependencies, including Flask-Security-Too [see `PR #82 <http://www.github.com/SeitaBV/flexmeasures/pull/82>`_]
