@@ -36,6 +36,7 @@ timely-beliefs>=1.2.1
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
+sqlalchemy>=1.4.0
 Flask-SSLify
 Flask_JSON
 Flask-SQLAlchemy>=2.4.3
