@@ -13,6 +13,7 @@ import getpass
 
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.models.time_series import Sensor, SensorSchema
 from flexmeasures.data.models.assets import Asset, AssetSchema
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorSchema
@@ -60,6 +61,34 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
     )
     app.db.session.commit()
     print(f"Successfully created user {created_user}")
+
+
+@fm_add_data.command("sensor")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
+@click.option(
+    "--event-resolution",
+    required=True,
+    type=int,
+    help="Expected resolution of the data in minutes",
+)
+@click.option(
+    "--timezone",
+    required=True,
+    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+)
+def add_sensor(**args):
+    """Add a sensor."""
+    check_timezone(args["timezone"])
+    check_errors(SensorSchema().validate(args))
+    args["event_resolution"] = timedelta(minutes=args["event_resolution"])
+    sensor = Sensor(**args)
+    app.db.session.add(sensor)
+    app.db.session.commit()
+    print(f"Successfully created sensor with ID {sensor.id}")
+    # TODO: uncomment when #66 has landed
+    # print(f"You can access it at its entity address {sensor.entity_address}")
 
 
 @fm_add_data.command("asset")
@@ -118,8 +147,8 @@ def new_asset(**args):
     asset = Asset(**args)
     app.db.session.add(asset)
     app.db.session.commit()
-    print(f"Successfully created asset with ID:{asset.id}.")
-    print(f" You can access it at its entity address {asset.entity_address}")
+    print(f"Successfully created asset with ID {asset.id}")
+    print(f"You can access it at its entity address {asset.entity_address}")
 
 
 @fm_add_data.command("weather-sensor")
@@ -158,7 +187,7 @@ def add_weather_sensor(**args):
     sensor = WeatherSensor(**args)
     app.db.session.add(sensor)
     app.db.session.commit()
-    print(f"Successfully created weather sensor with ID:{sensor.id}.")
+    print(f"Successfully created weather sensor with ID {sensor.id}")
     print(f" You can access it at its entity address {sensor.entity_address}")
 
 

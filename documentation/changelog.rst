@@ -3,6 +3,21 @@ FlexMeasures Changelog
 **********************
 
 
+v0.2.5 | April XX, 2021
+===========================
+
+New features
+-----------
+* Add sensors with CLI command [see `PR #83 <https://github.com/SeitaBV/flexmeasures/pull/83>`_]
+
+Infrastructure / Support
+----------------------
+* Updated dependencies, including Flask-Security-Too [see `PR #82 <http://www.github.com/SeitaBV/flexmeasures/pull/82>`_]
+* Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <http://www.github.com/SeitaBV/flexmeasures/pull/79>`_]
+
+
+
+
 v0.2.4 | April 2, 2021
 ===========================
 

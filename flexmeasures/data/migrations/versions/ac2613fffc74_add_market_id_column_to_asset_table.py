@@ -19,7 +19,7 @@ depends_on = None
 def upgrade():
     op.add_column("asset", sa.Column("market_id", sa.Integer(), nullable=True))
     op.create_foreign_key(
-        "asset_market_id_fkey", "asset", "market", ["market_id"], ["id"]
+        "asset_market_id_market_fkey", "asset", "market", ["market_id"], ["id"]
     )
     op.execute(
         """
@@ -29,5 +29,5 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_constraint("asset_market_id_fkey", "asset", type_="foreignkey")
+    op.drop_constraint("asset_market_id_market_fkey", "asset", type_="foreignkey")
     op.drop_column("asset", "market_id")

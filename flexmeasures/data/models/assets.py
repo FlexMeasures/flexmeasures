@@ -7,7 +7,7 @@ from marshmallow import ValidationError, validate, validates, fields, validates_
 
 from flexmeasures.data.config import db
 from flexmeasures.data import ma
-from flexmeasures.data.models.time_series import Sensor, SensorSchema, TimedValue
+from flexmeasures.data.models.time_series import Sensor, SensorSchemaMixin, TimedValue
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.user import User
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -179,7 +179,7 @@ class Asset(db.Model, tb.SensorDBMixin):
         )
 
 
-class AssetSchema(SensorSchema, ma.SQLAlchemySchema):
+class AssetSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
     Asset schema, with validations.
     """

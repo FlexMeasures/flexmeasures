@@ -10,7 +10,7 @@ from marshmallow import ValidationError, validates, validate, fields
 
 from flexmeasures.data import ma
 from flexmeasures.data.config import db
-from flexmeasures.data.models.time_series import Sensor, SensorSchema, TimedValue
+from flexmeasures.data.models.time_series import Sensor, SensorSchemaMixin, TimedValue
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
 from flexmeasures.utils.geo_utils import parse_lat_lng
@@ -182,7 +182,7 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
         return dict(name=self.name, sensor_type=self.weather_sensor_type_name)
 
 
-class WeatherSensorSchema(SensorSchema, ma.SQLAlchemySchema):
+class WeatherSensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
     WeatherSensor schema, with validations.
     """
