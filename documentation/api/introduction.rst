@@ -342,7 +342,7 @@ Prognoses
 
 Some POST endpoints have two optional fields to allow setting the time at which beliefs are recorded explicitly.
 This is useful to keep an accurate history of what was known at what time, especially for prognoses.
-If not used, |FLEXMEASURES_PLATFORM_NAME| will infer the prior from the arrival time of the message.
+If not used, FlexMeasures will infer the prior from the arrival time of the message.
 
 The "prior" field (a timestamp) can be used to set a single time at which the entire prognosis was recorded.
 Alternatively, the "horizon" field (a duration) can be used to set the recording times relative to each prognosed event.
