@@ -1,5 +1,0 @@
-.. _aggregator:
-
-***************
-For Aggregators
-***************

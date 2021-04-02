@@ -149,9 +149,8 @@ def test_post_an_asset_with_existing_name(client):
         json=post_data,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
-    assert asset_creation.status_code == 400
-    assert "already exists" in asset_creation.json["message"]
-    assert "asset_name" in asset_creation.json["detail"]
+    assert asset_creation.status_code == 422
+    assert "already exists" in asset_creation.json["message"]["json"]["name"][0]
 
 
 def test_post_an_asset_with_nonexisting_field(client):

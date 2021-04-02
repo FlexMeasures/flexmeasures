@@ -4,58 +4,15 @@ from flask import current_app, abort
 from flask_security import current_user
 from flask_json import as_json
 
-from marshmallow import ValidationError, validate, validates, fields, validates_schema
 from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_args
+from marshmallow import fields
 
 from flexmeasures.data.services.resources import get_assets
-from flexmeasures.data.models.assets import Asset as AssetModel
-from flexmeasures.data.models.user import User
+from flexmeasures.data.models.assets import Asset as AssetModel, AssetSchema
 from flexmeasures.data.auth_setup import unauthorized_handler
 from flexmeasures.data.config import db
-from flexmeasures.api import ma
 from flexmeasures.api.common.responses import required_info_missing
-
-
-class AssetSchema(ma.SQLAlchemySchema):
-    class Meta:
-        model = AssetModel
-
-    @validates("owner_id")
-    def validate_owner(self, owner_id):
-        owner = User.query.get(owner_id)
-        if not owner:
-            raise ValidationError(f"Owner with id {owner_id} doesn't exist.")
-        if "Prosumer" not in owner.flexmeasures_roles:
-            raise ValidationError("Owner must have role 'Prosumer'.")
-
-    # TODO: also validate existence of market and asset type
-
-    @validates_schema(skip_on_field_errors=False)
-    def validate_soc_constraints(self, data, **kwargs):
-        if "max_soc_in_mwh" in data and "min_soc_in_mwh" in data:
-            if data["max_soc_in_mwh"] < data["min_soc_in_mwh"]:
-                errors = {
-                    "max_soc_in_mwh": "This value must be equal or higher than the minimum soc."
-                }
-                raise ValidationError(errors)
-
-    id = ma.auto_field()
-    name = ma.auto_field(required=True)
-    display_name = fields.Str(validate=validate.Length(min=4))
-    unit = ma.auto_field(required=True)
-    event_resolution = fields.TimeDelta(required=True, precision="minutes")
-    capacity_in_mw = fields.Float(required=True, validate=validate.Range(min=0.0001))
-    min_soc_in_mwh = fields.Float(validate=validate.Range(min=0))
-    max_soc_in_mwh = fields.Float(validate=validate.Range(min=0))
-    soc_in_mwh = ma.auto_field()
-    soc_datetime = ma.auto_field()
-    soc_udi_event_id = ma.auto_field()
-    latitude = fields.Float(required=True, validate=validate.Range(min=-90, max=90))
-    longitude = fields.Float(required=True, validate=validate.Range(min=-180, max=180))
-    asset_type_name = ma.auto_field(required=True)
-    owner_id = ma.auto_field(required=True)
-    market_id = ma.auto_field(required=True)
 
 
 asset_schema = AssetSchema()

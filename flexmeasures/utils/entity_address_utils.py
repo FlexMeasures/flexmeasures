@@ -1,10 +1,11 @@
+import logging
 from typing import Optional, Union
 from urllib.parse import urlparse
 
 import re
 from tldextract import extract as tld_extract
 from tldextract.tldextract import ExtractResult as TldExtractResult
-from flask import request, current_app
+from flask import request, current_app, has_request_context
 
 from flexmeasures.utils.time_utils import get_first_day_of_next_month
 
@@ -59,9 +60,10 @@ def build_entity_address(
     Returns the address as string.
     """
     if host is None:
-        try:
+        if has_request_context():
             host = urlparse(request.url).netloc
-        except RuntimeError:
+        else:
+            # Assume localhost (for CLI/tests/simulations)
             host = "localhost"
 
     def build_field(field: str, required: bool = True):
@@ -249,7 +251,7 @@ def build_ea_scheme_and_naming_authority(
     If not given nor configured, host_auth_start_month is the start of the next month for
     localhost.
     """
-    domain_parts: TldExtractResult = tld_extract(host)
+    domain_parts: TldExtractResult = get_domain_parts(host)
 
     if host_auth_start_month is None:
         config_var_domain_key = ".".join(
@@ -292,7 +294,7 @@ def reverse_domain_name(domain: Union[str, TldExtractResult]) -> str:
     You can pass in a string domain or an extraction result from tldextract
     """
     if isinstance(domain, str):
-        domain_parts = tld_extract(domain)
+        domain_parts: TldExtractResult = get_domain_parts(domain)
     else:
         domain_parts = domain
 
@@ -310,6 +312,16 @@ def reverse_domain_name(domain: Union[str, TldExtractResult]) -> str:
         reversed_subdomain = f".{sd_list}"
 
     return f"{suffix}{domain}{reversed_subdomain}"
+
+
+def get_domain_parts(domain: str) -> TldExtractResult:
+    """wrapper for calling tldextract as it logs things about file locks we don't care about."""
+    logger = logging.getLogger()
+    level = logger.getEffectiveLevel()
+    logger.setLevel(logging.ERROR)
+    domain_parts: TldExtractResult = tld_extract(domain)
+    logging.getLogger().setLevel(level)
+    return domain_parts
 
 
 def _typed_regex_results(match, value_types) -> dict:

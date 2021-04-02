@@ -9,7 +9,7 @@ from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from pytz import all_timezones
 
-from flexmeasures.api import ma
+from flexmeasures.data import ma
 from flexmeasures.data.models.user import User as UserModel
 from flexmeasures.data.services.users import (
     get_users,

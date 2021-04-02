@@ -609,7 +609,10 @@ def make_weather_figure(
     """Make a bokeh figure for weather data"""
     # Todo: plot average temperature/total_radiation/wind_speed for asset groups, and update title accordingly
     if weather_sensor is None:
-        return create_graph(pd.DataFrame())
+        return create_graph(
+            pd.DataFrame(columns=["event_value"]),
+            title="Weather plot (no relevant weather sensor found)",
+        )
     unit = weather_sensor.unit
     weather_axis_label = "%s (in %s)" % (
         humanize(weather_sensor.sensor_type.display_name),

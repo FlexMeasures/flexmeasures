@@ -20,14 +20,14 @@ In particular, the page contains:
 ..    :scale: 40%
 
 
-.. _portfolio_financial_statements:
+.. _portfolio_statements:
 
-Financial statements about energy and flexibility opportunities
+Statements about energy and flex activations
 =======================================================
 
 The financial statements separate the effects of energy consumption/production and flexible schedules over two tables.
 
-Statements about energy
+Energy summary
 -----------------------
 
 The top table lists the effects of energy trading for each asset type in the user's portfolio.
@@ -36,17 +36,20 @@ Production and consumption values are total volumes within the selected time win
 
 Costs and revenues are calculated based on the relevant market prices for the user within the selected time window.
 A consumer will only have costs, while a prosumer may have both costs and revenues.
-A supplier always has both costs and revenues, since it trades energy both with its customers and with external markets.
-Finally, the financial statements show the total profit or loss per asset.
+A supplier has revenues, since it sells energy to the other roles within FlexMeasures. 
 
-Statements about flexible schedules
+Finally, the financial statements show the total profit or loss per asset type.
+
+
+Market status
 ----------------------------------
+.. note:: This feature is mocked for now.
 
 The bottom table lists the effects of flexible schedules for each asset type in the user's portfolio.
-Separate columns are stated for each type of scheduled deviation from the status quo, e.g. curtailment and shifting (see :ref:`opportunity_types`), with relevant total volumes within the selected time window.
+Separate columns are stated for each type of scheduled deviation from the status quo, e.g. curtailment and shifting (see :ref:`flexibility_types`), with relevant total volumes within the selected time window.
 [#f1]_
 
-Costs and revenues are calculated based on an internal method for profit sharing (TODO: explain).
+Costs and revenues are calculated based on the following internal method for profit sharing:
 Asset owners that follow flexible schedules via the platform will generate revenues.
 Suppliers that follow flexible schedules via the platform will generate both costs and revenues, where the revenues come from interacting with external markets.
 Finally, the financial statements show the total profit or loss per asset.

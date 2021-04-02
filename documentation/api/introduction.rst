@@ -167,9 +167,8 @@ Some deeper explanations about an entity address:
 - The reversed domain name is taken from the naming authority (person or organization) creating this entity address
 - The locally unique string can be used for local purposes, and FlexMeasures uses it to identify the resource (more information in parse_entity_address).
 
-TODO: This needs to be in the FlexMeasures documentation.
-
 [1] https://www.usef.energy/app/uploads/2020/01/USEF-Flex-Trading-Protocol-Specifications-1.01.pdf
+
 [2] https://tools.ietf.org/html/rfc3720
 
 
@@ -258,7 +257,7 @@ In case of a single group of connections, the message may be flattened to:
 Timeseries
 ^^^^^^^^^^
 
-Timestamps and durations are consistent with the ISO 8601 standard. All timestamps in requests to the API must be timezone aware. The timezone indication "Z" indicates a zero offset from UTC. Additionally, we use the following shorthand for sequential values within a time interval:
+Timestamps and durations are consistent with the ISO 8601 standard. All timestamps in requests to the API must be timezone-aware. The timezone indication "Z" indicates a zero offset from UTC. Additionally, we use the following shorthand for sequential values within a time interval:
 
 .. code-block:: json
 

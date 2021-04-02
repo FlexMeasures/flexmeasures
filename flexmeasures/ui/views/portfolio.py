@@ -1,13 +1,14 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Dict, List
 
-from flask import request, session
+from flask import request, session, current_app
 from flask_security import roles_accepted
 from flask_security.core import current_user
 import pandas as pd
 import numpy as np
 from bokeh.embed import components
 import bokeh.palettes as palettes
+from bokeh.plotting import Figure
 
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Price
@@ -83,14 +84,6 @@ def portfolio_view():  # noqa: C901
         if sum_dict
         else pd.DataFrame()
     )
-    stack_dict = (
-        rename_event_value_column_to_resource_name(supply_resources_df_dict).values()
-        if show_summed == "consumption"
-        else rename_event_value_column_to_resource_name(
-            demand_resources_df_dict
-        ).values()
-    )
-    df_stacked_data = pd.concat(stack_dict, axis=1) if stack_dict else pd.DataFrame()
 
     # Create summed plot
     power_sum_df = data_or_zeroes(power_sum_df, start, end, resolution)
@@ -114,6 +107,14 @@ def portfolio_view():  # noqa: C901
     fig_profile.plot_width = 900
 
     # Create stacked plot
+    stack_dict = (
+        rename_event_value_column_to_resource_name(supply_resources_df_dict).values()
+        if show_summed == "consumption"
+        else rename_event_value_column_to_resource_name(
+            demand_resources_df_dict
+        ).values()
+    )
+    df_stacked_data = pd.concat(stack_dict, axis=1) if stack_dict else pd.DataFrame()
     df_stacked_data = data_or_zeroes(df_stacked_data, start, end, resolution)
     df_stacked_areas = stack_df(df_stacked_data)
 
@@ -139,110 +140,19 @@ def portfolio_view():  # noqa: C901
             level="underlay",
         )
 
-    # Flexibility numbers are mocked for now
-    curtailment_per_asset = {a.name: 0 for a in assets}
-    shifting_per_asset = {a.name: 0 for a in assets}
-    profit_loss_flexibility_per_asset = {a.name: 0 for a in assets}
-    curtailment_per_asset_type = {k: 0 for k in represented_asset_types.keys()}
-    shifting_per_asset_type = {k: 0 for k in represented_asset_types.keys()}
-    profit_loss_flexibility_per_asset_type = {
-        k: 0 for k in represented_asset_types.keys()
-    }
-    shifting_per_asset["48_r"] = 1.1
-    profit_loss_flexibility_per_asset["48_r"] = 76000
-    shifting_per_asset_type["one-way EVSE"] = shifting_per_asset["48_r"]
-    profit_loss_flexibility_per_asset_type[
-        "one-way EVSE"
-    ] = profit_loss_flexibility_per_asset["48_r"]
-    curtailment_per_asset["hw-onshore"] = 1.3
-    profit_loss_flexibility_per_asset["hw-onshore"] = 84000
-    curtailment_per_asset_type["wind turbines"] = curtailment_per_asset["hw-onshore"]
-    profit_loss_flexibility_per_asset_type[
-        "wind turbines"
-    ] = profit_loss_flexibility_per_asset["hw-onshore"]
+    portfolio_plots_script, portfolio_plots_divs = components(fig_profile)
 
-    # Add referral to mocked control action
-    this_hour = time_utils.get_most_recent_hour()
-    next4am = [
-        dt
-        for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)]
-        if dt.hour == 4
-    ][0]
-
-    # TODO: show when user has (possible) actions in order book for a time slot
-    if current_user.is_authenticated and (
-        current_user.has_role("admin")
-        or "wind" in current_user.email
-        or "charging" in current_user.email
-    ):
-        plotting.highlight(
-            fig_profile, next4am, next4am + timedelta(hours=1), redirect_to="/control"
+    # Flexibility numbers and a mocked control action are mocked for demo mode at the moment
+    flex_info = {}
+    if current_app.config.get("FLEXMEASURES_MODE") == "demo":
+        flex_info = mock_flex_info(assets, represented_asset_types)
+        fig_actions = mock_flex_figure(
+            x_range, power_sum_df.index, fig_profile.plot_width
         )
-
-    # actions
-    df_actions = pd.DataFrame(index=power_sum_df.index, columns=["event_value"]).fillna(
-        0
-    )
-    if next4am in df_actions.index:
-        if current_user.is_authenticated:
-            if current_user.has_role("admin"):
-                df_actions.loc[next4am] = -2.4  # mock two actions
-            elif "wind" in current_user.email:
-                df_actions.loc[next4am] = -1.3  # mock one action
-            elif "charging" in current_user.email:
-                df_actions.loc[next4am] = -1.1  # mock one action
-    next2am = [
-        dt
-        for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)]
-        if dt.hour == 2
-    ][0]
-    if next2am in df_actions.index:
-        if next2am < next4am and (
-            current_user.is_authenticated
-            and (
-                current_user.has_role("admin")
-                or "wind" in current_user.email
-                or "charging" in current_user.email
-            )
-        ):
-            # mock the shift "payback" (actually occurs earlier in our mock example)
-            df_actions.loc[next2am] = 1.1
-    next9am = [
-        dt
-        for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)]
-        if dt.hour == 9
-    ][0]
-    if next9am in df_actions.index:
-        # mock some other ordered actions that are not in an opportunity hour anymore
-        df_actions.loc[next9am] = 3.5
-
-    fig_actions = plotting.create_graph(
-        df_actions,
-        unit="MW",
-        title="Ordered balancing actions",
-        x_range=x_range,
-        y_label="Power (in MW)",
-    )
-    fig_actions.plot_height = 150
-    fig_actions.plot_width = fig_profile.plot_width
-    fig_actions.xaxis.visible = False
-
-    if current_user.is_authenticated and (
-        current_user.has_role("admin")
-        or "wind" in current_user.email
-        or "charging" in current_user.email
-    ):
-        plotting.highlight(
-            fig_actions, next4am, next4am + timedelta(hours=1), redirect_to="/control"
+        mock_flex_action_in_main_figure(fig_profile)
+        portfolio_plots_script, portfolio_plots_divs = components(
+            (fig_profile, fig_actions)
         )
-
-    portfolio_plots_script, portfolio_plots_divs = components(
-        (fig_profile, fig_actions)
-    )
-    next24hours = [
-        (time_utils.get_most_recent_hour() + timedelta(hours=i)).strftime("%I:00 %p")
-        for i in range(1, 26)
-    ]
 
     return render_flexmeasures_template(
         "views/portfolio.html",
@@ -252,25 +162,15 @@ def portfolio_view():  # noqa: C901
         markets=markets,
         production_per_asset=production_per_asset,
         consumption_per_asset=consumption_per_asset,
-        curtailment_per_asset=curtailment_per_asset,
-        shifting_per_asset=shifting_per_asset,
-        profit_loss_flexibility_per_asset=profit_loss_flexibility_per_asset,
         production_per_asset_type=production_per_asset_type,
         consumption_per_asset_type=consumption_per_asset_type,
-        curtailment_per_asset_type=curtailment_per_asset_type,
-        shifting_per_asset_type=shifting_per_asset_type,
-        profit_loss_flexibility_per_asset_type=profit_loss_flexibility_per_asset_type,
         sum_production=sum(production_per_asset_type.values()),
         sum_consumption=sum(consumption_per_asset_type.values()),
-        sum_curtailment=sum(curtailment_per_asset_type.values()),
-        sum_shifting=sum(shifting_per_asset_type.values()),
-        sum_profit_loss_flexibility=sum(
-            profit_loss_flexibility_per_asset_type.values()
-        ),
+        flex_info=flex_info,
         portfolio_plots_script=portfolio_plots_script,
         portfolio_plots_divs=portfolio_plots_divs,
-        next24hours=next24hours,
         alt_stacking=show_summed,
+        fm_mode=current_app.config.get("FLEXMEASURES_MODE"),
     )
 
 
@@ -307,3 +207,121 @@ def rename_event_value_column_to_resource_name(
         df_name: df.rename(columns={"event_value": capitalize(df_name)})
         for df_name, df in df_dict.items()
     }
+
+
+def mock_flex_info(assets, represented_asset_types) -> dict:
+    flex_info = dict(
+        curtailment_per_asset={a.name: 0.0 for a in assets},
+        shifting_per_asset={a.name: 0.0 for a in assets},
+        profit_loss_flexibility_per_asset={a.name: 0.0 for a in assets},
+        curtailment_per_asset_type={k: 0.0 for k in represented_asset_types.keys()},
+        shifting_per_asset_type={k: 0.0 for k in represented_asset_types.keys()},
+        profit_loss_flexibility_per_asset_type={
+            k: 0.0 for k in represented_asset_types.keys()
+        },
+    )
+
+    flex_info["shifting_per_asset"]["48_r"] = 1.1
+    flex_info["profit_loss_flexibility_per_asset"]["48_r"] = 76000.0
+    flex_info["shifting_per_asset_type"]["one-way EVSE"] = flex_info[
+        "shifting_per_asset"
+    ]["48_r"]
+    flex_info["profit_loss_flexibility_per_asset_type"]["one-way EVSE"] = flex_info[
+        "profit_loss_flexibility_per_asset"
+    ]["48_r"]
+    flex_info["curtailment_per_asset"]["hw-onshore"] = 1.3
+    flex_info["profit_loss_flexibility_per_asset"]["hw-onshore"] = 84000.0
+    flex_info["curtailment_per_asset_type"]["wind turbines"] = flex_info[
+        "curtailment_per_asset"
+    ]["hw-onshore"]
+    flex_info["profit_loss_flexibility_per_asset_type"]["wind turbines"] = flex_info[
+        "profit_loss_flexibility_per_asset"
+    ]["hw-onshore"]
+
+    flex_info["sum_curtailment"] = sum(flex_info["curtailment_per_asset_type"].values())  # type: ignore
+    flex_info["sum_shifting"] = sum(flex_info["shifting_per_asset_type"].values())  # type: ignore
+    flex_info["sum_profit_loss_flexibility"] = sum(  # type: ignore
+        flex_info["profit_loss_flexibility_per_asset_type"].values()  # type: ignore
+    )
+    return flex_info
+
+
+def mock_flex_figure(x_range, x_index, fig_width) -> Figure:
+    df_actions = pd.DataFrame(index=x_index, columns=["event_value"]).fillna(0)
+    next_action_hour4 = get_flex_action_hour(4)
+    if next_action_hour4 in df_actions.index:
+        if current_user.is_authenticated:
+            if current_user.has_role("admin"):
+                df_actions.loc[next_action_hour4] = -2.4  # mock two actions
+            elif "wind" in current_user.email:
+                df_actions.loc[next_action_hour4] = -1.3  # mock one action
+            elif "charging" in current_user.email:
+                df_actions.loc[next_action_hour4] = -1.1  # mock one action
+
+    next_action_hour2 = get_flex_action_hour(2)
+    if next_action_hour2 in df_actions.index:
+        if next_action_hour2 < next_action_hour4 and (
+            current_user.is_authenticated
+            and (
+                current_user.has_role("admin")
+                or "wind" in current_user.email
+                or "charging" in current_user.email
+            )
+        ):
+            # mock the shift "payback" (actually occurs earlier in our mock example)
+            df_actions.loc[next_action_hour2] = 1.1
+
+    next_action_hour9 = get_flex_action_hour(9)
+    if next_action_hour9 in df_actions.index:
+        # mock some other ordered actions that are not in an opportunity hour anymore
+        df_actions.loc[next_action_hour9] = 3.5
+
+    fig_actions = plotting.create_graph(
+        df_actions,
+        unit="MW",
+        title="Ordered balancing actions",
+        x_range=x_range,
+        y_label="Power (in MW)",
+    )
+    fig_actions.plot_height = 150
+    fig_actions.plot_width = fig_width
+    fig_actions.xaxis.visible = False
+
+    if current_user.is_authenticated and (
+        current_user.has_role("admin")
+        or "wind" in current_user.email
+        or "charging" in current_user.email
+    ):
+        plotting.highlight(
+            fig_actions,
+            next_action_hour4,
+            next_action_hour4 + timedelta(hours=1),
+            redirect_to="/control",
+        )
+    return fig_actions
+
+
+def mock_flex_action_in_main_figure(fig_profile: Figure):
+    # show when user has (possible) actions in order book for a time slot
+    if current_user.is_authenticated and (
+        current_user.has_role("admin")
+        or "wind" in current_user.email
+        or "charging" in current_user.email
+    ):
+        next_action_hour = get_flex_action_hour(4)
+        plotting.highlight(
+            fig_profile,
+            next_action_hour,
+            next_action_hour + timedelta(hours=1),
+            redirect_to="/control",
+        )
+
+
+def get_flex_action_hour(h: int) -> datetime:
+    """ get the next hour from now on """
+    this_hour = time_utils.get_most_recent_hour()
+    return [
+        dt
+        for dt in [this_hour + timedelta(hours=i) for i in range(1, 25)]
+        if dt.hour == h
+    ][0]
