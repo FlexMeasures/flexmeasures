@@ -1,9 +1,9 @@
-.. _change_log:
+.. _api_change_log:
 
 API change log
 ===============
 
-v2.0 | 2021-03-23
+v2.0 | 2021-04-02
 """""""""""""""""
 
 - [**Breaking change**] Switched the interpretation of horizons to rolling horizons.

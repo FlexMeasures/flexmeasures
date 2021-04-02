@@ -16,9 +16,7 @@ Infrastructure / Support
 * Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <http://www.github.com/SeitaBV/flexmeasures/pull/79>`_]
 
 
-
-
-v0.2.4 | April 2, 2021
+v0.3.0 | April 2, 2021
 ===========================
 
 New features
@@ -27,7 +25,7 @@ New features
 * Optionally setting recording time when posting data [see `PR #41 <http://www.github.com/SeitaBV/flexmeasures/pull/41>`_]
 * Add assets and weather sensors with CLI commands [see `PR #74 <https://github.com/SeitaBV/flexmeasures/pull/74>`_]
 
-.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v024-pip-install-cli-commands-belief-time-api/>`__.
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v030-pip-install-cli-commands-belief-time-api/>`__.
 
 Bugfixes
 --------
