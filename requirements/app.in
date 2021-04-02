@@ -43,7 +43,7 @@ Flask-Migrate
 Flask-WTF
 Flask-Login
 Flask-Mail
-Flask-Security-Too
+Flask-Security-Too<=4.0
 Flask-Classful
 Flask-Marshmallow
 Flask-Cors
