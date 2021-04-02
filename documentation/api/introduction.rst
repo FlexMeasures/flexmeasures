@@ -257,7 +257,7 @@ In case of a single group of connections, the message may be flattened to:
 Timeseries
 ^^^^^^^^^^
 
-Timestamps and durations are consistent with the ISO 8601 standard. All timestamps in requests to the API must be timezone aware. The timezone indication "Z" indicates a zero offset from UTC. Additionally, we use the following shorthand for sequential values within a time interval:
+Timestamps and durations are consistent with the ISO 8601 standard. All timestamps in requests to the API must be timezone-aware. The timezone indication "Z" indicates a zero offset from UTC. Additionally, we use the following shorthand for sequential values within a time interval:
 
 .. code-block:: json
 

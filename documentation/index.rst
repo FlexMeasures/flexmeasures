@@ -6,12 +6,12 @@ Planning ahead allows flexible assets to serve the whole system with their flexi
 e.g. by shifting or curtailing energy use.
 This can also be profitable for their owners.
 
-The FlexMeasures Platform is a tool for scheduling flexible actions for energy assets.
+The FlexMeasures Platform is a tool for scheduling flexibility activations for energy assets.
 For this purpose, it performs three services:
 
 * Monitoring of incoming measurements
 * Forecasting of expected measurements
-* Scheduling flexible actions with custom optimization
+* Scheduling flexibility activations with custom optimisation
 
 For more on FlexMeasures services, read :ref:`services`. Or head right over to :ref:`getting_started`.
 
@@ -25,11 +25,6 @@ Therefore, this documentation uses USEF terminology, e.g. for role definitions.
 The intended users of FlexMeasures are a Supplier (energy company) and its Prosumers (asset owners who have energy contracts with that Supplier).
 The platform operator of FlexMeasures can be an Aggregator.
 
-.. toctree::
-    :caption: Purpose
-    :maxdepth: 1
-    services
-    benefits
 
 .. toctree::
    :maxdepth: 1
@@ -40,24 +35,25 @@ The platform operator of FlexMeasures can be an Aggregator.
    changelog
 
 .. toctree::
+    :caption: Concepts
+    :maxdepth: 1
+
+    concepts/services
+    concepts/benefits
+    concepts/benefits_of_flex
+    concepts/algorithms
+    concepts/security_auth
+
+
+.. toctree::
     :caption: The in-built UI
     :maxdepth: 1
 
     views/dashboard
     views/portfolio
+    views/control
     views/analytics
     views/admin
-
-
-.. toctree::
-    :maxdepth: 1
-    :caption: Tutorials
-
-    tut/supplier
-    tut/prosumer
-    tut/aggregator
-    tut/esco
-
 
 .. toctree::
     :caption: The API 
@@ -95,17 +91,6 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 2
 
     int/introduction
-
-
-.. toctree::
-    :caption: Narrative contents
-    :maxdepth: 2
-
-    qa/users
-    qa/assets
-    qa/markets
-    qa/algorithms
-    qa/data
 
 
 Code documentation

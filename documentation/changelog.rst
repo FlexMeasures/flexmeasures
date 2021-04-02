@@ -22,10 +22,12 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Added concept pages to documentation [see `PR #65 <http://www.github.com/SeitaBV/flexmeasures/pull/65>`_]
 * Dump and restore postgres database as CLI commands [see `PR #68 <https://github.com/SeitaBV/flexmeasures/pull/68>`_]
 * Improved installation tutorial as part of [`PR #54 <http://www.github.com/SeitaBV/flexmeasures/pull/54>`_]
 * Moved developer docs from Readmes into the main documentation  [see `PR #73 <https://github.com/SeitaBV/flexmeasures/pull/73>`_]
 * Ensured unique sensor ids for all sensors [see `PR #70 <https://github.com/SeitaBV/flexmeasures/pull/70>`_ and (fix) `PR #77 <https://github.com/SeitaBV/flexmeasures/pull/77>`_]
+
 
 
 

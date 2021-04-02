@@ -77,8 +77,9 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # Todo: these are not mature enough yet for release
 exclude_patterns.append("int/*.rst")
-exclude_patterns.append("qa/*.rst")
-exclude_patterns.append("tut/*.rst")
+exclude_patterns.append("concepts/assets.rst")
+exclude_patterns.append("concepts/markets.rst")
+exclude_patterns.append("concepts/users.rst")
 exclude_patterns.append("api/aggregator.rst")
 exclude_patterns.append("api/mdc.rst")
 exclude_patterns.append("api/prosumer.rst")
@@ -176,7 +177,7 @@ texinfo_documents = [
         f"{project} Documentation",
         author,
         project,
-        f"The {project} Platform is a tool for scheduling flexible energy actions on behalf of the connected asset owners.",
+        f"The {project} Platform is a tool for scheduling energy flexibility activations on behalf of the connected asset owners.",
         "Miscellaneous",
     )
 ]
