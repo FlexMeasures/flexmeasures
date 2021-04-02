@@ -62,7 +62,7 @@ six==1.15.0
     #   -c requirements/app.txt
     #   -c requirements/test.txt
     #   virtualenv
-toml==0.10.1
+toml==0.10.2
     # via
     #   -c requirements/test.txt
     #   black
