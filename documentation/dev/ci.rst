@@ -9,7 +9,7 @@ Here you can learn how to get FlexMeasures onto a server.
     :local:
     :depth: 1
 
-.. note:: It would be great to enable Dockerization of FlexMeasures, let us know if this matters to you.
+.. todo:: It would be great to enable Dockerization of FlexMeasures, let us know if this matters to you.
 
 WSGI configuration
 ------------------
@@ -22,15 +22,10 @@ Here is an example how to serve FlexMeasures as WSGI app:
    # web application.
    # It works by setting the variable 'application' to a WSGI handler of some description.
 
-   import sys
    import os
    from dotenv import load_dotenv
 
-   # add your project directory to the sys.path
    project_home = u'/path/to/your/code/flexmeasures'
-   if project_home not in sys.path:
-       sys.path = [project_home] + sys.path
-
    load_dotenv(os.path.join(project_home, '.env'))
 
    # create flask app - need to call it "application" for WSGI to work
@@ -64,7 +59,7 @@ In case you want to install a later version, adapt the version in the script.
 Automate deployment via Github actions and Git
 ------------------------------------------------
 
-At FlexMeasures headquarters, we implemented a specifig workflow to automate our deployment. It uses the Github action workflow (see the ``.github/workflows`` directory), which pushes to a remote upstream repository. We use this workflow to build and deploy the project to our staging server.
+At FlexMeasures headquarters, we implemented a specific workflow to automate our deployment. It uses the Github action workflow (see the ``.github/workflows`` directory), which pushes to a remote upstream repository. We use this workflow to build and deploy the project to our staging server.
 
 Documenting this might be useful for self-hosters, as well.
 The GitHub Actions workflows are triggered by commits being pushed to the repository, but it can also inspire your custom deployment script.
@@ -110,7 +105,7 @@ To make this work, we need to configure the following:
 
 
 * Add the deployment server to ``~/.ssh/known_hosts`` of the deployment environment, so that the deployment environment knows it's okay to talk to the deployment server (e.g. ``deploy.yml`` expects it in the Github repository secrets as ``KNOWN_DEPLOYMENT_HOSTS``\ ). You can create this entry with ``ssh-keyscan -t rsa <your host>``.
-* Add the private part of the ssh key pair as key in the deployment environment, so that the deployment server can accept the pushed code. (e.g. as ``~/.ssh/id_rsa``\ ). In ``deploy.yml``\ , we expect it as the secret ``SSH_DEPLOYMENT_KEY``\ , which addds the key for us.
+* Add the private part of the ssh key pair as key in the deployment environment, so that the deployment server can accept the pushed code. (e.g. as ``~/.ssh/id_rsa``\ ). In ``deploy.yml``\ , we expect it as the secret ``SSH_DEPLOYMENT_KEY``\ , which adds the key for us.
 * Finally, the public part of the key pair should be in ``~/.ssh/authorized_keys`` on your deployment server.
 
 
