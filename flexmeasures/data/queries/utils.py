@@ -5,7 +5,6 @@ import pandas as pd
 import timely_beliefs as tb
 
 from sqlalchemy.orm import Query, Session
-from sqlalchemy.engine.result import RowProxy
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -156,32 +155,6 @@ def add_belief_timing_filter(
         if long_horizon is not None:
             query = query.filter(cls.horizon <= long_horizon)
     return query
-
-
-def parse_sqlalchemy_results(results: List[RowProxy]) -> List[dict]:
-    """
-    Returns a list of dicts, whose keys are column names. E.g.:
-
-    data = session.execute("Select latitude from asset;").fetchall()
-    for row in parse_sqlalchemy_results(data):
-        print("------------")
-        for key, val in row:
-            print f"{key}: {val}"
-
-    """
-    parsed_results: List[dict] = []
-
-    if len(results) == 0:
-        return parsed_results
-
-    # results from SQLAlchemy are returned as a list of tuples;
-    # this procedure converts it into a list of dicts
-    for row_number, row in enumerate(results):
-        parsed_results.append({})
-        for column_number, value in enumerate(row):
-            parsed_results[row_number][row.keys()[column_number]] = value
-
-    return parsed_results
 
 
 def simplify_index(
