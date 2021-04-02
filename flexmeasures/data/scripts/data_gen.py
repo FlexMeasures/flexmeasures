@@ -17,6 +17,7 @@ from humanize import naturaldelta
 import inflect
 
 from flexmeasures.data.models.markets import MarketType, Market, Price
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
@@ -625,5 +626,5 @@ def get_affected_classes(structure: bool = True, data: bool = False):
             DataSource,
         ]
     if data:
-        affected_classes += [Power, Price, Weather]
+        affected_classes += [TimedBelief, Power, Price, Weather]
     return affected_classes
