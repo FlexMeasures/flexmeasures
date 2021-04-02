@@ -3,6 +3,16 @@ FlexMeasures Changelog
 **********************
 
 
+v0.2.5 | April XX, 2021
+===========================
+
+Infrastructure / Support
+----------------------
+* Updated dependencies, including Flask-Security-Too [see `PR #82 <http://www.github.com/SeitaBV/flexmeasures/pull/82>`_]
+
+
+
+
 v0.2.4 | April 2, 2021
 ===========================
 

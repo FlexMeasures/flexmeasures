@@ -6,4 +6,6 @@ black
 flake8
 flake8-blind-except
 mypy
+pytest-runner
+setuptools_scm
 watchdog
