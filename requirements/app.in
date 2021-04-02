@@ -32,10 +32,11 @@ netCDF4
 siphon
 tables
 timetomodel>=0.6.8
-timely-beliefs>=1.2.1
+timely-beliefs>=1.3.0
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
+sqlalchemy>=1.4.0
 Flask-SSLify
 Flask_JSON
 Flask-SQLAlchemy>=2.4.3
@@ -43,7 +44,7 @@ Flask-Migrate
 Flask-WTF
 Flask-Login
 Flask-Mail
-Flask-Security-Too
+Flask-Security-Too>=4.0
 Flask-Classful
 Flask-Marshmallow
 Flask-Cors

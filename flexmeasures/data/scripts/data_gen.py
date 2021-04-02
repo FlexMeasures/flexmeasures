@@ -18,6 +18,7 @@ import pytz
 from humanize import naturaldelta
 import inflect
 
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.markets import MarketType, Market, Price
 from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
@@ -25,7 +26,6 @@ from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, W
 from flexmeasures.data.models.user import User, Role, RolesUsers
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.data.queries.utils import parse_sqlalchemy_results
 from flexmeasures.utils.time_utils import ensure_local_timezone
 from flexmeasures.data.transactional import as_transaction
 
@@ -641,7 +641,7 @@ def load_tables(
         affected_classes = get_affected_classes(structure, data)
         statement = "SELECT sequence_name from information_schema.sequences;"
         data = db.session.execute(statement).fetchall()
-        sequence_names = [s["sequence_name"] for s in parse_sqlalchemy_results(data)]
+        sequence_names = [s.sequence_name for s in data]
         for c in affected_classes:
             file_path = "%s/%s/%s.obj" % (backup_path, backup_name, c.__tablename__)
             sequence_name = "%s_id_seq" % c.__tablename__
@@ -682,6 +682,7 @@ def get_affected_classes(structure: bool = True, data: bool = False) -> List:
             Role,
             User,
             RolesUsers,
+            Sensor,
             MarketType,
             Market,
             AssetType,
@@ -691,5 +692,5 @@ def get_affected_classes(structure: bool = True, data: bool = False) -> List:
             DataSource,
         ]
     if data:
-        affected_classes += [Power, Price, Weather]
+        affected_classes += [TimedBelief, Power, Price, Weather]
     return affected_classes

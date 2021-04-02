@@ -4,6 +4,7 @@ from datetime import datetime as datetime_type, timedelta
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
+import timely_beliefs.utils as tb_utils
 from marshmallow import Schema, fields
 
 from flexmeasures.data.config import db
@@ -21,8 +22,114 @@ from flexmeasures.data.services.time_series import collect_time_series_data
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
+    def __init__(self, name: str, **kwargs):
+        tb.SensorDBMixin.__init__(self, name, **kwargs)
+        tb_utils.remove_class_init_kwargs(tb.SensorDBMixin, kwargs)
+        db.Model.__init__(self, **kwargs)
 
-class SensorSchema(Schema):
+    def search_beliefs(
+        self,
+        event_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
+            None,
+            None,
+        ),
+        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
+            None,
+            None,
+        ),
+        source: Optional[Union[int, List[int], str, List[str]]] = None,
+    ):
+        """Search all beliefs about events for this sensor.
+
+        :param event_time_window: search only events within this time window
+        :param belief_time_window: search only beliefs within this time window
+        :param source: search only beliefs by this source (pass its name or id) or list of sources"""
+        return TimedBelief.search(
+            sensor=self,
+            event_time_window=event_time_window,
+            belief_time_window=belief_time_window,
+            source=source,
+        )
+
+    def __repr__(self) -> str:
+        return f"<Sensor {self.id}: {self.name}>"
+
+
+class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
+    """A timed belief holds a precisely timed record of a belief about an event.
+
+    It also records the source of the belief, and the sensor that the event pertains to.
+    """
+
+    @declared_attr
+    def source_id(cls):
+        return db.Column(db.Integer, db.ForeignKey("data_source.id"), primary_key=True)
+
+    sensor = db.relationship("Sensor", backref=db.backref("beliefs", lazy=True))
+    source = db.relationship("DataSource", backref=db.backref("beliefs", lazy=True))
+
+    def __init__(
+        self,
+        sensor: tb.DBSensor,
+        source: tb.DBBeliefSource,
+        **kwargs,
+    ):
+        tb.TimedBeliefDBMixin.__init__(self, sensor, source, **kwargs)
+        tb_utils.remove_class_init_kwargs(tb.TimedBeliefDBMixin, kwargs)
+        db.Model.__init__(self, **kwargs)
+
+    @classmethod
+    def search(
+        cls,
+        sensor: Sensor,
+        event_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
+            None,
+            None,
+        ),
+        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
+            None,
+            None,
+        ),
+        source: Optional[Union[int, List[int], str, List[str]]] = None,
+    ) -> tb.BeliefsDataFrame:
+        """Search all beliefs about events for a given sensor.
+
+        :param sensor: search only this sensor
+        :param event_time_window: search only events within this time window
+        :param belief_time_window: search only beliefs within this time window
+        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        """
+        return cls.search_session(
+            session=db.session,
+            sensor=sensor,
+            event_before=event_time_window[1],
+            event_not_before=event_time_window[0],
+            belief_before=belief_time_window[1],
+            belief_not_before=belief_time_window[0],
+            source=source,
+        )
+
+    @classmethod
+    def add(cls, bdf: tb.BeliefsDataFrame, commit_transaction: bool = True):
+        """Add a BeliefsDataFrame as timed beliefs in the database.
+
+        :param bdf: the BeliefsDataFrame to be persisted
+        :param commit_transaction: if True, the session is committed
+                                   if False, you can still add other data to the session
+                                   and commit it all within an atomic transaction
+        """
+        return cls.add_to_session(
+            session=db.session,
+            beliefs_data_frame=bdf,
+            commit_transaction=commit_transaction,
+        )
+
+    def __repr__(self) -> str:
+        """timely-beliefs representation of timed beliefs."""
+        return tb.TimedBelief.__repr__(self)
+
+
+class SensorSchemaMixin(Schema):
     """
     Base sensor schema.
 
@@ -40,6 +147,15 @@ class SensorSchema(Schema):
     unit = ma.auto_field(required=True)
     timezone = ma.auto_field()
     event_resolution = fields.TimeDelta(required=True, precision="minutes")
+
+
+class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
+    """
+    Sensor schema, with validations.
+    """
+
+    class Meta:
+        model = Sensor
 
 
 class TimedValue(object):
