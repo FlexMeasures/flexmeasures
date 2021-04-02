@@ -1,6 +1,6 @@
 .. _cli:
 
-Command Line Interface (CLI)
+CLI Commands
 =============================
 
 FlexMeasures comes with a command-line utility, which helps to manage data.
