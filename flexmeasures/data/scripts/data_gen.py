@@ -18,6 +18,7 @@ import pytz
 from humanize import naturaldelta
 import inflect
 
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.markets import MarketType, Market, Price
 from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
@@ -682,6 +683,7 @@ def get_affected_classes(structure: bool = True, data: bool = False) -> List:
             Role,
             User,
             RolesUsers,
+            Sensor,
             MarketType,
             Market,
             AssetType,
