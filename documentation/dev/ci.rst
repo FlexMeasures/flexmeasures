@@ -94,7 +94,7 @@ The deployment uses git's ability to push code to a remote upstream repository. 
 
 We trigger this deployment in ``deploy.yml`` and it's being done in ``DEPLOY.sh``. There, we add the remote and then push the current branch to it.
 
-We thus need to tell the deployment evnironment two things:
+We thus need to tell the deployment environment two things:
 
 
 * Add the setting ``STAGING_REMOTE_REPO`` as an environment variable on the deployment environment (e.g. ``deploy.yml`` expects it in the Github repository secrets). An example value is ``seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git``.
