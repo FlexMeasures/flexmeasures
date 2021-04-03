@@ -16,6 +16,7 @@ import marshmallow
 
 from webargs.flaskparser import parser
 
+from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.schemas.times import DurationField
 from flexmeasures.api.common.responses import (  # noqa: F401
     required_info_missing,
@@ -40,7 +41,6 @@ from flexmeasures.api.common.utils.api_utils import (
     parse_as_list,
     contains_empty_items,
     upsample_values,
-    get_generic_asset,
 )
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.config import db
@@ -728,7 +728,9 @@ def units_accepted(quantity: str, *units: str):
     return wrapper
 
 
-def post_data_checked_for_required_resolution(entity_type):  # noqa: C901
+def post_data_checked_for_required_resolution(
+    entity_type: str, fm_scheme: str
+):  # noqa: C901
     """Decorator which checks that a POST request receives time series data with the event resolutions
     required by the sensor (asset). It sets the "resolution" keyword argument.
     If the resolution in the data is a multiple of the asset resolution, values are upsampled to the asset resolution.
@@ -786,7 +788,9 @@ def post_data_checked_for_required_resolution(entity_type):  # noqa: C901
             for asset_group in kwargs["generic_asset_name_groups"]:
                 for asset_descriptor in asset_group:
                     # Getting the asset
-                    generic_asset = get_generic_asset(asset_descriptor, entity_type)
+                    generic_asset = SensorField(entity_type, fm_scheme).deserialize(
+                        asset_descriptor
+                    )
                     if generic_asset is None:
                         return unrecognized_asset(
                             f"Failed to look up asset by {asset_descriptor}"
@@ -804,6 +808,7 @@ def post_data_checked_for_required_resolution(entity_type):  # noqa: C901
                     last_asset = generic_asset
 
             # if inferred resolution is a multiple from required_solution, we can upsample_values
+            # todo: next line fails on sensors with 0 resolution
             if inferred_resolution % required_resolution == timedelta(hours=0):
                 for i in range(len(kwargs["value_groups"])):
                     kwargs["value_groups"][i] = upsample_values(
@@ -829,7 +834,7 @@ def post_data_checked_for_required_resolution(entity_type):  # noqa: C901
     return wrapper
 
 
-def get_data_downsampling_allowed(entity_type):
+def get_data_downsampling_allowed(entity_type: str, fm_scheme: str):
     """Decorator which allows downsampling of data which a GET request returns.
     It checks for a form parameter "resolution".
     If that is given and is a multiple of the asset's event_resolution,
@@ -872,7 +877,9 @@ def get_data_downsampling_allowed(entity_type):
                 # of the event_resolution(s) and thus downsampling is possible)
                 for asset_group in kwargs["generic_asset_name_groups"]:
                     for asset_descriptor in asset_group:
-                        generic_asset = get_generic_asset(asset_descriptor, entity_type)
+                        generic_asset = SensorField(entity_type, fm_scheme).deserialize(
+                            asset_descriptor
+                        )
                         if generic_asset is None:
                             return unrecognized_asset()
                         asset_resolution = generic_asset.event_resolution

@@ -80,8 +80,16 @@ class Market(db.Model, tb.SensorDBMixin):
             self.display_name = humanize(self.name)
 
     @property
+    def entity_address_fm0(self) -> str:
+        """Entity address under the fm0 scheme for entity addresses."""
+        return build_entity_address(
+            dict(market_name=self.name), "market", fm_scheme="fm0"
+        )
+
+    @property
     def entity_address(self) -> str:
-        return build_entity_address(dict(market_name=self.name), "market")
+        """Entity address under the latest fm scheme for entity addresses."""
+        return build_entity_address(dict(sensor_id=self.id), "sensor")
 
     @property
     def price_unit(self) -> str:

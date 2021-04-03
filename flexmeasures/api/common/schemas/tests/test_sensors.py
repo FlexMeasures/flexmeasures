@@ -8,21 +8,28 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
 
 
 @pytest.mark.parametrize(
-    "entity_address, entity_type, exp_deserialization_name",
+    "entity_address, entity_type, fm_scheme, exp_deserialization_name",
     [
         (
             build_entity_address(dict(sensor_id=9), "sensor"),
             "sensor",
+            "fm1",
             "my daughter's height",
         ),
         (
-            build_entity_address(dict(market_name="epex_da"), "market"),
+            build_entity_address(
+                dict(market_name="epex_da"), "market", fm_scheme="fm0"
+            ),
             "market",
+            "fm0",
             "epex_da",
         ),
         (
-            build_entity_address(dict(owner_id=1, asset_id=3), "connection"),
+            build_entity_address(
+                dict(owner_id=1, asset_id=3), "connection", fm_scheme="fm0"
+            ),
             "connection",
+            "fm0",
             "Test battery with no known prices",
         ),
         (
@@ -33,40 +40,58 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
                     longitude=126.0,
                 ),
                 "weather_sensor",
+                fm_scheme="fm0",
             ),
             "weather_sensor",
+            "fm0",
             "temperature_sensor",
         ),
     ],
 )
 def test_sensor_field_straightforward(
-    entity_address, entity_type, exp_deserialization_name
+    entity_address, entity_type, fm_scheme, exp_deserialization_name
 ):
     """Testing straightforward cases"""
-    sf = SensorField(entity_type)
+    sf = SensorField(entity_type, fm_scheme)
     deser = sf.deserialize(entity_address, None, None)
     assert deser.name == exp_deserialization_name
     assert sf.serialize(entity_type, {entity_type: deser}) == entity_address
 
 
 @pytest.mark.parametrize(
-    "entity_address, entity_type, error_msg",
+    "entity_address, entity_type, fm_scheme, error_msg",
     [
         (
             "ea1.2021-01.io.flexmeasures:some.weird:identifier%that^is*not)used",
             "market",
+            "fm0",
             "Could not parse",
         ),
         (
-            build_entity_address(dict(market_name="non_existing_market"), "market"),
+            "ea1.2021-01.io.flexmeasures:fm1.some.weird:identifier%that^is*not)used",
             "market",
+            "fm1",
+            "Could not parse",
+        ),
+        (
+            build_entity_address(
+                dict(market_name="non_existing_market"), "market", fm_scheme="fm0"
+            ),
+            "market",
+            "fm0",
             "doesn't exist",
         ),
-        ("ea1.2021-13.io.flexmeasures:9", "sensor", "date specification"),
+        (
+            build_entity_address(dict(sensor_id=-1), "sensor", fm_scheme="fm1"),
+            "market",
+            "fm1",
+            "Could not parse",
+        ),
+        ("ea1.2021-13.io.flexmeasures:fm1.9", "sensor", "fm1", "date specification"),
     ],
 )
-def test_sensor_field_invalid(entity_address, entity_type, error_msg):
-    sf = SensorField(entity_type)
+def test_sensor_field_invalid(entity_address, entity_type, fm_scheme, error_msg):
+    sf = SensorField(entity_type, fm_scheme)
     with pytest.raises(EntityAddressValidationError) as ve:
         sf.deserialize(entity_address, None, None)
     assert error_msg in str(ve)

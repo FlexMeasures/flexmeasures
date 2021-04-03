@@ -135,10 +135,18 @@ class Asset(db.Model, tb.SensorDBMixin):
         return self.unit
 
     @property
-    def entity_address(self) -> str:
+    def entity_address_fm0(self) -> str:
+        """Entity address under the fm0 scheme for entity addresses."""
         return build_entity_address(
-            dict(owner_id=self.owner_id, asset_id=self.id), "connection"
+            dict(owner_id=self.owner_id, asset_id=self.id),
+            "connection",
+            fm_scheme="fm0",
         )
+
+    @property
+    def entity_address(self) -> str:
+        """Entity address under the latest fm scheme for entity addresses."""
+        return build_entity_address(dict(sensor_id=self.id), "sensor")
 
     @property
     def location(self) -> Tuple[float, float]:

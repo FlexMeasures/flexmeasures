@@ -42,6 +42,8 @@ TODO: This needs to be in the FlexMeasures documentation.
 
 
 ADDR_SCHEME = "ea1"
+FM1_ADDR_SCHEME = "fm1"
+FM0_ADDR_SCHEME = "fm0"
 
 
 class EntityAddressException(Exception):
@@ -63,10 +65,16 @@ def get_host() -> str:
 
 
 def build_entity_address(
-    entity_info: dict, entity_type: str, host: Optional[str] = None
+    entity_info: dict,
+    entity_type: str,
+    host: Optional[str] = None,
+    fm_scheme: str = FM1_ADDR_SCHEME,
 ) -> str:
     """
     Build an entity address.
+
+    fm1 type entity address should use entity_info["sensor_id"]
+    todo: implement entity addresses for actuators with entity_info["actuator_id"] (first ensuring globally unique ids across sensors and actuators)
 
     If the host is not given, it is attempted to be taken from the request.
     entity_info is expected to contain the required fields for the custom string.
@@ -83,10 +91,16 @@ def build_entity_address(
             )
         if field not in entity_info:
             return ""
-        return f":{entity_info[field]}"
+        return f"{entity_info[field]}:"
 
-    if entity_type == "sensor":
+    if fm_scheme == FM1_ADDR_SCHEME:  # and entity_type == "sensor":
         locally_unique_str = f"{build_field('sensor_id')}"
+    # elif fm_scheme == FM1_ADDR_SCHEME and entity_type == "actuator":
+    #     locally_unique_str = f"{build_field('actuator_id')}"
+    elif fm_scheme != FM0_ADDR_SCHEME:
+        raise EntityAddressException(
+            f"Unrecognized FlexMeasures scheme for entity addresses: {fm_scheme}"
+        )
     elif entity_type == "connection":
         locally_unique_str = (
             f"{build_field('owner_id', required=False)}{build_field('asset_id')}"
@@ -99,12 +113,19 @@ def build_entity_address(
         locally_unique_str = f"{build_field('owner_id', required=False)}{build_field('asset_id')}{build_field('event_id')}{build_field('event_type')}"
     else:
         raise EntityAddressException(f"Unrecognized entity type: {entity_type}")
-    return build_ea_scheme_and_naming_authority(host) + locally_unique_str
+    return (
+        build_ea_scheme_and_naming_authority(host)
+        + ":"
+        + fm_scheme
+        + "."
+        + locally_unique_str.rstrip(":")
+    )
 
 
 def parse_entity_address(  # noqa: C901
     entity_address: str,
     entity_type: str,
+    fm_scheme: str = FM1_ADDR_SCHEME,
 ) -> dict:
     """
     Parses a generic asset name into an info dict.
@@ -112,27 +133,37 @@ def parse_entity_address(  # noqa: C901
     The entity_address must be a valid type 1 USEF entity address.
     That is, it must follow the EA1 addressing scheme recommended by USEF.
     In addition, FlexMeasures expects the identifying string to contain information in
-    a certain structure.
+    a certain structure. We distinguish type 0 and type 1 FlexMeasures entity addresses.
 
-    For example:
+    Examples for the fm1 scheme:
 
-        sensor = ea1.2021-01.io.flexmeasures:42
-        sensor = ea1.2021-01.io.flexmeasures:<sensor_id>
-        connection = ea1.2021-01.localhost:40:30
-        connection = ea1.2021-01.io.flexmeasures:<owner_id>:<asset_id>
-        weather_sensor = ea1.2021-01.io.flexmeasures:temperature:52:73.0
-        weather_sensor = ea1.2021-01.io.flexmeasures:<sensor_type>:<latitude>:<longitude>
-        market = ea1.2021-01.io.flexmeasures:epex_da
-        market = ea1.2021-01.io.flexmeasures:<market_name>
-        event = ea1.2021-01.io.flexmeasures:40:30:302:soc
-        event = ea1.2021-01.io.flexmeasures:<owner_id>:<asset_id>:<event_id>:<event_type>
+        sensor = ea1.2021-01.io.flexmeasures:fm1.42
+        sensor = ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
+        connection = ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
+        market = ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
+        weather_station = ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
+        todo: UDI events are not yet modelled in the fm1 scheme, but will probably be ea1.2021-01.io.flexmeasures:fm1.<actuator_id>
+
+    Examples for the fm0 scheme:
+
+        connection = ea1.2021-01.localhost:fm0.40:30
+        connection = ea1.2021-01.io.flexmeasures:fm0.<owner_id>:<asset_id>
+        weather_sensor = ea1.2021-01.io.flexmeasures:fm0.temperature:52:73.0
+        weather_sensor = ea1.2021-01.io.flexmeasures:fm0.<sensor_type>:<latitude>:<longitude>
+        market = ea1.2021-01.io.flexmeasures:fm0.epex_da
+        market = ea1.2021-01.io.flexmeasures:fm0.<market_name>
+        event = ea1.2021-01.io.flexmeasures:fm0.40:30:302:soc
+        event = ea1.2021-01.io.flexmeasures:fm0.<owner_id>:<asset_id>:<event_id>:<event_type>
+
+    For the fm0 scheme, the 'fm0.' part is optional, for backwards compatibility.
 
     Returns a dictionary with scheme, naming_authority and various other fields,
-    depending on the entity type (see examples above).
+    depending on the entity type and FlexMeasures scheme (see examples above).
     Returns None if entity type is unknown or entity_address is not parseable.
     We recommend to `return invalid_domain()` in that case.
     """
-    # we can rigidly test the start
+
+    # Check the scheme and naming authority date
     if not entity_address.startswith(ADDR_SCHEME):
         raise EntityAddressException(
             f"A valid type 1 USEF entity address starts with '{ADDR_SCHEME}', please review {entity_address}"
@@ -142,16 +173,36 @@ def parse_entity_address(  # noqa: C901
         raise EntityAddressException(
             f"After '{ADDR_SCHEME}.', a date specification of the format {date_regex} is expected."
         )
-    # Also the entity type
+
+    # Check the entity type
     if entity_type not in ("sensor", "connection", "weather_sensor", "market", "event"):
         raise EntityAddressException(f"Unrecognized entity type: {entity_type}")
 
-    if entity_type == "sensor":
+    def validate_ea_for_fm_scheme(ea: dict, fm_scheme: str):
+        if "fm_scheme" not in ea:
+            # Backwards compatibility: assume fm0 if fm_scheme is not specified
+            ea["fm_scheme"] = FM0_ADDR_SCHEME
+        scheme = ea["scheme"]
+        naming_authority = ea["naming_authority"]
+        if ea["fm_scheme"] != fm_scheme:
+            raise EntityAddressException(
+                f"A valid type {fm_scheme[2:]} FlexMeasures entity address starts with '{scheme}.{naming_authority}:{fm_scheme}', please review {entity_address}"
+            )
+
+    if fm_scheme == FM1_ADDR_SCHEME:
+
+        # Check the FlexMeasures scheme
+        if entity_address.split(":")[1][: len(fm_scheme) + 1] != FM1_ADDR_SCHEME + ".":
+            raise EntityAddressException(
+                f"A valid type {fm_scheme[2:]} FlexMeasures entity address starts with '{build_ea_scheme_and_naming_authority(get_host())}:{fm_scheme}.', please review {entity_address}"
+            )
+
         match = re.search(
             r"^"
             r"(?P<scheme>.+)\."
             fr"(?P<naming_authority>{date_regex}\.[^:]+)"  # everything until the colon (no port)
             r":"
+            r"((?P<fm_scheme>.+)\.)"
             r"(?P<sensor_id>\d+)"
             r"$",
             entity_address,
@@ -160,15 +211,24 @@ def parse_entity_address(  # noqa: C901
             value_types = {
                 "scheme": str,
                 "naming_authority": str,
+                "fm_scheme": str,
                 "sensor_id": int,
             }
-            return _typed_regex_results(match, value_types)
+        else:
+            raise EntityAddressException(
+                f"Could not parse {entity_type} {entity_address}."
+            )
+    elif fm_scheme != FM0_ADDR_SCHEME:
+        raise EntityAddressException(
+            f"Unrecognized FlexMeasures scheme for entity addresses: {fm_scheme}"
+        )
     elif entity_type == "connection":
         match = re.search(
             r"^"
             r"(?P<scheme>.+)\."
             fr"(?P<naming_authority>{date_regex}\.[^:]+)"  # everything until the colon (no port)
             r":"
+            r"((?P<fm_scheme>.+)\.)*"  # for backwards compatibility, missing fm_scheme is interpreted as fm0
             r"((?P<owner_id>\d+):)*"  # owner id is optional
             r"(?P<asset_id>\d+)"
             r"$",
@@ -181,7 +241,10 @@ def parse_entity_address(  # noqa: C901
                 "owner_id": int,
                 "asset_id": int,
             }
-            return _typed_regex_results(match, value_types)
+        else:
+            raise EntityAddressException(
+                f"Could not parse {entity_type} {entity_address}."
+            )
     elif entity_type == "weather_sensor":
         match = re.search(
             r"^"
@@ -189,6 +252,7 @@ def parse_entity_address(  # noqa: C901
             r"\."
             fr"(?P<naming_authority>{date_regex}\.[^:]+)"
             r":"
+            r"((?P<fm_scheme>.+)\.)*"  # for backwards compatibility, missing fm_scheme is interpreted as fm0
             r"(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w]+)"  # should start with at least one letter
             r":"
             r"(?P<latitude>\-?\d+(\.\d+)?)"
@@ -205,7 +269,10 @@ def parse_entity_address(  # noqa: C901
                 "latitude": float,
                 "longitude": float,
             }
-            return _typed_regex_results(match, value_types)
+        else:
+            raise EntityAddressException(
+                f"Could not parse {entity_type} {entity_address}."
+            )
     elif entity_type == "market":
         match = re.search(
             r"^"
@@ -213,13 +280,17 @@ def parse_entity_address(  # noqa: C901
             r"\."
             fr"(?P<naming_authority>{date_regex}\.[^:]+)"
             r":"
+            r"((?P<fm_scheme>.+)\.)*"  # for backwards compatibility, missing fm_scheme is interpreted as fm0
             r"(?=[a-zA-Z])(?P<market_name>[\w]+)"  # should start with at least one letter
             r"$",
             entity_address,
         )
         if match:
             value_types = {"scheme": str, "naming_authority": str, "market_name": str}
-            return _typed_regex_results(match, value_types)
+        else:
+            raise EntityAddressException(
+                f"Could not parse {entity_type} {entity_address}."
+            )
     elif entity_type == "event":
         match = re.search(
             r"^"
@@ -227,6 +298,7 @@ def parse_entity_address(  # noqa: C901
             r"\."
             fr"(?P<naming_authority>{date_regex}\.[^:]+)"
             r":"
+            r"((?P<fm_scheme>.+)\.)*"  # for backwards compatibility, missing fm_scheme is interpreted as fm0
             r"((?P<owner_id>\d+):)*"  # owner id is optional
             r"(?P<asset_id>\d+)"
             r":"
@@ -245,10 +317,17 @@ def parse_entity_address(  # noqa: C901
                 "event_id": int,
                 "event_type": str,
             }
-            return _typed_regex_results(match, value_types)
+        else:
+            raise EntityAddressException(
+                f"Could not parse {entity_type} {entity_address}."
+            )
+    else:
+        # Finally, we simply raise without precise information what went wrong
+        raise EntityAddressException(f"Could not parse {entity_address}.")
 
-    # Finally, we simply raise without precise information what went wrong
-    raise EntityAddressException(f"Could not parse {entity_address}.")
+    ea = _typed_regex_results(match, value_types)
+    validate_ea_for_fm_scheme(ea, fm_scheme)
+    return ea
 
 
 def build_ea_scheme_and_naming_authority(

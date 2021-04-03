@@ -64,7 +64,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
 
             # Parse the entity address
             try:
-                ea = parse_entity_address(event, entity_type="event")
+                ea = parse_entity_address(event, entity_type="event", fm_scheme="fm0")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
             asset_id = ea["asset_id"]
@@ -155,7 +155,9 @@ def post_udi_event_response(unit):  # noqa: C901
     if "event" not in form:
         return invalid_domain("No event identifier sent.")
     try:
-        ea = parse_entity_address(form.get("event"), entity_type="event")
+        ea = parse_entity_address(
+            form.get("event"), entity_type="event", fm_scheme="fm0"
+        )
     except EntityAddressException as eae:
         return invalid_domain(str(eae))
 

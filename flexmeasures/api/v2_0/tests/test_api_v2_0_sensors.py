@@ -3,7 +3,7 @@ import pytest
 from datetime import timedelta
 from iso8601 import parse_date
 
-from flexmeasures.api.common.utils.api_utils import get_generic_asset
+from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v2_0.tests.utils import (
     message_for_post_price_data,
@@ -38,7 +38,7 @@ def test_post_price_data_2_0(db, app, post_message):
         assert post_price_data_response.json["type"] == "PostPriceDataResponse"
 
     verify_sensor_data_in_db(
-        post_message, post_message["values"], db, entity_type="market"
+        post_message, post_message["values"], db, entity_type="market", fm_scheme="fm1"
     )
 
     # look for Forecasting jobs in queue
@@ -47,7 +47,7 @@ def test_post_price_data_2_0(db, app, post_message):
     )  # only one market is affected, but two horizons
     horizons = [timedelta(hours=24), timedelta(hours=48)]
     jobs = sorted(app.queues["forecasting"].jobs, key=lambda x: x.kwargs["horizon"])
-    market = get_generic_asset(post_message["market"], "market")
+    market = SensorField("market", fm_scheme="fm1").deserialize(post_message["market"])
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
@@ -56,12 +56,12 @@ def test_post_price_data_2_0(db, app, post_message):
 
 
 @pytest.mark.parametrize(
-    "post_message",
+    "post_message, fm_scheme",
     [
-        message_for_post_prognosis(),
+        (message_for_post_prognosis(), "fm1"),
     ],
 )
-def test_post_prognosis(db, app, post_message):
+def test_post_prognosis_2_0(db, app, post_message, fm_scheme):
     with app.test_client() as client:
         # post price data
         auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
@@ -79,5 +79,6 @@ def test_post_prognosis(db, app, post_message):
         post_message["values"],
         db,
         entity_type="connection",
+        fm_scheme=fm_scheme,
         swapped_sign=True,
     )

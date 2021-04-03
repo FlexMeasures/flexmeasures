@@ -82,7 +82,8 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
         self.name = self.name.replace(" ", "_").lower()
 
     @property
-    def entity_address(self) -> str:
+    def entity_address_fm0(self) -> str:
+        """Entity address under the fm0 scheme for entity addresses."""
         return build_entity_address(
             dict(
                 weather_sensor_type_name=self.weather_sensor_type_name,
@@ -90,6 +91,15 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
                 longitude=self.longitude,
             ),
             "weather_sensor",
+            fm_scheme="fm0",
+        )
+
+    @property
+    def entity_address(self) -> str:
+        """Entity address under the latest fm scheme for entity addresses."""
+        return build_entity_address(
+            dict(sensor_id=self.id),
+            "sensor",
         )
 
     @property

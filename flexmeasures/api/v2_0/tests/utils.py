@@ -5,9 +5,10 @@ from isodate import duration_isoformat, parse_duration, parse_datetime
 import pandas as pd
 import timely_beliefs as tb
 
-from flexmeasures.api.common.utils.api_utils import get_generic_asset
+from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.v1_1.tests.utils import (
@@ -58,6 +59,7 @@ def message_for_post_price_data(
         duration=duration,
         invalid_unit=invalid_unit,
     )
+    message["market"] = "ea1.2018-06.localhost:fm1.1"
     message["horizon"] = duration_isoformat(timedelta(hours=0))
     if no_horizon or prior_instead_of_horizon:
         message.pop("horizon", None)
@@ -67,10 +69,18 @@ def message_for_post_price_data(
 
 
 def verify_sensor_data_in_db(
-    post_message, values, db, entity_type: str, swapped_sign: bool = False
+    post_message,
+    values,
+    db,
+    entity_type: str,
+    fm_scheme: str,
+    swapped_sign: bool = False,
 ):
     """util method to verify that sensor data ended up in the database"""
-    if entity_type == "connection":
+    if entity_type == "sensor":
+        sensor_type = Sensor
+        data_type = TimedBelief
+    elif entity_type == "connection":
         sensor_type = Asset
         data_type = Power
     elif entity_type == "market":
@@ -84,9 +94,9 @@ def verify_sensor_data_in_db(
 
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
-    sensor: Union[Asset, Market, WeatherSensor] = get_generic_asset(
-        post_message[entity_type], entity_type
-    )
+    sensor: Union[Sensor, Asset, Market, WeatherSensor] = SensorField(
+        entity_type, fm_scheme
+    ).deserialize(post_message[entity_type])
     resolution = sensor.event_resolution
     if "horizon" in post_message:
         horizon = parse_duration(post_message["horizon"])
@@ -133,10 +143,10 @@ def verify_sensor_data_in_db(
     assert bdf["event_value"].tolist() == values
 
 
-def message_for_post_prognosis():
+def message_for_post_prognosis(fm_scheme: str = "fm1"):
     message = {
         "type": "PostPrognosisRequest",
-        "connection": "ea1.2018-06.localhost:1:2",
+        "connection": f"ea1.2018-06.localhost:{fm_scheme}.2",
         "values": [300, 300, 300, 0, 0, 300],
         "start": "2021-01-01T00:00:00Z",
         "duration": "PT1H30M",

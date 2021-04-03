@@ -21,6 +21,7 @@
                         <th class="text-right">Asset id</th>
                         <th class="text-right">Owner id</th>
                         <th class="text-right no-sort">Entity address</th>
+                        <th class="text-right no-sort">Old entity address (API v1)</th>
                         <th class="text-right no-sort">
                             {% if user_is_admin %}
                             <form action="/assets/new" method="get">
@@ -56,6 +57,9 @@
                         </td>
                         <td class="text-right">
                             {{ asset.entity_address }}
+                        </td>
+                        <td class="text-right">
+                            {{ asset.entity_address_fm0 }}
                         </td>
                         <td class="text-right">
                             <form action="../../analytics" method="get">

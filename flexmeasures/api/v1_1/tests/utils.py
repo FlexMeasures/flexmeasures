@@ -6,7 +6,7 @@ from isodate import duration_isoformat, parse_duration, parse_datetime
 import pandas as pd
 from numpy import tile
 
-from flexmeasures.api.common.utils.api_utils import get_generic_asset
+from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.data.models.markets import Market, Price
 
 
@@ -149,7 +149,7 @@ def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
     horizon = parse_duration(post_message["horizon"])
-    market: Market = get_generic_asset(post_message["market"], "market")
+    market = SensorField("market", "fm0").deserialize(post_message["market"])
     resolution = market.event_resolution
     query = (
         db.session.query(Price.value, Price.horizon)

@@ -66,7 +66,7 @@ def get_connection_response():
 @optional_horizon_accepted(accept_repeating_interval=True)
 @values_required
 @period_required
-@post_data_checked_for_required_resolution("market")
+@post_data_checked_for_required_resolution("market", "fm0")
 def post_price_data_response(
     unit,
     generic_asset_name_groups,
@@ -88,7 +88,7 @@ def post_price_data_response(
 
             # Parse the entity address
             try:
-                ea = parse_entity_address(market, entity_type="market")
+                ea = parse_entity_address(market, entity_type="market", fm_scheme="fm0")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
             market_name = ea["market_name"]
@@ -141,7 +141,7 @@ def post_price_data_response(
 @optional_horizon_accepted(accept_repeating_interval=True)
 @values_required
 @period_required
-@post_data_checked_for_required_resolution("weather_sensor")
+@post_data_checked_for_required_resolution("weather_sensor", "fm0")
 def post_weather_data_response(  # noqa: C901
     unit,
     generic_asset_name_groups,
@@ -163,7 +163,9 @@ def post_weather_data_response(  # noqa: C901
 
             # Parse the entity address
             try:
-                ea = parse_entity_address(sensor, entity_type="weather_sensor")
+                ea = parse_entity_address(
+                    sensor, entity_type="weather_sensor", fm_scheme="fm0"
+                )
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
             weather_sensor_type_name = ea["weather_sensor_type_name"]
@@ -228,7 +230,7 @@ def post_weather_data_response(  # noqa: C901
 @optional_horizon_accepted(infer_missing=False, accept_repeating_interval=True)
 @optional_prior_accepted(infer_missing=False)
 @period_required
-@get_data_downsampling_allowed("connection")
+@get_data_downsampling_allowed("connection", "fm0")
 @as_json
 def get_prognosis_response(
     unit,
@@ -269,7 +271,7 @@ def get_prognosis_response(
 @values_required
 @optional_horizon_accepted(ex_post=False, accept_repeating_interval=True)
 @period_required
-@post_data_checked_for_required_resolution("connection")
+@post_data_checked_for_required_resolution("connection", "fm0")
 @as_json
 def post_prognosis_response(
     unit,
