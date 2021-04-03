@@ -48,6 +48,20 @@ class EntityAddressException(Exception):
     pass
 
 
+def get_host() -> str:
+    """Get host from the context of the request.
+
+    Strips off www. but keeps subdomains.
+    Can be localhost, too.
+    """
+    if has_request_context():
+        host = urlparse(request.url).netloc.lstrip("www.")
+        if host[:9] != "127.0.0.1":
+            return host
+    # Assume localhost (for CLI/tests/simulations)
+    return "localhost"
+
+
 def build_entity_address(
     entity_info: dict, entity_type: str, host: Optional[str] = None
 ) -> str:
@@ -60,11 +74,7 @@ def build_entity_address(
     Returns the address as string.
     """
     if host is None:
-        if has_request_context():
-            host = urlparse(request.url).netloc
-        else:
-            # Assume localhost (for CLI/tests/simulations)
-            host = "localhost"
+        host = get_host()
 
     def build_field(field: str, required: bool = True):
         if required and field not in entity_info:
