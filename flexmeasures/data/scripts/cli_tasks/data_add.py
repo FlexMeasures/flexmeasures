@@ -255,26 +255,21 @@ def add_beliefs(
         print("SETTING UP CLI SCRIPT AS NEW DATA SOURCE...")
         source = DataSource(name="Seita", type="CLI script")
         db.session.add(source)
-    if horizon is not None:
-        bdf = tb.read_csv(
-            file,
-            sensor,
-            source,
-            belief_horizon=timedelta(minutes=horizon),
-            cumulative_probability=cp,
-            parse_dates=True,
-            infer_datetime_format=True,
-        )
-    else:
-        bdf = tb.read_csv(
-            file,
-            sensor,
-            source,
-            belief_time=server_now().astimezone(pytz.timezone(sensor.timezone)),
-            cumulative_probability=cp,
-            parse_dates=True,
-            infer_datetime_format=True,
-        )
+    bdf = tb.read_csv(
+        file,
+        sensor,
+        source=source,
+        cumulative_probability=cp,
+        parse_dates=True,
+        infer_datetime_format=True,
+        **(
+            dict(belief_horizon=timedelta(minutes=horizon))
+            if horizon is not None
+            else dict(
+                belief_time=server_now().astimezone(pytz.timezone(sensor.timezone))
+            )
+        ),
+    )
     TimedBelief.add(bdf, commit_transaction=False)
     db.session.commit()
     print(f"Successfully created beliefs\n{bdf}")
