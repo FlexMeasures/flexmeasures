@@ -272,7 +272,7 @@ def add_beliefs(
             )
         ),
     )
-    TimedBelief.add(bdf, commit_transaction=False)
+    TimedBelief.add(bdf, allow_overwrite=True, commit_transaction=False)
     db.session.commit()
     print(f"Successfully created beliefs\n{bdf}")
 

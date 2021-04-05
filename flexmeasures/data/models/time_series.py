@@ -110,7 +110,12 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         )
 
     @classmethod
-    def add(cls, bdf: tb.BeliefsDataFrame, commit_transaction: bool = True):
+    def add(
+        cls,
+        bdf: tb.BeliefsDataFrame,
+        allow_overwrite: bool = False,
+        commit_transaction: bool = True,
+    ):
         """Add a BeliefsDataFrame as timed beliefs in the database.
 
         :param bdf: the BeliefsDataFrame to be persisted
@@ -121,6 +126,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         return cls.add_to_session(
             session=db.session,
             beliefs_data_frame=bdf,
+            allow_overwrite=allow_overwrite,
             commit_transaction=commit_transaction,
         )
 
