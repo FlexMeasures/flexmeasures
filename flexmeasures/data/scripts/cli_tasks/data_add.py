@@ -218,7 +218,7 @@ def add_initial_structure():
     "--horizon",
     required=False,
     type=click.IntRange(),
-    help="Belief horizon in minutes (use postive horizon for ex-ante beliefs or negative horizon for ex-post beliefs).",
+    help="Belief horizon in minutes (use positive horizon for ex-ante beliefs or negative horizon for ex-post beliefs).",
 )
 @click.option(
     "--cp",
@@ -244,6 +244,8 @@ def add_beliefs(
         2020-12-03 14:10,215.6
         2020-12-03 14:20,203.8
 
+    In case no --horizon is specified, the moment of executing this CLI command is taken
+    as the time at which the beliefs were recorded.
     """
     sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
     source = (
