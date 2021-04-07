@@ -3,26 +3,44 @@
 
 {# Front-end app naming #}
 
-{% set show_queues = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
-
 
 {# Front-end menu, as columns with href, id, caption, and (fa fa-)icon #}
 
-{% set navigation_bar = [
-    ('dashboard', 'dashboard', 'Dashboard', 'dashboard'),
-    ('assets', 'assets', 'Assets', 'list-ul'),
-] if current_user.is_authenticated else [] %}
-{% do navigation_bar.append(('users', 'users', 'Users', 'users')) if current_user.has_role('admin') %}
-{% do navigation_bar.extend([
+{% set navigation_bar = [] %}
+
+{% do navigation_bar.append(
+    ('dashboard', 'dashboard', 'Dashboard', 'dashboard')
+) if current_user.is_authenticated and 'dashboard' in FLEXMEASURES_AVAILABLE_VIEWS %}
+
+{% do navigation_bar.append(
+    ('assets', 'assets', 'Assets', 'list-ul')
+) if current_user.is_authenticated and 'assets' in FLEXMEASURES_AVAILABLE_VIEWS %}
+
+{% do navigation_bar.append(
+    ('users', 'users', 'Users', 'users')
+) if current_user.is_authenticated and 'users' in FLEXMEASURES_AVAILABLE_VIEWS %}
+
+{% do navigation_bar.append(
     ('portfolio', 'portfolio', 'Portfolio overview', 'briefcase'),
+) if current_user.is_authenticated and 'portfolio' in FLEXMEASURES_AVAILABLE_VIEWS %}
+
+{% do navigation_bar.append(
     ('analytics', 'analytics', 'Analytics', 'bar-chart'),
+) if current_user.is_authenticated and 'analytics' in FLEXMEASURES_AVAILABLE_VIEWS %}
+
+{% do navigation_bar.append(
     ('upload', 'upload', 'Upload data', 'cloud-upload'),
-]) if current_user.is_authenticated %}
-{% do navigation_bar.extend([
+) if current_user.is_authenticated and 'upload' in FLEXMEASURES_AVAILABLE_VIEWS %}
+
+{% do navigation_bar.append(
     ('control', 'control', 'Flexibility actions', 'wrench'),
-]) if FLEXMEASURES_SHOW_CONTROL_UI and current_user.is_authenticated %}
+) if current_user.is_authenticated and 'control' in FLEXMEASURES_AVAILABLE_VIEWS %}
+
+{% set show_queues = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
 {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', 'tasks')) if show_queues %}
+
 {% do navigation_bar.append(('account', 'account', '', 'user')) if current_user.is_authenticated %}
+
 {% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists and current_user.is_authenticated %}
 
 {% set active_page = active_page|default('dashboard') -%}
