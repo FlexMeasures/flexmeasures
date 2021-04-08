@@ -15,6 +15,7 @@ Recommended settings (e.g. mail, redis) are marked by one star (*).
 * in the user's home directory (e.g. ``~/.flexmeasures.cfg`` on Unix). In this case, note the dot at the beginning of the filename!
 * in the app's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``.
 
+
 Basic functionality
 -------------------
 
@@ -51,6 +52,17 @@ and the first month when the domain was under the current owner's administration
 
 Default: ``{"flexmeasures.io": "2021-01"}``
 
+
+.. _plugin-config:
+
+FLEXMEASURES_PLUGIN_PATH
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Absolute path to a blueprint-based plugin for FlexMeasures (e.g. for custom views or CLI functions). See :ref:`plugins` on what is expected for content.
+
+Default: ``""``
+
+
 FLEXMEASURES_DB_BACKUP_PATH
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -64,6 +76,7 @@ FLEXMEASURES_PROFILE_REQUESTS
 Whether to turn on a feature which times requests made through FlexMeasures. Interesting for developers.
 
 Default: ``False``
+
 
 UI
 --
@@ -89,6 +102,7 @@ Interval in which viewing the queues dashboard refreshes itself, in milliseconds
 
 Default: ``3000`` (3 seconds) 
 
+
 Timing
 ------
 
@@ -112,6 +126,7 @@ FLEXMEASURES_PLANNING_HORIZON
 The horizon to use when making schedules.
 
 Default: ``timedelta(hours=2 * 24)``
+
 
 Tokens
 ------
@@ -144,6 +159,7 @@ Token which external services can use to check on the status of recurring tasks 
 
 Default: ``None``
 
+
 SQLAlchemy
 ----------
 
@@ -171,6 +187,7 @@ Default:
            "pool_pre_ping": True,
            "connect_args": {"options": "-c timezone=utc"},
        }
+
 
 Security
 --------
@@ -242,6 +259,7 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 .. note::  This option cannot be used in conjunction with a “*” origin.
 
 Default: ``True``
+
 
 
 .. _mail-config:
@@ -363,6 +381,9 @@ When ``FLEXMEASURES_MODE=demo``\ , this setting can be used to make the FlexMeas
 so that old imported data can be demoed as if it were current
 
 Default: ``None``
+
+
+.. _menu-config:
 
 FLEXMEASURES_LISTED_VIEWS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

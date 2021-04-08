@@ -58,7 +58,7 @@ def set_secret_key(app, filename="secret_key"):
 
         You can also use Python to create a good secret:
 
-        python -c "import secrets; app.logger.debug(secrets.token_urlsafe())"
+        python -c "import secrets; print(secrets.token_urlsafe())"
 
         """
             % (os.path.dirname(filename), filename)
@@ -67,9 +67,9 @@ def set_secret_key(app, filename="secret_key"):
         sys.exit(2)
 
 
-def register_plugins(app: Flask):
+def register_plugin(app: Flask):
     """
-    Register FlexMeasures plugins as Blueprints.
+    Register a FlexMeasures plugin as Blueprint.
 
     Assumptions:
     - We'll use the name of your plugin folder as the name.
