@@ -364,10 +364,10 @@ so that old imported data can be demoed as if it were current
 
 Default: ``None``
 
-FLEXMEASURES_AVAILABLE_VIEWS
+FLEXMEASURES_LISTED_VIEWS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A list of the views which is available in the menu.
+A list of the views which are listed in the menu.
 
 .. note:: This setting is likely to be deprecated soon, as we might want to control it per account (once we implemented a multi-tenant data model per FlexMeasures server).
 

@@ -10,31 +10,31 @@
 
 {% do navigation_bar.append(
     ('dashboard', 'dashboard', 'Dashboard', 'dashboard')
-) if current_user.is_authenticated and 'dashboard' in FLEXMEASURES_AVAILABLE_VIEWS %}
+) if current_user.is_authenticated and 'dashboard' in FLEXMEASURES_LISTED_VIEWS %}
 
 {% do navigation_bar.append(
     ('assets', 'assets', 'Assets', 'list-ul')
-) if current_user.is_authenticated and 'assets' in FLEXMEASURES_AVAILABLE_VIEWS %}
+) if current_user.is_authenticated and 'assets' in FLEXMEASURES_LISTED_VIEWS %}
 
 {% do navigation_bar.append(
     ('users', 'users', 'Users', 'users')
-) if current_user.is_authenticated and 'users' in FLEXMEASURES_AVAILABLE_VIEWS %}
+) if current_user.is_authenticated and 'users' in FLEXMEASURES_LISTED_VIEWS %}
 
 {% do navigation_bar.append(
     ('portfolio', 'portfolio', 'Portfolio overview', 'briefcase'),
-) if current_user.is_authenticated and 'portfolio' in FLEXMEASURES_AVAILABLE_VIEWS %}
+) if current_user.is_authenticated and 'portfolio' in FLEXMEASURES_LISTED_VIEWS %}
 
 {% do navigation_bar.append(
     ('analytics', 'analytics', 'Analytics', 'bar-chart'),
-) if current_user.is_authenticated and 'analytics' in FLEXMEASURES_AVAILABLE_VIEWS %}
+) if current_user.is_authenticated and 'analytics' in FLEXMEASURES_LISTED_VIEWS %}
 
 {% do navigation_bar.append(
     ('upload', 'upload', 'Upload data', 'cloud-upload'),
-) if current_user.is_authenticated and 'upload' in FLEXMEASURES_AVAILABLE_VIEWS %}
+) if current_user.is_authenticated and 'upload' in FLEXMEASURES_LISTED_VIEWS %}
 
 {% do navigation_bar.append(
     ('control', 'control', 'Flexibility actions', 'wrench'),
-) if current_user.is_authenticated and 'control' in FLEXMEASURES_AVAILABLE_VIEWS %}
+) if current_user.is_authenticated and 'control' in FLEXMEASURES_LISTED_VIEWS %}
 
 {% set show_queues = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
 {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', 'tasks')) if show_queues %}

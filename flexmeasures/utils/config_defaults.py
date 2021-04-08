@@ -88,7 +88,7 @@ class Config(object):
     FLEXMEASURES_PLUGIN_PATH: Optional[str] = None
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
-    FLEXMEASURES_AVAILABLE_VIEWS: List[str] = [
+    FLEXMEASURES_LISTED_VIEWS: List[str] = [
         "dashboard",
         "analytics",
         "portfolio",

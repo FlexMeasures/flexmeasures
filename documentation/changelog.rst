@@ -9,7 +9,7 @@ v0.3.1 | April XX, 2021
 New features
 -----------
 * Add sensors with CLI command [see `PR #83 <https://github.com/SeitaBV/flexmeasures/pull/83>`_]
-* Configure views with ``FLEXMEASURES_AVAILABLE_VIEWS`` [see `PR #XX <https://github.com/SeitaBV/flexmeasures/pull/XX>`_]
+* Configure views with ``FLEXMEASURES_LISTED_VIEWS`` [see `PR #91 <https://github.com/SeitaBV/flexmeasures/pull/91>`_]
 
 
 Infrastructure / Support
