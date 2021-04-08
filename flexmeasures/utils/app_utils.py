@@ -1,7 +1,9 @@
 import os
 import sys
+import importlib.util
 
 import click
+from flask import Flask
 from flask.cli import FlaskGroup
 
 from flexmeasures.app import create as create_app
@@ -36,7 +38,7 @@ def set_secret_key(app, filename="secret_key"):
     try:
         app.config["SECRET_KEY"] = open(filename, "rb").read()
     except IOError:
-        print(
+        app.logger.error(
             """
         Error:  No secret key set.
 
@@ -56,10 +58,42 @@ def set_secret_key(app, filename="secret_key"):
 
         You can also use Python to create a good secret:
 
-        python -c "import secrets; print(secrets.token_urlsafe())"
+        python -c "import secrets; app.logger.debug(secrets.token_urlsafe())"
 
         """
             % (os.path.dirname(filename), filename)
         )
 
         sys.exit(2)
+
+
+def register_plugins(app: Flask):
+    """
+    Register FlexMeasures plugins as Blueprints.
+
+    Assumptions:
+    - We'll use the name of your plugin folder as the name.
+    - Your plugin folder contains an 'fmplugin' folder with an __init__.py file.
+    - In this init, you define a Blueprint object called <plugin folder>_bp
+
+    TODO: Support multiple plugins.
+    """
+    plugin_path = app.config.get("FLEXMEASURES_PLUGIN_PATH", "")
+    if plugin_path:
+        bp_dir = os.path.join(plugin_path, "fmplugin")
+        plugin_name = plugin_path.split("/")[-1]
+        if not os.path.exists(bp_dir):
+            app.logger.warning(
+                f"Plugin {plugin_name} does not contain an 'fmplugin' folder ({bp_dir} does not exist)"
+            )
+            return
+        app.logger.debug(f"Importing plugin {plugin_name} ...")
+        spec = importlib.util.spec_from_file_location(
+            plugin_name, os.path.join(bp_dir, "__init__.py")
+        )
+        app.logger.debug(spec)
+        module = importlib.util.module_from_spec(spec)
+        app.logger.debug(module)
+        sys.modules[plugin_name] = module
+        spec.loader.exec_module(module)
+        app.register_blueprint(getattr(module, f"{plugin_name}_bp"))
