@@ -17,6 +17,7 @@ Install dependencies and the ``flexmeasures`` platform itself:
 
    pip install flexmeasures
 
+.. note:: With newer Python versions and Windows, some smaller dependencies (e.g. ``tables`` or ``rq-win``) might cause issues as support is often slower. You might overcome this with a little research, by `installing from wheels <http://www.pytables.org/usersguide/installation.html#prerequisitesbininst>`_ or `from the repo <https://github.com/michaelbrooks/rq-win#installation-and-use>`_, respectively.
 
 
 Make a secret key for sessions and password salts
@@ -217,7 +218,7 @@ To collect weather measurements and forecasts from the DarkSky API, there is a t
 
    flexmeasures add external-weather-forecasts --location 33.4366,126.5269 --store-in-db 
 
-.. note::  DarkSky is not handing out tokens anymore, as they have been bought by Apple (see `issue 3 <https://github.com/SeitaBV/flexmeasures/issues/56>`_).
+.. note::  DarkSky is not handing out tokens any more, as they have been bought by Apple (see `issue 3 <https://github.com/SeitaBV/flexmeasures/issues/56>`_).
 
 
 Preparing the job queue database and start workers
