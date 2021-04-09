@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>FlexMeasures</title>
+    <meta charset="utf-8">
+
+    <script src="//code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js">script></script>
+
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.17.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/mobilefriendly.js"></script>
+  </head>
+  <body>
+
+      <div class="charts text-center">
+          <div class="row"><div class="alert alert-info" id="tzwarn" style="display:none;"></div></div>
+          <div class="row"><div id="datepicker"></div></div>
+          <div class="row"><div id="sensorchart"></div></div><hr>
+      </div>
+
+    <!-- Render Charts -->
+    <script type="text/javascript">
+
+      let vegaView;
+
+      async function embedAndLoad(chartSpecsPath, elementId) {
+        var opt = {
+          mode: 'vega-lite',
+          renderer: 'svg',
+          actions: {export: true, source: true, editor: true},
+        };
+
+        await vegaEmbed('#'+elementId, chartSpecsPath, opt)
+        .then(function (result) {
+          // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
+          vegaView = result.view;
+        });
+      }
+
+      // Date range utils
+      function subtract(oldDate, nDays) {
+        newDate = new Date(oldDate)
+        newDate.setDate(newDate.getDate() - nDays);
+        return newDate;
+      }
+      function thisMonth(oldDate) {
+        d1 = new Date(oldDate)
+        d1.setDate(1);
+        d2 = new Date(d1.getFullYear(), d1.getMonth() + 1, 0);
+
+        return [d1, d2];
+      };
+      function lastNMonths(oldDate, nMonths) {
+        d0 = new Date(oldDate)
+        d1 = new Date(d0.getFullYear(), d0.getMonth() - nMonths + 2, 0);
+        d1.setDate(1);
+        d2 = new Date(d0.getFullYear(), d0.getMonth() + 1, 0);
+        return [d1, d2];
+      };
+
+      var sensorId = {{ sensor_id }}
+      sensorPath = '/sensors/' + sensorId
+      chartSpecsPath = sensorPath + '/chart'
+      elementId = 'sensorchart'
+      embedAndLoad(chartSpecsPath, elementId);
+
+      const date = Date();
+      const picker = new Litepicker({
+          element: document.getElementById('datepicker'),
+          plugins: ['ranges', 'keyboardnav', 'mobilefriendly'],
+          ranges: {
+              customRanges: {
+              'Today': [new Date(date), new Date(date)],
+              'Yesterday': [subtract(date, 1), subtract(date, 1)],
+              'Last 2 days': [subtract(date, 1), new Date(date)],
+              'Last 7 days': [subtract(date, 6), new Date(date)],
+              'Last 30 days': [subtract(date, 29), new Date(date)],
+              'This month': thisMonth(date),
+              'Last 2 months': lastNMonths(date, 2),
+              }
+          },
+          autoRefresh: true,
+          moduleRanges: true,
+          showWeekNumbers: true,
+          numberOfMonths: 2,
+          numberOfColumns: 2,
+          inlineMode: true,
+          switchingMonths: 2,
+          singleMode: false,
+          dropdowns: {
+              years: true,
+              months: true,
+          },
+          format: 'YYYY-MM-DD\\T00:00:00',
+      });
+      picker.on('selected', (startDate, endDate) => {
+          startDate = startDate.toJSDate()
+          endDate = endDate.toJSDate()
+          endDate.setDate(endDate.getDate() + 1);
+          queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
+          queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
+          $.getJSON( sensorPath + '/chart', {
+            data_only: true,
+            chart_only: false,
+            events_not_before: queryStartDate,
+            events_before: queryEndDate,
+          }, function( data ) {
+            vegaView.change('my_dataset', vega.changeset().remove(vega.truthy).insert(data)).resize().run();
+          });
+      });
+
+      $.fn.multiline = function(text){
+          this.text(text);
+          this.html(this.html().replace(/\n/g,'<br/>'));
+          return this;
+      }
+
+      $(document).ready(function () {
+        $.getJSON( sensorPath + '/timezone', {
+        }, function( data ) {
+          if (data.timezone != jstz.determine().name()) {
+            $('#tzwarn').show().multiline('Please note that the sensor data you are viewing is located in a different timezone.\nTo view the data from a local perspective, set your locale timezone to ' + data.timezone + '.');
+          }
+        });
+        $.getJSON( sensorPath + '/timerange', {
+        }, function( data ) {
+          start = new Date(data.timerange.start);
+          end = new Date(data.timerange.end)
+          end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+          start.setHours(0,0,0,0) // get start of first day
+          end.setHours(0,0,0,0) // get start of last day
+
+          // Initialize picker to the last 2 days of sensor data
+          nearEnd = new Date(end)//.setDate(end.getDate() - 1)
+          nearEnd.setDate(nearEnd.getDate() - 1)
+          picker.setDateRange(
+              nearEnd,
+              end,
+          )
+
+          // No use looking for data in years outside timerange of sensor data
+          picker.setOptions({
+            dropdowns: {
+                minYear: start.getFullYear(),
+                maxYear: end.getFullYear(),
+            },
+          });
+        });
+      });
+
+    </script>
+
+  </body>
+</html>

@@ -62,3 +62,16 @@ class DurationField(fields.Str):
             )
             return (pd.Timestamp(start) + offset).to_pydatetime() - start
         return duration
+
+
+class AwareDateTimeField(fields.AwareDateTime):
+    """Field that deserializes to a timezone aware datetime
+    and serializes back to a string."""
+
+    def _deserialize(self, value: str, attr, obj, **kwargs) -> datetime:
+        """
+        Work-around until this PR lands:
+        https://github.com/marshmallow-code/marshmallow/pull/1787
+        """
+        value = value.replace(" ", "+")
+        return fields.AwareDateTime._deserialize(self, value, attr, obj, **kwargs)

@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional, Union, Tuple
 from datetime import datetime as datetime_type, timedelta
+import json
 
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
@@ -17,6 +18,7 @@ from flexmeasures.data.queries.utils import (
     exclude_source_type_filter,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
+from flexmeasures.utils.time_utils import server_now
 
 
 class Sensor(db.Model, tb.SensorDBMixin):
@@ -50,6 +52,83 @@ class Sensor(db.Model, tb.SensorDBMixin):
             belief_time_window=belief_time_window,
             source=source,
         )
+
+    def chart(
+        self,
+        events_not_before: Optional[datetime_type] = None,
+        events_before: Optional[datetime_type] = None,
+        belief_start: Optional[datetime_type] = None,
+        belief_end: Optional[datetime_type] = None,
+        source: Optional[Union[int, List[int], str, List[str]]] = None,
+        data_only: bool = False,
+        chart_only: bool = True,
+        as_html: bool = False,
+    ) -> str:
+        """
+
+        :param data_only: return just the data (in case you have the chart specs already)
+        :param as_html: todo: allow returning as standalone html
+        """
+        bdf = self.search_beliefs(
+            (events_not_before, events_before), (belief_start, belief_end), source
+        )
+
+        bar_chart = {
+            "description": "A simple bar chart.",
+            "data": {"name": "my_dataset"},
+            "mark": "bar",
+            "encoding": {
+                "x": {"field": "event_start", "type": "T"},
+                "y": {"field": "event_value", "type": "quantitative"},
+                "tooltip": [
+                    # {"field": "full_date", "title": "Time and date", "type": "nominal"},
+                    {
+                        "field": "event_value",
+                        "title": "Consumption rate",
+                        "type": "quantitative",
+                    },
+                ],
+            },
+        }
+        if chart_only:
+            return json.dumps(bar_chart)
+
+        if data_only:
+            df = bdf.reset_index()
+            df["source"] = df["source"].apply(lambda x: x.name)
+            return df.to_json(orient="records")
+        df = bdf.reset_index()
+        df["source"] = df["source"].apply(lambda x: x.name)
+        bar_chart["datasets"] = dict(my_dataset=json.loads(self.chart(data_only=True)))
+        return json.dumps(bar_chart)
+
+    @property
+    def timerange(self) -> Dict[str, datetime_type]:
+        """Timerange for which sensor data exists.
+
+        :returns: dictionary with start and end, for example:
+                  {
+                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                  }
+        """
+        least_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor == self)
+            .order_by(TimedBelief.event_start.asc())
+            .limit(1)
+        )
+        most_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor == self)
+            .order_by(TimedBelief.event_start.desc())
+            .limit(1)
+        )
+        results = least_recent_query.union_all(most_recent_query).all()
+        if not results:
+            # return now in case there is no data for the sensor
+            now = server_now()
+            return dict(start=now, end=now)
+        least_recent, most_recent = results
+        return dict(start=least_recent.event_start, end=most_recent.event_end)
 
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}>"
