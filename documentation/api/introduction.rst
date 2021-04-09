@@ -257,7 +257,9 @@ In case of a single group of connections, the message may be flattened to:
 Timeseries
 ^^^^^^^^^^
 
-Timestamps and durations are consistent with the ISO 8601 standard. All timestamps in requests to the API must be timezone-aware. The timezone indication "Z" indicates a zero offset from UTC. Additionally, we use the following shorthand for sequential values within a time interval:
+Timestamps and durations are consistent with the ISO 8601 standard. The resolution of the data is implicit, see :ref:`resolutions`.
+
+All timestamps in requests to the API must be timezone-aware. The timezone indication "Z" indicates a zero offset from UTC. Additionally, we use the following shorthand for sequential values within a time interval:
 
 .. code-block:: json
 
@@ -405,8 +407,9 @@ This denotes that the prognosed interval has 5 minutes left to be concluded.
 Resolutions
 ^^^^^^^^^^^
 
-Specifying a resolution is redundant for POST requests that contain both "values" and a "duration".
-Also, posted data is checked against the required resolution of the assets which are posted to.
+Specifying a resolution is redundant for POST requests that contain both "values" and a "duration" ― FlexMeasures computes the resolution by dividing the duration by the number of values.
+
+When POSTing data, FlexMeasures checks this computed resolution against the required resolution of the assets which are posted to. If these can't be matched (through upsampling), an error will occur.
 
 GET requests (such as *getMeterData*) return data in the resolution which the sensor is configured for.
 A "resolution" may be specified explicitly to obtain the data in downsampled form, 
