@@ -2,6 +2,7 @@ from typing import List, Dict, Optional, Union, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
 
+from altair.utils.html import spec_to_html
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
@@ -18,7 +19,9 @@ from flexmeasures.data.queries.utils import (
     exclude_source_type_filter,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
+from flexmeasures.ui.charts import belief_charts_mapping
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 class Sensor(db.Model, tb.SensorDBMixin):
@@ -60,47 +63,54 @@ class Sensor(db.Model, tb.SensorDBMixin):
         belief_start: Optional[datetime_type] = None,
         belief_end: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
+        chart_type: str = "bar_chart",
         data_only: bool = False,
         chart_only: bool = True,
         as_html: bool = False,
+        dataset_name: Optional[str] = None,
+        **kwargs,
     ) -> str:
         """
 
         :param data_only: return just the data (in case you have the chart specs already)
-        :param as_html: todo: allow returning as standalone html
+        :param as_html: return the chart with data as a standalone html
         """
+        if dataset_name is None:
+            dataset_name = "sensor_" + str(self.id)
         bdf = self.search_beliefs(
             (events_not_before, events_before), (belief_start, belief_end), source
         )
+        self.sensor_type = (
+            self.name
+        )  # todo remove this placeholder when sensor types are modelled
+        chart = belief_charts_mapping[chart_type](
+            title=capitalize(self.name),
+            quantity=capitalize(self.sensor_type),
+            unit=self.unit,
+            dataset_name=dataset_name,
+            **kwargs,
+        )
 
-        bar_chart = {
-            "description": "A simple bar chart.",
-            "data": {"name": "my_dataset"},
-            "mark": "bar",
-            "encoding": {
-                "x": {"field": "event_start", "type": "T"},
-                "y": {"field": "event_value", "type": "quantitative"},
-                "tooltip": [
-                    # {"field": "full_date", "title": "Time and date", "type": "nominal"},
-                    {
-                        "field": "event_value",
-                        "title": "Consumption rate",
-                        "type": "quantitative",
-                    },
-                ],
-            },
-        }
         if chart_only:
-            return json.dumps(bar_chart)
-
-        if data_only:
+            return json.dumps(chart)
+        elif data_only:
             df = bdf.reset_index()
             df["source"] = df["source"].apply(lambda x: x.name)
             return df.to_json(orient="records")
         df = bdf.reset_index()
         df["source"] = df["source"].apply(lambda x: x.name)
-        bar_chart["datasets"] = dict(my_dataset=json.loads(self.chart(data_only=True)))
-        return json.dumps(bar_chart)
+        chart["datasets"] = {
+            dataset_name: json.loads(self.chart(data_only=True, chart_only=False))
+        }
+        if as_html:
+            return spec_to_html(
+                chart,
+                "vega-lite",
+                vega_version="5",
+                vegaembed_version="6.17.0",
+                vegalite_version="5.0.0",
+            )
+        return json.dumps(chart)
 
     @property
     def timerange(self) -> Dict[str, datetime_type]:

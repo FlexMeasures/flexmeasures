@@ -29,6 +29,7 @@ class SensorView(FlaskView):
             "data_only": fields.Boolean(required=False),
             "chart_only": fields.Boolean(required=False),
             "as_html": fields.Boolean(required=False),
+            "dataset_name": fields.Str(required=False),
         },
         location="query",
     )

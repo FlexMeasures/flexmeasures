@@ -32,14 +32,14 @@
 
       let vegaView;
 
-      async function embedAndLoad(chartSpecsPath, elementId) {
+      async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
         var opt = {
           mode: 'vega-lite',
           renderer: 'svg',
           actions: {export: true, source: true, editor: true},
         };
 
-        await vegaEmbed('#'+elementId, chartSpecsPath, opt)
+        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName, opt)
         .then(function (result) {
           // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
           vegaView = result.view;
@@ -71,7 +71,8 @@
       sensorPath = '/sensors/' + sensorId
       chartSpecsPath = sensorPath + '/chart'
       elementId = 'sensorchart'
-      embedAndLoad(chartSpecsPath, elementId);
+      datasetName = 'sensor_' + sensorId
+      embedAndLoad(chartSpecsPath, elementId, datasetName);
 
       const date = Date();
       const picker = new Litepicker({
@@ -113,8 +114,9 @@
             chart_only: false,
             events_not_before: queryStartDate,
             events_before: queryEndDate,
+            dataset_name: datasetName
           }, function( data ) {
-            vegaView.change('my_dataset', vega.changeset().remove(vega.truthy).insert(data)).resize().run();
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(data)).resize().run();
           });
       });
 
