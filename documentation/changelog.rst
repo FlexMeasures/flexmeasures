@@ -16,6 +16,14 @@ Infrastructure / Support
 * Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <http://www.github.com/SeitaBV/flexmeasures/pull/79>`_]
 
 
+v0.3.1 | April 9, 2021
+===========================
+
+Bugfixes
+--------
+* PostMeterData endpoint was broken in API v2.0 [see `PR #95 <http://www.github.com/SeitaBV/flexmeasures/pull/95>`_]
+
+
 v0.3.0 | April 2, 2021
 ===========================
 
