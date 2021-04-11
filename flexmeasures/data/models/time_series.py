@@ -113,12 +113,17 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def add(
         cls,
         bdf: tb.BeliefsDataFrame,
+        expunge_session: bool = True,
         allow_overwrite: bool = False,
         commit_transaction: bool = True,
     ):
         """Add a BeliefsDataFrame as timed beliefs in the database.
 
         :param bdf: the BeliefsDataFrame to be persisted
+        :param expunge_session:     if True, all instances are removed from the session before adding beliefs
+                                    (make sure you flush any other new objects)
+        :param allow_overwrite:     if True, new objects are merged
+                                    if False, objects are added to the session
         :param commit_transaction: if True, the session is committed
                                    if False, you can still add other data to the session
                                    and commit it all within an atomic transaction
@@ -126,6 +131,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         return cls.add_to_session(
             session=db.session,
             beliefs_data_frame=bdf,
+            expunge_session=expunge_session,
             allow_overwrite=allow_overwrite,
             commit_transaction=commit_transaction,
         )

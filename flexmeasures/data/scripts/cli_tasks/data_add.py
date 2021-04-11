@@ -10,6 +10,7 @@ from flask.cli import with_appcontext
 from flask_security.utils import hash_password
 import click
 import getpass
+from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 
 from flexmeasures.data import db
@@ -257,6 +258,7 @@ def add_beliefs(
         print("SETTING UP CLI SCRIPT AS NEW DATA SOURCE...")
         source = DataSource(name="Seita", type="CLI script")
         db.session.add(source)
+        db.session.flush()  # assigns id
     bdf = tb.read_csv(
         file,
         sensor,
@@ -272,8 +274,17 @@ def add_beliefs(
             )
         ),
     )
-    TimedBelief.add(bdf, allow_overwrite=True, commit_transaction=False)
-    db.session.commit()
+    try:
+        # Disallowing overwriting can be much more efficient, through a bulk insert
+        TimedBelief.add(
+            bdf, expunge_session=True, allow_overwrite=False, commit_transaction=True
+        )
+    except IntegrityError as e:
+        print(f"Attempting to overwrite data to bypass the following error: {e.orig}")
+        db.session.rollback()
+        TimedBelief.add(
+            bdf, expunge_session=True, allow_overwrite=True, commit_transaction=True
+        )
     print(f"Successfully created beliefs\n{bdf}")
 
 
