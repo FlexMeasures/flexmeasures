@@ -3,12 +3,16 @@ FlexMeasures Changelog
 **********************
 
 
-v0.2.5 | April XX, 2021
+v0.4.0 | April XX, 2021
 ===========================
 
 New features
 -----------
 * Add sensors with CLI command [see `PR #83 <https://github.com/SeitaBV/flexmeasures/pull/83>`_]
+
+Bugfixes
+-----------
+* Asset edit form displayed wrong error message. Also enabled the asset edit form to display the invalid user input back to the user [see `PR #93 <http://www.github.com/SeitaBV/flexmeasures/pull/93>`_]
 
 Infrastructure / Support
 ----------------------
