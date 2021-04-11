@@ -22,7 +22,7 @@
 {% for view_name in FLEXMEASURES_LISTED_VIEWS %}
     {# add specs for views we don't know (plugin views) #}
     {% do nav_bar_specs.update({view_name: dict(title=view_name.capitalize(), icon="info")}) if view_name not in nav_bar_specs %}
-    {# add view to menu if user is authenticated #}}
+    {# add view to menu if user is authenticated #}
     {% do navigation_bar.append(
         (view_name, view_name, nav_bar_specs[view_name]["title"], nav_bar_specs[view_name]["icon"])
     ) if current_user.is_authenticated %}

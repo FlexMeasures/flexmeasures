@@ -17,18 +17,19 @@ Use the setting :ref:`plugin-config` to point to your plugin.
 
 Here are the assumptions FlexMeasures makes to be able to import the Blueprint:
 
-- We'll use the name of your plugin folder as the name.
-- Your plugin folder contains an 'fmplugin' folder with an __init__.py file.
-- In this init, you define a Blueprint object called `<plugin folder>_bp`.
+- Your plugin folder contains an __init__.py file.
+- In this init, you define a Blueprint object called <plugin folder>_bp
+    
+We'll refer to the plugin with the name of your plugin folder.
 
 
 Showcase
 ^^^^^^^^^
 
-Here is a showcase file which constitutes a FlexMeasures plugin.
+Here is a showcase file which constitutes a FlexMeasures plugin. We imagine that we made a plugin to implement some custom logic for a client. 
 
-We created the file ``<some_folder>/our_client/fmplugin/__init__.py``. So, ``our_client`` is the plugin folder and becomes the plugin name.
-All else that is needed for this showcase (not shown here) is ``<some_folder>/our_client/fmplugin/templates/metrics.html``, which works just as other FlexMeasures templates (they are Jinja2 templates).
+We created the file ``<some_folder>/our_client/__init__.py``. So, ``our_client`` is the plugin folder and becomes the plugin name.
+All else that is needed for this showcase (not shown here) is ``<some_folder>/our_client/templates/metrics.html``, which works just as other FlexMeasures templates (they are Jinja2 templates).
 
 We demonstrate adding a view which can be rendered via the FlexMeasures base templates. When added to the FlexMeasures UI menu (name it in :ref:`menu-config`).
 

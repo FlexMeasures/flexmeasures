@@ -72,24 +72,24 @@ def register_plugin(app: Flask):
     Register a FlexMeasures plugin as Blueprint.
 
     Assumptions:
-    - We'll use the name of your plugin folder as the name.
-    - Your plugin folder contains an 'fmplugin' folder with an __init__.py file.
+    - Your plugin folder contains an __init__.py file.
     - In this init, you define a Blueprint object called <plugin folder>_bp
 
-    TODO: Support multiple plugins.
+    We'll refer to the plugin with the name of your plugin folder.
+
+    TODO: Support multiple plugins when we have multiple accounts per server.
     """
     plugin_path = app.config.get("FLEXMEASURES_PLUGIN_PATH", "")
     if plugin_path:
-        bp_dir = os.path.join(plugin_path, "fmplugin")
         plugin_name = plugin_path.split("/")[-1]
-        if not os.path.exists(bp_dir):
+        if not os.path.exists(os.path.join(plugin_path, "__init__.py")):
             app.logger.warning(
-                f"Plugin {plugin_name} does not contain an 'fmplugin' folder ({bp_dir} does not exist)"
+                f"Plugin {plugin_name} does not contain an '__init__.py' file. Cannot load plugin {plugin_name}."
             )
             return
         app.logger.debug(f"Importing plugin {plugin_name} ...")
         spec = importlib.util.spec_from_file_location(
-            plugin_name, os.path.join(bp_dir, "__init__.py")
+            plugin_name, os.path.join(plugin_path, "__init__.py")
         )
         app.logger.debug(spec)
         module = importlib.util.module_from_spec(spec)
