@@ -3,7 +3,7 @@
 Writing Plugins
 ====================
 
-You can extend FlexMeasures with functionality like views or CLI functions.
+You can extend FlexMeasures with functionality like UI pages or CLI functions.
 
 A FlexMeasures plugin works as a `Flask Blueprint <https://flask.palletsprojects.com/en/1.1.x/tutorial/views/>`_.
 
@@ -30,7 +30,7 @@ Here is a showcase file which constitutes a FlexMeasures plugin.
 We created the file ``<some_folder>/our_client/fmplugin/__init__.py``. So, ``our_client`` is the plugin folder and becomes the plugin name.
 All else that is needed for this showcase (not shown here) is ``<some_folder>/our_client/fmplugin/templates/metrics.html``, which works just as other FlexMeasures templates (they are Jinja2 templates).
 
-We demonstrate adding a view which can be rendered via the FlexMeasures base templates. When added to the FlexMeasures UI menu (name it in :ref:`menu-config`)
+We demonstrate adding a view which can be rendered via the FlexMeasures base templates. When added to the FlexMeasures UI menu (name it in :ref:`menu-config`).
 
 We also showcase a CLI function which has access to the FlexMeasures `app` object. It can be called via ``flexmeasures our_client test``. 
 
