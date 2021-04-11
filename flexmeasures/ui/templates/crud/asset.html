@@ -49,7 +49,7 @@
                     <h3>Edit asset {{ asset.display_name }}</h3>
 
                     <small>(Owned by <a href="/users/{{asset.owner_id}}">{{ asset.owner_id | username }}</a>)</small>
-
+                    
                     <div class="form-group">
                         {{ asset_form.display_name.label(class="col-sm-6 control-label") }}
                         <div class="col-sm-6">
@@ -198,7 +198,7 @@
 
     // create map
     var assetMap = L
-        .map('mapid', { center: [{{ asset.latitude }}, {{ asset.longitude }}], zoom: 10})
+        .map('mapid', { center: [{{ asset.latitude | replace("None", 10) }}, {{ asset.longitude | replace("None", 10) }}], zoom: 10})
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
@@ -207,17 +207,17 @@
     addTileLayer(assetMap, '{{ mapboxAccessToken }}');
 
     // create marker
-    var {{ asset.asset_type_name | parameterize }}_icon = new L.DivIcon({
+    var asset_icon = new L.DivIcon({
         className: 'map-icon',
-        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.asset_type_name | asset_icon }}"></i>',
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.asset_type_name | default("info") | asset_icon }}"></i>',
         iconSize: [100, 100], // size of the icon
         iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
         popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
     });
     var marker = L
         .marker(
-            [{{ asset.latitude }}, {{ asset.longitude }}],
-    { icon: {{ asset.asset_type_name | parameterize }}_icon }
+            [{{ asset.latitude | replace("None", 10)}}, {{ asset.longitude | replace("None", 10) }}],
+    { icon: asset_icon }
         ).addTo(assetMap);
 
     assetMap.on('click', function (e) {
