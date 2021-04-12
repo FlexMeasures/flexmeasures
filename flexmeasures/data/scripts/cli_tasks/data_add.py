@@ -227,8 +227,17 @@ def add_initial_structure():
     type=click.FloatRange(0, 1),
     help="Cumulative probability in the range [0, 1].",
 )
+@click.option(
+    "--allow-overwrite/--do-not-allow-overwrite",
+    default=False,
+    help="Allow overwriting possibly already existing data.",
+)
 def add_beliefs(
-    file: str, sensor_id: int, horizon: Optional[int] = None, cp: Optional[float] = None
+    file: str,
+    sensor_id: int,
+    horizon: Optional[int] = None,
+    cp: Optional[float] = None,
+    allow_overwrite: bool = False,
 ):
     """Add sensor data from a csv file.
 
@@ -280,11 +289,20 @@ def add_beliefs(
             bdf, expunge_session=True, allow_overwrite=False, commit_transaction=True
         )
     except IntegrityError as e:
-        print(f"Attempting to overwrite data to bypass the following error: {e.orig}")
-        db.session.rollback()
-        TimedBelief.add(
-            bdf, expunge_session=True, allow_overwrite=True, commit_transaction=True
-        )
+        if allow_overwrite:
+            print(
+                f"Attempting to overwrite data to bypass the following error: {e.orig}"
+            )
+            db.session.rollback()
+            TimedBelief.add(
+                bdf, expunge_session=True, allow_overwrite=True, commit_transaction=True
+            )
+        else:
+            print(
+                f"Failed to create beliefs due to the following error: {e.orig}\n"
+                f"As a possible workaround, use the --allow-overwrite flag."
+            )
+            return
     print(f"Successfully created beliefs\n{bdf}")
 
 
