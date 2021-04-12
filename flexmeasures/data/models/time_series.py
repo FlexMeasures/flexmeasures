@@ -75,11 +75,10 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param data_only: return just the data (in case you have the chart specs already)
         :param as_html: return the chart with data as a standalone html
         """
+
+        # Set up chart specification
         if dataset_name is None:
             dataset_name = "sensor_" + str(self.id)
-        bdf = self.search_beliefs(
-            (events_not_before, events_before), (belief_start, belief_end), source
-        )
         self.sensor_type = (
             self.name
         )  # todo remove this placeholder when sensor types are modelled
@@ -90,18 +89,21 @@ class Sensor(db.Model, tb.SensorDBMixin):
             dataset_name=dataset_name,
             **kwargs,
         )
-
         if chart_only:
             return json.dumps(chart)
-        elif data_only:
-            df = bdf.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.name)
-            return df.to_json(orient="records")
+
+        # Set up data
+        bdf = self.search_beliefs(
+            (events_not_before, events_before), (belief_start, belief_end), source
+        )
         df = bdf.reset_index()
         df["source"] = df["source"].apply(lambda x: x.name)
-        chart["datasets"] = {
-            dataset_name: json.loads(self.chart(data_only=True, chart_only=False))
-        }
+        data = df.to_json(orient="records")
+        if data_only:
+            return data
+
+        # Combine chart specs and data
+        chart["datasets"] = {dataset_name: json.loads(data)}
         if as_html:
             return spec_to_html(
                 chart,
