@@ -55,12 +55,14 @@ Default: ``{"flexmeasures.io": "2021-01"}``
 
 .. _plugin-config:
 
-FLEXMEASURES_PLUGIN_PATH
+FLEXMEASURES_PLUGIN_PATHS
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Absolute path to a blueprint-based plugin for FlexMeasures (e.g. for custom views or CLI functions). See :ref:`plugins` on what is expected for content.
+A list of absolute paths to Blueprint-based plugins for FlexMeasures (e.g. for custom views or CLI functions).
+Each plugin path points to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined. 
+See :ref:`plugins` on what is expected for content.
 
-Default: ``""``
+Default: ``[]``
 
 
 FLEXMEASURES_DB_BACKUP_PATH

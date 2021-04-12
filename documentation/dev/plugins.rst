@@ -1,4 +1,4 @@
-.. plugins:
+.. _plugins:
 
 Writing Plugins
 ====================
@@ -13,12 +13,12 @@ A FlexMeasures plugin works as a `Flask Blueprint <https://flask.palletsprojects
 How it works 
 ^^^^^^^^^^^^^^
 
-Use the setting :ref:`plugin-config` to point to your plugin.
+Use the config setting :ref:`plugin-config` to point to your plugin(s).
 
-Here are the assumptions FlexMeasures makes to be able to import the Blueprint:
+Here are the assumptions FlexMeasures makes to be able to import your Blueprint:
 
-- Your plugin folder contains an __init__.py file.
-- In this init, you define a Blueprint object called <plugin folder>_bp
+- The plugin folder contains an __init__.py file.
+- In this init, you define a Blueprint object called ``<plugin folder>_bp``.
     
 We'll refer to the plugin with the name of your plugin folder.
 
@@ -29,11 +29,11 @@ Showcase
 Here is a showcase file which constitutes a FlexMeasures plugin. We imagine that we made a plugin to implement some custom logic for a client. 
 
 We created the file ``<some_folder>/our_client/__init__.py``. So, ``our_client`` is the plugin folder and becomes the plugin name.
-All else that is needed for this showcase (not shown here) is ``<some_folder>/our_client/templates/metrics.html``, which works just as other FlexMeasures templates (they are Jinja2 templates).
+All else that is needed for this showcase (not shown here) is ``<some_folder>/our_client/templates/metrics.html``, which works just as other FlexMeasures templates (they are Jinja2 templates and you can start them with ``{% extends "base.html" %}`` for integration into the FlexMeasures structure).
 
-We demonstrate adding a view which can be rendered via the FlexMeasures base templates. When added to the FlexMeasures UI menu (name it in :ref:`menu-config`).
 
-We also showcase a CLI function which has access to the FlexMeasures `app` object. It can be called via ``flexmeasures our_client test``. 
+* We demonstrate adding a view which can be rendered via the FlexMeasures base templates.
+* We also showcase a CLI function which has access to the FlexMeasures `app` object. It can be called via ``flexmeasures our_client test``. 
 
 .. code-block:: python
 
@@ -53,6 +53,7 @@ We also showcase a CLI function which has access to the FlexMeasures `app` objec
     @login_required
     def metrics():
         msg = "I am part of FM !"
+        # Note that we render via the in-built FlexMeasures way
         return render_flexmeasures_template(
             "metrics.html",
             message=msg,
@@ -72,3 +73,7 @@ We also showcase a CLI function which has access to the FlexMeasures `app` objec
     @with_appcontext
     def oc_test():
         print(f"I am a CLI command, part of FlexMeasures: {current_app}")
+
+
+
+.. note:: Plugin views can also be added to the FlexMeasures UI menu ― just name them in the config setting :ref:`menu-config`.

@@ -67,20 +67,24 @@ def set_secret_key(app, filename="secret_key"):
         sys.exit(2)
 
 
-def register_plugin(app: Flask):
+def register_plugins(app: Flask):
     """
-    Register a FlexMeasures plugin as Blueprint.
+    Register FlexMeasures plugins as Blueprints.
+    This is configured by the config setting FLEXMEASURES_PLUGIN_PATHS.
 
     Assumptions:
-    - Your plugin folder contains an __init__.py file.
+    - Your plugin folders contains an __init__.py file.
     - In this init, you define a Blueprint object called <plugin folder>_bp
 
-    We'll refer to the plugin with the name of your plugin folder.
-
-    TODO: Support multiple plugins when we have multiple accounts per server.
+    We'll refer to the plugins with the name of your plugin folders (last part of tthe path).
     """
-    plugin_path = app.config.get("FLEXMEASURES_PLUGIN_PATH", "")
-    if plugin_path:
+    plugin_paths = app.config.get("FLEXMEASURES_PLUGIN_PATHS", "")
+    if not isinstance(plugin_paths, list):
+        app.logger.warning(
+            f"The value of FLEXMEASURES_PLUGIN_PATHS is not a list: {plugin_paths}. Cannot install plugins ..."
+        )
+        return
+    for plugin_path in plugin_paths:
         plugin_name = plugin_path.split("/")[-1]
         if not os.path.exists(os.path.join(plugin_path, "__init__.py")):
             app.logger.warning(
