@@ -66,7 +66,7 @@ def load_asset(admins_only: bool = False):
     should be allowed.
 
         @app.route('/asset/<id>')
-        @check_asset
+        @load_asset
         def get_asset(asset):
             return asset_schema.dump(asset), 200
 
