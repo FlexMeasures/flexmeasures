@@ -120,8 +120,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         """Add a BeliefsDataFrame as timed beliefs in the database.
 
         :param bdf: the BeliefsDataFrame to be persisted
-        :param expunge_session:     if True, all instances are removed from the session before adding beliefs
-                                    (make sure you flush any other new objects)
+        :param expunge_session:     if True, all non-flushed instances are removed from the session before adding beliefs.
+                                    Also, the beliefs are then saved via `bulk_save_objects` which is also quite fast.
+                                    Expunging can resolve problems you might encounter with states of objects in your session.
+                                    When using this option, you might want to flush newly-created objects which are not beliefs
+                                    (e.g. a sensor or data source object).
         :param allow_overwrite:     if True, new objects are merged
                                     if False, objects are added to the session
         :param commit_transaction: if True, the session is committed
