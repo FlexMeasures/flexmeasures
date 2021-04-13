@@ -306,7 +306,7 @@ def optional_prior_accepted(ex_post: bool = False, infer_missing: bool = True):
 
     Optionally, an ex_post flag can be passed to the decorator to indicate that only ex-post datetimes are allowed.
     As a useful setting (at least for POST requests), set infer_missing to True to have servers
-    (that are not in play mode) derive a prior from the server time.
+    derive a prior from the server time.
     """
 
     def wrapper(fn):
@@ -332,11 +332,8 @@ def optional_prior_accepted(ex_post: bool = False, infer_missing: bool = True):
                     if prior < knowledge_time:
                         extra_info = "Meter data can only be observed after the fact."
                         return invalid_horizon(extra_info)
-            elif (
-                infer_missing is True
-                and current_app.config.get("FLEXMEASURES_MODE", "") != "play"
-            ):
-                # A missing prior is inferred by the server (if not in play mode)
+            elif infer_missing is True:
+                # A missing prior is inferred by the server
                 prior = server_now()
             else:
                 # Otherwise, a missing prior is fine (a horizon may still be inferred by the server)
@@ -377,7 +374,7 @@ def optional_horizon_accepted(  # noqa C901
             return 'Meter data posted'
 
     :param ex_post:                   if True, only non-positive horizons are allowed.
-    :param infer_missing:             if True, servers that are in play mode assume that the belief_horizon of posted
+    :param infer_missing:             if True, servers assume that the belief_horizon of posted
                                       values is 0 hours. This setting is meant to be used for POST requests.
     :param accept_repeating_interval: if True, the "rolling" keyword param is also set
                                       (this was used for POST requests before v2.0)
@@ -410,11 +407,8 @@ def optional_horizon_accepted(  # noqa C901
                         "For example: R/P1D should be replaced by P1D."
                     )
                     return invalid_horizon(extra_info)
-            elif (
-                infer_missing is True
-                and current_app.config.get("FLEXMEASURES_MODE", "") == "play"
-            ):
-                # A missing horizon is set to zero for servers in play mode
+            elif infer_missing is True:
+                # A missing horizon is set to zero
                 horizon = timedelta(hours=0)
             elif infer_missing is True and accept_repeating_interval is True:
                 extra_info = "Missing horizons are no longer accepted for API versions below v2.0."

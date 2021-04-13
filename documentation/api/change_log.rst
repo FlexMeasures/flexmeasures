@@ -3,6 +3,10 @@
 API change log
 ===============
 
+v2.0 | 2021-04-XX
+"""""""""""""""""
+- [**Breaking change**] Automatic inference of horizons for Post requests re-instantiated, now inferring a belief horizon of zero (leading to the same horizon for each belief).
+
 v2.0 | 2021-04-02
 """""""""""""""""
 
