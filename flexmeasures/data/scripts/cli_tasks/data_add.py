@@ -218,7 +218,7 @@ def add_initial_structure():
 @click.option(
     "--horizon",
     required=False,
-    type=click.IntRange(),
+    type=int,
     help="Belief horizon in minutes (use positive horizon for ex-ante beliefs or negative horizon for ex-post beliefs).",
 )
 @click.option(
@@ -259,6 +259,9 @@ def add_beliefs(
     as the time at which the beliefs were recorded.
     """
     sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+    if sensor is None:
+        print(f"Failed to create beliefs: no sensor found with id {sensor_id}.")
+        return
     source = (
         DataSource.query.filter(DataSource.name == "Seita")
         .filter(DataSource.type == "CLI script")
