@@ -230,7 +230,8 @@ def add_initial_structure():
 @click.option(
     "--allow-overwrite/--do-not-allow-overwrite",
     default=False,
-    help="Allow overwriting possibly already existing data.",
+    help="Allow overwriting possibly already existing data.\n"
+    "Not allowing overwriting can be much more efficient",
 )
 def add_beliefs(
     file: str,
@@ -284,26 +285,19 @@ def add_beliefs(
         ),
     )
     try:
-        # Disallowing overwriting can be much more efficient, through a bulk insert
         TimedBelief.add(
-            bdf, expunge_session=True, allow_overwrite=False, commit_transaction=True
+            bdf,
+            expunge_session=True,
+            allow_overwrite=allow_overwrite,
+            commit_transaction=True,
         )
+        print(f"Successfully created beliefs\n{bdf}")
     except IntegrityError as e:
-        if allow_overwrite:
-            print(
-                f"Attempting to overwrite data to bypass the following error: {e.orig}"
-            )
-            db.session.rollback()
-            TimedBelief.add(
-                bdf, expunge_session=True, allow_overwrite=True, commit_transaction=True
-            )
-        else:
-            print(
-                f"Failed to create beliefs due to the following error: {e.orig}\n"
-                f"As a possible workaround, use the --allow-overwrite flag."
-            )
-            return
-    print(f"Successfully created beliefs\n{bdf}")
+        db.session.rollback()
+        print(
+            f"Failed to create beliefs due to the following error: {e.orig}\n"
+            f"As a possible workaround, use the --allow-overwrite flag."
+        )
 
 
 @fm_add_data.command("forecasts")
