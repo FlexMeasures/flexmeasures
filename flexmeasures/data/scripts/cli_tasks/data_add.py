@@ -294,10 +294,9 @@ def add_beliefs(
         print(f"Successfully created beliefs\n{bdf}")
     except IntegrityError as e:
         db.session.rollback()
-        print(
-            f"Failed to create beliefs due to the following error: {e.orig}\n"
-            f"As a possible workaround, use the --allow-overwrite flag."
-        )
+        print(f"Failed to create beliefs due to the following error: {e.orig}")
+        if not allow_overwrite:
+            print("As a possible workaround, use the --allow-overwrite flag.")
 
 
 @fm_add_data.command("forecasts")
