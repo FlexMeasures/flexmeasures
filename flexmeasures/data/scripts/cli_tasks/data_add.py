@@ -289,6 +289,7 @@ def add_beliefs(
             bdf,
             expunge_session=True,
             allow_overwrite=allow_overwrite,
+            bulk_save_objects=True,
             commit_transaction=True,
         )
         print(f"Successfully created beliefs\n{bdf}")
