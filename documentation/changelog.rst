@@ -3,17 +3,31 @@ FlexMeasures Changelog
 **********************
 
 
-v0.2.5 | April XX, 2021
+v0.4.0 | April XX, 2021
 ===========================
 
 New features
 -----------
 * Add sensors with CLI command [see `PR #83 <https://github.com/SeitaBV/flexmeasures/pull/83>`_]
+* Configure views with ``FLEXMEASURES_LISTED_VIEWS`` [see `PR #91 <https://github.com/SeitaBV/flexmeasures/pull/91>`_]
+* Allow for views and CLI functions to come from plugins [see also `PR #91 <https://github.com/SeitaBV/flexmeasures/pull/91>`_]
+
+Bugfixes
+-----------
+* Asset edit form displayed wrong error message. Also enabled the asset edit form to display the invalid user input back to the user [see `PR #93 <http://www.github.com/SeitaBV/flexmeasures/pull/93>`_]
 
 Infrastructure / Support
 ----------------------
 * Updated dependencies, including Flask-Security-Too [see `PR #82 <http://www.github.com/SeitaBV/flexmeasures/pull/82>`_]
 * Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <http://www.github.com/SeitaBV/flexmeasures/pull/79>`_]
+
+
+v0.3.1 | April 9, 2021
+===========================
+
+Bugfixes
+--------
+* PostMeterData endpoint was broken in API v2.0 [see `PR #95 <http://www.github.com/SeitaBV/flexmeasures/pull/95>`_]
 
 
 v0.3.0 | April 2, 2021

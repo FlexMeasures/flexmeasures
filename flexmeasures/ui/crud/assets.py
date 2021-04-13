@@ -278,11 +278,22 @@ class AssetCrudUI(FlaskView):
         else:
             asset_form = with_options(AssetForm())
             if not asset_form.validate_on_submit():
+                asset = Asset.query.get(id)
+                latest_measurement_time_str, asset_plot_html = get_latest_power_as_plot(
+                    asset
+                )
+                # Display the form data, but set some extra data which the page wants to show.
+                asset_info = asset_form.data.copy()
+                asset_info["id"] = id
+                asset_info["owner_id"] = asset.owner_id
+                asset_info["entity_address"] = asset.entity_address
                 return render_flexmeasures_template(
-                    "crud/asset_new.html",
+                    "crud/asset.html",
                     asset_form=asset_form,
+                    asset=asset_info,
                     msg="Cannot edit asset.",
-                    map_center=get_center_location(db, user=current_user),
+                    latest_measurement_time_str=latest_measurement_time_str,
+                    asset_plot_html=asset_plot_html,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
             patch_asset_response = InternalApi().patch(
