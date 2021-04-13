@@ -104,6 +104,10 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     register_ui_at(app)
 
+    from flexmeasures.utils.app_utils import register_plugins
+
+    register_plugins(app)
+
     # Profile endpoints (if needed, e.g. during development)
     @app.before_request
     def before_request():

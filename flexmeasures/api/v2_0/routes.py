@@ -761,7 +761,7 @@ def post_meter_data():
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD
     """
-    return v2_0_implementations.post_meter_data_response()
+    return v2_0_implementations.sensors.post_meter_data_response()
 
 
 @flexmeasures_api_v2_0.route("/postPrognosis", methods=["POST"])

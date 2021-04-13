@@ -3,26 +3,37 @@
 
 {# Front-end app naming #}
 
-{% set show_queues = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
-
 
 {# Front-end menu, as columns with href, id, caption, and (fa fa-)icon #}
 
-{% set navigation_bar = [
-    ('dashboard', 'dashboard', 'Dashboard', 'dashboard'),
-    ('assets', 'assets', 'Assets', 'list-ul'),
-] if current_user.is_authenticated else [] %}
-{% do navigation_bar.append(('users', 'users', 'Users', 'users')) if current_user.has_role('admin') %}
-{% do navigation_bar.extend([
-    ('portfolio', 'portfolio', 'Portfolio overview', 'briefcase'),
-    ('analytics', 'analytics', 'Analytics', 'bar-chart'),
-    ('upload', 'upload', 'Upload data', 'cloud-upload'),
-]) if current_user.is_authenticated %}
-{% do navigation_bar.extend([
-    ('control', 'control', 'Flexibility actions', 'wrench'),
-]) if FLEXMEASURES_SHOW_CONTROL_UI and current_user.is_authenticated %}
+{% set navigation_bar = [] %}
+
+{% set nav_bar_specs = {
+    "dashboard": dict(title="Dashboard", icon="dashboard"),
+    "assets": dict(title="Assets", icon="list-ul"),
+    "users": dict(title="Users", icon="users"),
+    "portfolio": dict(title="Portfolio overview", icon="briefcase"),
+    "analytics": dict(title="Analytics", icon="bar-chart"),
+    "upload": dict(title="Upload data", icon="cloud-upload"),
+    "control": dict(title="Flexibility actions", icon="wrench")
+}
+%}
+
+{% for view_name in FLEXMEASURES_LISTED_VIEWS %}
+    {# add specs for views we don't know (plugin views) #}
+    {% do nav_bar_specs.update({view_name: dict(title=view_name.capitalize(), icon="info")}) if view_name not in nav_bar_specs %}
+    {# add view to menu if user is authenticated #}
+    {% do navigation_bar.append(
+        (view_name, view_name, nav_bar_specs[view_name]["title"], nav_bar_specs[view_name]["icon"])
+    ) if current_user.is_authenticated %}
+{% endfor %}
+
+
+{% set show_queues = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
 {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', 'tasks')) if show_queues %}
+
 {% do navigation_bar.append(('account', 'account', '', 'user')) if current_user.is_authenticated %}
+
 {% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists and current_user.is_authenticated %}
 
 {% set active_page = active_page|default('dashboard') -%}

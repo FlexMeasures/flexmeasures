@@ -64,8 +64,7 @@
                 </button>
                 <span class="navbar-brand">
                     <a href="/"><span class="navbar-tool-name">{{ FLEXMEASURES_PLATFORM_NAME }}</span></a>
-                    {{ self.title() }} {% if user_is_logged_in and not "Error" in self.title() %} for {{ user_name }} on
-                    Jeju island {% endif %}
+                    {{ self.title() }} {% if user_is_logged_in and not "Error" in self.title() %} for {{ user_name }} {% endif %}
                 </span>
             </div>
             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
