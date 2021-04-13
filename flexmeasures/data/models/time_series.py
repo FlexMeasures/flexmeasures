@@ -110,17 +110,37 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         )
 
     @classmethod
-    def add(cls, bdf: tb.BeliefsDataFrame, commit_transaction: bool = True):
+    def add(
+        cls,
+        bdf: tb.BeliefsDataFrame,
+        expunge_session: bool = False,
+        allow_overwrite: bool = False,
+        bulk_save_objects: bool = False,
+        commit_transaction: bool = False,
+    ):
         """Add a BeliefsDataFrame as timed beliefs in the database.
 
         :param bdf: the BeliefsDataFrame to be persisted
-        :param commit_transaction: if True, the session is committed
-                                   if False, you can still add other data to the session
-                                   and commit it all within an atomic transaction
+        :param expunge_session:     if True, all non-flushed instances are removed from the session before adding beliefs.
+                                    Expunging can resolve problems you might encounter with states of objects in your session.
+                                    When using this option, you might want to flush newly-created objects which are not beliefs
+                                    (e.g. a sensor or data source object).
+        :param allow_overwrite:     if True, new objects are merged
+                                    if False, objects are added to the session or bulk saved
+        :param bulk_save_objects:   if True, objects are bulk saved with session.bulk_save_objects(),
+                                    which is quite fast but has several caveats, see:
+                                    https://docs.sqlalchemy.org/orm/persistence_techniques.html#bulk-operations-caveats
+                                    if False, objects are added to the session with session.add_all()
+        :param commit_transaction:  if True, the session is committed
+                                    if False, you can still add other data to the session
+                                    and commit it all within an atomic transaction
         """
         return cls.add_to_session(
             session=db.session,
             beliefs_data_frame=bdf,
+            expunge_session=expunge_session,
+            allow_overwrite=allow_overwrite,
+            bulk_save_objects=bulk_save_objects,
             commit_transaction=commit_transaction,
         )
 

@@ -10,6 +10,7 @@ from flask.cli import with_appcontext
 from flask_security.utils import hash_password
 import click
 import getpass
+from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 
 from flexmeasures.data import db
@@ -226,8 +227,18 @@ def add_initial_structure():
     type=click.FloatRange(0, 1),
     help="Cumulative probability in the range [0, 1].",
 )
+@click.option(
+    "--allow-overwrite/--do-not-allow-overwrite",
+    default=False,
+    help="Allow overwriting possibly already existing data.\n"
+    "Not allowing overwriting can be much more efficient",
+)
 def add_beliefs(
-    file: str, sensor_id: int, horizon: Optional[int] = None, cp: Optional[float] = None
+    file: str,
+    sensor_id: int,
+    horizon: Optional[int] = None,
+    cp: Optional[float] = None,
+    allow_overwrite: bool = False,
 ):
     """Add sensor data from a csv file.
 
@@ -257,6 +268,7 @@ def add_beliefs(
         print("SETTING UP CLI SCRIPT AS NEW DATA SOURCE...")
         source = DataSource(name="Seita", type="CLI script")
         db.session.add(source)
+        db.session.flush()  # assigns id
     bdf = tb.read_csv(
         file,
         sensor,
@@ -272,9 +284,20 @@ def add_beliefs(
             )
         ),
     )
-    TimedBelief.add(bdf, commit_transaction=False)
-    db.session.commit()
-    print(f"Successfully created beliefs\n{bdf}")
+    try:
+        TimedBelief.add(
+            bdf,
+            expunge_session=True,
+            allow_overwrite=allow_overwrite,
+            bulk_save_objects=True,
+            commit_transaction=True,
+        )
+        print(f"Successfully created beliefs\n{bdf}")
+    except IntegrityError as e:
+        db.session.rollback()
+        print(f"Failed to create beliefs due to the following error: {e.orig}")
+        if not allow_overwrite:
+            print("As a possible workaround, use the --allow-overwrite flag.")
 
 
 @fm_add_data.command("forecasts")
