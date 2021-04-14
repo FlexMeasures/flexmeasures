@@ -3,16 +3,16 @@
 API change log
 ===============
 
-v2.0 | 2021-04-XX
+v2.0-3 | 2021-04-XX
 """""""""""""""""
-- [**Breaking change**] Automatic inference of horizons for Post requests re-instantiated, now inferring a belief horizon of zero (leading to the same horizon for each belief).
+- Fixed regression by partially reverting one of the breaking changes in v2.0-2: Re-instantiated automatic inference of horizons for Post requests for API versions below v2.0, but changed to inference policy: now inferring the data was recorded **right after each event** took place (leading to a zero horizon for each data point) rather than **after the last event** took place (which led to a different horizon for each data point); the latter had been the inference policy before v2.0-2.
 
-v2.0 | 2021-04-02
+v2.0-2 | 2021-04-02
 """""""""""""""""
 
 - [**Breaking change**] Switched the interpretation of horizons to rolling horizons.
 - [**Breaking change**] Deprecated the use of ISO 8601 repeating time intervals to denote rolling horizons.
-- [**Breaking change**] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API version below v2.0.
+- [**Breaking change**, partially reverted in v2.0-3] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API version below v2.0.
 - Introduced the "prior" field for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints.
 - Changed the Introduction section:
 
@@ -22,12 +22,12 @@ v2.0 | 2021-04-02
 
     - Rewrote relevant examples using horizon and prior fields.
 
-v2.0 | 2021-02-19
+v2.0-1 | 2021-02-19
 """""""""""""""""""
 
 - REST endpoints for managing users: `/users/` (GET), `/user/<id>` (GET, PATCH) and `/user/<id>/password-reset` (PATCH).
 
-v2.0 | 2020-11-14
+v2.0-0 | 2020-11-14
 """""""""""""""""""
 
 - REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
