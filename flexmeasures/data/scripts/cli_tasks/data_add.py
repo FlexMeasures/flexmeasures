@@ -29,6 +29,11 @@ def fm_add_data():
     """FlexMeasures: Add data."""
 
 
+@click.group("dev-add")
+def fm_dev_add_data():
+    """Developer CLI commands not yet meant for users: Add data."""
+
+
 @fm_add_data.command("user")
 @with_appcontext
 @click.option("--username", required=True)
@@ -68,7 +73,7 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
     print(f"Successfully created user {created_user}")
 
 
-@fm_add_data.command("sensor")
+@fm_dev_add_data.command("sensor")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
@@ -206,7 +211,7 @@ def add_initial_structure():
     populate_structure(app.db)
 
 
-@fm_add_data.command("beliefs")
+@fm_dev_add_data.command("beliefs")
 @with_appcontext
 @click.argument("file", type=click.Path(exists=True))
 @click.option(
@@ -440,6 +445,7 @@ def collect_weather_data(region, location, num_cells, method, store_in_db):
 
 
 app.cli.add_command(fm_add_data)
+app.cli.add_command(fm_dev_add_data)
 
 
 def check_timezone(timezone):
