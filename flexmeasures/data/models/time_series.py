@@ -34,46 +34,54 @@ class Sensor(db.Model, tb.SensorDBMixin):
 
     def search_beliefs(
         self,
-        event_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
-        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
     ):
         """Search all beliefs about events for this sensor.
 
-        :param event_time_window: search only events within this time window
-        :param belief_time_window: search only beliefs within this time window
-        :param source: search only beliefs by this source (pass its name or id) or list of sources"""
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        """
         return TimedBelief.search(
             sensor=self,
-            event_time_window=event_time_window,
-            belief_time_window=belief_time_window,
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
             source=source,
         )
 
     def chart(
         self,
-        events_not_before: Optional[datetime_type] = None,
-        events_before: Optional[datetime_type] = None,
-        belief_start: Optional[datetime_type] = None,
-        belief_end: Optional[datetime_type] = None,
-        source: Optional[Union[int, List[int], str, List[str]]] = None,
         chart_type: str = "bar_chart",
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
+        source: Optional[Union[int, List[int], str, List[str]]] = None,
         data_only: bool = False,
         chart_only: bool = True,
         as_html: bool = False,
         dataset_name: Optional[str] = None,
         **kwargs,
     ) -> str:
-        """
+        """Create a chart showing sensor data.
 
+        :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: search only beliefs by this source (pass its name or id) or list of sources
         :param data_only: return just the data (in case you have the chart specs already)
         :param as_html: return the chart with data as a standalone html
+        :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         """
 
         # Set up chart specification
@@ -94,7 +102,11 @@ class Sensor(db.Model, tb.SensorDBMixin):
 
         # Set up data
         bdf = self.search_beliefs(
-            (events_not_before, events_before), (belief_start, belief_end), source
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
+            source=source,
         )
         df = bdf.reset_index()
         df["source"] = df["source"].apply(lambda x: x.name)
@@ -173,30 +185,28 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def search(
         cls,
         sensor: Sensor,
-        event_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
-        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
     ) -> tb.BeliefsDataFrame:
         """Search all beliefs about events for a given sensor.
 
         :param sensor: search only this sensor
-        :param event_time_window: search only events within this time window
-        :param belief_time_window: search only beliefs within this time window
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass its name or id) or list of sources
         """
         return cls.search_session(
             session=db.session,
             sensor=sensor,
-            event_before=event_time_window[1],
-            event_not_before=event_time_window[0],
-            belief_before=belief_time_window[1],
-            belief_not_before=belief_time_window[0],
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
             source=source,
         )
 
