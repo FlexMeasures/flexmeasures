@@ -19,7 +19,7 @@ from flexmeasures.data.queries.utils import (
     exclude_source_type_filter,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
-from flexmeasures.ui.charts import belief_charts_mapping
+from flexmeasures.ui.charts import chart_type_to_chart_specs
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
@@ -90,7 +90,8 @@ class Sensor(db.Model, tb.SensorDBMixin):
         self.sensor_type = (
             self.name
         )  # todo remove this placeholder when sensor types are modelled
-        chart = belief_charts_mapping[chart_type](
+        chart_specs = chart_type_to_chart_specs(
+            chart_type,
             title=capitalize(self.name),
             quantity=capitalize(self.sensor_type),
             unit=self.unit,
@@ -98,7 +99,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
             **kwargs,
         )
         if chart_only:
-            return json.dumps(chart)
+            return json.dumps(chart_specs)
 
         # Set up data
         bdf = self.search_beliefs(
@@ -115,16 +116,16 @@ class Sensor(db.Model, tb.SensorDBMixin):
             return data
 
         # Combine chart specs and data
-        chart["datasets"] = {dataset_name: json.loads(data)}
+        chart_specs["datasets"] = {dataset_name: json.loads(data)}
         if as_html:
             return spec_to_html(
-                chart,
+                chart_specs,
                 "vega-lite",
                 vega_version="5",
                 vegaembed_version="6.17.0",
                 vegalite_version="5.0.0",
             )
-        return json.dumps(chart)
+        return json.dumps(chart_specs)
 
     @property
     def timerange(self) -> Dict[str, datetime_type]:
