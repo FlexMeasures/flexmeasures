@@ -3,16 +3,12 @@
 API change log
 ===============
 
-v2.0 | 2021-04-XX
-"""""""""""""""""
-- [**Breaking change**] Automatic inference of horizons for Post requests re-instantiated, now inferring a belief horizon of zero (leading to the same horizon for each belief).
 
-v2.0 | 2021-04-02
+v2.0-2 | 2021-04-02
 """""""""""""""""
 
 - [**Breaking change**] Switched the interpretation of horizons to rolling horizons.
 - [**Breaking change**] Deprecated the use of ISO 8601 repeating time intervals to denote rolling horizons.
-- [**Breaking change**] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API version below v2.0.
 - Introduced the "prior" field for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints.
 - Changed the Introduction section:
 
@@ -22,7 +18,7 @@ v2.0 | 2021-04-02
 
     - Rewrote relevant examples using horizon and prior fields.
 
-v2.0 | 2021-02-19
+v2.0-1 | 2021-02-19
 """""""""""""""""""
 
 - REST endpoints for managing users: `/users/` (GET), `/user/<id>` (GET, PATCH) and `/user/<id>/password-reset` (PATCH).
@@ -31,6 +27,16 @@ v2.0 | 2020-11-14
 """""""""""""""""""
 
 - REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
+
+
+v1.3.9 | 2021-04-XX
+"""""""""""""""""
+- [**Breaking change**] Automatic inference of horizons for Post requests re-instantiated, now inferring a belief horizon of zero (leading to the same horizon for each belief). *This affects all versions since v1.0*
+
+v1.3-8 | 2020-04-02
+"""""""""""""""""""
+
+- [**Breaking change**] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API version below v2.0. *This affects all versions since v1.0*
 
 v1.3-7 | 2020-12-16
 """""""""""""""""""
