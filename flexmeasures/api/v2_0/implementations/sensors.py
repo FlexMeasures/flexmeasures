@@ -46,16 +46,8 @@ from flexmeasures.utils.entity_address_utils import (
 @type_accepted("PostPriceDataRequest")
 @units_accepted("price", "EUR/MWh", "KRW/kWh")
 @assets_required("market")
-@optional_horizon_accepted(
-    infer_missing=True
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "play"
-    else False
-)
-@optional_prior_accepted(
-    infer_missing=False
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "play"
-    else True
-)
+@optional_horizon_accepted(infer_missing=None)
+@optional_prior_accepted(infer_missing=None)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("market")
@@ -138,16 +130,8 @@ def post_price_data_response(  # noqa C901
 @type_accepted("PostWeatherDataRequest")
 @unit_required
 @assets_required("sensor")
-@optional_horizon_accepted(
-    infer_missing=True
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "play"
-    else False
-)
-@optional_prior_accepted(
-    infer_missing=False
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "play"
-    else True
-)
+@optional_horizon_accepted(infer_missing=None)
+@optional_prior_accepted(infer_missing=None)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("sensor")
@@ -238,17 +222,10 @@ def post_weather_data_response(  # noqa: C901
 @units_accepted("power", "MW")
 @assets_required("connection")
 @values_required
-@optional_horizon_accepted(
-    ex_post=True,
-    infer_missing=True
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "play"
-    else False,
-)
+@optional_horizon_accepted(ex_post=True, infer_missing=None)
 @optional_prior_accepted(
     ex_post=True,
-    infer_missing=False
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "play"
-    else True,
+    infer_missing=None,
 )
 @period_required
 @post_data_checked_for_required_resolution("connection")
@@ -283,9 +260,7 @@ def post_meter_data_response(
 @optional_horizon_accepted(ex_post=False, infer_missing=False)
 @optional_prior_accepted(
     ex_post=False,
-    infer_missing=False
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "play"
-    else True,
+    infer_missing=None,
 )
 @period_required
 @post_data_checked_for_required_resolution("connection")

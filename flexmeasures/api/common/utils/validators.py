@@ -296,7 +296,9 @@ def optional_user_sources_accepted(
     return wrapper
 
 
-def optional_prior_accepted(ex_post: bool = False, infer_missing: bool = True):
+def optional_prior_accepted(
+    ex_post: bool = False, infer_missing: Optional[bool] = True
+):
     """Decorator which specifies that a GET or POST request accepts an optional prior.
     It parses relevant form data and sets the "prior" keyword param.
 
@@ -306,7 +308,7 @@ def optional_prior_accepted(ex_post: bool = False, infer_missing: bool = True):
 
     Optionally, an ex_post flag can be passed to the decorator to indicate that only ex-post datetimes are allowed.
     As a useful setting (at least for POST requests), set infer_missing to True to have servers
-    derive a prior from the server time.
+    derive a prior from the server time. If infer_missing=None, it is set to False if in play mode, otherwise to True.
     """
 
     def wrapper(fn):
@@ -332,7 +334,10 @@ def optional_prior_accepted(ex_post: bool = False, infer_missing: bool = True):
                     if prior < knowledge_time:
                         extra_info = "Meter data can only be observed after the fact."
                         return invalid_horizon(extra_info)
-            elif infer_missing is True:
+            elif infer_missing is True or (
+                infer_missing is None
+                and current_app.config.get("FLEXMEASURES_MODE", "") != "play"
+            ):
                 # A missing prior is inferred by the server
                 prior = server_now()
             else:
@@ -349,7 +354,7 @@ def optional_prior_accepted(ex_post: bool = False, infer_missing: bool = True):
 
 def optional_horizon_accepted(  # noqa C901
     ex_post: bool = False,
-    infer_missing: bool = True,
+    infer_missing: Optional[bool] = None,
     accept_repeating_interval: bool = False,
 ):
     """Decorator which specifies that a GET or POST request accepts an optional horizon.
@@ -376,6 +381,7 @@ def optional_horizon_accepted(  # noqa C901
     :param ex_post:                   if True, only non-positive horizons are allowed.
     :param infer_missing:             if True, servers assume that the belief_horizon of posted
                                       values is 0 hours. This setting is meant to be used for POST requests.
+                                      if None, it is set to True if in play mode, otherwise to False.
     :param accept_repeating_interval: if True, the "rolling" keyword param is also set
                                       (this was used for POST requests before v2.0)
     """
@@ -407,7 +413,10 @@ def optional_horizon_accepted(  # noqa C901
                         "For example: R/P1D should be replaced by P1D."
                     )
                     return invalid_horizon(extra_info)
-            elif infer_missing is True:
+            elif infer_missing is True or (
+                infer_missing is None
+                and current_app.config.get("FLEXMEASURES_MODE", "") == "play"
+            ):
                 # A missing horizon is set to zero
                 horizon = timedelta(hours=0)
             else:

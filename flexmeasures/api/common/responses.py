@@ -64,7 +64,7 @@ def invalid_domain(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_DOMAIN", message=message), 400
 
 
-@BaseMessage("The prognosis horizon in your request could not be parsed.")
+@BaseMessage("The horizon field in your request could not be parsed.")
 def invalid_horizon(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="INVALID_HORIZON", message=message), 400
 
