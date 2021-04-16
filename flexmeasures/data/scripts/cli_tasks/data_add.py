@@ -1,7 +1,7 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
 from datetime import timedelta
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
 import pytz
@@ -10,18 +10,28 @@ from flask.cli import with_appcontext
 from flask_security.utils import hash_password
 import click
 import getpass
+from sqlalchemy.exc import IntegrityError
+import timely_beliefs as tb
 
+from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.time_series import Sensor, SensorSchema
+from flexmeasures.data.models.time_series import Sensor, SensorSchema, TimedBelief
 from flexmeasures.data.models.assets import Asset, AssetSchema
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorSchema
+from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.utils.time_utils import server_now
 
 
 @click.group("add")
 def fm_add_data():
     """FlexMeasures: Add data."""
+
+
+@click.group("dev-add")
+def fm_dev_add_data():
+    """Developer CLI commands not yet meant for users: Add data."""
 
 
 @fm_add_data.command("user")
@@ -63,7 +73,7 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
     print(f"Successfully created user {created_user}")
 
 
-@fm_add_data.command("sensor")
+@fm_dev_add_data.command("sensor")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
@@ -199,6 +209,103 @@ def add_initial_structure():
     from flexmeasures.data.scripts.data_gen import populate_structure
 
     populate_structure(app.db)
+
+
+@fm_dev_add_data.command("beliefs")
+@with_appcontext
+@click.argument("file", type=click.Path(exists=True))
+@click.option(
+    "--sensor-id",
+    required=True,
+    type=click.IntRange(min=1),
+    help="Sensor to which the beliefs pertain.",
+)
+@click.option(
+    "--horizon",
+    required=False,
+    type=int,
+    help="Belief horizon in minutes (use positive horizon for ex-ante beliefs or negative horizon for ex-post beliefs).",
+)
+@click.option(
+    "--cp",
+    required=False,
+    type=click.FloatRange(0, 1),
+    help="Cumulative probability in the range [0, 1].",
+)
+@click.option(
+    "--allow-overwrite/--do-not-allow-overwrite",
+    default=False,
+    help="Allow overwriting possibly already existing data.\n"
+    "Not allowing overwriting can be much more efficient",
+)
+def add_beliefs(
+    file: str,
+    sensor_id: int,
+    horizon: Optional[int] = None,
+    cp: Optional[float] = None,
+    allow_overwrite: bool = False,
+):
+    """Add sensor data from a csv file.
+
+    Structure your csv file as follows:
+
+        - One header line (will be ignored!)
+        - UTC datetimes in 1st column
+        - values in 2nd column
+
+    For example:
+
+        Date,Inflow (cubic meter)
+        2020-12-03 14:00,212
+        2020-12-03 14:10,215.6
+        2020-12-03 14:20,203.8
+
+    In case no --horizon is specified, the moment of executing this CLI command is taken
+    as the time at which the beliefs were recorded.
+    """
+    sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+    if sensor is None:
+        print(f"Failed to create beliefs: no sensor found with id {sensor_id}.")
+        return
+    source = (
+        DataSource.query.filter(DataSource.name == "Seita")
+        .filter(DataSource.type == "CLI script")
+        .one_or_none()
+    )
+    if not source:
+        print("SETTING UP CLI SCRIPT AS NEW DATA SOURCE...")
+        source = DataSource(name="Seita", type="CLI script")
+        db.session.add(source)
+        db.session.flush()  # assigns id
+    bdf = tb.read_csv(
+        file,
+        sensor,
+        source=source,
+        cumulative_probability=cp,
+        parse_dates=True,
+        infer_datetime_format=True,
+        **(
+            dict(belief_horizon=timedelta(minutes=horizon))
+            if horizon is not None
+            else dict(
+                belief_time=server_now().astimezone(pytz.timezone(sensor.timezone))
+            )
+        ),
+    )
+    try:
+        TimedBelief.add(
+            bdf,
+            expunge_session=True,
+            allow_overwrite=allow_overwrite,
+            bulk_save_objects=True,
+            commit_transaction=True,
+        )
+        print(f"Successfully created beliefs\n{bdf}")
+    except IntegrityError as e:
+        db.session.rollback()
+        print(f"Failed to create beliefs due to the following error: {e.orig}")
+        if not allow_overwrite:
+            print("As a possible workaround, use the --allow-overwrite flag.")
 
 
 @fm_add_data.command("forecasts")
@@ -338,6 +445,7 @@ def collect_weather_data(region, location, num_cells, method, store_in_db):
 
 
 app.cli.add_command(fm_add_data)
+app.cli.add_command(fm_dev_add_data)
 
 
 def check_timezone(timezone):
