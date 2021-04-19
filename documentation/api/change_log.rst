@@ -169,10 +169,7 @@ v1.1-2 | 2018-08-15
 - Added the *postPriceData* endpoint
 - Added a description of the *postPrognosis* endpoint in the Aggregator section
 - Added a description of the *postPriceData* endpoint in the Aggregator and Supplier sections
-
-.. ifconfig:: FLEXMEASURES_MODE == "play"
-
-    - Added the *restoreData* endpoint
+- Added the *restoreData* endpoint for servers in play mode
 
 v1.1-1 | 2018-08-06
 """""""""""""""""""
