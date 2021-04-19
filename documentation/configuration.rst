@@ -26,11 +26,14 @@ Level above which log messages are added to the log file. See the ``logging`` pa
 
 Default: ``logging.WARNING``
 
+
+.. _modes-config:
+
 FLEXMEASURES_MODE
 ^^^^^^^^^^^^^^^^^
 
 The mode in which FlexMeasures is being run, e.g. "demo" or "play".
-This is used to turn on certain extra behaviours.
+This is used to turn on certain extra behaviours, see :ref:`modes-dev` for details.
 
 Default: ``""``
 
@@ -369,12 +372,16 @@ Default: ``None``
 Demonstrations
 --------------
 
+.. _demo-credentials-config:
+
 FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When ``FLEXMEASURES_MODE=demo``\ , this can hold login credentials (demo user email and password, e.g. ``("demo at seita.nl", "flexdemo")``\ ), so anyone can log in and try out the platform.
 
 Default: ``None``
+
+.. _demo-year-config:
 
 FLEXMEASURES_DEMO_YEAR
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
