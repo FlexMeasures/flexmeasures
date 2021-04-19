@@ -109,12 +109,9 @@
           endDate.setDate(endDate.getDate() + 1);
           queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
           queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
-          $.getJSON( sensorPath + '/chart', {
-            data_only: true,
-            chart_only: false,
+          $.getJSON( sensorPath + '/chart_data', {
             event_starts_after: queryStartDate,
             event_ends_before: queryEndDate,
-            dataset_name: datasetName
           }, function( data ) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(data)).resize().run();
           });

@@ -57,6 +57,33 @@ class Sensor(db.Model, tb.SensorDBMixin):
             source=source,
         )
 
+    def chart_data(
+        self,
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
+        source: Optional[Union[int, List[int], str, List[str]]] = None,
+    ):
+        """Get sensor data for use in charts.
+
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        """
+        bdf = self.search_beliefs(
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
+            source=source,
+        )
+        df = bdf.reset_index()
+        df["source"] = df["source"].apply(lambda x: x.name)
+        return df.to_json(orient="records")
+
     def chart(
         self,
         chart_type: str = "bar_chart",
@@ -65,8 +92,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         beliefs_after: Optional[datetime_type] = None,
         beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
-        data_only: bool = False,
-        chart_only: bool = True,
+        include_data: bool = False,
         as_html: bool = False,
         dataset_name: Optional[str] = None,
         **kwargs,
@@ -79,8 +105,8 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass its name or id) or list of sources
-        :param data_only: return just the data (in case you have the chart specs already)
-        :param as_html: return the chart with data as a standalone html
+        :param include_data: if True, include data in the chart, or if False, exclude data
+        :param as_html: if True, return the chart as a standalone html, or if False, return as JSON
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         """
 
@@ -98,25 +124,18 @@ class Sensor(db.Model, tb.SensorDBMixin):
             dataset_name=dataset_name,
             **kwargs,
         )
-        if chart_only:
-            return json.dumps(chart_specs)
 
-        # Set up data
-        bdf = self.search_beliefs(
-            event_starts_after=event_starts_after,
-            event_ends_before=event_ends_before,
-            beliefs_after=beliefs_after,
-            beliefs_before=beliefs_before,
-            source=source,
-        )
-        df = bdf.reset_index()
-        df["source"] = df["source"].apply(lambda x: x.name)
-        data = df.to_json(orient="records")
-        if data_only:
-            return data
-
-        # Combine chart specs and data
-        chart_specs["datasets"] = {dataset_name: json.loads(data)}
+        if include_data:
+            # Set up data
+            data = self.chart_data(
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                source=source,
+            )
+            # Combine chart specs and data
+            chart_specs["datasets"] = {dataset_name: json.loads(data)}
         if as_html:
             return spec_to_html(
                 chart_specs,
