@@ -1,3 +1,4 @@
+from flask import abort
 from flask_classful import FlaskView, route
 from flask_security import login_required, roles_required
 from marshmallow import fields
@@ -20,6 +21,16 @@ class SensorView(FlaskView):
     @login_required
     @roles_required("admin")  # todo: remove after we check for sensor ownership
     @route("/<id>/<attr>/")
+    def get_attr(self, id, attr):
+        """GET from /sensors/<id>/<attr>"""
+        sensor = get_sensor_or_abort(id)
+        if not hasattr(sensor, attr):
+            raise abort(404, f"Sensor attribute {attr} not found")
+        return {attr: getattr(sensor, attr)}
+
+    @login_required
+    @roles_required("admin")  # todo: remove after we check for sensor ownership
+    @route("/<id>/chart/")
     @use_kwargs(
         {
             "event_starts_after": AwareDateTimeField(format="iso", required=False),
@@ -32,16 +43,10 @@ class SensorView(FlaskView):
         },
         location="query",
     )
-    def get_attr(self, id, attr, **kwargs):
-        """GET from /sensors/<id>/<attr>"""
-        sensor = Sensor.query.filter(Sensor.id == id).one_or_none()
-        sensor_attr = getattr(sensor, attr)
-        if not callable(sensor_attr):
-            # property
-            return {attr: sensor_attr}
-        else:
-            # method
-            return sensor_attr(**kwargs)
+    def get_chart(self, id, **kwargs):
+        """GET from /sensors/<id>/chart"""
+        sensor = get_sensor_or_abort(id)
+        return sensor.chart(**kwargs)
 
     @login_required
     @roles_required("admin")  # todo: remove after we check for sensor ownership
@@ -56,8 +61,11 @@ class SensorView(FlaskView):
         location="query",
     )
     def get_chart_data(self, id, **kwargs):
-        """GET data for use in charts (in case you have the chart specs already)."""
-        sensor = Sensor.query.filter(Sensor.id == id).one_or_none()
+        """GET from /sensors/<id>/chart_data
+
+        Data for use in charts (in case you have the chart specs already).
+        """
+        sensor = get_sensor_or_abort(id)
         return sensor.chart_data(**kwargs)
 
     @login_required
@@ -69,3 +77,10 @@ class SensorView(FlaskView):
             sensor_id=id,
             msg="",
         )
+
+
+def get_sensor_or_abort(id: int) -> Sensor:
+    sensor = Sensor.query.filter(Sensor.id == id).one_or_none()
+    if sensor is None:
+        raise abort(404, f"Sensor {id} not found")
+    return sensor
