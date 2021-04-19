@@ -68,7 +68,7 @@
       };
 
       var sensorId = {{ sensor_id }}
-      sensorPath = '/sensors/' + sensorId
+      sensorPath = '/sensor/' + sensorId
       chartSpecsPath = sensorPath + '/chart'
       elementId = 'sensorchart'
       datasetName = 'sensor_' + sensorId
@@ -124,14 +124,11 @@
       }
 
       $(document).ready(function () {
-        $.getJSON( sensorPath + '/timezone', {
+        $.getJSON( sensorPath, {
         }, function( data ) {
           if (data.timezone != jstz.determine().name()) {
             $('#tzwarn').show().multiline('Please note that the sensor data you are viewing is located in a different timezone.\nTo view the data from a local perspective, set your locale timezone to ' + data.timezone + '.');
           }
-        });
-        $.getJSON( sensorPath + '/timerange', {
-        }, function( data ) {
           start = new Date(data.timerange.start);
           end = new Date(data.timerange.end)
           end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
