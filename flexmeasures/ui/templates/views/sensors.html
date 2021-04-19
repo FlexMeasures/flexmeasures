@@ -112,8 +112,8 @@
           $.getJSON( sensorPath + '/chart', {
             data_only: true,
             chart_only: false,
-            events_not_before: queryStartDate,
-            events_before: queryEndDate,
+            event_starts_after: queryStartDate,
+            event_ends_before: queryEndDate,
             dataset_name: datasetName
           }, function( data ) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(data)).resize().run();

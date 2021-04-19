@@ -22,9 +22,9 @@ class SensorView(FlaskView):
     @route("/<id>/<attr>/")
     @use_kwargs(
         {
-            "events_not_before": AwareDateTimeField(format="iso", required=False),
-            "events_before": AwareDateTimeField(format="iso", required=False),
-            "beliefs_not_before": AwareDateTimeField(format="iso", required=False),
+            "event_starts_after": AwareDateTimeField(format="iso", required=False),
+            "event_ends_before": AwareDateTimeField(format="iso", required=False),
+            "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "data_only": fields.Boolean(required=False),
             "chart_only": fields.Boolean(required=False),
