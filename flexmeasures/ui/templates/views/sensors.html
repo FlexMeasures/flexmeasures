@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <title>FlexMeasures</title>
-    <meta charset="utf-8">
+{% extends "base.html" %}
 
-    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
-    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+{% set active_page = "assets" %}
+
+{% block title %} Assets {% endblock %}
+
+{% block divs %}
+
+      <div class="charts text-center">
+          <div class="row"><div class="alert alert-info" id="tzwarn" style="display:none;"></div></div>
+          <div class="row"><div id="datepicker"></div></div>
+          <div class="row"><div id="sensorchart"></div></div><hr>
+      </div>
 
     <script src="https://d3js.org/d3.v6.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
@@ -16,17 +21,11 @@
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/mobilefriendly.js"></script>
-  </head>
-  <body>
-
-      <div class="charts text-center">
-          <div class="row"><div class="alert alert-info" id="tzwarn" style="display:none;"></div></div>
-          <div class="row"><div id="datepicker"></div></div>
-          <div class="row"><div id="sensorchart"></div></div><hr>
-      </div>
 
     <!-- Render Charts -->
-    <script type="text/javascript">
+    <script type="module" type="text/javascript">
+
+      import { subtract, thisMonth, lastNMonths } from "{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}";
 
       let vegaView;
 
@@ -44,32 +43,11 @@
         });
       }
 
-      // Date range utils
-      function subtract(oldDate, nDays) {
-        newDate = new Date(oldDate)
-        newDate.setDate(newDate.getDate() - nDays);
-        return newDate;
-      }
-      function thisMonth(oldDate) {
-        d1 = new Date(oldDate)
-        d1.setDate(1);
-        d2 = new Date(d1.getFullYear(), d1.getMonth() + 1, 0);
-
-        return [d1, d2];
-      };
-      function lastNMonths(oldDate, nMonths) {
-        d0 = new Date(oldDate)
-        d1 = new Date(d0.getFullYear(), d0.getMonth() - nMonths + 2, 0);
-        d1.setDate(1);
-        d2 = new Date(d0.getFullYear(), d0.getMonth() + 1, 0);
-        return [d1, d2];
-      };
-
       var sensorId = {{ sensor_id }}
-      sensorPath = '/sensor/' + sensorId
-      chartSpecsPath = sensorPath + '/chart'
-      elementId = 'sensorchart'
-      datasetName = 'sensor_' + sensorId
+      var sensorPath = '/sensor/' + sensorId
+      var chartSpecsPath = sensorPath + '/chart'
+      var elementId = 'sensorchart'
+      var datasetName = 'sensor_' + sensorId
       embedAndLoad(chartSpecsPath, elementId, datasetName);
 
       const date = Date();
@@ -105,8 +83,8 @@
           startDate = startDate.toJSDate()
           endDate = endDate.toJSDate()
           endDate.setDate(endDate.getDate() + 1);
-          queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
-          queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
+          var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
+          var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
           fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
             method: "GET",
             headers: {"Content-Type": "application/json"},
@@ -129,14 +107,14 @@
               document.getElementById('tzwarn').style.display = 'block';
               document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone.<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
             }
-            start = new Date(data.timerange.start);
-            end = new Date(data.timerange.end)
+            var start = new Date(data.timerange.start);
+            var end = new Date(data.timerange.end)
             end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
             start.setHours(0,0,0,0) // get start of first day
             end.setHours(0,0,0,0) // get start of last day
 
             // Initialize picker to the last 2 days of sensor data
-            nearEnd = new Date(end)//.setDate(end.getDate() - 1)
+            var nearEnd = new Date(end)//.setDate(end.getDate() - 1)
             nearEnd.setDate(nearEnd.getDate() - 1)
             picker.setDateRange(
                 nearEnd,
@@ -156,5 +134,4 @@
 
     </script>
 
-  </body>
-</html>
+{% endblock %}
