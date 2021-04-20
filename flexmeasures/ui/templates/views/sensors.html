@@ -4,10 +4,8 @@
     <title>FlexMeasures</title>
     <meta charset="utf-8">
 
-    <script src="//code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
     <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
-    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js">script></script>
 
     <script src="https://d3js.org/d3.v6.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
@@ -109,49 +107,52 @@
           endDate.setDate(endDate.getDate() + 1);
           queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
           queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
-          $.getJSON( sensorPath + '/chart_data', {
-            event_starts_after: queryStartDate,
-            event_ends_before: queryEndDate,
-          }, function( data ) {
+          fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+            method: "GET",
+            headers: {"Content-Type": "application/json"},
+          })
+          .then(function(response) { return response.json(); })
+          .then(function(data) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(data)).resize().run();
           });
       });
 
-      $.fn.multiline = function(text){
-          this.text(text);
-          this.html(this.html().replace(/\n/g,'<br/>'));
-          return this;
-      }
+      document.onreadystatechange = () => {
+        if (document.readyState === 'complete') {
+          fetch(sensorPath, {
+            method: "GET",
+            headers: {"Content-Type": "application/json"},
+          })
+          .then(function(response) { return response.json(); })
+          .then(function(data) {
+            if (data.timezone != jstz.determine().name()) {
+              document.getElementById('tzwarn').style.display = 'block';
+              document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone.<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
+            }
+            start = new Date(data.timerange.start);
+            end = new Date(data.timerange.end)
+            end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+            start.setHours(0,0,0,0) // get start of first day
+            end.setHours(0,0,0,0) // get start of last day
 
-      $(document).ready(function () {
-        $.getJSON( sensorPath, {
-        }, function( data ) {
-          if (data.timezone != jstz.determine().name()) {
-            $('#tzwarn').show().multiline('Please note that the sensor data you are viewing is located in a different timezone.\nTo view the data from a local perspective, set your locale timezone to ' + data.timezone + '.');
-          }
-          start = new Date(data.timerange.start);
-          end = new Date(data.timerange.end)
-          end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-          start.setHours(0,0,0,0) // get start of first day
-          end.setHours(0,0,0,0) // get start of last day
+            // Initialize picker to the last 2 days of sensor data
+            nearEnd = new Date(end)//.setDate(end.getDate() - 1)
+            nearEnd.setDate(nearEnd.getDate() - 1)
+            picker.setDateRange(
+                nearEnd,
+                end,
+            )
 
-          // Initialize picker to the last 2 days of sensor data
-          nearEnd = new Date(end)//.setDate(end.getDate() - 1)
-          nearEnd.setDate(nearEnd.getDate() - 1)
-          picker.setDateRange(
-              nearEnd,
-              end,
-          )
-
-          // No use looking for data in years outside timerange of sensor data
-          picker.setOptions({
-            dropdowns: {
-                minYear: start.getFullYear(),
-                maxYear: end.getFullYear(),
-            },
+            // No use looking for data in years outside timerange of sensor data
+            picker.setOptions({
+              dropdowns: {
+                  minYear: start.getFullYear(),
+                  maxYear: end.getFullYear(),
+              },
+            });
           });
-        });
-      });
+        }
+      };
 
     </script>
 
