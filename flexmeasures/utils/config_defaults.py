@@ -78,7 +78,6 @@ class Config(object):
     FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
-    FLEXMEASURES_SHOW_CONTROL_UI: bool = False
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
     FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: Optional[Tuple] = None
     FLEXMEASURES_DEMO_YEAR: Optional[int] = None
@@ -86,8 +85,16 @@ class Config(object):
     # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict = {"flexmeasures.io": "2021-01"}
+    FLEXMEASURES_PLUGIN_PATHS: List[str] = []
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
+    FLEXMEASURES_LISTED_VIEWS: List[str] = [
+        "dashboard",
+        "analytics",
+        "portfolio",
+        "assets",
+        "users",
+    ]
     FLEXMEASURES_LP_SOLVER: str = "cbc"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
