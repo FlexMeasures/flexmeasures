@@ -98,6 +98,12 @@ class Config(object):
     FLEXMEASURES_REDIS_PORT: int = 6379
     FLEXMEASURES_REDIS_DB_NR: int = 0  # Redis per default has 16 databases, [0-15]
     FLEXMEASURES_REDIS_PASSWORD: Optional[str] = None
+    FLEXMEASURES_JS_VERSIONS: dict = dict(
+        vega="5",
+        vegaembed="6.17.0",
+        vegalite="5.0.0",
+        # todo: expand with other js versions used in FlexMeasures
+    )
 
 
 #  names of settings which cannot be None

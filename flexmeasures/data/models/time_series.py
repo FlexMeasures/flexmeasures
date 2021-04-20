@@ -3,6 +3,7 @@ from datetime import datetime as datetime_type, timedelta
 import json
 
 from altair.utils.html import spec_to_html
+from flask import current_app
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
@@ -140,9 +141,13 @@ class Sensor(db.Model, tb.SensorDBMixin):
             return spec_to_html(
                 chart_specs,
                 "vega-lite",
-                vega_version="5",
-                vegaembed_version="6.17.0",
-                vegalite_version="5.0.0",
+                vega_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS").vega,
+                vegaembed_version=current_app.config.get(
+                    "FLEXMEASURES_JS_VERSIONS"
+                ).vegaembed,
+                vegalite_version=current_app.config.get(
+                    "FLEXMEASURES_JS_VERSIONS"
+                ).vegalite,
             )
         return json.dumps(chart_specs)
 
