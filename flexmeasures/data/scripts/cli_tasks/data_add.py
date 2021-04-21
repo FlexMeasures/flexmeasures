@@ -238,16 +238,54 @@ def add_initial_structure():
     help="Allow overwriting possibly already existing data.\n"
     "Not allowing overwriting can be much more efficient",
 )
+@click.option(
+    "--skiprows",
+    required=False,
+    default=1,
+    type=int,
+    help="Number of rows to skip from the top. Set to >1 to skip additional headers.",
+)
+@click.option(
+    "--nrows",
+    required=False,
+    type=int,
+    help="Number of rows to read (from the top, after possibly skipping rows). Leave out to read all rows.",
+)
+@click.option(
+    "--datecol",
+    required=False,
+    default=0,
+    type=int,
+    help="Column number with datetimes (0 is 1st column, the default)",
+)
+@click.option(
+    "--valuecol",
+    required=False,
+    default=1,
+    type=int,
+    help="Column number with values (1 is 2nd column, the default)",
+)
+@click.option(
+    "--sheet_number",
+    required=False,
+    type=int,
+    help="[For xls or xlsx files] Sheet number with the data (0 is 1st sheet)",
+)
 def add_beliefs(
     file: str,
     sensor_id: int,
     horizon: Optional[int] = None,
     cp: Optional[float] = None,
     allow_overwrite: bool = False,
+    skiprows: int = 1,
+    nrows: Optional[int] = None,
+    datecol: int = 0,
+    valuecol: int = 1,
+    sheet_number: Optional[int] = None,
 ):
-    """Add sensor data from a csv file.
+    """Add sensor data from a csv file (also accepts xls or xlsx).
 
-    Structure your csv file as follows:
+    To use default settings, structure your csv file as follows:
 
         - One header line (will be ignored!)
         - UTC datetimes in 1st column
@@ -277,20 +315,29 @@ def add_beliefs(
         source = DataSource(name="Seita", type="CLI script")
         db.session.add(source)
         db.session.flush()  # assigns id
+
+    # Set up optional parameters for read_csv
+    kwargs = dict()
+    if file.split(".")[-1].lower() == "csv":
+        kwargs["infer_datetime_format"] = True
+    if sheet_number is not None:
+        kwargs["sheet_name"] = sheet_number
+    if horizon is not None:
+        kwargs["belief_horizon"] = timedelta(minutes=horizon)
+    else:
+        kwargs["belief_time"] = server_now().astimezone(pytz.timezone(sensor.timezone))
+
     bdf = tb.read_csv(
         file,
         sensor,
         source=source,
         cumulative_probability=cp,
+        header=None,
+        skiprows=skiprows,
+        nrows=nrows,
+        usecols=[datecol, valuecol],
         parse_dates=True,
-        infer_datetime_format=True,
-        **(
-            dict(belief_horizon=timedelta(minutes=horizon))
-            if horizon is not None
-            else dict(
-                belief_time=server_now().astimezone(pytz.timezone(sensor.timezone))
-            )
-        ),
+        **kwargs,
     )
     try:
         TimedBelief.add(
