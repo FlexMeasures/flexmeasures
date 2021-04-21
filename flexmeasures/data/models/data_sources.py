@@ -46,7 +46,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             return f"schedule by {self.name}"
         elif self.type == "crawling script":
             return f"data retrieved from {self.name}"
-        elif self.type == "demo script":
+        elif self.type in ("demo script", "CLI script"):
             return f"demo data entered by {self.name}"
         else:
             return f"data from {self.name}"
