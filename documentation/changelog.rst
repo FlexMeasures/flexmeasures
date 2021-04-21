@@ -18,7 +18,8 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * Updated dependencies, including Flask-Security-Too [see `PR #82 <http://www.github.com/SeitaBV/flexmeasures/pull/82>`_]
-* Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <http://www.github.com/SeitaBV/flexmeasures/pull/79>`_]
+* Improved documentation after user feedback [see `PR #97 <http://www.github.com/SeitaBV/flexmeasures/pull/97>`_]
+* Begin experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <http://www.github.com/SeitaBV/flexmeasures/pull/79>`_]
 * Add sensors with CLI command currently meant for developers only [see `PR #83 <https://github.com/SeitaBV/flexmeasures/pull/83>`_]
 * Add data (beliefs about sensor events) with CLI command currently meant for developers only [see `PR #85 <https://github.com/SeitaBV/flexmeasures/pull/85>`_]
 

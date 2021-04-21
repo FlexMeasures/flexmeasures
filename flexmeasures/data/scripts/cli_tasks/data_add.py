@@ -337,14 +337,14 @@ def add_beliefs(
     multiple=True,
     type=click.Choice(["1", "6", "24", "48"]),
     default=["1", "6", "24", "48"],
-    help="Forecasting horizon in hours. This argument can be given multiple times.",
+    help="Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
 )
 @click.option(
     "--as-job",
     is_flag=True,
     help="Whether to queue a forecasting job instead of computing directly."
     " Useful to run locally and create forecasts on a remote server. In that case, just point the redis db in your"
-    " config settings to that of the remote server. To process the job, run a worker to process the forecasting queue.",
+    " config settings to that of the remote server. To process the job, run a worker to process the forecasting queue. Defaults to False.",
 )
 def create_forecasts(
     asset_type: str = None,

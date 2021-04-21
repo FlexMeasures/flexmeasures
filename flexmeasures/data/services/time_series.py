@@ -257,6 +257,9 @@ def convert_query_window_for_demo(
             end = (query_window[-1] + timedelta(days=1)).replace(year=demo_year)
         else:
             end = query_window[-1]
+
+    if start >= end:
+        start, end = (end, start)
     return start, end
 
 
