@@ -1,3 +1,5 @@
+import json
+
 from flask_classful import FlaskView, route
 from flask_login import login_required
 from flask_security import roles_required
@@ -27,7 +29,6 @@ class SensorAPI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "include_data": fields.Boolean(required=False),
-            "as_html": fields.Boolean(required=False),
             "dataset_name": fields.Str(required=False),
         },
         location="query",
@@ -35,7 +36,7 @@ class SensorAPI(FlaskView):
     def get_chart(self, id, **kwargs):
         """GET from /sensor/<id>/chart"""
         sensor = get_sensor_or_abort(id)
-        return sensor.chart(**kwargs)
+        return json.dumps(sensor.chart(**kwargs))
 
     @login_required
     @roles_required("admin")  # todo: remove after we check for sensor ownership

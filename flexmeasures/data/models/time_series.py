@@ -2,8 +2,6 @@ from typing import List, Dict, Optional, Union, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
 
-from altair.utils.html import spec_to_html
-from flask import current_app
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
@@ -74,10 +72,9 @@ class Sensor(db.Model, tb.SensorDBMixin):
         beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
         include_data: bool = False,
-        as_html: bool = False,
         dataset_name: Optional[str] = None,
         **kwargs,
-    ) -> str:
+    ) -> dict:
         """Create a chart showing sensor data.
 
         :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
@@ -87,7 +84,6 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass its name or id) or list of sources
         :param include_data: if True, include data in the chart, or if False, exclude data
-        :param as_html: if True, return the chart as a standalone html, or if False, return as JSON
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         """
 
@@ -117,19 +113,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
             )
             # Combine chart specs and data
             chart_specs["datasets"] = {dataset_name: json.loads(data)}
-        if as_html:
-            return spec_to_html(
-                chart_specs,
-                "vega-lite",
-                vega_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS").vega,
-                vegaembed_version=current_app.config.get(
-                    "FLEXMEASURES_JS_VERSIONS"
-                ).vegaembed,
-                vegalite_version=current_app.config.get(
-                    "FLEXMEASURES_JS_VERSIONS"
-                ).vegalite,
-            )
-        return json.dumps(chart_specs)
+        return chart_specs
 
     @property
     def timerange(self) -> Dict[str, datetime_type]:

@@ -1,3 +1,5 @@
+from altair.utils.html import spec_to_html
+from flask import current_app
 from flask_classful import FlaskView, route
 from flask_security import login_required, roles_required
 from marshmallow import fields
@@ -32,7 +34,20 @@ class SensorUI(FlaskView):
     )
     def get_chart(self, id, **kwargs):
         """GET from /sensors/<id>/chart"""
-        return SensorAPI().get_chart(id, include_data=True, as_html=True, **kwargs)
+        chart_specs = SensorAPI().get_chart(
+            id, include_data=True, as_html=True, **kwargs
+        )
+        return spec_to_html(
+            chart_specs,
+            "vega-lite",
+            vega_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS").vega,
+            vegaembed_version=current_app.config.get(
+                "FLEXMEASURES_JS_VERSIONS"
+            ).vegaembed,
+            vegalite_version=current_app.config.get(
+                "FLEXMEASURES_JS_VERSIONS"
+            ).vegalite,
+        )
 
     @login_required
     @roles_required("admin")  # todo: remove after we check for sensor ownership
