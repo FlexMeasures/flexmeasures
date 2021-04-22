@@ -316,7 +316,7 @@ function submit_sensor_type() {
 export function subtract(oldDate, nDays) {
     var newDate = new Date(oldDate)
     newDate.setDate(newDate.getDate() - nDays);
-return newDate;
+    return newDate;
 }
 export function thisMonth(oldDate) {
     var d1 = new Date(oldDate)
