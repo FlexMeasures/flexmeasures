@@ -40,6 +40,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         beliefs_after: Optional[datetime_type] = None,
         beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
+        as_json: bool = False,
     ):
         """Search all beliefs about events for this sensor.
 
@@ -48,8 +49,9 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass its name or id) or list of sources
+        :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         """
-        return TimedBelief.search(
+        bdf = TimedBelief.search(
             sensor=self,
             event_starts_after=event_starts_after,
             event_ends_before=event_ends_before,
@@ -57,33 +59,11 @@ class Sensor(db.Model, tb.SensorDBMixin):
             beliefs_before=beliefs_before,
             source=source,
         )
-
-    def chart_data(
-        self,
-        event_starts_after: Optional[datetime_type] = None,
-        event_ends_before: Optional[datetime_type] = None,
-        beliefs_after: Optional[datetime_type] = None,
-        beliefs_before: Optional[datetime_type] = None,
-        source: Optional[Union[int, List[int], str, List[str]]] = None,
-    ):
-        """Get sensor data for use in charts.
-
-        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
-        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
-        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
-        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
-        :param source: search only beliefs by this source (pass its name or id) or list of sources
-        """
-        bdf = self.search_beliefs(
-            event_starts_after=event_starts_after,
-            event_ends_before=event_ends_before,
-            beliefs_after=beliefs_after,
-            beliefs_before=beliefs_before,
-            source=source,
-        )
-        df = bdf.reset_index()
-        df["source"] = df["source"].apply(lambda x: x.name)
-        return df.to_json(orient="records")
+        if as_json:
+            df = bdf.reset_index()
+            df["source"] = df["source"].apply(lambda x: x.name)
+            return df.to_json(orient="records")
+        return bdf
 
     def chart(
         self,

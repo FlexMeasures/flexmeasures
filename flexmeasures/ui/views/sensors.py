@@ -92,7 +92,7 @@ class SensorAPI(FlaskView):
         Data for use in charts (in case you have the chart specs already).
         """
         sensor = get_sensor_or_abort(id)
-        return sensor.chart_data(**kwargs)
+        return sensor.search_beliefs(as_json=True, **kwargs)
 
     @login_required
     @roles_required("admin")  # todo: remove after we check for sensor ownership
