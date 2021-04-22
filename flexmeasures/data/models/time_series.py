@@ -18,7 +18,7 @@ from flexmeasures.data.queries.utils import (
     exclude_source_type_filter,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
-from flexmeasures.ui.charts import chart_type_to_chart_specs
+from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
