@@ -221,6 +221,12 @@ def add_initial_structure():
     help="Sensor to which the beliefs pertain.",
 )
 @click.option(
+    "--source",
+    required=True,
+    type=str,
+    help="Source of the beliefs (an existing source id or name, or a new name).",
+)
+@click.option(
     "--horizon",
     required=False,
     type=int,
@@ -274,6 +280,7 @@ def add_initial_structure():
 def add_beliefs(
     file: str,
     sensor_id: int,
+    source: str,
     horizon: Optional[int] = None,
     cp: Optional[float] = None,
     allow_overwrite: bool = False,
@@ -305,16 +312,21 @@ def add_beliefs(
     if sensor is None:
         print(f"Failed to create beliefs: no sensor found with id {sensor_id}.")
         return
-    source = (
-        DataSource.query.filter(DataSource.name == "Seita")
-        .filter(DataSource.type == "CLI script")
-        .one_or_none()
-    )
-    if not source:
-        print("SETTING UP CLI SCRIPT AS NEW DATA SOURCE...")
-        source = DataSource(name="Seita", type="CLI script")
-        db.session.add(source)
-        db.session.flush()  # assigns id
+    query = DataSource.query.filter(DataSource.type == "CLI script")
+    if source.isdigit():
+        query = query.filter(DataSource.id == int(source))
+        _source = query.one_or_none()
+        if not _source:
+            print(f"Failed to find source {source}.")
+            return
+    else:
+        query = query.filter(DataSource.name == source)
+        _source = query.one_or_none()
+        if not _source:
+            print(f"Setting up '{source}' as new data source...")
+            _source = DataSource(name=source, type="CLI script")
+            db.session.add(_source)
+            db.session.flush()  # assigns id
 
     # Set up optional parameters for read_csv
     kwargs = dict()
@@ -330,7 +342,7 @@ def add_beliefs(
     bdf = tb.read_csv(
         file,
         sensor,
-        source=source,
+        source=_source,
         cumulative_probability=cp,
         header=None,
         skiprows=skiprows,
