@@ -1,4 +1,4 @@
-from flexmeasures.ui.charts.defaults import TIME_TITLE, TIME_TOOLTIP_TITLE
+from flexmeasures.data.models.charts.defaults import TIME_TITLE, TIME_TOOLTIP_TITLE
 
 
 def bar_chart(title: str, quantity: str = "unknown quantity", unit: str = "a.u."):
