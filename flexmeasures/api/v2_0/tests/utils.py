@@ -134,7 +134,7 @@ def verify_sensor_data_in_db(
 def message_for_post_prognosis():
     message = {
         "type": "PostPrognosisRequest",
-        "connection": "ea1.2018-06.localhost:1:2",
+        "connection": "ea1.2018-06.localhost:2:7",
         "values": [300, 300, 300, 0, 0, 300],
         "start": "2021-01-01T00:00:00Z",
         "duration": "PT1H30M",

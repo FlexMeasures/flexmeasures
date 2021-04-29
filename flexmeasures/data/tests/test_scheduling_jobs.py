@@ -11,7 +11,7 @@ from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.utils.time_utils import as_server_time
 
 
-def test_scheduling_a_battery(db, app):
+def test_scheduling_a_battery(db, app, add_battery_assets):
     """Test one clean run of one scheduling job:
     - data source was made,
     - schedule has been made

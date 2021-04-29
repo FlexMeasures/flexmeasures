@@ -233,7 +233,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
         db.session.add(p)
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function")
 def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
     """Add two battery assets, set their capacity values and their initial SOC."""
     db.session.add(

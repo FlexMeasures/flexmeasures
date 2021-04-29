@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.fixture(scope="function", autouse=True)
-def setup_api_test_data(db):
+def setup_api_test_data(db, setup_roles_users, add_battery_assets):
     """
     Set up data for API v2.0 tests.
     """
@@ -15,9 +15,8 @@ def setup_api_test_data(db):
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
-    test_supplier = user_datastore.find_user(email="test_supplier@seita.nl")
     battery = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-    battery.owner = test_supplier
+    battery.owner = setup_roles_users["Test Supplier"]
 
     test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
     admin_role = user_datastore.create_role(name="admin", description="God powers")
