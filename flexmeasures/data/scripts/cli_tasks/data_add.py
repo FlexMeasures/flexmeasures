@@ -20,7 +20,10 @@ from flexmeasures.data.models.time_series import Sensor, SensorSchema, TimedBeli
 from flexmeasures.data.models.assets import Asset, AssetSchema
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorSchema
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import (
+    get_or_create_source,
+    get_source_or_none,
+)
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -312,21 +315,13 @@ def add_beliefs(
     if sensor is None:
         print(f"Failed to create beliefs: no sensor found with id {sensor_id}.")
         return
-    query = DataSource.query.filter(DataSource.type == "CLI script")
     if source.isdigit():
-        query = query.filter(DataSource.id == int(source))
-        _source = query.one_or_none()
+        _source = get_source_or_none(int(source), source_type="CLI script")
         if not _source:
             print(f"Failed to find source {source}.")
             return
     else:
-        query = query.filter(DataSource.name == source)
-        _source = query.one_or_none()
-        if not _source:
-            print(f"Setting up '{source}' as new data source...")
-            _source = DataSource(name=source, type="CLI script")
-            db.session.add(_source)
-            db.session.flush()  # assigns id
+        _source = get_or_create_source(source, source_type="CLI script")
 
     # Set up optional parameters for read_csv
     kwargs = dict()
