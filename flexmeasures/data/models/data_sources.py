@@ -57,7 +57,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
 
 def get_or_create_source(
-    source: Union[User, str], source_type: str = "user"
+    source: Union[User, str], source_type: str = "user", flush: bool = True
 ) -> DataSource:
     query = DataSource.query.filter(DataSource.type == source_type)
     if isinstance(source, User):
@@ -74,7 +74,9 @@ def get_or_create_source(
         else:
             _source = DataSource(name=source, type=source_type)
         db.session.add(_source)
-        db.session.flush()  # assigns id so that we can reference the new object in the current db session
+        if flush:
+            # assigns id so that we can reference the new object in the current db session
+            db.session.flush()
     return _source
 
 
