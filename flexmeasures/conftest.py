@@ -1,6 +1,7 @@
 import pytest
 from random import random
 from datetime import datetime, timedelta
+from typing import Dict
 
 from isodate import parse_duration
 import pandas as pd
@@ -22,7 +23,7 @@ from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.markets import Market, MarketType, Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
@@ -93,9 +94,8 @@ def setup_roles_users(db):
 
 
 @pytest.fixture(scope="function")
-def setup_markets(db):
+def setup_markets(db) -> Dict[str, Market]:
     """Create the epex_da market."""
-    from flexmeasures.data.models.markets import Market, MarketType
 
     day_ahead = MarketType(
         name="day_ahead",
@@ -117,7 +117,7 @@ def setup_markets(db):
 
 
 @pytest.fixture(scope="function")
-def setup_sources(db):
+def setup_sources(db) -> Dict[str, DataSource]:
     data_source = DataSource(name="Seita", type="demo script")
     db.session.add(data_source)
     return {"Seita": data_source}
@@ -234,7 +234,9 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
 
 
 @pytest.fixture(scope="function")
-def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
+def add_battery_assets(
+    db: SQLAlchemy, setup_roles_users, setup_markets
+) -> Dict[str, Asset]:
     """Add two battery assets, set their capacity values and their initial SOC."""
     db.session.add(
         AssetType(
