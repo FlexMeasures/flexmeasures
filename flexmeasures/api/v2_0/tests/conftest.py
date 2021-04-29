@@ -11,11 +11,10 @@ def setup_api_test_data(db, setup_roles_users, add_battery_assets):
     print("Setting up data for API v2.0 tests on %s" % db.engine)
 
     from flexmeasures.data.models.user import User, Role
-    from flexmeasures.data.models.assets import Asset
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
-    battery = Asset.query.filter(Asset.name == "Test battery").one_or_none()
+    battery = add_battery_assets["Test battery"]
     battery.owner = setup_roles_users["Test Supplier"]
 
     test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")

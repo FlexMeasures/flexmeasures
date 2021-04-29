@@ -249,7 +249,7 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
         )
     )
 
-    battery = Asset(
+    test_battery = Asset(
         name="Test battery",
         asset_type_name="battery",
         event_resolution=timedelta(minutes=15),
@@ -264,10 +264,10 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    battery.owner = setup_roles_users["Test Prosumer"]
-    db.session.add(battery)
+    test_battery.owner = setup_roles_users["Test Prosumer"]
+    db.session.add(test_battery)
 
-    battery = Asset(
+    test_battery_no_prices = Asset(
         name="Test battery with no known prices",
         asset_type_name="battery",
         event_resolution=timedelta(minutes=15),
@@ -282,8 +282,12 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    battery.owner = setup_roles_users["Test Prosumer"]
-    db.session.add(battery)
+    test_battery_no_prices.owner = setup_roles_users["Test Prosumer"]
+    db.session.add(test_battery_no_prices)
+    return {
+        "Test battery": test_battery,
+        "Test battery with no known prices": test_battery_no_prices,
+    }
 
 
 @pytest.fixture(scope="function", autouse=True)
