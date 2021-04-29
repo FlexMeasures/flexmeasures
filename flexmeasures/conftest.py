@@ -92,7 +92,7 @@ def setup_roles_users(db):
     return {"Test Prosumer": test_prosumer, "Test Supplier": test_supplier}
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function")
 def setup_markets(db):
     """Create the epex_da market."""
     from flexmeasures.data.models.markets import Market, MarketType
@@ -116,12 +116,16 @@ def setup_markets(db):
     return {"epex_da": epex_da}
 
 
-@pytest.fixture(scope="function", autouse=True)
-def setup_assets(db, setup_roles_users, setup_markets):
-    """Make some asset types and add assets to known test users."""
-
+@pytest.fixture(scope="function")
+def setup_sources(db):
     data_source = DataSource(name="Seita", type="demo script")
     db.session.add(data_source)
+    return {"Seita": data_source}
+
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_assets(db, setup_roles_users, setup_markets, setup_sources):
+    """Make some asset types and add assets to known test users."""
 
     db.session.add(
         AssetType(
@@ -169,25 +173,22 @@ def setup_assets(db, setup_roles_users, setup_markets):
                 datetime=as_server_time(dt),
                 horizon=parse_duration("PT0M"),
                 value=val,
-                data_source_id=data_source.id,
+                data_source_id=setup_sources["Seita"].id,
             )
             p.asset = asset
             db.session.add(p)
 
 
 @pytest.fixture(scope="function")
-def setup_beliefs(db: SQLAlchemy, setup_markets) -> int:
+def setup_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
     """
     :returns: the number of beliefs set up
     """
     sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
-    data_source = DataSource.query.filter_by(
-        name="Seita", type="demo script"
-    ).one_or_none()
     beliefs = [
         TimedBelief(
             sensor=sensor,
-            source=data_source,
+            source=setup_sources["Seita"],
             event_value=21,
             event_start="2021-03-28 16:00+01",
             belief_horizon=timedelta(0),
@@ -198,11 +199,8 @@ def setup_beliefs(db: SQLAlchemy, setup_markets) -> int:
 
 
 @pytest.fixture(scope="function", autouse=True)
-def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
+def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources):
     """Add two days of market prices for the EPEX day-ahead market."""
-    data_source = DataSource.query.filter_by(
-        name="Seita", type="demo script"
-    ).one_or_none()
 
     # one day of test data (one complete sine curve)
     time_slots = pd.date_range(
@@ -214,7 +212,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
             datetime=as_server_time(dt),
             horizon=timedelta(hours=0),
             value=val,
-            data_source_id=data_source.id,
+            data_source_id=setup_sources["Seita"].id,
         )
         p.market = setup_markets["epex_da"]
         db.session.add(p)
@@ -229,7 +227,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
             datetime=as_server_time(dt),
             horizon=timedelta(hours=0),
             value=val,
-            data_source_id=data_source.id,
+            data_source_id=setup_sources["Seita"].id,
         )
         p.market = setup_markets["epex_da"]
         db.session.add(p)
