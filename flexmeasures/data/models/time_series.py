@@ -104,7 +104,8 @@ class Sensor(db.Model, tb.SensorDBMixin):
 
         if include_data:
             # Set up data
-            data = self.chart_data(
+            data = self.search_beliefs(
+                as_json=True,
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 beliefs_after=beliefs_after,
