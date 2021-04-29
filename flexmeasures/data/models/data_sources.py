@@ -1,9 +1,10 @@
-from typing import Optional
+from typing import Optional, Union
 
 import timely_beliefs as tb
+from flask import current_app
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.user import User
+from flexmeasures.data.models.user import User, is_user
 
 
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
@@ -53,3 +54,33 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     def __repr__(self):
         return "<Data source %r (%s)>" % (self.id, self.label)
+
+
+def get_or_create_source(
+    source: Union[User, str], source_type: str = "user", flush: bool = True
+) -> DataSource:
+    query = DataSource.query.filter(DataSource.type == source_type)
+    if is_user(source):
+        query = query.filter(DataSource.user == source)
+    elif isinstance(source, str):
+        query = query.filter(DataSource.name == source)
+    else:
+        raise TypeError("source should be of type User or str")
+    _source = query.one_or_none()
+    if not _source:
+        current_app.logger.info(f"Setting up '{source}' as new data source...")
+        if is_user(source):
+            _source = DataSource(user=source)
+        else:
+            _source = DataSource(name=source, type=source_type)
+        db.session.add(_source)
+        if flush:
+            # assigns id so that we can reference the new object in the current db session
+            db.session.flush()
+    return _source
+
+
+def get_source_or_none(source: int, source_type: str) -> Optional[DataSource]:
+    query = DataSource.query.filter(DataSource.type == source_type)
+    query = query.filter(DataSource.id == int(source))
+    return query.one_or_none()

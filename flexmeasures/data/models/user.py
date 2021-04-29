@@ -98,3 +98,14 @@ def remember_login(the_app, user):
     if user.login_count is None:
         user.login_count = 0
     user.login_count = user.login_count + 1
+
+
+def is_user(o) -> bool:
+    """True if object is or proxies a User, False otherwise.
+
+    Takes into account that object can be of LocalProxy type, and
+    uses get_current_object to get the underlying (User) object.
+    """
+    return isinstance(o, User) or (
+        hasattr(o, "_get_current_object") and isinstance(o._get_current_object(), User)
+    )
