@@ -101,7 +101,7 @@ def remember_login(the_app, user):
 
 
 def is_user(o) -> bool:
-    """True of object is user, False otherwise.
+    """True if object is or proxies a User, False otherwise.
 
     Takes into account that object can be of LocalProxy type, and
     uses get_current_object to get the underlying (User) object.
