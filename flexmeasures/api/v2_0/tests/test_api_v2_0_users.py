@@ -32,7 +32,7 @@ def test_get_users_bad_auth(client, use_auth):
 
 
 @pytest.mark.parametrize("include_inactive", [False, True])
-def test_get_users_inactive(client, include_inactive):
+def test_get_users_inactive(client, setup_inactive_user, include_inactive):
     headers = {
         "content-type": "application/json",
         "Authorization": get_auth_token(client, "test_prosumer@seita.nl", "testtest"),
