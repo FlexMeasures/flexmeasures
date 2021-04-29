@@ -18,7 +18,9 @@ from flexmeasures.utils.time_utils import as_server_time
 
 
 @pytest.fixture(scope="function", autouse=True)
-def setup_test_data(db, clean_redis, app, remove_seasonality_for_power_forecasts):
+def setup_test_data(
+    db, app, clean_redis, add_market_prices, remove_seasonality_for_power_forecasts
+):
     """
     Adding a few forecasting jobs (based on data made in flexmeasures.conftest).
     """

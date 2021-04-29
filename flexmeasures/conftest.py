@@ -198,7 +198,7 @@ def setup_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
     return len(beliefs)
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function")
 def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources):
     """Add two days of market prices for the EPEX day-ahead market."""
 

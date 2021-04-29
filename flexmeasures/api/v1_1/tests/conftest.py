@@ -12,7 +12,7 @@ from flexmeasures.data.services.users import create_user
 
 
 @pytest.fixture(scope="function", autouse=True)
-def setup_api_test_data(db):
+def setup_api_test_data(db, add_market_prices):
     """
     Set up data for API v1.1 tests.
     """
