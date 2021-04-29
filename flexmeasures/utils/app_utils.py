@@ -76,7 +76,7 @@ def register_plugins(app: Flask):
     - Your plugin folders contains an __init__.py file.
     - In this init, you define a Blueprint object called <plugin folder>_bp
 
-    We'll refer to the plugins with the name of your plugin folders (last part of tthe path).
+    We'll refer to the plugins with the name of your plugin folders (last part of the path).
     """
     plugin_paths = app.config.get("FLEXMEASURES_PLUGIN_PATHS", "")
     if not isinstance(plugin_paths, list):

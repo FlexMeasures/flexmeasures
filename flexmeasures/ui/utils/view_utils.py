@@ -132,7 +132,7 @@ def set_time_range_for_session():
                 .astimezone(time_utils.get_timezone())
             )
 
-    # Our demo server works only with the current year's data
+    # Our demo server's UI should only work with the current year's data
     if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
         session["start_time"] = session["start_time"].replace(year=datetime.now().year)
         session["end_time"] = session["end_time"].replace(year=datetime.now().year)

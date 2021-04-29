@@ -85,6 +85,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     dev/api
     dev/ci
     dev/plugins
+    dev/modes
 
 .. toctree::
     :caption: Integrations

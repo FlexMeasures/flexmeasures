@@ -317,7 +317,7 @@ tables==3.6.1
     # via -r requirements/app.in
 threadpoolctl==2.1.0
     # via scikit-learn
-timely-beliefs==1.4.2
+timely-beliefs==1.4.3
     # via -r requirements/app.in
 timetomodel==0.6.9
     # via -r requirements/app.in

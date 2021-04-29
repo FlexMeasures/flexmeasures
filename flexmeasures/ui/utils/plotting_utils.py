@@ -564,7 +564,11 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
     First returned string is the measurement time, second string is the html string."""
 
     if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
-        before = server_now().replace(year=2015)
+        demo_year = current_app.config.get("FLEXMEASURES_DEMO_YEAR", None)
+        if demo_year is None:
+            before = server_now()
+        else:
+            before = server_now().replace(year=demo_year)
     elif current_app.config.get("FLEXMEASURES_MODE", "") == "play":
         before = None  # type:ignore
     else:

@@ -77,3 +77,20 @@ All else that is needed for this showcase (not shown here) is ``<some_folder>/ou
 
 
 .. note:: Plugin views can also be added to the FlexMeasures UI menu ― just name them in the config setting :ref:`menu-config`.
+
+
+Using other files in your plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Say you want to include other Python files in your plugin, importing them in your ``__init__.py`` file.
+This can be done if you put the plugin path on the import path. Do it like this in your ``__init__.py``:
+
+.. code-block:: python
+
+    import os
+    import sys
+
+    HERE = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, HERE)
+
+    from my_other_file import my_function
