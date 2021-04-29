@@ -117,7 +117,7 @@ def test_edit_user(client):
 
 
 def test_edit_user_with_unexpected_fields(client):
-    """Sending unexpected fields (not in Schema) is an Unprocessible Entity error."""
+    """Sending unexpected fields (not in Schema) is an Unprocessable Entity error."""
     with UserContext("test_supplier@seita.nl") as supplier:
         supplier_id = supplier.id
     with UserContext("test_prosumer@seita.nl") as prosumer:
