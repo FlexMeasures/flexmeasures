@@ -1,4 +1,5 @@
 # see ui/utils/plotting_utils: separate_legend() and create_hover_tool()
+altair
 bokeh==1.0.4
 colour
 pscript
