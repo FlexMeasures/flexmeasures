@@ -51,7 +51,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets):
     assert len(power_values) == 96
 
 
-def test_scheduling_a_charging_station(db, app):
+def test_scheduling_a_charging_station(db, app, add_charging_station_assets):
     """Test one clean run of one scheduling job:
     - data source was made,
     - schedule has been made

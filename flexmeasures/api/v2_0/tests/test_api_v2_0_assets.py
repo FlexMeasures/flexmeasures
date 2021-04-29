@@ -71,7 +71,7 @@ def test_get_asset_nonadmin_access(client):
 
 
 @pytest.mark.parametrize("use_owner_id, num_assets", [(False, 7), (True, 1)])
-def test_get_assets(client, use_owner_id, num_assets):
+def test_get_assets(client, add_charging_station_assets, use_owner_id, num_assets):
     """
     Get assets, either for all users (prosumer is admin, so is allowed to see all 7 assets) or for
     a unique one (supplier user has one asset ― "Test battery").

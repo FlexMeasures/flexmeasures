@@ -45,7 +45,9 @@ def test_get_device_message_wrong_event_id(client, message):
         (message_for_post_udi_event(targets=True), "Test charging station"),
     ],
 )
-def test_post_udi_event_and_get_device_message(app, message, asset_name):
+def test_post_udi_event_and_get_device_message(
+    app, add_charging_station_assets, message, asset_name
+):
     auth_token = None
     with app.test_client() as client:
         asset = Asset.query.filter(Asset.name == asset_name).one_or_none()

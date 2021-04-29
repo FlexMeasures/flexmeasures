@@ -292,8 +292,10 @@ def add_battery_assets(
     }
 
 
-@pytest.fixture(scope="function", autouse=True)
-def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
+@pytest.fixture(scope="function")
+def add_charging_station_assets(
+    db: SQLAlchemy, setup_roles_users, setup_markets
+) -> Dict[str, Asset]:
     """Add uni- and bi-directional charging station assets, set their capacity value and their initial SOC."""
     db.session.add(
         AssetType(
@@ -355,6 +357,10 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
     )
     bidirectional_charging_station.owner = setup_roles_users["Test Prosumer"]
     db.session.add(bidirectional_charging_station)
+    return {
+        "Test charging station": charging_station,
+        "Test charging station (bidirectional)": bidirectional_charging_station,
+    }
 
 
 @pytest.fixture(scope="function")
