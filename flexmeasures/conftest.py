@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_security import roles_accepted, SQLAlchemySessionUserDatastore
+from flask_security import roles_accepted
 from flask_security.utils import hash_password
 from werkzeug.exceptions import (
     InternalServerError,
@@ -19,10 +19,10 @@ from werkzeug.exceptions import (
 
 from flexmeasures.app import create as create_app
 from flexmeasures.utils.time_utils import as_server_time
-from flexmeasures.data.services.users import create_user, find_user_by_email
+from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
@@ -77,18 +77,19 @@ def db(app):
 @pytest.fixture(scope="function")
 def setup_roles_users(db):
     """Create a minimal set of roles and users"""
-    create_user(
+    test_prosumer = create_user(
         username="Test Prosumer",
         email="test_prosumer@seita.nl",
         password=hash_password("testtest"),
         user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
     )
-    create_user(
+    test_supplier = create_user(
         username="Test Supplier",
         email="test_supplier@seita.nl",
         password=hash_password("testtest"),
         user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
     )
+    return {"Test Prosumer": test_prosumer, "Test Supplier": test_supplier}
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -112,6 +113,7 @@ def setup_markets(db):
         knowledge_horizon_par={"x": 1, "y": 12, "z": "Europe/Paris"},
     )
     db.session.add(epex_da)
+    return {"epex_da": epex_da}
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -140,9 +142,6 @@ def setup_assets(db, setup_roles_users, setup_markets):
         )
     )
 
-    test_prosumer = find_user_by_email("test_prosumer@seita.nl")
-    test_market = Market.query.filter_by(name="epex_da").one_or_none()
-
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
         asset = Asset(
             name=asset_name,
@@ -155,9 +154,9 @@ def setup_assets(db, setup_roles_users, setup_markets):
             max_soc_in_mwh=0,
             soc_in_mwh=0,
             unit="MW",
-            market_id=test_market.id,
+            market_id=setup_markets["epex_da"].id,
         )
-        asset.owner = test_prosumer
+        asset.owner = setup_roles_users["Test Prosumer"]
         db.session.add(asset)
 
         # one day of test data (one complete sine curve)
@@ -201,7 +200,6 @@ def setup_beliefs(db: SQLAlchemy, setup_markets) -> int:
 @pytest.fixture(scope="function", autouse=True)
 def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
     """Add two days of market prices for the EPEX day-ahead market."""
-    epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
     data_source = DataSource.query.filter_by(
         name="Seita", type="demo script"
     ).one_or_none()
@@ -218,7 +216,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
             value=val,
             data_source_id=data_source.id,
         )
-        p.market = epex_da
+        p.market = setup_markets["epex_da"]
         db.session.add(p)
 
     # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
@@ -233,7 +231,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets):
             value=val,
             data_source_id=data_source.id,
         )
-        p.market = epex_da
+        p.market = setup_markets["epex_da"]
         db.session.add(p)
 
 
@@ -253,12 +251,6 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
         )
     )
 
-    from flexmeasures.data.models.user import User, Role
-
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
-    epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
-
     battery = Asset(
         name="Test battery",
         asset_type_name="battery",
@@ -271,10 +263,10 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
         soc_udi_event_id=203,
         latitude=10,
         longitude=100,
-        market_id=epex_da.id,
+        market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    battery.owner = test_prosumer
+    battery.owner = setup_roles_users["Test Prosumer"]
     db.session.add(battery)
 
     battery = Asset(
@@ -289,10 +281,10 @@ def add_battery_assets(db: SQLAlchemy, setup_roles_users, setup_markets):
         soc_udi_event_id=203,
         latitude=10,
         longitude=100,
-        market_id=epex_da.id,
+        market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    battery.owner = test_prosumer
+    battery.owner = setup_roles_users["Test Prosumer"]
     db.session.add(battery)
 
 
@@ -324,12 +316,6 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
         )
     )
 
-    from flexmeasures.data.models.user import User, Role
-
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
-    epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
-
     charging_station = Asset(
         name="Test charging station",
         asset_type_name="one-way_evse",
@@ -342,10 +328,10 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
         soc_udi_event_id=203,
         latitude=10,
         longitude=100,
-        market_id=epex_da.id,
+        market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    charging_station.owner = test_prosumer
+    charging_station.owner = setup_roles_users["Test Prosumer"]
     db.session.add(charging_station)
 
     bidirectional_charging_station = Asset(
@@ -360,10 +346,10 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
         soc_udi_event_id=203,
         latitude=10,
         longitude=100,
-        market_id=epex_da.id,
+        market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    bidirectional_charging_station.owner = test_prosumer
+    bidirectional_charging_station.owner = setup_roles_users["Test Prosumer"]
     db.session.add(bidirectional_charging_station)
 
 
