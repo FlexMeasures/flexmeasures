@@ -3,6 +3,9 @@
 API change log
 ===============
 
+.. note:: The FlexMeasures API follows its own versioning scheme. This also reflects in the URL, allowing developers to upgrade at their own pace.
+
+
 v2.0-2 | 2021-04-02
 """""""""""""""""
 
