@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.fixture(scope="function", autouse=True)
-def setup_api_test_data(db, setup_roles_users, add_battery_assets):
+def setup_api_test_data(db, clean_redis, setup_roles_users, add_battery_assets):
     """
     Set up data for API v2.0 tests.
     """

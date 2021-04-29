@@ -126,7 +126,7 @@ def test_get_prognosis(client, message):
 
 
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
-def test_post_price_data(db, app, post_message):
+def test_post_price_data(db, app, clean_redis, post_message):
     """
     Try to post price data as a logged-in test user with the Supplier role, which should succeed.
     """

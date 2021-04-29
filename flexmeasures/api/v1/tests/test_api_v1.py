@@ -266,7 +266,9 @@ def test_get_meter_data(db, app, client, message):
         message_for_get_meter_data(resolution="PT30M"),
     ],
 )
-def test_post_and_get_meter_data(db, app, client, post_message, get_message):
+def test_post_and_get_meter_data(
+    db, app, clean_redis, client, post_message, get_message
+):
     """
     Tries to post meter data as a logged-in test user with the MDC role, which should succeed.
     There should be some ForecastingJobs waiting now.

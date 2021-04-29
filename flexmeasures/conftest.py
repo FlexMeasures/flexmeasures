@@ -355,7 +355,7 @@ def add_charging_station_assets(db: SQLAlchemy, setup_roles_users, setup_markets
     db.session.add(bidirectional_charging_station)
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function")
 def clean_redis(app):
     failed = app.queues["forecasting"].failed_job_registry
     app.queues["forecasting"].empty()
