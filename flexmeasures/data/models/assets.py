@@ -113,7 +113,8 @@ class Asset(db.Model, tb.SensorDBMixin):
         else:
             # The UI may initialize Asset objects from API form data with a known id
             sensor_id = kwargs["id"]
-
+        if "unit" not in kwargs:
+            kwargs["unit"] = "MW"  # current default
         super(Asset, self).__init__(**kwargs)
         self.id = sensor_id
         if self.unit != "MW":
