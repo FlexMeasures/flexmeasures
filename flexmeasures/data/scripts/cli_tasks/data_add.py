@@ -108,8 +108,18 @@ def add_sensor(**args):
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--asset-type-name", required=True)
-@click.option("--unit", required=True, help="e.g. MW, kW/h", default="MW")
-@click.option("--capacity-in-MW", required=True, type=float)
+@click.option(
+    "--unit",
+    help="unit of rate, just MW (default) for now",
+    type=click.Choice(["MW"]),
+    default="MW",
+)  # TODO: enable others
+@click.option(
+    "--capacity-in-MW",
+    required=True,
+    type=float,
+    help="Maximum rate of this asset in MW",
+)
 @click.option(
     "--event-resolution",
     required=True,

@@ -116,6 +116,8 @@ class Asset(db.Model, tb.SensorDBMixin):
 
         super(Asset, self).__init__(**kwargs)
         self.id = sensor_id
+        if self.unit != "MW":
+            raise Exception("FlexMeasures only supports MW as unit for now.")
         self.name = self.name.replace(" (MW)", "")
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
