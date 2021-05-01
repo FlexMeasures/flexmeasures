@@ -6,6 +6,10 @@ FlexMeasures Changelog
 v0.5.0 | May XX, 2021
 ===========================
 
+Bugfixes
+-----------
+* Prevent logging out user when clearing the session [see `PR #112 <http://www.github.com/SeitaBV/flexmeasures/pull/112>`_]
+
 Infrastructure / Support
 ----------------------
 * Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
