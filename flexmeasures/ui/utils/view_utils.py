@@ -91,7 +91,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
 
 def clear_session():
     for skey in [
-        k for k in session.keys() if k not in ("_id", "user_id", "csrf_token")
+        k
+        for k in session.keys()
+        if k not in ("_fresh", "_id", "_user_id", "csrf_token", "fs_cc", "fs_paa")
     ]:
         current_app.logger.info(
             "Removing %s:%s from session ... " % (skey, session[skey])
