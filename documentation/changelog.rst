@@ -8,6 +8,7 @@ v0.4.1 | May XX, 2021
 
 Bugfixes
 -----------
+* Prevent logging out user when clearing the session [see `PR #112 <http://www.github.com/SeitaBV/flexmeasures/pull/112>`_]
 * Prevent user type data source to be created without setting a user [see `PR #111 <https://github.com/SeitaBV/flexmeasures/pull/111>`_]
 
 v0.4.0 | April 29, 2021
