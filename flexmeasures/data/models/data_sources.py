@@ -32,6 +32,8 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             name = user.username
             type = "user"
             self.user_id = user.id
+        elif user is None and type == "user":
+            raise TypeError("A data source cannot have type 'user' but no user set.")
         self.type = type
         tb.BeliefSourceDBMixin.__init__(self, name=name)
         db.Model.__init__(self, **kwargs)
@@ -57,8 +59,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
 
 def get_or_create_source(
-    source: Union[User, str], source_type: str = "user", flush: bool = True
+    source: Union[User, str], source_type: Optional[str] = None, flush: bool = True
 ) -> DataSource:
+    if is_user(source):
+        source_type = "user"
     query = DataSource.query.filter(DataSource.type == source_type)
     if is_user(source):
         query = query.filter(DataSource.user == source)
@@ -72,6 +76,8 @@ def get_or_create_source(
         if is_user(source):
             _source = DataSource(user=source)
         else:
+            if source_type is None:
+                raise TypeError("Please specify a source type")
             _source = DataSource(name=source, type=source_type)
         db.session.add(_source)
         if flush:
