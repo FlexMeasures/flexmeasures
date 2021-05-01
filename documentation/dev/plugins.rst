@@ -49,6 +49,7 @@ All else that is needed for this showcase (not shown here) is ``<some_folder>/ou
 
     # Showcase: Adding a view
 
+    @our_client_bp.route('/')
     @our_client_bp.route('/metrics')
     @login_required
     def metrics():
@@ -75,7 +76,7 @@ All else that is needed for this showcase (not shown here) is ``<some_folder>/ou
         print(f"I am a CLI command, part of FlexMeasures: {current_app}")
 
 
-.. note:: You can overwrite FlexMeasures routes here, for example the root route ``/``, as FlexMeasures registers plugin routes before its own.
+.. note:: You can overwrite FlexMeasures routes here. In our example above, we set the root route ``/``. FlexMeasures registers plugin routes before its own, so in this case visiting the root URL of your app will display this plugged-in view (the same you'd see at `/metrics`).
 
 .. note:: Plugin views can also be added to the FlexMeasures UI menu ― just name them in the config setting :ref:`menu-config`.
 
