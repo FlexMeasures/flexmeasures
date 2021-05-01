@@ -3,6 +3,14 @@ FlexMeasures Changelog
 **********************
 
 
+v0.5.0 | May XX, 2021
+===========================
+
+Infrastructure / Support
+----------------------
+* Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+
+
 v0.4.0 | April 29, 2021
 ===========================
 
@@ -12,7 +20,6 @@ New features
 * Allow for views and CLI functions to come from plugins [see also `PR #91 <https://github.com/SeitaBV/flexmeasures/pull/91>`_]
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v040-plugin-support/>`__.
-
 
 Bugfixes
 -----------

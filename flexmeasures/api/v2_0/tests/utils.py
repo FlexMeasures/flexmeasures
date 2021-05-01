@@ -18,7 +18,7 @@ from flexmeasures.api.v1_1.tests.utils import (
 def get_asset_post_data() -> dict:
     post_data = {
         "name": "Test battery 2",
-        "unit": "kW",
+        "unit": "MW",
         "capacity_in_mw": 3,
         "event_resolution": timedelta(minutes=10).seconds / 60,
         "latitude": 30.1,
