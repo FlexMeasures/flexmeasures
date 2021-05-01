@@ -8,7 +8,7 @@ v0.5.0 | May XX, 2021
 
 Infrastructure / Support
 ----------------------
-* Make assets use MW as their default unit and enforce in that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+* Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
 
 
 v0.4.0 | April 29, 2021
