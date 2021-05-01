@@ -6,6 +6,10 @@ FlexMeasures Changelog
 v0.5.0 | May XX, 2021
 ===========================
 
+New features
+-----------
+* Allow plugins to overwrite UI routes and customise the teaser on the login form [see `PR #106 <http://www.github.com/SeitaBV/flexmeasures/pull/106>`_]
+
 Bugfixes
 -----------
 * Prevent logging out user when clearing the session [see `PR #112 <http://www.github.com/SeitaBV/flexmeasures/pull/112>`_]
