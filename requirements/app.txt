@@ -6,8 +6,10 @@
 #
 alembic==1.5.8
     # via flask-migrate
-altair==3.0.0
-    # via timely-beliefs
+altair==4.1.0
+    # via
+    #   -r requirements/app.in
+    #   timely-beliefs
 arrow==1.0.3
     # via rq-dashboard
 attrs==20.3.0
@@ -285,7 +287,6 @@ siphon==0.9
     # via -r requirements/app.in
 six==1.15.0
     # via
-    #   altair
     #   bcrypt
     #   bokeh
     #   cycler
@@ -317,7 +318,7 @@ tables==3.6.1
     # via -r requirements/app.in
 threadpoolctl==2.1.0
     # via scikit-learn
-timely-beliefs==1.4.0
+timely-beliefs==1.4.3
     # via -r requirements/app.in
 timetomodel==0.6.9
     # via -r requirements/app.in

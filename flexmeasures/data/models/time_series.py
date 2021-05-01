@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional, Union, Tuple
 from datetime import datetime as datetime_type, timedelta
+import json
 
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
@@ -17,6 +18,9 @@ from flexmeasures.data.queries.utils import (
     exclude_source_type_filter,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
+from flexmeasures.data.models.charts import chart_type_to_chart_specs
+from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 class Sensor(db.Model, tb.SensorDBMixin):
@@ -29,27 +33,116 @@ class Sensor(db.Model, tb.SensorDBMixin):
 
     def search_beliefs(
         self,
-        event_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
-        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
+        as_json: bool = False,
     ):
         """Search all beliefs about events for this sensor.
 
-        :param event_time_window: search only events within this time window
-        :param belief_time_window: search only beliefs within this time window
-        :param source: search only beliefs by this source (pass its name or id) or list of sources"""
-        return TimedBelief.search(
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        """
+        bdf = TimedBelief.search(
             sensor=self,
-            event_time_window=event_time_window,
-            belief_time_window=belief_time_window,
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
             source=source,
         )
+        if as_json:
+            df = bdf.reset_index()
+            df["source"] = df["source"].apply(lambda x: x.name)
+            return df.to_json(orient="records")
+        return bdf
+
+    def chart(
+        self,
+        chart_type: str = "bar_chart",
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
+        source: Optional[Union[int, List[int], str, List[str]]] = None,
+        include_data: bool = False,
+        dataset_name: Optional[str] = None,
+        **kwargs,
+    ) -> dict:
+        """Create a chart showing sensor data.
+
+        :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        :param include_data: if True, include data in the chart, or if False, exclude data
+        :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        """
+
+        # Set up chart specification
+        if dataset_name is None:
+            dataset_name = "sensor_" + str(self.id)
+        self.sensor_type = (
+            self.name
+        )  # todo remove this placeholder when sensor types are modelled
+        chart_specs = chart_type_to_chart_specs(
+            chart_type,
+            title=capitalize(self.name),
+            quantity=capitalize(self.sensor_type),
+            unit=self.unit,
+            dataset_name=dataset_name,
+            **kwargs,
+        )
+
+        if include_data:
+            # Set up data
+            data = self.search_beliefs(
+                as_json=True,
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                source=source,
+            )
+            # Combine chart specs and data
+            chart_specs["datasets"] = {dataset_name: json.loads(data)}
+        return chart_specs
+
+    @property
+    def timerange(self) -> Dict[str, datetime_type]:
+        """Timerange for which sensor data exists.
+
+        :returns: dictionary with start and end, for example:
+                  {
+                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                  }
+        """
+        least_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor == self)
+            .order_by(TimedBelief.event_start.asc())
+            .limit(1)
+        )
+        most_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor == self)
+            .order_by(TimedBelief.event_start.desc())
+            .limit(1)
+        )
+        results = least_recent_query.union_all(most_recent_query).all()
+        if not results:
+            # return now in case there is no data for the sensor
+            now = server_now()
+            return dict(start=now, end=now)
+        least_recent, most_recent = results
+        return dict(start=least_recent.event_start, end=most_recent.event_end)
 
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}>"
@@ -82,30 +175,28 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def search(
         cls,
         sensor: Sensor,
-        event_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
-        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
     ) -> tb.BeliefsDataFrame:
         """Search all beliefs about events for a given sensor.
 
         :param sensor: search only this sensor
-        :param event_time_window: search only events within this time window
-        :param belief_time_window: search only beliefs within this time window
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass its name or id) or list of sources
         """
         return cls.search_session(
             session=db.session,
             sensor=sensor,
-            event_before=event_time_window[1],
-            event_not_before=event_time_window[0],
-            belief_before=belief_time_window[1],
-            belief_not_before=belief_time_window[0],
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
             source=source,
         )
 

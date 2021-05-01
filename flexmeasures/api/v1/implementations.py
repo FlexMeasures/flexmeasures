@@ -12,6 +12,7 @@ from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
 )
 from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.services.resources import get_assets
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.api.common.responses import (
@@ -24,7 +25,6 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.api.common.utils.api_utils import (
     groups_to_dict,
-    get_or_create_user_data_source,
     save_to_db,
 )
 from flexmeasures.api.common.utils.validators import (
@@ -244,7 +244,7 @@ def create_connection_and_value_groups(  # noqa: C901
 
     current_app.logger.info("POSTING POWER DATA")
 
-    data_source = get_or_create_user_data_source(current_user)
+    data_source = get_or_create_source(current_user)
     user_assets = get_assets()
     if not user_assets:
         current_app.logger.info("User doesn't seem to have any assets")
