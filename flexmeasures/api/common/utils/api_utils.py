@@ -360,7 +360,7 @@ def get_generic_asset(
 def save_to_db(
     timed_values: List[Union[Power, Price, Weather]], forecasting_jobs: List[Job]
 ) -> ResponseTuple:
-    """Put the timed values into the database and create forecasting jobs.
+    """Put the timed values into the database and enqueue forecasting jobs.
 
     Data can only be replaced on servers in play mode.
 

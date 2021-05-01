@@ -49,6 +49,7 @@ All else that is needed for this showcase (not shown here) is ``<some_folder>/ou
 
     # Showcase: Adding a view
 
+    @our_client_bp.route('/')
     @our_client_bp.route('/metrics')
     @login_required
     def metrics():
@@ -75,6 +76,7 @@ All else that is needed for this showcase (not shown here) is ``<some_folder>/ou
         print(f"I am a CLI command, part of FlexMeasures: {current_app}")
 
 
+.. note:: You can overwrite FlexMeasures routes here. In our example above, we set the root route ``/``. FlexMeasures registers plugin routes before its own, so in this case visiting the root URL of your app will display this plugged-in view (the same you'd see at `/metrics`).
 
 .. note:: Plugin views can also be added to the FlexMeasures UI menu ― just name them in the config setting :ref:`menu-config`.
 
@@ -94,3 +96,27 @@ This can be done if you put the plugin path on the import path. Do it like this 
     sys.path.insert(0, HERE)
 
     from my_other_file import my_function
+
+
+Customising the login teaser
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FlexMeasures shows an image carousel next to its login form (see ``ui/templates/admin/login_user.html``).
+
+You can overwrite this content by adding your own login template and defining the ``teaser`` block yourself, e.g.:
+
+.. code-block:: html
+
+    {% extends "admin/login_user.html" %}
+
+    {% block teaser %}
+
+        <h1>Welcome to my plugin!</h1>
+
+    {% endblock %}
+
+Place this template file in the template folder of your plugin blueprint (see above). Your template must have a different filename than "login_user", so FlexMeasures will find it properly!
+
+Finally, add this config setting to your FlexMeasures config file (using the template filename you chose, obviously):
+
+    SECURITY_LOGIN_USER_TEMPLATE = "my_user_login.html"

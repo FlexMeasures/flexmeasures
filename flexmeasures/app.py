@@ -98,17 +98,22 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     register_api_at(app)
 
-    # Register the UI
-
-    from flexmeasures.ui import register_at as register_ui_at
-
-    register_ui_at(app)
+    # Register plugins
 
     from flexmeasures.utils.app_utils import register_plugins
 
     register_plugins(app)
 
+    # Register the UI
+    # If plugins registered routes already (e.g. "/"),
+    # they have precedence (first registration wins).
+
+    from flexmeasures.ui import register_at as register_ui_at
+
+    register_ui_at(app)
+
     # Profile endpoints (if needed, e.g. during development)
+
     @app.before_request
     def before_request():
         if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):
