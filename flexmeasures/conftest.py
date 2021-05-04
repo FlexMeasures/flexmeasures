@@ -26,6 +26,7 @@ from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.markets import Market, MarketType, Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.user import User
 
 
 """
@@ -91,25 +92,16 @@ def create_test_db(app):
 
 
 @pytest.fixture(scope="module")
-def setup_roles_users(db):
-    """Create a minimal set of roles and users"""
-    test_prosumer = create_user(
-        username="Test Prosumer",
-        email="test_prosumer@seita.nl",
-        password=hash_password("testtest"),
-        user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
-    )
-    test_supplier = create_user(
-        username="Test Supplier",
-        email="test_supplier@seita.nl",
-        password=hash_password("testtest"),
-        user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
-    )
-    return {"Test Prosumer": test_prosumer, "Test Supplier": test_supplier}
+def setup_roles_users() -> Dict[str, User]:
+    return create_roles_users()
 
 
 @pytest.fixture(scope="function")
-def setup_fresh_roles_users(fresh_test_db):
+def setup_fresh_roles_users() -> Dict[str, User]:
+    return create_roles_users()
+
+
+def create_roles_users() -> Dict[str, User]:
     """Create a minimal set of roles and users"""
     test_prosumer = create_user(
         username="Test Prosumer",
@@ -128,32 +120,16 @@ def setup_fresh_roles_users(fresh_test_db):
 
 @pytest.fixture(scope="module")
 def setup_markets(db) -> Dict[str, Market]:
-    """Create the epex_da market."""
-
-    day_ahead = MarketType(
-        name="day_ahead",
-        daily_seasonality=True,
-        weekly_seasonality=True,
-        yearly_seasonality=True,
-    )
-    db.session.add(day_ahead)
-    epex_da = Market(
-        name="epex_da",
-        market_type=day_ahead,
-        event_resolution=timedelta(hours=1),
-        unit="EUR/MWh",
-        knowledge_horizon_fnc="x_days_ago_at_y_oclock",
-        knowledge_horizon_par={"x": 1, "y": 12, "z": "Europe/Paris"},
-    )
-    db.session.add(epex_da)
-    return {"epex_da": epex_da}
+    return create_test_markets(db)
 
 
 @pytest.fixture(scope="function")
 def setup_fresh_markets(fresh_test_db) -> Dict[str, Market]:
-    """Create the epex_da market."""
+    return create_test_markets(fresh_test_db)
 
-    db = fresh_test_db
+
+def create_test_markets(db) -> Dict[str, Market]:
+    """Create the epex_da market."""
 
     day_ahead = MarketType(
         name="day_ahead",
@@ -183,31 +159,16 @@ def setup_sources(db) -> Dict[str, DataSource]:
 
 @pytest.fixture(scope="module")
 def setup_asset_types(db) -> Dict[str, AssetType]:
-    """Make some asset types used throughout."""
-
-    solar = AssetType(
-        name="solar",
-        is_producer=True,
-        can_curtail=True,
-        daily_seasonality=True,
-        yearly_seasonality=True,
-    )
-    db.session.add(solar)
-    wind = AssetType(
-        name="wind",
-        is_producer=True,
-        can_curtail=True,
-        daily_seasonality=True,
-        yearly_seasonality=True,
-    )
-    db.session.add(wind)
-    return dict(solar=solar, wind=wind)
+    return create_test_asset_types(db)
 
 
 @pytest.fixture(scope="function")
 def setup_fresh_asset_types(fresh_test_db) -> Dict[str, AssetType]:
+    return create_test_asset_types(fresh_test_db)
+
+
+def create_test_asset_types(db) -> Dict[str, AssetType]:
     """Make some asset types used throughout."""
-    db = fresh_test_db
 
     solar = AssetType(
         name="solar",
@@ -328,69 +289,22 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
 def add_battery_assets(
     db: SQLAlchemy, setup_roles_users, setup_markets
 ) -> Dict[str, Asset]:
-    """Add two battery assets, set their capacity values and their initial SOC."""
-    db.session.add(
-        AssetType(
-            name="battery",
-            is_consumer=True,
-            is_producer=True,
-            can_curtail=True,
-            can_shift=True,
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
-        )
-    )
-
-    test_battery = Asset(
-        name="Test battery",
-        asset_type_name="battery",
-        event_resolution=timedelta(minutes=15),
-        capacity_in_mw=2,
-        max_soc_in_mwh=5,
-        min_soc_in_mwh=0,
-        soc_in_mwh=2.5,
-        soc_datetime=as_server_time(datetime(2015, 1, 1)),
-        soc_udi_event_id=203,
-        latitude=10,
-        longitude=100,
-        market_id=setup_markets["epex_da"].id,
-        unit="MW",
-    )
-    test_battery.owner = setup_roles_users["Test Prosumer"]
-    db.session.add(test_battery)
-
-    test_battery_no_prices = Asset(
-        name="Test battery with no known prices",
-        asset_type_name="battery",
-        event_resolution=timedelta(minutes=15),
-        capacity_in_mw=2,
-        max_soc_in_mwh=5,
-        min_soc_in_mwh=0,
-        soc_in_mwh=2.5,
-        soc_datetime=as_server_time(datetime(2040, 1, 1)),
-        soc_udi_event_id=203,
-        latitude=10,
-        longitude=100,
-        market_id=setup_markets["epex_da"].id,
-        unit="MW",
-    )
-    test_battery_no_prices.owner = setup_roles_users["Test Prosumer"]
-    db.session.add(test_battery_no_prices)
-    return {
-        "Test battery": test_battery,
-        "Test battery with no known prices": test_battery_no_prices,
-    }
+    return create_test_battery_assets(db, setup_roles_users, setup_markets)
 
 
 @pytest.fixture(scope="function")
 def add_fresh_battery_assets(
-    fresh_test_db, setup_fresh_roles_users, setup_fresh_markets
+    fresh_test_db: SQLAlchemy, setup_fresh_roles_users, setup_fresh_markets
+) -> Dict[str, Asset]:
+    return create_test_battery_assets(
+        fresh_test_db, setup_fresh_roles_users, setup_fresh_markets
+    )
+
+
+def create_test_battery_assets(
+    db: SQLAlchemy, setup_roles_users, setup_markets
 ) -> Dict[str, Asset]:
     """Add two battery assets, set their capacity values and their initial SOC."""
-    db = fresh_test_db
-    setup_roles_users = setup_fresh_roles_users
-    setup_markets = setup_fresh_markets
     db.session.add(
         AssetType(
             name="battery",
