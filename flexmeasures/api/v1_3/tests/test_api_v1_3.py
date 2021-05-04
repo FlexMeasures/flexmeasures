@@ -6,7 +6,7 @@ from isodate import parse_datetime
 import pandas as pd
 from rq.job import Job
 
-from flexmeasures.api.common.responses import unrecognized_event, unknown_schedule
+from flexmeasures.api.common.responses import unrecognized_event
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v1_3.tests.utils import (
     message_for_get_device_message,
@@ -200,68 +200,3 @@ def test_post_udi_event_and_get_device_message(
         ).is_failed
         is True
     )
-
-
-@pytest.mark.parametrize("message", [message_for_post_udi_event(unknown_prices=True)])
-def test_post_udi_event_and_get_device_message_with_unknown_prices(app, message):
-    auth_token = None
-    with app.test_client() as client:
-        asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-        asset_id = asset.id
-        asset_owner_id = asset.owner_id
-        message["event"] = message["event"] % (asset.owner_id, asset.id)
-        auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
-        post_udi_event_response = client.post(
-            url_for("flexmeasures_api_v1_3.post_udi_event"),
-            json=message,
-            headers={"Authorization": auth_token},
-        )
-        print("Server responded with:\n%s" % post_udi_event_response.json)
-        assert post_udi_event_response.status_code == 200
-        assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
-
-        # look for scheduling jobs in queue
-        assert (
-            len(app.queues["scheduling"]) == 1
-        )  # only 1 schedule should be made for 1 asset
-        job = app.queues["scheduling"].jobs[0]
-        assert job.kwargs["asset_id"] == asset_id
-        assert job.kwargs["start"] == parse_datetime(message["datetime"])
-        assert job.id == message["event"]
-        assert (
-            Job.fetch(message["event"], connection=app.queues["scheduling"].connection)
-            == job
-        )
-
-        # process the scheduling queue
-        work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
-        processed_job = Job.fetch(
-            message["event"], connection=app.queues["scheduling"].connection
-        )
-        assert processed_job.is_failed is True
-
-        # check results are not in the database
-        scheduler_source = DataSource.query.filter_by(
-            name="Seita", type="scheduling script"
-        ).one_or_none()
-        assert (
-            scheduler_source is None
-        )  # Make sure the scheduler data source is still not there
-
-        # try to retrieve the schedule through the getDeviceMessage api endpoint
-        message = message_for_get_device_message()
-        message["event"] = message["event"] % (asset_owner_id, asset_id)
-        auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
-        get_device_message_response = client.get(
-            url_for("flexmeasures_api_v1_3.get_device_message"),
-            query_string=message,
-            headers={"content-type": "application/json", "Authorization": auth_token},
-        )
-        print("Server responded with:\n%s" % get_device_message_response.json)
-        assert get_device_message_response.status_code == 400
-        assert get_device_message_response.json["type"] == "GetDeviceMessageResponse"
-        assert (
-            get_device_message_response.json["status"]
-            == unknown_schedule()[0]["status"]
-        )
-        assert "prices unknown" in get_device_message_response.json["message"].lower()

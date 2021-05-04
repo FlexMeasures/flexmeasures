@@ -39,7 +39,7 @@ from flexmeasures.data.queries.utils import (
         # ),  # test empty BeliefsDataFrame  # todo: uncomment when this if fixed: https://github.com/pandas-dev/pandas/issues/30517
     ],
 )
-def test_collect_power(db, app, query_start, query_end, num_values):
+def test_collect_power(db, app, query_start, query_end, num_values, setup_test_data):
     wind_device_1 = Asset.query.filter_by(name="wind-asset-1").one_or_none()
     data = Power.query.filter(Power.asset_id == wind_device_1.id).all()
     print(data)
@@ -88,7 +88,7 @@ def test_collect_power(db, app, query_start, query_end, num_values):
     ],
 )
 def test_collect_power_resampled(
-    db, app, query_start, query_end, resolution, num_values
+    db, app, query_start, query_end, resolution, num_values, setup_test_data
 ):
     wind_device_1 = Asset.query.filter_by(name="wind-asset-1").one_or_none()
     bdf: tb.BeliefsDataFrame = Power.collect(
@@ -204,7 +204,7 @@ def test_multiplication_with_both_empty_dataframe():
     pd.testing.assert_frame_equal(df, df_compare)
 
 
-def test_simplify_index():
+def test_simplify_index(setup_test_data):
     """Check whether simplify_index retains the event resolution."""
     wind_device_1 = Asset.query.filter_by(name="wind-asset-1").one_or_none()
     bdf: tb.BeliefsDataFrame = Power.collect(
@@ -238,7 +238,7 @@ def test_query_beliefs(setup_beliefs):
         assert len(bdf) == setup_beliefs
 
 
-def test_persist_beliefs(setup_beliefs):
+def test_persist_beliefs(setup_beliefs, setup_test_data):
     """Check whether persisting beliefs works.
 
     We load the already set up beliefs, and form new beliefs an hour later.

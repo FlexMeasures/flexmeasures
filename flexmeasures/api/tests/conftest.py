@@ -7,7 +7,7 @@ from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def setup_api_test_data(db, setup_roles_users):
     """
     Adding the task-runner

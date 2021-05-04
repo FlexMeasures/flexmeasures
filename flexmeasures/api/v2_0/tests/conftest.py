@@ -3,10 +3,8 @@ from flask_security.utils import hash_password
 import pytest
 
 
-@pytest.fixture(scope="function", autouse=True)
-def setup_api_test_data(
-    db, clean_redis, setup_roles_users, add_market_prices, add_battery_assets
-):
+@pytest.fixture(scope="module", autouse=True)
+def setup_api_test_data(db, setup_roles_users, add_market_prices, add_battery_assets):
     """
     Set up data for API v2.0 tests.
     """
@@ -24,7 +22,7 @@ def setup_api_test_data(
     user_datastore.add_role_to_user(test_prosumer, admin_role)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def setup_inactive_user(db, setup_roles_users):
     """
     Set up one inactive user.

@@ -28,7 +28,7 @@ def as_admin(client):
     logout(client)
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def setup_ui_test_data(
     db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
 ):

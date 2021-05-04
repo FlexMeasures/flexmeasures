@@ -11,8 +11,8 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.services.users import create_user
 
 
-@pytest.fixture(scope="function", autouse=True)
-def setup_api_test_data(db, add_market_prices):
+@pytest.fixture(scope="module")
+def setup_api_test_data(db, setup_roles_users, add_market_prices):
     """
     Set up data for API v1.1 tests.
     """
@@ -41,7 +41,7 @@ def setup_api_test_data(db, add_market_prices):
     )
 
     # Create 3 test assets for the test_prosumer user
-    test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
+    test_prosumer = setup_roles_users["Test Prosumer"]
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
     asset_names = ["CS 1", "CS 2", "CS 3"]
@@ -124,3 +124,10 @@ def setup_api_test_data(db, add_market_prices):
     db.session.add(sensor)
 
     print("Done setting up data for API v1.1 tests")
+
+
+@pytest.fixture(scope="function")
+def setup_fresh_api_v1_1_test_data(
+    fresh_test_db, setup_fresh_roles_users, setup_fresh_markets
+):
+    return fresh_test_db
