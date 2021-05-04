@@ -123,29 +123,36 @@ def setup_sources(db) -> Dict[str, DataSource]:
     return {"Seita": data_source}
 
 
-@pytest.fixture(scope="function", autouse=True)
-def setup_assets(db, setup_roles_users, setup_markets, setup_sources):
-    """Make some asset types and add assets to known test users."""
+@pytest.fixture(scope="function")
+def setup_asset_types(db) -> Dict[str, AssetType]:
+    """Make some asset types used throughout."""
 
-    db.session.add(
-        AssetType(
-            name="solar",
-            is_producer=True,
-            can_curtail=True,
-            daily_seasonality=True,
-            yearly_seasonality=True,
-        )
+    solar = AssetType(
+        name="solar",
+        is_producer=True,
+        can_curtail=True,
+        daily_seasonality=True,
+        yearly_seasonality=True,
     )
-    db.session.add(
-        AssetType(
-            name="wind",
-            is_producer=True,
-            can_curtail=True,
-            daily_seasonality=True,
-            yearly_seasonality=True,
-        )
+    db.session.add(solar)
+    wind = AssetType(
+        name="wind",
+        is_producer=True,
+        can_curtail=True,
+        daily_seasonality=True,
+        yearly_seasonality=True,
     )
+    db.session.add(wind)
+    return dict(solar=solar, wind=wind)
 
+
+@pytest.fixture(scope="function")
+def setup_assets(
+    db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
+) -> Dict[str, Asset]:
+    """Add assets to known test users."""
+
+    assets = []
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
         asset = Asset(
             name=asset_name,
@@ -162,6 +169,7 @@ def setup_assets(db, setup_roles_users, setup_markets, setup_sources):
         )
         asset.owner = setup_roles_users["Test Prosumer"]
         db.session.add(asset)
+        assets.append(asset)
 
         # one day of test data (one complete sine curve)
         time_slots = pd.date_range(
@@ -177,6 +185,7 @@ def setup_assets(db, setup_roles_users, setup_markets, setup_sources):
             )
             p.asset = asset
             db.session.add(p)
+    return {asset.name: asset for asset in assets}
 
 
 @pytest.fixture(scope="function")

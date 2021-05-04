@@ -29,7 +29,9 @@ def as_admin(client):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def setup_ui_test_data(db):
+def setup_ui_test_data(
+    db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
+):
     """
     Create another prosumer, without data, and an admin
     Also, a weather sensor (and sensor type).

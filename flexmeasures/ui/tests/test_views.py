@@ -4,7 +4,7 @@ from flask_security import SQLAlchemySessionUserDatastore
 from flexmeasures.ui.tests.utils import logout
 
 
-def test_dashboard_responds(client, as_prosumer):
+def test_dashboard_responds(client, setup_assets, as_prosumer):
     dashboard = client.get(
         url_for("flexmeasures_ui.dashboard_view"), follow_redirects=True
     )
@@ -21,7 +21,7 @@ def test_dashboard_responds_only_for_logged_in_users(client, as_prosumer):
     assert b"Please log in" in dashboard.data
 
 
-def test_portfolio_responds(client, as_prosumer):
+def test_portfolio_responds(client, setup_assets, as_prosumer):
     portfolio = client.get(
         url_for("flexmeasures_ui.portfolio_view"), follow_redirects=True
     )
@@ -42,7 +42,7 @@ def test_control_responds(client, as_prosumer):
     assert b"Control actions" in control.data
 
 
-def test_analytics_responds(db, client, as_prosumer):
+def test_analytics_responds(db, client, setup_assets, as_prosumer):
     analytics = client.get(
         url_for("flexmeasures_ui.analytics_view"), follow_redirects=True
     )

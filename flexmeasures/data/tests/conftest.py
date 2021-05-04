@@ -9,7 +9,6 @@ from statsmodels.api import OLS
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
-from flexmeasures.data.models.assets import AssetType
 from flexmeasures.data.models.forecasting import model_map
 from flexmeasures.data.models.forecasting.model_spec_factory import (
     create_initial_model_specs,
@@ -19,7 +18,12 @@ from flexmeasures.utils.time_utils import as_server_time
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_test_data(
-    db, app, clean_redis, add_market_prices, remove_seasonality_for_power_forecasts
+    db,
+    app,
+    clean_redis,
+    add_market_prices,
+    setup_assets,
+    remove_seasonality_for_power_forecasts,
 ):
     """
     Adding a few forecasting jobs (based on data made in flexmeasures.conftest).
@@ -32,13 +36,12 @@ def setup_test_data(
 
 
 @pytest.fixture(scope="function", autouse=True)
-def remove_seasonality_for_power_forecasts(db):
+def remove_seasonality_for_power_forecasts(db, setup_asset_types):
     """Make sure the AssetType specs make us query only data we actually have in the test db"""
-    asset_types = AssetType.query.all()
-    for a in asset_types:
-        a.daily_seasonality = False
-        a.weekly_seasonality = False
-        a.yearly_seasonality = False
+    for asset_type in setup_asset_types.keys():
+        setup_asset_types[asset_type].daily_seasonality = False
+        setup_asset_types[asset_type].weekly_seasonality = False
+        setup_asset_types[asset_type].yearly_seasonality = False
 
 
 def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
