@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import pytest
 from random import random
 from datetime import datetime, timedelta
@@ -54,31 +55,22 @@ def app():
 
 @pytest.fixture(scope="module")
 def db(app):
-    """
-    Provide a db object with the structure freshly created for each module. This assumes a clean database.
-    It does clean up after itself when it's done (drops everything).
-    """
-    print("DB FIXTURE")
-    # app is an instance of a flask app, _db a SQLAlchemy DB
-    from flexmeasures.data.config import db as _db
-
-    _db.app = app
-    with app.app_context():
-        _db.create_all()
-
-    yield _db
-
-    print("DB FIXTURE CLEANUP")
-    # Explicitly close DB connection
-    _db.session.close()
-
-    _db.drop_all()
+    """Fresh test db per module."""
+    with create_test_db(app) as test_db:
+        yield test_db
 
 
 @pytest.fixture(scope="function")
 def fresh_test_db(app):
+    """Fresh test db per function."""
+    with create_test_db(app) as test_db:
+        yield test_db
+
+
+@contextmanager
+def create_test_db(app):
     """
-    Provide a db object with the structure freshly created for each separate test. This assumes a clean database.
+    Provide a db object with the structure freshly created. This assumes a clean database.
     It does clean up after itself when it's done (drops everything).
     """
     print("DB FIXTURE")
