@@ -99,8 +99,6 @@ flask==1.1.2
     #   flask-sslify
     #   flask-wtf
     #   rq-dashboard
-forecastiopy==0.22
-    # via -r requirements/app.in
 greenlet==1.0.0
     # via sqlalchemy
 humanize==3.3.0
@@ -260,7 +258,6 @@ requests-file==1.5.1
     # via tldextract
 requests==2.25.1
     # via
-    #   forecastiopy
     #   pvlib
     #   requests-file
     #   siphon

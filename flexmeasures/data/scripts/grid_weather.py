@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 
 import os
-from typing import Tuple, List
+from typing import Tuple, List, Dict
 import json
 from datetime import datetime
 
 import click
 from flask import Flask, current_app
-from forecastiopy import ForecastIO
+import requests
+import pytz
 
 from flexmeasures.utils.time_utils import as_server_time, get_timezone
 from flexmeasures.utils.geo_utils import compute_irradiance
@@ -18,7 +19,7 @@ from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.models.data_sources import DataSource
 
 FILE_PATH_LOCATION = "/../raw_data/weather-forecasts"
-DATA_SOURCE_NAME = "DarkSky"
+DATA_SOURCE_NAME = "OpenWeatherMap"
 
 
 class LatLngGrid(object):
@@ -217,12 +218,12 @@ class LatLngGrid(object):
                 sw = (
                     lat + self.cell_size_lat / 2,
                     lng - self.cell_size_lat / 3 ** (1 / 2) / 2,
-                )  # South west coord.
+                )  # South west coordinates
                 locations.append(sw)
                 se = (
                     lat + self.cell_size_lat / 2,
                     lng + self.cell_size_lng / 3 ** (1 / 2) / 2,
-                )  # South east coord.
+                )  # South east coordinates
                 locations.append(se)
         return locations
 
@@ -317,22 +318,27 @@ def get_data_source() -> DataSource:
     return data_source
 
 
-def call_darksky(api_key: str, location: Tuple[float, float]) -> dict:
-    """Make a single call to the Dark Sky API and return the result parsed as dict"""
-    return ForecastIO.ForecastIO(
-        api_key,
-        units=ForecastIO.ForecastIO.UNITS_SI,
-        lang=ForecastIO.ForecastIO.LANG_ENGLISH,
-        latitude=location[0],
-        longitude=location[1],
-        extend="hourly",
-    ).forecast
+def call_openweatherapi(
+    api_key: str, location: Tuple[float, float]
+) -> Tuple[int, List[Dict]]:
+    """
+    Make a single "one-call" to the Open Weather API and return the API timestamp as well as the 48 hourly forecasts.
+    See https://openweathermap.org/api/one-call-api for docs.
+    Note that the first forecast is about the current hour.
+    """
+    query_str = f"lat={location[0]}&lon={location[1]}&units=metric&exclude=minutely,daily,alerts&appid={api_key}"
+    res = requests.get(f"http://api.openweathermap.org/data/2.5/onecall?{query_str}")
+    assert (
+        res.status_code == 200
+    ), f"OpenWeatherMap returned status code {res.status_code}: {res.text}"
+    data = res.json()
+    return data["current"]["dt"], data["hourly"]
 
 
 def save_forecasts_in_db(
     api_key: str, locations: List[Tuple[float, float]], data_source: DataSource
 ):
-    """Process the response from DarkSky into Weather timed values.
+    """Process the response from OpenWeatherMap API into Weather timed values.
     Collects all forecasts for all locations and all sensors at all locations, then bulk-saves them.
     """
     click.echo("[FLEXMEASURES] Getting weather forecasts:")
@@ -344,22 +350,24 @@ def save_forecasts_in_db(
     for location in locations:
         click.echo("[FLEXMEASURES] %s, %s" % location)
 
-        forecasts = call_darksky(api_key, location)
+        api_timestamp, forecasts = call_openweatherapi(api_key, location)
         time_of_api_call = as_server_time(
-            datetime.fromtimestamp(forecasts["currently"]["time"], get_timezone())
+            datetime.fromtimestamp(api_timestamp, tz=get_timezone())
         ).replace(second=0, microsecond=0)
         click.echo(
-            "[FLEXMEASURES] Called Dark Sky API successfully at %s." % time_of_api_call
+            "[FLEXMEASURES] Called OpenWeatherMap API successfully at %s."
+            % time_of_api_call
         )
 
-        # map sensor name in our db to sensor name/label in dark sky response
+        # map sensor name in our db to sensor name/label in OWM response
         sensor_name_mapping = dict(
-            temperature="temperature", wind_speed="windSpeed", radiation="cloudCover"
+            temperature="temp", wind_speed="wind_speed", radiation="clouds"
         )
 
-        for fc in forecasts["hourly"]["data"]:
+        # loop through forecasts, including the one of current hour (horizon 0)
+        for fc in forecasts:
             fc_datetime = as_server_time(
-                datetime.fromtimestamp(fc["time"], get_timezone())
+                datetime.fromtimestamp(fc["dt"], get_timezone())
             ).replace(second=0, microsecond=0)
             fc_horizon = fc_datetime - time_of_api_call
             click.echo(
@@ -383,13 +391,14 @@ def save_forecasts_in_db(
                             )
 
                     fc_value = fc[needed_response_label]
-                    # the radiation is not available in dark sky -> we compute it ourselves
+                    # the radiation is not available in OWM -> we compute it ourselves
                     if flexmeasures_sensor_type == "radiation":
                         fc_value = compute_irradiance(
                             location[0],
                             location[1],
                             fc_datetime,
-                            fc[needed_response_label],
+                            # OWM sends cloud coverage in percent, we need a ratio
+                            fc[needed_response_label] / 100.0,
                         )
 
                     db_forecasts.append(
@@ -424,15 +433,18 @@ def save_forecasts_as_json(
     click.echo("[FLEXMEASURES] Getting weather forecasts:")
     click.echo("[FLEXMEASURES]  Latitude, Longitude")
     click.echo("[FLEXMEASURES]  ----------------------")
-    # UTC timestamp to remember when data was fetched.
-    now_str = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
-    os.mkdir("%s/%s" % (data_path, now_str))
     for location in locations:
         click.echo("[FLEXMEASURES] %s, %s" % location)
-        forecasts = call_darksky(api_key, location)
-        forecasts_file = "%s/%s/forecast_lat_%s_lng_%s.json" % (
-            data_path,
-            now_str,
+        api_timestamp, forecasts = call_openweatherapi(api_key, location)
+        time_of_api_call = as_server_time(
+            datetime.fromtimestamp(api_timestamp, tz=pytz.utc)
+        ).replace(second=0, microsecond=0)
+        now_str = time_of_api_call.strftime("%Y-%m-%dT%H-%M-%S")
+        path_to_files = os.path.join(data_path, now_str)
+        click.echo(f"Making directory: {path_to_files} ...")
+        os.mkdir(path_to_files)
+        forecasts_file = "%s/forecast_lat_%s_lng_%s.json" % (
+            path_to_files,
             str(location[0]),
             str(location[1]),
         )
@@ -451,11 +463,11 @@ def get_weather_forecasts(
 ):
     """
     Get current weather forecasts for a latitude/longitude grid and store them in individual json files.
-    Note that 1000 free calls per day can be made to the Dark Sky API,
-    so we can make a call every 15 minutes for up to 10 assets or every hour for up to 40 assets.
+    Note that 1000 free calls per day can be made to the OpenWeatherMap API,
+    so we can make a call every 15 minutes for up to 10 assets or every hour for up to 40 assets (or get a paid account).
     """
-    if app.config.get("DARK_SKY_API_KEY") is None:
-        raise Exception("No DarkSky API key available.")
+    if app.config.get("OPENWEATHERMAP_API_KEY") is None:
+        raise Exception("Setting OPENWEATHERMAP_API_KEY not available.")
 
     if (
         location.count(",") == 0
@@ -504,7 +516,7 @@ def get_weather_forecasts(
     else:
         raise Exception("location parameter '%s' has too many locations." % location)
 
-    api_key = app.config.get("DARK_SKY_API_KEY")
+    api_key = app.config.get("OPENWEATHERMAP_API_KEY")
 
     # Save the results
     if store_in_db:

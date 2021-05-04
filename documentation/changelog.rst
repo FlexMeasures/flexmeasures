@@ -17,10 +17,14 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+* For weather forecasts, switch from Dark Sky (closed from Aug 1, 2021) to OpenWeatherMap API [see `PR #113 <http://www.github.com/SeitaBV/flexmeasures/pull/113>`_]
+.. warning:: This requires an update to config variables ― the new setting is called ``OPENWEATHERMAP_API_KEY``.
 
 
 v0.4.0 | April 29, 2021
 ===========================
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade``.
 
 New features
 -----------
