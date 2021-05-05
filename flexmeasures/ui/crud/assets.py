@@ -68,13 +68,13 @@ class AssetForm(FlaskForm):
             )
         return super().validate_on_submit()
 
-    def to_json(self) -> dict:
+    def to_json(self, for_posting=False) -> dict:
         """ turn form data into a JSON we can POST to our internal API """
         data = copy.copy(self.data)
-        data["name"] = data["display_name"]  # both are part of the asset model
-        data[
-            "unit"
-        ] = "MW"  # TODO: make unit a choice? this is hard-coded in the UI as well
+        if for_posting:
+            data["name"] = (
+                data["display_name"].lower().replace(" ", "_")
+            )  # best guess at un-humanizing
         data["capacity_in_mw"] = float(data["capacity_in_mw"])
         data["min_soc_in_mwh"] = float(data["min_soc_in_mwh"])
         data["max_soc_in_mwh"] = float(data["max_soc_in_mwh"])
@@ -248,7 +248,7 @@ class AssetCrudUI(FlaskView):
             if form_valid and owner is not None and market is not None:
                 post_asset_response = InternalApi().post(
                     url_for("flexmeasures_api_v2_0.post_assets"),
-                    args=asset_form.to_json(),
+                    args=asset_form.to_json(for_posting=True),
                     do_not_raise_for=[400, 422],
                 )
 
@@ -264,7 +264,7 @@ class AssetCrudUI(FlaskView):
                     )
                     asset_form.process_api_validation_errors(post_asset_response.json())
                     if "message" in post_asset_response.json():
-                        error_msg = post_asset_response.json()["message"]
+                        error_msg = str(post_asset_response.json()["message"]["json"])
             if asset is None:
                 msg = "Cannot create asset. " + error_msg
                 return render_flexmeasures_template(
@@ -311,6 +311,7 @@ class AssetCrudUI(FlaskView):
                 current_app.logger.error(
                     f"Internal asset API call unsuccessful [{patch_asset_response.status_code}]: {patch_asset_response.text}"
                 )
+                msg = "Cannot edit asset."
                 asset_form.process_api_validation_errors(patch_asset_response.json())
                 asset = Asset.query.get(id)
 
