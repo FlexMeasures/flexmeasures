@@ -16,7 +16,7 @@ import marshmallow
 
 from webargs.flaskparser import parser
 
-from flexmeasures.api.common.schemas.times import DurationField
+from flexmeasures.data.schemas.times import DurationField
 from flexmeasures.api.common.responses import (  # noqa: F401
     required_info_missing,
     invalid_horizon,
