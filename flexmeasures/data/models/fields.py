@@ -3,6 +3,9 @@ import marshmallow as ma
 
 
 class MarshmallowClickMixin(click.ParamType):
+    def get_metavar(self, param):
+        return self.__class__.__name__
+
     def convert(self, value, param, ctx, **kwargs):
         try:
             return self.deserialize(value, **kwargs)
