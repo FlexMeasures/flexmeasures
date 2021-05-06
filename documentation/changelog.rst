@@ -13,6 +13,7 @@ New features
 Bugfixes
 -----------
 * Prevent logging out user when clearing the session [see `PR #112 <http://www.github.com/SeitaBV/flexmeasures/pull/112>`_]
+* Fix regression when editing assets in the UI [see `PR #122 <http://www.github.com/SeitaBV/flexmeasures/pull/122>`_]
 
 Infrastructure / Support
 ----------------------
