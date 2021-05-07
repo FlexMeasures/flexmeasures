@@ -3,7 +3,24 @@ FlexMeasures Changelog
 **********************
 
 
-v0.4.1 | May XX, 2021
+v0.5.0 | May XX, 2021
+===========================
+
+New features
+-----------
+* Allow plugins to overwrite UI routes and customise the teaser on the login form [see `PR #106 <http://www.github.com/SeitaBV/flexmeasures/pull/106>`_]
+* Allow plugins to customise the copyright notice and credits in the UI footer [see `PR #123 <http://www.github.com/SeitaBV/flexmeasures/pull/123>`_]
+
+Bugfixes
+-----------
+
+
+Infrastructure / Support
+----------------------
+* Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+
+
+v0.4.1 | May 7, 2021
 ===========================
 
 Bugfixes
