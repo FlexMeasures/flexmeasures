@@ -16,6 +16,7 @@ from flexmeasures.data.services.resources import get_markets, get_center_locatio
 from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.user import User
 from flexmeasures.data.models.markets import Market
+from flexmeasures.utils.flexmeasures_inflection import parameterize
 from flexmeasures.ui.utils.plotting_utils import get_latest_power_as_plot
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
@@ -72,8 +73,8 @@ class AssetForm(FlaskForm):
         """ turn form data into a JSON we can POST to our internal API """
         data = copy.copy(self.data)
         if for_posting:
-            data["name"] = (
-                data["display_name"].lower().replace(" ", "_")
+            data["name"] = parameterize(
+                data["display_name"]
             )  # best guess at un-humanizing
         data["capacity_in_mw"] = float(data["capacity_in_mw"])
         data["min_soc_in_mwh"] = float(data["min_soc_in_mwh"])
@@ -263,7 +264,10 @@ class AssetCrudUI(FlaskView):
                         f"Internal asset API call unsuccessful [{post_asset_response.status_code}]: {post_asset_response.text}"
                     )
                     asset_form.process_api_validation_errors(post_asset_response.json())
-                    if "message" in post_asset_response.json():
+                    if (
+                        "message" in post_asset_response.json()
+                        and "json" in post_asset_response.json()["message"]
+                    ):
                         error_msg = str(post_asset_response.json()["message"]["json"])
             if asset is None:
                 msg = "Cannot create asset. " + error_msg
