@@ -7,25 +7,59 @@ This document details the Application Programming Interface (API) of the FlexMea
 We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
 
 
-New versions of the API are released on:
+.. _api_versions:
+
+Main endpoint and API versions
+------------------------------
+
+All versions of the API are released on:
+
+.. code-block:: html
+
+    https://<flexmeasures-root-url>/api
+
+So if you are running FlexMeasures on your computer, it would be:
+
+.. code-block:: html
+
+    https://localhost:5000/api
+
+At Seita, we run servers for our clients at:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api
 
-A list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a *getService* request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
+where `company` is a hosting customer of ours. All their accounts' data lives on that server.
+
+Let's see what it says:
+
+.. code-block:: python
+
+    >>> import requests
+    >>> res = requests.get("https://seita.flexmeasures.io/api")
+    >>> res.json()
+    {'flexmeasures_version': '0.4.0', 'message': 'For these API versions a public endpoint is available, listing its service. For example: /api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: /api/requestAuthToken', 'status': 200, 'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0']}
+
+So this tells us which API versions exist. For instance, we know that the latest API version is available at
+
+.. code-block:: html
+
+    https://seita.flexmeasures.io/api/v2_0
+
+
+Also , we see that a list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a *getService* request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
 
 **Example request**
 
-.. code-block:: json
+Let's ask which endpoints are available for meter data companies (MDC):
 
-    {
-        "type": "GetServiceRequest",
-        "version": "1.0"
-    }
+.. code-block:: html
+
+    https://seita.flexmeasures.io/api/v2_0/getService?access=MDC
+
 
 **Example response**
-
 
 .. code-block:: json
 
@@ -45,6 +79,8 @@ A list of services offered by (a version of) the FlexMeasures web service can be
             }
         ]
     }
+
+.. _api_auth:
 
 Authentication
 --------------
@@ -76,6 +112,15 @@ using the following JSON message for the POST request data:
     {
         "email": "<user email>",
         "password": "<user password>"
+    }
+
+which gives a response like this if the credentials are correct:
+
+.. code-block:: json
+
+    {
+        "auth_token": "<authentication token>",
+        "user_id": "<ID of the user>"
     }
 
 .. note:: Each access token has a limited lifetime, see :ref:`auth`.
@@ -339,8 +384,8 @@ These fields denote that the data should have been recorded at least 6 hours bef
 
 .. _prognoses:
 
-Prognoses
-^^^^^^^^^
+Knowledge time of Prognoses
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Some POST endpoints have two optional fields to allow setting the time at which beliefs are recorded explicitly.
 This is useful to keep an accurate history of what was known at what time, especially for prognoses.
@@ -425,8 +470,8 @@ Valid units for timeseries data in version 1 of the API are "MW" only.
 
 .. _signs:
 
-Signs
-^^^^^
+Signs of values
+^^^^^^^^^^^^^^^
 
 USEF recommends to use positive power values to indicate consumption and negative values to indicate production, i.e.
 to take the perspective of the Prosumer.
