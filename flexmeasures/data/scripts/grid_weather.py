@@ -336,7 +336,10 @@ def call_openweatherapi(
 
 
 def save_forecasts_in_db(
-    api_key: str, locations: List[Tuple[float, float]], data_source: DataSource
+    api_key: str,
+    locations: List[Tuple[float, float]],
+    data_source: DataSource,
+    max_degree_difference_for_nearest_weather_sensor: int = 2,
 ):
     """Process the response from OpenWeatherMap API into Weather timed values.
     Collects all forecasts for all locations and all sensors at all locations, then bulk-saves them.
@@ -384,8 +387,11 @@ def save_forecasts_in_db(
                         )
                         if weather_sensor is not None:
                             # Complain if the nearest weather sensor is further away than 1 degree
-                            if abs(location[0] - weather_sensor.latitude) > 1 or abs(
-                                location[1] - weather_sensor.longitude > 1
+                            if abs(
+                                location[0] - weather_sensor.latitude
+                            ) > max_degree_difference_for_nearest_weather_sensor or abs(
+                                location[1] - weather_sensor.longitude
+                                > max_degree_difference_for_nearest_weather_sensor
                             ):
                                 raise Exception(
                                     f"No sufficiently close weather sensor found for type {flexmeasures_sensor_type}! We're looking for: {location}, closest available: ({weather_sensor.latitude}, {weather_sensor.longitude})"
