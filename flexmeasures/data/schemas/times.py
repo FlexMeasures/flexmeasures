@@ -6,8 +6,7 @@ import isodate
 from isodate.isoerror import ISO8601Error
 import pandas as pd
 
-from flexmeasures.data.schemas.utils import FMValidationError
-from flexmeasures.data.models.fields import MarshmallowClickMixin
+from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
 
 
 class DurationValidationError(FMValidationError):
