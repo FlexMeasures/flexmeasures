@@ -18,6 +18,7 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+* Let CLI package and plugins use Marshmallow Field definitions [see `PR #125 <http://www.github.com/SeitaBV/flexmeasures/pull/125>`_]
 
 
 v0.4.1 | May XX, 2021
