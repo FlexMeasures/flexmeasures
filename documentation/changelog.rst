@@ -18,6 +18,7 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+* Add tutorials on how to add and read data from FlexMeasures via its API [see `PR #130 <http://www.github.com/SeitaBV/flexmeasures/pull/130>`_]
 
 
 v0.4.1 | May 7, 2021
