@@ -115,7 +115,7 @@ def setup_roles_users() -> Dict[str, User]:
 
 
 @pytest.fixture(scope="function")
-def setup_fresh_roles_users() -> Dict[str, User]:
+def setup_roles_users_fresh_db() -> Dict[str, User]:
     return create_roles_users()
 
 
@@ -142,7 +142,7 @@ def setup_markets(db) -> Dict[str, Market]:
 
 
 @pytest.fixture(scope="function")
-def setup_fresh_markets(fresh_test_db) -> Dict[str, Market]:
+def setup_markets_fresh_db(fresh_test_db) -> Dict[str, Market]:
     return create_test_markets(fresh_test_db)
 
 
@@ -181,7 +181,7 @@ def setup_asset_types(db) -> Dict[str, AssetType]:
 
 
 @pytest.fixture(scope="function")
-def setup_fresh_asset_types(fresh_test_db) -> Dict[str, AssetType]:
+def setup_asset_types_fresh_db(fresh_test_db) -> Dict[str, AssetType]:
     return create_test_asset_types(fresh_test_db)
 
 
@@ -311,11 +311,11 @@ def add_battery_assets(
 
 
 @pytest.fixture(scope="function")
-def add_fresh_battery_assets(
-    fresh_test_db: SQLAlchemy, setup_fresh_roles_users, setup_fresh_markets
+def add_battery_assets_fresh_db(
+    fresh_test_db: SQLAlchemy, setup_roles_users_fresh_db, setup_markets_fresh_db
 ) -> Dict[str, Asset]:
     return create_test_battery_assets(
-        fresh_test_db, setup_fresh_roles_users, setup_fresh_markets
+        fresh_test_db, setup_roles_users_fresh_db, setup_markets_fresh_db
     )
 
 

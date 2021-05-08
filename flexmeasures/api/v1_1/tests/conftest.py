@@ -128,6 +128,6 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
 
 @pytest.fixture(scope="function")
 def setup_fresh_api_v1_1_test_data(
-    fresh_test_db, setup_fresh_roles_users, setup_fresh_markets
+    fresh_test_db, setup_roles_users_fresh_db, setup_markets_fresh_db
 ):
     return fresh_test_db

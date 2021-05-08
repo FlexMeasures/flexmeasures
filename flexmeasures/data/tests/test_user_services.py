@@ -13,7 +13,7 @@ from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
 
 
-def test_create_user(fresh_test_db, setup_fresh_roles_users, app):
+def test_create_user(fresh_test_db, setup_roles_users_fresh_db, app):
     """Create a user"""
     num_users = User.query.count()
     user = create_user(
@@ -29,7 +29,7 @@ def test_create_user(fresh_test_db, setup_fresh_roles_users, app):
     assert DataSource.query.filter_by(name=user.username).one_or_none()
 
 
-def test_create_invalid_user(fresh_test_db, setup_fresh_roles_users, app):
+def test_create_invalid_user(fresh_test_db, setup_roles_users_fresh_db, app):
     """A few invalid attempts to create a user"""
     with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
         create_user(password=hash_password("testtest"), user_roles=["Prosumer"])
@@ -67,7 +67,7 @@ def test_create_invalid_user(fresh_test_db, setup_fresh_roles_users, app):
     assert "already exists" in str(exc_info.value)
 
 
-def test_delete_user(fresh_test_db, setup_fresh_roles_users, app):
+def test_delete_user(fresh_test_db, setup_roles_users_fresh_db, app):
     """Assert user has assets and power measurements. Deleting removes all of that."""
     prosumer: User = find_user_by_email("test_prosumer@seita.nl")
     num_users_before = User.query.count()

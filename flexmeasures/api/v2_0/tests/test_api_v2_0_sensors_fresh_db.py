@@ -21,8 +21,8 @@ from flexmeasures.api.v2_0.tests.utils import (
 )
 def test_post_price_data_2_0(
     fresh_test_db,
-    setup_fresh_roles_users,
-    setup_fresh_markets,
+    setup_roles_users_fresh_db,
+    setup_markets_fresh_db,
     clean_redis,
     app,
     post_message,

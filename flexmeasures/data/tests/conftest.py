@@ -39,14 +39,14 @@ def setup_test_data(
 @pytest.fixture(scope="function")
 def setup_fresh_test_data(
     fresh_test_db,
-    setup_fresh_markets,
-    setup_fresh_roles_users,
+    setup_markets_fresh_db,
+    setup_roles_users_fresh_db,
     app,
     fresh_remove_seasonality_for_power_forecasts,
 ):
     db = fresh_test_db
-    setup_roles_users = setup_fresh_roles_users
-    setup_markets = setup_fresh_markets
+    setup_roles_users = setup_roles_users_fresh_db
+    setup_markets = setup_markets_fresh_db
 
     data_source = DataSource(name="Seita", type="demo script")
     db.session.add(data_source)
@@ -95,9 +95,9 @@ def remove_seasonality_for_power_forecasts(db, setup_asset_types):
 
 
 @pytest.fixture(scope="function")
-def fresh_remove_seasonality_for_power_forecasts(db, setup_fresh_asset_types):
+def fresh_remove_seasonality_for_power_forecasts(db, setup_asset_types_fresh_db):
     """Make sure the AssetType specs make us query only data we actually have in the test db"""
-    setup_asset_types = setup_fresh_asset_types
+    setup_asset_types = setup_asset_types_fresh_db
     for asset_type in setup_asset_types.keys():
         setup_asset_types[asset_type].daily_seasonality = False
         setup_asset_types[asset_type].weekly_seasonality = False
