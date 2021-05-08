@@ -32,9 +32,27 @@ from flexmeasures.data.models.user import User
 """
 Useful things for all tests.
 
-One application is made per test session, but cleanup and recreation currently happens per test.
-This can be sped up if needed by moving some functions to "module" or even "session" scope,
-but then the tests need to share data and and data modifications can lead to tricky debugging.
+# App
+
+One application is made per test session.
+
+# Database
+
+Database recreation and cleanup can happen per test (use fresh_test_db) or per module (use db).
+Having tests inside a module share a database makes those tests faster.
+Tests that use fresh_test_db should be put in a separate module to avoid clashing with the module scoped test db.
+For example:
+- test_api_v1_1.py contains tests that share a module scoped database
+- test_api_v1_1_fresh_db.py contains tests that each get a fresh function-scoped database
+Further speed-up may be possible by defining a "package" scoped or even "session" scoped database,
+but then tests in different modules need to share data and data modifications can lead to tricky debugging.
+
+# Data
+
+Various fixture below set up data that many tests use.
+In case a test needs to use such data with a fresh test database,
+that test should also use a fixture that requires the fresh_test_db.
+Such fixtures can be recognised by having fresh_db appended to their name.
 """
 
 
