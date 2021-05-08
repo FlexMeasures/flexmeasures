@@ -10,7 +10,7 @@ def setup_api_test_data(db, add_market_prices, add_battery_assets):
 
 
 @pytest.fixture(scope="function")
-def setup_fresh_api_test_data(fresh_test_db, add_battery_assets_fresh_db):
+def setup_fresh_api_test_data(fresh_db, add_battery_assets_fresh_db):
     """
     Set up data for API v1.3 tests.
     """

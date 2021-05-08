@@ -20,7 +20,7 @@ from flexmeasures.api.v2_0.tests.utils import (
     ],
 )
 def test_post_price_data_2_0(
-    fresh_test_db,
+    fresh_db,
     setup_roles_users_fresh_db,
     setup_markets_fresh_db,
     clean_redis,
@@ -30,7 +30,7 @@ def test_post_price_data_2_0(
     """
     Try to post price data as a logged-in test user with the Supplier role, which should succeed.
     """
-    db = fresh_test_db
+    db = fresh_db
     # call with client whose context ends, so that we can test for,
     # after-effects in the database after teardown committed.
     with app.test_client() as client:

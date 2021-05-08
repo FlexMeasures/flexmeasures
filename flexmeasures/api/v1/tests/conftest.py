@@ -111,8 +111,8 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
 
 
 @pytest.fixture(scope="function")
-def setup_fresh_api_test_data(fresh_test_db, setup_roles_users_fresh_db):
-    db = fresh_test_db
+def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
+    db = fresh_db
     setup_roles_users = setup_roles_users_fresh_db
     from flexmeasures.data.models.assets import Asset, AssetType
 

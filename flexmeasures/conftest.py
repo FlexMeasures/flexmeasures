@@ -38,9 +38,9 @@ One application is made per test session.
 
 # Database
 
-Database recreation and cleanup can happen per test (use fresh_test_db) or per module (use db).
+Database recreation and cleanup can happen per test (use fresh_db) or per module (use db).
 Having tests inside a module share a database makes those tests faster.
-Tests that use fresh_test_db should be put in a separate module to avoid clashing with the module scoped test db.
+Tests that use fresh_db should be put in a separate module to avoid clashing with the module scoped test db.
 For example:
 - test_api_v1_1.py contains tests that share a module scoped database
 - test_api_v1_1_fresh_db.py contains tests that each get a fresh function-scoped database
@@ -51,7 +51,7 @@ but then tests in different modules need to share data and data modifications ca
 
 Various fixture below set up data that many tests use.
 In case a test needs to use such data with a fresh test database,
-that test should also use a fixture that requires the fresh_test_db.
+that test should also use a fixture that requires the fresh_db.
 Such fixtures can be recognised by having fresh_db appended to their name.
 """
 
@@ -80,7 +80,7 @@ def db(app):
 
 
 @pytest.fixture(scope="function")
-def fresh_test_db(app):
+def fresh_db(app):
     """Fresh test db per function."""
     with create_test_db(app) as test_db:
         yield test_db
@@ -142,8 +142,8 @@ def setup_markets(db) -> Dict[str, Market]:
 
 
 @pytest.fixture(scope="function")
-def setup_markets_fresh_db(fresh_test_db) -> Dict[str, Market]:
-    return create_test_markets(fresh_test_db)
+def setup_markets_fresh_db(fresh_db) -> Dict[str, Market]:
+    return create_test_markets(fresh_db)
 
 
 def create_test_markets(db) -> Dict[str, Market]:
@@ -181,8 +181,8 @@ def setup_asset_types(db) -> Dict[str, AssetType]:
 
 
 @pytest.fixture(scope="function")
-def setup_asset_types_fresh_db(fresh_test_db) -> Dict[str, AssetType]:
-    return create_test_asset_types(fresh_test_db)
+def setup_asset_types_fresh_db(fresh_db) -> Dict[str, AssetType]:
+    return create_test_asset_types(fresh_db)
 
 
 def create_test_asset_types(db) -> Dict[str, AssetType]:
@@ -312,10 +312,10 @@ def add_battery_assets(
 
 @pytest.fixture(scope="function")
 def add_battery_assets_fresh_db(
-    fresh_test_db: SQLAlchemy, setup_roles_users_fresh_db, setup_markets_fresh_db
+    fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
 ) -> Dict[str, Asset]:
     return create_test_battery_assets(
-        fresh_test_db, setup_roles_users_fresh_db, setup_markets_fresh_db
+        fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
     )
 
 

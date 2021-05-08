@@ -38,13 +38,13 @@ def setup_test_data(
 
 @pytest.fixture(scope="function")
 def setup_fresh_test_data(
-    fresh_test_db,
+    fresh_db,
     setup_markets_fresh_db,
     setup_roles_users_fresh_db,
     app,
     fresh_remove_seasonality_for_power_forecasts,
 ):
-    db = fresh_test_db
+    db = fresh_db
     setup_roles_users = setup_roles_users_fresh_db
     setup_markets = setup_markets_fresh_db
 
@@ -82,7 +82,7 @@ def setup_fresh_test_data(
             )
             p.asset = asset
             db.session.add(p)
-    add_test_weather_sensor_and_forecasts(fresh_test_db)
+    add_test_weather_sensor_and_forecasts(fresh_db)
 
 
 @pytest.fixture(scope="module", autouse=True)
