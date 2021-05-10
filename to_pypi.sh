@@ -31,6 +31,7 @@
 
 rm -rf build/* dist/*
 pip -q install twine
+pip -q install wheel
 
 python setup.py egg_info sdist
 python setup.py egg_info bdist_wheel
