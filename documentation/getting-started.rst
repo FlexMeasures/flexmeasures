@@ -8,7 +8,7 @@ Quickstart
 
 This section walks you through getting FlexMeasures to run with the least effort. We'll cover making a secret key, connecting a database and creating one user & one asset.
 
-.. note: Are you not hosting FlexMeasures, but wanting to learn how to use it? head over to our tutorials, starting with :ref:`_tut_posting_data`.
+.. note:: Are you not hosting FlexMeasures, but wanting to learn how to use it? Head over to our tutorials, starting with :ref:`tut_posting_data`.
 
 
 Install FlexMeasures
