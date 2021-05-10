@@ -4,7 +4,6 @@ Introduction
 ============
 
 This document details the Application Programming Interface (API) of the FlexMeasures web service. The API supports user automation for flexibility valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
-We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
 
 
 .. _api_versions:
@@ -32,23 +31,29 @@ At Seita, we run servers for our clients at:
 
 where `company` is a hosting customer of ours. All their accounts' data lives on that server.
 
-Let's see what it says:
+We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
+
+Let's see what the ``/api`` endpoint returns:
 
 .. code-block:: python
 
     >>> import requests
-    >>> res = requests.get("https://seita.flexmeasures.io/api")
+    >>> res = requests.get("https://company.flexmeasures.io/api")
     >>> res.json()
-    {'flexmeasures_version': '0.4.0', 'message': 'For these API versions a public endpoint is available, listing its service. For example: /api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: /api/requestAuthToken', 'status': 200, 'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0']}
+    {'flexmeasures_version': '0.4.0',
+     'message': 'For these API versions a public endpoint is available, listing its service. For example: /api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: /api/requestAuthToken',
+     'status': 200,
+     'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0']
+    }
 
 So this tells us which API versions exist. For instance, we know that the latest API version is available at
 
 .. code-block:: html
 
-    https://seita.flexmeasures.io/api/v2_0
+    https://company.flexmeasures.io/api/v2_0
 
 
-Also , we see that a list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a *getService* request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
+Also , we see that a list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a ``getService`` request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
 
 **Example request**
 
@@ -56,7 +61,7 @@ Let's ask which endpoints are available for meter data companies (MDC):
 
 .. code-block:: html
 
-    https://seita.flexmeasures.io/api/v2_0/getService?access=MDC
+    https://company.flexmeasures.io/api/v2_0/getService?access=MDC
 
 
 **Example response**
