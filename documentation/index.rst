@@ -51,6 +51,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     
     tut/posting_data
     tut/forecasting_scheduling
+    tut/building_uis
 
 .. toctree::
     :caption: The in-built UI
