@@ -34,13 +34,13 @@ def test_assets_page_nonempty(db, client, requests_mock, as_prosumer, use_owned_
         assert asset["display_name"].encode() in asset_index.data
 
 
-def test_new_asset_page(client, as_admin):
+def test_new_asset_page(client, setup_assets, as_admin):
     asset_page = client.get(url_for("AssetCrudUI:get", id="new"), follow_redirects=True)
     assert asset_page.status_code == 200
     assert b"Creating a new asset" in asset_page.data
 
 
-def test_asset_page(db, client, requests_mock, as_prosumer):
+def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer):
     prosumer = find_user_by_email("test_prosumer@seita.nl")
     asset = prosumer.assets[0]
     db.session.expunge(prosumer)
@@ -61,7 +61,7 @@ def test_asset_page(db, client, requests_mock, as_prosumer):
     assert str(mock_asset["longitude"]).encode() in asset_page.data
 
 
-def test_edit_asset(db, client, requests_mock, as_admin):
+def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
     mock_asset = mock_asset_response(as_list=False)
     requests_mock.patch(
         "http://localhost//api/v2_0/asset/1", status_code=200, json=mock_asset
@@ -78,7 +78,7 @@ def test_edit_asset(db, client, requests_mock, as_admin):
     assert str(mock_asset["longitude"]) in str(response.data)
 
 
-def test_add_asset(db, client, requests_mock, as_admin):
+def test_add_asset(db, client, setup_assets, requests_mock, as_admin):
     """Add a new asset"""
     prosumer = find_user_by_email("test_prosumer@seita.nl")
     mock_asset = mock_asset_response(owner_id=prosumer.id, as_list=False)
