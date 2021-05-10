@@ -27,7 +27,7 @@ Prerequisites
 Posting weather data
 --------------------
 
-Weather data (both observations and forecasts) can be posted to the following POST endpoint:
+Weather data (both observations and forecasts) can be posted to `POST  /api/v2_0/postWeatherData <../api/v2_0.html#post--api-v2_0-postWeatherData>`_. The URL might look like this:
 
 .. code-block:: html
 
@@ -83,7 +83,7 @@ See :ref:`prognoses` for more information regarding the prior and horizon fields
 Collecting weather data from OpenWeatherMap
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For convenience, we built in a CLI task which collects weather measurements and forecasts from the OpenWeatherMap API. You have to add your own token in the OPENWEATHERMAP_API_KEY setting first. Then you could run this task periodically, probably once per hour. Here is how:
+For convenience for people who host FlexMeasures themselves, we built in a CLI task which collects weather measurements and forecasts from the OpenWeatherMap API. You have to add your own token in the OPENWEATHERMAP_API_KEY setting first. Then you could run this task periodically, probably once per hour. Here is how:
 
 .. code-block::
 
@@ -95,7 +95,7 @@ Consult the ``--help`` for this command to learn more about what you can do with
 Posting price data
 ------------------
 
-Price data (both observations and forecasts) can be posted to the following POST endpoint:
+Price data (both observations and forecasts) can be posted to `POST  /api/v2_0/postPriceData <../api/v2_0.html#post--api-v2_0-postPriceData>`_. The URL might look like this:
 
 .. code-block:: html
 
@@ -157,13 +157,13 @@ Posting power data
 
 For power data, USEF specifies separate message types for observations and forecasts.
 Correspondingly, FlexMeasures uses separate endpoints to communicate these messages.
-Observations of power data can be posted to the following POST endpoint:
+Observations of power data can be posted to `POST /api/v2_0/postMeterData <../api/v2_0.html#post--api-v2_0-postMeterData>`_. The URL might look like this:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api/<version>/postMeterData
 
-while forecasts of power data can be posted to the following POST endpoint:
+while forecasts of power data can be posted to `POST /api/v2_0/postPrognosis <../api/v2_0.html#post--api-v2_0-postPrognosis>`_. The URL might look like this:
 
 .. code-block:: html
 
@@ -294,19 +294,22 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
     }
 
 
-.. _posting_flex_constraints:
+.. _posting_flex_states:
 
-Posting flexibility constraints
+Posting flexibility states
 -------------------------------
 
-Prosumers that have Active Demand & Supply can post the constraints of their flexible devices to FlexMeasures at the
-following POST endpoint:
+There is one more crucial kind of data that FlexMeasures needs to know about: What are the current states of flexible devices? For example, a battery has a state of charge.
+
+The USEF framework defines a so-called "UDI-Event" (UDI stands for Universal Device Interface) to communicate settings for devices with Active Demand & Supply (ADS).
+Owners of such devices can post these states to `POST /api/v2_0/postUdiEvent <../api/v2_0.html#post--api-v2_0-postUdiEvent>`_. The URL might look like this:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api/<version>/postUdiEvent
 
 This example posts a state of charge value for a battery device (asset 10 of owner 7) as UDI event 203.
+This way, FlexMeasures knows how much of the potential flexible energy services this battery can provide in the near future.
 
 .. code-block:: json
 
@@ -318,21 +321,6 @@ This example posts a state of charge value for a battery device (asset 10 of own
             "unit": "kWh"
         }
 
-Some devices also accept target values for their state of charge.
-As an example, consider the same UDI event as above with an additional target value.
+.. note:: At the moment, FlexMeasures only supports batteries and car chargers here (asset types "battery", "one-way_evse" or "two-way_evse"), but this will be expanded to flexible assets as needed.
 
-.. code-block:: json
-
-    {
-        "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.io.flexmeasures.company:7:10:204:soc-with-targets",
-        "value": 12.1,
-        "datetime": "2015-06-02T10:00:00+00:00",
-        "unit": "kWh",
-        "targets": [
-            {
-                "value": 25,
-                "datetime": "2015-06-02T16:00:00+00:00"
-            }
-        ]
-    }
+Actually, UDI Events are more powerful than this. In :ref:`how_queue_scheduling`, we'll cover how they can be used to request a future state, which is useful to steer the scheduling.

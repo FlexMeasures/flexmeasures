@@ -211,3 +211,8 @@ Installing Cbc can be done on Unix via:
 We provide a script for installing from source (without requiring ``sudo`` rights) in :ref:`continuous_integration`.
 
 More information (e.g. for installing on Windows) on `the Cbc website <https://projects.coin-or.org/Cbc>`_.
+
+Install and configure Redis
+^^^^^^^^^^^^^^^^^^^^^^^
+
+To let FlexMeasures queue forecasting and scheduling jobs, install a `Redis <https://redis.io/>`_ server (or rent one) and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in :ref:`redis-config`.

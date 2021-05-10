@@ -3,14 +3,16 @@
 Forecasting & scheduling
 ========================
 
-Once FlexMeasures has been integrated with data (see :ref:`_tut_posting_data`), you can enjoy its forecasting and scheduling services.
-Let's take a look how to set this up (if you are hosting FlexMeasures yourself) and how to access this information.
+Once FlexMeasures has been integrated with data (see :ref:`tut_posting_data`), you can enjoy its forecasting and scheduling services.
+Let's take a look how to access this information (for all users of FlexMeasures) and how to set the data science queues for this up (if you are hosting FlexMeasures yourself). 
 
-.. note: If you are not hosting FlexMeasures yourself, skip to :ref:`getting_prognoses`.
+If you want to learn more about the actual algorithms used in the background, head over to :ref:`algorithms`.
 
 
 Maintaining the queues
 ------------------------------------
+
+.. note:: If you are not hosting FlexMeasures yourself, skip right ahead to :ref:`how_queue_forecasting` or :ref:`getting_prognoses`.
 
 Here we assume you have access to a Redis server and configured it (see :ref:`redis-config`).
 
@@ -35,13 +37,68 @@ When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the qu
 When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/analytics``.
 
 
-Queueing jobs
+.. _how_queue_forecasting:
+
+How forecasting jobs are queued
 ------------------
 
-TODO: Explain how forecasting jobs are made by the API when new data arrives. Scheduling jobs also, when PostUdiEvent is called. Future work: how can a user configure which assets get this treatment?
+A forecasting job is the order to create forecasts based on measurements. A job can be about forecasting one one point in time or about a range of points.
 
-TODO: Show that we have flexmeasures add forecasts, example: --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6  --asset-id 2 --as-job
-      Drawback: only for complete days (can we change that?)
+
+In FlexMeasures, forecasting jobs are created by the API when new power, weather or price data arrives (see :ref:`_tut_posting_data`). So technically, you don't have to do anything to keep fresh forecasts.
+
+The decision which horizons to forecast is currently also taken by FlexMeasures. For power data, FlexMeasures makes this decision depending on the asset resolution. For instance, a resolution of 15 minutes leads to forecast horizons of 1, 6, 24 and 48 hours. For price data, FlexMeasures chooses to forecast prices forward 24 and 48 hours
+These are decent defaults, and fixing them has the advantage that scheduling scripts (see below) will know what to expect. However, horizons will probably become more configurable in the near future of FlexMeasures. 
+
+Forecasting historic ranges
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There might be reasons to add forecasts of past time ranges. For instance, for visualisation of past system behaviour and to check how well the forecasting models have been doing on a longer stretch of data.
+
+If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
+
+.. code-block:: bash
+
+    flexmeasures add forecasts --from_date 2020-01-02 --to_date 2020-6-30 --horizon_hours 6  --asset-id 2
+
+Here, forecasts are being computed for asset 2, with one horizon (6 hours). This is half year of data, so it will take a while. You can also queue this work to workers (see above) with the additional ``--as-job`` parameter (though in general we'd advise to dispatch this work in smaller chunks).
+
+.. _how_queue_scheduling:
+
+How scheduling jobs are queued
+------------------
+
+In FlexMeasures, a scheduling job is the order to plan optimized actions for flexible devices. It usually involves a linear program which draws on forecasted data so it can plan energy flexibility ahead of time.
+
+We already learned about the ``postUdiEvent`` endpoint in :ref:`_posting_flex_states`, where we saw how to post a state of flexibility (in this case, the state of charge of a battery at a certain point in time).
+
+This endpoint can also be used to request a future state if charge (using ``soc-with-target`` in the entity address).
+"battery", "one-way_evse", "two-way_evse"
+"soc", "soc-with-targets"
+
+As an example, consider the same UDI event as we saw earlier, but with an additional target value.
+
+.. code-block:: json
+
+    {
+        "type": "PostUdiEventRequest",
+        "event": "ea1.2018-06.io.flexmeasures.company:7:10:204:soc-with-targets",
+        "value": 12.1,
+        "datetime": "2015-06-02T10:00:00+00:00",
+        "unit": "kWh",
+        "targets": [
+            {
+                "value": 25,
+                "datetime": "2015-06-02T16:00:00+00:00"
+            }
+        ]
+    }
+
+Here we have described the state of charge at 10am to be ``12.1``. In addition, we requested that it should be ``25`` at 4pm. For instance, this could mean that a cat should be charged at 90% at that time.
+
+Now, here is a task that requires some scheduling. If FlexMeasures receives this UDI Event, a scheduling job will be made and put into the queue. In turn, the forecasting job creates a proposed schedule. We'll look a bit deeper into those further down in :ref:`getting_schedules`;
+
+.. note:: Even without a target state of charge, FlexMeasures will create a scheduling job. The flexible device can then be used with more freedom to reach the system objective (e.g. store power when it is cheap, sell when it's expensive).
 
 
 .. _getting_prognoses:
@@ -52,7 +109,7 @@ Getting forecasts (prognoses)
 Prognoses (the USEF term used for forecasts) are used by FlexMeasures to determine the best control signals to valorise on
 balancing opportunities. 
 
-You can access forecasts via the FlexMeasures API at `GET  /api/v2_0/getPrognosis <api/v2_0.html#get--api-v2_0-getPrognosis>`_ 
+You can access forecasts via the FlexMeasures API at `GET  /api/v2_0/getPrognosis <../api/v2_0.html#get--api-v2_0-getPrognosis>`_. 
 Getting them might be useful if you want to use prognoses in your own system or to check the accuracy of these forecasts by downloading the prognoses and
 comparing them against the meter data, i.e. the realised power measurements (though the FlexMeasures UI also visualises them next to each other).
 
@@ -77,17 +134,19 @@ This example requests a prognosis for 24 hours, with a rolling horizon of 6 hour
     }
 
 
+.. _getting_schedules:
+
 Getting schedules (control signals)
 -----------------------
 
-FlexMeasures can create optimised schedules with control signals for flexible devices. You can access the schedules via the `GET  /api/v2_0/getDeviceMessage <api/v2_0.html#get--api-v2_0-getDeviceMessage>`_ endpoint. The URL then looks like this:
+We saw above how FlexMeasures can create optimised schedules with control signals for flexible devices. You can access the schedules via the `GET  /api/v2_0/getDeviceMessage <../api/v2_0.html#get--api-v2_0-getDeviceMessage>`_ endpoint. The URL then looks like this:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api/<version>/getDeviceMessage
 
 Control signals can be queried by UDI event for up to 1 week after the UDI event was posted.
-This example of a request body shows that we want to look up a control signal for UDI event 203 (which was posted previously, see :ref:`posting_flex_constraints`).
+This example of a request body shows that we want to look up a control signal for UDI event 203 (which was posted previously, see :ref:`posting_flex_states`).
 
 .. code-block:: json
 

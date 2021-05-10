@@ -9,6 +9,8 @@ Algorithms
     :depth: 2
 
 
+.. _algorithms_forecasting:
+
 Forecasting
 -----------
 
@@ -72,6 +74,8 @@ Improvements:
 
 - Most assets have yearly seasonality (e.g. wind, solar) and therefore forecasts would benefit from >= 2 years of history.
 
+
+.. _algorithms_scheduling:
 
 Scheduling 
 ------------
