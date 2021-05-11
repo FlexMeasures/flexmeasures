@@ -13,7 +13,7 @@ New features
 
 Bugfixes
 -----------
-* Correct forecasting horizons when weather data is posted [see `PR #XXX <http://www.github.com/SeitaBV/flexmeasures/pull/XXX>`_]
+* Choose better forecasting horizons when weather data is posted [see `PR #131 <http://www.github.com/SeitaBV/flexmeasures/pull/131>`_]
 
 Infrastructure / Support
 ----------------------
