@@ -113,7 +113,7 @@ def message_for_post_price_data(
 
 
 def message_for_post_weather_data(
-    invalid_unit: bool = False, temperature: bool = False, as_forecasts: bool = False
+    invalid_unit: bool = False, temperature: bool = False, as_forecasts: bool = True
 ) -> dict:
     message: Dict[str, Any] = {
         "type": "PostWeatherDataRequest",
