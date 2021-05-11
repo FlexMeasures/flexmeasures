@@ -7,7 +7,7 @@ from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
-from flexmeasures.api.common.schemas.times import AwareDateTimeField
+from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.models.time_series import Sensor
 
 

@@ -1,4 +1,5 @@
 from flask import jsonify
+from flexmeasures.data.schemas.utils import FMValidationError
 from webargs.multidictproxy import MultiDictProxy
 from webargs import ValidationError
 from webargs.flaskparser import parser
@@ -16,18 +17,6 @@ def handle_error(error, req, schema, *, error_status_code, error_headers):
         # re-package all marshmallow's validation errors as our own kind (see below)
         raise FMValidationError(message=error.messages)
     raise error
-
-
-class FMValidationError(ValidationError):
-    """
-    Custom validation error class.
-    It differs from the classic validation error by having two
-    attributes, according to the USEF 2015 reference implementation.
-    Subclasses of this error might adjust the `status` attribute accordingly.
-    """
-
-    result = "Rejected"
-    status = "UNPROCESSABLE_ENTITY"
 
 
 def validation_error_handler(error: FMValidationError):
