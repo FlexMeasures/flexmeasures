@@ -12,7 +12,7 @@ from flexmeasures.utils.calculations import integrate_time_series
 from flexmeasures.utils.time_utils import as_server_time
 
 
-def test_battery_solver_day_1():
+def test_battery_solver_day_1(add_battery_assets):
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
     battery = Asset.query.filter(Asset.name == "Test battery").one_or_none()
     start = as_server_time(datetime(2015, 1, 1))
@@ -33,7 +33,7 @@ def test_battery_solver_day_1():
         assert soc <= battery.max_soc_in_mwh
 
 
-def test_battery_solver_day_2():
+def test_battery_solver_day_2(add_battery_assets):
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
     battery = Asset.query.filter(Asset.name == "Test battery").one_or_none()
     start = as_server_time(datetime(2015, 1, 2))

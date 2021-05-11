@@ -1,4 +1,4 @@
-from flask import url_for, request
+from flask import url_for
 import pytest
 
 # from flexmeasures.data.models.user import User
@@ -32,7 +32,7 @@ def test_get_users_bad_auth(client, use_auth):
 
 
 @pytest.mark.parametrize("include_inactive", [False, True])
-def test_get_users_inactive(client, include_inactive):
+def test_get_users_inactive(client, setup_inactive_user, include_inactive):
     headers = {
         "content-type": "application/json",
         "Authorization": get_auth_token(client, "test_prosumer@seita.nl", "testtest"),
@@ -117,7 +117,7 @@ def test_edit_user(client):
 
 
 def test_edit_user_with_unexpected_fields(client):
-    """Sending unexpected fields (not in Schema) is an Unprocessible Entity error."""
+    """Sending unexpected fields (not in Schema) is an Unprocessable Entity error."""
     with UserContext("test_supplier@seita.nl") as supplier:
         supplier_id = supplier.id
     with UserContext("test_prosumer@seita.nl") as prosumer:
@@ -132,54 +132,3 @@ def test_edit_user_with_unexpected_fields(client):
     )
     print("Server responded with:\n%s" % user_edit_response.json)
     assert user_edit_response.status_code == 422
-
-
-@pytest.mark.parametrize(
-    "sender",
-    (
-        (""),
-        ("test_supplier@seita.nl"),
-        ("test_prosumer@seita.nl"),
-        ("test_prosumer@seita.nl"),
-        ("test_prosumer@seita.nl"),
-    ),
-)
-def test_user_reset_password(app, client, sender):
-    """
-    Reset the password of supplier.
-    Only the prosumer is allowed to do that (as admin).
-    """
-    with UserContext("test_supplier@seita.nl") as supplier:
-        supplier_id = supplier.id
-        old_password = supplier.password
-    headers = {"content-type": "application/json"}
-    if sender != "":
-        headers["Authorization"] = (get_auth_token(client, sender, "testtest"),)
-    with app.mail.record_messages() as outbox:
-        pwd_reset_response = client.patch(
-            url_for("flexmeasures_api_v2_0.reset_user_password", id=supplier_id),
-            query_string={},
-            headers=headers,
-        )
-        print("Server responded with:\n%s" % pwd_reset_response.json)
-
-        if sender == "":
-            assert pwd_reset_response.status_code == 401
-            return
-
-        if sender == "test_supplier@seita.nl":
-            assert pwd_reset_response.status_code == 403
-            return
-
-        assert pwd_reset_response.status_code == 200
-
-        supplier = find_user_by_email("test_supplier@seita.nl")
-        assert len(outbox) == 2
-        assert "has been reset" in outbox[0].subject
-        pwd_reset_instructions = outbox[1]
-        assert old_password != supplier.password
-        assert "reset instructions" in pwd_reset_instructions.subject
-        assert (
-            "reset your password:\n\n%sreset/" % request.host_url
-            in pwd_reset_instructions.body
-        )

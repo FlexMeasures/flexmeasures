@@ -59,7 +59,7 @@ def after_request_exception_rollback_session(exception):
 
     Register this on your app via the teardown_request setup method.
     We roll back the session if there was any error (which only has an effect if
-    the session has not yet been comitted).
+    the session has not yet been committed).
 
     Flask-SQLAlchemy is closing the scoped sessions automatically."""
     if exception is not None:
@@ -118,12 +118,13 @@ def task_with_status_report(task_function):
                 task_run.datetime = datetime.utcnow().replace(tzinfo=pytz.utc)
                 task_run.status = status
                 click.echo(
-                    "Reported task %s status as %s" % (task_function.__name__, status)
+                    "[FLEXMEASURES] Reported task %s status as %s"
+                    % (task_function.__name__, status)
                 )
                 db.session.commit()
             except Exception as e:
                 click.echo(
-                    "[FLEXMEASURES] Could not report the running of Task %s, encountered the following problem: [%s]."
+                    "[FLEXMEASURES] Could not report the running of task %s. Encountered the following problem: [%s]."
                     " The task might have run fine." % (task_function.__name__, str(e))
                 )
                 db.session.rollback()
