@@ -194,7 +194,16 @@ def test_post_weather_forecasts(setup_api_test_data, app, client, post_message):
     Try to post wind speed and temperature forecasts as a logged-in test user with the Supplier role, which should succeed.
     As only forecasts are sent, no forecasting jobs are expected.
     """
-    assert len(app.queues["forecasting"].jobs) == 0
+    assert (
+        len(
+            [
+                job
+                for job in app.queues["forecasting"].jobs
+                if job.kwargs["timed_value_type"] != "Price"
+            ]
+        )
+        == 0
+    )
 
     # post weather data
     auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
@@ -207,7 +216,16 @@ def test_post_weather_forecasts(setup_api_test_data, app, client, post_message):
     assert post_weather_data_response.status_code == 200
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
 
-    assert len(app.queues["forecasting"].jobs) == 0
+    assert (
+        len(
+            [
+                job
+                for job in app.queues["forecasting"].jobs
+                if job.kwargs["timed_value_type"] != "Price"
+            ]
+        )
+        == 0
+    )
 
 
 @pytest.mark.parametrize(
