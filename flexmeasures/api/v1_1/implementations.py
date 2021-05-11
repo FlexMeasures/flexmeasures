@@ -210,7 +210,6 @@ def post_weather_data_response(  # noqa: C901
                         start,
                         start + duration,
                         resolution=duration / len(value_group),
-                        horizons=[horizon],
                         enqueue=False,  # will enqueue later, only if we successfully saved weather measurements
                     )
                 )

@@ -113,7 +113,7 @@ def message_for_post_price_data(
 
 
 def message_for_post_weather_data(
-    invalid_unit: bool = False, temperature: bool = False
+    invalid_unit: bool = False, temperature: bool = False, as_forecasts: bool = False
 ) -> dict:
     message: Dict[str, Any] = {
         "type": "PostWeatherDataRequest",
@@ -136,6 +136,8 @@ def message_for_post_weather_data(
             message["unit"] = "°C"  # Right unit for temperature
     elif invalid_unit:
         message["unit"] = "°C"  # Wrong unit for wind speed
+    if not as_forecasts:
+        message["horizon"] = "PT0H"  # weather measurements
     return message
 
 

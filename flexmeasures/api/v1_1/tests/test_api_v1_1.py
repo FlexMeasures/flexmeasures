@@ -189,9 +189,9 @@ def test_post_price_data_invalid_unit(setup_api_test_data, client, post_message)
     "post_message",
     [message_for_post_weather_data(), message_for_post_weather_data(temperature=True)],
 )
-def test_post_weather_data(setup_api_test_data, client, post_message):
+def test_post_weather_forecasts(setup_api_test_data, client, post_message):
     """
-    Try to post wind speed data as a logged-in test user with the Supplier role, which should succeed.
+    Try to post wind speed and temperature forecasts as a logged-in test user with the Supplier role, which should succeed.
     """
 
     # post weather data
@@ -209,7 +209,7 @@ def test_post_weather_data(setup_api_test_data, client, post_message):
 @pytest.mark.parametrize(
     "post_message", [message_for_post_weather_data(invalid_unit=True)]
 )
-def test_post_weather_data_invalid_unit(setup_api_test_data, client, post_message):
+def test_post_weather_forecasts_invalid_unit(setup_api_test_data, client, post_message):
     """
     Try to post wind speed data as a logged-in test user with the Supplier role, but with a wrong unit for wind speed,
     which should fail.
