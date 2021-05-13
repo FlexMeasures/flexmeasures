@@ -25,7 +25,7 @@
     <!-- Render Charts -->
     <script type="module" type="text/javascript">
 
-      import { subtract, thisMonth, lastNMonths } from "{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}";
+      import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
 
       let vegaView;
 
@@ -103,9 +103,11 @@
           })
           .then(function(response) { return response.json(); })
           .then(function(data) {
-            if (data.timezone != jstz.determine().name()) {
+            var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
+            if (offsetDifference != 0) {
               document.getElementById('tzwarn').style.display = 'block';
-              document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone.<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
+              var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes'
+              document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
             }
             var start = new Date(data.timerange.start);
             var end = new Date(data.timerange.end)

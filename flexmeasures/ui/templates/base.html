@@ -209,7 +209,7 @@
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
 
     <!-- Custom scripts -->
-    <script type="module" src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}"></script>
+    <script src="{{ url_for('flexmeasures_ui.static', filename='js/flexmeasures.js') }}"></script>
     {% if show_datepicker %}
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/daterangepicker-init.js') }}"></script>
     {% endif %}
@@ -230,11 +230,14 @@
     <footer class="page-footer font-small pt-4 mt-4">
         <div class="footer text-center">
             <div class="container-fluid">
+                {% block copyright_notice %}
                 FlexMeasures technology is created by <a href="https://seita.nl/">Seita Energy Flexibility</a>,
                 in cooperation with <a href="https://aoneeng.com/">A1 Engineering</a>
                 &copy
                 <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.
+                {% endblock copyright_notice %}
 
+                {% block credits %}
                 <a href="#" data-toggle="modal" data-target="#Credits">Credits</a>.
 
                 <!-- The modal -->
@@ -273,6 +276,7 @@
                 </div>
                 </div>
                 </div>
+                {% endblock credits %}
 
                 <!-- We might render templates from plugins, where this meta info is not available -->
                 {% if app_running_since %}

@@ -1,16 +1,15 @@
 from functools import wraps
 
 from flask import current_app, abort
-from marshmallow import ValidationError, validate, validates, fields
+from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_args
 from flask_security import current_user
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
-from pytz import all_timezones
 
-from flexmeasures.data import ma
 from flexmeasures.data.models.user import User as UserModel
+from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     get_users,
     set_random_password,
@@ -25,28 +24,6 @@ API endpoints to manage users.
 
 Both POST (to create) and DELETE are not accessible via the API, but as CLI functions.
 """
-
-
-class UserSchema(ma.SQLAlchemySchema):
-    """
-    This schema lists fields we support through this API (e.g. no password).
-    """
-
-    class Meta:
-        model = UserModel
-
-    @validates("timezone")
-    def validate_timezone(self, timezone):
-        if timezone not in all_timezones:
-            raise ValidationError(f"Timezone {timezone} doesn't exist.")
-
-    id = ma.auto_field()
-    email = ma.auto_field(required=True, validate=validate.Email)
-    username = ma.auto_field(required=True)
-    active = ma.auto_field()
-    timezone = ma.auto_field()
-    flexmeasures_roles = ma.auto_field()
-
 
 user_schema = UserSchema()
 users_schema = UserSchema(many=True)

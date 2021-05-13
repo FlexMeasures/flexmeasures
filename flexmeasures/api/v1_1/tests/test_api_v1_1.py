@@ -1,14 +1,12 @@
 from flask import url_for
 import pytest
 from datetime import timedelta
-from isodate import duration_isoformat
 from iso8601 import parse_date
 
 from flexmeasures.utils.entity_address_utils import parse_entity_address
 from flexmeasures.api.common.responses import (
     request_processed,
     invalid_horizon,
-    unapplicable_resolution,
     invalid_unit,
 )
 from flexmeasures.api.tests.utils import get_auth_token
@@ -63,7 +61,7 @@ def test_unauthorized_prognosis_request(client):
         message_for_get_prognosis(invalid_horizon=True),
     ],
 )
-def test_invalid_horizon(client, message):
+def test_invalid_horizon(setup_api_test_data, client, message):
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("flexmeasures_api_v1_1.get_prognosis"),
@@ -76,7 +74,7 @@ def test_invalid_horizon(client, message):
     assert get_prognosis_response.json["status"] == invalid_horizon()[0]["status"]
 
 
-def test_no_data(client):
+def test_no_data(setup_api_test_data, client):
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("flexmeasures_api_v1_1.get_prognosis"),
@@ -103,7 +101,7 @@ def test_no_data(client):
         message_for_get_prognosis(rolling_horizon=True, timezone_alternative=True),
     ],
 )
-def test_get_prognosis(client, message):
+def test_get_prognosis(setup_api_test_data, client, message):
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("flexmeasures_api_v1_1.get_prognosis"),
@@ -126,7 +124,7 @@ def test_get_prognosis(client, message):
 
 
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
-def test_post_price_data(db, app, post_message):
+def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message):
     """
     Try to post price data as a logged-in test user with the Supplier role, which should succeed.
     """
@@ -163,7 +161,7 @@ def test_post_price_data(db, app, post_message):
 @pytest.mark.parametrize(
     "post_message", [message_for_post_price_data(invalid_unit=True)]
 )
-def test_post_price_data_invalid_unit(client, post_message):
+def test_post_price_data_invalid_unit(setup_api_test_data, client, post_message):
     """
     Try to post price data with the wrong unit, which should fail.
     """
@@ -188,45 +186,10 @@ def test_post_price_data_invalid_unit(client, post_message):
 
 
 @pytest.mark.parametrize(
-    "post_message,status,msg",
-    [
-        (
-            message_for_post_price_data(
-                duration=duration_isoformat(timedelta(minutes=2))
-            ),
-            400,
-            unapplicable_resolution()[0]["message"],
-        ),
-        (message_for_post_price_data(compress_n=4), 200, "Request has been processed."),
-    ],
-)
-def test_post_price_data_unexpected_resolution(db, app, post_message, status, msg):
-    """
-    Try to post price data with an unexpected resolution,
-    which might be fixed with upsampling or otherwise fail.
-    """
-    with app.test_client() as client:
-        auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
-        post_price_data_response = client.post(
-            url_for("flexmeasures_api_v1_1.post_price_data"),
-            json=post_message,
-            headers={"Authorization": auth_token},
-        )
-        print("Server responded with:\n%s" % post_price_data_response.json)
-    assert post_price_data_response.json["type"] == "PostPriceDataResponse"
-    assert post_price_data_response.status_code == status
-    assert msg in post_price_data_response.json["message"]
-    if "processed" in msg:
-        verify_prices_in_db(
-            post_message, [v for v in post_message["values"] for i in range(4)], db
-        )
-
-
-@pytest.mark.parametrize(
     "post_message",
     [message_for_post_weather_data(), message_for_post_weather_data(temperature=True)],
 )
-def test_post_weather_data(client, post_message):
+def test_post_weather_data(setup_api_test_data, client, post_message):
     """
     Try to post wind speed data as a logged-in test user with the Supplier role, which should succeed.
     """
@@ -246,7 +209,7 @@ def test_post_weather_data(client, post_message):
 @pytest.mark.parametrize(
     "post_message", [message_for_post_weather_data(invalid_unit=True)]
 )
-def test_post_weather_data_invalid_unit(client, post_message):
+def test_post_weather_data_invalid_unit(setup_api_test_data, client, post_message):
     """
     Try to post wind speed data as a logged-in test user with the Supplier role, but with a wrong unit for wind speed,
     which should fail.
@@ -269,7 +232,9 @@ def test_post_weather_data_invalid_unit(client, post_message):
 
 
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
-def test_auto_fix_missing_registration_of_user_as_data_source(client, post_message):
+def test_auto_fix_missing_registration_of_user_as_data_source(
+    setup_api_test_data, client, post_message
+):
     """Try to post price data as a user that has not been properly registered as a data source.
     The API call should succeed and the user should be automatically registered as a data source.
     """

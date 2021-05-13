@@ -16,10 +16,13 @@ import timely_beliefs as tb
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.time_series import Sensor, SensorSchema, TimedBelief
-from flexmeasures.data.models.assets import Asset, AssetSchema
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.models.assets import Asset
+from flexmeasures.data.schemas.assets import AssetSchema
 from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorSchema
+from flexmeasures.data.models.weather import WeatherSensor
+from flexmeasures.data.schemas.weather import WeatherSensorSchema
 from flexmeasures.data.models.data_sources import (
     get_or_create_source,
     get_source_or_none,

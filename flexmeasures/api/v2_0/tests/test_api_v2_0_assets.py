@@ -1,6 +1,8 @@
 from flask import url_for
 import pytest
 
+import pandas as pd
+
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext
@@ -68,8 +70,8 @@ def test_get_asset_nonadmin_access(client):
     assert "not found" in asset_response.json["message"]
 
 
-@pytest.mark.parametrize("use_owner_id,num_assets", [(False, 7), (True, 1)])
-def test_get_assets(client, use_owner_id, num_assets):
+@pytest.mark.parametrize("use_owner_id, num_assets", [(False, 7), (True, 1)])
+def test_get_assets(client, add_charging_station_assets, use_owner_id, num_assets):
     """
     Get assets, either for all users (prosumer is admin, so is allowed to see all 7 assets) or for
     a unique one (supplier user has one asset ― "Test battery").
@@ -95,7 +97,9 @@ def test_get_assets(client, use_owner_id, num_assets):
         if asset["name"] == "Test battery":
             battery = asset
     assert battery
-    assert battery["soc_datetime"] == "2015-01-01T00:00:00+00:00"
+    assert pd.Timestamp(battery["soc_datetime"]) == pd.Timestamp(
+        "2015-01-01T00:00:00+00:00"
+    )
     assert battery["owner_id"] == test_supplier_id
     assert battery["capacity_in_mw"] == 2
 

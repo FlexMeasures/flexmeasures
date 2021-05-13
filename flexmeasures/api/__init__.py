@@ -6,9 +6,9 @@ from flask_login import current_user
 from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.data.models.user import User
 from flexmeasures.api.common.utils.args_parsing import (
-    FMValidationError,
     validation_error_handler,
 )
+from flexmeasures.data.schemas.utils import FMValidationError
 
 # The api blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_api = Blueprint("flexmeasures_api", __name__)
