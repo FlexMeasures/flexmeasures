@@ -232,7 +232,7 @@ class Power(TimedValue, db.Model):
         super(Power, self).__init__(**kwargs)
 
     def __repr__(self):
-        return "<Power %.2f on Asset %s at %s by DataSource %s, horizon %s>" % (
+        return "<Power %.5f on Asset %s at %s by DataSource %s, horizon %s>" % (
             self.value,
             self.asset_id,
             self.datetime,

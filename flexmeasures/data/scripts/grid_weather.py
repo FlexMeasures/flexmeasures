@@ -386,7 +386,7 @@ def save_forecasts_in_db(
                             flexmeasures_sensor_type, lat=location[0], lng=location[1]
                         )
                         if weather_sensor is not None:
-                            # Complain if the nearest weather sensor is further away than 1 degree
+                            # Complain if the nearest weather sensor is further away than 2 degrees
                             if abs(
                                 location[0] - weather_sensor.latitude
                             ) > max_degree_difference_for_nearest_weather_sensor or abs(
@@ -394,7 +394,7 @@ def save_forecasts_in_db(
                                 > max_degree_difference_for_nearest_weather_sensor
                             ):
                                 raise Exception(
-                                    f"No sufficiently close weather sensor found for type {flexmeasures_sensor_type}! We're looking for: {location}, closest available: ({weather_sensor.latitude}, {weather_sensor.longitude})"
+                                    f"No sufficiently close weather sensor found (within 2 degrees distance) for type {flexmeasures_sensor_type}! We're looking for: {location}, closest available: ({weather_sensor.latitude}, {weather_sensor.longitude})"
                                 )
                             weather_sensors[flexmeasures_sensor_type] = weather_sensor
                         else:
@@ -454,8 +454,9 @@ def save_forecasts_as_json(
         ).replace(second=0, microsecond=0)
         now_str = time_of_api_call.strftime("%Y-%m-%dT%H-%M-%S")
         path_to_files = os.path.join(data_path, now_str)
-        click.echo(f"Making directory: {path_to_files} ...")
-        os.mkdir(path_to_files)
+        if not os.path.exists(path_to_files):
+            click.echo(f"Making directory: {path_to_files} ...")
+            os.mkdir(path_to_files)
         forecasts_file = "%s/forecast_lat_%s_lng_%s.json" % (
             path_to_files,
             str(location[0]),

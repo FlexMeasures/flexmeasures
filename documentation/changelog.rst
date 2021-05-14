@@ -6,7 +6,7 @@ FlexMeasures Changelog
 v0.5.0 | May XX, 2021
 ===========================
 
-.. warning:: If you retrieve weather forecasts through FlexMeasures: we had to witch to OpenWeatherMap, as Dark Sky is closing. This requires an update to config variables ― the new setting is called ``OPENWEATHERMAP_API_KEY``.
+.. warning:: If you retrieve weather forecasts through FlexMeasures: we had to switch to OpenWeatherMap, as Dark Sky is closing. This requires an update to config variables ― the new setting is called ``OPENWEATHERMAP_API_KEY``.
 
 New features
 -----------
@@ -38,7 +38,7 @@ Bugfixes
 v0.4.0 | April 29, 2021
 ===========================
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade``.
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
 -----------
