@@ -195,7 +195,9 @@ def forecast_horizons_for(
     else:
         resolution_str = resolution
     horizons = []
-    if resolution_str in ("15T", "1h", "H"):
+    if resolution_str in ("5T", "10T"):
+        horizons = ["1h", "6h", "24h"]
+    elif resolution_str in ("15T", "1h", "H"):
         horizons = ["1h", "6h", "24h", "48h"]
     elif resolution_str in ("24h", "D"):
         horizons = ["24h", "48h"]

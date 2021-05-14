@@ -20,7 +20,6 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
 
     from flexmeasures.data.models.user import User, Role
     from flexmeasures.data.models.assets import Asset, AssetType
-    from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
@@ -98,7 +97,23 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
         power_forecasts.append(p_3)
     db.session.bulk_save_objects(power_forecasts)
 
-    # Create 2 weather sensors
+    add_weather_sensors(db)
+
+    print("Done setting up data for API v1.1 tests")
+
+
+@pytest.fixture(scope="function")
+def setup_fresh_api_v1_1_test_data(
+    fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
+):
+    return fresh_db
+
+
+def add_weather_sensors(db):
+    """ Create 2 weather sensors """
+
+    from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
+
     test_sensor_type = WeatherSensorType(name="wind_speed")
     db.session.add(test_sensor_type)
     sensor = WeatherSensor(
@@ -122,12 +137,3 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
         unit="°C",
     )
     db.session.add(sensor)
-
-    print("Done setting up data for API v1.1 tests")
-
-
-@pytest.fixture(scope="function")
-def setup_fresh_api_v1_1_test_data(
-    fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
-):
-    return fresh_db

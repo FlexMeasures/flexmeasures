@@ -78,7 +78,7 @@ def create_forecasting_jobs(
     current default model configuration will be used.
 
     It's possible to customize model parameters, but this feature is (currently) meant to only
-    be used by tests, so that model behavior can be adapted to test conditions. If used outside
+    be used by tests, so that model behaviour can be adapted to test conditions. If used outside
     of testing, an exception is raised.
 
     if enqueue is True (default), the jobs are put on the redis queue.

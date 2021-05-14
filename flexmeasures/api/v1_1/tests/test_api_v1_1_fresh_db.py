@@ -1,14 +1,19 @@
 from datetime import timedelta
+from iso8601 import parse_date
 
 import pytest
 from flask import url_for
 from isodate import duration_isoformat
 
+from flexmeasures.utils.time_utils import forecast_horizons_for
 from flexmeasures.api.common.responses import unapplicable_resolution
 from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.v1_1.tests.conftest import add_weather_sensors
 from flexmeasures.api.v1_1.tests.utils import (
     message_for_post_price_data,
+    message_for_post_weather_data,
     verify_prices_in_db,
+    get_forecasting_jobs,
 )
 
 
@@ -47,3 +52,36 @@ def test_post_price_data_unexpected_resolution(
         verify_prices_in_db(
             post_message, [v for v in post_message["values"] for i in range(4)], db
         )
+
+
+@pytest.mark.parametrize(
+    "post_message",
+    [message_for_post_weather_data(as_forecasts=False)],
+)
+def test_post_weather_data(setup_fresh_api_v1_1_test_data, app, client, post_message):
+    """
+    Try to post wind speed data as a logged-in test user, which should lead to forecasting jobs.
+    """
+    db = setup_fresh_api_v1_1_test_data
+    add_weather_sensors(db)
+
+    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+    post_weather_data_response = client.post(
+        url_for("flexmeasures_api_v1_1.post_weather_data"),
+        json=post_message,
+        headers={"Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % post_weather_data_response.json)
+    assert post_weather_data_response.status_code == 200
+    assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
+
+    forecast_horizons = forecast_horizons_for(timedelta(minutes=5))
+    jobs = get_forecasting_jobs("Weather")
+    for job, horizon in zip(
+        sorted(jobs, key=lambda x: x.kwargs["horizon"]), forecast_horizons
+    ):
+        # check if jobs have expected horizons
+        assert job.kwargs["horizon"] == horizon
+        # check if jobs' start time (the time to be forecasted)
+        # is the weather observation plus the horizon
+        assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
