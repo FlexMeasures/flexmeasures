@@ -6,6 +6,8 @@ FlexMeasures Changelog
 v0.5.0 | May XX, 2021
 ===========================
 
+.. warning:: If you retrieve weather forecasts through FlexMeasures: we had to switch to OpenWeatherMap, as Dark Sky is closing. This requires an update to config variables ― the new setting is called ``OPENWEATHERMAP_API_KEY``.
+
 New features
 -----------
 * Allow plugins to overwrite UI routes and customise the teaser on the login form [see `PR #106 <http://www.github.com/SeitaBV/flexmeasures/pull/106>`_]
@@ -18,6 +20,7 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+* For weather forecasts, switch from Dark Sky (closed from Aug 1, 2021) to OpenWeatherMap API [see `PR #113 <http://www.github.com/SeitaBV/flexmeasures/pull/113>`_]
 * Re-use the database between automated tests, if possible. This shaves 2/3rd off of the time it takes for the FlexMeasures test suite to run [see `PR #115 <http://www.github.com/SeitaBV/flexmeasures/pull/115>`_]
 * Let CLI package and plugins use Marshmallow Field definitions [see `PR #125 <http://www.github.com/SeitaBV/flexmeasures/pull/125>`_]
 
@@ -34,6 +37,8 @@ Bugfixes
 
 v0.4.0 | April 29, 2021
 ===========================
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
 -----------

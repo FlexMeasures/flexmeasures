@@ -467,11 +467,12 @@ def create_forecasts(
 
 
 @fm_add_data.command("external-weather-forecasts")
+@with_appcontext
 @click.option(
     "--region",
     type=str,
     default="",
-    help="Name of the region (will create sub-folder, should later tag the forecast in the DB, probably).",
+    help="Name of the region (will create sub-folder if you store json files, should later probably tag the forecast in the DB).",
 )
 @click.option(
     "--location",
@@ -486,7 +487,7 @@ def create_forecasts(
     "--num_cells",
     type=int,
     default=1,
-    help="Number of cells on the grid. Only used if a region of interest has been mapped in the location parameter.",
+    help="Number of cells on the grid. Only used if a region of interest has been mapped in the location parameter. Defaults to 1.",
 )
 @click.option(
     "--method",
@@ -497,13 +498,13 @@ def create_forecasts(
 @click.option(
     "--store-in-db/--store-as-json-files",
     default=False,
-    help="Store forecasts in the database, or simply save as json files.",
+    help="Store forecasts in the database, or simply save as json files. (defaults to json files)",
 )
 def collect_weather_data(region, location, num_cells, method, store_in_db):
     """
     Collect weather forecasts from the DarkSky API
 
-    This function can get weather data for one location or for several location within
+    This function can get weather data for one location or for several locations within
     a geometrical grid (See the --location parameter).
     """
     from flexmeasures.data.scripts.grid_weather import get_weather_forecasts

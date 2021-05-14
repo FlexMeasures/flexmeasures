@@ -175,7 +175,7 @@ Then we import the data dump we made earlier:
 
 .. code-block:: bash
 
-   flask db-ops restore <DATABASE DUMP FILENAME>
+   flexmeasures db-ops restore <DATABASE DUMP FILENAME>
 
 
 A potential ``alembic_version`` error should not prevent other data tables from being restored.
