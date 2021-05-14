@@ -1,10 +1,12 @@
 """Useful test messages"""
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, List, Any
 from datetime import timedelta
 from isodate import duration_isoformat, parse_duration, parse_datetime
 
 import pandas as pd
 from numpy import tile
+from rq.job import Job
+from flask import current_app
 
 from flexmeasures.api.common.utils.api_utils import get_generic_asset
 from flexmeasures.data.models.markets import Market, Price
@@ -161,3 +163,11 @@ def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     if swapped_sign:
         df["value"] = -df["value"]
     assert df.value.tolist() == values
+
+
+def get_forecasting_jobs(timed_value_type: str) -> List[Job]:
+    return [
+        job
+        for job in current_app.queues["forecasting"].jobs
+        if job.kwargs["timed_value_type"] == timed_value_type
+    ]

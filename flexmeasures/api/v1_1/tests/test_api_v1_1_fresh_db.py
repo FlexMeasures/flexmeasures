@@ -13,6 +13,7 @@ from flexmeasures.api.v1_1.tests.utils import (
     message_for_post_price_data,
     message_for_post_weather_data,
     verify_prices_in_db,
+    get_forecasting_jobs,
 )
 
 
@@ -75,13 +76,12 @@ def test_post_weather_data(setup_fresh_api_v1_1_test_data, app, client, post_mes
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
 
     forecast_horizons = forecast_horizons_for(timedelta(minutes=5))
-    jobs = [
-        job
-        for job in app.queues["forecasting"].jobs
-        if job.kwargs["timed_value_type"] != "Price"
-    ]
+    jobs = get_forecasting_jobs("Weather")
     for job, horizon in zip(
         sorted(jobs, key=lambda x: x.kwargs["horizon"]), forecast_horizons
     ):
+        # check if jobs have expected horizons
         assert job.kwargs["horizon"] == horizon
+        # check if jobs' start time (the time to be forecasted)
+        # is the weather observation plus the horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
