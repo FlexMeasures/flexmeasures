@@ -85,7 +85,7 @@ def naturalized_datetime_str(dt: Optional[datetime]) -> str:
     local_dt = (
         dt.replace(tzinfo=pytz.utc).astimezone(local_timezone).replace(tzinfo=None)
     )
-    if dt >= datetime.utcnow() - timedelta(hours=24):
+    if naive_utc_from(dt) >= datetime.utcnow() - timedelta(hours=24):
         return naturaltime(local_dt)
     else:
         return naturaldate(local_dt)

@@ -24,3 +24,4 @@ class UserSchema(ma.SQLAlchemySchema):
     active = ma.auto_field()
     timezone = ma.auto_field()
     flexmeasures_roles = ma.auto_field()
+    last_login_at = ma.auto_field()
