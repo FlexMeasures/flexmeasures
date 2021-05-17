@@ -3,6 +3,7 @@ from pytz import all_timezones
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.user import User as UserModel
+from flexmeasures.data.schemas.times import AwareDateTimeField
 
 
 class UserSchema(ma.SQLAlchemySchema):
@@ -24,4 +25,4 @@ class UserSchema(ma.SQLAlchemySchema):
     active = ma.auto_field()
     timezone = ma.auto_field()
     flexmeasures_roles = ma.auto_field()
-    last_login_at = ma.auto_field()
+    last_login_at = AwareDateTimeField()
