@@ -16,6 +16,7 @@ from flexmeasures.utils.time_utils import (
         (None, datetime(2021, 5, 17, 3), "Europe/Amsterdam", 48, "May 15"),
         ("Asia/Seoul", "server_now", "Europe/Amsterdam", 1, "an hour ago"),
         ("UTC", datetime(2021, 5, 17, 3), "Asia/Seoul", 24 * 7, "May 10"),
+        ("UTC", datetime(2021, 5, 17, 3), "Asia/Seoul", None, "never"),
     ],
 )
 def test_naturalized_datetime_str(
@@ -28,11 +29,13 @@ def test_naturalized_datetime_str(
     exp_result,
 ):
     monkeypatch.setitem(app.config, "FLEXMEASURES_TIMEZONE", server_tz)
-    assert naturalized_datetime_str(None) == "never"
     if now == "server_now":
         now = server_now()  # done this way as it needs app context
-    h_ago = datetime.utcnow() - timedelta(hours=delta_in_h)
-    if dt_tz is not None:
-        h_ago = h_ago.replace(tzinfo=pytz.utc).astimezone(pytz.timezone(dt_tz))
+    if delta_in_h is not None:
+        h_ago = datetime.utcnow() - timedelta(hours=delta_in_h)
+        if dt_tz is not None:
+            h_ago = h_ago.replace(tzinfo=pytz.utc).astimezone(pytz.timezone(dt_tz))
+    else:
+        h_ago = None
     print(h_ago)
     assert naturalized_datetime_str(h_ago, now=now) == exp_result
