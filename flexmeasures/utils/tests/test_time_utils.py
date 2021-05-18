@@ -6,6 +6,7 @@ import pytest
 from flexmeasures.utils.time_utils import (
     server_now,
     naturalized_datetime_str,
+    get_most_recent_clocktime_window,
 )
 
 
@@ -41,3 +42,37 @@ def test_naturalized_datetime_str(
         h_ago = None
     print(h_ago)
     assert naturalized_datetime_str(h_ago, now=now) == exp_result
+
+
+@pytest.mark.parametrize(
+    "window_size,now,exp_start,exp_end",
+    [
+        (
+            5,
+            datetime(2021, 4, 30, 15, 1),
+            datetime(2021, 4, 30, 14, 55),
+            datetime(2021, 4, 30, 15),
+        ),
+        (
+            15,
+            datetime(2021, 4, 30, 3, 36),
+            datetime(2021, 4, 30, 3, 15),
+            datetime(2021, 4, 30, 3, 30),
+        ),
+        (
+            10,
+            datetime(2021, 4, 30, 0, 5),
+            datetime(2021, 4, 29, 23, 50),
+            datetime(2021, 4, 30, 0, 0),
+        ),
+    ],
+)
+def test_recent_clocktime_window(window_size, now, exp_start, exp_end):
+    start, end = get_most_recent_clocktime_window(window_size, now=now)
+    assert start == exp_start
+    assert end == exp_end
+
+
+def test_recent_clocktime_window_invalid_window():
+    with pytest.raises(AssertionError):
+        get_most_recent_clocktime_window(25, now=datetime(2021, 4, 30, 3, 36))

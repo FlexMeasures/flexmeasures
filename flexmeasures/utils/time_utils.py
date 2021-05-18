@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Union, Optional
+from typing import List, Union, Tuple, Optional
 
 from flask import current_app
 from flask_security.core import current_user
@@ -191,6 +191,30 @@ def get_most_recent_quarter() -> datetime:
 def get_most_recent_hour() -> datetime:
     now = server_now()
     return now.replace(minute=now.minute - (now.minute % 60), second=0, microsecond=0)
+
+
+def get_most_recent_clocktime_window(
+    window_size_in_minutes: int, now: Optional[datetime] = None
+) -> Tuple[datetime, datetime]:
+    """
+    Calculate a recent time window, choosing start and end minute so that
+    a full hour can be filled with such windows, e.g.:
+
+    Calling this function at 15:01:xx with window size 5 -> (14:55:00, 15:00:00)
+    Calling this function at 03:36:xx with window size 15 -> (03:15:00, 03:30:00)
+    """
+    assert 60 % window_size_in_minutes == 0
+    if now is None:
+        now = datetime.now(tz=pytz.utc)
+    last_full_minute = now.replace(second=0, microsecond=0) - timedelta(minutes=1)
+    last_round_minute = last_full_minute.minute - (
+        last_full_minute.minute % window_size_in_minutes
+    )
+    begin_time = last_full_minute.replace(minute=last_round_minute) - timedelta(
+        minutes=window_size_in_minutes
+    )
+    end_time = begin_time + timedelta(minutes=window_size_in_minutes)
+    return begin_time, end_time
 
 
 def get_default_start_time() -> datetime:
