@@ -5,9 +5,11 @@ Posting data
 
 The platform FlexMeasures strives on the data you feed it. Let's demonstrate how you can get data into FlexMeasures using the API. This is where FlexMeasures gets connected to your system as a smart backend and helps you build smart energy services.
 
-We will show how to use the API endpoints for POSTing data. You can call these in regular intervals (through scheduled scripts in your system, for example), so that FlexMeasures is always integrated with the recent data. Of course, these endpoints can also be used to load historic data into FlexMeasures, so that the forecasting models have enough data history to work with.
+We will show how to use the API endpoints for POSTing data.
+You can call these at regular intervals (through scheduled scripts in your system, for example), so that FlexMeasures always has recent data to work with.
+Of course, these endpoints can also be used to load historic data into FlexMeasures, so that the forecasting models have access to enough data history.
 
-.. note:: For the purposes of forecasting and scheduling, it is often advisable to use a higher resolution than most metering services keep. For example, while such services might measure every ten seconds, FlexMeasures will usually do its job no less effective if you feed it data with a resolution of five minutes. This will also make the data integration much easier. Keep also in mind that many data sources like weather forecasting or markets can have data resolutions of an hour, anyway.
+.. note:: For the purposes of forecasting and scheduling, it is often advisable to use a less fine-grained resolution than most metering services keep. For example, while such services might measure every ten seconds, FlexMeasures will usually do its job no less effective if you feed it data with a resolution of five minutes. This will also make the data integration much easier. Keep in mind that many data sources like weather forecasting or markets can have data resolutions of an hour, anyway.
 
 .. contents:: Table of contents
     :local:
@@ -63,7 +65,8 @@ The forecasts were made at noon, as the ``prior`` field indicates.
             "unit": "°C"
         }
 
-Note how the resolution of the data comes out at 15 minutes, if you divide the duration by the number of data points. If this resolution does not match the sensor's resolution, FlexMeasures will try to upsample the data to make the match and if that is not possible, complain.
+Note how the resolution of the data comes out at 15 minutes when you divide the duration by the number of data points.
+If this resolution does not match the sensor's resolution, FlexMeasures will try to upsample the data to make the match or, if that is not possible, complain.
 
 
 Observations vs forecasts
@@ -75,7 +78,7 @@ This denotes that the observation was made exactly after realisation of this lis
 Alternatively, to indicate that each individual observation was made directly after the end of its 15-minute interval (i.e. at 3.15pm, 3.30pm and so on), set a horizon to "PT0H" instead of a prior.
 
 Finally, delays in reading out sensor data can be simulated by setting the horizon field to a negative value.
-For example, a horizon of "-PT1H" would denote that each temperature reading was observed one hour after the fact (i.e. at 4.15pm, 4.30 pm and so on).
+For example, a horizon of "-PT1H" would denote that each temperature reading was observed one hour after the fact (i.e. at 4.15pm, 4.30pm and so on).
 
 See :ref:`prognoses` for more information regarding the prior and horizon fields.
 
@@ -83,7 +86,8 @@ See :ref:`prognoses` for more information regarding the prior and horizon fields
 Collecting weather data from OpenWeatherMap
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For convenience for people who host FlexMeasures themselves, we built in a CLI task which collects weather measurements and forecasts from the OpenWeatherMap API. You have to add your own token in the OPENWEATHERMAP_API_KEY setting first. Then you could run this task periodically, probably once per hour. Here is how:
+For convenience for organisations who host FlexMeasures themselves, we built in a CLI task which collects weather measurements and forecasts from the OpenWeatherMap API.
+You have to add your own token in the OPENWEATHERMAP_API_KEY setting first. Then you could run this task periodically, probably once per hour. Here is how:
 
 .. code-block::
 
@@ -195,7 +199,7 @@ A single average power value for a 15-minute time interval for a single connecti
 Multiple values, single connection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Multiple values (indicating a univariate timeseries) for 15-minute time intervals for a single connection, posted 5 minutes after realisation.
+Multiple values (indicating a univariate timeseries) for 15-minute time intervals for a single connection, posted 5 minutes after each realisation.
 
 .. code-block:: json
 
@@ -263,7 +267,7 @@ Single different values for a 15-minute time interval for two connections, poste
 Multiple values, multiple connections
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Multiple values (indicating a univariate timeseries) for 15-minute time intervals for two connections, posted 5 minutes after realisation.
+Multiple values (indicating a univariate timeseries) for 15-minute time intervals for two connections, posted 5 minutes after each realisation.
 
 .. code-block:: json
 
@@ -309,7 +313,7 @@ Owners of such devices can post these states to `POST /api/v2_0/postUdiEvent <..
     https://company.flexmeasures.io/api/<version>/postUdiEvent
 
 This example posts a state of charge value for a battery device (asset 10 of owner 7) as UDI event 203.
-This way, FlexMeasures knows how much of the potential flexible energy services this battery can provide in the near future.
+From this, FlexMeasures derives the energy flexibility this battery has in the near future.
 
 .. code-block:: json
 
@@ -321,6 +325,7 @@ This way, FlexMeasures knows how much of the potential flexible energy services 
             "unit": "kWh"
         }
 
-.. note:: At the moment, FlexMeasures only supports batteries and car chargers here (asset types "battery", "one-way_evse" or "two-way_evse"), but this will be expanded to flexible assets as needed.
+.. note:: At the moment, FlexMeasures only supports batteries and car chargers here (asset types "battery", "one-way_evse" or "two-way_evse").
+          This will be expanded to flexible assets as needed.
 
 Actually, UDI Events are more powerful than this. In :ref:`how_queue_scheduling`, we'll cover how they can be used to request a future state, which is useful to steer the scheduling.

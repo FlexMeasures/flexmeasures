@@ -3,11 +3,13 @@
 Building custom UIs
 ========================
 
-FlexMeasures provides its own UI (see :ref:`dashboard`), but it is a back office platform first. Every energy service company who might use FlexMeasures usually already has their own user-facing system, as well. Thus, it might be highly useful to be able to incorporate information from FlexMeasures in custom UIs.
+FlexMeasures provides its own UI (see :ref:`dashboard`), but it is a back office platform first.
+Most energy service companies already have with their own user-facing system.
+We therefore made it possible to incorporate information from FlexMeasures in custom UIs.
 
 This tutorial will show how the FlexMeasures API can be used from JavaScript to extract information and display it in a browser (using HTML). We'll extract information about users, assets and even whole plots!
 
-.. contents::
+.. contents:: Table of contents
     :local:
     :depth: 1
 
@@ -105,7 +107,8 @@ The result looks like this in your browser:
 ..    :scale: 40%
 
 
-From FlexMeasures, we are using the `GET /api/v2_0/user <../api/v2_0.html#get--api-v2_0-user-(id)>`_ endpoint, which loads information about one user. Browse its documentation to learn other information you could get.
+From FlexMeasures, we are using the `GET /api/v2_0/user <../api/v2_0.html#get--api-v2_0-user-(id)>`_ endpoint, which loads information about one user.
+Browse its documentation to learn about other information you could get.
 
 
 Load asset information
