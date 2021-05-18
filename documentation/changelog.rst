@@ -15,6 +15,7 @@ New features
 
 Bugfixes
 -----------
+* Fix last login date display in user list [see `PR #133 <http://www.github.com/SeitaBV/flexmeasures/pull/133>`_]
 * Choose better forecasting horizons when weather data is posted [see `PR #131 <http://www.github.com/SeitaBV/flexmeasures/pull/131>`_]
 
 Infrastructure / Support
