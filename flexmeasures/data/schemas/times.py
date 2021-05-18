@@ -65,7 +65,7 @@ class DurationField(fields.Str, MarshmallowClickMixin):
 
 
 class AwareDateTimeField(fields.AwareDateTime, MarshmallowClickMixin):
-    """Field that deserializes to a timezone aware datetime
+    """Field that de-serializes to a timezone aware datetime
     and serializes back to a string."""
 
     def _deserialize(self, value: str, attr, obj, **kwargs) -> datetime:

@@ -502,7 +502,7 @@ def create_forecasts(
 )
 def collect_weather_data(region, location, num_cells, method, store_in_db):
     """
-    Collect weather forecasts from the DarkSky API
+    Collect weather forecasts from the OpenWeatherMap API
 
     This function can get weather data for one location or for several locations within
     a geometrical grid (See the --location parameter).

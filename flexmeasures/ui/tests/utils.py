@@ -64,6 +64,7 @@ def mock_user_response(
         active=active,
         password="secret",
         flexmeasures_roles=[1],
+        last_login_at="2021-05-14T20:00:00+02:00",
     )
     if as_list:
         user_list = [user]
