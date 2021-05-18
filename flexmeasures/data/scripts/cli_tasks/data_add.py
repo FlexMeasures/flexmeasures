@@ -288,6 +288,20 @@ def add_initial_structure():
     help="Column number with values (1 is 2nd column, the default)",
 )
 @click.option(
+    "--decimal",
+    required=False,
+    default=".",
+    type=str,
+    help="[For csv files] decimal character, e.g. '.' for 10.5",
+)
+@click.option(
+    "--delimiter",
+    required=True,
+    type=str,
+    default=",",
+    help="[For csv files] Character to delimit columns per row, defaults to comma",
+)
+@click.option(
     "--sheet_number",
     required=False,
     type=int,
@@ -304,6 +318,8 @@ def add_beliefs(
     nrows: Optional[int] = None,
     datecol: int = 0,
     valuecol: int = 1,
+    decimal: str = ".",
+    delimiter: str = ",",
     sheet_number: Optional[int] = None,
 ):
     """Add sensor data from a csv file (also accepts xls or xlsx).
@@ -340,6 +356,8 @@ def add_beliefs(
     kwargs = dict()
     if file.split(".")[-1].lower() == "csv":
         kwargs["infer_datetime_format"] = True
+        kwargs["decimal"] = decimal
+        kwargs["delimiter"] = delimiter
     if sheet_number is not None:
         kwargs["sheet_name"] = sheet_number
     if horizon is not None:
