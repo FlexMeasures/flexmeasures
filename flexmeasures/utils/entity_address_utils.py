@@ -11,33 +11,10 @@ from flexmeasures.utils.time_utils import get_first_day_of_next_month
 
 
 """
-Functionality to support parsing and building USEF's EA1 addressing scheme [1],
-which is mostly taken from IETF RFC 3720 [2]:
-
-This is the complete structure of an EA1 address:
-
-ea1.{date code}.{reversed domain name}:{locally unique string}
-
-for example "ea1.2021-01.io.flexmeasures.company:sensor14"
-
-- "ea1" is a constant, indicating this is a type 1 USEF entity address
-- The date code "must be a date during which the naming authority owned
-    the domain name used in this format, and should be the first month in which the domain name was
-    owned by this naming authority at 00:01 GMT of the first day of the month.
-- The reversed domain name is taken from the naming authority
-    (person or organization) creating this entity address
-- The locally unique string can be used for local purposes, and FlexMeasures
-  uses it to identify the resource (more information in parse_entity_address).
-  Fields in the locally unique string are separated by colons, see for other examples
-  IETF RFC 3721, page 6 [3].
-  ([2] says it's possible to use dashes, dots or colons ― dashes and dots might come up in
-  latitude/longitude coordinates of sensors)
-
-TODO: This needs to be in the FlexMeasures documentation.
+Functionality to support parsing and building Entity Addresses as defined by USEF [1].
+See our documentation for more details.
 
 [1] https://www.usef.energy/app/uploads/2020/01/USEF-Flex-Trading-Protocol-Specifications-1.01.pdf
-[2] https://tools.ietf.org/html/rfc3720
-[3] https://tools.ietf.org/html/rfc3721
 """
 
 
@@ -130,10 +107,10 @@ def parse_entity_address(  # noqa: C901
     """
     Parses a generic asset name into an info dict.
 
-    The entity_address must be a valid type 1 USEF entity address.
-    That is, it must follow the EA1 addressing scheme recommended by USEF.
-    In addition, FlexMeasures expects the identifying string to contain information in
-    a certain structure. We distinguish type 0 and type 1 FlexMeasures entity addresses.
+    Returns a dictionary with scheme, naming_authority and various other fields,
+    depending on the entity type and FlexMeasures scheme (see examples above).
+    Returns None if entity type is unknown or entity_address is not parse-able.
+    We recommend to `return invalid_domain()` in that case.
 
     Examples for the fm1 scheme:
 
@@ -156,11 +133,6 @@ def parse_entity_address(  # noqa: C901
         event = ea1.2021-01.io.flexmeasures:fm0.<owner_id>:<asset_id>:<event_id>:<event_type>
 
     For the fm0 scheme, the 'fm0.' part is optional, for backwards compatibility.
-
-    Returns a dictionary with scheme, naming_authority and various other fields,
-    depending on the entity type and FlexMeasures scheme (see examples above).
-    Returns None if entity type is unknown or entity_address is not parseable.
-    We recommend to `return invalid_domain()` in that case.
     """
 
     # Check the scheme and naming authority date
@@ -207,17 +179,16 @@ def parse_entity_address(  # noqa: C901
             r"$",
             entity_address,
         )
-        if match:
-            value_types = {
-                "scheme": str,
-                "naming_authority": str,
-                "fm_scheme": str,
-                "sensor_id": int,
-            }
-        else:
+        if match is None:
             raise EntityAddressException(
                 f"Could not parse {entity_type} {entity_address}."
             )
+        value_types = {
+            "scheme": str,
+            "naming_authority": str,
+            "fm_scheme": str,
+            "sensor_id": int,
+        }
     elif fm_scheme != FM0_ADDR_SCHEME:
         raise EntityAddressException(
             f"Unrecognized FlexMeasures scheme for entity addresses: {fm_scheme}"
@@ -234,17 +205,16 @@ def parse_entity_address(  # noqa: C901
             r"$",
             entity_address,
         )
-        if match:
-            value_types = {
-                "scheme": str,
-                "naming_authority": str,
-                "owner_id": int,
-                "asset_id": int,
-            }
-        else:
+        if match is None:
             raise EntityAddressException(
                 f"Could not parse {entity_type} {entity_address}."
             )
+        value_types = {
+            "scheme": str,
+            "naming_authority": str,
+            "owner_id": int,
+            "asset_id": int,
+        }
     elif entity_type == "weather_sensor":
         match = re.search(
             r"^"
@@ -261,18 +231,17 @@ def parse_entity_address(  # noqa: C901
             r"$",
             entity_address,
         )
-        if match:
-            value_types = {
-                "scheme": str,
-                "naming_authority": str,
-                "weather_sensor_type_name": str,
-                "latitude": float,
-                "longitude": float,
-            }
-        else:
+        if match is None:
             raise EntityAddressException(
                 f"Could not parse {entity_type} {entity_address}."
             )
+        value_types = {
+            "scheme": str,
+            "naming_authority": str,
+            "weather_sensor_type_name": str,
+            "latitude": float,
+            "longitude": float,
+        }
     elif entity_type == "market":
         match = re.search(
             r"^"
@@ -285,12 +254,11 @@ def parse_entity_address(  # noqa: C901
             r"$",
             entity_address,
         )
-        if match:
-            value_types = {"scheme": str, "naming_authority": str, "market_name": str}
-        else:
+        if match is None:
             raise EntityAddressException(
                 f"Could not parse {entity_type} {entity_address}."
             )
+        value_types = {"scheme": str, "naming_authority": str, "market_name": str}
     elif entity_type == "event":
         match = re.search(
             r"^"
@@ -308,19 +276,18 @@ def parse_entity_address(  # noqa: C901
             r"$",
             entity_address,
         )
-        if match:
-            value_types = {
-                "scheme": str,
-                "naming_authority": str,
-                "owner_id": int,
-                "asset_id": int,
-                "event_id": int,
-                "event_type": str,
-            }
-        else:
+        if match is None:
             raise EntityAddressException(
                 f"Could not parse {entity_type} {entity_address}."
             )
+        value_types = {
+            "scheme": str,
+            "naming_authority": str,
+            "owner_id": int,
+            "asset_id": int,
+            "event_id": int,
+            "event_type": str,
+        }
     else:
         # Finally, we simply raise without precise information what went wrong
         raise EntityAddressException(f"Could not parse {entity_address}.")
