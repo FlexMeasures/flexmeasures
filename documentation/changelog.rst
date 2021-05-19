@@ -3,17 +3,70 @@ FlexMeasures Changelog
 **********************
 
 
-v0.2.5 | April XX, 2021
+v0.5.0 | May XX, 2021
 ===========================
+
+.. warning:: If you retrieve weather forecasts through FlexMeasures: we had to switch to OpenWeatherMap, as Dark Sky is closing. This requires an update to config variables ― the new setting is called ``OPENWEATHERMAP_API_KEY``.
 
 New features
 -----------
-* Add sensors with CLI command [see `PR #83 <https://github.com/SeitaBV/flexmeasures/pull/83>`_]
+* Allow plugins to overwrite UI routes and customise the teaser on the login form [see `PR #106 <http://www.github.com/SeitaBV/flexmeasures/pull/106>`_]
+* Allow plugins to customise the copyright notice and credits in the UI footer [see `PR #123 <http://www.github.com/SeitaBV/flexmeasures/pull/123>`_]
+
+Bugfixes
+-----------
+* Fix last login date display in user list [see `PR #133 <http://www.github.com/SeitaBV/flexmeasures/pull/133>`_]
+* Choose better forecasting horizons when weather data is posted [see `PR #131 <http://www.github.com/SeitaBV/flexmeasures/pull/131>`_]
+
+Infrastructure / Support
+----------------------
+* Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+* For weather forecasts, switch from Dark Sky (closed from Aug 1, 2021) to OpenWeatherMap API [see `PR #113 <http://www.github.com/SeitaBV/flexmeasures/pull/113>`_]
+* Re-use the database between automated tests, if possible. This shaves 2/3rd off of the time it takes for the FlexMeasures test suite to run [see `PR #115 <http://www.github.com/SeitaBV/flexmeasures/pull/115>`_]
+* Let CLI package and plugins use Marshmallow Field definitions [see `PR #125 <http://www.github.com/SeitaBV/flexmeasures/pull/125>`_]
+
+
+v0.4.1 | May 7, 2021
+===========================
+
+Bugfixes
+-----------
+* Fix regression when editing assets in the UI [see `PR #122 <http://www.github.com/SeitaBV/flexmeasures/pull/122>`_]
+* Fixed a regression that stopped asset, market and sensor selection from working [see `PR #117 <http://www.github.com/SeitaBV/flexmeasures/pull/117>`_]
+* Prevent logging out user when clearing the session [see `PR #112 <http://www.github.com/SeitaBV/flexmeasures/pull/112>`_]
+* Prevent user type data source to be created without setting a user [see `PR #111 <https://github.com/SeitaBV/flexmeasures/pull/111>`_]
+
+v0.4.0 | April 29, 2021
+===========================
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-----------
+* Configure the UI menu with ``FLEXMEASURES_LISTED_VIEWS`` [see `PR #91 <https://github.com/SeitaBV/flexmeasures/pull/91>`_]
+* Allow for views and CLI functions to come from plugins [see also `PR #91 <https://github.com/SeitaBV/flexmeasures/pull/91>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v040-plugin-support/>`__.
+
+Bugfixes
+-----------
+* Asset edit form displayed wrong error message. Also enabled the asset edit form to display the invalid user input back to the user [see `PR #93 <http://www.github.com/SeitaBV/flexmeasures/pull/93>`_]
 
 Infrastructure / Support
 ----------------------
 * Updated dependencies, including Flask-Security-Too [see `PR #82 <http://www.github.com/SeitaBV/flexmeasures/pull/82>`_]
-* Integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <http://www.github.com/SeitaBV/flexmeasures/pull/79>`_]
+* Improved documentation after user feedback [see `PR #97 <http://www.github.com/SeitaBV/flexmeasures/pull/97>`_]
+* Begin experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: Sensor data as TimedBeliefs [see `PR #79 <http://www.github.com/SeitaBV/flexmeasures/pull/79>`_ and `PR #99 <https://github.com/SeitaBV/flexmeasures/pull/99>`_]
+* Add sensors with CLI command currently meant for developers only [see `PR #83 <https://github.com/SeitaBV/flexmeasures/pull/83>`_]
+* Add data (beliefs about sensor events) with CLI command currently meant for developers only [see `PR #85 <https://github.com/SeitaBV/flexmeasures/pull/85>`_ and `PR #103 <https://github.com/SeitaBV/flexmeasures/pull/103>`_]
+
+
+v0.3.1 | April 9, 2021
+===========================
+
+Bugfixes
+--------
+* PostMeterData endpoint was broken in API v2.0 [see `PR #95 <http://www.github.com/SeitaBV/flexmeasures/pull/95>`_]
 
 
 v0.3.0 | April 2, 2021

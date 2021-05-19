@@ -14,10 +14,10 @@ from flexmeasures.api.common.responses import (
     invalid_unit,
     unrecognized_market,
     ResponseTuple,
+    invalid_horizon,
 )
 from flexmeasures.api.common.utils.api_utils import (
     save_to_db,
-    get_or_create_user_data_source,
 )
 from flexmeasures.api.common.utils.validators import (
     type_accepted,
@@ -38,6 +38,7 @@ from flexmeasures.api.v1.implementations import (
     create_connection_and_value_groups,
 )
 from flexmeasures.api.common.utils.api_utils import get_weather_sensor_by
+from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.services.resources import get_assets
@@ -63,7 +64,7 @@ def get_connection_response():
 @type_accepted("PostPriceDataRequest")
 @units_accepted("price", "EUR/MWh", "KRW/kWh")
 @assets_required("market")
-@optional_horizon_accepted(accept_repeating_interval=True)
+@optional_horizon_accepted(infer_missing=True, accept_repeating_interval=True)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("market", "fm0")
@@ -80,7 +81,7 @@ def post_price_data_response(
 
     current_app.logger.info("POSTING PRICE DATA")
 
-    data_source = get_or_create_user_data_source(current_user)
+    data_source = get_or_create_source(current_user)
     prices = []
     forecasting_jobs = []
     for market_group, value_group in zip(generic_asset_name_groups, value_groups):
@@ -138,7 +139,7 @@ def post_price_data_response(
 @type_accepted("PostWeatherDataRequest")
 @unit_required
 @assets_required("sensor")
-@optional_horizon_accepted(accept_repeating_interval=True)
+@optional_horizon_accepted(infer_missing=True, accept_repeating_interval=True)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("weather_sensor", "fm0")
@@ -155,7 +156,7 @@ def post_weather_data_response(  # noqa: C901
 
     current_app.logger.info("POSTING WEATHER DATA")
 
-    data_source = get_or_create_user_data_source(current_user)
+    data_source = get_or_create_source(current_user)
     weather_measurements = []
     forecasting_jobs = []
     for sensor_group, value_group in zip(generic_asset_name_groups, value_groups):
@@ -215,7 +216,6 @@ def post_weather_data_response(  # noqa: C901
                         start,
                         start + duration,
                         resolution=duration / len(value_group),
-                        horizons=[horizon],
                         enqueue=False,  # will enqueue later, only if we successfully saved weather measurements
                     )
                 )
@@ -269,7 +269,9 @@ def get_prognosis_response(
 @units_accepted("power", "MW")
 @assets_required("connection")
 @values_required
-@optional_horizon_accepted(ex_post=False, accept_repeating_interval=True)
+@optional_horizon_accepted(
+    ex_post=False, infer_missing=False, accept_repeating_interval=True
+)
 @period_required
 @post_data_checked_for_required_resolution("connection", "fm0")
 @as_json
@@ -286,6 +288,11 @@ def post_prognosis_response(
     """
     Store the new power values for each asset.
     """
+
+    if horizon is None:
+        # API versions before v2.0 cannot handle a missing horizon, because there is no prior
+        extra_info = "Please specify the horizon field using an ISO 8601 duration (such as 'PT24H')."
+        return invalid_horizon(extra_info)
 
     return create_connection_and_value_groups(
         unit, generic_asset_name_groups, value_groups, horizon, rolling, start, duration

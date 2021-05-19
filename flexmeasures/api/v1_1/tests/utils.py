@@ -1,10 +1,12 @@
 """Useful test messages"""
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, List, Union
 from datetime import timedelta
 from isodate import duration_isoformat, parse_duration, parse_datetime
 
 import pandas as pd
 from numpy import tile
+from rq.job import Job
+from flask import current_app
 
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.data.models.markets import Market, Price
@@ -118,7 +120,7 @@ def message_for_post_price_data(
 
 
 def message_for_post_weather_data(
-    invalid_unit: bool = False, temperature: bool = False
+    invalid_unit: bool = False, temperature: bool = False, as_forecasts: bool = True
 ) -> dict:
     message: Dict[str, Any] = {
         "type": "PostWeatherDataRequest",
@@ -141,6 +143,8 @@ def message_for_post_weather_data(
             message["unit"] = "°C"  # Right unit for temperature
     elif invalid_unit:
         message["unit"] = "°C"  # Wrong unit for wind speed
+    if not as_forecasts:
+        message["horizon"] = "PT0H"  # weather measurements
     return message
 
 
@@ -164,3 +168,11 @@ def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     if swapped_sign:
         df["value"] = -df["value"]
     assert df.value.tolist() == values
+
+
+def get_forecasting_jobs(timed_value_type: str) -> List[Job]:
+    return [
+        job
+        for job in current_app.queues["forecasting"].jobs
+        if job.kwargs["timed_value_type"] == timed_value_type
+    ]

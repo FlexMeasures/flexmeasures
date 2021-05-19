@@ -6,7 +6,7 @@ Configuration
 The following configurations are used by FlexMeasures.
 
 Required settings (e.g. postgres db) are marked with a double star (**).
-To enable easier quickstart tutorials, these settings can be set by env vars.
+To enable easier quickstart tutorials, these settings can be set by environment variables.
 Recommended settings (e.g. mail, redis) are marked by one star (*).
 
 .. note:: FlexMeasures is best configured via a config file. The config file for FlexMeasures can be placed in one of two locations: 
@@ -14,6 +14,7 @@ Recommended settings (e.g. mail, redis) are marked by one star (*).
 
 * in the user's home directory (e.g. ``~/.flexmeasures.cfg`` on Unix). In this case, note the dot at the beginning of the filename!
 * in the app's instance directory (e.g. ``/path/to/your/flexmeasures/code/instance/flexmeasures.cfg``\ ). The path to that instance directory is shown to you by running flexmeasures (e.g. ``flexmeasures run``\ ) with required settings missing or otherwise by running ``flexmeasures shell``.
+
 
 Basic functionality
 -------------------
@@ -25,11 +26,14 @@ Level above which log messages are added to the log file. See the ``logging`` pa
 
 Default: ``logging.WARNING``
 
+
+.. _modes-config:
+
 FLEXMEASURES_MODE
 ^^^^^^^^^^^^^^^^^
 
 The mode in which FlexMeasures is being run, e.g. "demo" or "play".
-This is used to turn on certain extra behaviours.
+This is used to turn on certain extra behaviours, see :ref:`modes-dev` for details.
 
 Default: ``""``
 
@@ -51,6 +55,19 @@ and the first month when the domain was under the current owner's administration
 
 Default: ``{"flexmeasures.io": "2021-01"}``
 
+
+.. _plugin-config:
+
+FLEXMEASURES_PLUGIN_PATHS
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A list of absolute paths to Blueprint-based plugins for FlexMeasures (e.g. for custom views or CLI functions).
+Each plugin path points to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined. 
+See :ref:`plugins` on what is expected for content.
+
+Default: ``[]``
+
+
 FLEXMEASURES_DB_BACKUP_PATH
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -64,6 +81,7 @@ FLEXMEASURES_PROFILE_REQUESTS
 Whether to turn on a feature which times requests made through FlexMeasures. Interesting for developers.
 
 Default: ``False``
+
 
 UI
 --
@@ -89,6 +107,7 @@ Interval in which viewing the queues dashboard refreshes itself, in milliseconds
 
 Default: ``3000`` (3 seconds) 
 
+
 Timing
 ------
 
@@ -113,18 +132,14 @@ The horizon to use when making schedules.
 
 Default: ``timedelta(hours=2 * 24)``
 
+
 Tokens
 ------
 
-DARK_SKY_API_KEY
+OPENWEATHERMAP_API_KEY
 ^^^^^^^^^^^^^^^^
 
-Token for accessing the DarkSky weather forecasting service.
-
-.. note:: DarkSky will soon become non-public (Aug 1, 2021), so they are not giving out new tokens.
-          We'll use another service soon (`see this issue <https://github.com/SeitaBV/flexmeasures/issues/3>`_).
-          This is unfortunate.
-          In the meantime, if you can't find anybody lending their token, consider posting weather forecasts to the FlexMeasures database yourself.
+Token for accessing the OPenWeatherMap weather forecasting service.
 
 Default: ``None``
 
@@ -133,7 +148,7 @@ Default: ``None``
 MAPBOX_ACCESS_TOKEN
 ^^^^^^^^^^^^^^^^^^^
 
-Token for accessing the mapbox API (for displaying maps on the dashboard and asset pages). You can learn how to obtain one `here <https://docs.mapbox.com/help/glossary/access-token/>`_
+Token for accessing the MapBox API (for displaying maps on the dashboard and asset pages). You can learn how to obtain one `here <https://docs.mapbox.com/help/glossary/access-token/>`_
 
 Default: ``None``
 
@@ -143,6 +158,7 @@ FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 Token which external services can use to check on the status of recurring tasks within FlexMeasures.
 
 Default: ``None``
+
 
 SQLAlchemy
 ----------
@@ -171,6 +187,7 @@ Default:
            "pool_pre_ping": True,
            "connect_args": {"options": "-c timezone=utc"},
        }
+
 
 Security
 --------
@@ -215,7 +232,7 @@ Default: ``60 * 60 * 6``  (six hours)
 SECURITY_TRACKABLE
 ^^^^^^^^^^^^^^^^^^
 
-Wether to track user statistics. Turning this on requires certain user fields.
+Whether to track user statistics. Turning this on requires certain user fields.
 We do not use this feature, but we do track number of logins.
 
 Default: ``False``
@@ -223,14 +240,14 @@ Default: ``False``
 CORS_ORIGINS
 ^^^^^^^^^^^^
 
-Allowed cross-origins. Set to "*" to allow all. For development (e.g. javascript on localhost) you might use "null" in this list.
+Allowed cross-origins. Set to "*" to allow all. For development (e.g. JavaScript on localhost) you might use "null" in this list.
 
 Default: ``[]``
 
 CORS_RESOURCES:
 ^^^^^^^^^^^^^^^
 
-FlexMeasures resources which get cors protection. This can be a regex, a list of them or dict with all possible options.
+FlexMeasures resources which get cors protection. This can be a regex, a list of them or a dictionary with all possible options.
 
 Default: ``[r"/api/*"]``
 
@@ -242,6 +259,7 @@ Allows users to make authenticated requests. If true, injects the Access-Control
 .. note::  This option cannot be used in conjunction with a “*” origin.
 
 Default: ``True``
+
 
 
 .. _mail-config:
@@ -335,7 +353,7 @@ Default: ``6379``
 FLEXMEASURES_REDIS_DB_NR (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Number of the redis database to use (Redis per default has 16 databases, nubered 0-15)
+Number of the redis database to use (Redis per default has 16 databases, numbered 0-15)
 
 Default: ``0``
 
@@ -349,12 +367,16 @@ Default: ``None``
 Demonstrations
 --------------
 
+.. _demo-credentials-config:
+
 FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When ``FLEXMEASURES_MODE=demo``\ , this can hold login credentials (demo user email and password, e.g. ``("demo at seita.nl", "flexdemo")``\ ), so anyone can log in and try out the platform.
 
 Default: ``None``
+
+.. _demo-year-config:
 
 FLEXMEASURES_DEMO_YEAR
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -364,9 +386,14 @@ so that old imported data can be demoed as if it were current
 
 Default: ``None``
 
-FLEXMEASURES_SHOW_CONTROL_UI
+
+.. _menu-config:
+
+FLEXMEASURES_LISTED_VIEWS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The control page is still mocked, so this setting controls if it is to be shown.
+A list of the views which are listed in the menu.
 
-Default: ``False``
+.. note:: This setting is likely to be deprecated soon, as we might want to control it per account (once we implemented a multi-tenant data model per FlexMeasures server).
+
+Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``

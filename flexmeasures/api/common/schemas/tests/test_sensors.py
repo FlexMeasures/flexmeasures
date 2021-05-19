@@ -11,7 +11,7 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
     "entity_address, entity_type, fm_scheme, exp_deserialization_name",
     [
         (
-            build_entity_address(dict(sensor_id=9), "sensor"),
+            build_entity_address(dict(sensor_id=1), "sensor"),
             "sensor",
             "fm1",
             "my daughter's height",
@@ -26,7 +26,7 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
         ),
         (
             build_entity_address(
-                dict(owner_id=1, asset_id=3), "connection", fm_scheme="fm0"
+                dict(owner_id=1, asset_id=4), "connection", fm_scheme="fm0"
             ),
             "connection",
             "fm0",
@@ -49,7 +49,14 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
     ],
 )
 def test_sensor_field_straightforward(
-    entity_address, entity_type, fm_scheme, exp_deserialization_name
+    add_sensors,
+    setup_markets,
+    add_battery_assets,
+    add_weather_sensors,
+    entity_address,
+    entity_type,
+    fm_scheme,
+    exp_deserialization_name,
 ):
     """Testing straightforward cases"""
     sf = SensorField(entity_type, fm_scheme)

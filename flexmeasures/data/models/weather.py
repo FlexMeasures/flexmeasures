@@ -6,14 +6,12 @@ from sqlalchemy.orm import Query
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
-from marshmallow import ValidationError, validates, validate, fields
 
-from flexmeasures.data import ma
 from flexmeasures.data.config import db
-from flexmeasures.data.models.time_series import Sensor, SensorSchemaMixin, TimedValue
+from flexmeasures.data.models.time_series import Sensor, TimedValue
+from flexmeasures.utils.geo_utils import parse_lat_lng
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
-from flexmeasures.utils.geo_utils import parse_lat_lng
 
 
 class WeatherSensorType(db.Model):
@@ -137,7 +135,7 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
             great_circle_distance(lat=32, lng=54)
 
         """
-        r = 6371  # Radius of Earth in kilometers
+        r = 6371  # Radius of Earth in kilometres
         other_latitude, other_longitude = parse_lat_lng(kwargs)
         if other_latitude is None or other_longitude is None:
             return None
@@ -190,37 +188,6 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
 
     def to_dict(self) -> Dict[str, str]:
         return dict(name=self.name, sensor_type=self.weather_sensor_type_name)
-
-
-class WeatherSensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
-    """
-    WeatherSensor schema, with validations.
-    """
-
-    class Meta:
-        model = WeatherSensor
-
-    @validates("name")
-    def validate_name(self, name: str):
-        sensor = WeatherSensor.query.filter(
-            WeatherSensor.name == name.lower()
-        ).one_or_none()
-        if sensor:
-            raise ValidationError(
-                f"A weather sensor with the name {name} already exists."
-            )
-
-    @validates("weather_sensor_type_name")
-    def validate_weather_sensor_type(self, weather_sensor_type_name: str):
-        weather_sensor_type = WeatherSensorType.query.get(weather_sensor_type_name)
-        if not weather_sensor_type:
-            raise ValidationError(
-                f"Weather sensor type {weather_sensor_type_name} doesn't exist."
-            )
-
-    weather_sensor_type_name = ma.auto_field(required=True)
-    latitude = fields.Float(required=True, validate=validate.Range(min=-90, max=90))
-    longitude = fields.Float(required=True, validate=validate.Range(min=-180, max=180))
 
 
 class Weather(TimedValue, db.Model):

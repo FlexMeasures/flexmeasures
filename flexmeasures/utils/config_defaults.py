@@ -65,7 +65,7 @@ class Config(object):
     CORS_RESOURCES: Union[dict, list, str] = [r"/api/*"]
     CORS_SUPPORTS_CREDENTIALS: bool = True
 
-    DARK_SKY_API_KEY: Optional[str] = None
+    OPENWEATHERMAP_API_KEY: Optional[str] = None
 
     MAPBOX_ACCESS_TOKEN: Optional[str] = None
 
@@ -78,7 +78,6 @@ class Config(object):
     FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
-    FLEXMEASURES_SHOW_CONTROL_UI: bool = False
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
     FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: Optional[Tuple] = None
     FLEXMEASURES_DEMO_YEAR: Optional[int] = None
@@ -86,8 +85,16 @@ class Config(object):
     # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict = {"flexmeasures.io": "2021-01"}
+    FLEXMEASURES_PLUGIN_PATHS: List[str] = []
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
+    FLEXMEASURES_LISTED_VIEWS: List[str] = [
+        "dashboard",
+        "analytics",
+        "portfolio",
+        "assets",
+        "users",
+    ]
     FLEXMEASURES_LP_SOLVER: str = "cbc"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
@@ -98,6 +105,12 @@ class Config(object):
     FLEXMEASURES_REDIS_PORT: int = 6379
     FLEXMEASURES_REDIS_DB_NR: int = 0  # Redis per default has 16 databases, [0-15]
     FLEXMEASURES_REDIS_PASSWORD: Optional[str] = None
+    FLEXMEASURES_JS_VERSIONS: dict = dict(
+        vega="5",
+        vegaembed="6.17.0",
+        vegalite="5.0.0",
+        # todo: expand with other js versions used in FlexMeasures
+    )
 
 
 #  names of settings which cannot be None

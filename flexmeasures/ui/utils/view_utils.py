@@ -9,7 +9,6 @@ from bokeh.resources import CDN
 from flask_security.core import current_user
 from werkzeug.exceptions import BadRequest
 import iso8601
-import pytz
 
 from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.utils import time_utils
@@ -84,13 +83,16 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_name"] = (
         current_user.is_authenticated and current_user.username or ""
     )
+    variables["js_versions"] = current_app.config.get("FLEXMEASURES_JS_VERSIONS")
 
     return render_template(html_filename, **variables)
 
 
 def clear_session():
     for skey in [
-        k for k in session.keys() if k not in ("_id", "user_id", "csrf_token")
+        k
+        for k in session.keys()
+        if k not in ("_fresh", "_id", "_user_id", "csrf_token", "fs_cc", "fs_paa")
     ]:
         current_app.logger.info(
             "Removing %s:%s from session ... " % (skey, session[skey])
@@ -100,6 +102,8 @@ def clear_session():
 
 def set_time_range_for_session():
     """Set period (start_date, end_date and resolution) on session if they are not yet set.
+    The datepicker sends times as tz-aware UTC strings.
+    We re-interpret them as being in the server's timezone.
     Also set the forecast horizon, if given."""
     if "start_time" in request.values:
         session["start_time"] = time_utils.localized_datetime(
@@ -110,12 +114,8 @@ def set_time_range_for_session():
     else:
         if (
             session["start_time"].tzinfo is None
-        ):  # session storage seems to lose tz info
-            session["start_time"] = (
-                session["start_time"]
-                .replace(tzinfo=pytz.utc)
-                .astimezone(time_utils.get_timezone())
-            )
+        ):  # session storage seems to lose tz info and becomes UTC
+            session["start_time"] = time_utils.as_server_time(session["start_time"])
 
     if "end_time" in request.values:
         session["end_time"] = time_utils.localized_datetime(
@@ -125,13 +125,9 @@ def set_time_range_for_session():
         session["end_time"] = time_utils.get_default_end_time()
     else:
         if session["end_time"].tzinfo is None:
-            session["end_time"] = (
-                session["end_time"]
-                .replace(tzinfo=pytz.utc)
-                .astimezone(time_utils.get_timezone())
-            )
+            session["end_time"] = time_utils.as_server_time(session["end_time"])
 
-    # Our demo server works only with the current year's data
+    # Our demo server's UI should only work with the current year's data
     if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
         session["start_time"] = session["start_time"].replace(year=datetime.now().year)
         session["end_time"] = session["end_time"].replace(year=datetime.now().year)

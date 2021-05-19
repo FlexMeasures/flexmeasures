@@ -64,8 +64,7 @@
                 </button>
                 <span class="navbar-brand">
                     <a href="/"><span class="navbar-tool-name">{{ FLEXMEASURES_PLATFORM_NAME }}</span></a>
-                    {{ self.title() }} {% if user_is_logged_in and not "Error" in self.title() %} for {{ user_name }} on
-                    Jeju island {% endif %}
+                    {{ self.title() }} {% if user_is_logged_in and not "Error" in self.title() %} for {{ user_name }} {% endif %}
                 </span>
             </div>
             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
@@ -231,11 +230,14 @@
     <footer class="page-footer font-small pt-4 mt-4">
         <div class="footer text-center">
             <div class="container-fluid">
+                {% block copyright_notice %}
                 FlexMeasures technology is created by <a href="https://seita.nl/">Seita Energy Flexibility</a>,
                 in cooperation with <a href="https://aoneeng.com/">A1 Engineering</a>
                 &copy
                 <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.
+                {% endblock copyright_notice %}
 
+                {% block credits %}
                 <a href="#" data-toggle="modal" data-target="#Credits">Credits</a>.
 
                 <!-- The modal -->
@@ -274,6 +276,7 @@
                 </div>
                 </div>
                 </div>
+                {% endblock credits %}
 
                 <!-- We might render templates from plugins, where this meta info is not available -->
                 {% if app_running_since %}

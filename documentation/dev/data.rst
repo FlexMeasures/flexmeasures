@@ -100,28 +100,7 @@ Or, from within Postgres console:
    CREATE DATABASE flexmeasures_test WITH OWNER = flexmeasures_test;
 
 
-Log in as the postgres superuser and connect to your newly-created database:
-
-.. code-block:: bash
-
-   sudo -u postgres psql
-
-.. code-block:: sql
-
-   \connect flexmeasures
-
-
-Add the following extensions while logged in as the postgres superuser:
-
-.. code-block:: sql
-
-   CREATE EXTENSION cube;
-   CREATE EXTENSION earthdistance;
-
-
-Connect to the ``flexmeasures_test`` database and repeat creating these extensions there. Then ``exit``.
-
-Finally, try logging in as the flexmeasures user once:
+Finally, test if you can log in as the flexmeasures user:
 
 .. code-block:: bash
 
@@ -130,6 +109,26 @@ Finally, try logging in as the flexmeasures user once:
 .. code-block:: sql
 
    \q
+
+
+Add Postgres Extensions to your database(s)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To find the nearest sensors, FlexMeasures needs some extra POstgres support. 
+Add the following extensions while logged in as the postgres superuser:
+
+.. code-block:: bash
+
+   sudo -u postgres psql
+
+.. code-block:: sql
+
+   \connect flexmeasures
+   CREATE EXTENSION cube;
+   CREATE EXTENSION earthdistance;
+
+
+If you have it, connect to the ``flexmeasures_test`` database and repeat creating these extensions there. Then ``exit``.
 
 
 Configure FlexMeasures app for that database
@@ -176,7 +175,7 @@ Then we import the data dump we made earlier:
 
 .. code-block:: bash
 
-   flask db-ops restore <DATABASE DUMP FILENAME>
+   flexmeasures db-ops restore <DATABASE DUMP FILENAME>
 
 
 A potential ``alembic_version`` error should not prevent other data tables from being restored.

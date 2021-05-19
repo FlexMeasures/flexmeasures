@@ -1,4 +1,5 @@
 # see ui/utils/plotting_utils: separate_legend() and create_hover_tool()
+altair
 bokeh==1.0.4
 colour
 pscript
@@ -25,14 +26,13 @@ rq-win; os_name == 'nt' or os_name == 'win'
 redis; os_name == 'nt' or os_name == 'win'
 tldextract
 pyomo>=5.6
-forecastiopy
 pvlib
 # the following three are optional in pvlib, but we use them
 netCDF4
 siphon
 tables
 timetomodel>=0.6.8
-timely-beliefs>=1.3.0
+timely-beliefs>=1.4.3
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata

@@ -19,7 +19,7 @@ from flexmeasures.api.v1_1.tests.utils import (
 def get_asset_post_data() -> dict:
     post_data = {
         "name": "Test battery 2",
-        "unit": "kW",
+        "unit": "MW",
         "capacity_in_mw": 3,
         "event_resolution": timedelta(minutes=10).seconds / 60,
         "latitude": 30.1,
@@ -32,6 +32,7 @@ def get_asset_post_data() -> dict:
 
 
 def message_for_post_price_data(
+    market_id: int,
     tile_n: int = 1,
     compress_n: int = 1,
     duration: Optional[timedelta] = None,
@@ -59,7 +60,7 @@ def message_for_post_price_data(
         duration=duration,
         invalid_unit=invalid_unit,
     )
-    message["market"] = "ea1.2018-06.localhost:fm1.1"
+    message["market"] = f"ea1.2018-06.localhost:fm1.{market_id}"
     message["horizon"] = duration_isoformat(timedelta(hours=0))
     if no_horizon or prior_instead_of_horizon:
         message.pop("horizon", None)
@@ -144,10 +145,13 @@ def verify_sensor_data_in_db(
 
 
 def message_for_post_prognosis(fm_scheme: str = "fm1"):
+    """
+    Posting prognosis for a wind mill's production.
+    """
     message = {
         "type": "PostPrognosisRequest",
         "connection": f"ea1.2018-06.localhost:{fm_scheme}.2",
-        "values": [300, 300, 300, 0, 0, 300],
+        "values": [-300, -300, -300, 0, 0, -300],
         "start": "2021-01-01T00:00:00Z",
         "duration": "PT1H30M",
         "prior": "2020-12-31T18:00:00Z",

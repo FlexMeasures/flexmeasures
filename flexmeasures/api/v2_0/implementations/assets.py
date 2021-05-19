@@ -9,7 +9,8 @@ from webargs.flaskparser import use_args
 from marshmallow import fields
 
 from flexmeasures.data.services.resources import get_assets
-from flexmeasures.data.models.assets import Asset as AssetModel, AssetSchema
+from flexmeasures.data.models.assets import Asset as AssetModel
+from flexmeasures.data.schemas.assets import AssetSchema
 from flexmeasures.data.auth_setup import unauthorized_handler
 from flexmeasures.data.config import db
 from flexmeasures.api.common.responses import required_info_missing
@@ -66,7 +67,7 @@ def load_asset(admins_only: bool = False):
     should be allowed.
 
         @app.route('/asset/<id>')
-        @check_asset
+        @load_asset
         def get_asset(asset):
             return asset_schema.dump(asset), 200
 

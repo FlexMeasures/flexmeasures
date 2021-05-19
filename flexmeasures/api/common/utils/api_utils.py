@@ -13,9 +13,7 @@ import timely_beliefs as tb
 from flexmeasures.data import db
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Price
-from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.weather import WeatherSensor, Weather
-from flexmeasures.data.models.user import User
 from flexmeasures.data.utils import save_to_session
 from flexmeasures.api.common.responses import (
     unrecognized_sensor,
@@ -283,16 +281,6 @@ def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
     return connections_as_ea
 
 
-def get_or_create_user_data_source(user: User) -> DataSource:
-    data_source = DataSource.query.filter(DataSource.user == user).one_or_none()
-    if not data_source:
-        current_app.logger.info("SETTING UP USER AS NEW DATA SOURCE...")
-        data_source = DataSource(user=user)
-        db.session.add(data_source)
-        db.session.flush()  # flush so that we can reference the new object in the current db session
-    return data_source
-
-
 def get_weather_sensor_by(
     weather_sensor_type_name: str, latitude: float = 0, longitude: float = 0
 ) -> Union[WeatherSensor, ResponseTuple]:
@@ -348,7 +336,7 @@ def get_weather_sensor_by(
 def save_to_db(
     timed_values: List[Union[Power, Price, Weather]], forecasting_jobs: List[Job]
 ) -> ResponseTuple:
-    """Put the timed values into the database and create forecasting jobs.
+    """Put the timed values into the database and enqueue forecasting jobs.
 
     Data can only be replaced on servers in play mode.
 

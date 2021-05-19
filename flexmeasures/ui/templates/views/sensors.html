@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% set active_page = "assets" %}
+
+{% block title %} Assets {% endblock %}
+
+{% block divs %}
+
+      <div class="charts text-center">
+          <div class="row"><div class="alert alert-info" id="tzwarn" style="display:none;"></div></div>
+          <div class="row"><div id="datepicker"></div></div>
+          <div class="row"><div id="sensorchart"></div></div><hr>
+      </div>
+
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega@{{ js_versions.vega }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@{{ js_versions.vegalite }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@{{ js_versions.vegaembed }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/mobilefriendly.js"></script>
+
+    <!-- Render Charts -->
+    <script type="module" type="text/javascript">
+
+      import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
+
+      let vegaView;
+
+      async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
+        var opt = {
+          mode: 'vega-lite',
+          renderer: 'svg',
+          actions: {export: true, source: true, editor: true},
+        };
+
+        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName, opt)
+        .then(function (result) {
+          // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
+          vegaView = result.view;
+        });
+      }
+
+      var sensorId = {{ sensor_id }}
+      var sensorPath = '/api/dev/sensor/' + sensorId
+      var chartSpecsPath = sensorPath + '/chart'
+      var elementId = 'sensorchart'
+      var datasetName = 'sensor_' + sensorId
+      embedAndLoad(chartSpecsPath, elementId, datasetName);
+
+      const date = Date();
+      const picker = new Litepicker({
+          element: document.getElementById('datepicker'),
+          plugins: ['ranges', 'keyboardnav', 'mobilefriendly'],
+          ranges: {
+              customRanges: {
+              'Today': [new Date(date), new Date(date)],
+              'Yesterday': [subtract(date, 1), subtract(date, 1)],
+              'Last 2 days': [subtract(date, 1), new Date(date)],
+              'Last 7 days': [subtract(date, 6), new Date(date)],
+              'Last 30 days': [subtract(date, 29), new Date(date)],
+              'This month': thisMonth(date),
+              'Last 2 months': lastNMonths(date, 2),
+              }
+          },
+          autoRefresh: true,
+          moduleRanges: true,
+          showWeekNumbers: true,
+          numberOfMonths: 2,
+          numberOfColumns: 2,
+          inlineMode: true,
+          switchingMonths: 2,
+          singleMode: false,
+          dropdowns: {
+              years: true,
+              months: true,
+          },
+          format: 'YYYY-MM-DD\\T00:00:00',
+      });
+      picker.on('selected', (startDate, endDate) => {
+          startDate = startDate.toJSDate()
+          endDate = endDate.toJSDate()
+          endDate.setDate(endDate.getDate() + 1);
+          var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
+          var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
+          fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+            method: "GET",
+            headers: {"Content-Type": "application/json"},
+          })
+          .then(function(response) { return response.json(); })
+          .then(function(data) {
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(data)).resize().run();
+          });
+      });
+
+      document.onreadystatechange = () => {
+        if (document.readyState === 'complete') {
+          fetch(sensorPath, {
+            method: "GET",
+            headers: {"Content-Type": "application/json"},
+          })
+          .then(function(response) { return response.json(); })
+          .then(function(data) {
+            var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
+            if (offsetDifference != 0) {
+              document.getElementById('tzwarn').style.display = 'block';
+              var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes'
+              document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
+            }
+            var start = new Date(data.timerange.start);
+            var end = new Date(data.timerange.end)
+            end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+            start.setHours(0,0,0,0) // get start of first day
+            end.setHours(0,0,0,0) // get start of last day
+
+            // Initialize picker to the last 2 days of sensor data
+            var nearEnd = new Date(end)//.setDate(end.getDate() - 1)
+            nearEnd.setDate(nearEnd.getDate() - 1)
+            picker.setDateRange(
+                nearEnd,
+                end,
+            )
+
+            // No use looking for data in years outside timerange of sensor data
+            picker.setOptions({
+              dropdowns: {
+                  minYear: start.getFullYear(),
+                  maxYear: end.getFullYear(),
+              },
+            });
+          });
+        }
+      };
+
+    </script>
+
+{% endblock %}

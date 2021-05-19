@@ -477,7 +477,7 @@ def reset_user_password(id: int):
     .. :quickref: User; Password reset
 
     Reset the user's password, and send them instructions on how to reset the password.
-    This endoint is useful from a security standpoint, in case of worries the password might be compromised.
+    This endpoint is useful from a security standpoint, in case of worries the password might be compromised.
     It sets the current password to something random, invalidates cookies and auth tokens,
     and also sends an email for resetting the password to the user.
 
@@ -761,7 +761,7 @@ def post_meter_data():
     :status 403: INVALID_SENDER
     :status 405: INVALID_METHOD
     """
-    return v2_0_implementations.post_meter_data_response()
+    return v2_0_implementations.sensors.post_meter_data_response()
 
 
 @flexmeasures_api_v2_0.route("/postPrognosis", methods=["POST"])

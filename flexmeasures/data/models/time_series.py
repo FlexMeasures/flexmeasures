@@ -1,14 +1,13 @@
 from typing import List, Dict, Optional, Union, Tuple
 from datetime import datetime as datetime_type, timedelta
+import json
 
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
-from marshmallow import Schema, fields
 
 from flexmeasures.data.config import db
-from flexmeasures.data import ma
 from flexmeasures.data.queries.utils import (
     add_belief_timing_filter,
     add_user_source_filter,
@@ -18,6 +17,9 @@ from flexmeasures.data.queries.utils import (
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
 from flexmeasures.utils.entity_address_utils import build_entity_address
+from flexmeasures.data.models.charts import chart_type_to_chart_specs
+from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 class Sensor(db.Model, tb.SensorDBMixin):
@@ -34,27 +36,116 @@ class Sensor(db.Model, tb.SensorDBMixin):
 
     def search_beliefs(
         self,
-        event_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
-        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
+        as_json: bool = False,
     ):
         """Search all beliefs about events for this sensor.
 
-        :param event_time_window: search only events within this time window
-        :param belief_time_window: search only beliefs within this time window
-        :param source: search only beliefs by this source (pass its name or id) or list of sources"""
-        return TimedBelief.search(
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        """
+        bdf = TimedBelief.search(
             sensor=self,
-            event_time_window=event_time_window,
-            belief_time_window=belief_time_window,
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
             source=source,
         )
+        if as_json:
+            df = bdf.reset_index()
+            df["source"] = df["source"].apply(lambda x: x.name)
+            return df.to_json(orient="records")
+        return bdf
+
+    def chart(
+        self,
+        chart_type: str = "bar_chart",
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
+        source: Optional[Union[int, List[int], str, List[str]]] = None,
+        include_data: bool = False,
+        dataset_name: Optional[str] = None,
+        **kwargs,
+    ) -> dict:
+        """Create a chart showing sensor data.
+
+        :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        :param include_data: if True, include data in the chart, or if False, exclude data
+        :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        """
+
+        # Set up chart specification
+        if dataset_name is None:
+            dataset_name = "sensor_" + str(self.id)
+        self.sensor_type = (
+            self.name
+        )  # todo remove this placeholder when sensor types are modelled
+        chart_specs = chart_type_to_chart_specs(
+            chart_type,
+            title=capitalize(self.name),
+            quantity=capitalize(self.sensor_type),
+            unit=self.unit,
+            dataset_name=dataset_name,
+            **kwargs,
+        )
+
+        if include_data:
+            # Set up data
+            data = self.search_beliefs(
+                as_json=True,
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                source=source,
+            )
+            # Combine chart specs and data
+            chart_specs["datasets"] = {dataset_name: json.loads(data)}
+        return chart_specs
+
+    @property
+    def timerange(self) -> Dict[str, datetime_type]:
+        """Time range for which sensor data exists.
+
+        :returns: dictionary with start and end, for example:
+                  {
+                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                  }
+        """
+        least_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor == self)
+            .order_by(TimedBelief.event_start.asc())
+            .limit(1)
+        )
+        most_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor == self)
+            .order_by(TimedBelief.event_start.desc())
+            .limit(1)
+        )
+        results = least_recent_query.union_all(most_recent_query).all()
+        if not results:
+            # return now in case there is no data for the sensor
+            now = server_now()
+            return dict(start=now, end=now)
+        least_recent, most_recent = results
+        return dict(start=least_recent.event_start, end=most_recent.event_end)
 
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}>"
@@ -87,80 +178,69 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def search(
         cls,
         sensor: Sensor,
-        event_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
-        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
     ) -> tb.BeliefsDataFrame:
         """Search all beliefs about events for a given sensor.
 
         :param sensor: search only this sensor
-        :param event_time_window: search only events within this time window
-        :param belief_time_window: search only beliefs within this time window
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass its name or id) or list of sources
         """
         return cls.search_session(
             session=db.session,
             sensor=sensor,
-            event_before=event_time_window[1],
-            event_not_before=event_time_window[0],
-            belief_before=belief_time_window[1],
-            belief_not_before=belief_time_window[0],
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            beliefs_after=beliefs_after,
+            beliefs_before=beliefs_before,
             source=source,
         )
 
     @classmethod
-    def add(cls, bdf: tb.BeliefsDataFrame, commit_transaction: bool = True):
+    def add(
+        cls,
+        bdf: tb.BeliefsDataFrame,
+        expunge_session: bool = False,
+        allow_overwrite: bool = False,
+        bulk_save_objects: bool = False,
+        commit_transaction: bool = False,
+    ):
         """Add a BeliefsDataFrame as timed beliefs in the database.
 
         :param bdf: the BeliefsDataFrame to be persisted
-        :param commit_transaction: if True, the session is committed
-                                   if False, you can still add other data to the session
-                                   and commit it all within an atomic transaction
+        :param expunge_session:     if True, all non-flushed instances are removed from the session before adding beliefs.
+                                    Expunging can resolve problems you might encounter with states of objects in your session.
+                                    When using this option, you might want to flush newly-created objects which are not beliefs
+                                    (e.g. a sensor or data source object).
+        :param allow_overwrite:     if True, new objects are merged
+                                    if False, objects are added to the session or bulk saved
+        :param bulk_save_objects:   if True, objects are bulk saved with session.bulk_save_objects(),
+                                    which is quite fast but has several caveats, see:
+                                    https://docs.sqlalchemy.org/orm/persistence_techniques.html#bulk-operations-caveats
+                                    if False, objects are added to the session with session.add_all()
+        :param commit_transaction:  if True, the session is committed
+                                    if False, you can still add other data to the session
+                                    and commit it all within an atomic transaction
         """
         return cls.add_to_session(
             session=db.session,
             beliefs_data_frame=bdf,
+            expunge_session=expunge_session,
+            allow_overwrite=allow_overwrite,
+            bulk_save_objects=bulk_save_objects,
             commit_transaction=commit_transaction,
         )
 
     def __repr__(self) -> str:
         """timely-beliefs representation of timed beliefs."""
         return tb.TimedBelief.__repr__(self)
-
-
-class SensorSchemaMixin(Schema):
-    """
-    Base sensor schema.
-
-    Here we include all fields which are implemented by timely_beliefs.SensorDBMixin
-    All classes inheriting from timely beliefs sensor don't need to repeat these.
-    In a while, this schema can represent our unified Sensor class.
-
-    When subclassing, also subclass from `ma.SQLAlchemySchema` and add your own DB model class, e.g.:
-
-        class Meta:
-            model = Asset
-    """
-
-    name = ma.auto_field(required=True)
-    unit = ma.auto_field(required=True)
-    timezone = ma.auto_field()
-    event_resolution = fields.TimeDelta(required=True, precision="minutes")
-
-
-class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
-    """
-    Sensor schema, with validations.
-    """
-
-    class Meta:
-        model = Sensor
 
 
 class TimedValue(object):

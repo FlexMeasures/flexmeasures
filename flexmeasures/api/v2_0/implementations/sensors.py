@@ -15,7 +15,6 @@ from flexmeasures.api.common.responses import (
     ResponseTuple,
 )
 from flexmeasures.api.common.utils.api_utils import (
-    get_or_create_user_data_source,
     get_weather_sensor_by,
     save_to_db,
     determine_belief_timing,
@@ -33,6 +32,7 @@ from flexmeasures.api.common.utils.validators import (
     values_required,
 )
 from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
@@ -46,8 +46,8 @@ from flexmeasures.utils.entity_address_utils import (
 @type_accepted("PostPriceDataRequest")
 @units_accepted("price", "EUR/MWh", "KRW/kWh")
 @assets_required("market")
-@optional_horizon_accepted()
-@optional_prior_accepted()
+@optional_horizon_accepted(infer_missing=False, infer_missing_play=True)
+@optional_prior_accepted(infer_missing=True, infer_missing_play=False)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("market", "fm1")
@@ -69,7 +69,7 @@ def post_price_data_response(  # noqa C901
 
     current_app.logger.info("POSTING PRICE DATA")
 
-    data_source = get_or_create_user_data_source(current_user)
+    data_source = get_or_create_source(current_user)
     prices = []
     forecasting_jobs = []
     for market_group, event_values in zip(generic_asset_name_groups, value_groups):
@@ -130,8 +130,8 @@ def post_price_data_response(  # noqa C901
 @type_accepted("PostWeatherDataRequest")
 @unit_required
 @assets_required("weather_sensor")
-@optional_horizon_accepted()
-@optional_prior_accepted()
+@optional_horizon_accepted(infer_missing=False, infer_missing_play=True)
+@optional_prior_accepted(infer_missing=True, infer_missing_play=False)
 @values_required
 @period_required
 @post_data_checked_for_required_resolution("weather_sensor", "fm1")
@@ -152,7 +152,7 @@ def post_weather_data_response(  # noqa: C901
 
     current_app.logger.info("POSTING WEATHER DATA")
 
-    data_source = get_or_create_user_data_source(current_user)
+    data_source = get_or_create_source(current_user)
     weather_measurements = []
     forecasting_jobs = []
     for sensor_group, event_values in zip(generic_asset_name_groups, value_groups):
@@ -222,8 +222,8 @@ def post_weather_data_response(  # noqa: C901
 @units_accepted("power", "MW")
 @assets_required("connection")
 @values_required
-@optional_horizon_accepted(ex_post=True)
-@optional_prior_accepted(ex_post=True)
+@optional_horizon_accepted(ex_post=True, infer_missing=False, infer_missing_play=True)
+@optional_prior_accepted(ex_post=True, infer_missing=True, infer_missing_play=False)
 @period_required
 @post_data_checked_for_required_resolution("connection", "fm1")
 @as_json
@@ -254,8 +254,8 @@ def post_meter_data_response(
 @units_accepted("power", "MW")
 @assets_required("connection")
 @values_required
-@optional_horizon_accepted(ex_post=False)
-@optional_prior_accepted(ex_post=False)
+@optional_horizon_accepted(ex_post=False, infer_missing=False, infer_missing_play=False)
+@optional_prior_accepted(ex_post=False, infer_missing=True, infer_missing_play=False)
 @period_required
 @post_data_checked_for_required_resolution("connection", "fm1")
 @as_json
@@ -301,7 +301,7 @@ def post_power_data(
 
     current_app.logger.info("POSTING POWER DATA")
 
-    data_source = get_or_create_user_data_source(current_user)
+    data_source = get_or_create_source(current_user)
     user_assets = get_assets()
     if not user_assets:
         current_app.logger.info("User doesn't seem to have any assets")
