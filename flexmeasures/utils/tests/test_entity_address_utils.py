@@ -182,6 +182,16 @@ def test_build_entity_address(
                 event_id=302,
             ),
         ),
+        (
+            "connection",
+            "ea1.2018-06.io.flexmeasures.staging:fm1.30",
+            dict(
+                naming_authority="2018-06.io.flexmeasures.staging",
+                asset_id=30,
+                owner_id=None,
+                event_type="connection",
+            ),
+        ),
     ],
 )
 def test_parse_entity_address(entity_type, entity_address, exp_result):
