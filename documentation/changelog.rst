@@ -24,6 +24,8 @@ Infrastructure / Support
 * For weather forecasts, switch from Dark Sky (closed from Aug 1, 2021) to OpenWeatherMap API [see `PR #113 <http://www.github.com/SeitaBV/flexmeasures/pull/113>`_]
 * Re-use the database between automated tests, if possible. This shaves 2/3rd off of the time it takes for the FlexMeasures test suite to run [see `PR #115 <http://www.github.com/SeitaBV/flexmeasures/pull/115>`_]
 * Let CLI package and plugins use Marshmallow Field definitions [see `PR #125 <http://www.github.com/SeitaBV/flexmeasures/pull/125>`_]
+* add time_utils.get_recent_clock_time_window() function [see `PR #135 <http://www.github.com/SeitaBV/flexmeasures/pull/135>`_]
+
 
 
 v0.4.1 | May 7, 2021
