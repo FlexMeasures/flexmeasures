@@ -80,6 +80,45 @@ All else that is needed for this showcase (not shown here) is ``<some_folder>/ou
 
 .. note:: Plugin views can also be added to the FlexMeasures UI menu ― just name them in the config setting :ref:`menu-config`.
 
+Validating data with marshmallow
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FlexMeasures validates input data using `marshmallow <https://marshmallow.readthedocs.io/>`_.
+Data fields can be made suitable for use in CLI commands through our ``MarshmallowClickMixin``.
+An example:
+
+.. code-block:: python
+
+    from datetime import datetime
+    from typing import Optional
+
+    import click
+    from flexmeasures.data.schemas.times import AwareDateTimeField
+    from flexmeasures.data.schemas.utils import MarshmallowClickMixin
+    from marshmallow import fields
+
+    class StrField(fields.Str, MarshmallowClickMixin):
+        """String field validator usable for UI routes and CLI functions."""
+
+    @click.command("meet")
+    @click.option(
+        "--where",
+        required=True,
+        type=StrField(),  # see above: we just made this field suitable for CLI functions
+        help="(Required) Where we meet",
+    )
+    @click.option(
+        "--when",
+        required=False,
+        type=AwareDateTimeField(format="iso"),  # FlexMeasures already made this field suitable for CLI functions
+        help="[Optional] When we meet (expects timezone-aware ISO 8601 datetime format)",
+    )
+    def schedule_meeting(
+        where: str,
+        when: Optional[datetime] = None,
+    ):
+        print(f"Okay, see you {where} on {when}.")
+
 
 Using other files in your plugin
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

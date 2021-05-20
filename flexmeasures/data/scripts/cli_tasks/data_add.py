@@ -16,10 +16,13 @@ import timely_beliefs as tb
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.time_series import Sensor, SensorSchema, TimedBelief
-from flexmeasures.data.models.assets import Asset, AssetSchema
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.models.assets import Asset
+from flexmeasures.data.schemas.assets import AssetSchema
 from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorSchema
+from flexmeasures.data.models.weather import WeatherSensor
+from flexmeasures.data.schemas.weather import WeatherSensorSchema
 from flexmeasures.data.models.data_sources import (
     get_or_create_source,
     get_source_or_none,
@@ -285,6 +288,20 @@ def add_initial_structure():
     help="Column number with values (1 is 2nd column, the default)",
 )
 @click.option(
+    "--decimal",
+    required=False,
+    default=".",
+    type=str,
+    help="[For csv files] decimal character, e.g. '.' for 10.5",
+)
+@click.option(
+    "--delimiter",
+    required=True,
+    type=str,
+    default=",",
+    help="[For csv files] Character to delimit columns per row, defaults to comma",
+)
+@click.option(
     "--sheet_number",
     required=False,
     type=int,
@@ -301,6 +318,8 @@ def add_beliefs(
     nrows: Optional[int] = None,
     datecol: int = 0,
     valuecol: int = 1,
+    decimal: str = ".",
+    delimiter: str = ",",
     sheet_number: Optional[int] = None,
 ):
     """Add sensor data from a csv file (also accepts xls or xlsx).
@@ -337,6 +356,8 @@ def add_beliefs(
     kwargs = dict()
     if file.split(".")[-1].lower() == "csv":
         kwargs["infer_datetime_format"] = True
+        kwargs["decimal"] = decimal
+        kwargs["delimiter"] = delimiter
     if sheet_number is not None:
         kwargs["sheet_name"] = sheet_number
     if horizon is not None:
@@ -464,11 +485,12 @@ def create_forecasts(
 
 
 @fm_add_data.command("external-weather-forecasts")
+@with_appcontext
 @click.option(
     "--region",
     type=str,
     default="",
-    help="Name of the region (will create sub-folder, should later tag the forecast in the DB, probably).",
+    help="Name of the region (will create sub-folder if you store json files, should later probably tag the forecast in the DB).",
 )
 @click.option(
     "--location",
@@ -483,7 +505,7 @@ def create_forecasts(
     "--num_cells",
     type=int,
     default=1,
-    help="Number of cells on the grid. Only used if a region of interest has been mapped in the location parameter.",
+    help="Number of cells on the grid. Only used if a region of interest has been mapped in the location parameter. Defaults to 1.",
 )
 @click.option(
     "--method",
@@ -494,13 +516,13 @@ def create_forecasts(
 @click.option(
     "--store-in-db/--store-as-json-files",
     default=False,
-    help="Store forecasts in the database, or simply save as json files.",
+    help="Store forecasts in the database, or simply save as json files. (defaults to json files)",
 )
 def collect_weather_data(region, location, num_cells, method, store_in_db):
     """
-    Collect weather forecasts from the DarkSky API
+    Collect weather forecasts from the OpenWeatherMap API
 
-    This function can get weather data for one location or for several location within
+    This function can get weather data for one location or for several locations within
     a geometrical grid (See the --location parameter).
     """
     from flexmeasures.data.scripts.grid_weather import get_weather_forecasts

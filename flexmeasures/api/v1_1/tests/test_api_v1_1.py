@@ -19,6 +19,7 @@ from flexmeasures.api.v1_1.tests.utils import (
     message_for_post_price_data,
     message_for_post_weather_data,
     verify_prices_in_db,
+    get_forecasting_jobs,
 )
 from flexmeasures.data.auth_setup import UNAUTH_ERROR_STATUS
 
@@ -189,10 +190,12 @@ def test_post_price_data_invalid_unit(setup_api_test_data, client, post_message)
     "post_message",
     [message_for_post_weather_data(), message_for_post_weather_data(temperature=True)],
 )
-def test_post_weather_data(setup_api_test_data, client, post_message):
+def test_post_weather_forecasts(setup_api_test_data, app, client, post_message):
     """
-    Try to post wind speed data as a logged-in test user with the Supplier role, which should succeed.
+    Try to post wind speed and temperature forecasts as a logged-in test user with the Supplier role, which should succeed.
+    As only forecasts are sent, no forecasting jobs are expected.
     """
+    assert len(get_forecasting_jobs("Weather")) == 0
 
     # post weather data
     auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
@@ -205,11 +208,13 @@ def test_post_weather_data(setup_api_test_data, client, post_message):
     assert post_weather_data_response.status_code == 200
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
 
+    assert len(get_forecasting_jobs("Weather")) == 0
+
 
 @pytest.mark.parametrize(
     "post_message", [message_for_post_weather_data(invalid_unit=True)]
 )
-def test_post_weather_data_invalid_unit(setup_api_test_data, client, post_message):
+def test_post_weather_forecasts_invalid_unit(setup_api_test_data, client, post_message):
     """
     Try to post wind speed data as a logged-in test user with the Supplier role, but with a wrong unit for wind speed,
     which should fail.

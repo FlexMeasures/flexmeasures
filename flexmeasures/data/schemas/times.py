@@ -6,14 +6,14 @@ import isodate
 from isodate.isoerror import ISO8601Error
 import pandas as pd
 
-from flexmeasures.api.common.utils.args_parsing import FMValidationError
+from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
 
 
 class DurationValidationError(FMValidationError):
     status = "INVALID_PERIOD"  # USEF error status
 
 
-class DurationField(fields.Str):
+class DurationField(fields.Str, MarshmallowClickMixin):
     """Field that deserializes to a ISO8601 Duration
     and serializes back to a string."""
 
@@ -64,8 +64,8 @@ class DurationField(fields.Str):
         return duration
 
 
-class AwareDateTimeField(fields.AwareDateTime):
-    """Field that deserializes to a timezone aware datetime
+class AwareDateTimeField(fields.AwareDateTime, MarshmallowClickMixin):
+    """Field that de-serializes to a timezone aware datetime
     and serializes back to a string."""
 
     def _deserialize(self, value: str, attr, obj, **kwargs) -> datetime:

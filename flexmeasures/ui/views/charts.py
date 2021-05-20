@@ -6,7 +6,7 @@ from webargs.flaskparser import use_args
 
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 from flexmeasures.api.v2_0.routes import v2_0_service_listing
-from flexmeasures.api.common.schemas.times import DurationField
+from flexmeasures.data.schemas.times import DurationField
 from flexmeasures.data.queries.analytics import get_power_data
 from flexmeasures.ui.views.analytics import make_power_figure
 

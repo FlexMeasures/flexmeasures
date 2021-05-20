@@ -136,15 +136,10 @@ Default: ``timedelta(hours=2 * 24)``
 Tokens
 ------
 
-DARK_SKY_API_KEY
+OPENWEATHERMAP_API_KEY
 ^^^^^^^^^^^^^^^^
 
-Token for accessing the DarkSky weather forecasting service.
-
-.. note:: DarkSky will soon become non-public (Aug 1, 2021), so they are not giving out new tokens.
-          We'll use another service soon (`see this issue <https://github.com/SeitaBV/flexmeasures/issues/3>`_).
-          This is unfortunate.
-          In the meantime, if you can't find anybody lending their token, consider posting weather forecasts to the FlexMeasures database yourself.
+Token for accessing the OPenWeatherMap weather forecasting service.
 
 Default: ``None``
 

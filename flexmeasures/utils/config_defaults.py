@@ -65,7 +65,7 @@ class Config(object):
     CORS_RESOURCES: Union[dict, list, str] = [r"/api/*"]
     CORS_SUPPORTS_CREDENTIALS: bool = True
 
-    DARK_SKY_API_KEY: Optional[str] = None
+    OPENWEATHERMAP_API_KEY: Optional[str] = None
 
     MAPBOX_ACCESS_TOKEN: Optional[str] = None
 

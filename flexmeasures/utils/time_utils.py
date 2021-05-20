@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Union, Optional
+from typing import List, Union, Tuple, Optional
 
 from flask import current_app
 from flask_security.core import current_user
@@ -33,12 +33,25 @@ def ensure_local_timezone(
 
 
 def as_server_time(dt: datetime) -> datetime:
-    """The datetime represented in the timezone of the FlexMeasures platform."""
+    """The datetime represented in the timezone of the FlexMeasures platform.
+    If dt is naive, we assume it is UTC time.
+    """
     return naive_utc_from(dt).replace(tzinfo=pytz.utc).astimezone(get_timezone())
 
 
+def localized_datetime(dt: datetime) -> datetime:
+    """
+    Localise a datetime to the timezone of the FlexMeasures platform.
+    Note: this will change nothing but the tzinfo field.
+    """
+    return get_timezone().localize(naive_utc_from(dt))
+
+
 def naive_utc_from(dt: datetime) -> datetime:
-    """Return a naive datetime, that is localised to UTC if it has a timezone."""
+    """
+    Return a naive datetime, that is localised to UTC if it has a timezone.
+    If dt is naive, we assume it is already in UTC time.
+    """
     if not hasattr(dt, "tzinfo") or dt.tzinfo is None:
         # let's hope this is the UTC time you expect
         return dt
@@ -58,16 +71,13 @@ def tz_index_naively(
     return data
 
 
-def localized_datetime(dt: datetime) -> datetime:
-    """Localise a datetime to the timezone of the FlexMeasures platform."""
-    return get_timezone().localize(naive_utc_from(dt))
-
-
 def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -> str:
-    """Localise a datetime to the timezone of the FlexMeasures platform.
-    Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
-    app.jinja_env.filters['datetime'] = localized_datetime_filter
+    """
+    Localise a datetime to the timezone of the FlexMeasures platform.
     If no datetime is passed in, use server_now() as basis.
+
+    Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
+    app.jinja_env.filters['localized_datetime'] = localized_datetime_str
     """
     if dt is None:
         dt = server_now()
@@ -76,16 +86,36 @@ def localized_datetime_str(dt: datetime, dt_format: str = "%Y-%m-%d %I:%M %p") -
     return local_dt.strftime(dt_format)
 
 
-def naturalized_datetime_str(dt: Optional[datetime]) -> str:
-    """ Naturalise a datetime object."""
+def naturalized_datetime_str(
+    dt: Optional[datetime], now: Optional[datetime] = None
+) -> str:
+    """
+    Naturalise a datetime object (into a human-friendly string).
+    The dt parameter (as well as the now parameter if you use it)
+    can be either naive or tz-aware. We assume UTC in the naive case.
+
+    We use the the humanize library to generate a human-friendly string.
+    If dt is not longer ago than 24 hours, we use humanize.naturaltime (e.g. "3 hours ago"),
+    otherwise humanize.naturaldate (e.g. "one week ago")
+
+    Hint: This can be set as a jinja filter, so we can display local time in the app, e.g.:
+    app.jinja_env.filters['naturalized_datetime'] = naturalized_datetime_str
+    """
     if dt is None:
         return "never"
+    if now is None:
+        now = datetime.utcnow()
     # humanize uses the local now internally, so let's make dt local
-    local_timezone = tzlocal.get_localzone()
-    local_dt = (
-        dt.replace(tzinfo=pytz.utc).astimezone(local_timezone).replace(tzinfo=None)
-    )
-    if dt >= datetime.utcnow() - timedelta(hours=24):
+    if dt.tzinfo is None:
+        local_dt = (
+            dt.replace(tzinfo=pytz.utc)
+            .astimezone(tzlocal.get_localzone())
+            .replace(tzinfo=None)
+        )
+    else:
+        local_dt = dt.astimezone(tzlocal.get_localzone()).replace(tzinfo=None)
+    # decide which humanize call to use for naturalization
+    if naive_utc_from(dt) >= naive_utc_from(now) - timedelta(hours=24):
         return naturaltime(local_dt)
     else:
         return naturaldate(local_dt)
@@ -123,9 +153,11 @@ def decide_resolution(start: Optional[datetime], end: Optional[datetime]) -> str
     return resolution
 
 
-def get_timezone(of_user=False):
+def get_timezone(of_user=False) -> pytz.BaseTzInfo:
     """Return the FlexMeasures timezone, or if desired try to return the timezone of the current user."""
-    default_timezone = pytz.timezone(current_app.config.get("FLEXMEASURES_TIMEZONE"))
+    default_timezone = pytz.timezone(
+        current_app.config.get("FLEXMEASURES_TIMEZONE", "")
+    )
     if not of_user:
         return default_timezone
     if current_user.is_anonymous:
@@ -159,6 +191,40 @@ def get_most_recent_quarter() -> datetime:
 def get_most_recent_hour() -> datetime:
     now = server_now()
     return now.replace(minute=now.minute - (now.minute % 60), second=0, microsecond=0)
+
+
+def get_most_recent_clocktime_window(
+    window_size_in_minutes: int, now: Optional[datetime] = None
+) -> Tuple[datetime, datetime]:
+    """
+    Calculate a recent time window, returning a start and end minute so that
+    a full hour can be filled with such windows, e.g.:
+
+    Calling this function at 15:01:xx with window size 5 -> (14:55:00, 15:00:00)
+    Calling this function at 03:36:xx with window size 15 -> (03:15:00, 03:30:00)
+
+    window_size_in_minutes is assumed to > 0 and < = 60, and a divisor of 60 (1, 2, ..., 30, 60).
+
+    If now is not given, the current server time is used.
+    if now / the current time lies within a boundary minute (e.g. 15 when window_size_in_minutes=5),
+    then the window is not deemed over and the previous one is returned (in this case, [5, 10])
+
+    Returns two datetime objects. They'll be in the timezone (if given) of the now parameter,
+    or in the server timezone (see FLEXMEASURES_TIMEZONE setting).
+    """
+    assert window_size_in_minutes > 0
+    assert 60 % window_size_in_minutes == 0
+    if now is None:
+        now = server_now()
+    last_full_minute = now.replace(second=0, microsecond=0) - timedelta(minutes=1)
+    last_round_minute = last_full_minute.minute - (
+        last_full_minute.minute % window_size_in_minutes
+    )
+    begin_time = last_full_minute.replace(minute=last_round_minute) - timedelta(
+        minutes=window_size_in_minutes
+    )
+    end_time = begin_time + timedelta(minutes=window_size_in_minutes)
+    return begin_time, end_time
 
 
 def get_default_start_time() -> datetime:
@@ -195,7 +261,9 @@ def forecast_horizons_for(
     else:
         resolution_str = resolution
     horizons = []
-    if resolution_str in ("15T", "1h", "H"):
+    if resolution_str in ("5T", "10T"):
+        horizons = ["1h", "6h", "24h"]
+    elif resolution_str in ("15T", "1h", "H"):
         horizons = ["1h", "6h", "24h", "48h"]
     elif resolution_str in ("24h", "D"):
         horizons = ["24h", "48h"]

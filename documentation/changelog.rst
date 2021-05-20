@@ -6,6 +6,8 @@ FlexMeasures Changelog
 v0.5.0 | May XX, 2021
 ===========================
 
+.. warning:: If you retrieve weather forecasts through FlexMeasures: we had to switch to OpenWeatherMap, as Dark Sky is closing. This requires an update to config variables ― the new setting is called ``OPENWEATHERMAP_API_KEY``.
+
 New features
 -----------
 * Allow plugins to overwrite UI routes and customise the teaser on the login form [see `PR #106 <http://www.github.com/SeitaBV/flexmeasures/pull/106>`_]
@@ -13,13 +15,18 @@ New features
 
 Bugfixes
 -----------
-
+* Fix last login date display in user list [see `PR #133 <http://www.github.com/SeitaBV/flexmeasures/pull/133>`_]
+* Choose better forecasting horizons when weather data is posted [see `PR #131 <http://www.github.com/SeitaBV/flexmeasures/pull/131>`_]
 
 Infrastructure / Support
 ----------------------
-* Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
 * Add tutorials on how to add and read data from FlexMeasures via its API [see `PR #130 <http://www.github.com/SeitaBV/flexmeasures/pull/130>`_]
+* For weather forecasts, switch from Dark Sky (closed from Aug 1, 2021) to OpenWeatherMap API [see `PR #113 <http://www.github.com/SeitaBV/flexmeasures/pull/113>`_]
 * Re-use the database between automated tests, if possible. This shaves 2/3rd off of the time it takes for the FlexMeasures test suite to run [see `PR #115 <http://www.github.com/SeitaBV/flexmeasures/pull/115>`_]
+* Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+* Let CLI package and plugins use Marshmallow Field definitions [see `PR #125 <http://www.github.com/SeitaBV/flexmeasures/pull/125>`_]
+* add time_utils.get_recent_clock_time_window() function [see `PR #135 <http://www.github.com/SeitaBV/flexmeasures/pull/135>`_]
+
 
 
 v0.4.1 | May 7, 2021
@@ -34,6 +41,8 @@ Bugfixes
 
 v0.4.0 | April 29, 2021
 ===========================
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
 -----------

@@ -26,7 +26,6 @@ rq-win; os_name == 'nt' or os_name == 'win'
 redis; os_name == 'nt' or os_name == 'win'
 tldextract
 pyomo>=5.6
-forecastiopy
 pvlib
 # the following three are optional in pvlib, but we use them
 netCDF4
