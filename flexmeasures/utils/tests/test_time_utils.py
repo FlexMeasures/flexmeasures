@@ -65,6 +65,24 @@ def test_naturalized_datetime_str(
             datetime(2021, 4, 29, 23, 50),
             datetime(2021, 4, 30, 0, 0),
         ),
+        (
+            5,
+            datetime(2021, 5, 20, 10, 5, 34),  # boundary condition
+            datetime(2021, 5, 20, 9, 55),
+            datetime(2021, 5, 20, 10, 0),
+        ),
+        (
+            60,
+            datetime(2021, 1, 1, 0, 4),  # new year
+            datetime(2020, 12, 31, 23, 00),
+            datetime(2021, 1, 1, 0, 0),
+        ),
+        (
+            60,
+            datetime(2021, 3, 28, 3, 10),  # DST transition
+            datetime(2021, 3, 28, 2),
+            datetime(2021, 3, 28, 3),
+        ),
     ],
 )
 def test_recent_clocktime_window(window_size, now, exp_start, exp_end):
@@ -76,3 +94,5 @@ def test_recent_clocktime_window(window_size, now, exp_start, exp_end):
 def test_recent_clocktime_window_invalid_window():
     with pytest.raises(AssertionError):
         get_most_recent_clocktime_window(25, now=datetime(2021, 4, 30, 3, 36))
+        get_most_recent_clocktime_window(120, now=datetime(2021, 4, 30, 3, 36))
+        get_most_recent_clocktime_window(0, now=datetime(2021, 4, 30, 3, 36))
