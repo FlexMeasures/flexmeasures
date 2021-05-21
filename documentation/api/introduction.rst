@@ -186,7 +186,7 @@ Types of asset identifications used in FlexMeasures
 FlexMeasures expects the locally unique string string to contain information in
 a certain structure. We distinguish type ``fm0`` and type ``fm1`` FlexMeasures entity addresses.
 
-The ``fm0`` scheme is the original scheme. It identifies connected assets, sensors and markets with a combined key of type and ID. 
+The ``fm0`` scheme is the original scheme. It identifies connected assets, weather stations, markets and UDI events in different ways. 
 
 Examples for the fm0 scheme:
 
@@ -204,7 +204,7 @@ For the fm0 scheme, the 'fm0.' part is optional, for backwards compatibility.
 
 
 The ``fm1`` scheme is the latest version, currently under development. It works with the database structure 
-we are developing in the background, where all connected sensors have unique IDs. This makes it more straightforward, if less explicit.
+we are developing in the background, where all connected sensors have unique IDs. This makes it more straightforward (the scheme works the same way for all types of sensors), if less explicit.
 
 Examples for the fm1 scheme:
 

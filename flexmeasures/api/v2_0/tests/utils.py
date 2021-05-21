@@ -146,7 +146,7 @@ def verify_sensor_data_in_db(
 
 def message_for_post_prognosis(fm_scheme: str = "fm1"):
     """
-    Posting prognosis for a wind mill's production.
+    Posting prognosis for a wind turbine's production.
     """
     message = {
         "type": "PostPrognosisRequest",
