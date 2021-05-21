@@ -107,8 +107,7 @@ Price data (both observations and forecasts) can be posted to `POST  /api/v2_0/p
 
 This example "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
 for the Korean Power Exchange (KPX) day-ahead auction.
-The horizon indicates that the prices were published at 3pm on December 31st 2014
-(i.e. 33 hours ahead of midnight the next day which is the clearing time of KPX ― see below for a deeper explanation).
+The ``prior`` indicates that the prices were published at 3pm on December 31st 2014 (i.e. the clearing time of the KPX day-ahead market, which is at 3 PM on the previous day ― see below for a deeper explanation).
 
 .. code-block:: json
 
@@ -141,9 +140,9 @@ The horizon indicates that the prices were published at 3pm on December 31st 201
             66.98,
             58.61
         ],
-        "start": "2015-01-01T15:00:00+09:00",
+        "start": "2015-01-01T00:00:00+09:00",
         "duration": "PT24H",
-        "horizon": "PT33H",
+        "prior": "2014-12-03T15:00:00+09:00",
         "unit": "KRW/kWh"
     }
 
