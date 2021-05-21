@@ -46,6 +46,14 @@ The platform operator of FlexMeasures can be an Aggregator.
 
 
 .. toctree::
+    :caption: Tutorials
+    :maxdepth: 1
+    
+    tut/posting_data
+    tut/forecasting_scheduling
+    tut/building_uis
+
+.. toctree::
     :caption: The in-built UI
     :maxdepth: 1
 
@@ -60,7 +68,6 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
 
     api/introduction
-    api/simulation
     api/v2_0
     api/v1_3
     api/v1_2

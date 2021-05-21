@@ -15,7 +15,7 @@ test:
 # ---- Documentation ---
 
 update-docs:
-	pip3 install sphinx sphinx-rtd-theme sphinxcontrib.httpdomain
+	pip3 install sphinx==3.5.4 sphinxcontrib.httpdomain # sphinx4 is not supported yet by sphinx-contrib/httpdomain, see https://github.com/sphinx-contrib/httpdomain/issues/46
 	cd documentation; make clean; make html; cd ..
 
 update-docs-pdf:

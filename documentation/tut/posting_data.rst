@@ -1,78 +1,35 @@
-.. _simulation:
+.. _tut_posting_data:
 
-Simulation
-==========
+Posting data
+============
 
-This document details examples for using a FlexMeasures server for simulation.
-The API on a server that is set up for simulation is extended with several features that make it possible to run simulations of energy flows and control actions.
-Please read the :ref:`api_introduction` for explanations of the message fields, specifically regarding:
+The platform FlexMeasures strives on the data you feed it. Let's demonstrate how you can get data into FlexMeasures using the API. This is where FlexMeasures gets connected to your system as a smart backend and helps you build smart energy services.
 
-- The sign of values (:ref:`signs`)
-- Valid durations (:ref:`resolutions`)
-- Valid horizons (:ref:`prognoses`)
-- Valid units (:ref:`simulation`)
+We will show how to use the API endpoints for POSTing data.
+You can call these at regular intervals (through scheduled scripts in your system, for example), so that FlexMeasures always has recent data to work with.
+Of course, these endpoints can also be used to load historic data into FlexMeasures, so that the forecasting models have access to enough data history.
+
+.. note:: For the purposes of forecasting and scheduling, it is often advisable to use a less fine-grained resolution than most metering services keep. For example, while such services might measure every ten seconds, FlexMeasures will usually do its job no less effective if you feed it data with a resolution of five minutes. This will also make the data integration much easier. Keep in mind that many data sources like weather forecasting or markets can have data resolutions of an hour, anyway.
 
 .. contents:: Table of contents
     :local:
     :depth: 1
 
-Setting up
-----------
+Prerequisites
+--------------
 
-Researchers require an admin account to set up a new simulation with a number of assets.
+- FlexMeasures needs some structural meta data for data to be understood. For example, for adding weather data we need to define a weather sensor, and what kind of weather sensors there are. You also need a user account. If you host FlexMeasures yourself, you need to add this info first. Head over to :ref:`getting_started`, where these steps are covered, or study our :ref:`cli`.
+- You should be familiar with where to find your API endpoints (see :ref:`api_versions`) and how to authenticate against the API (see :ref:`api_auth`).
 
-Creating assets and owners
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. note:: For deeper explanations of the data and the meta fields we'll send here, You can always read the :ref:`api_introduction` , e.g. :ref:`signs`, :ref:`resolutions`, :ref:`prognoses` and :ref:`units`.
 
-New assets can be created through the UI on:
+.. note:: To address assets and sensors, these tutorials assume entity addresses valid in the namespace ``fm0``. See :ref:`api_introduction` for more explanations. 
 
-.. code-block:: html
-
-    https://company.flexmeasures.io/assets/new
-
-
-We recommend that researchers choose their own admin account as the asset's owner.
-This way, the simulation will only require refreshing of the access token for the admin account.
-Alternatively, researchers can set up unique accounts for each agent in a multi-agent simulation by creating new owners.
-In this case, access tokens need to be refreshed by each agent separately.
-
-Authentication
-^^^^^^^^^^^^^^
-
-Service usage is only possible with a user authentication token specified in the request header, for example:
-
-.. code-block:: json
-
-    {
-        "Authorization": "<token>"
-    }
-
-The "<token>" can be obtained on your profile after logging in:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/account
-
-For security reasons, tokens expire after a certain amount of time (see :ref:`_auth`).
-To automate token renewal, use the following POST endpoint:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/requestAuthToken
-
-Providing applicable user credentials:
-
-.. code-block:: json
-
-        {
-            "email": "<email>",
-            "password": "<password>"
-        }
 
 Posting weather data
 --------------------
 
-Weather data (both observations and forecasts) can be posted to the following POST endpoint:
+Weather data (both observations and forecasts) can be posted to `POST  /api/v2_0/postWeatherData <../api/v2_0.html#post--api-v2_0-postWeatherData>`_. The URL might look like this:
 
 .. code-block:: html
 
@@ -86,8 +43,8 @@ Weather data can be posted for the following three types of weather sensors:
 
 The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
 
-This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm for a weather sensor located at latitude 33.4843866 and longitude 126.477859.
-The forecasts were made at noon.
+This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm for a weather sensor located at latitude 33.4843866 and longitude 126.477859. This sensor is located in Korea's timezone ― we also reflect that in the datetimes.
+The forecasts were made at noon, as the ``prior`` field indicates.
 
 .. code-block:: json
 
@@ -108,6 +65,10 @@ The forecasts were made at noon.
             "unit": "°C"
         }
 
+Note how the resolution of the data comes out at 15 minutes when you divide the duration by the number of data points.
+If this resolution does not match the sensor's resolution, FlexMeasures will try to upsample the data to make the match or, if that is not possible, complain.
+
+
 Observations vs forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -117,15 +78,28 @@ This denotes that the observation was made exactly after realisation of this lis
 Alternatively, to indicate that each individual observation was made directly after the end of its 15-minute interval (i.e. at 3.15pm, 3.30pm and so on), set a horizon to "PT0H" instead of a prior.
 
 Finally, delays in reading out sensor data can be simulated by setting the horizon field to a negative value.
-For example, a horizon of "-PT1H" would denote that each temperature reading was observed one hour after the fact (i.e. at 4.15pm, 4.30 pm and so on).
+For example, a horizon of "-PT1H" would denote that each temperature reading was observed one hour after the fact (i.e. at 4.15pm, 4.30pm and so on).
 
 See :ref:`prognoses` for more information regarding the prior and horizon fields.
+
+
+Collecting weather data from OpenWeatherMap
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For convenience for organisations who host FlexMeasures themselves, we built in a CLI task which collects weather measurements and forecasts from the OpenWeatherMap API.
+You have to add your own token in the OPENWEATHERMAP_API_KEY setting first. Then you could run this task periodically, probably once per hour. Here is how:
+
+.. code-block::
+
+   flexmeasures add external-weather-forecasts --location 33.4366,126.5269 --store-in-db
+
+Consult the ``--help`` for this command to learn more about what you can do with it.
 
 
 Posting price data
 ------------------
 
-Price data (both observations and forecasts) can be posted to the following POST endpoint:
+Price data (both observations and forecasts) can be posted to `POST  /api/v2_0/postPriceData <../api/v2_0.html#post--api-v2_0-postPriceData>`_. The URL might look like this:
 
 .. code-block:: html
 
@@ -133,8 +107,7 @@ Price data (both observations and forecasts) can be posted to the following POST
 
 This example "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
 for the Korean Power Exchange (KPX) day-ahead auction.
-The horizon indicates that the prices were published at 3pm on December 31st 2014
-(i.e. 33 hours ahead of midnight the next day).
+The ``prior`` indicates that the prices were published at 3pm on December 31st 2014 (i.e. the clearing time of the KPX day-ahead market, which is at 3 PM on the previous day ― see below for a deeper explanation).
 
 .. code-block:: json
 
@@ -167,9 +140,9 @@ The horizon indicates that the prices were published at 3pm on December 31st 201
             66.98,
             58.61
         ],
-        "start": "2015-01-01T15:00:00+09:00",
+        "start": "2015-01-01T00:00:00+09:00",
         "duration": "PT24H",
-        "horizon": "PT33H",
+        "prior": "2014-12-03T15:00:00+09:00",
         "unit": "KRW/kWh"
     }
 
@@ -187,13 +160,13 @@ Posting power data
 
 For power data, USEF specifies separate message types for observations and forecasts.
 Correspondingly, FlexMeasures uses separate endpoints to communicate these messages.
-Observations of power data can be posted to the following POST endpoint:
+Observations of power data can be posted to `POST /api/v2_0/postMeterData <../api/v2_0.html#post--api-v2_0-postMeterData>`_. The URL might look like this:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api/<version>/postMeterData
 
-while forecasts of power data can be posted to the following POST endpoint:
+while forecasts of power data can be posted to `POST /api/v2_0/postPrognosis <../api/v2_0.html#post--api-v2_0-postPrognosis>`_. The URL might look like this:
 
 .. code-block:: html
 
@@ -201,6 +174,8 @@ while forecasts of power data can be posted to the following POST endpoint:
 
 For both endpoints, power data can be posted in various ways.
 The following examples assume that the endpoint for power data observations (i.e. meter data) is used.
+
+.. todo:: For the time being, only one rate unit (MW) can be used to post power values.
 
 
 Single value, single connection
@@ -223,7 +198,7 @@ A single average power value for a 15-minute time interval for a single connecti
 Multiple values, single connection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Multiple values (indicating a univariate timeseries) for 15-minute time intervals for a single connection, posted 5 minutes after realisation.
+Multiple values (indicating a univariate timeseries) for 15-minute time intervals for a single connection, posted 5 minutes after each realisation.
 
 .. code-block:: json
 
@@ -291,7 +266,7 @@ Single different values for a 15-minute time interval for two connections, poste
 Multiple values, multiple connections
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Multiple values (indicating a univariate timeseries) for 15-minute time intervals for two connections, posted 5 minutes after realisation.
+Multiple values (indicating a univariate timeseries) for 15-minute time intervals for two connections, posted 5 minutes after each realisation.
 
 .. code-block:: json
 
@@ -321,43 +296,23 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
         "unit": "MW"
     }
 
-Getting prognoses
------------------
 
-Prognoses are power forecasts that are used by FlexMeasures to determine the best control signals to valorise on
-balancing opportunities. Researchers can check the accuracy of these forecasts by downloading the prognoses and
-comparing them against the meter data, i.e. the realised power measurements.
-A prognosis can be requested for a single asset at the following GET endpoint:
+.. _posting_flex_states:
 
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/<version>/getPrognosis
-
-This example requests a prognosis with a rolling horizon of 6 hours before realisation.
-
-.. code-block:: json
-
-    {
-        "type": "GetPrognosisRequest",
-        "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
-        "start": "2015-01-01T00:00:00+00:00",
-        "duration": "PT24H",
-        "horizon": "PT6H",
-        "resolution": "PT15M",
-        "unit": "MW"
-    }
-
-Posting flexibility constraints
+Posting flexibility states
 -------------------------------
 
-Prosumers that have Active Demand & Supply can post the constraints of their flexible devices to FlexMeasures at the
-following POST endpoint:
+There is one more crucial kind of data that FlexMeasures needs to know about: What are the current states of flexible devices? For example, a battery has a state of charge.
+
+The USEF framework defines a so-called "UDI-Event" (UDI stands for Universal Device Interface) to communicate settings for devices with Active Demand & Supply (ADS).
+Owners of such devices can post these states to `POST /api/v2_0/postUdiEvent <../api/v2_0.html#post--api-v2_0-postUdiEvent>`_. The URL might look like this:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api/<version>/postUdiEvent
 
 This example posts a state of charge value for a battery device (asset 10 of owner 7) as UDI event 203.
+From this, FlexMeasures derives the energy flexibility this battery has in the near future.
 
 .. code-block:: json
 
@@ -369,84 +324,7 @@ This example posts a state of charge value for a battery device (asset 10 of own
             "unit": "kWh"
         }
 
-Some devices also accept target values for their state of charge.
-As an example, consider the same UDI event as above with an additional target value.
+.. note:: At the moment, FlexMeasures only supports batteries and car chargers here (asset types "battery", "one-way_evse" or "two-way_evse").
+          This will be expanded to flexible assets as needed.
 
-.. code-block:: json
-
-    {
-        "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.io.flexmeasures.company:7:10:204:soc-with-targets",
-        "value": 12.1,
-        "datetime": "2015-06-02T10:00:00+00:00",
-        "unit": "kWh",
-        "targets": [
-            {
-                "value": 25,
-                "datetime": "2015-06-02T16:00:00+00:00"
-            }
-        ]
-    }
-
-Getting control signals
------------------------
-
-A Prosumer can query FlexMeasures for control signals for its flexible devices using the following GET endpoint:
-
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/<version>/getDeviceMessage
-
-Control signals can be queried by UDI event for up to 1 week after the UDI event was posted.
-This example requests a control signal for UDI event 203 posted previously.
-
-.. code-block:: json
-
-        {
-            "type": "GetDeviceMessageRequest",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc"
-        }
-
-The following example response indicates that FlexMeasures planned ahead 45 minutes.
-The list of consecutive power values represents the target consumption of the battery (negative values for production).
-Each value represents the average power over a 15 minute time interval.
-
-.. sourcecode:: json
-
-        {
-            "type": "GetDeviceMessageResponse",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203",
-            "values": [
-                2.15,
-                3,
-                2
-            ],
-            "start": "2015-06-02T10:00:00+00:00",
-            "duration": "PT45M",
-            "unit": "MW"
-        }
-
-One way of reaching the target consumption in this example is to let the battery start to consume with 2.15 MW at 10am,
-increase its consumption to 3 MW at 10.15am and decrease its consumption to 2 MW at 10.30am.
-However, because the targets values represent averages over 15-minute time intervals, the battery still has some degrees of freedom.
-For example, the battery might start to consume with 2.1 MW at 10.00am and increase its consumption to 2.25 at 10.10am,
-increase its consumption to 5 MW at 10.15am and decrease its consumption to 2 MW at 10.20am.
-That should result in the same average values for each quarter-hour.
-
-Resetting the server
---------------------
-
-All power, price and weather data on the simulation server can be cleared using the following PUT endpoint (admin rights are required):
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/<version>/restoreData
-
-This example restores the database to a backup named demo_v0, which contains no timeseries data.
-
-.. code-block:: json
-
-    {
-        "backup": "demo_v0"
-    }
+Actually, UDI Events are more powerful than this. In :ref:`how_queue_scheduling`, we'll cover how they can be used to request a future state, which is useful to steer the scheduling.

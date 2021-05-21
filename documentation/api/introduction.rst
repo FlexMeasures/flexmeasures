@@ -4,28 +4,67 @@ Introduction
 ============
 
 This document details the Application Programming Interface (API) of the FlexMeasures web service. The API supports user automation for flexibility valorisation in the energy sector, both in a live setting and for the purpose of simulating scenarios. The web service adheres to the concepts and terminology used in the Universal Smart Energy Framework (USEF).
-We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
 
 
-New versions of the API are released on:
+.. _api_versions:
+
+Main endpoint and API versions
+------------------------------
+
+All versions of the API are released on:
+
+.. code-block:: html
+
+    https://<flexmeasures-root-url>/api
+
+So if you are running FlexMeasures on your computer, it would be:
+
+.. code-block:: html
+
+    https://localhost:5000/api
+
+At Seita, we run servers for our clients at:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api
 
-A list of services offered by (a version of) the FlexMeasures web service can be obtained by sending a *getService* request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
+where `company` is a hosting customer of ours. All their accounts' data lives on that server.
+
+We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
+
+Let's see what the ``/api`` endpoint returns:
+
+.. code-block:: python
+
+    >>> import requests
+    >>> res = requests.get("https://company.flexmeasures.io/api")
+    >>> res.json()
+    {'flexmeasures_version': '0.4.0',
+     'message': 'For these API versions a public endpoint is available, listing its service. For example: /api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: /api/requestAuthToken',
+     'status': 200,
+     'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0']
+    }
+
+So this tells us which API versions exist. For instance, we know that the latest API version is available at
+
+.. code-block:: html
+
+    https://company.flexmeasures.io/api/v2_0
+
+
+Also, we can see that a list of endpoints which are available at (a version of) the FlexMeasures web service can be obtained by sending a ``getService`` request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
 
 **Example request**
 
-.. code-block:: json
+Let's ask which endpoints are available for meter data companies (MDC):
 
-    {
-        "type": "GetServiceRequest",
-        "version": "1.0"
-    }
+.. code-block:: html
+
+    https://company.flexmeasures.io/api/v2_0/getService?access=MDC
+
 
 **Example response**
-
 
 .. code-block:: json
 
@@ -45,6 +84,8 @@ A list of services offered by (a version of) the FlexMeasures web service can be
             }
         ]
     }
+
+.. _api_auth:
 
 Authentication
 --------------
@@ -76,6 +117,15 @@ using the following JSON message for the POST request data:
     {
         "email": "<user email>",
         "password": "<user password>"
+    }
+
+which gives a response like this if the credentials are correct:
+
+.. code-block:: json
+
+    {
+        "auth_token": "<authentication token>",
+        "user_id": "<ID of the user>"
     }
 
 .. note:: Each access token has a limited lifetime, see :ref:`auth`.
@@ -257,9 +307,11 @@ In case of a single group of connections, the message may be flattened to:
 Timeseries
 ^^^^^^^^^^
 
-Timestamps and durations are consistent with the ISO 8601 standard. The resolution of the data is implicit, see :ref:`resolutions`.
+Timestamps and durations are consistent with the ISO 8601 standard. The resolution of the data is implicit (from duration and number of values), see :ref:`resolutions`.
 
-All timestamps in requests to the API must be timezone-aware. The timezone indication "Z" indicates a zero offset from UTC. Additionally, we use the following shorthand for sequential values within a time interval:
+All timestamps in requests to the API must be timezone-aware. For instance, in the below example, the timezone indication "Z" indicates a zero offset from UTC.
+
+We use the following shorthand for sending sequential, equidistant values within a time interval:
 
 .. code-block:: json
 
@@ -273,7 +325,7 @@ All timestamps in requests to the API must be timezone-aware. The timezone indic
         "duration": "PT45M"
     }
 
-is equal to:
+Technically, this is equal to:
 
 .. code-block:: json
 
@@ -302,31 +354,40 @@ This intuitive convention allows us to reduce communication by sending univariat
 Notation for v1
 """""""""""""""
 
-For version 1 of the API, only univariate timeseries data is expected to be communicated. Therefore:
+For version 1 and 2 of the API, only equidistant timeseries data is expected to be communicated. Therefore:
 
-- only the array notation should be used,
-- "start" should be a timestamp on the hour or a multiple of 15 minutes thereafter, and
-- "duration" should be a multiple of 15 minutes.
+- only the array notation should be used (first notation from above),
+- "start" should be a timestamp on the hour or a multiple of the sensor resolution thereafter (e.g. "16:10" works if the resolution is 5 minutes), and
+- "duration" should also be a multiple of the sensor resolution.
+
 
 .. _beliefs:
 
-Beliefs
-^^^^^^^
+Tracking the recording time of beliefs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By regarding all time series data as beliefs that have been recorded at a certain time, data can be filtered accordingly.
+For all its time series data, FlexMeasures keeps track of the time they were recorded. Data can be defined and filtered accordingly, which allows you to get a snapshot of what was known at a certain point in time.
+
+.. note:: FlexMeasures uses the `timely-beliefs data model <https://github.com/SeitaBV/timely-beliefs/#the-data-model>`_ for modelling such facts about time series data, and accordingly we use the term "belief" in this documentation. In that model, the recording time is referred to as "belief time".
+
+
+Querying by recording time
+""""""""""""""""""""""""""""
+
 Some GET endpoints have two optional timing fields to allow such filtering.
-The "prior" field (a timestamp) can be used to select beliefs recorded before some moment in time.
+
+The ``prior`` field (a timestamp) can be used to select beliefs recorded before some moment in time.
 It can be used to "time-travel" to see the state of information at some moment in the past.
-In addition, the "horizon" field (a duration) can be used to select beliefs recorded before some moment in time, relative to each event.
+
+In addition, the ``horizon`` field (a duration) can be used to select beliefs recorded before some moment in time, `relative to each event`.
 For example, to filter out meter readings communicated within a day (denoted by a negative horizon) or forecasts created at least a day beforehand (denoted by a positive horizon).
-In addition to these two timing filters, beliefs can be filtered by their source (see :ref:`sources`).
 
 The two timing fields follow the ISO 8601 standard and are interpreted as follows:
 
-- "horizon": recorded at least <duration> before the fact (indicated by a positive horizon), or at most <duration> after the fact (indicated by a negative horizon).
-- "prior": recorded prior to <timestamp>.
+- ``prior``: recorded prior to <timestamp>.
+- ``horizon``: recorded at least <duration> before the fact (indicated by a positive horizon), or at most <duration> after the fact (indicated by a negative horizon).
 
-For example:
+For example (note that you can use both fields together):
 
 .. code-block:: json
 
@@ -337,18 +398,21 @@ For example:
 
 These fields denote that the data should have been recorded at least 6 hours before the fact (i.e. forecasts) and prior to 5 PM on August 1st 2020 (UTC).
 
+.. note:: In addition to these two timing filters, beliefs can be filtered by their source (see :ref:`sources`).
+
+
 .. _prognoses:
 
-Prognoses
-^^^^^^^^^
+Setting the recording time
+""""""""""""""""""""""""
 
-Some POST endpoints have two optional fields to allow setting the time at which beliefs are recorded explicitly.
+Some POST endpoints have two optional fields to allow setting the time at which beliefs are recorded in an explicit manner.
 This is useful to keep an accurate history of what was known at what time, especially for prognoses.
-If not used, FlexMeasures will infer the prior from the arrival time of the message.
+If not used, FlexMeasures will infer the belief time from the arrival time of the message.
 
-The "prior" field (a timestamp) can be used to set a single time at which the entire prognosis was recorded.
-Alternatively, the "horizon" field (a duration) can be used to set the recording times relative to each prognosed event.
-In case both fields are set, the earliest possible recording time is determined and recorded for each prognosed event.
+The "prior" field (a timestamp) can be used to set a single time at which the entire time series (e.g. a prognosed series) was recorded.
+Alternatively, the "horizon" field (a duration) can be used to set the recording times relative to each (prognosed) event.
+In case both fields are set, the earliest possible recording time is determined and recorded for each (prognosed) event.
 
 The two timing fields follow the ISO 8601 standard and are interpreted as follows:
 
@@ -383,7 +447,7 @@ This message implies that the entire prognosis was recorded at 7:45 AM UTC, i.e.
 This message implies that all prognosed values were recorded 6 hours in advance.
 That is, the value for 1:00-1:15 PM was made at 7:15 AM, the value for 1:15-1:30 PM was made at 7:30 AM, and the value for 1:30-1:45 PM was made at 7:45 AM.
 
-Negative horizons may also be stated (breaking with the ISO 8601 standard) to indicate a prognosis about something that has already happened (i.e. after the fact, or simply *ex post*).
+Negative horizons may also be stated (breaking with the ISO 8601 standard) to indicate a belief about something that has already happened (i.e. after the fact, or simply *ex post*).
 For example, the following message implies that all prognosed values were made 10 minutes after the fact:
 
 .. code-block:: json
@@ -399,7 +463,7 @@ For example, the following message implies that all prognosed values were made 1
         "horizon": "-PT10M"
     }
 
-Note that, for a horizon indicating a prognosis 10 minutes after the *start* of each 15-minute interval, the "horizon" would have been "PT5M".
+Note that, for a horizon indicating a belief 10 minutes after the *start* of each 15-minute interval, the "horizon" would have been "PT5M".
 This denotes that the prognosed interval has 5 minutes left to be concluded.
 
 .. _resolutions:
@@ -425,8 +489,8 @@ Valid units for timeseries data in version 1 of the API are "MW" only.
 
 .. _signs:
 
-Signs
-^^^^^
+Signs of power values
+^^^^^^^^^^^^^^^^^^^^^
 
 USEF recommends to use positive power values to indicate consumption and negative values to indicate production, i.e.
 to take the perspective of the Prosumer.

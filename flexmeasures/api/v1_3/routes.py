@@ -80,7 +80,7 @@ def get_device_message():
 @auth_token_required
 @usef_roles_accepted(*list_access(v1_3_service_listing, "postUdiEvent"))
 def post_udi_event():
-    """API endpoint to post UDI event.
+    """API endpoint to post UDI event. (UDI is the Universal Device Interface proposed by USEF for flexible device states)
 
     .. :quickref: Control; Upload flexibility constraints to the platform
 
