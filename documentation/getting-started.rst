@@ -137,9 +137,7 @@ Add your first asset
 
 There are three ways to add assets:
 
-Head over to ``http://localhost:5000/assets`` (after you started FlexMeasures, see next step) and add a new asset there in a web form.
-
-Or, use the ``flexmeasures`` :ref:`cli`:
+Use the ``flexmeasures`` :ref:`cli`:
 
 .. code-block::
 
@@ -147,6 +145,8 @@ Or, use the ``flexmeasures`` :ref:`cli`:
 
 Here, I left out the ``--market-id`` parameter, because in this quickstart scenario I'm fine with the dummy market created with ``flexmeasures add structure`` above.
 For the ownership, I got my user ID from the output of ``flexmeasures add user`` above, or I can browse to `FlexMeasures' user listing <http://localhost:5000/users>`_ and hover over my username.
+
+Or, you could head over to ``http://localhost:5000/assets`` (after you started FlexMeasures, see next step) and add a new asset there in a web form.
 
 Finally, you can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
 
