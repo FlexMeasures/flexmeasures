@@ -124,7 +124,7 @@ def add_jinja_filters(app):
     app.jinja_env.filters["naturalized_timedelta"] = naturaldelta
     app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["parameterize"] = parameterize
-    app.jinja_env.filters["isnan"] = pd.isnull
+    app.jinja_env.filters["isnull"] = pd.isnull
     app.jinja_env.filters["hide_nan_if_desired"] = (
         lambda x: ""
         if x in ("nan", "nan%", "NAN")
