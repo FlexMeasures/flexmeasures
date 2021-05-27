@@ -12,6 +12,7 @@ New features
 -----------
 * Allow plugins to overwrite UI routes and customise the teaser on the login form [see `PR #106 <http://www.github.com/SeitaBV/flexmeasures/pull/106>`_]
 * Allow plugins to customise the copyright notice and credits in the UI footer [see `PR #123 <http://www.github.com/SeitaBV/flexmeasures/pull/123>`_]
+* Display loaded plugins in footer [see `PR #139 <http://www.github.com/SeitaBV/flexmeasures/pull/139>`_]
 
 Bugfixes
 -----------
