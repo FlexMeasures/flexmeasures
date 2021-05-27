@@ -84,6 +84,7 @@ def register_plugins(app: Flask):
             f"The value of FLEXMEASURES_PLUGIN_PATHS is not a list: {plugin_paths}. Cannot install plugins ..."
         )
         return
+    app.config["LOADED_PLUGINS"] = []
     for plugin_path in plugin_paths:
         plugin_name = plugin_path.split("/")[-1]
         if not os.path.exists(os.path.join(plugin_path, "__init__.py")):
@@ -101,3 +102,4 @@ def register_plugins(app: Flask):
         sys.modules[plugin_name] = module
         spec.loader.exec_module(module)
         app.register_blueprint(getattr(module, f"{plugin_name}_bp"))
+        app.config["LOADED_PLUGINS"].append(plugin_name)
