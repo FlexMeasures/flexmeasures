@@ -8,9 +8,9 @@ from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data.config import db
-
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.utils.geo_utils import parse_lat_lng
+from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
 
 
@@ -80,6 +80,27 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
         self.name = self.name.replace(" ", "_").lower()
 
     @property
+    def entity_address_fm0(self) -> str:
+        """Entity address under the fm0 scheme for entity addresses."""
+        return build_entity_address(
+            dict(
+                weather_sensor_type_name=self.weather_sensor_type_name,
+                latitude=self.latitude,
+                longitude=self.longitude,
+            ),
+            "weather_sensor",
+            fm_scheme="fm0",
+        )
+
+    @property
+    def entity_address(self) -> str:
+        """Entity address under the latest fm scheme for entity addresses."""
+        return build_entity_address(
+            dict(sensor_id=self.id),
+            "sensor",
+        )
+
+    @property
     def weather_unit(self) -> float:
         """Return the 'unit' property of the generic asset, just with a more insightful name."""
         return self.unit
@@ -114,7 +135,7 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
             great_circle_distance(lat=32, lng=54)
 
         """
-        r = 6371  # Radius of Earth in kilometers
+        r = 6371  # Radius of Earth in kilometres
         other_latitude, other_longitude = parse_lat_lng(kwargs)
         if other_latitude is None or other_longitude is None:
             return None

@@ -9,15 +9,14 @@ from flexmeasures.api.v2_0.tests.utils import (
 
 
 @pytest.mark.parametrize(
-    "post_message",
+    "post_message, fm_scheme",
     [
-        message_for_post_prognosis(),
+        (message_for_post_prognosis(), "fm1"),
     ],
 )
-def test_post_prognosis(db, app, post_message):
+def test_post_prognosis_2_0(db, app, post_message, fm_scheme):
     with app.test_client() as client:
-        # post price data
-        auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+        auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
         post_prognosis_response = client.post(
             url_for("flexmeasures_api_v2_0.post_prognosis"),
             json=post_message,
@@ -32,5 +31,6 @@ def test_post_prognosis(db, app, post_message):
         post_message["values"],
         db,
         entity_type="connection",
+        fm_scheme=fm_scheme,
         swapped_sign=True,
     )
