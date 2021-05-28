@@ -41,6 +41,7 @@ v2_0_service_listing["services"].append(
 v2_0_service_listing["services"].append(
     {
         "name": "GET /asset/<id>",
+        "access": [],
         "description": "Get an asset.",
     },
 )
@@ -69,18 +70,21 @@ v2_0_service_listing["services"].append(
 v2_0_service_listing["services"].append(
     {
         "name": "GET /user/<id>",
+        "access": [],
         "description": "Get a user.",
     },
 )
 v2_0_service_listing["services"].append(
     {
         "name": "PATCH /user/<id>",
+        "access": [],
         "description": "Edit a user.",
     },
 )
 v2_0_service_listing["services"].append(
     {
         "name": "PATCH /user/<id>/password-reset",
+        "access": [],
         "description": "Reset a user's password.",
     },
 )

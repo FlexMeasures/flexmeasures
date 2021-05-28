@@ -20,11 +20,14 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
-* Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
+* Add tutorials on how to add and read data from FlexMeasures via its API [see `PR #130 <http://www.github.com/SeitaBV/flexmeasures/pull/130>`_]
 * For weather forecasts, switch from Dark Sky (closed from Aug 1, 2021) to OpenWeatherMap API [see `PR #113 <http://www.github.com/SeitaBV/flexmeasures/pull/113>`_]
 * Entity address improvements: add new id-based `fm1` scheme, better documentation and more validation support of entity addresses [see `PR #81 <http://www.github.com/SeitaBV/flexmeasures/pull/81>`_]
 * Re-use the database between automated tests, if possible. This shaves 2/3rd off of the time it takes for the FlexMeasures test suite to run [see `PR #115 <http://www.github.com/SeitaBV/flexmeasures/pull/115>`_]
+* Make assets use MW as their default unit and enforce that in CLI, as well (API already did) [see `PR #108 <http://www.github.com/SeitaBV/flexmeasures/pull/108>`_]
 * Let CLI package and plugins use Marshmallow Field definitions [see `PR #125 <http://www.github.com/SeitaBV/flexmeasures/pull/125>`_]
+* add time_utils.get_recent_clock_time_window() function [see `PR #135 <http://www.github.com/SeitaBV/flexmeasures/pull/135>`_]
+
 
 
 v0.4.1 | May 7, 2021

@@ -1,1 +1,2 @@
+sphinx==3.5.4
 sphinxcontrib.httpdomain==1.7.0

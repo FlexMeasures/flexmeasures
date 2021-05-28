@@ -8,6 +8,9 @@ Quickstart
 
 This section walks you through getting FlexMeasures to run with the least effort. We'll cover making a secret key, connecting a database and creating one user & one asset.
 
+.. note:: Are you not hosting FlexMeasures, but want to learn how to use it? Head over to our tutorials, starting with :ref:`tut_posting_data`.
+
+
 Install FlexMeasures
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -134,9 +137,7 @@ Add your first asset
 
 There are three ways to add assets:
 
-Head over to ``http://localhost:5000/assets`` and add a new asset there.
-
-Or, use the ``flexmeasures`` :ref:`cli`:
+Use the ``flexmeasures`` :ref:`cli`:
 
 .. code-block::
 
@@ -144,6 +145,8 @@ Or, use the ``flexmeasures`` :ref:`cli`:
 
 Here, I left out the ``--market-id`` parameter, because in this quickstart scenario I'm fine with the dummy market created with ``flexmeasures add structure`` above.
 For the ownership, I got my user ID from the output of ``flexmeasures add user`` above, or I can browse to `FlexMeasures' user listing <http://localhost:5000/users>`_ and hover over my username.
+
+Or, you could head over to ``http://localhost:5000/assets`` (after you started FlexMeasures, see next step) and add a new asset there in a web form.
 
 Finally, you can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
 
@@ -209,39 +212,7 @@ We provide a script for installing from source (without requiring ``sudo`` right
 
 More information (e.g. for installing on Windows) on `the Cbc website <https://projects.coin-or.org/Cbc>`_.
 
-Start collecting weather data
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Install and configure Redis
+^^^^^^^^^^^^^^^^^^^^^^^
 
-To collect weather measurements and forecasts from the DarkSky API, there is a task you could run periodically, probably once per hour. Here is an example:
-
-.. code-block::
-
-   flexmeasures add external-weather-forecasts --location 33.4366,126.5269 --store-in-db 
-
-.. note::  DarkSky is not handing out tokens any more, as they have been bought by Apple (see `issue 3 <https://github.com/SeitaBV/flexmeasures/issues/56>`_).
-
-
-Preparing the job queue database and start workers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To let FlexMeasures queue forecasting and scheduling jobs, install a `Redis <https://redis.io/>`_ server and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in :ref:`redis-config`.
-
-Then run one worker for each kind of job (in a separate terminal):
-
-.. code-block::
-
-   flexmeasures run-worker --queue forecasting
-   flexmeasures run-worker --queue scheduling
-
-
-You can also clear the job queues:
-
-.. code-block::
-
-   flexmeasures clear-queue --queue forecasting
-   flexmeasures clear-queue --queue scheduling
-
-
-When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
-
-When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/analytics``. You can also access forecasts via the FlexMeasures API at `GET  /api/v2_0/getPrognosis <api/v2_0.html#get--api-v2_0-getPrognosis>`_\ , and schedules via `GET  /api/v2_0/getDeviceMessage <api/v2_0.html#get--api-v2_0-getDeviceMessage>`_. 
+To let FlexMeasures queue forecasting and scheduling jobs, install a `Redis <https://redis.io/>`_ server (or rent one) and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in :ref:`redis-config`.

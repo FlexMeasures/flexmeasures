@@ -4,7 +4,7 @@ from flask import current_app, Flask, Blueprint
 from flask.blueprints import BlueprintSetupState
 from flask import send_from_directory
 from flask_security import login_required, roles_accepted
-import numpy as np
+import pandas as pd
 import rq_dashboard
 from humanize import naturaldelta
 
@@ -124,7 +124,7 @@ def add_jinja_filters(app):
     app.jinja_env.filters["naturalized_timedelta"] = naturaldelta
     app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["parameterize"] = parameterize
-    app.jinja_env.filters["isnan"] = np.isnan
+    app.jinja_env.filters["isnull"] = pd.isnull
     app.jinja_env.filters["hide_nan_if_desired"] = (
         lambda x: ""
         if x in ("nan", "nan%", "NAN")

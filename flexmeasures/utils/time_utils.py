@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Union, Optional
+from typing import List, Union, Tuple, Optional
 
 from flask import current_app
 from flask_security.core import current_user
@@ -191,6 +191,40 @@ def get_most_recent_quarter() -> datetime:
 def get_most_recent_hour() -> datetime:
     now = server_now()
     return now.replace(minute=now.minute - (now.minute % 60), second=0, microsecond=0)
+
+
+def get_most_recent_clocktime_window(
+    window_size_in_minutes: int, now: Optional[datetime] = None
+) -> Tuple[datetime, datetime]:
+    """
+    Calculate a recent time window, returning a start and end minute so that
+    a full hour can be filled with such windows, e.g.:
+
+    Calling this function at 15:01:xx with window size 5 -> (14:55:00, 15:00:00)
+    Calling this function at 03:36:xx with window size 15 -> (03:15:00, 03:30:00)
+
+    window_size_in_minutes is assumed to > 0 and < = 60, and a divisor of 60 (1, 2, ..., 30, 60).
+
+    If now is not given, the current server time is used.
+    if now / the current time lies within a boundary minute (e.g. 15 when window_size_in_minutes=5),
+    then the window is not deemed over and the previous one is returned (in this case, [5, 10])
+
+    Returns two datetime objects. They'll be in the timezone (if given) of the now parameter,
+    or in the server timezone (see FLEXMEASURES_TIMEZONE setting).
+    """
+    assert window_size_in_minutes > 0
+    assert 60 % window_size_in_minutes == 0
+    if now is None:
+        now = server_now()
+    last_full_minute = now.replace(second=0, microsecond=0) - timedelta(minutes=1)
+    last_round_minute = last_full_minute.minute - (
+        last_full_minute.minute % window_size_in_minutes
+    )
+    begin_time = last_full_minute.replace(minute=last_round_minute) - timedelta(
+        minutes=window_size_in_minutes
+    )
+    end_time = begin_time + timedelta(minutes=window_size_in_minutes)
+    return begin_time, end_time
 
 
 def get_default_start_time() -> datetime:
