@@ -15,13 +15,14 @@ test:
 # ---- Documentation ---
 
 update-docs:
-	pip3 install sphinx==3.5.4 sphinxcontrib.httpdomain  # sphinx4 is not supported yet by sphinx-contrib/httpdomain, see https://github.com/sphinx-contrib/httpdomain/issues/46
+	pip3 install sphinx==3.5.4 sphinxcontrib.httpdomain sphinx-rtd-theme  # sphinx4 is not supported yet by sphinx-contrib/httpdomain, see https://github.com/sphinx-contrib/httpdomain/issues/46
 	cd documentation; make clean; make html; cd ..
 
 update-docs-pdf:
 	@echo "NOTE: PDF documentation requires packages (on Debian: latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended)"
 	@echo "NOTE: Currently, the docs require some pictures which are not in the git repo atm. Ask the devs."
-	pip3 install sphinx sphinx-rtd-theme sphinxcontrib.httpdomain
+	pip3 install sphinx sphinxcontrib.httpdomain sphinx-rtd-theme
+
 	cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
 
 # ---- Installation ---

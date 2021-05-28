@@ -284,7 +284,7 @@
                 {% endif %}
                 {% if not current_user.has_role('anonymous') %}
                     {% if flexmeasures_version %}
-                        on version {{ flexmeasures_version }}
+                        on version {{ flexmeasures_version }}.
                     {% else %}
                         {% if git_version != "Unknown" %}
                         on version {{ git_version }}+{{ git_commits_since }}.
@@ -292,6 +292,9 @@
                         on revision {{ git_hash }}.
                         {% endif %}
                     {% endif %}
+                {% endif %}
+                {% if loaded_plugins %}
+                    Loaded plugins: {{ loaded_plugins }}.
                 {% endif %}
             </div>
             <div>
