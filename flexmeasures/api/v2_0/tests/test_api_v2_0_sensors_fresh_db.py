@@ -4,7 +4,7 @@ import pytest
 from flask import url_for
 from iso8601 import parse_date
 
-from flexmeasures.api.common.utils.api_utils import get_generic_asset
+from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v2_0.tests.utils import (
     message_for_post_price_data,
@@ -15,8 +15,8 @@ from flexmeasures.api.v2_0.tests.utils import (
 @pytest.mark.parametrize(
     "post_message",
     [
-        message_for_post_price_data(),
-        message_for_post_price_data(prior_instead_of_horizon=True),
+        message_for_post_price_data(market_id=7),
+        message_for_post_price_data(market_id=1, prior_instead_of_horizon=True),
     ],
 )
 def test_post_price_data_2_0(
@@ -46,7 +46,7 @@ def test_post_price_data_2_0(
         assert post_price_data_response.json["type"] == "PostPriceDataResponse"
 
     verify_sensor_data_in_db(
-        post_message, post_message["values"], db, entity_type="market"
+        post_message, post_message["values"], db, entity_type="market", fm_scheme="fm1"
     )
 
     # look for Forecasting jobs in queue
@@ -55,7 +55,7 @@ def test_post_price_data_2_0(
     )  # only one market is affected, but two horizons
     horizons = [timedelta(hours=24), timedelta(hours=48)]
     jobs = sorted(app.queues["forecasting"].jobs, key=lambda x: x.kwargs["horizon"])
-    market = get_generic_asset(post_message["market"], "market")
+    market = SensorField("market", fm_scheme="fm1").deserialize(post_message["market"])
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon

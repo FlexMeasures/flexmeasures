@@ -147,7 +147,7 @@
                         <td>{{ market.display_name }}</td>
                         <td>{{ market.unit[:3] }}</td>
                         <td>
-                            {% if not average_prices[market.name] | isnan %}
+                            {% if not average_prices[market.name] | isnull %}
                             {{ "{:,.2f}".format( average_prices[market.name] ) }} {{ market.unit }}
                             {% else %}
                             Unknown for the requested period

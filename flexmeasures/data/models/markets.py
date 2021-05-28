@@ -6,6 +6,7 @@ from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.time_series import Sensor, TimedValue
+from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
 
 
@@ -77,6 +78,18 @@ class Market(db.Model, tb.SensorDBMixin):
         self.name = self.name.replace(" ", "_").lower()
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
+
+    @property
+    def entity_address_fm0(self) -> str:
+        """Entity address under the fm0 scheme for entity addresses."""
+        return build_entity_address(
+            dict(market_name=self.name), "market", fm_scheme="fm0"
+        )
+
+    @property
+    def entity_address(self) -> str:
+        """Entity address under the latest fm scheme for entity addresses."""
+        return build_entity_address(dict(sensor_id=self.id), "sensor")
 
     @property
     def price_unit(self) -> str:

@@ -24,6 +24,7 @@ from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.markets import Market, MarketType, Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import User
@@ -446,6 +447,56 @@ def add_charging_station_assets(
         "Test charging station": charging_station,
         "Test charging station (bidirectional)": bidirectional_charging_station,
     }
+
+
+@pytest.fixture(scope="module")
+def add_weather_sensors(db) -> Dict[str, WeatherSensor]:
+    return create_weather_sensors(db)
+
+
+@pytest.fixture(scope="function")
+def add_weather_sensors_fresh_db(fresh_db) -> Dict[str, WeatherSensor]:
+    return create_weather_sensors(fresh_db)
+
+
+def create_weather_sensors(db: SQLAlchemy):
+    """Add some weather sensors and weather sensor types."""
+
+    test_sensor_type = WeatherSensorType(name="wind_speed")
+    db.session.add(test_sensor_type)
+    wind_sensor = WeatherSensor(
+        name="wind_speed_sensor",
+        weather_sensor_type_name="wind_speed",
+        event_resolution=timedelta(minutes=5),
+        latitude=33.4843866,
+        longitude=126,
+        unit="m/s",
+    )
+    db.session.add(wind_sensor)
+
+    test_sensor_type = WeatherSensorType(name="temperature")
+    db.session.add(test_sensor_type)
+    temp_sensor = WeatherSensor(
+        name="temperature_sensor",
+        weather_sensor_type_name="temperature",
+        event_resolution=timedelta(minutes=5),
+        latitude=33.4843866,
+        longitude=126.0,
+        unit="°C",
+    )
+    db.session.add(temp_sensor)
+    return {"wind": wind_sensor, "temperature": temp_sensor}
+
+
+@pytest.fixture(scope="module")
+def add_sensors(db: SQLAlchemy):
+    """Add some generic sensors."""
+    height_sensor = Sensor(
+        name="my daughter's height",
+        unit="m",
+    )
+    db.session.add(height_sensor)
+    return height_sensor
 
 
 @pytest.fixture(scope="function")

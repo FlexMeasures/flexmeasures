@@ -50,7 +50,7 @@ from flexmeasures.api.common.utils.validators import (
 )
 @optional_prior_accepted(ex_post=True, infer_missing=False)
 @period_required
-@get_data_downsampling_allowed("connection")
+@get_data_downsampling_allowed("connection", "fm0")
 @as_json
 def get_meter_data_response(
     unit,
@@ -101,7 +101,7 @@ def get_meter_data_response(
     ex_post=True, infer_missing=True, accept_repeating_interval=True
 )
 @period_required
-@post_data_checked_for_required_resolution("connection")
+@post_data_checked_for_required_resolution("connection", "fm0")
 @as_json
 def post_meter_data_response(
     unit,
@@ -184,7 +184,7 @@ def collect_connection_and_value_groups(
             # Parse the entity address
             try:
                 connection_details = parse_entity_address(
-                    connection, entity_type="connection"
+                    connection, entity_type="connection", fm_scheme="fm0"
                 )
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
@@ -257,7 +257,9 @@ def create_connection_and_value_groups(  # noqa: C901
             # TODO: get asset through util function after refactoring
             # Parse the entity address
             try:
-                connection = parse_entity_address(connection, entity_type="connection")
+                connection = parse_entity_address(
+                    connection, entity_type="connection", fm_scheme="fm0"
+                )
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
             asset_id = connection["asset_id"]

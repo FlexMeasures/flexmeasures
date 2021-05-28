@@ -12,10 +12,9 @@ import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.models.assets import Asset, Power
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.utils import save_to_session
-from flexmeasures.utils.entity_address_utils import parse_entity_address
 from flexmeasures.api.common.responses import (
     unrecognized_sensor,
     ResponseTuple,
@@ -284,7 +283,7 @@ def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
 
 def get_weather_sensor_by(
     weather_sensor_type_name: str, latitude: float = 0, longitude: float = 0
-) -> WeatherSensor:
+) -> Union[WeatherSensor, ResponseTuple]:
     """
     Search a weather sensor by type and location.
     Can create a weather sensor if needed (depends on API mode)
@@ -332,29 +331,6 @@ def get_weather_sensor_by(
             else:
                 return unrecognized_sensor()
     return weather_sensor
-
-
-def get_generic_asset(
-    asset_descriptor, entity_type
-) -> Union[Asset, Market, WeatherSensor, None]:
-    """
-    Get a generic asset from form information
-    # TODO: After refactoring, unify 3 generic_asset cases -> 1 sensor case
-    """
-    ea = parse_entity_address(asset_descriptor, entity_type=entity_type)
-    if ea is None:
-        return None
-    if entity_type == "connection":
-        return Asset.query.filter(Asset.id == ea["asset_id"]).one_or_none()
-    elif entity_type == "market":
-        return Market.query.filter(Market.name == ea["market_name"]).one_or_none()
-    elif entity_type == "sensor":
-        return get_weather_sensor_by(
-            ea["weather_sensor_type_name"],
-            ea["latitude"],
-            ea["longitude"],
-        )
-    return None
 
 
 def save_to_db(

@@ -50,7 +50,7 @@ from flexmeasures.utils.entity_address_utils import (
 @optional_prior_accepted(infer_missing=True, infer_missing_play=False)
 @values_required
 @period_required
-@post_data_checked_for_required_resolution("market")
+@post_data_checked_for_required_resolution("market", "fm1")
 def post_price_data_response(  # noqa C901
     unit,
     generic_asset_name_groups,
@@ -80,12 +80,12 @@ def post_price_data_response(  # noqa C901
                 ea = parse_entity_address(market, entity_type="market")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
-            market_name = ea["market_name"]
+            market_id = ea["sensor_id"]
 
             # Look for the Market object
-            market = Market.query.filter(Market.name == market_name).one_or_none()
+            market = Market.query.filter(Market.id == market_id).one_or_none()
             if market is None:
-                return unrecognized_market(market_name)
+                return unrecognized_market(market_id)
             elif unit != market.unit:
                 return invalid_unit("%s prices" % market.display_name, [market.unit])
 
@@ -129,12 +129,12 @@ def post_price_data_response(  # noqa C901
 
 @type_accepted("PostWeatherDataRequest")
 @unit_required
-@assets_required("sensor")
+@assets_required("weather_sensor")
 @optional_horizon_accepted(infer_missing=False, infer_missing_play=True)
 @optional_prior_accepted(infer_missing=True, infer_missing_play=False)
 @values_required
 @period_required
-@post_data_checked_for_required_resolution("sensor")
+@post_data_checked_for_required_resolution("weather_sensor", "fm1")
 def post_weather_data_response(  # noqa: C901
     unit,
     generic_asset_name_groups,
@@ -160,7 +160,7 @@ def post_weather_data_response(  # noqa: C901
 
             # Parse the entity address
             try:
-                ea = parse_entity_address(sensor, entity_type="sensor")
+                ea = parse_entity_address(sensor, entity_type="weather_sensor")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
             weather_sensor_type_name = ea["weather_sensor_type_name"]
@@ -225,7 +225,7 @@ def post_weather_data_response(  # noqa: C901
 @optional_horizon_accepted(ex_post=True, infer_missing=False, infer_missing_play=True)
 @optional_prior_accepted(ex_post=True, infer_missing=True, infer_missing_play=False)
 @period_required
-@post_data_checked_for_required_resolution("connection")
+@post_data_checked_for_required_resolution("connection", "fm1")
 @as_json
 def post_meter_data_response(
     unit,
@@ -257,7 +257,7 @@ def post_meter_data_response(
 @optional_horizon_accepted(ex_post=False, infer_missing=False, infer_missing_play=False)
 @optional_prior_accepted(ex_post=False, infer_missing=True, infer_missing_play=False)
 @period_required
-@post_data_checked_for_required_resolution("connection")
+@post_data_checked_for_required_resolution("connection", "fm1")
 @as_json
 def post_prognosis_response(
     unit,
@@ -314,10 +314,10 @@ def post_power_data(
             # TODO: get asset through util function after refactoring
             # Parse the entity address
             try:
-                connection = parse_entity_address(connection, entity_type="connection")
+                ea = parse_entity_address(connection, entity_type="connection")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
-            asset_id = connection["asset_id"]
+            asset_id = ea["sensor_id"]
 
             # Look for the Asset object
             if asset_id in user_asset_ids:

@@ -8,7 +8,7 @@ from flexmeasures.data.schemas.times import DurationField, DurationValidationErr
 
 
 @pytest.mark.parametrize(
-    "duration_input,exp_deserialization",
+    "duration_input, exp_deserialization",
     [
         ("PT1H", timedelta(hours=1)),
         ("PT6M", timedelta(minutes=6)),
@@ -25,7 +25,7 @@ def test_duration_field_straightforward(duration_input, exp_deserialization):
 
 
 @pytest.mark.parametrize(
-    "duration_input,exp_deserialization,grounded_timedelta",
+    "duration_input, exp_deserialization, grounded_timedelta",
     [
         ("P1M", isodate.Duration(months=1), timedelta(days=29)),
         ("PT24H", isodate.Duration(hours=24), timedelta(hours=24)),
@@ -59,7 +59,7 @@ def test_duration_field_nominal_grounded(
 
 
 @pytest.mark.parametrize(
-    "duration_input,error_msg",
+    "duration_input, error_msg",
     [
         ("", "Unable to parse duration string"),
         ("1H", "Unable to parse duration string"),

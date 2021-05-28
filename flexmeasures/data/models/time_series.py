@@ -16,6 +16,7 @@ from flexmeasures.data.queries.utils import (
     exclude_source_type_filter,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
+from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
@@ -28,6 +29,10 @@ class Sensor(db.Model, tb.SensorDBMixin):
         tb.SensorDBMixin.__init__(self, name, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.SensorDBMixin, kwargs)
         db.Model.__init__(self, **kwargs)
+
+    @property
+    def entity_address(self) -> str:
+        return build_entity_address(dict(sensor_id=self.id), "sensor")
 
     def search_beliefs(
         self,
@@ -116,7 +121,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
 
     @property
     def timerange(self) -> Dict[str, datetime_type]:
-        """Timerange for which sensor data exists.
+        """Time range for which sensor data exists.
 
         :returns: dictionary with start and end, for example:
                   {
