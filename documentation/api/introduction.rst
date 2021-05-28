@@ -149,11 +149,12 @@ Here is a full example for a FlexMeasures connection address:
 .. code-block:: json
 
     {
-        "connection": "ea1.2021-02.io.flexmeasures.company:30:73"
+        "connection": "ea1.2021-02.io.flexmeasures.company:fm0.30:73"
     }
 
-where FlexMeasures runs at `company.flexmeasures.io` and the owner ID is 30 and the asset ID is 73.
-The owner ID is optional. Both the owner ID and the asset ID, as well as the full entity address can be obtained on the asset's listing after logging in:
+where FlexMeasures runs at `company.flexmeasures.io` (which the current domain owner started using in February 2021), and the locally unique string is of scheme `fm0` (see below) and the asset ID is 73. The asset's owner ID is 30, but this part is optional.
+
+Both the owner ID and the asset ID, as well as the full entity address can be obtained on the asset's listing:
 
 .. code-block:: html
 
@@ -167,7 +168,7 @@ Some deeper explanations about an entity address:
 - "ea1" is a constant, indicating this is a type 1 USEF entity address
 - The date code "must be a date during which the naming authority owned the domain name used in this format, and should be the first month in which the domain name was owned by this naming authority at 00:01 GMT of the first day of the month.
 - The reversed domain name is taken from the naming authority (person or organization) creating this entity address
-- The locally unique string can be used for local purposes, and FlexMeasures uses it to identify the resource (more information in parse_entity_address).
+- The locally unique string can be used for local purposes, and FlexMeasures uses it to identify the resource.
   Fields in the locally unique string are separated by colons, see for other examples
   IETF RFC 3721, page 6 [3]. While [2] says it's possible to use dashes, dots or colons as separators, we might use dashes and dots in
   latitude/longitude coordinates of sensors, so we settle on colons.
@@ -229,8 +230,8 @@ When the attributes "start", "duration" and "unit" are stated outside of "groups
         "groups": [
             {
                 "connections": [
-                    "ea1.2021-02.io.flexmeasures.company:30:71",
-                    "ea1.2021-02.io.flexmeasures.company:30:72"
+                    "ea1.2021-02.io.flexmeasures.company:fm0.30:71",
+                    "ea1.2021-02.io.flexmeasures.company:fm0.30:72"
                 ],
                 "values": [
                     306.66,
@@ -242,7 +243,7 @@ When the attributes "start", "duration" and "unit" are stated outside of "groups
                 ]
             },
             {
-                "connection": "ea1.2021-02.io.flexmeasures.company:30:73"
+                "connection": "ea1.2021-02.io.flexmeasures.company:fm0.30:73"
                 "values": [
                     306.66,
                     0,
@@ -264,8 +265,8 @@ In case of a single group of connections, the message may be flattened to:
 
     {
         "connections": [
-            "ea1.2021-02.io.flexmeasures.company:30:71",
-            "ea1.2021-02.io.flexmeasures.company:30:72"
+            "ea1.2021-02.io.flexmeasures.company:fm0.30:71",
+            "ea1.2021-02.io.flexmeasures.company:fm0.30:72"
         ],
         "values": [
             306.66,

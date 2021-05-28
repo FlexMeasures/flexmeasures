@@ -6,6 +6,14 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This also reflects in the URL, allowing developers to upgrade at their own pace.
 
 
+v2.0-3 | 2021-05-XX
+"""""""""""""""""
+
+- Updated all entity addresses in documentation according to the fm0 scheme, preserving backwards compatibility.
+- Introduced the fm1 scheme for entity addresses for connections, markets, weather sensors and sensors.
+
+
+
 v2.0-2 | 2021-04-02
 """""""""""""""""
 
@@ -31,7 +39,7 @@ v2.0-0 | 2020-11-14
 - REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
 
 
-v1.3.9 | 2021-04-XX
+v1.3.9 | 2021-04-21
 """""""""""""""""
 
 *Affects all versions since v1.0*.
