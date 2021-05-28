@@ -17,7 +17,7 @@ Use the config setting :ref:`plugin-config` to point to your plugin(s).
 
 Here are the assumptions FlexMeasures makes to be able to import your Blueprint:
 
-- The plugin folder contains an __init__.py file.
+- The plugin folder contains an ``__init__.py`` file.
 - In this init, you define a Blueprint object called ``<plugin folder>_bp``.
     
 We'll refer to the plugin with the name of your plugin folder.
@@ -26,14 +26,14 @@ We'll refer to the plugin with the name of your plugin folder.
 Showcase
 ^^^^^^^^^
 
-Here is a showcase file which constitutes a FlexMeasures plugin. We imagine that we made a plugin to implement some custom logic for a client. 
+Here is a showcase file which constitutes a FlexMeasures plugin called ``our_client``.
 
-We created the file ``<some_folder>/our_client/__init__.py``. So, ``our_client`` is the plugin folder and becomes the plugin name.
-All else that is needed for this showcase (not shown here) is ``<some_folder>/our_client/templates/metrics.html``, which works just as other FlexMeasures templates (they are Jinja2 templates and you can start them with ``{% extends "base.html" %}`` for integration into the FlexMeasures structure).
-
-
-* We demonstrate adding a view which can be rendered via the FlexMeasures base templates.
+* We demonstrate adding a view, which can be rendered using the FlexMeasures base templates.
 * We also showcase a CLI function which has access to the FlexMeasures `app` object. It can be called via ``flexmeasures our_client test``. 
+
+We first create the file ``<some_folder>/our_client/__init__.py``. This means that ``our_client`` is the plugin folder and becomes the plugin name.
+
+With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` is a complete plugin.
 
 .. code-block:: python
 
@@ -46,17 +46,18 @@ All else that is needed for this showcase (not shown here) is ``<some_folder>/ou
     our_client_bp = Blueprint('our_client', 'our_client',
                               template_folder='templates')
 
+    __version__ = "2.0"
 
     # Showcase: Adding a view
 
     @our_client_bp.route('/')
-    @our_client_bp.route('/metrics')
+    @our_client_bp.route('/my-page')
     @login_required
     def metrics():
-        msg = "I am part of FM !"
+        msg = "I am a FlexMeasures plugin !"
         # Note that we render via the in-built FlexMeasures way
         return render_flexmeasures_template(
-            "metrics.html",
+            "my_page.html",
             message=msg,
         )
 
@@ -76,9 +77,49 @@ All else that is needed for this showcase (not shown here) is ``<some_folder>/ou
         print(f"I am a CLI command, part of FlexMeasures: {current_app}")
 
 
-.. note:: You can overwrite FlexMeasures routes here. In our example above, we set the root route ``/``. FlexMeasures registers plugin routes before its own, so in this case visiting the root URL of your app will display this plugged-in view (the same you'd see at `/metrics`).
+.. note:: You can overwrite FlexMeasures routing in your plugin. In our example above, we are using the root route ``/``. FlexMeasures registers plugin routes before its own, so in this case visiting the root URL of your app will display this plugged-in view (the same you'd see at `/my-page`).
 
-.. note:: Plugin views can also be added to the FlexMeasures UI menu ― just name them in the config setting :ref:`menu-config`.
+.. note:: The ``__version__`` attribute is being displayed in the standard FlexMeasures UI footer, where we show loaded plugins. Of course, it can also useful for your own maintenance.
+
+
+The template would live at ``<some_folder>/our_client/templates/my_page.html``, which works just as other FlexMeasures templates (they are Jinja2 templates):
+
+.. code-block:: html
+
+    {% extends "base.html" %}
+
+    {% set active_page = "my-page" %}
+
+    {% block title %} Our client Dashboard {% endblock %}
+
+    {% block divs %}
+    
+        <!-- This is where your custom content goes... -->
+
+        {{ message }}
+
+    {% endblock %}
+
+
+.. note:: Plugin views can also be added to the FlexMeasures UI menu ― just name them in the config setting :ref:`menu-config`. In this example, add ``my-page``. This also will make the ``active_page`` setting in the above template useful (highlights the current page in the menu).
+
+Starting the template with ``{% extends "base.html" %}`` integrates your page content into the FlexMeasures UI structure. You can also extend a different base template. For instance, we find it handy to extend ``base.html`` with a custom base template, to extend the footer, as shown below:
+
+ .. code-block:: html
+
+    {% extends "base.html" %}
+
+    {% block copyright_notice %}
+
+    Created by <a href="https://seita.nl/">Seita Energy Flexibility</a>,
+    in cooperation with <a href="https://ourclient.nl/">Our Client</a>
+    &copy
+    <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.
+    
+    {% endblock copyright_notice %}
+
+We'd name this file ``our_client_base.html``. Then, we'd extend our page template from ``our_client_base.html``, instead of ``base.html``.
+
 
 Validating data with marshmallow
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
