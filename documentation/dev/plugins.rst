@@ -121,46 +121,6 @@ Starting the template with ``{% extends "base.html" %}`` integrates your page co
 We'd name this file ``our_client_base.html``. Then, we'd extend our page template from ``our_client_base.html``, instead of ``base.html``.
 
 
-Validating data with marshmallow
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-FlexMeasures validates input data using `marshmallow <https://marshmallow.readthedocs.io/>`_.
-Data fields can be made suitable for use in CLI commands through our ``MarshmallowClickMixin``.
-An example:
-
-.. code-block:: python
-
-    from datetime import datetime
-    from typing import Optional
-
-    import click
-    from flexmeasures.data.schemas.times import AwareDateTimeField
-    from flexmeasures.data.schemas.utils import MarshmallowClickMixin
-    from marshmallow import fields
-
-    class StrField(fields.Str, MarshmallowClickMixin):
-        """String field validator usable for UI routes and CLI functions."""
-
-    @click.command("meet")
-    @click.option(
-        "--where",
-        required=True,
-        type=StrField(),  # see above: we just made this field suitable for CLI functions
-        help="(Required) Where we meet",
-    )
-    @click.option(
-        "--when",
-        required=False,
-        type=AwareDateTimeField(format="iso"),  # FlexMeasures already made this field suitable for CLI functions
-        help="[Optional] When we meet (expects timezone-aware ISO 8601 datetime format)",
-    )
-    def schedule_meeting(
-        where: str,
-        when: Optional[datetime] = None,
-    ):
-        print(f"Okay, see you {where} on {when}.")
-
-
 Using other files in your plugin
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -178,7 +138,50 @@ This can be done if you put the plugin path on the import path. Do it like this 
     from my_other_file import my_function
 
 
-Customising the login teaser
+Validating arguments in your CLI commands with marshmallow
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Arguments to CLI commands can be validated using `marshmallow <https://marshmallow.readthedocs.io/>`_.
+FlexMeasures is using this functionality (via the ``MarshmallowClickMixin`` class) and also defines some custom field schemas.
+We demonstrate this here, and also show how you can add your own custom field schema:
+
+.. code-block:: python
+
+    from datetime import datetime
+    from typing import Optional
+
+    import click
+    from flexmeasures.data.schemas.times import AwareDateTimeField
+    from flexmeasures.data.schemas.utils import MarshmallowClickMixin
+    from marshmallow import fields
+
+    class CLIStrField(fields.Str, MarshmallowClickMixin):
+        """
+        String field validator, made usable for CLI functions.
+        You could also define your own validations here.
+        """
+
+    @click.command("meet")
+    @click.option(
+        "--where",
+        required=True,
+        type=CLIStrField(),
+        help="(Required) Where we meet",
+    )
+    @click.option(
+        "--when",
+        required=False,
+        type=AwareDateTimeField(format="iso"),  # FlexMeasures already made this field suitable for CLI functions
+        help="[Optional] When we meet (expects timezone-aware ISO 8601 datetime format)",
+    )
+    def schedule_meeting(
+        where: str,
+        when: Optional[datetime] = None,
+    ):
+        print(f"Okay, see you {where} on {when}.")
+
+
+Customising the login page teaser
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 FlexMeasures shows an image carousel next to its login form (see ``ui/templates/admin/login_user.html``).
@@ -198,5 +201,7 @@ You can overwrite this content by adding your own login template and defining th
 Place this template file in the template folder of your plugin blueprint (see above). Your template must have a different filename than "login_user", so FlexMeasures will find it properly!
 
 Finally, add this config setting to your FlexMeasures config file (using the template filename you chose, obviously):
+
+ .. code-block:: bash
 
     SECURITY_LOGIN_USER_TEMPLATE = "my_user_login.html"
