@@ -328,6 +328,7 @@ def add_beliefs(
     decimal: str = ".",
     thousands: str = "",
     sheet_number: Optional[int] = None,
+    **kwargs,
 ):
     """Add sensor data from a csv file (also accepts xls or xlsx).
 
@@ -360,7 +361,6 @@ def add_beliefs(
         _source = get_or_create_source(source, source_type="CLI script")
 
     # Set up optional parameters for read_csv
-    kwargs = dict()
     if file.split(".")[-1].lower() == "csv":
         kwargs["infer_datetime_format"] = True
         kwargs["delimiter"] = delimiter
