@@ -287,6 +287,13 @@ def add_initial_structure():
     help="Column number with values (1 is 2nd column, the default)",
 )
 @click.option(
+    "--delimiter",
+    required=True,
+    type=str,
+    default=",",
+    help="[For csv files] Character to delimit columns per row, defaults to comma",
+)
+@click.option(
     "--decimal",
     required=False,
     default=".",
@@ -294,11 +301,11 @@ def add_initial_structure():
     help="[For csv files] decimal character, e.g. '.' for 10.5",
 )
 @click.option(
-    "--delimiter",
-    required=True,
+    "--thousands",
+    required=False,
+    default="",
     type=str,
-    default=",",
-    help="[For csv files] Character to delimit columns per row, defaults to comma",
+    help="[For csv files] thousands separator, e.g. '.' for 10.035,2",
 )
 @click.option(
     "--sheet_number",
@@ -317,9 +324,11 @@ def add_beliefs(
     nrows: Optional[int] = None,
     datecol: int = 0,
     valuecol: int = 1,
-    decimal: str = ".",
     delimiter: str = ",",
+    decimal: str = ".",
+    thousands: str = "",
     sheet_number: Optional[int] = None,
+    **kwargs,  # in-code calls to this CLI command can set additional kwargs for use in pandas.read_csv or pandas.read_excel
 ):
     """Add sensor data from a csv file (also accepts xls or xlsx).
 
@@ -352,11 +361,11 @@ def add_beliefs(
         _source = get_or_create_source(source, source_type="CLI script")
 
     # Set up optional parameters for read_csv
-    kwargs = dict()
     if file.split(".")[-1].lower() == "csv":
         kwargs["infer_datetime_format"] = True
-        kwargs["decimal"] = decimal
         kwargs["delimiter"] = delimiter
+        kwargs["decimal"] = decimal
+        kwargs["thousands"] = thousands
     if sheet_number is not None:
         kwargs["sheet_name"] = sheet_number
     if horizon is not None:
