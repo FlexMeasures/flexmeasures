@@ -328,7 +328,7 @@ def add_beliefs(
     decimal: str = ".",
     thousands: str = "",
     sheet_number: Optional[int] = None,
-    **kwargs,
+    **kwargs,  # in-code calls to this CLI command can set additional kwargs for use in pandas.read_csv or pandas.read_excel
 ):
     """Add sensor data from a csv file (also accepts xls or xlsx).
 
