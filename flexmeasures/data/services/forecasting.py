@@ -30,7 +30,7 @@ from flexmeasures.utils.time_utils import (
 """
 The life cycle of a forecasting job:
 1. A forecasting job is born in create_forecasting_jobs.
-2. It is run in make_forecasts which writes results to the db.
+2. It is run in make_rolling_viewpoint_forecasts or make_fixed_viewpoint_forecasts, which write results to the db.
    This is also where model specs are configured and a possible fallback model is stored for step 3.
 3. If an error occurs (and the worker is configured accordingly), handle_forecasting_exception comes in.
    This might re-enqueue the job or try a different model (which creates a new job).
@@ -98,7 +98,7 @@ def create_forecasting_jobs(
     jobs: List[Job] = []
     for horizon in horizons:
         job = Job.create(
-            make_forecasts,
+            make_rolling_viewpoint_forecasts,
             kwargs=dict(
                 asset_id=asset_id,
                 timed_value_type=timed_value_type,
@@ -117,7 +117,7 @@ def create_forecasting_jobs(
     return jobs
 
 
-def make_forecasts(
+def make_rolling_viewpoint_forecasts(
     asset_id: int,
     timed_value_type: str,
     horizon: timedelta,
@@ -262,7 +262,7 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
     if "fallback_model_search_term" in job.meta:
         if job.meta["fallback_model_search_term"] is not None:
             new_job = Job.create(
-                make_forecasts,
+                make_rolling_viewpoint_forecasts,
                 args=job.args,
                 kwargs=job.kwargs,
                 connection=current_app.queues["forecasting"].connection,
