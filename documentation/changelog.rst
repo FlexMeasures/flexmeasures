@@ -3,7 +3,7 @@ FlexMeasures Changelog
 **********************
 
 
-v0.5.0 | May XX, 2021
+v0.5.0 | June 7, 2021
 ===========================
 
 .. warning:: If you retrieve weather forecasts through FlexMeasures: we had to switch to OpenWeatherMap, as Dark Sky is closing. This requires an update to config variables ― the new setting is called ``OPENWEATHERMAP_API_KEY``.
@@ -13,6 +13,8 @@ New features
 * Allow plugins to overwrite UI routes and customise the teaser on the login form [see `PR #106 <http://www.github.com/SeitaBV/flexmeasures/pull/106>`_]
 * Allow plugins to customise the copyright notice and credits in the UI footer [see `PR #123 <http://www.github.com/SeitaBV/flexmeasures/pull/123>`_]
 * Display loaded plugins in footer and support plugin versioning [see `PR #139 <http://www.github.com/SeitaBV/flexmeasures/pull/139>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v050-openweathermap-plugin-customisation/>`__.
 
 Bugfixes
 -----------
@@ -48,8 +50,8 @@ v0.4.0 | April 29, 2021
 
 New features
 -----------
-* Configure the UI menu with ``FLEXMEASURES_LISTED_VIEWS`` [see `PR #91 <https://github.com/SeitaBV/flexmeasures/pull/91>`_]
 * Allow for views and CLI functions to come from plugins [see also `PR #91 <https://github.com/SeitaBV/flexmeasures/pull/91>`_]
+* Configure the UI menu with ``FLEXMEASURES_LISTED_VIEWS`` [see `PR #91 <https://github.com/SeitaBV/flexmeasures/pull/91>`_]
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v040-plugin-support/>`__.
 

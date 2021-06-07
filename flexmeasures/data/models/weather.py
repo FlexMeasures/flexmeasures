@@ -208,3 +208,12 @@ class Weather(TimedValue, db.Model):
 
     def __init__(self, **kwargs):
         super(Weather, self).__init__(**kwargs)
+
+    def __repr__(self):
+        return "<Weather %.5f on sensor %s at %s by DataSource %s, horizon %s>" % (
+            self.value,
+            self.sensor_id,
+            self.datetime,
+            self.data_source_id,
+            self.horizon,
+        )

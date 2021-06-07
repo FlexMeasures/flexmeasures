@@ -6,7 +6,7 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This also reflects in the URL, allowing developers to upgrade at their own pace.
 
 
-v2.0-3 | 2021-05-XX
+v2.0-3 | 2021-06-07
 """""""""""""""""
 
 - Updated all entity addresses in documentation according to the fm0 scheme, preserving backwards compatibility.
