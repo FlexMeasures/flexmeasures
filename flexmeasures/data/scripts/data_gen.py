@@ -6,6 +6,7 @@ from pathlib import Path
 from shutil import rmtree
 from datetime import datetime, timedelta
 
+import pandas as pd
 from flask import current_app as app
 from flask_sqlalchemy import SQLAlchemy
 import click
@@ -287,6 +288,15 @@ def populate_time_series_forecasts(  # noqa: C901
                 forecasts, model_state = make_rolling_forecasts(
                     start=forecast_start, end=forecast_end, model_specs=model_specs
                 )
+                # Upsample to sensor resolution if needed
+                if forecasts.index.freq > pd.Timedelta(generic_asset.event_resolution):
+                    index = pd.date_range(
+                        forecast_start,
+                        forecast_end,
+                        freq=generic_asset.event_resolution,
+                        closed="left",
+                    )
+                    forecasts = forecasts.reindex(index).fillna(method="pad")
             except (NotEnoughDataException, MissingData, NaNData) as e:
                 click.echo(
                     "Skipping forecasts for asset %s: %s" % (generic_asset, str(e))
