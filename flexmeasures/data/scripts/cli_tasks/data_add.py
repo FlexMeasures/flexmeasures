@@ -488,7 +488,12 @@ def create_forecasts(
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
 
         populate_time_series_forecasts(
-            app.db, horizons, forecast_start, forecast_end, asset_type, asset_id
+            db=app.db,
+            horizons=horizons,
+            forecast_start=forecast_start,
+            forecast_end=forecast_end,
+            generic_asset_type=asset_type,
+            generic_asset_id=asset_id,
         )
 
 

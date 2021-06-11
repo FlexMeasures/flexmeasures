@@ -200,8 +200,8 @@ def populate_structure(db: SQLAlchemy):
 def populate_time_series_forecasts(  # noqa: C901
     db: SQLAlchemy,
     horizons: List[timedelta],
-    start: datetime,
-    end: datetime,
+    forecast_start: datetime,
+    forecast_end: datetime,
     generic_asset_type: Optional[str] = None,
     generic_asset_id: Optional[int] = None,
 ):
@@ -262,8 +262,8 @@ def populate_time_series_forecasts(  # noqa: C901
                 default_model = lookup_model_specs_configurator()
                 model_specs, model_identifier, model_fallback = default_model(
                     generic_asset=generic_asset,
-                    forecast_start=start,
-                    forecast_end=end,
+                    forecast_start=forecast_start,
+                    forecast_end=forecast_end,
                     forecast_horizon=horizon,
                     custom_model_params=dict(
                         training_and_testing_period=training_and_testing_period
@@ -275,15 +275,15 @@ def populate_time_series_forecasts(  # noqa: C901
                     % (
                         naturaldelta(horizon),
                         generic_asset.name,
-                        start,
-                        end,
+                        forecast_start,
+                        forecast_end,
                         naturaldelta(training_and_testing_period),
                         model_identifier,
                     )
                 )
-                model_specs.creation_time = start
+                model_specs.creation_time = forecast_start
                 forecasts, model_state = make_rolling_forecasts(
-                    start=start, end=end, model_specs=model_specs
+                    start=forecast_start, end=forecast_end, model_specs=model_specs
                 )
             except (NotEnoughDataException, MissingData, NaNData) as e:
                 click.echo(
