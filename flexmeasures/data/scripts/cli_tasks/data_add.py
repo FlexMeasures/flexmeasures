@@ -454,17 +454,17 @@ def create_forecasts(
 
         --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6
 
-        This will create forecast values from 0am on May 2nd to 0am on May 4th,
+        This will create forecast values from 0am on May 2nd to 0am on May 5th,
         based on a 6 hour horizon.
 
     """
     # make horizons
     horizons = [timedelta(hours=int(h)) for h in horizons]
 
-    # apply timezone:
+    # apply timezone and set forecast_end to make to_date inclusive
     timezone = app.config.get("FLEXMEASURES_TIMEZONE")
-    from_date = pd.Timestamp(from_date).tz_localize(timezone)
-    to_date = pd.Timestamp(to_date).tz_localize(timezone)
+    forecast_start = pd.Timestamp(from_date).tz_localize(timezone)
+    forecast_end = (pd.Timestamp(to_date) + pd.Timedelta("1D")).tz_localize(timezone)
 
     if as_job:
         if asset_type == "Asset":
@@ -481,14 +481,14 @@ def create_forecasts(
                 asset_id=asset_id,
                 timed_value_type=value_type,
                 horizons=[horizon],
-                start_of_roll=from_date - horizon,
-                end_of_roll=to_date - horizon,
+                start_of_roll=forecast_start - horizon,
+                end_of_roll=forecast_end - horizon,
             )
     else:
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
 
         populate_time_series_forecasts(
-            app.db, horizons, from_date, to_date, asset_type, asset_id
+            app.db, horizons, forecast_start, forecast_end, asset_type, asset_id
         )
 
 
