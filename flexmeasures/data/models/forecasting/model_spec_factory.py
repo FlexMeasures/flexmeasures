@@ -102,17 +102,22 @@ def create_initial_model_specs(  # noqa: C901
         feature_transformation=params.get("outcome_var_transformation", None),
         interpolation_config={"method": "time"},
     )
+    # Set defaults if needed
+    if params.get("event_resolution", None) is None:
+        params["event_resolution"] = generic_asset.event_resolution
+    if params.get("remodel_frequency", None) is None:
+        params["remodel_frequency"] = timedelta(days=7)
     specs = ModelSpecs(
         outcome_var=outcome_var_spec,
         model=None,  # at least this will need to be configured still to make these specs usable!
-        frequency=generic_asset.event_resolution,
+        frequency=params["event_resolution"],  # todo: timetomodel doesn't distinguish frequency and resolution yet
         horizon=forecast_horizon,
-        lags=[int(lag / generic_asset.event_resolution) for lag in lags],
+        lags=[int(lag / params["event_resolution"]) for lag in lags],
         regressors=regressor_specs,
         start_of_training=training_start,
         end_of_testing=testing_end,
         ratio_training_testing_data=params["ratio_training_testing_data"],
-        remodel_frequency=timedelta(days=7),
+        remodel_frequency=params["remodel_frequency"],
     )
 
     return specs

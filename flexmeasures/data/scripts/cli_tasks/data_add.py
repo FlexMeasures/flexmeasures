@@ -425,6 +425,11 @@ def add_beliefs(
     help="Forecast to date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
 )
 @click.option(
+    "--resolution",
+    type=int,
+    help="Resolution of forecast in minutes. If not set, resolution is determined from the asset to be forecasted",
+)
+@click.option(
     "--horizon",
     "horizons",
     multiple=True,
@@ -444,6 +449,7 @@ def create_forecasts(
     asset_id: int = None,
     from_date: str = "2015-02-08",
     to_date: str = "2015-12-31",
+    resolution: Optional[int] = None,
     horizons: List[str] = ["1"],
     as_job: bool = False,
 ):
@@ -465,6 +471,9 @@ def create_forecasts(
     timezone = app.config.get("FLEXMEASURES_TIMEZONE")
     forecast_start = pd.Timestamp(from_date).tz_localize(timezone)
     forecast_end = (pd.Timestamp(to_date) + pd.Timedelta("1D")).tz_localize(timezone)
+
+    if resolution is not None:
+        event_resolution = timedelta(minutes=resolution)
 
     if as_job:
         if asset_type == "Asset":
@@ -492,6 +501,7 @@ def create_forecasts(
             horizons=horizons,
             forecast_start=forecast_start,
             forecast_end=forecast_end,
+            event_resolution=event_resolution,
             generic_asset_type=asset_type,
             generic_asset_id=asset_id,
         )

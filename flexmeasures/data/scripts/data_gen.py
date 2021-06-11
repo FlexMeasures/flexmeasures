@@ -202,6 +202,7 @@ def populate_time_series_forecasts(  # noqa: C901
     horizons: List[timedelta],
     forecast_start: datetime,
     forecast_end: datetime,
+    event_resolution: Optional[timedelta] = None,
     generic_asset_type: Optional[str] = None,
     generic_asset_id: Optional[int] = None,
 ):
@@ -266,7 +267,8 @@ def populate_time_series_forecasts(  # noqa: C901
                     forecast_end=forecast_end,
                     forecast_horizon=horizon,
                     custom_model_params=dict(
-                        training_and_testing_period=training_and_testing_period
+                        training_and_testing_period=training_and_testing_period,
+                        event_resolution=event_resolution,
                     ),
                 )
                 click.echo(
