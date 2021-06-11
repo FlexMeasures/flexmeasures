@@ -1,9 +1,23 @@
-from typing import Union, Optional, List
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Union
+from datetime import datetime, timedelta, tzinfo
+import logging
+import pytz
 
 from flask import current_app
-from timetomodel import DBSeriesSpecs, ModelSpecs
-from timetomodel.transforming import BoxCoxTransformation, Transformation
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Query
+from flexmeasures.data.queries.utils import (
+    simplify_index,
+)
+from timetomodel import ModelSpecs
+from timetomodel.exceptions import MissingData, NaNData
+from timetomodel.speccing import SeriesSpecs
+from timetomodel.transforming import (
+    BoxCoxTransformation,
+    ReversibleTransformation,
+    Transformation,
+)
+import pandas as pd
 
 from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.markets import MarketType, Market
@@ -25,6 +39,75 @@ Here we generate an initial version of timetomodel specs, given what asset and w
 is defined.
 These specs can be customized.
 """
+
+
+logger = logging.getLogger(__name__)
+
+
+class TBSeriesSpecs(SeriesSpecs):
+
+    """Define how to collect timely beliefs.
+    This sets up a class which to call `collect` on, together with parameters to pass.
+    The collect function should return a BeliefsDataFrame.
+    """
+
+    db: Engine
+    generic_asset_value_class: Any  # with collect method
+    collect_params: dict
+
+    def __init__(
+        self,
+        db_engine: Engine,
+        generic_asset_value_class,
+        collect_params: dict,
+        name: str,
+        original_tz: Optional[tzinfo] = pytz.utc,  # postgres stores naive datetimes
+        feature_transformation: Optional[ReversibleTransformation] = None,
+        post_load_processing: Optional[Transformation] = None,
+        resampling_config: Dict[str, Any] = None,
+        interpolation_config: Dict[str, Any] = None,
+    ):
+        super().__init__(
+            name,
+            original_tz,
+            feature_transformation,
+            post_load_processing,
+            resampling_config,
+            interpolation_config,
+        )
+        self.db_engine = db_engine
+        self.generic_asset_value_class = generic_asset_value_class
+        self.collect_params = collect_params
+
+    def _load_series(self) -> pd.Series:
+        logger.info(
+            "Reading %s data from database" % self.generic_asset_value_class.__name__
+        )
+
+        bdf = self.generic_asset_value_class.collect(**self.collect_params)
+        self.check_data(bdf)
+        df = simplify_index(bdf)
+
+        if self.post_load_processing is not None:
+            df = self.post_load_processing.transform_dataframe(df)
+
+        return df["event_value"]
+
+    def check_data(self, df: pd.DataFrame):
+        """Raise error if data is empty or contains nan values.
+        Here, other than in load_series, we can show the query, which is quite helpful."""
+        if df.empty:
+            raise MissingData(
+                "No values found in database for the requested %s data. It's no use to continue I'm afraid."
+                " Here's a print-out of the collect arguments:\n\n%s\n\n"
+                % (self.generic_asset_value_class.__name__, self.collect_params,)
+            )
+        if df.isnull().values.any():
+            raise NaNData(
+                "Nan values found in database for the requested %s data. It's no use to continue I'm afraid."
+                " Here's a print-out of the collect arguments:\n\n%s\n\n"
+                % (self.generic_asset_value_class.__name__, self.collect_params,)
+            )
 
 
 def create_initial_model_specs(  # noqa: C901
@@ -90,14 +173,14 @@ def create_initial_model_specs(  # noqa: C901
     if ex_post_horizon is None:
         ex_post_horizon = timedelta(hours=0)
 
-    outcome_var_spec = DBSeriesSpecs(
+    outcome_var_spec = TBSeriesSpecs(
         name=generic_asset_type.name,
         db_engine=db.engine,
-        query=generic_asset_value_class.make_query(
-            asset_names=[generic_asset.name],
+        generic_asset_value_class=generic_asset_value_class,
+        collect_params=dict(
+            generic_asset_names=[generic_asset.name],
             query_window=query_window,
             belief_horizon_window=(None, ex_post_horizon),
-            session=db.session,
         ),
         feature_transformation=params.get("outcome_var_transformation", None),
         interpolation_config={"method": "time"},
@@ -110,7 +193,9 @@ def create_initial_model_specs(  # noqa: C901
     specs = ModelSpecs(
         outcome_var=outcome_var_spec,
         model=None,  # at least this will need to be configured still to make these specs usable!
-        frequency=params["event_resolution"],  # todo: timetomodel doesn't distinguish frequency and resolution yet
+        frequency=params[
+            "event_resolution"
+        ],  # todo: timetomodel doesn't distinguish frequency and resolution yet
         horizon=forecast_horizon,
         lags=[int(lag / params["event_resolution"]) for lag in lags],
         regressors=regressor_specs,
@@ -180,7 +265,7 @@ def configure_regressors_for_nearest_weather_sensor(
     horizon,
     regressor_transformation,  # the regressor transformation can be passed in
     transform_to_normal,  # if not, it a normalization can be applied
-) -> List[DBSeriesSpecs]:
+) -> List[TBSeriesSpecs]:
     """For Assets, we use weather data as regressors. Here, we configure them."""
     regressor_specs = []
     if isinstance(generic_asset, Asset):
@@ -213,14 +298,14 @@ def configure_regressors_for_nearest_weather_sensor(
                         )
                     )
                 regressor_specs.append(
-                    DBSeriesSpecs(
+                    TBSeriesSpecs(
                         name=regressor_specs_name,
                         db_engine=db.engine,
-                        query=Weather.make_query(
-                            asset_names=[closest_sensor.name],
+                        generic_asset_value_class=Weather,
+                        collect_params=dict(
+                            generic_asset_names=[closest_sensor.name],
                             query_window=query_window,
                             belief_horizon_window=(horizon, None),
-                            session=db.session,
                         ),
                         feature_transformation=regressor_transformation,
                         interpolation_config={"method": "time"},
