@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timedelta, tzinfo
+from pprint import pformat
 import logging
 import pytz
 
@@ -99,14 +100,20 @@ class TBSeriesSpecs(SeriesSpecs):
         if df.empty:
             raise MissingData(
                 "No values found in database for the requested %s data. It's no use to continue I'm afraid."
-                " Here's a print-out of the collect arguments:\n\n%s\n\n"
-                % (self.generic_asset_value_class.__name__, self.collect_params,)
+                " Here's a print-out of what I tried to collect:\n\n%s\n\n"
+                % (
+                    self.generic_asset_value_class.__name__,
+                    pformat(self.collect_params, sort_dicts=False),
+                )
             )
         if df.isnull().values.any():
             raise NaNData(
                 "Nan values found in database for the requested %s data. It's no use to continue I'm afraid."
-                " Here's a print-out of the collect arguments:\n\n%s\n\n"
-                % (self.generic_asset_value_class.__name__, self.collect_params,)
+                " Here's a print-out of what I tried to collect:\n\n%s\n\n"
+                % (
+                    self.generic_asset_value_class.__name__,
+                    pformat(self.collect_params, sort_dicts=False),
+                )
             )
 
 
