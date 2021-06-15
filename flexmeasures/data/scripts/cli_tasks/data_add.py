@@ -474,6 +474,8 @@ def create_forecasts(
 
     if resolution is not None:
         event_resolution = timedelta(minutes=resolution)
+    else:
+        event_resolution = None
 
     if as_job:
         if asset_type == "Asset":
