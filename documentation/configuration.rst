@@ -160,6 +160,15 @@ Token which external services can use to check on the status of recurring tasks 
 Default: ``None``
 
 
+SENTRY_SDN
+^^^^^^^^^^^^
+
+Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `debug` or `testing` mode.
+E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
+
+Default: ``None``
+
+
 SQLAlchemy
 ----------
 

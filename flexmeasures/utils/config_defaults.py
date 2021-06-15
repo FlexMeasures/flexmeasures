@@ -75,6 +75,8 @@ class Config(object):
         3000  # Web interface poll period for updates in ms
     )
 
+    SENTRY_DSN: Optional[str] = None
+
     FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
