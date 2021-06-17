@@ -338,6 +338,14 @@ Password of mail system user.
 Default: ``None``
 
 
+MAIL_MONITORING_RECIPIENTS
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Mail addresses (comma-separated) to send monitoring alerts to. For example "fred@one.com,wilma@two.com"
+
+Default: ``None``
+
+
 .. _redis-config:
 
 Redis

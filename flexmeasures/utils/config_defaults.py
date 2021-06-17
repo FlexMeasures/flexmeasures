@@ -41,6 +41,7 @@ class Config(object):
         "no-reply@example.com",
     )  # tuple of name and email address
     MAIL_PASSWORD: Optional[str] = None
+    MAIL_MONITORING_RECIPIENTS = None
 
     SECURITY_REGISTERABLE = False
     SECURITY_LOGIN_USER_TEMPLATE = "admin/login_user.html"
