@@ -56,7 +56,7 @@ def analytics_view():
     markets = get_markets()
     assets = get_assets(order_by_asset_attribute="display_name", order_direction="asc")
     asset_groups = get_asset_group_queries(
-        custom_additional_groups=["renewables", "EVSE", "each Charge Point"]
+        custom_additional_groups=["renewables", "EVSE", "location"]
     )
     asset_group_names: List[str] = [
         group for group in asset_groups if asset_groups[group].count() > 0
@@ -138,7 +138,7 @@ def analytics_view():
         tools=tools,
     )
     # the bottom plots need a separate x axis if they get their own legend (Bokeh complains otherwise)
-    # this means in that in that corner case zooming will not work across all foour plots
+    # this means in that in that corner case zooming will not work across all four plots
     prices_fig = make_prices_figure(
         data["prices"],
         data["prices_forecast"],
@@ -230,7 +230,7 @@ def analytics_data_view(content, content_type):
     # Maybe move some of this stuff into get_data_and_metrics
     assets = get_assets(order_by_asset_attribute="display_name", order_direction="asc")
     asset_groups = get_asset_group_queries(
-        custom_additional_groups=["renewables", "EVSE", "each Charge Point"]
+        custom_additional_groups=["renewables", "EVSE", "location"]
     )
     asset_group_names: List[str] = [
         group for group in asset_groups if asset_groups[group].count() > 0
@@ -263,7 +263,7 @@ def analytics_data_view(content, content_type):
         selected_resource.assets,
     )
 
-    hor = session["forecast_horizon"]
+    horizon = session["forecast_horizon"]
     rev_cost_header = (
         "costs/revenues" if show_consumption_as_positive else "revenues/costs"
     )
@@ -276,19 +276,19 @@ def analytics_data_view(content, content_type):
         "power_data_label",
         "power",
         "power_forecast_label",
-        f"power_forecast_{hor}",
+        f"power_forecast_{horizon}",
         f"{weather_type}_label",
         f"{weather_type}",
         f"{weather_type}_forecast_label",
-        f"{weather_type}_forecast_{hor}",
+        f"{weather_type}_forecast_{horizon}",
         "price_label",
         f"price_on_{selected_market.name}",
         "price_forecast_label",
-        f"price_forecast_{hor}",
+        f"price_forecast_{horizon}",
         f"{rev_cost_header}_label",
         rev_cost_header,
         f"{rev_cost_header}_forecast_label",
-        f"{rev_cost_header}_forecast_{hor}",
+        f"{rev_cost_header}_forecast_{horizon}",
     ]
     source_units = [
         "",
