@@ -36,13 +36,13 @@ def send_monitoring_alert(
 
     capture_message_for_sentry(msg)
 
-    email_recipients = app.config.get("MAIL_MONITORING_RECIPIENTS", "").split(",")
+    email_recipients = app.config.get("FLEXMEASURES_MONITORING_MAIL_RECIPIENTS", [])
     if len(email_recipients) > 0:
         email = Message(subject=f"Problem with task {task_name}", bcc=email_recipients)
         email.body = f"{msg}\n\n{latest_run_txt}\nWe suggest to check the logs."
         app.mail.send(email)
 
-    app.logger.error(f"msg  {latest_run_txt}")
+    app.logger.error(f"{msg} {latest_run_txt}")
 
 
 @fm_monitor.command("tasks")

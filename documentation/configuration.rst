@@ -365,12 +365,13 @@ Token which external services can use to check on the status of recurring tasks 
 Default: ``None``
 
 
-MAIL_MONITORING_RECIPIENTS
+FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Mail addresses (comma-separated) to send monitoring alerts to. For example "fred@one.com,wilma@two.com"
+E-mail addresses to send monitoring alerts to from the CLI task ``flexmeasures monitor tasks``. For example ``["fred@one.com", "wilma@two.com"]``
 
-Default: ``None``
+Default: ``[]``
+
 
 .. _redis-config:
 

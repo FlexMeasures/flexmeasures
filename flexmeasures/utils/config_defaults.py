@@ -80,8 +80,8 @@ class Config(object):
     # traces_sample_rate is for performance monitoring across all transactions,
     # you probably want to adjust this.
     FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
-    MAIL_MONITORING_RECIPIENTS = None
-    
+    FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: List[str] = []
+
     FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
