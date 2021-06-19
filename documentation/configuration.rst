@@ -330,7 +330,7 @@ Monitoring
 Monitoring potential problems in FlexMeasure's operations.
 
 
-SENTRY_SDN
+SENTRY_DSN
 ^^^^^^^^^^^^
 
 Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `debug` or `testing` mode.
