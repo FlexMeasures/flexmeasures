@@ -481,8 +481,8 @@ def create_forecasts(
                 asset_id=asset_id,
                 timed_value_type=value_type,
                 horizons=[horizon],
-                start_of_roll=from_date - timedelta(hours=horizon),
-                end_of_roll=to_date - timedelta(hours=horizon),
+                start_of_roll=from_date - horizon,
+                end_of_roll=to_date - horizon,
             )
     else:
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts

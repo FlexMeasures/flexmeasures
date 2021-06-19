@@ -50,7 +50,7 @@ def configure_logging():
     loggingDictConfig(flexmeasures_logging_config)
 
 
-def read_config(app: Flask, path_to_config: Optional[str]):
+def read_config(app: Flask, custom_path_to_config: Optional[str]):
     """Read configuration from various expected sources, complain if not setup correctly. """
 
     if app.env not in (
@@ -65,21 +65,22 @@ def read_config(app: Flask, path_to_config: Optional[str]):
         )
         sys.exit(2)
 
-    # Load default config settings
+    # First, load default config settings
     app.config.from_object(
         "flexmeasures.utils.config_defaults.%sConfig" % camelize(app.env)
     )
 
-    # Now read user config, if possible. If no explicit path is given, try home dir first, then instance dir
+    # Now, potentially overwrite those from config file
+    # These two locations are possible (besides the custom path)
     path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
     path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
-    if not app.testing:
+    if not app.testing:  # testing runs completely on defaults
+        # If no custom path is given, this will try home dir first, then instance dir
         used_path_to_config = read_custom_config(
-            app, path_to_config, path_to_config_home, path_to_config_instance
+            app, custom_path_to_config, path_to_config_home, path_to_config_instance
         )
 
     # Check for missing values.
-    # Testing might affect only specific functionality (-> dev's responsibility)
     # Documentation runs fine without them.
     if not app.testing and app.env != "documentation":
         if not are_required_settings_complete(app):
@@ -126,7 +127,7 @@ def read_custom_config(
         app.config.from_pyfile(path_to_config)
     except FileNotFoundError:
         pass
-    # Finally, all required varaiables can be set as env var:
+    # Finally, all required variables can be set as env var:
     for req_var in required:
         app.config[req_var] = os.getenv(req_var, app.config.get(req_var, None))
     return path_to_config

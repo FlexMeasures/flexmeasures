@@ -4,15 +4,50 @@ import importlib.util
 
 import click
 from flask import Flask
-from flask.cli import FlaskGroup
+from flask.cli import FlaskGroup, with_appcontext
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
+from sentry_sdk.integrations.rq import RqIntegration
+from pkg_resources import get_distribution
 
 from flexmeasures.app import create as create_app
 
 
 @click.group(cls=FlaskGroup, create_app=create_app)
+@with_appcontext
 def flexmeasures_cli():
-    """Management scripts for the FlexMeasures platform."""
+    """
+    Management scripts for the FlexMeasures platform.
+    We use @app_context here so things from the app setup are initialised
+    only once. This is crucial for Sentry, for example.
+    """
     pass
+
+
+def init_sentry(app: Flask):
+    """
+    Configure Sentry.
+    We need the app to read the Sentry DSN from configuration, and also
+    to send some additional meta information.
+    """
+    sentry_dsn = app.config.get("SENTRY_DSN")
+    if not sentry_dsn:
+        app.logger.info(
+            "[FLEXMEASURES] No SENTRY_DSN setting found, so initialising Sentry cannot happen ..."
+        )
+        return
+    app.logger.info("[FLEXMEASURES] Initialising Sentry ...")
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        integrations=[FlaskIntegration(), RqIntegration()],
+        debug=app.debug,
+        release=f"flexmeasures@{get_distribution('flexmeasures').version}",
+        send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
+        environment=app.env,
+        **app.config["FLEXMEASURES_SENTRY_CONFIG"],
+    )
+    sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))
+    sentry_sdk.set_tag("platform-name", app.config.get("FLEXMEASURES_PLATFORM_NAME"))
 
 
 def set_secret_key(app, filename="secret_key"):
@@ -104,3 +139,4 @@ def register_plugins(app: Flask):
         plugin_version = getattr(plugin_blueprint, "__version__", "0.1")
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
+    sentry_sdk.set_context("plugins", app.config.get("LOADED_PLUGINS", {}))

@@ -14,6 +14,8 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 
+* Add possibility to send errors to Sentry [see `PR #143 <http://www.github.com/SeitaBV/flexmeasures/pull/143>`_]
+
 
 v0.5.0 | June 7, 2021
 ===========================

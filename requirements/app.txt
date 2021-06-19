@@ -22,12 +22,15 @@ blinker==1.4
     # via
     #   flask-mail
     #   flask-principal
+    #   sentry-sdk
 bokeh==1.0.4
     # via
     #   -r requirements/app.in
     #   pandas-bokeh
 certifi==2020.12.5
-    # via requests
+    # via
+    #   requests
+    #   sentry-sdk
 cffi==1.14.5
     # via bcrypt
 cftime==1.4.1
@@ -99,6 +102,7 @@ flask==1.1.2
     #   flask-sslify
     #   flask-wtf
     #   rq-dashboard
+    #   sentry-sdk
 greenlet==1.0.0
     # via sqlalchemy
 humanize==3.3.0
@@ -280,6 +284,8 @@ scipy==1.6.2
     #   timetomodel
 selenium==3.141.0
     # via timely-beliefs
+sentry-sdk[flask]==1.1.0
+    # via -r requirements/app.in
 siphon==0.9
     # via -r requirements/app.in
 six==1.15.0
@@ -331,6 +337,7 @@ urllib3==1.26.4
     # via
     #   requests
     #   selenium
+    #   sentry-sdk
 webargs==7.0.1
     # via -r requirements/app.in
 werkzeug==1.0.1

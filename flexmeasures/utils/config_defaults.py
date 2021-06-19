@@ -75,6 +75,12 @@ class Config(object):
         3000  # Web interface poll period for updates in ms
     )
 
+    SENTRY_DSN: Optional[str] = None
+    # Place additional Sentry config here.
+    # traces_sample_rate is for performance monitoring across all transactions,
+    # you probably want to adjust this.
+    FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
+
     FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"

@@ -48,6 +48,7 @@ Flask-Security-Too>=4.0
 Flask-Classful
 Flask-Marshmallow
 Flask-Cors
+sentry-sdk[flask]
 marshmallow-sqlalchemy>=0.23.1
 webargs
 # flask should be after all the flask plugins, because setup might find they ARE flask
