@@ -44,11 +44,7 @@ def init_sentry(app: Flask):
         release=f"flexmeasures@{get_distribution('flexmeasures').version}",
         send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
         environment=app.env,
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
-        # We recommend adjusting this value in production.
-        # TODO: Decide if we need this and if to configure it.
-        traces_sample_rate=0.33,
+        **app.config["FLEXMEASURES_SENTRY_CONFIG"],
     )
     sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))
     sentry_sdk.set_tag("platform-name", app.config.get("FLEXMEASURES_PLATFORM_NAME"))
