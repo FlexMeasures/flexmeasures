@@ -41,7 +41,6 @@ class Config(object):
         "no-reply@example.com",
     )  # tuple of name and email address
     MAIL_PASSWORD: Optional[str] = None
-    MAIL_MONITORING_RECIPIENTS = None
 
     SECURITY_REGISTERABLE = False
     SECURITY_LOGIN_USER_TEMPLATE = "admin/login_user.html"
@@ -77,7 +76,12 @@ class Config(object):
     )
 
     SENTRY_DSN: Optional[str] = None
-
+    # Place additional Sentry config here.
+    # traces_sample_rate is for performance monitoring across all transactions,
+    # you probably want to adjust this.
+    FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
+    MAIL_MONITORING_RECIPIENTS = None
+    
     FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"

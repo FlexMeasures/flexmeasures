@@ -133,13 +133,13 @@ The horizon to use when making schedules.
 Default: ``timedelta(hours=2 * 24)``
 
 
-Tokens
-------
+Access Tokens
+---------------
 
 OPENWEATHERMAP_API_KEY
 ^^^^^^^^^^^^^^^^
 
-Token for accessing the OPenWeatherMap weather forecasting service.
+Token for accessing the OpenWeatherMap weather forecasting service.
 
 Default: ``None``
 
@@ -149,13 +149,6 @@ MAPBOX_ACCESS_TOKEN
 ^^^^^^^^^^^^^^^^^^^
 
 Token for accessing the MapBox API (for displaying maps on the dashboard and asset pages). You can learn how to obtain one `here <https://docs.mapbox.com/help/glossary/access-token/>`_
-
-Default: ``None``
-
-FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Token which external services can use to check on the status of recurring tasks within FlexMeasures.
 
 Default: ``None``
 
@@ -338,13 +331,46 @@ Password of mail system user.
 Default: ``None``
 
 
+.. _monitoring
+
+Monitoring
+-----------
+
+Monitoring potential problems in FlexMeasure's operations.
+
+
+SENTRY_DSN
+^^^^^^^^^^^^
+
+Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `debug` or `testing` mode.
+E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
+
+Default: ``None``
+
+
+FLEXMEASURES_SENTRY_CONFIG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary with values to configure reporting to Sentry. Some options are taken care of by FlexMeasures (e.g. environment and release), but not all.
+See `here <https://docs.sentry.io/platforms/python/configuration/options/>_` for a complete list.
+
+Default: ``{}``
+
+
+FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Token which external services can use to check on the status of recurring tasks within FlexMeasures.
+
+Default: ``None``
+
+
 MAIL_MONITORING_RECIPIENTS
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 Mail addresses (comma-separated) to send monitoring alerts to. For example "fred@one.com,wilma@two.com"
 
 Default: ``None``
-
 
 .. _redis-config:
 
