@@ -153,6 +153,15 @@ Token for accessing the MapBox API (for displaying maps on the dashboard and ass
 Default: ``None``
 
 
+SENTRY_SDN
+^^^^^^^^^^^^
+
+Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `debug` or `testing` mode.
+E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
+
+Default: ``None``
+
+
 SQLAlchemy
 ----------
 
@@ -355,6 +364,13 @@ Token which external services can use to check on the status of recurring tasks 
 
 Default: ``None``
 
+
+FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
+^^^^^^^^^^^^^^^^^^^^^^^
+
+E-mail addresses to send monitoring alerts to from the CLI task ``flexmeasures monitor tasks``. For example ``["fred@one.com", "wilma@two.com"]``
+
+Default: ``[]``
 
 
 .. _redis-config:
