@@ -69,12 +69,9 @@ def monitor_tasks(task):
             return
         now = server_now()
         acceptable_interval = timedelta(minutes=t[1])
-        if (
-            now - acceptable_interval
-            <= latest_run.datetime
-            <= now + acceptable_interval
-        ):
-            # last time is okay, let's check the status
+        # check if latest run was recently enough
+        if latest_run.datetime >= now - acceptable_interval:
+            # latest run time is okay, let's check the status
             if latest_run.status is False:
                 msg = f"A failure has been reported on task {task_name}."
                 send_monitoring_alert(task_name, msg, latest_run)
