@@ -116,8 +116,8 @@ def get_asset_group_queries(
                                      Valid names are:
                                      - "renewables", to query all solar and wind assets
                                      - "EVSE", to query all Electric Vehicle Supply Equipment
-                                     - "each Charge Point", to query each individual Charge Point
-                                                            (i.e. all EVSE at 1 location)
+                                     - "location", to query each individual location with assets
+                                                            (i.e. all EVSE at 1 location or each household)
     :param all_users: if True, do not filter out assets that do not belong to the user (use with care)
     """
 
@@ -141,19 +141,18 @@ def get_asset_group_queries(
             asset_type_name=asset_type.name
         )
 
+    # 3. Finally, we group assets by location
+    if "location" in custom_additional_groups:
+        asset_queries.update(get_location_queries())
+
     if not all_users:
         asset_queries = mask_inaccessible_assets(asset_queries)
-
-    # 3. We group EVSE assets by location (if they share a location, they belong to the same Charge Point)
-    if "each Charge Point" in custom_additional_groups:
-        asset_queries.update(get_charge_point_queries())
 
     return asset_queries
 
 
-def get_charge_point_queries() -> Dict[str, Query]:
+def get_location_queries() -> Dict[str, Query]:
     """
-    A Charge Point is defined similarly to asset groups (see get_asset_group_queries).
     We group EVSE assets by location (if they share a location, they belong to the same Charge Point)
     Like get_asset_group_queries, the values in the returned dict still need an executive call, like all(), count() or first().
 
@@ -163,18 +162,29 @@ def get_charge_point_queries() -> Dict[str, Query]:
         evse_display_name = "Seoul Hilton - charger 1"
     Then:
         charge_point_display_name = "Seoul Hilton (Charge Point)"
+
+    A Charge Point is a special case. If all assets on a location are of type EVSE,
+    we can call the location a "Charge Point".
     """
     asset_queries = {}
-    all_evse_assets = Asset.query.filter(
-        Asset.asset_type_name.in_(["one-way_evse", "two-way_evse"])
-    ).all()
-    cp_groups = group_assets_by_location(all_evse_assets)
-    for cp_group in cp_groups:
-        charge_point_name = cp_group[0].display_name.split(" -")[0] + " (Charge Point)"
-        asset_queries[charge_point_name] = Asset.query.filter(
-            Asset.name.in_([evse.name for evse in cp_group])
+    all_assets = Asset.query.all()
+    loc_groups = group_assets_by_location(all_assets)
+    for loc_group in loc_groups:
+        if len(loc_group) == 1:
+            continue
+        location_type = "(Location)"
+        if all(
+            [
+                asset.asset_type_name in ["one-way_evse", "two-way_evse"]
+                for asset in loc_group
+            ]
+        ):
+            location_type = "(Charge Point)"
+        location_name = f"{loc_group[0].display_name.split(' -')[0]} {location_type}"
+        asset_queries[location_name] = Asset.query.filter(
+            Asset.name.in_([asset.name for asset in loc_group])
         )
-    return mask_inaccessible_assets(asset_queries)
+    return asset_queries
 
 
 def mask_inaccessible_assets(
@@ -316,7 +326,7 @@ class Resource:
 
         # Query assets for all users to set some public information about the resource
         asset_queries = get_asset_group_queries(
-            custom_additional_groups=["renewables", "EVSE", "each Charge Point"],
+            custom_additional_groups=["renewables", "EVSE", "location"],
             all_users=True,
         )
         asset_query = (
@@ -382,7 +392,7 @@ class Resource:
 
     @property
     def parameterized_name(self) -> str:
-        """Get a parameterized name for use in javascript."""
+        """Get a parametrized name for use in javascript."""
         return parameterize(self.name)
 
     def load_sensor_data(

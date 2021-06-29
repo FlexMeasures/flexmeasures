@@ -7,6 +7,8 @@ v0.6.0 | July XX, 2021
 
 New features
 -----------
+* Analytics view offers grouping of all assets by location [see `PR #148 <http://www.github.com/SeitaBV/flexmeasures/pull/148>`_]
+
 
 Bugfixes
 -----------
