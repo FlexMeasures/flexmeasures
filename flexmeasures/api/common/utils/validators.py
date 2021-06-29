@@ -47,6 +47,14 @@ from flexmeasures.data.config import db
 from flexmeasures.data.services.users import get_users
 from flexmeasures.utils.time_utils import server_now
 
+"""
+This module has validators used by API endpoints <= 2.0 to describe
+acceptable parameters.
+We aim to make this module obsolete by using Marshmallow.
+Marshmallow is a better format to describe valid data.
+There is some actual logic in here, which we still need. It can usually be ported to Marshmallow validators.
+"""
+
 
 p = inflect.engine()
 
