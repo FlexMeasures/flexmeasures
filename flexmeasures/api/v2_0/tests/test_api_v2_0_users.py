@@ -1,7 +1,6 @@
 from flask import url_for
 import pytest
 
-# from flexmeasures.data.models.user import User
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext
 
@@ -92,7 +91,7 @@ def test_edit_user(client):
     )
     assert user_edit_response.status_code == 401
     # admin can deactivate supplier, other changes will be ignored
-    # (id is in the Userschema of the API, but we ignore it)
+    # (id is in the User schema of the API, but we ignore it)
     headers = {"content-type": "application/json", "Authorization": prosumer_auth_token}
     user_edit_response = client.patch(
         url_for("flexmeasures_api_v2_0.patch_user", id=supplier_id),

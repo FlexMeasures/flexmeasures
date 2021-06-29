@@ -10,11 +10,11 @@ class SensorDataDescriptionSchema(ma.Schema):
     Describing sensor data (i.e. in a GET request).
 
     TODO: when we want to support other entity types with this
-          schema (weather/markets or sensors/actuators), we'll need some re-design.
+          schema (assets/weather/markets or sensors/actuators), we'll need some re-design.
     """
 
     type = fields.Str()  # type of request or response
-    connection = SensorField(entity_type="connection", fm_scheme="fm1")
+    connection = SensorField(entity_type="sensor", fm_scheme="fm1")
     start = AwareDateTimeField(format="iso")
     duration = DurationField()
     unit = fields.Str()

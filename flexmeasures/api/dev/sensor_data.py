@@ -6,14 +6,14 @@ from webargs.flaskparser import use_args
 import pandas as pd
 from timely_beliefs import BeliefsDataFrame
 
+from flexmeasures.data.config import db
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.api.common.schemas.sensor_data import SensorDataSchema
 from flexmeasures.utils.time_utils import timedelta_to_pandas_freq_str
 
 
 # TODO
-# - SensorDataDescriptionSchema (with type?)
-# - SensorDataSchema (+values, de-serialize to BDF)
 # - stub for get_data (and for serializing to BDF)
 # - implement post_data
 # - add tests
@@ -50,8 +50,8 @@ def post_data(sensor_data):
         belief_horizon=timedelta(hours=0),
     )
     # save beliefs
-    # TODO: bdf.save
-    print(bdf)
+    TimedBelief.add_to_session(session=db.session, beliefs_data_frame=bdf)
+    db.session.commit()
     return dict(status="ok")
 
 
