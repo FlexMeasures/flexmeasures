@@ -46,7 +46,7 @@ def post_data(sensor_data):
     bdf: BeliefsDataFrame = BeliefsDataFrame(
         s,
         source=source,
-        sensor=sensor_data["connection"],
+        sensor=sensor_data["sensor"],
         belief_horizon=timedelta(hours=0),
     )
     # save beliefs
@@ -56,4 +56,5 @@ def post_data(sensor_data):
 
 
 def get_data():
+    # use data.models.time_series.Sensor::search_beliefs()
     pass

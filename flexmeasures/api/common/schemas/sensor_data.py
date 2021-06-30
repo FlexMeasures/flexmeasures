@@ -17,7 +17,7 @@ class SensorDataDescriptionSchema(ma.Schema):
     """
 
     type = fields.Str()  # type of request or response
-    connection = SensorField(entity_type="sensor", fm_scheme="fm1")
+    sensor = SensorField(entity_type="sensor", fm_scheme="fm1")
     start = AwareDateTimeField(format="iso")
     duration = DurationField()
     unit = fields.Str()
@@ -35,8 +35,10 @@ class SensorDataSchema(SensorDataDescriptionSchema):
     @validates_schema(skip_on_field_errors=False)
     def check_resolution_compatibility(self, data, **kwargs):
         inferred_resolution = data["duration"] / len(data["values"])
-        required_resolution = data["connection"].event_resolution
-        # TODO: next line fails on sensors with 0 resolution
+        required_resolution = data["sensor"].event_resolution
+        # TODO: we don't yet have a good policy w.r.t. zero-resolution (direct measurement)
+        if required_resolution == timedelta(hours=0):
+            return
         if inferred_resolution % required_resolution != timedelta(hours=0):
             raise ValidationError(
                 f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
@@ -48,12 +50,16 @@ class SensorDataSchema(SensorDataDescriptionSchema):
         Upsample the data if needed, to fit to the sensor's resolution.
         """
         inferred_resolution = data["duration"] / len(data["values"])
-        required_resolution = data["connection"].event_resolution
+        required_resolution = data["sensor"].event_resolution
+
+        # TODO: we don't yet have a good policy w.r.t. zero-resolution (direct measurement)
+        if required_resolution == timedelta(hours=0):
+            return data
 
         # we already know resolutions are compatible (see validation)
         if inferred_resolution != required_resolution:
             data["values"] = upsample_values(
-                data["value"],
+                data["values"],
                 from_resolution=inferred_resolution,
                 to_resolution=required_resolution,
             )
