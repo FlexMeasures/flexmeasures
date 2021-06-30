@@ -7,6 +7,8 @@ v0.6.0 | July XX, 2021
 
 New features
 -----------
+* Add (experimental) endpoint to post sensor data for any sensor. Also supports our ongoing integration with data internally represented using the `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib [see `PR #147 <http://www.github.com/SeitaBV/flexmeasures/pull/147>`_]
+
 
 Bugfixes
 -----------
