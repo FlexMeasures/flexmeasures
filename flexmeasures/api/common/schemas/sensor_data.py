@@ -13,7 +13,7 @@ class SensorDataDescriptionSchema(ma.Schema):
     Describing sensor data (i.e. in a GET request).
 
     TODO: when we want to support other entity types with this
-          schema (assets/weather/markets or sensors/actuators), we'll need some re-design.
+          schema (assets/weather/markets or actuators), we'll need some re-design.
     """
 
     type = fields.Str()  # type of request or response
@@ -32,7 +32,7 @@ class SensorDataSchema(SensorDataDescriptionSchema):
           (sets a resolution parameter which we can pass to the data collection function).
     """
 
-    @validates_schema()
+    @validates_schema
     def check_resolution_compatibility(self, data, **kwargs):
         inferred_resolution = data["duration"] / len(data["values"])
         required_resolution = data["sensor"].event_resolution
@@ -42,6 +42,13 @@ class SensorDataSchema(SensorDataDescriptionSchema):
         if inferred_resolution % required_resolution != timedelta(hours=0):
             raise ValidationError(
                 f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
+            )
+
+    @validates_schema
+    def check_posted_unit_against_sensor_unit(self, data, **kwargs):
+        if data["unit"] != data["sensor"].unit:
+            raise ValidationError(
+                f"Required unit for this sensor is {data['sensor'].unit}, got: {data['unit']}"
             )
 
     @post_load()

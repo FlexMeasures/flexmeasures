@@ -32,8 +32,7 @@ def post_data(sensor_data):
     source = DataSource.query.get(current_user.id)
     if not source:
         raise abort(400, f"User {current_user.id} is not an accepted data source.")
-    # TODO: check unit against sensor.unit? Can we leave it out?
-    # TODO: The following could go to SensorDataSchema._deserialize
+    # TODO: The following could go to SensorDataSchema._deserialize if we want it to return a bdf
     num_values = len(sensor_data["values"])
     step_duration = sensor_data["duration"] / num_values
     dt_index = pd.date_range(

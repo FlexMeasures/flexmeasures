@@ -35,6 +35,7 @@ def test_post_sensor_data_bad_auth(client, use_auth):
     [
         ("duration", "PT30M", "_schema", "Resolution of 0:05:00 is incompatible"),
         ("sensor", "ea1.2021-01.io.flexmeasures:fm1.666", "sensor", "doesn't exist"),
+        ("unit", "m", "_schema", "Required unit"),
     ],
 )
 def test_post_invalid_sensor_data(
@@ -52,7 +53,3 @@ def test_post_invalid_sensor_data(
     print(response.json)
     assert response.status_code == 422
     assert error_text in response.json["message"]["json"][error_field][0]
-
-
-# TODO:
-# - test with wrong unit
