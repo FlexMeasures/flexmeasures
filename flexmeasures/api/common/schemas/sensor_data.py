@@ -32,7 +32,7 @@ class SensorDataSchema(SensorDataDescriptionSchema):
           (sets a resolution parameter which we can pass to the data collection function).
     """
 
-    @validates_schema(skip_on_field_errors=False)
+    @validates_schema()
     def check_resolution_compatibility(self, data, **kwargs):
         inferred_resolution = data["duration"] / len(data["values"])
         required_resolution = data["sensor"].event_resolution

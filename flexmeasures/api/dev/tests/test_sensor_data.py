@@ -34,7 +34,7 @@ def test_post_sensor_data_bad_auth(client, use_auth):
     "request_field, new_value, error_field, error_text",
     [
         ("duration", "PT30M", "_schema", "Resolution of 0:05:00 is incompatible"),
-        ("sensor", "ea1.2021-01.io.flexmeasures:fm1.666", "sensor", "BLA"),
+        ("sensor", "ea1.2021-01.io.flexmeasures:fm1.666", "sensor", "doesn't exist"),
     ],
 )
 def test_post_invalid_sensor_data(
@@ -55,6 +55,4 @@ def test_post_invalid_sensor_data(
 
 
 # TODO:
-# - test with non-existing sensor
 # - test with wrong unit
-# - test with invalid event resolution
