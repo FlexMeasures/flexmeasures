@@ -1,35 +1,48 @@
+from flask import url_for
 import pytest
 
-from flask import url_for
-
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.api.dev.tests.utils import make_sensor_data_request
 
 
-def make_sensor_data_request(num_values: int = 6, duration: str = "PT1H") -> dict:
-    return {
-        "type": "PostSensorDataRequest",
-        "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
-        "values": num_values * [-11.28],
-        "start": "2021-06-07T00:00:00+02:00",
-        "duration": duration,
-        "unit": "m³/h",
-    }
+@pytest.mark.parametrize("use_auth", [False, True])
+def test_post_sensor_data_bad_auth(client, use_auth):
+    """
+    Attempt to post sensor data with insufficient or missing auth.
+    """
+    # the case without auth: authentication will fail
+    headers = {"content-type": "application/json"}
+    if use_auth:
+        # in this case, we successfully authenticate,
+        # but fail authorization (no admin or MDC role)
+        headers["Authorization"] = get_auth_token(
+            client, "test_supplier@seita.nl", "testtest"
+        )
+
+    post_data_response = client.post(
+        url_for("post_sensor_data"),
+        headers=headers,
+    )
+    print("Server responded with:\n%s" % post_data_response.data)
+    if use_auth:
+        assert post_data_response.status_code == 403
+    else:
+        assert post_data_response.status_code == 401
 
 
 @pytest.mark.parametrize(
-    "post_data, expected_num_values",
+    "request_field, new_value, error_field, error_text",
     [
-        (make_sensor_data_request(), 6),
-        (make_sensor_data_request(num_values=3), 6),  # upsample
+        ("duration", "PT30M", "_schema", "Resolution of 0:05:00 is incompatible"),
+        ("sensor", "ea1.2021-01.io.flexmeasures:fm1.666", "sensor", "BLA"),
     ],
 )
-def test_post_sensor_data(
-    client, setup_api_fresh_test_data, post_data, expected_num_values
+def test_post_invalid_sensor_data(
+    client, setup_api_fresh_test_data, request_field, new_value, error_field, error_text
 ):
-    beliefs_before = TimedBelief.query.filter(TimedBelief.sensor_id == 1).all()
-    print(f"BELIEFS BEFORE: {beliefs_before}")
-    assert len(beliefs_before) == 0
+    post_data = make_sensor_data_request()
+    post_data[request_field] = new_value
+    # this guy is allowed to post sensorData
     auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
     response = client.post(
         url_for("post_sensor_data"),
@@ -37,17 +50,11 @@ def test_post_sensor_data(
         headers={"Authorization": auth_token},
     )
     print(response.json)
-    assert response.status_code == 200
-    beliefs = TimedBelief.query.filter(TimedBelief.sensor_id == 1).all()
-    print(f"BELIEFS AFTER: {beliefs}")
-    assert len(beliefs) == expected_num_values
-    assert beliefs[0].event_value == -11.28
+    assert response.status_code == 422
+    assert error_text in response.json["message"]["json"][error_field][0]
 
 
 # TODO:
-# - test with a different valid event resolution
-# - test with different role
 # - test with non-existing sensor
-# - test with more data
 # - test with wrong unit
 # - test with invalid event resolution
