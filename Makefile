@@ -52,8 +52,8 @@ freeze-deps:
 upgrade-deps:
 	pip3 install -q pip-tools
 	pip-compile --upgrade -o requirements/app.txt requirements/app.in
-	pip-compile --upgrade -o requirements/dev.txt requirements/dev.in
 	pip-compile --upgrade -o requirements/test.txt requirements/test.in
+	pip-compile --upgrade -o requirements/dev.txt requirements/dev.in
 	make test
 
 

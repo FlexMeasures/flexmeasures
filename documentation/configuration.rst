@@ -133,13 +133,13 @@ The horizon to use when making schedules.
 Default: ``timedelta(hours=2 * 24)``
 
 
-Tokens
-------
+Access Tokens
+---------------
 
 OPENWEATHERMAP_API_KEY
 ^^^^^^^^^^^^^^^^
 
-Token for accessing the OPenWeatherMap weather forecasting service.
+Token for accessing the OpenWeatherMap weather forecasting service.
 
 Default: ``None``
 
@@ -152,10 +152,12 @@ Token for accessing the MapBox API (for displaying maps on the dashboard and ass
 
 Default: ``None``
 
-FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Token which external services can use to check on the status of recurring tasks within FlexMeasures.
+SENTRY_SDN
+^^^^^^^^^^^^
+
+Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `debug` or `testing` mode.
+E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
 
 Default: ``None``
 
@@ -327,6 +329,48 @@ MAIL_PASSWORD
 Password of mail system user.
 
 Default: ``None``
+
+
+.. _monitoring
+
+Monitoring
+-----------
+
+Monitoring potential problems in FlexMeasure's operations.
+
+
+SENTRY_DSN
+^^^^^^^^^^^^
+
+Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `debug` or `testing` mode.
+E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
+
+Default: ``None``
+
+
+FLEXMEASURES_SENTRY_CONFIG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary with values to configure reporting to Sentry. Some options are taken care of by FlexMeasures (e.g. environment and release), but not all.
+See `here <https://docs.sentry.io/platforms/python/configuration/options/>_` for a complete list.
+
+Default: ``{}``
+
+
+FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Token which external services can use to check on the status of recurring tasks within FlexMeasures.
+
+Default: ``None``
+
+
+FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
+^^^^^^^^^^^^^^^^^^^^^^^
+
+E-mail addresses to send monitoring alerts to from the CLI task ``flexmeasures monitor tasks``. For example ``["fred@one.com", "wilma@two.com"]``
+
+Default: ``[]``
 
 
 .. _redis-config:

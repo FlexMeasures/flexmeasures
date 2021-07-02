@@ -26,7 +26,7 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     from flexmeasures.utils import config_defaults
     from flexmeasures.utils.config_utils import read_config, configure_logging
-    from flexmeasures.utils.app_utils import set_secret_key
+    from flexmeasures.utils.app_utils import set_secret_key, init_sentry
     from flexmeasures.utils.error_utils import add_basic_error_handlers
 
     # Create app
@@ -36,17 +36,20 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
     # as we need to know the ENV now (for it to be recognised by Flask()).
     load_dotenv()
     app = Flask("flexmeasures")
+
     if env is not None:  # overwrite
         app.env = env
-        if env == "testing":
-            app.testing = True
-        if env == "development":
-            app.debug = config_defaults.DevelopmentConfig.DEBUG
+    if app.env == "testing":
+        app.testing = True
+    if app.env == "development":
+        app.debug = config_defaults.DevelopmentConfig.DEBUG
 
     # App configuration
 
-    read_config(app, path_to_config=path_to_config)
+    read_config(app, custom_path_to_config=path_to_config)
     add_basic_error_handlers(app)
+    if not app.env == "development" and not app.testing:
+        init_sentry(app)
 
     app.mail = Mail(app)
     FlaskJSON(app)

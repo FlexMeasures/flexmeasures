@@ -7,14 +7,17 @@ v0.6.0 | July XX, 2021
 
 New features
 -----------
+* Analytics view offers grouping of all assets by location [see `PR #148 <http://www.github.com/SeitaBV/flexmeasures/pull/148>`_]
 * Add (experimental) endpoint to post sensor data for any sensor. Also supports our ongoing integration with data internally represented using the `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib [see `PR #147 <http://www.github.com/SeitaBV/flexmeasures/pull/147>`_]
-
 
 Bugfixes
 -----------
 
 Infrastructure / Support
 ----------------------
+
+* Add possibility to send errors to Sentry [see `PR #143 <http://www.github.com/SeitaBV/flexmeasures/pull/143>`_]
+* Add CLI task to monitor if tasks ran successfully and recently enough [see `PR #146 <http://www.github.com/SeitaBV/flexmeasures/pull/146>`_]
 
 
 v0.5.0 | June 7, 2021
