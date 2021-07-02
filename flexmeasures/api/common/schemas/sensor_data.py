@@ -22,6 +22,16 @@ class SensorDataDescriptionSchema(ma.Schema):
     duration = DurationField()
     unit = fields.Str()
 
+    @validates_schema
+    def check_schema_unit_against_sensor_unit(self, data, **kwargs):
+        # TODO: technically, there are compatible units, like kWh and kW.
+        #       They could be allowed here, and the SensorDataSchema could
+        #       even convert values to the sensor's unit if possible.
+        if data["unit"] != data["sensor"].unit:
+            raise ValidationError(
+                f"Required unit for this sensor is {data['sensor'].unit}, got: {data['unit']}"
+            )
+
 
 class SensorDataSchema(SensorDataDescriptionSchema):
     """
@@ -33,7 +43,7 @@ class SensorDataSchema(SensorDataDescriptionSchema):
     """
 
     @validates_schema
-    def check_resolution_compatibility(self, data, **kwargs):
+    def check_resolution_compatibility_of_values(self, data, **kwargs):
         inferred_resolution = data["duration"] / len(data["values"])
         required_resolution = data["sensor"].event_resolution
         # TODO: we don't yet have a good policy w.r.t. zero-resolution (direct measurement)
@@ -42,13 +52,6 @@ class SensorDataSchema(SensorDataDescriptionSchema):
         if inferred_resolution % required_resolution != timedelta(hours=0):
             raise ValidationError(
                 f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
-            )
-
-    @validates_schema
-    def check_posted_unit_against_sensor_unit(self, data, **kwargs):
-        if data["unit"] != data["sensor"].unit:
-            raise ValidationError(
-                f"Required unit for this sensor is {data['sensor'].unit}, got: {data['unit']}"
             )
 
     @post_load()
