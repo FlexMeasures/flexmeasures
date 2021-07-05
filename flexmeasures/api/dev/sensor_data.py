@@ -18,9 +18,12 @@ def post_data(sensor_data):
     beliefs = SensorDataSchema.load_bdf(sensor_data)
     TimedBelief.add_to_session(session=db.session, beliefs_data_frame=beliefs)
     db.session.commit()
-    return dict(status="ok")
+    return dict(type="PostSensorDataResponse", status="ok")
 
 
 def get_data():
-    # use data.models.time_series.Sensor::search_beliefs()
+    """ GET from /sensorData"""
+    # - use data.models.time_series.Sensor::search_beliefs()
+    # - create the serialize method on the schema, to turn the resulting BeliefsDataFrame
+    #   to the JSON the API should respond with.
     pass
