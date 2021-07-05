@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from flask_login import current_user
 from marshmallow import fields, post_load, validates_schema, ValidationError
+from marshmallow.validate import Equal, OneOf
 from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
@@ -10,18 +11,18 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
-from flexmeasures.utils.time_utils import timedelta_to_pandas_freq_str
 
 
 class SensorDataDescriptionSchema(ma.Schema):
     """
     Describing sensor data (i.e. in a GET request).
 
+    TODO: Add an optional horizon field.
     TODO: when we want to support other entity types with this
           schema (assets/weather/markets or actuators), we'll need some re-design.
     """
 
-    type = fields.Str()  # type of request or response
+    type = fields.Str(validate=Equal("GetSensorDataRequest"))
     sensor = SensorField(entity_type="sensor", fm_scheme="fm1")
     start = AwareDateTimeField(format="iso")
     duration = DurationField()
@@ -47,6 +48,9 @@ class SensorDataSchema(SensorDataDescriptionSchema):
           (sets a resolution parameter which we can pass to the data collection function).
     """
 
+    type = fields.Str(
+        validate=OneOf(["PostSensorDataRequest", "GetSensorDataResponse"])
+    )
     values = fields.List(fields.Float())
 
     @validates_schema
@@ -81,25 +85,26 @@ class SensorDataSchema(SensorDataDescriptionSchema):
                 from_resolution=inferred_resolution,
                 to_resolution=required_resolution,
             )
-        return data  # TODO: what should we return here?
+        return data
 
     def load_bdf(sensor_data) -> BeliefsDataFrame:
         """
         Turn the de-serialized and validated data into a BeliefsDataFrame.
         """
-        source = DataSource.query.get(current_user.id)
+        source = DataSource.query.filter(
+            DataSource.user_id == current_user.id
+        ).one_or_none()
         if not source:
             raise ValidationError(
                 f"User {current_user.id} is not an accepted data source."
             )
 
         num_values = len(sensor_data["values"])
-        step_duration = sensor_data["duration"] / num_values
+        event_resolution = sensor_data["duration"] / num_values
         dt_index = pd.date_range(
             sensor_data["start"],
             periods=num_values,
-            freq=timedelta_to_pandas_freq_str(step_duration),
-            tz=sensor_data["start"].tzinfo,
+            freq=event_resolution,
         )
         s = pd.Series(sensor_data["values"], index=dt_index)
         return BeliefsDataFrame(
