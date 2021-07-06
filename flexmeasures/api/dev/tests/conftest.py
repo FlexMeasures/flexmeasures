@@ -12,6 +12,7 @@ def setup_api_test_data(db, setup_roles_users):
     Set up data for API dev tests.
     """
     print("Setting up data for API v2.0 tests on %s" % db.engine)
+    add_gas_sensor(db, setup_roles_users["Test Supplier"])
     give_prosumer_the_MDC_role(db)
 
 
@@ -21,16 +22,18 @@ def setup_api_fresh_test_data(fresh_db, setup_roles_users_fresh_db):
     Set up fresh data for API dev tests.
     """
     print("Setting up data for API dev tests on %s" % fresh_db.engine)
+    add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test Supplier"])
+    give_prosumer_the_MDC_role(fresh_db)
 
+
+def add_gas_sensor(db, test_supplier):
     gas_sensor = Sensor(
         name="some gas sensor",
         unit="m³/h",
         event_resolution=timedelta(minutes=10),
     )
-    fresh_db.session.add(gas_sensor)
-    gas_sensor.owner = setup_roles_users_fresh_db["Test Supplier"]
-
-    give_prosumer_the_MDC_role(fresh_db)
+    db.session.add(gas_sensor)
+    gas_sensor.owner = test_supplier
 
 
 def give_prosumer_the_MDC_role(db):

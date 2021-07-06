@@ -33,13 +33,20 @@ def test_post_sensor_data_bad_auth(client, use_auth):
 @pytest.mark.parametrize(
     "request_field, new_value, error_field, error_text",
     [
-        ("duration", "PT30M", "_schema", "Resolution of 0:05:00 is incompatible"),
+        ("start", "2021-06-07T00:00:00", "start", "Not a valid aware datetime"),
+        (
+            "duration",
+            "PT30M",
+            "_schema",
+            "Resolution of 0:05:00 is incompatible",
+        ),  # downsampling not supported
         ("sensor", "ea1.2021-01.io.flexmeasures:fm1.666", "sensor", "doesn't exist"),
         ("unit", "m", "_schema", "Required unit"),
+        ("type", "GetSensorDataRequest", "type", "Must be one of"),
     ],
 )
 def test_post_invalid_sensor_data(
-    client, setup_api_fresh_test_data, request_field, new_value, error_field, error_text
+    client, setup_api_test_data, request_field, new_value, error_field, error_text
 ):
     post_data = make_sensor_data_request()
     post_data[request_field] = new_value
