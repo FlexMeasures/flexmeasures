@@ -22,7 +22,7 @@ def post_data(sensor_data):
 
 def get_data():
     """ GET from /sensorData"""
-    # - use data.models.time_series.Sensor::search_beliefs()
+    # - use data.models.time_series.Sensor::search_beliefs() - might need to add a belief_horizon parameter
     # - create the serialize method on the schema, to turn the resulting BeliefsDataFrame
     #   to the JSON the API should respond with.
     pass

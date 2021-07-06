@@ -17,16 +17,18 @@ class SensorDataDescriptionSchema(ma.Schema):
     """
     Describing sensor data (i.e. in a GET request).
 
-    TODO: Add an optional horizon field.
     TODO: when we want to support other entity types with this
           schema (assets/weather/markets or actuators), we'll need some re-design.
     """
 
-    type = fields.Str(validate=Equal("GetSensorDataRequest"))
-    sensor = SensorField(entity_type="sensor", fm_scheme="fm1")
-    start = AwareDateTimeField(format="iso")
-    duration = DurationField()
-    unit = fields.Str()
+    type = fields.Str(required=True, validate=Equal("GetSensorDataRequest"))
+    sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
+    start = AwareDateTimeField(required=True, format="iso")
+    duration = DurationField(required=True)
+    horizon = DurationField(
+        required=False, missing=timedelta(hours=0), default=timedelta(hours=0)
+    )
+    unit = fields.Str(required=True)
 
     @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
@@ -111,5 +113,5 @@ class SensorDataSchema(SensorDataDescriptionSchema):
             s,
             source=source,
             sensor=sensor_data["sensor"],
-            belief_horizon=timedelta(hours=0),
+            belief_horizon=sensor_data["horizon"],
         )
