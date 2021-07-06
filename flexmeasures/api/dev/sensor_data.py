@@ -1,8 +1,7 @@
 from webargs.flaskparser import use_args
 
-from flexmeasures.data.config import db
-from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.api.common.schemas.sensor_data import SensorDataSchema
+from flexmeasures.api.common.utils.api_utils import save_to_db
 
 
 @use_args(
@@ -16,9 +15,9 @@ def post_data(sensor_data):
     to create and save the data structure.
     """
     beliefs = SensorDataSchema.load_bdf(sensor_data)
-    TimedBelief.add_to_session(session=db.session, beliefs_data_frame=beliefs)
-    db.session.commit()
-    return dict(type="PostSensorDataResponse", status="ok")
+    response, code = save_to_db(beliefs)
+    response.update(type="PostSensorDataResponse")
+    return response, code
 
 
 def get_data():

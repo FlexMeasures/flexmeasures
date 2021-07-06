@@ -1,3 +1,5 @@
+from timely_beliefs.beliefs.classes import BeliefsDataFrame
+from flexmeasures.data.models.time_series import TimedBelief
 from typing import List, Sequence, Tuple, Union
 import copy
 from datetime import datetime, timedelta
@@ -334,19 +336,27 @@ def get_weather_sensor_by(
 
 
 def save_to_db(
-    timed_values: List[Union[Power, Price, Weather]], forecasting_jobs: List[Job]
+    timed_values: Union[BeliefsDataFrame, List[Union[Power, Price, Weather]]],
+    forecasting_jobs: List[Job] = [],
 ) -> ResponseTuple:
     """Put the timed values into the database and enqueue forecasting jobs.
 
     Data can only be replaced on servers in play mode.
 
-    :param timed_values: list of Power, Price or Weather values to be saved
+    TODO: remove options for Power, Price and Weather if we only handle beliefs one day.
+
+    :param timed_values: BeliefsDataFrame or a list of Power, Price or Weather values to be saved
     :param forecasting_jobs: list of forecasting Jobs for redis queues.
     :returns: ResponseTuple
     """
     current_app.logger.info("SAVING TO DB AND QUEUEING...")
     try:
-        save_to_session(timed_values)
+        if isinstance(timed_values, BeliefsDataFrame):
+            TimedBelief.add_to_session(
+                session=db.session, beliefs_data_frame=timed_values
+            )
+        else:
+            save_to_session(timed_values)
         db.session.flush()
         [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
         db.session.commit()
@@ -357,7 +367,14 @@ def save_to_db(
 
         # Allow data to be replaced only in play mode
         if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            save_to_session(timed_values, overwrite=True)
+            if isinstance(timed_values, BeliefsDataFrame):
+                save_to_session(timed_values, overwrite=True)
+            else:
+                TimedBelief.add_to_session(
+                    session=db.session,
+                    beliefs_data_frame=timed_values,
+                    allow_overwrite=True,
+                )
             [
                 current_app.queues["forecasting"].enqueue_job(job)
                 for job in forecasting_jobs

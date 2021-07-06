@@ -60,3 +60,22 @@ def test_post_invalid_sensor_data(
     print(response.json)
     assert response.status_code == 422
     assert error_text in response.json["message"]["json"][error_field][0]
+
+
+def test_post_sensor_data_twice(client, setup_api_test_data):
+    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    post_data = make_sensor_data_request()
+    response = client.post(
+        url_for("post_sensor_data"),
+        json=post_data,
+        headers={"Authorization": auth_token},
+    )
+    assert response.status_code == 200
+    response = client.post(
+        url_for("post_sensor_data"),
+        json=post_data,
+        headers={"Authorization": auth_token},
+    )
+    print(response.json)
+    assert response.status_code == 400
+    assert "data has already been received" in response.json["message"]
