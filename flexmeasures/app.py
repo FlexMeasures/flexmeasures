@@ -48,7 +48,7 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     read_config(app, custom_path_to_config=path_to_config)
     add_basic_error_handlers(app)
-    if not app.env == "development" and not app.testing:
+    if not app.env in ("development", "documentation") and not app.testing:
         init_sentry(app)
 
     app.mail = Mail(app)
