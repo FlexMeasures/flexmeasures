@@ -15,7 +15,7 @@ test:
 # ---- Documentation ---
 
 update-docs:
-	pip3 install sphinx>=4.0.3
+	pip3 install sphinx>=4.0.3 sphinxcontrib.httpdomain sphinx-rtd-theme
 	cd documentation; make clean; make html; cd ..
 
 update-docs-pdf:
