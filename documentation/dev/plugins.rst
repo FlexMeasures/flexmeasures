@@ -153,7 +153,7 @@ First, your blueprint needs to know about a folder with static content (this is 
         static_folder="our_client/ui/static",
     )
 
-Put your icon file in that folder. The exact paths may depend on how you set your plugin directories up, but this is how a blueprint living in its own directory could work.
+Put your icon file in that folder. The exact path may depend on how you set your plugin directories up, but this is how a blueprint living in its own directory could work.
 
 Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the favicon from:
 
