@@ -480,10 +480,12 @@ def create_forecasts(
     if as_job:
         if asset_type == "Asset":
             value_type = "Power"
-        if asset_type == "Market":
+        elif asset_type == "Market":
             value_type = "Price"
-        if asset_type == "WeatherSensor":
+        elif asset_type == "WeatherSensor":
             value_type = "Weather"
+        else:
+            raise TypeError(f"Unknown asset_type {asset_type}")
 
         for horizon in horizons:
             # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
