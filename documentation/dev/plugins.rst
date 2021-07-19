@@ -10,7 +10,7 @@ A FlexMeasures plugin works as a `Flask Blueprint <https://flask.palletsprojects
 .. todo:: We'll use this to allow for custom forecasting and scheduling algorithms, as well.
 
 
-How it works 
+How it works
 ^^^^^^^^^^^^^^
 
 Use the config setting :ref:`plugin-config` to point to your plugin(s).
@@ -151,7 +151,6 @@ First, your blueprint needs to know about a folder with static content (this is 
         "our_client",
         "our_client",
         static_folder="our_client/ui/static",
-        static_url_path="/ui/static",
     )
 
 Put your icon file in that folder. The exact paths may depend on how you set your plugin directories up, but this is how a blueprint living in its own directory could work.
