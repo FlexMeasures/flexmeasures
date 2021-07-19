@@ -6,7 +6,6 @@ import pytz
 
 from flask import current_app
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Query
 from flexmeasures.data.queries.utils import (
     simplify_index,
 )
