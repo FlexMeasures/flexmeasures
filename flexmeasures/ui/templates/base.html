@@ -63,13 +63,12 @@
                     <span class="icon-bar"></span>
                 </button>
                 <span class="navbar-brand">
-                    <a href="/"><span class="navbar-tool-name">{{ FLEXMEASURES_PLATFORM_NAME }}</span></a>
-                    {{ self.title() }} {% if user_is_logged_in and not "Error" in self.title() %} for {{ user_name }} {% endif %}
+                    <a href="/"><span class="navbar-tool-name">{{ FLEXMEASURES_PLATFORM_NAME }} {% if not "Error" in self.title() %} - {{ self.title() }} {% endif %}</span></a>
                 </span>
             </div>
             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
                 <ul class="nav navbar-nav">
-                    {% for href, id, caption, icon in navigation_bar %}
+                    {% for href, id, caption, tooltip, icon in navigation_bar %}
                     {% if id == "tasks" %}
                     <li {% if id == active_page %} class="active" {% endif %} class="dropdown">
                         <a class="dropdown-toggle" data-toggle="dropdown" href="#"><span class="fa fa-tasks"
@@ -95,7 +94,7 @@
                         </ul>
                     </li>
                     {% else %}
-                    <li {% if id == active_page %} class="active" {% endif %}
+                    <li {% if id == active_page %} class="active" {% endif %} data-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
                         {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) %}
                         class="disabled" {% endif %}>
                         <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users', 'control', 'portfolio')) ) %}href="/{{ href|e }}"

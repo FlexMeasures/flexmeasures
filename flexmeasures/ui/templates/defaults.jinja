@@ -21,20 +21,20 @@
 
 {% for view_name in FLEXMEASURES_LISTED_VIEWS %}
     {# add specs for views we don't know (plugin views) #}
-    {% do nav_bar_specs.update({view_name: dict(title=view_name.capitalize(), icon="info")}) if view_name not in nav_bar_specs %}
+    {% do nav_bar_specs.update({view_name: dict(title=view_name.capitalize(), tooltip="", icon="info")}) if view_name not in nav_bar_specs %}
     {# add view to menu if user is authenticated #}
     {% do navigation_bar.append(
-        (view_name, view_name, nav_bar_specs[view_name]["title"], nav_bar_specs[view_name]["icon"])
+        (view_name, view_name, nav_bar_specs[view_name]["title"], nav_bar_specs[view_name]["tooltip"], nav_bar_specs[view_name]["icon"])
     ) if current_user.is_authenticated %}
 {% endfor %}
 
 
 {% set show_queues = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
-{% do navigation_bar.append(('tasks', 'tasks', 'Tasks', 'tasks')) if show_queues %}
+{% do navigation_bar.append(('tasks', 'tasks', 'Tasks', '', 'tasks')) if show_queues %}
 
-{% do navigation_bar.append(('account', 'account', '', 'user')) if current_user.is_authenticated %}
+{% do navigation_bar.append(('account', 'account', '', user_name, 'user')) if current_user.is_authenticated %}
 
-{% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'question')) if documentation_exists and current_user.is_authenticated %}
+{% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'Documentation (new window)', 'question')) if documentation_exists and current_user.is_authenticated %}
 
 {% set active_page = active_page|default('dashboard') -%}
 
