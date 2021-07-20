@@ -31,6 +31,15 @@ class SensorDataDescriptionSchema(ma.Schema):
     unit = fields.Str(required=True)
 
     @validates_schema
+    def check_user_rights_against_sensor(self, data, **kwargs):
+        """If the user is a Prosumer and the sensor belongs to an asset
+        over which the Prosumer has no ownership, raise a ValidationError.
+        """
+        # todo: implement check once sensors can belong to an asset
+        #       https://github.com/SeitaBV/flexmeasures/issues/155
+        pass
+
+    @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
         # TODO: technically, there are compatible units, like kWh and kW.
         #       They could be allowed here, and the SensorDataSchema could
