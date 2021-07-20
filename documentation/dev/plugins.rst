@@ -10,7 +10,7 @@ A FlexMeasures plugin works as a `Flask Blueprint <https://flask.palletsprojects
 .. todo:: We'll use this to allow for custom forecasting and scheduling algorithms, as well.
 
 
-How it works 
+How it works
 ^^^^^^^^^^^^^^
 
 Use the config setting :ref:`plugin-config` to point to your plugin(s).
@@ -121,7 +121,7 @@ Starting the template with ``{% extends "base.html" %}`` integrates your page co
 We'd name this file ``our_client_base.html``. Then, we'd extend our page template from ``our_client_base.html``, instead of ``base.html``.
 
 
-Using other files in your plugin
+Using other code files in your plugin
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Say you want to include other Python files in your plugin, importing them in your ``__init__.py`` file.
@@ -136,6 +136,40 @@ This can be done if you put the plugin path on the import path. Do it like this 
     sys.path.insert(0, HERE)
 
     from my_other_file import my_function
+
+
+Using a custom favicon icon
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The favicon might be an important part of your customisation. You probably want your logo to be used.
+
+First, your blueprint needs to know about a folder with static content (this is fairly common ― it's also where you'd put your own CSS or JavaScript files):
+
+.. code-block:: python
+
+    our_client_bp = Blueprint(
+        "our_client",
+        "our_client",
+        static_folder="our_client/ui/static",
+    )
+
+Put your icon file in that folder. The exact path may depend on how you set your plugin directories up, but this is how a blueprint living in its own directory could work.
+
+Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the favicon from:
+
+.. code-block:: python
+
+    from flask import send_from_directory
+
+    @our_client_bp.route("/favicon.ico")
+    def favicon():
+        return send_from_directory(
+            our_client_bp.static_folder,
+            "img/favicon.png",
+            mimetype="image/png",
+        )
+
+Here we assume your favicon is a PNG file. You can also use a classic `.ico` file, then your mime type probably works best as ``image/x-icon``.
 
 
 Validating arguments in your CLI commands with marshmallow
