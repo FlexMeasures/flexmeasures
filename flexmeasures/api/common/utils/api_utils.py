@@ -368,13 +368,13 @@ def save_to_db(
         # Allow data to be replaced only in play mode
         if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
             if isinstance(timed_values, BeliefsDataFrame):
-                save_to_session(timed_values, overwrite=True)
-            else:
                 TimedBelief.add_to_session(
                     session=db.session,
                     beliefs_data_frame=timed_values,
                     allow_overwrite=True,
                 )
+            else:
+                save_to_session(timed_values, overwrite=True)
             [
                 current_app.queues["forecasting"].enqueue_job(job)
                 for job in forecasting_jobs
