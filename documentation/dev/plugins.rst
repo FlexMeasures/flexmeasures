@@ -169,7 +169,7 @@ Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the fa
             mimetype="image/png",
         )
 
-Here we assume your favicon is a PNG file. You can also use a classic `.ico` file, then your mime type probably works best as ``image/vnd.microsoft.icon``. 
+Here we assume your favicon is a PNG file. You can also use a classic `.ico` file, then your mime type probably works best as ``image/x-icon``.
 
 
 Validating arguments in your CLI commands with marshmallow
