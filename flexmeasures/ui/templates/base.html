@@ -101,6 +101,12 @@
                             {% endif %}{% if id == 'docs' %} target="_blank" {% endif %}>
                             <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
                             {{ caption|e }}
+
+                            {# use tooltip as caption for small screens #}
+                            {% if not caption %}
+                            <span class="visible-xs-inline">{{ tooltip }}</span>
+                            {% endif %}
+
                         </a>
                     </li>
                     {% endif %}
