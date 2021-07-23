@@ -117,6 +117,24 @@ def create_forecasting_jobs(
     return jobs
 
 
+def make_fixed_viewpoint_forecasts(
+    asset_id: int,
+    timed_value_type: str,
+    horizon: timedelta,
+    start: datetime,
+    end: datetime,
+    custom_model_params: dict = None,
+) -> int:
+    """Build forecasting model specs, make fixed-viewpoint forecasts, and save the forecasts made.
+
+    Each individual forecast is a belief about a time interval.
+    Fixed-viewpoint forecasts share the same belief time.
+    See the timely-beliefs lib for relevant terminology.
+    """
+    # todo: implement fixed-viewpoint forecasts
+    raise NotImplementedError
+
+
 def make_rolling_viewpoint_forecasts(
     asset_id: int,
     timed_value_type: str,
@@ -125,10 +143,12 @@ def make_rolling_viewpoint_forecasts(
     end: datetime,
     custom_model_params: dict = None,
 ) -> int:
-    """
-    Build forecasting model specs, make rolling forecasts, save the forecasts made.
-    Each individual forecast is a belief about an interval.
-    Returns the number of forecasts made.
+    """Build forecasting model specs, make rolling-viewpoint forecasts, and save the forecasts made.
+
+    Each individual forecast is a belief about a time interval.
+    Rolling-viewpoint forecasts share the same belief horizon (the duration between belief time and knowledge time).
+    Model specs are also retrained in a rolling fashion, but with its own frequency set in custom_model_params.
+    See the timely-beliefs lib for relevant terminology.
 
     Parameters
     ----------
@@ -145,6 +165,8 @@ def make_rolling_viewpoint_forecasts(
     :param custom_model_params: dict
         pass in params which will be passed to the model specs configurator,
         e.g. outcome_var_transformation, only advisable to be used for testing.
+    :returns: int
+        the number of forecasts made
     """
     # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
     db.engine.dispose()

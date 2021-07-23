@@ -467,7 +467,7 @@ def create_forecasts(
     # make horizons
     horizons = [timedelta(hours=int(h)) for h in horizons]
 
-    # apply timezone and set forecast_end to make to_date inclusive
+    # apply timezone and set forecast_end to be an inclusive version of to_date
     timezone = app.config.get("FLEXMEASURES_TIMEZONE")
     forecast_start = pd.Timestamp(from_date).tz_localize(timezone)
     forecast_end = (pd.Timestamp(to_date) + pd.Timedelta("1D")).tz_localize(timezone)

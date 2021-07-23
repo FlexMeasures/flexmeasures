@@ -9,6 +9,7 @@ from sqlalchemy.engine import Engine
 from flexmeasures.data.queries.utils import (
     simplify_index,
 )
+from timely_beliefs import BeliefsDataFrame
 from timetomodel import ModelSpecs
 from timetomodel.exceptions import MissingData, NaNData
 from timetomodel.speccing import SeriesSpecs
@@ -45,10 +46,11 @@ logger = logging.getLogger(__name__)
 
 
 class TBSeriesSpecs(SeriesSpecs):
+    """Compatibility for using timetomodel.SeriesSpecs with timely_beliefs.BeliefsDataFrames.
 
-    """Define how to collect timely beliefs.
-    This sets up a class which to call `collect` on, together with parameters to pass.
-    The collect function should return a BeliefsDataFrame.
+    This implements _load_series such that TimedValue.collect is called on the generic asset class,
+    with the parameters in collect_params.
+    The collect function is expected to return a BeliefsDataFrame.
     """
 
     db: Engine
@@ -84,9 +86,12 @@ class TBSeriesSpecs(SeriesSpecs):
             "Reading %s data from database" % self.generic_asset_value_class.__name__
         )
 
-        bdf = self.generic_asset_value_class.collect(**self.collect_params)
-        self.check_data(bdf)
+        bdf: BeliefsDataFrame = self.generic_asset_value_class.collect(
+            **self.collect_params
+        )
+        assert isinstance(bdf, BeliefsDataFrame)
         df = simplify_index(bdf)
+        self.check_data(df)
 
         if self.post_load_processing is not None:
             df = self.post_load_processing.transform_dataframe(df)
