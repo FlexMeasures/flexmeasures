@@ -5,7 +5,6 @@ import logging
 import pytz
 
 from flask import current_app
-from sqlalchemy.engine import Engine
 from flexmeasures.data.queries.utils import (
     simplify_index,
 )
@@ -33,7 +32,6 @@ from flexmeasures.data.models.forecasting.utils import (
     get_query_window,
 )
 from flexmeasures.data.services.resources import find_closest_weather_sensor
-from flexmeasures.data.config import db
 
 """
 Here we generate an initial version of timetomodel specs, given what asset and what timing
@@ -53,13 +51,11 @@ class TBSeriesSpecs(SeriesSpecs):
     The collect function is expected to return a BeliefsDataFrame.
     """
 
-    db: Engine
     generic_asset_value_class: Any  # with collect method
     collect_params: dict
 
     def __init__(
         self,
-        db_engine: Engine,
         generic_asset_value_class,
         collect_params: dict,
         name: str,
@@ -77,7 +73,6 @@ class TBSeriesSpecs(SeriesSpecs):
             resampling_config,
             interpolation_config,
         )
-        self.db_engine = db_engine
         self.generic_asset_value_class = generic_asset_value_class
         self.collect_params = collect_params
 
@@ -186,7 +181,6 @@ def create_initial_model_specs(  # noqa: C901
 
     outcome_var_spec = TBSeriesSpecs(
         name=generic_asset_type.name,
-        db_engine=db.engine,
         generic_asset_value_class=generic_asset_value_class,
         collect_params=dict(
             generic_asset_names=[generic_asset.name],
@@ -311,7 +305,6 @@ def configure_regressors_for_nearest_weather_sensor(
                 regressor_specs.append(
                     TBSeriesSpecs(
                         name=regressor_specs_name,
-                        db_engine=db.engine,
                         generic_asset_value_class=Weather,
                         collect_params=dict(
                             generic_asset_names=[closest_sensor.name],
