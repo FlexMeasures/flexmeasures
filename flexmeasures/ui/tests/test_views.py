@@ -54,7 +54,7 @@ def test_analytics_responds(db, client, setup_assets, as_prosumer):
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     test_prosumer = user_datastore.find_user(email="test_prosumer@seita.nl")
 
-    assert str.encode(f"for {test_prosumer.username}") in analytics.data
+    assert str.encode(f"{test_prosumer.username}") in analytics.data
 
 
 def test_logout(client, as_prosumer):

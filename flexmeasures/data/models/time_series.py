@@ -148,7 +148,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         return dict(start=least_recent.event_start, end=most_recent.event_end)
 
     def __repr__(self) -> str:
-        return f"<Sensor {self.id}: {self.name}>"
+        return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
