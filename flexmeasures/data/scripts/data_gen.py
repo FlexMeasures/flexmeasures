@@ -290,13 +290,11 @@ def populate_time_series_forecasts(  # noqa: C901
                 )
                 # Upsample to sensor resolution if needed
                 if forecasts.index.freq > pd.Timedelta(generic_asset.event_resolution):
-                    index = pd.date_range(
-                        forecast_start,
-                        forecast_end,
-                        freq=generic_asset.event_resolution,
-                        closed="left",
+                    forecasts = model_specs.outcome_var.resample_data(
+                        forecasts,
+                        time_window=(forecasts.index.min(), forecasts.index.max()),
+                        expected_frequency=generic_asset.event_resolution,
                     )
-                    forecasts = forecasts.reindex(index).fillna(method="pad")
             except (NotEnoughDataException, MissingData, NaNData) as e:
                 click.echo(
                     "Skipping forecasts for asset %s: %s" % (generic_asset, str(e))
