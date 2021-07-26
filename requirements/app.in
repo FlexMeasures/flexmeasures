@@ -31,7 +31,7 @@ pvlib
 netCDF4
 siphon
 tables
-timetomodel>=0.7
+timetomodel>=0.7.1
 timely-beliefs>=1.4.3
 python-dotenv
 # a backport, not needed in Python3.8
