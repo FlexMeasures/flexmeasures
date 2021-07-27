@@ -1,7 +1,7 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
 from datetime import timedelta
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import pandas as pd
 import pytz
@@ -75,7 +75,7 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
         user_roles=roles,
         check_deliverability=False,
     )
-    app.db.session.commit()
+    db.session.commit()
     print(f"Successfully created user {created_user}")
 
 
@@ -106,8 +106,8 @@ def add_sensor(**args):
     check_errors(SensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     sensor = Sensor(**args)
-    app.db.session.add(sensor)
-    app.db.session.commit()
+    db.session.add(sensor)
+    db.session.commit()
     print(f"Successfully created sensor with ID {sensor.id}")
     print(f"You can access it at its entity address {sensor.entity_address}")
 
@@ -176,8 +176,8 @@ def new_asset(**args):
     check_errors(AssetSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     asset = Asset(**args)
-    app.db.session.add(asset)
-    app.db.session.commit()
+    db.session.add(asset)
+    db.session.commit()
     print(f"Successfully created asset with ID {asset.id}")
     print(f"You can access it at its entity address {asset.entity_address}")
 
@@ -216,8 +216,8 @@ def add_weather_sensor(**args):
     check_errors(WeatherSensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     sensor = WeatherSensor(**args)
-    app.db.session.add(sensor)
-    app.db.session.commit()
+    db.session.add(sensor)
+    db.session.commit()
     print(f"Successfully created weather sensor with ID {sensor.id}")
     print(f" You can access it at its entity address {sensor.entity_address}")
 
@@ -228,7 +228,7 @@ def add_initial_structure():
     """Initialize structural data like asset types, market types and weather sensor types."""
     from flexmeasures.data.scripts.data_gen import populate_structure
 
-    populate_structure(app.db)
+    populate_structure(db)
 
 
 @fm_dev_add_data.command("beliefs")
@@ -493,7 +493,7 @@ def create_forecasts(
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
 
         populate_time_series_forecasts(
-            app.db, horizons, from_date, to_date, asset_type, asset_id
+            db, horizons, from_date, to_date, asset_type, asset_id
         )
 
 
@@ -555,7 +555,7 @@ def check_timezone(timezone):
         raise click.Abort
 
 
-def check_errors(errors: list):
+def check_errors(errors: Dict[str, List[str]]):
     if errors:
         print(
             f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more."
