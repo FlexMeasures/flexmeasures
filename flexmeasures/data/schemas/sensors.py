@@ -1,6 +1,7 @@
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validates, ValidationError
 
 from flexmeasures.data import ma
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -28,6 +29,16 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
     Sensor schema, with validations.
     """
+
+    generic_asset_id = fields.Integer(required=True)
+
+    @validates("generic_asset_id")
+    def validate_generic_asset(self, generic_asset_id: int):
+        generic_asset = GenericAsset.query.get(generic_asset_id)
+        if not generic_asset:
+            raise ValidationError(
+                f"Generic asset with id {generic_asset_id} doesn't exist."
+            )
 
     class Meta:
         model = Sensor

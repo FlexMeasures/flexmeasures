@@ -94,6 +94,12 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
     required=True,
     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
+@click.option(
+    "--generic-asset-id",
+    required=True,
+    type=int,
+    help="Generic asset to assign this sensor to",
+)
 def add_sensor(**args):
     """Add a sensor."""
     check_timezone(args["timezone"])
@@ -103,8 +109,7 @@ def add_sensor(**args):
     app.db.session.add(sensor)
     app.db.session.commit()
     print(f"Successfully created sensor with ID {sensor.id}")
-    # TODO: uncomment when #66 has landed
-    # print(f"You can access it at its entity address {sensor.entity_address}")
+    print(f"You can access it at its entity address {sensor.entity_address}")
 
 
 @fm_add_data.command("asset")
