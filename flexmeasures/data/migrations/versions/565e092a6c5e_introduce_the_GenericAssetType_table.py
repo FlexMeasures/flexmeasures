@@ -11,8 +11,7 @@ from alembic import context, op
 from sqlalchemy import orm
 import sqlalchemy as sa
 
-from flexmeasures.data.models.assets import GenericAssetType
-
+from flexmeasures.data.models.generic_assets import GenericAssetType
 
 # revision identifiers, used by Alembic.
 revision = "565e092a6c5e"

@@ -34,10 +34,8 @@ class Sensor(db.Model, tb.SensorDBMixin):
         backref=db.backref("sensors", lazy=True),
     )
 
-    def __init__(self, name: str, **kwargs):
-        tb.SensorDBMixin.__init__(self, name, **kwargs)
-        tb_utils.remove_class_init_kwargs(tb.SensorDBMixin, kwargs)
-        db.Model.__init__(self, **kwargs)
+    def __init__(self, **kwargs):
+        super(Sensor, self).__init__(**kwargs)
 
     @property
     def entity_address(self) -> str:

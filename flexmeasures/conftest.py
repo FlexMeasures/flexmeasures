@@ -23,6 +23,7 @@ from flexmeasures.app import create as create_app
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset, Power
+from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.markets import Market, MarketType, Price
@@ -157,6 +158,11 @@ def create_test_markets(db) -> Dict[str, Market]:
         yearly_seasonality=True,
     )
     db.session.add(day_ahead)
+    db.session.add(
+        GenericAssetType(
+            name="day_ahead",
+        )
+    )
     epex_da = Market(
         name="epex_da",
         market_type=day_ahead,
@@ -186,6 +192,27 @@ def setup_asset_types_fresh_db(fresh_db) -> Dict[str, AssetType]:
     return create_test_asset_types(fresh_db)
 
 
+@pytest.fixture(scope="module")
+def setup_generic_asset(db, setup_generic_asset_type) -> Dict[str, AssetType]:
+    """Make some generic assets used throughout."""
+    troposphere = GenericAsset(
+        name="troposphere", generic_asset_type=setup_generic_asset_type["public_good"]
+    )
+    db.session.add(troposphere)
+    return dict(troposphere=troposphere)
+
+
+@pytest.fixture(scope="module")
+def setup_generic_asset_type(db) -> Dict[str, AssetType]:
+    """Make some generic asset types used throughout."""
+
+    public_good = GenericAssetType(
+        name="public good",
+    )
+    db.session.add(public_good)
+    return dict(public_good=public_good)
+
+
 def create_test_asset_types(db) -> Dict[str, AssetType]:
     """Make some asset types used throughout."""
 
@@ -197,6 +224,7 @@ def create_test_asset_types(db) -> Dict[str, AssetType]:
         yearly_seasonality=True,
     )
     db.session.add(solar)
+    db.session.add(GenericAssetType(name="solar"))
     wind = AssetType(
         name="wind",
         is_producer=True,
@@ -205,6 +233,7 @@ def create_test_asset_types(db) -> Dict[str, AssetType]:
         yearly_seasonality=True,
     )
     db.session.add(wind)
+    db.session.add(GenericAssetType(name="wind"))
     return dict(solar=solar, wind=wind)
 
 
@@ -336,6 +365,7 @@ def create_test_battery_assets(
             yearly_seasonality=True,
         )
     )
+    db.session.add(GenericAssetType(name="battery"))
 
     test_battery = Asset(
         name="Test battery",
@@ -395,6 +425,7 @@ def add_charging_station_assets(
             yearly_seasonality=True,
         )
     )
+    db.session.add(GenericAssetType(name="one-way_evse"))
     db.session.add(
         AssetType(
             name="two-way_evse",
@@ -407,6 +438,7 @@ def add_charging_station_assets(
             yearly_seasonality=True,
         )
     )
+    db.session.add(GenericAssetType(name="two-way_evse"))
 
     charging_station = Asset(
         name="Test charging station",
@@ -464,6 +496,7 @@ def create_weather_sensors(db: SQLAlchemy):
 
     test_sensor_type = WeatherSensorType(name="wind_speed")
     db.session.add(test_sensor_type)
+    db.session.add(GenericAssetType(name="wind_speed"))
     wind_sensor = WeatherSensor(
         name="wind_speed_sensor",
         weather_sensor_type_name="wind_speed",
@@ -475,6 +508,7 @@ def create_weather_sensors(db: SQLAlchemy):
     db.session.add(wind_sensor)
 
     test_sensor_type = WeatherSensorType(name="temperature")
+    db.session.add(GenericAssetType(name="temperature"))
     db.session.add(test_sensor_type)
     temp_sensor = WeatherSensor(
         name="temperature_sensor",
@@ -489,11 +523,10 @@ def create_weather_sensors(db: SQLAlchemy):
 
 
 @pytest.fixture(scope="module")
-def add_sensors(db: SQLAlchemy):
+def add_sensors(db: SQLAlchemy, setup_generic_asset):
     """Add some generic sensors."""
     height_sensor = Sensor(
-        name="my daughter's height",
-        unit="m",
+        name="height", unit="m", generic_asset=setup_generic_asset["troposphere"]
     )
     db.session.add(height_sensor)
     return height_sensor

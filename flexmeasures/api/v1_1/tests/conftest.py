@@ -20,6 +20,7 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
 
     from flexmeasures.data.models.user import User, Role
     from flexmeasures.data.models.assets import Asset, AssetType
+    from flexmeasures.data.models.generic_assets import GenericAssetType
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
@@ -43,6 +44,7 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
     test_prosumer = setup_roles_users["Test Prosumer"]
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
+    db.session.add(GenericAssetType(name="test-type"))
     asset_names = ["CS 1", "CS 2", "CS 3"]
     assets: List[Asset] = []
     for asset_name in asset_names:

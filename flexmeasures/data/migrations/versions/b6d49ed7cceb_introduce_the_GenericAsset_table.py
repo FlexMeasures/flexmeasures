@@ -11,7 +11,8 @@ from alembic import context, op
 from sqlalchemy import orm
 import sqlalchemy as sa
 
-from flexmeasures.data.models.assets import Asset, GenericAsset, GenericAssetType
+from flexmeasures.data.models.assets import Asset
+from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.weather import WeatherSensor
