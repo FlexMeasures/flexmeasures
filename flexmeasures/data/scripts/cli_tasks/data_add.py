@@ -18,8 +18,13 @@ from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetSchema,
+    GenericAssetTypeSchema,
+)
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.schemas.assets import AssetSchema
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.schemas.weather import WeatherSensorSchema
@@ -110,6 +115,54 @@ def add_sensor(**args):
     db.session.commit()
     print(f"Successfully created sensor with ID {sensor.id}")
     print(f"You can access it at its entity address {sensor.entity_address}")
+
+
+@fm_dev_add_data.command("generic-asset-type")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option(
+    "--hover-label",
+    type=str,
+    help="Label visible when hovering over the name in the UI.\n"
+    "Useful to explain acronyms, for example.",
+)
+def add_generic_asset_type(**args):
+    """Add a generic asset type."""
+    check_errors(GenericAssetTypeSchema().validate(args))
+    generic_asset_type = GenericAssetType(**args)
+    db.session.add(generic_asset_type)
+    db.session.commit()
+    print(f"Successfully created generic asset type with ID {generic_asset_type.id}")
+    print("You can now assign generic assets to it")
+
+
+@fm_dev_add_data.command("generic-asset")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option(
+    "--latitude",
+    type=float,
+    help="Latitude of the asset's location",
+)
+@click.option(
+    "--longitude",
+    type=float,
+    help="Longitude of the asset's location",
+)
+@click.option(
+    "--generic-asset-type-id",
+    required=True,
+    type=int,
+    help="Generic asset type to assign this sensor to",
+)
+def add_generic_asset(**args):
+    """Add a generic asset."""
+    check_errors(GenericAssetSchema().validate(args))
+    generic_asset = GenericAsset(**args)
+    db.session.add(generic_asset)
+    db.session.commit()
+    print(f"Successfully created generic asset with ID {generic_asset.id}")
+    print("You can now assign sensors to it")
 
 
 @fm_add_data.command("asset")
