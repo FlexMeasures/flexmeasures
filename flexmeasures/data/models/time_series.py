@@ -25,10 +25,17 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
-    def __init__(self, name: str, **kwargs):
-        tb.SensorDBMixin.__init__(self, name, **kwargs)
-        tb_utils.remove_class_init_kwargs(tb.SensorDBMixin, kwargs)
-        db.Model.__init__(self, **kwargs)
+    generic_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id"), nullable=False
+    )
+    generic_asset = db.relationship(
+        "GenericAsset",
+        foreign_keys=[generic_asset_id],
+        backref=db.backref("sensors", lazy=True),
+    )
+
+    def __init__(self, **kwargs):
+        super(Sensor, self).__init__(**kwargs)
 
     @property
     def entity_address(self) -> str:

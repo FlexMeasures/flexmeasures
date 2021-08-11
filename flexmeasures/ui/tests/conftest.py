@@ -5,6 +5,7 @@ from flask_security.utils import hash_password
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
+from flexmeasures.data.models.generic_assets import GenericAssetType
 from flexmeasures.ui.tests.utils import login, logout
 
 
@@ -71,6 +72,7 @@ def setup_ui_test_data(
     # Create 1 weather sensor
     test_sensor_type = WeatherSensorType(name="radiation")
     db.session.add(test_sensor_type)
+    db.session.add(GenericAssetType(name="radiation"))
     sensor = WeatherSensor(
         name="radiation_sensor",
         weather_sensor_type_name="radiation",

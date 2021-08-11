@@ -9,6 +9,7 @@ from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.time_series import Sensor, TimedValue
+from flexmeasures.data.models.generic_assets import create_generic_asset
 from flexmeasures.utils.geo_utils import parse_lat_lng
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
@@ -67,7 +68,8 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
         if "id" not in kwargs:
-            new_sensor = Sensor(name=kwargs["name"])
+            new_generic_asset = create_generic_asset("weather_sensor", **kwargs)
+            new_sensor = Sensor(name=kwargs["name"], generic_asset=new_generic_asset)
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
             new_sensor_id = new_sensor.id

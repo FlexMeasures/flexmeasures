@@ -10,6 +10,7 @@ from statsmodels.api import OLS
 
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.generic_assets import GenericAssetType
 from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from flexmeasures.data.models.forecasting import model_map
 from flexmeasures.data.models.forecasting.model_spec_factory import (
@@ -112,6 +113,7 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
     for sensor_name in ("radiation", "wind_speed"):
         sensor_type = WeatherSensorType.query.filter_by(name=sensor_name).one_or_none()
         if sensor_type is None:
+            db.session.add(GenericAssetType(name=sensor_name))
             sensor_type = WeatherSensorType(name=sensor_name)
         sensor = WeatherSensor(
             name=sensor_name, sensor_type=sensor_type, latitude=100, longitude=100

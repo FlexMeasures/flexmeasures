@@ -14,7 +14,7 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
             build_entity_address(dict(sensor_id=1), "sensor"),
             "sensor",
             "fm1",
-            "my daughter's height",
+            "height",
         ),
         (
             build_entity_address(

@@ -1,7 +1,7 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
 from datetime import timedelta
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import pandas as pd
 import pytz
@@ -18,8 +18,13 @@ from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetSchema,
+    GenericAssetTypeSchema,
+)
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.schemas.assets import AssetSchema
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.schemas.weather import WeatherSensorSchema
@@ -75,7 +80,7 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
         user_roles=roles,
         check_deliverability=False,
     )
-    app.db.session.commit()
+    db.session.commit()
     print(f"Successfully created user {created_user}")
 
 
@@ -94,17 +99,70 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
     required=True,
     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
+@click.option(
+    "--generic-asset-id",
+    required=True,
+    type=int,
+    help="Generic asset to assign this sensor to",
+)
 def add_sensor(**args):
     """Add a sensor."""
     check_timezone(args["timezone"])
     check_errors(SensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     sensor = Sensor(**args)
-    app.db.session.add(sensor)
-    app.db.session.commit()
+    db.session.add(sensor)
+    db.session.commit()
     print(f"Successfully created sensor with ID {sensor.id}")
-    # TODO: uncomment when #66 has landed
-    # print(f"You can access it at its entity address {sensor.entity_address}")
+    print(f"You can access it at its entity address {sensor.entity_address}")
+
+
+@fm_dev_add_data.command("generic-asset-type")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option(
+    "--hover-label",
+    type=str,
+    help="Label visible when hovering over the name in the UI.\n"
+    "Useful to explain acronyms, for example.",
+)
+def add_generic_asset_type(**args):
+    """Add a generic asset type."""
+    check_errors(GenericAssetTypeSchema().validate(args))
+    generic_asset_type = GenericAssetType(**args)
+    db.session.add(generic_asset_type)
+    db.session.commit()
+    print(f"Successfully created generic asset type with ID {generic_asset_type.id}")
+    print("You can now assign generic assets to it")
+
+
+@fm_dev_add_data.command("generic-asset")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option(
+    "--latitude",
+    type=float,
+    help="Latitude of the asset's location",
+)
+@click.option(
+    "--longitude",
+    type=float,
+    help="Longitude of the asset's location",
+)
+@click.option(
+    "--generic-asset-type-id",
+    required=True,
+    type=int,
+    help="Generic asset type to assign this sensor to",
+)
+def add_generic_asset(**args):
+    """Add a generic asset."""
+    check_errors(GenericAssetSchema().validate(args))
+    generic_asset = GenericAsset(**args)
+    db.session.add(generic_asset)
+    db.session.commit()
+    print(f"Successfully created generic asset with ID {generic_asset.id}")
+    print("You can now assign sensors to it")
 
 
 @fm_add_data.command("asset")
@@ -171,8 +229,8 @@ def new_asset(**args):
     check_errors(AssetSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     asset = Asset(**args)
-    app.db.session.add(asset)
-    app.db.session.commit()
+    db.session.add(asset)
+    db.session.commit()
     print(f"Successfully created asset with ID {asset.id}")
     print(f"You can access it at its entity address {asset.entity_address}")
 
@@ -211,8 +269,8 @@ def add_weather_sensor(**args):
     check_errors(WeatherSensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     sensor = WeatherSensor(**args)
-    app.db.session.add(sensor)
-    app.db.session.commit()
+    db.session.add(sensor)
+    db.session.commit()
     print(f"Successfully created weather sensor with ID {sensor.id}")
     print(f" You can access it at its entity address {sensor.entity_address}")
 
@@ -223,7 +281,7 @@ def add_initial_structure():
     """Initialize structural data like asset types, market types and weather sensor types."""
     from flexmeasures.data.scripts.data_gen import populate_structure
 
-    populate_structure(app.db)
+    populate_structure(db)
 
 
 @fm_dev_add_data.command("beliefs")
@@ -488,7 +546,7 @@ def create_forecasts(
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
 
         populate_time_series_forecasts(
-            app.db, horizons, from_date, to_date, asset_type, asset_id
+            db, horizons, from_date, to_date, asset_type, asset_id
         )
 
 
@@ -550,7 +608,7 @@ def check_timezone(timezone):
         raise click.Abort
 
 
-def check_errors(errors: list):
+def check_errors(errors: Dict[str, List[str]]):
     if errors:
         print(
             f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more."
