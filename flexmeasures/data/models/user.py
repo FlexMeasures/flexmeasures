@@ -34,6 +34,9 @@ class Account(db.Model):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), default="", unique=True)
 
+    def __repr__(self):
+        return "<Account %s (ID:%d)" % (self.name, self.id)
+
 
 class User(db.Model, UserMixin):
     """
@@ -58,7 +61,7 @@ class User(db.Model, UserMixin):
     timezone = Column(String(255), default="Europe/Amsterdam")
     account_id = Column(Integer, db.ForeignKey("account.id"), nullable=False)
 
-    account = db.relationship(Account, backref=db.backref("users", lazy=True))
+    account = db.relationship("Account", backref=db.backref("users", lazy=True))
     flexmeasures_roles = relationship(
         "Role",
         secondary="roles_users",
