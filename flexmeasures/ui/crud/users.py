@@ -9,7 +9,7 @@ from wtforms.validators import DataRequired
 from flask_security import roles_required
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.user import User, Role
+from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
     get_user,
 )
@@ -64,6 +64,7 @@ def process_internal_api_response(
             user_data["id"] = user_id
         if make_obj:
             user = User(**user_data)
+            user.account = Account.query.get(user_data.get("account_id", -1))
             if user in db.session:
                 db.session.expunge(user)
             return user
