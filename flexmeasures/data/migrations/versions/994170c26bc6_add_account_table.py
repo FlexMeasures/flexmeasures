@@ -5,6 +5,7 @@ Revises: b6d49ed7cceb
 Create Date: 2021-08-11 19:21:07.083253
 
 """
+from typing import List, Tuple, Optional
 import os
 import json
 
@@ -38,6 +39,7 @@ def upgrade():
     2. The ownership of a generic_asset now goes to account.
        Here we fill in the user's new account (see point 1).
        (we save a backup of the generic_asset.owner_id info which linked to fm_user)
+       The old-style asset's ownership remains in place for now! Our code will keep it consistent, until we have completed the move.
     """
     backup_generic_asset_user_associations()
 
@@ -122,8 +124,15 @@ def upgrade_data():
             user.account_id = account.id
 
     # For all generic assets, set the user's account
+    # We query the db for old ownership directly, as the generic asset code already points to account
+    asset_ownership_db = _generic_asset_ownership()
     for generic_asset in session.query(GenericAsset).all():
-        user = generic_asset.owner
+        # 1. first look into GenericAsset ownership
+        old_owner_id = _get_old_owner_id_from_db_result(
+            asset_ownership_db, generic_asset.id
+        )
+        user = session.query(User).get(old_owner_id)
+        # 2. Otherwise, then try the old-style Asset's ownership (via Sensor)
         if user is None:
             sensor = (
                 session.query(Sensor)
@@ -189,6 +198,22 @@ def downgrade_data():
 
 
 def backup_generic_asset_user_associations():
+    asset_ownership_results = _generic_asset_ownership()
+    with open(asset_ownership_backup_script, "w") as bckp_file:
+        for aid, oid in asset_ownership_results:
+            if oid is None:
+                oid = "null"
+            bckp_file.write(
+                f"UPDATE generic_asset SET owner_id = {oid} WHERE id = {aid};\n"
+            )
+
+    print("Your generic_asset.owner_id associations are being dropped!")
+    print(
+        f"We saved UPDATE statements to put them back in {asset_ownership_backup_script}."
+    )
+
+
+def _generic_asset_ownership() -> List[Tuple[int, int]]:
     t_asset_owners = sa.Table(
         "generic_asset",
         sa.MetaData(),
@@ -208,16 +233,13 @@ def backup_generic_asset_user_associations():
             ]
         )
     ).fetchall()
+    return asset_ownership_results
 
-    with open(asset_ownership_backup_script, "w") as bckp_file:
-        for oid, aid in asset_ownership_results:
-            if oid is None:
-                oid = "null"
-            bckp_file.write(
-                f"UPDATE generic_asset SET owner_id = {oid} WHERE id = {aid};\n"
-            )
 
-    print("Your generic_asset.owner_id associations are being dropped!")
-    print(
-        f"We saved UPDATE statements to put them back in {asset_ownership_backup_script}."
-    )
+def _get_old_owner_id_from_db_result(
+    generic_asset_ownership, asset_id
+) -> Optional[int]:
+    for aid, oid in generic_asset_ownership:
+        if aid == asset_id:
+            return oid
+    return None
