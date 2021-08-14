@@ -4,7 +4,7 @@
 Administration
 **************
 
-The administrator can edit assets and user accounts here.
+The administrator can edit assets and users here.
 
 Assets
 ------
