@@ -78,7 +78,7 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
         password=hash_password(pwd1),
         timezone=timezone,
         user_roles=roles,
-        check_deliverability=False,
+        check_email_deliverability=False,
     )
     db.session.commit()
     print(f"Successfully created user {created_user}")

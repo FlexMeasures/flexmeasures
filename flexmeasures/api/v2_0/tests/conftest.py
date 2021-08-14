@@ -23,7 +23,7 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices, add_battery_as
 
 
 @pytest.fixture(scope="module")
-def setup_inactive_user(db, setup_roles_users):
+def setup_inactive_user(db, setup_account, setup_roles_users):
     """
     Set up one inactive user.
     """
@@ -34,5 +34,6 @@ def setup_inactive_user(db, setup_roles_users):
         username="inactive test user",
         email="inactive@seita.nl",
         password=hash_password("testtest"),
+        account_id=setup_account.id,
         active=False,
     )
