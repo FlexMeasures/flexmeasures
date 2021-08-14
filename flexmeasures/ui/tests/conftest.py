@@ -31,7 +31,12 @@ def as_admin(client):
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_ui_test_data(
-    db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
+    db,
+    setup_account,
+    setup_roles_users,
+    setup_markets,
+    setup_sources,
+    setup_asset_types,
 ):
     """
     Create another prosumer, without data, and an admin
@@ -43,6 +48,7 @@ def setup_ui_test_data(
         username="Site Admin",
         email="flexmeasures-admin@seita.nl",
         password=hash_password("testtest"),
+        account_name=setup_account.name,
         user_roles=dict(name="admin", description="A site admin."),
     )
 
@@ -50,6 +56,7 @@ def setup_ui_test_data(
         username="Second Test Prosumer",
         email="test_prosumer2@seita.nl",
         password=hash_password("testtest"),
+        account_name=setup_account.name,
         user_roles=dict(
             name="Prosumer", description="A Prosumer with one asset but no data."
         ),

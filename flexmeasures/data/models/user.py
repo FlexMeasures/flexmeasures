@@ -28,6 +28,7 @@ class Role(db.Model, RoleMixin):
 class Account(db.Model):
     """
     Account of a tenant on the server.
+    Bundles Users as well as GenericAssets.
     """
 
     __tablename__ = "account"
