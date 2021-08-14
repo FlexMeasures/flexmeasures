@@ -9,7 +9,9 @@ from flexmeasures.ui.views.control import control_view  # noqa: F401
 from flexmeasures.ui.views.analytics import analytics_view  # noqa: F401
 from flexmeasures.ui.views.state import state_view  # noqa: F401
 
-from flexmeasures.ui.views.account import account_view  # noqa: F401  # noqa: F401
+from flexmeasures.ui.views.logged_in_user import (  # noqa: F401  # noqa: F401
+    logged_in_user_view,
+)
 
 from flexmeasures.ui.views.charts import get_power_chart  # noqa: F401
 

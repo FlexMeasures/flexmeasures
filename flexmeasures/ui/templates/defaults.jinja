@@ -32,7 +32,7 @@
 {% set show_queues = True if current_user.is_authenticated and (current_user.has_role('admin') or FLEXMEASURES_MODE == "demo") else False %}
 {% do navigation_bar.append(('tasks', 'tasks', 'Tasks', '', 'tasks')) if show_queues %}
 
-{% do navigation_bar.append(('account', 'account', '', user_name, 'user')) if current_user.is_authenticated %}
+{% do navigation_bar.append(('logged-in-user', 'logged-in-user', '', user_name, 'user')) if current_user.is_authenticated %}
 
 {% do navigation_bar.append(('ui/static/documentation/html/index.html', 'docs', '', 'Documentation (new window)', 'question')) if documentation_exists and current_user.is_authenticated %}
 

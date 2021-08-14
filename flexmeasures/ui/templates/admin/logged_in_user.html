@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% set active_page = "account" %}
+{% set active_page = "logged-in-user" %}
 
-{% block title %} Your account {% endblock %}
+{% block title %} Your user overview {% endblock %}
 
 {% block divs %}
 
 
-    <h2> Account overview for {{ logged_in_user.username }} </h2>
+    <h2> Overview for logged-in user: {{ logged_in_user.username }} </h2>
 
     <div class="container-fluid">
         <div class="row">

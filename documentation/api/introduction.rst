@@ -102,7 +102,7 @@ A fresh "<token>" can be generated on the user's profile after logging in:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/account
+    https://company.flexmeasures.io/logged-in-user
 
 or through a POST request to the following endpoint:
 

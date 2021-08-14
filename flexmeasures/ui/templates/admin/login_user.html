@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% set active_page = "account" %}
+{% set active_page = "logged-in-user" %}
 
 {% block title %} Please log in {% endblock %}
 
@@ -30,7 +30,7 @@
             <div class="alert alert-info col-sm-8">
                 <h2>Interested in a demo?</h2>
                 <p>
-                    Simply log in to our demo account.
+                    Simply log in as our demo user.
                 <ul>
                     <li>Email: {{ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS[0] }}</li>
                     <li>Password: {{ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS[1] }}</li>

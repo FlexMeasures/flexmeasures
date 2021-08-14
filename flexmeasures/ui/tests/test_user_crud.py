@@ -49,7 +49,7 @@ def test_user_page(client, as_admin, requests_mock):
     user_page = client.get(url_for("UserCrudUI:get", id=2), follow_redirects=True)
     assert user_page.status_code == 200
     assert (
-        "Account overview for %s" % mock_user["username"]
+        "Overview for logged-in user: %s" % mock_user["username"]
     ).encode() in user_page.data
     assert (">3</a>").encode() in user_page.data  # this is the asset count
     assert mock_user["email"].encode() in user_page.data

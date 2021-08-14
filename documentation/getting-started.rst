@@ -99,7 +99,7 @@ This suffices for a quick start.
 Add a user
 ^^^^^^^^^^
 
-FlexMeasures is a web-based platform, so we need a user account:
+FlexMeasures is a web-based platform, so we need to create a user:
 
 .. code-block::
 
