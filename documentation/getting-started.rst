@@ -96,18 +96,26 @@ This suffices for a quick start.
 
 
 
-Add a user
-^^^^^^^^^^
+Add an account & user
+^^^^^^^^^^^^^^^^^^^^^
 
-FlexMeasures is a web-based platform, so we need to create a user:
+FlexMeasures is a tenant-based platform ― multiple clients can enjoy its services on one server. Let's create a tenant account first: 
 
 .. code-block::
 
-   flexmeasures add user --username <your-username> --email <your-email-address> --roles=admin
+   flexmeasures add account --name  "Some company"
+
+This command will tell us the ID of this account. Let's assume it was ``2``.
+
+FlexMeasures is also a web-based platform, so we need to create a user to authenticate:
+
+.. code-block::
+
+   flexmeasures add user --username <your-username> --email <your-email-address> --account-id 2 --roles=admin
 
 
 * This will ask you to set a password for the user.
-* Giving the first user the ``admin`` role is probably what you want.
+* Giving the first user the ``admin`` role is probably what you want. TODO: is `admin` the new super-user?
 
 
 Add structure
