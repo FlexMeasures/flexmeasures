@@ -26,12 +26,16 @@ class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
     generic_asset_id = db.Column(
-        db.Integer, db.ForeignKey("generic_asset.id"), nullable=False
+        db.Integer,
+        db.ForeignKey("generic_asset.id", ondelete="CASCADE"),
+        nullable=False,
     )
     generic_asset = db.relationship(
         "GenericAsset",
         foreign_keys=[generic_asset_id],
-        backref=db.backref("sensors", lazy=True),
+        backref=db.backref(
+            "sensors", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+        ),
     )
 
     def __init__(self, **kwargs):

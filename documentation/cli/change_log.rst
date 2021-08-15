@@ -4,6 +4,13 @@
 FlexMeasures CLI Changelog
 **********************
 
+
+since v0.6.0 | April 2, 2021
+=====================
+
+* add ``flexmeasures add account``, ``flexmeasures delete account`` and the ``--account-id`` param to ``flexmeasures add user``.
+
+
 since v0.4.0 | April 2, 2021
 =====================
 

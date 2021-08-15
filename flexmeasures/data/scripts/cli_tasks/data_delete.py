@@ -4,6 +4,8 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 
+from flexmeasures.data import db
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.weather import Weather
@@ -16,13 +18,49 @@ def fm_delete_data():
     """FlexMeasures: Delete data."""
 
 
+@fm_delete_data.command("account")
+@with_appcontext
+@click.option("--id", type=int)
+@click.option(
+    "--force/--no-force", default=False, help="Skip warning about consequences."
+)
+def delete_account(id: int, force: bool):
+    """
+    Delete an account, including their users & data.
+    """
+    if not force:
+        prompt = "Delete account including generic assets, users and all their data?"
+        if not click.confirm(prompt):
+            raise click.Abort()
+    account: Account = db.session.query(Account).get(id)
+    if account is None:
+        print(f"Account with ID '{id}' does not exist.")
+        raise click.Abort
+    for user in account.users:
+        print(f"Deleting user {user} (and assets & data) ...")
+        delete_user(user)
+    for asset in account.generic_assets:
+        print(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
+        db.session.delete(asset)
+    db.session.delete(account)
+    db.session.commit()
+
+
 @fm_delete_data.command("user")
 @with_appcontext
 @click.option("--email")
-def delete_user_and_data(email: str):
+@click.option(
+    "--force/--no-force", default=False, help="Skip warning about consequences."
+)
+def delete_user_and_data(email: str, force: bool):
     """
-    Delete a user & also their data.
+    Delete a user & also their assets and data.
     """
+    if not force:
+        # TODO: later, when assets belong to accounts, remove this.
+        prompt = "Delete user including all their assets and data?"
+        if not click.confirm(prompt):
+            raise click.Abort()
     the_user = find_user_by_email(email)
     if the_user is None:
         print(f"Could not find user with email address '{email}' ...")
@@ -71,6 +109,9 @@ def delete_structure(force):
     """
     Delete all structural (non time-series) data like assets (types),
     markets (types) and weather sensors (types) and users.
+
+    TODO: This could in our future data model (currently in development) be replaced by
+    `flexmeasures delete generic-asset-type` and `flexmeasures delete sensor`.
     """
     if not force:
         confirm_deletion(structure=True)
