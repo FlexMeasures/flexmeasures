@@ -38,6 +38,7 @@ class GenericAsset(db.Model):
     account_id = db.Column(
         db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
     )  # if null, asset is public
+
     owner = db.relationship(
         "Account",
         backref=db.backref(
@@ -81,6 +82,9 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     new_generic_asset = GenericAsset(
         name=kwargs["name"], generic_asset_type_id=generic_asset_type.id
     )
+    for arg in ("latitude", "longitude", "account_id"):
+        if arg in kwargs:
+            setattr(new_generic_asset, arg, kwargs[arg])
     db.session.add(new_generic_asset)
     db.session.flush()  # generates the pkey for new_generic_asset
     return new_generic_asset
