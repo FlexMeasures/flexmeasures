@@ -47,14 +47,14 @@ v2_0_service_listing["services"].append(
 )
 v2_0_service_listing["services"].append(
     {
-        "name": "PATCH /assets/<id>",
+        "name": "PATCH /asset/<id>",
         "access": [],
         "description": "Edit an asset.",
     },
 )
 v2_0_service_listing["services"].append(
     {
-        "name": "DELETE /assets/<id>",
+        "name": "DELETE /asset/<id>",
         "access": [],
         "description": "Delete an asset and its data.",
     },
@@ -117,11 +117,11 @@ def get_assets():
                 "id": 1,
                 "latitude": 10,
                 "longitude": 100,
-                "market": 1,
+                "market_id": 1,
                 "max_soc_in_mwh": 5,
                 "min_soc_in_mwh": 0,
                 "name": "Test battery",
-                "owner": 2,
+                "owner_id": 2,
                 "soc_datetime": "2015-01-01T00:00:00+00:00",
                 "soc_in_mwh": 2.5,
                 "soc_udi_event_id": 203,
@@ -166,8 +166,8 @@ def post_assets():
             "name": "Test battery",
             "asset_type": "battery",
             "unit": "kW",
-            "owner": 2,
-            "market": 1,
+            "owner_id": 2,
+            "market_id": 1,
             "event_resolution": 5,
             "capacity_in_mw": 4.2,
             "latitude": 40,
@@ -197,8 +197,8 @@ def post_assets():
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
             "name": "Test battery",
-            "owner": 2,
-            "market": 1,
+            "owner_id": 2,
+            "market_id": 1,
             "soc_datetime": null,
             "soc_in_mwh": null,
             "soc_udi_event_id": null
@@ -238,11 +238,11 @@ def get_asset(id: int):
             "id": 1,
             "latitude": 10,
             "longitude": 100,
-            "market": 1,
+            "market_id": 1,
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
             "name": "Test battery",
-            "owner": 2,
+            "owner_id": 2,
             "soc_datetime": "2015-01-01T00:00:00+00:00",
             "soc_in_mwh": 2.5,
             "soc_udi_event_id": 203,
@@ -300,11 +300,11 @@ def patch_asset(id: int):
             "id": 1,
             "latitude": 11.1,
             "longitude": 99.9,
-            "market": 1,
+            "market_id": 1,
             "max_soc_in_mwh": 5,
             "min_soc_in_mwh": 0,
             "name": "Test battery",
-            "owner": 2,
+            "owner_id": 2,
             "soc_datetime": "2015-01-01T00:00:00+00:00",
             "soc_in_mwh": 2.5,
             "soc_udi_event_id": 203,
@@ -403,6 +403,7 @@ def get_user(id: int):
     .. sourcecode:: json
 
         {
+            'account_id': 1,
             'active': True,
             'email': 'test_prosumer@seita.nl',
             'flexmeasures_roles': [1, 3],
@@ -435,7 +436,7 @@ def patch_user(id: int):
     Only the user themselves or admins are allowed to update its data,
     while a non-admin can only edit a few of their own fields.
 
-    Several fields are not allowed to be updated, e.g. id. They are ignored.
+    Several fields are not allowed to be updated, e.g. id and account_id. They are ignored.
 
     **Example request**
 
@@ -452,6 +453,7 @@ def patch_user(id: int):
     .. sourcecode:: json
 
         {
+            'account_id': 1,
             'active': True,
             'email': 'test_prosumer@seita.nl',
             'flexmeasures_roles': [1, 3],
