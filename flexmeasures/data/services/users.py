@@ -110,12 +110,15 @@ def create_user(  # noqa: C901
 
     # check if we can link/create an account
     if account_name is None:
-        raise InvalidFlexMeasuresUser("Cannot create user without knowing account_name")
+        raise InvalidFlexMeasuresUser(
+            "Cannot create user without knowing the name of the account which this user is associated with."
+        )
     account = db.session.query(Account).filter_by(name=account_name).one_or_none()
     if account is None:
         print(f"Creating account {account_name} ...")
         account = Account(name=account_name)
         db.session.add(account)
+        db.session.flush()
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     kwargs.update(email=email, username=username)

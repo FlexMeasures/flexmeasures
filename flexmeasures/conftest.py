@@ -112,16 +112,16 @@ def create_test_db(app):
 
 
 @pytest.fixture(scope="module")
-def setup_account(db) -> Dict[str, Market]:
+def setup_account(db) -> Dict[str, Account]:
     return create_test_account(db)
 
 
 @pytest.fixture(scope="function")
-def setup_account_fresh_db(fresh_db) -> Dict[str, Market]:
+def setup_account_fresh_db(fresh_db) -> Dict[str, Account]:
     return create_test_account(fresh_db)
 
 
-def create_test_account(db) -> Dict[str, Market]:
+def create_test_account(db) -> Dict[str, Account]:
     test_account = Account(name="Test Account")
     db.session.add(test_account)
     return test_account

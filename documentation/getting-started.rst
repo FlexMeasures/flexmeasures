@@ -115,7 +115,7 @@ FlexMeasures is also a web-based platform, so we need to create a user to authen
 
 
 * This will ask you to set a password for the user.
-* Giving the first user the ``admin`` role is probably what you want. TODO: is `admin` the new super-user?
+* Giving the first user the ``admin`` role is probably what you want.
 
 
 Add structure
