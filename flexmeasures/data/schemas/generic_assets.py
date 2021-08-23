@@ -3,6 +3,7 @@ from typing import Optional
 from marshmallow import validates, ValidationError, fields
 
 from flexmeasures.data import ma
+from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 
 
@@ -13,6 +14,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     id = ma.auto_field()
     name = fields.Str()
+    account_id = ma.auto_field()
     latitude = ma.auto_field()
     longitude = ma.auto_field()
     generic_asset_type_id = fields.Integer()
@@ -27,6 +29,12 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
             raise ValidationError(
                 f"GenericAssetType with id {generic_asset_type_id} doesn't exist."
             )
+
+    @validates("account_id")
+    def validate_account(self, account_id: int):
+        account = Account.query.get(account_id)
+        if not account:
+            raise ValidationError(f"Account with Id {account_id} doesn't exist.")
 
     @validates("latitude")
     def validate_latitude(self, latitude: Optional[float]):

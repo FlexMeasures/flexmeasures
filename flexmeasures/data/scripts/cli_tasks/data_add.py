@@ -174,6 +174,7 @@ def add_generic_asset_type(**args):
     type=float,
     help="Longitude of the asset's location",
 )
+@click.option("--account-id", type=int, required=True)
 @click.option(
     "--generic-asset-type-id",
     required=True,
