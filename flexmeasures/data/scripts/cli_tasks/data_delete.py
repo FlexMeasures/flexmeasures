@@ -5,8 +5,9 @@ from flask import current_app as app
 from flask.cli import with_appcontext
 
 from flexmeasures.data import db
-from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.assets import Power
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.scripts.data_gen import get_affected_classes
@@ -28,14 +29,24 @@ def delete_account(id: int, force: bool):
     """
     Delete an account, including their users & data.
     """
-    if not force:
-        prompt = "Delete account including generic assets, users and all their data?"
-        if not click.confirm(prompt):
-            raise click.Abort()
     account: Account = db.session.query(Account).get(id)
     if account is None:
         print(f"Account with ID '{id}' does not exist.")
         raise click.Abort
+    if not force:
+        prompt = "Delete account including generic assets, users and all their data?\n"
+        users = User.query.filter(User.account_id == id).all()
+        if users:
+            prompt += "Affected users: " + ",".join([u.username for u in users]) + "\n"
+        generic_assets = GenericAsset.query.filter(GenericAsset.account_id == id).all()
+        if generic_assets:
+            prompt += (
+                "Affected generic assets: "
+                + ",".join([ga.name for ga in generic_assets])
+                + "\n"
+            )
+        if not click.confirm(prompt):
+            raise click.Abort()
     for user in account.users:
         print(f"Deleting user {user} (and assets & data) ...")
         delete_user(user)
