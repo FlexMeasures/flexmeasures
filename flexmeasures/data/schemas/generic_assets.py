@@ -21,7 +21,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         model = GenericAsset
 
     @validates("generic_asset_type_id")
-    def validate_market(self, generic_asset_type_id: int):
+    def validate_generic_asset_type(self, generic_asset_type_id: int):
         generic_asset_type = GenericAssetType.query.get(generic_asset_type_id)
         if not generic_asset_type:
             raise ValidationError(
