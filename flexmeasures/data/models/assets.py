@@ -32,7 +32,7 @@ class AssetType(db.Model):
 
     def __init__(self, **kwargs):
         generic_asset_type = GenericAssetType(
-            name=kwargs["name"], hover_label=kwargs.get("hover_label", None)
+            name=kwargs["name"], description=kwargs.get("hover_label", None)
         )
         db.session.add(generic_asset_type)
         super(AssetType, self).__init__(**kwargs)

@@ -11,7 +11,7 @@ class GenericAssetType(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), default="")
-    hover_label = db.Column(db.String(80), nullable=True, unique=False)
+    description = db.Column(db.String(80), nullable=True, unique=False)
 
 
 class GenericAsset(db.Model):

@@ -26,7 +26,7 @@ def upgrade():
     A GenericAssetType is created for each AssetType, MarketType and WeatherSensorType.
     Optionally, additional GenericAssetTypes can be created using:
 
-    flexmeasures db upgrade +1 -x '{"name": "waste power plant"}' -x '{"name": "EVSE", "hover_label": "Electric Vehicle Supply Equipment"}'
+    flexmeasures db upgrade +1 -x '{"name": "waste power plant"}' -x '{"name": "EVSE", "description": "Electric Vehicle Supply Equipment"}'
 
     The +1 makes sure we only upgrade by 1 revision, as these arguments are only meant to be used by this upgrade function.
     """
@@ -123,7 +123,7 @@ def upgrade_data():
             )
         new_generic_asset_type = GenericAssetType(
             name=generic_asset_type_dict["name"],
-            hover_label=generic_asset_type_dict.get("hover_label", None),
+            description=generic_asset_type_dict.get("description", None),
         )
         new_generic_asset_types.append(new_generic_asset_type)
 
@@ -133,7 +133,7 @@ def upgrade_data():
     )
     for name, display_name in asset_type_results_dict.items():
         # Create new GenericAssets with matching names
-        new_generic_asset_type = GenericAssetType(name=name, hover_label=display_name)
+        new_generic_asset_type = GenericAssetType(name=name, description=display_name)
         new_generic_asset_types.append(new_generic_asset_type)
 
     # Construct generic asset types for each MarketType
@@ -142,7 +142,7 @@ def upgrade_data():
     )
     for name, display_name in market_type_results_dict.items():
         # Create new GenericAssets with matching names
-        new_generic_asset_type = GenericAssetType(name=name, hover_label=display_name)
+        new_generic_asset_type = GenericAssetType(name=name, description=display_name)
         new_generic_asset_types.append(new_generic_asset_type)
 
     # Construct generic asset types for each WeatherSensorType
@@ -151,7 +151,7 @@ def upgrade_data():
     )
     for name, display_name in weather_sensor_type_results_dict.items():
         # Create new GenericAssets with matching names
-        new_generic_asset_type = GenericAssetType(name=name, hover_label=display_name)
+        new_generic_asset_type = GenericAssetType(name=name, description=display_name)
         new_generic_asset_types.append(new_generic_asset_type)
 
     # Add the new generic asset types
@@ -164,6 +164,6 @@ def upgrade_schema():
         "generic_asset_type",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=80), nullable=True),
-        sa.Column("hover_label", sa.String(length=80), nullable=True),
+        sa.Column("description", sa.String(length=80), nullable=True),
         sa.PrimaryKeyConstraint("id", name=op.f("generic_asset_type_pkey")),
     )

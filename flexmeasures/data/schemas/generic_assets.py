@@ -64,7 +64,7 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 
     id = ma.auto_field()
     name = fields.Str()
-    hover_label = ma.auto_field()
+    description = ma.auto_field()
 
     class Meta:
         model = GenericAssetType
