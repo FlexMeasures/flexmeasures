@@ -79,7 +79,7 @@ def test_create_invalid_user(
             password=hash_password("testtest"),
             user_roles=["Prosumer"],
         )
-    assert "without knowing account_name" in str(exc_info.value)
+    assert "without knowing the name of the account" in str(exc_info.value)
 
 
 def test_delete_user(fresh_db, setup_roles_users_fresh_db, app):
