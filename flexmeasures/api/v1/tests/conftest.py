@@ -17,7 +17,6 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
     print("Setting up data for API v1 tests on %s" % db.engine)
 
     from flexmeasures.data.models.assets import Asset, AssetType, Power
-    from flexmeasures.data.models.generic_assets import GenericAssetType
     from flexmeasures.data.models.data_sources import DataSource
 
     # Create an anonymous user
@@ -34,7 +33,6 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
     # Create 1 test asset for the anonymous user
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
-    db.session.add(GenericAssetType(name="test-type"))
     asset_names = ["CS 0"]
     assets: List[Asset] = []
     for asset_name in asset_names:
@@ -117,13 +115,11 @@ def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
     db = fresh_db
     setup_roles_users = setup_roles_users_fresh_db
     from flexmeasures.data.models.assets import Asset, AssetType
-    from flexmeasures.data.models.generic_assets import GenericAssetType
 
     # Create 5 test assets for the test_prosumer user
     test_prosumer = setup_roles_users["Test Prosumer"]
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
-    db.session.add(GenericAssetType(name="test-type"))
     asset_names = ["CS 1", "CS 2", "CS 3", "CS 4", "CS 5"]
     assets: List[Asset] = []
     for asset_name in asset_names:

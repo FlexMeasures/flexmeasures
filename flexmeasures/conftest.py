@@ -158,11 +158,6 @@ def create_test_markets(db) -> Dict[str, Market]:
         yearly_seasonality=True,
     )
     db.session.add(day_ahead)
-    db.session.add(
-        GenericAssetType(
-            name="day_ahead",
-        )
-    )
     epex_da = Market(
         name="epex_da",
         market_type=day_ahead,
@@ -224,7 +219,6 @@ def create_test_asset_types(db) -> Dict[str, AssetType]:
         yearly_seasonality=True,
     )
     db.session.add(solar)
-    db.session.add(GenericAssetType(name="solar"))
     wind = AssetType(
         name="wind",
         is_producer=True,
@@ -233,7 +227,6 @@ def create_test_asset_types(db) -> Dict[str, AssetType]:
         yearly_seasonality=True,
     )
     db.session.add(wind)
-    db.session.add(GenericAssetType(name="wind"))
     return dict(solar=solar, wind=wind)
 
 
@@ -365,7 +358,6 @@ def create_test_battery_assets(
             yearly_seasonality=True,
         )
     )
-    db.session.add(GenericAssetType(name="battery"))
 
     test_battery = Asset(
         name="Test battery",
@@ -425,7 +417,6 @@ def add_charging_station_assets(
             yearly_seasonality=True,
         )
     )
-    db.session.add(GenericAssetType(name="one-way_evse"))
     db.session.add(
         AssetType(
             name="two-way_evse",
@@ -438,7 +429,6 @@ def add_charging_station_assets(
             yearly_seasonality=True,
         )
     )
-    db.session.add(GenericAssetType(name="two-way_evse"))
 
     charging_station = Asset(
         name="Test charging station",
@@ -496,7 +486,6 @@ def create_weather_sensors(db: SQLAlchemy):
 
     test_sensor_type = WeatherSensorType(name="wind_speed")
     db.session.add(test_sensor_type)
-    db.session.add(GenericAssetType(name="wind_speed"))
     wind_sensor = WeatherSensor(
         name="wind_speed_sensor",
         weather_sensor_type_name="wind_speed",
@@ -508,7 +497,6 @@ def create_weather_sensors(db: SQLAlchemy):
     db.session.add(wind_sensor)
 
     test_sensor_type = WeatherSensorType(name="temperature")
-    db.session.add(GenericAssetType(name="temperature"))
     db.session.add(test_sensor_type)
     temp_sensor = WeatherSensor(
         name="temperature_sensor",
