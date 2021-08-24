@@ -153,7 +153,7 @@ def add_generic_asset_type(**args):
     "--generic-asset-type-id",
     required=True,
     type=int,
-    help="Generic asset type to assign this sensor to",
+    help="Generic asset type to assign to this asset",
 )
 def add_generic_asset(**args):
     """Add a generic asset."""

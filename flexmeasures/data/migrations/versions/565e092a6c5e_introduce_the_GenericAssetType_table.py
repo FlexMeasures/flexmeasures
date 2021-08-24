@@ -147,7 +147,7 @@ def upgrade_data():
 
     # Construct generic asset types for each WeatherSensorType
     print(
-        f"Constructing generic asset types for each of the following market types: {weather_sensor_type_results_dict}"
+        f"Constructing generic asset types for each of the following weather sensor types: {weather_sensor_type_results_dict}"
     )
     for name, display_name in weather_sensor_type_results_dict.items():
         # Create new GenericAssets with matching names
