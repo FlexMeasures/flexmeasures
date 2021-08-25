@@ -12,6 +12,7 @@ from flexmeasures.data.models.time_series import TimedBelief, Sensor
     [
         (6, 6),
         (3, 6),  # upsample
+        (1, 6),  # upsample single value sent as float rather than list of floats
     ],
 )
 def test_post_sensor_data(
