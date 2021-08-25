@@ -5,6 +5,9 @@ FlexMeasures Changelog
 v0.6.0 | July XX, 2021
 ===========================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+             In case you are using experimental developer features and have previously set up sensors, be sure to check out the upgrade instructions in `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_.
+
 New features
 -----------
 * Analytics view offers grouping of all assets by location [see `PR #148 <http://www.github.com/SeitaBV/flexmeasures/pull/148>`_]
