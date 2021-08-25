@@ -23,6 +23,7 @@ from flexmeasures.app import create as create_app
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset, Power
+from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.markets import Market, MarketType, Price
@@ -184,6 +185,27 @@ def setup_asset_types(db) -> Dict[str, AssetType]:
 @pytest.fixture(scope="function")
 def setup_asset_types_fresh_db(fresh_db) -> Dict[str, AssetType]:
     return create_test_asset_types(fresh_db)
+
+
+@pytest.fixture(scope="module")
+def setup_generic_asset(db, setup_generic_asset_type) -> Dict[str, AssetType]:
+    """Make some generic assets used throughout."""
+    troposphere = GenericAsset(
+        name="troposphere", generic_asset_type=setup_generic_asset_type["public_good"]
+    )
+    db.session.add(troposphere)
+    return dict(troposphere=troposphere)
+
+
+@pytest.fixture(scope="module")
+def setup_generic_asset_type(db) -> Dict[str, AssetType]:
+    """Make some generic asset types used throughout."""
+
+    public_good = GenericAssetType(
+        name="public good",
+    )
+    db.session.add(public_good)
+    return dict(public_good=public_good)
 
 
 def create_test_asset_types(db) -> Dict[str, AssetType]:
@@ -489,11 +511,10 @@ def create_weather_sensors(db: SQLAlchemy):
 
 
 @pytest.fixture(scope="module")
-def add_sensors(db: SQLAlchemy):
+def add_sensors(db: SQLAlchemy, setup_generic_asset):
     """Add some generic sensors."""
     height_sensor = Sensor(
-        name="my daughter's height",
-        unit="m",
+        name="height", unit="m", generic_asset=setup_generic_asset["troposphere"]
     )
     db.session.add(height_sensor)
     return height_sensor

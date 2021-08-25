@@ -18,6 +18,7 @@ from flexmeasures.data.queries.utils import (
 from flexmeasures.data.services.time_series import collect_time_series_data
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
@@ -25,9 +26,19 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
-    def __init__(self, name: str, **kwargs):
+    generic_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id"), nullable=False
+    )
+    generic_asset = db.relationship(
+        "GenericAsset",
+        foreign_keys=[generic_asset_id],
+        backref=db.backref("sensors", lazy=True),
+    )
+
+    def __init__(self, name: str, generic_asset: GenericAsset, **kwargs):
         tb.SensorDBMixin.__init__(self, name, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.SensorDBMixin, kwargs)
+        kwargs["generic_asset"] = generic_asset
         db.Model.__init__(self, **kwargs)
 
     @property

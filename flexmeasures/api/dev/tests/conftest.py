@@ -3,6 +3,7 @@ from datetime import timedelta
 from flask_security import SQLAlchemySessionUserDatastore
 import pytest
 
+from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -28,13 +29,25 @@ def setup_api_fresh_test_data(fresh_db, setup_roles_users_fresh_db):
     give_prosumer_the_MDC_role(fresh_db)
 
 
-def add_gas_sensor(the_db, test_supplier):
+def add_gas_sensor(db, test_supplier):
+    incineration_type = GenericAssetType(
+        name="waste incinerator",
+    )
+    db.session.add(incineration_type)
+    db.session.flush()
+    incineration_asset = GenericAsset(
+        name="incineration line",
+        generic_asset_type=incineration_type,
+    )
+    db.session.add(incineration_asset)
+    db.session.flush()
     gas_sensor = Sensor(
         name="some gas sensor",
         unit="m³/h",
         event_resolution=timedelta(minutes=10),
+        generic_asset=incineration_asset,
     )
-    the_db.session.add(gas_sensor)
+    db.session.add(gas_sensor)
     gas_sensor.owner = test_supplier
 
 

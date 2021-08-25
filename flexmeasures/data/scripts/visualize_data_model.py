@@ -30,6 +30,17 @@ DEBUG = True
 FALLBACK_VIEWER_CMD = "gwenview"  # Use this program if none of the standard viewers
 # (e.g. display) can be found. Can be overwritten as env var.
 
+RELEVANT_MODULES = [
+    "task_runs",
+    "data_sources",
+    "markets",
+    "assets",
+    "generic_assets",
+    "weather",
+    "user",
+    "time_series",
+]
+
 RELEVANT_TABLES = [
     "asset",
     "asset_type",
@@ -45,9 +56,14 @@ RELEVANT_TABLES = [
     "weather_sensor",
     "weather_sensor_type",
 ]
+RELEVANT_TABLES_DEV = [
+    "generic_asset_type",
+    "generic_asset",
+    "sensor",
+    "timed_belief",
+    "timed_value",
+]
 IGNORED_TABLES = ["alembic_version", "roles_users"]
-
-RELEVANT_MODULES = ["task_runs", "data_sources", "markets", "assets", "weather", "user"]
 
 
 def check_sqlalchemy_schemadisplay_installation():
@@ -101,7 +117,7 @@ def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False):
     print(
         f"Connecting to database {pg_url} as user {pg_user} and loading schema metadata ..."
     )
-    db_metadata = MetaData(f"postgres://{pg_user}:{pg_pwd}@{pg_url}")
+    db_metadata = MetaData(f"postgresql://{pg_user}:{pg_pwd}@{pg_url}")
     kwargs = dict(
         metadata=db_metadata,
         show_datatypes=False,  # The image would get nasty big if we'd show the datatypes
@@ -120,7 +136,7 @@ def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False):
 
 
 @uses_dot
-def create_uml_pic(store: bool = False):
+def create_uml_pic(store: bool = False, dev: bool = False):
     print("CREATING UML CODE DIAGRAM ...")
     print("Finding all the relevant mappers in our model...")
     mappers = []
@@ -138,11 +154,14 @@ def create_uml_pic(store: bool = False):
                 if inspect.isclass(mclass) and issubclass(mclass, flexmeasures_db.Model)
             }
         )
+    relevant_tables = RELEVANT_TABLES
+    if dev:
+        relevant_tables += RELEVANT_TABLES_DEV
     if DEBUG:
-        print(f"Relevant tables: {RELEVANT_TABLES}")
+        print(f"Relevant tables: {relevant_tables}")
         print(f"Relevant models: {relevant_models}")
     matched_models = {
-        m: c for (m, c) in relevant_models.items() if c.__tablename__ in RELEVANT_TABLES
+        m: c for (m, c) in relevant_models.items() if c.__tablename__ in relevant_tables
     }
     for model_name, model_class in matched_models.items():
         if DEBUG:
@@ -215,9 +234,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--store",
         action="store_true",
-        help="Store the images a files, instead of showing them directly (which requires pillow).",
+        help="Store the images as files, instead of showing them directly (which requires pillow).",
     )
-
     parser.add_argument(
         "--pg_url",
         help="Postgres URL (needed if --schema is on).",
@@ -227,6 +245,11 @@ if __name__ == "__main__":
         "--pg_user",
         help="Postgres user (needed if --schema is on).",
         default="flexmeasures",
+    )
+    parser.add_argument(
+        "--dev",
+        action="store_false",
+        help="If true (and --uml is used), include the parts of the new data model which are in development.",
     )
 
     args = parser.parse_args()
@@ -245,4 +268,4 @@ if __name__ == "__main__":
                 f"We need flexmeasures.data to be in the path, so we can read the data model. Error: '{ie}''."
             )
             sys.exit(0)
-        create_uml_pic(store=args.store)
+        create_uml_pic(store=args.store, dev=args.dev)

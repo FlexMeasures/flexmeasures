@@ -6,6 +6,10 @@ from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.time_series import Sensor, TimedValue
+from flexmeasures.data.models.generic_assets import (
+    create_generic_asset,
+    GenericAssetType,
+)
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize, pluralize
 
@@ -27,6 +31,10 @@ class AssetType(db.Model):
     yearly_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
 
     def __init__(self, **kwargs):
+        generic_asset_type = GenericAssetType(
+            name=kwargs["name"], description=kwargs.get("hover_label", None)
+        )
+        db.session.add(generic_asset_type)
         super(AssetType, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
         if "display_name" not in kwargs:
@@ -102,7 +110,8 @@ class Asset(db.Model, tb.SensorDBMixin):
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
         if "id" not in kwargs:
-            new_sensor = Sensor(name=kwargs["name"])
+            new_generic_asset = create_generic_asset("asset", **kwargs)
+            new_sensor = Sensor(name=kwargs["name"], generic_asset=new_generic_asset)
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
             sensor_id = new_sensor.id
