@@ -74,4 +74,8 @@ upgrade-db:
 	flask db current
 
 show-data-model:
-	./flexmeasures/data/scripts/visualize_data_model.py --uml --store  # also try with --schema for database model
+	# This generates the data model, as currently written in code, as a PNG picture.
+	# Also try with --schema for the database model. 
+	# With --dev, you'll see the currently experimental parts, as well.
+	# Use --help to learn more. 
+	./flexmeasures/data/scripts/visualize_data_model.py --uml --store
