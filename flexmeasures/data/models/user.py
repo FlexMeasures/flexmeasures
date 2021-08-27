@@ -25,6 +25,20 @@ class Role(db.Model, RoleMixin):
         return "<Role:%s (ID:%d)>" % (self.name, self.id)
 
 
+class Account(db.Model):
+    """
+    Account of a tenant on the server.
+    Bundles Users as well as GenericAssets.
+    """
+
+    __tablename__ = "account"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), default="", unique=True)
+
+    def __repr__(self):
+        return "<Account %s (ID:%d)" % (self.name, self.id)
+
+
 class User(db.Model, UserMixin):
     """
     We use the flask security UserMixin, which does include functionality,
@@ -46,6 +60,9 @@ class User(db.Model, UserMixin):
     # Faster token checking
     fs_uniquifier = Column(String(64), unique=True, nullable=False)
     timezone = Column(String(255), default="Europe/Amsterdam")
+    account_id = Column(Integer, db.ForeignKey("account.id"), nullable=False)
+
+    account = db.relationship("Account", backref=db.backref("users", lazy=True))
     flexmeasures_roles = relationship(
         "Role",
         secondary="roles_users",

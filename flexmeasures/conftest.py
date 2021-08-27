@@ -28,7 +28,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.markets import Market, MarketType, Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.user import User
+from flexmeasures.data.models.user import User, Account
 
 
 """
@@ -112,26 +112,44 @@ def create_test_db(app):
 
 
 @pytest.fixture(scope="module")
-def setup_roles_users() -> Dict[str, User]:
-    return create_roles_users()
+def setup_account(db) -> Dict[str, Account]:
+    return create_test_account(db)
 
 
 @pytest.fixture(scope="function")
-def setup_roles_users_fresh_db() -> Dict[str, User]:
-    return create_roles_users()
+def setup_account_fresh_db(fresh_db) -> Dict[str, Account]:
+    return create_test_account(fresh_db)
 
 
-def create_roles_users() -> Dict[str, User]:
+def create_test_account(db) -> Dict[str, Account]:
+    test_account = Account(name="Test Account")
+    db.session.add(test_account)
+    return test_account
+
+
+@pytest.fixture(scope="module")
+def setup_roles_users(db, setup_account) -> Dict[str, User]:
+    return create_roles_users(db, setup_account)
+
+
+@pytest.fixture(scope="function")
+def setup_roles_users_fresh_db(fresh_db, setup_account_fresh_db) -> Dict[str, User]:
+    return create_roles_users(fresh_db, setup_account_fresh_db)
+
+
+def create_roles_users(db, test_account) -> Dict[str, User]:
     """Create a minimal set of roles and users"""
     test_prosumer = create_user(
         username="Test Prosumer",
         email="test_prosumer@seita.nl",
+        account_name=test_account.name,
         password=hash_password("testtest"),
         user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
     )
     test_supplier = create_user(
         username="Test Supplier",
         email="test_supplier@seita.nl",
+        account_name=test_account.name,
         password=hash_password("testtest"),
         user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
     )

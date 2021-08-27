@@ -13,12 +13,13 @@ from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
 
 
-def test_create_user(fresh_db, setup_roles_users_fresh_db, app):
+def test_create_user(fresh_db, setup_account_fresh_db, setup_roles_users_fresh_db, app):
     """Create a user"""
     num_users = User.query.count()
     user = create_user(
         email="new_prosumer@seita.nl",
         password=hash_password("testtest"),
+        account_name=setup_account_fresh_db.name,
         user_roles=["Prosumer"],
     )
     assert User.query.count() == num_users + 1
@@ -29,7 +30,9 @@ def test_create_user(fresh_db, setup_roles_users_fresh_db, app):
     assert DataSource.query.filter_by(name=user.username).one_or_none()
 
 
-def test_create_invalid_user(fresh_db, setup_roles_users_fresh_db, app):
+def test_create_invalid_user(
+    fresh_db, setup_account_fresh_db, setup_roles_users_fresh_db, app
+):
     """A few invalid attempts to create a user"""
     with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
         create_user(password=hash_password("testtest"), user_roles=["Prosumer"])
@@ -38,6 +41,7 @@ def test_create_invalid_user(fresh_db, setup_roles_users_fresh_db, app):
         create_user(
             email="test_prosumer_AT_seita.nl",
             password=hash_password("testtest"),
+            account_name=setup_account_fresh_db.name,
             user_roles=["Prosumer"],
         )
         assert "not a valid" in str(exc_info.value)
@@ -46,6 +50,7 @@ def test_create_invalid_user(fresh_db, setup_roles_users_fresh_db, app):
         create_user(
             email="test_prosumer@sdkkhflzsxlgjxhglkzxjhfglkxhzlzxcvlzxvb.nl",
             password=hash_password("testtest"),
+            account_name=setup_account_fresh_db.name,
             user_roles=["Prosumer"],
         )
     assert "not seem to be deliverable" in str(exc_info.value)
@@ -54,6 +59,7 @@ def test_create_invalid_user(fresh_db, setup_roles_users_fresh_db, app):
         create_user(
             email="test_prosumer@seita.nl",
             password=hash_password("testtest"),
+            account_name=setup_account_fresh_db.name,
             user_roles=["Prosumer"],
         )
     assert "already exists" in str(exc_info.value)
@@ -62,9 +68,18 @@ def test_create_invalid_user(fresh_db, setup_roles_users_fresh_db, app):
             email="new_prosumer@seita.nl",
             username="Test Prosumer",
             password=hash_password("testtest"),
+            account_name=setup_account_fresh_db.name,
             user_roles=["Prosumer"],
         )
     assert "already exists" in str(exc_info.value)
+    with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
+        create_user(
+            email="new_prosumer@seita.nl",
+            username="New Test Prosumer",
+            password=hash_password("testtest"),
+            user_roles=["Prosumer"],
+        )
+    assert "without knowing the name of the account" in str(exc_info.value)
 
 
 def test_delete_user(fresh_db, setup_roles_users_fresh_db, app):

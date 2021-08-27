@@ -15,7 +15,7 @@ import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
-from flexmeasures.data.services.users import create_user
+from flexmeasures.data.services.users import create_user, Account
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
@@ -45,17 +45,37 @@ def fm_dev_add_data():
     """Developer CLI commands not yet meant for users: Add data."""
 
 
+@fm_add_data.command("account")
+@with_appcontext
+@click.option("--name", required=True)
+def new_account(name: str):
+    """
+    Create an account for a tenant in the FlexMeasures platform.
+    """
+    account = db.session.query(Account).filter_by(name=name).one_or_none()
+    if account is not None:
+        print(f"Account '{name}' already exist.")
+        raise click.Abort
+    account = Account(name=name)
+    db.session.add(account)
+    db.session.commit()
+    print(f"Account '{name}' (ID: {account.id}) successfully created.")
+
+
 @fm_add_data.command("user")
 @with_appcontext
 @click.option("--username", required=True)
 @click.option("--email", required=True)
+@click.option("--account-id", type=int, required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--timezone",
     default="UTC",
     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
-def new_user(username: str, email: str, roles: List[str], timezone: str):
+def new_user(
+    username: str, email: str, account_id: int, roles: List[str], timezone: str
+):
     """
     Create a FlexMeasures user.
 
@@ -65,7 +85,11 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
     try:
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
-        print("Timezone %s is unknown!" % timezone)
+        print(f"Timezone {timezone} is unknown!")
+        raise click.Abort
+    account = db.session.query(Account).get(account_id)
+    if account is None:
+        print(f"No account with id {account_id} found!")
         raise click.Abort
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
@@ -76,9 +100,10 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
         username=username,
         email=email,
         password=hash_password(pwd1),
+        account_name=account.name,
         timezone=timezone,
         user_roles=roles,
-        check_deliverability=False,
+        check_email_deliverability=False,
     )
     db.session.commit()
     print(f"Successfully created user {created_user}")
@@ -149,6 +174,7 @@ def add_generic_asset_type(**args):
     type=float,
     help="Longitude of the asset's location",
 )
+@click.option("--account-id", type=int, required=True)
 @click.option(
     "--generic-asset-type-id",
     required=True,

@@ -9,6 +9,7 @@ from webargs.flaskparser import use_args
 from marshmallow import fields
 
 from flexmeasures.data.services.resources import get_assets
+from flexmeasures.data.models.user import User
 from flexmeasures.data.models.assets import Asset as AssetModel
 from flexmeasures.data.schemas.assets import AssetSchema
 from flexmeasures.data.auth_setup import unauthorized_handler
@@ -115,6 +116,19 @@ def load_asset(admins_only: bool = False):
     return wrapper
 
 
+def ensure_asset_remains_in_account(db_asset: AssetModel, new_owner_id: int):
+    """
+    Temporary protection of information kept in two places
+    (Asset.owner_id, GenericAsset.account_id) until we use GenericAssets throughout.
+    """
+    new_owner = User.query.get(new_owner_id)
+    if new_owner and new_owner.account != db_asset.owner.account:
+        raise abort(
+            400,
+            f"New owner {new_owner_id} not allowed, belongs to different account than current owner.",
+        )
+
+
 @load_asset()
 @as_json
 def fetch_one(asset):
@@ -129,6 +143,8 @@ def patch(db_asset, asset_data):
     """Update an asset given its identifier"""
     ignored_fields = ["id"]
     for k, v in [(k, v) for k, v in asset_data.items() if k not in ignored_fields]:
+        if k == "owner_id":
+            ensure_asset_remains_in_account(db_asset, v)
         setattr(db_asset, k, v)
     db.session.add(db_asset)
     try:

@@ -111,22 +111,27 @@ def uses_dot(func):
 
 
 @uses_dot
-def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False):
+def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False, dev: bool = False):
     """Create a picture of the SCHEMA of relevant tables."""
     print("CREATING SCHEMA PICTURE ...")
     print(
         f"Connecting to database {pg_url} as user {pg_user} and loading schema metadata ..."
     )
     db_metadata = MetaData(f"postgresql://{pg_user}:{pg_pwd}@{pg_url}")
+    relevant_tables = RELEVANT_TABLES
+    if dev:
+        relevant_tables += RELEVANT_TABLES_DEV
     kwargs = dict(
         metadata=db_metadata,
         show_datatypes=False,  # The image would get nasty big if we'd show the datatypes
         show_indexes=False,  # ditto for indexes
         rankdir="LR",  # From left to right (instead of top to bottom)
         concentrate=False,  # Don't try to join the relation lines together
-        restrict_tables=RELEVANT_TABLES,
+        restrict_tables=relevant_tables,
     )
     print("Creating the pydot graph object...")
+    if DEBUG:
+        print(f"Relevant tables: {relevant_tables}")
     graph = create_schema_graph(**kwargs)
     if store:
         print("Storing as image (db_schema.png) ...")
@@ -232,6 +237,11 @@ if __name__ == "__main__":
         help="Visualize the relationships available in code (UML style).",
     )
     parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="If given, include the parts of the new data model which are in development.",
+    )
+    parser.add_argument(
         "--store",
         action="store_true",
         help="Store the images as files, instead of showing them directly (which requires pillow).",
@@ -246,11 +256,6 @@ if __name__ == "__main__":
         help="Postgres user (needed if --schema is on).",
         default="flexmeasures",
     )
-    parser.add_argument(
-        "--dev",
-        action="store_false",
-        help="If true (and --uml is used), include the parts of the new data model which are in development.",
-    )
 
     args = parser.parse_args()
 
@@ -259,7 +264,9 @@ if __name__ == "__main__":
 
     if args.schema:
         pg_pwd = getpass(f"Please input the postgres password for user {args.pg_user}:")
-        create_schema_pic(args.pg_url, args.pg_user, pg_pwd, store=args.store)
+        create_schema_pic(
+            args.pg_url, args.pg_user, pg_pwd, store=args.store, dev=args.dev
+        )
     if args.uml:
         try:
             from flexmeasures.data.config import db as flexmeasures_db

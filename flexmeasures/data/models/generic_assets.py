@@ -35,14 +35,15 @@ class GenericAsset(db.Model):
         backref=db.backref("generic_assets", lazy=True),
     )
 
-    owner_id = db.Column(
-        db.Integer, db.ForeignKey("fm_user.id", ondelete="CASCADE"), nullable=True
+    account_id = db.Column(
+        db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
     )  # if null, asset is public
+
     owner = db.relationship(
-        "User",
+        "Account",
         backref=db.backref(
             "generic_assets",
-            foreign_keys=[owner_id],
+            foreign_keys=[account_id],
             lazy=True,
             cascade="all, delete-orphan",
             passive_deletes=True,
@@ -81,6 +82,9 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     new_generic_asset = GenericAsset(
         name=kwargs["name"], generic_asset_type_id=generic_asset_type.id
     )
+    for arg in ("latitude", "longitude", "account_id"):
+        if arg in kwargs:
+            setattr(new_generic_asset, arg, kwargs[arg])
     db.session.add(new_generic_asset)
     db.session.flush()  # generates the pkey for new_generic_asset
     return new_generic_asset

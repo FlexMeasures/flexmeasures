@@ -12,7 +12,7 @@ from flexmeasures.data.services.users import create_user
 
 
 @pytest.fixture(scope="module")
-def setup_api_test_data(db, setup_roles_users, add_market_prices):
+def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices):
     """
     Set up data for API v1.1 tests.
     """
@@ -28,6 +28,7 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
         username="test user with improper registration",
         email="test_improper_user@seita.nl",
         password=hash_password("testtest"),
+        account_id=setup_account.id,
     )
     role = user_datastore.find_role("Prosumer")
     user_datastore.add_role_to_user(user, role)
@@ -37,6 +38,7 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices):
         username="test user without roles",
         email="test_user@seita.nl",
         password=hash_password("testtest"),
+        account_name=setup_account.name,
     )
 
     # Create 3 test assets for the test_prosumer user
