@@ -1,6 +1,7 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
 from datetime import timedelta
+from flexmeasures.data.models.user import AccountRole, RolesAccounts
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -48,7 +49,8 @@ def fm_dev_add_data():
 @fm_add_data.command("account")
 @with_appcontext
 @click.option("--name", required=True)
-def new_account(name: str):
+@click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
+def new_account(name: str, roles: List[str]):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
@@ -58,6 +60,15 @@ def new_account(name: str):
         raise click.Abort
     account = Account(name=name)
     db.session.add(account)
+    if roles:
+        for role_name in roles.split(","):
+            role = AccountRole.query.filter_by(name=role_name).one_or_none()
+            if role is None:
+                print(f"Adding account role {role_name} ...")
+                role = AccountRole(name=role_name)
+                db.session.add(role)
+            db.session.flush()
+            db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
     db.session.commit()
     print(f"Account '{name}' (ID: {account.id}) successfully created.")
 

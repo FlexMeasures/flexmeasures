@@ -3,8 +3,9 @@ import sys
 import importlib.util
 
 import click
-from flask import Flask
+from flask import Flask, current_app, redirect
 from flask.cli import FlaskGroup, with_appcontext
+from flask_security import current_user
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.rq import RqIntegration
@@ -100,6 +101,53 @@ def set_secret_key(app, filename="secret_key"):
         )
 
         sys.exit(2)
+
+
+def root_dispatcher():
+    """
+    Re-routes to root views fitting for the current user,
+    depending on the FLEXMEASURES_ROOT_VIEW setting.
+    """
+    default_root_view = root_view = "/dashboard"
+    root_view_configs = current_app.config.get("FLEXMEASURES_ROOT_VIEW", [])
+    if isinstance(root_view_configs, str):
+        root_view_configs = [root_view_configs]  # ignore: type
+    for root_view_config in root_view_configs:
+        if isinstance(root_view_config, str):
+            root_view = root_view_config
+            break
+        elif isinstance(root_view_config, tuple) and len(root_view_config) == 2:
+            view_name, account_role_names = root_view_config
+            if not isinstance(view_name, str):
+                current_app.logger.warning(
+                    "View name setting '{view_name}' in FLEXMEASURES_ROOT_VIEW is not a string. Ignoring ..."
+                )
+                continue
+            if not isinstance(account_role_names, list):
+                current_app.logger.warning(
+                    "Role names setting '{account_role_names}' in FLEXMEASURES_ROOT_VIEW is not a list. Ignoring ..."
+                )
+                continue
+            found_match = False
+            for account_role_name in account_role_names:
+                if account_role_name in [
+                    role.name for role in current_user.account.account_roles
+                ]:
+                    root_view = view_name
+                    found_match = True
+                    break
+            if found_match:
+                break
+        else:
+            current_app.logger.warn(
+                f"Setting '{root_view_config}' in FLEXMEASURES_ROOT_VIEW is neither a string nor two-part tuple. Ignoring ..."
+            )
+    if not root_view.startswith("/"):
+        root_view = f"/{root_view}"
+    if root_view in ("", "/", None):
+        root_view = default_root_view
+    current_app.logger.info(f"Redirecting root view to {root_view} ...")
+    return redirect(root_view)
 
 
 def register_plugins(app: Flask):

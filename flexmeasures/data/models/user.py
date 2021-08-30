@@ -8,6 +8,42 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from flexmeasures.data.config import db
 
 
+class RolesAccounts(db.Model):
+    __tablename__ = "roles_accounts"
+    id = Column(Integer(), primary_key=True)
+    account_id = Column("account_id", Integer(), ForeignKey("account.id"))
+    role_id = Column("role_id", Integer(), ForeignKey("account_role.id"))
+
+
+class AccountRole(db.Model):
+    __tablename__ = "account_role"
+    id = Column(Integer(), primary_key=True)
+    name = Column(String(80), unique=True)
+    description = Column(String(255))
+
+    def __repr__(self):
+        return "<AccountRole:%s (ID:%d)>" % (self.name, self.id)
+
+
+class Account(db.Model):
+    """
+    Account of a tenant on the server.
+    Bundles Users as well as GenericAssets.
+    """
+
+    __tablename__ = "account"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), default="", unique=True)
+    account_roles = relationship(
+        "AccountRole",
+        secondary="roles_accounts",
+        backref=backref("accounts", lazy="dynamic"),
+    )
+
+    def __repr__(self):
+        return "<Account %s (ID:%d)" % (self.name, self.id)
+
+
 class RolesUsers(db.Model):
     __tablename__ = "roles_users"
     id = Column(Integer(), primary_key=True)
@@ -23,20 +59,6 @@ class Role(db.Model, RoleMixin):
 
     def __repr__(self):
         return "<Role:%s (ID:%d)>" % (self.name, self.id)
-
-
-class Account(db.Model):
-    """
-    Account of a tenant on the server.
-    Bundles Users as well as GenericAssets.
-    """
-
-    __tablename__ = "account"
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), default="", unique=True)
-
-    def __repr__(self):
-        return "<Account %s (ID:%d)" % (self.name, self.id)
 
 
 class User(db.Model, UserMixin):

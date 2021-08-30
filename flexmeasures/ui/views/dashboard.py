@@ -13,8 +13,7 @@ from flexmeasures.data.services.resources import (
 )
 
 
-# Dashboard and main landing page
-@flexmeasures_ui.route("/")
+# Dashboard (default root view, see utils/app_utils.py)
 @flexmeasures_ui.route("/dashboard")
 @login_required
 def dashboard_view():
