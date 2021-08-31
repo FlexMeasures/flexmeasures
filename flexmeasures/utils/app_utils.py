@@ -1,6 +1,8 @@
+from typing import Union, Tuple, List, Optional
 import os
 import sys
 import importlib.util
+from importlib.abc import Loader
 
 import click
 from flask import Flask, current_app, redirect
@@ -113,41 +115,51 @@ def root_dispatcher():
     if isinstance(root_view_configs, str):
         root_view_configs = [root_view_configs]  # ignore: type
     for root_view_config in root_view_configs:
-        if isinstance(root_view_config, str):
-            root_view = root_view_config
+        root_view = parse_applicable_viewname(
+            root_view_config, "FLEXMEASURES_ROOT_VIEW"
+        )
+        if root_view is not None:
             break
-        elif isinstance(root_view_config, tuple) and len(root_view_config) == 2:
-            view_name, account_role_names = root_view_config
-            if not isinstance(view_name, str):
-                current_app.logger.warning(
-                    "View name setting '{view_name}' in FLEXMEASURES_ROOT_VIEW is not a string. Ignoring ..."
-                )
-                continue
-            if not isinstance(account_role_names, list):
-                current_app.logger.warning(
-                    "Role names setting '{account_role_names}' in FLEXMEASURES_ROOT_VIEW is not a list. Ignoring ..."
-                )
-                continue
-            found_match = False
-            for account_role_name in account_role_names:
-                if account_role_name in [
-                    role.name for role in current_user.account.account_roles
-                ]:
-                    root_view = view_name
-                    found_match = True
-                    break
-            if found_match:
-                break
-        else:
-            current_app.logger.warn(
-                f"Setting '{root_view_config}' in FLEXMEASURES_ROOT_VIEW is neither a string nor two-part tuple. Ignoring ..."
-            )
     if not root_view.startswith("/"):
         root_view = f"/{root_view}"
     if root_view in ("", "/", None):
         root_view = default_root_view
     current_app.logger.info(f"Redirecting root view to {root_view} ...")
     return redirect(root_view)
+
+
+def parse_applicable_viewname(
+    view_config: Union[str, Tuple[str, List[str]]],
+    setting_name: str,
+) -> Optional[str]:
+    """
+    Parse a view name config item (e.g. "dashboard" or ("dashboard", ["MDC"])).
+    If the view name is applicable to the current user, return it, otherwise return None.
+    """
+    if isinstance(view_config, str):
+        return view_config
+    elif isinstance(view_config, tuple) and len(view_config) == 2:
+        view_name, account_role_names = view_config
+        if not isinstance(view_name, str):
+            current_app.logger.warning(
+                f"View name setting '{view_name}' in {setting_name} is not a string. Ignoring ..."
+            )
+            return None
+        if not isinstance(account_role_names, list):
+            current_app.logger.warning(
+                f"Role names setting '{account_role_names}' in {setting_name} is not a list. Ignoring ..."
+            )
+            return None
+        for account_role_name in account_role_names:
+            if account_role_name in [
+                role.name for role in current_user.account.account_roles
+            ]:
+                return view_name
+    else:
+        current_app.logger.warn(
+            f"Setting '{view_config}' in {setting_name} is neither a string nor two-part tuple. Ignoring ..."
+        )
+    return None
 
 
 def register_plugins(app: Flask):
@@ -179,8 +191,14 @@ def register_plugins(app: Flask):
         spec = importlib.util.spec_from_file_location(
             plugin_name, os.path.join(plugin_path, "__init__.py")
         )
+        if spec is None:
+            app.logger.warning(
+                f"Could not load specs for plugin {plugin_name} at {plugin_path}."
+            )
+            continue
         module = importlib.util.module_from_spec(spec)
         sys.modules[plugin_name] = module
+        assert isinstance(spec.loader, Loader)
         spec.loader.exec_module(module)
         plugin_blueprint = getattr(module, f"{plugin_name}_bp")
         app.register_blueprint(plugin_blueprint)

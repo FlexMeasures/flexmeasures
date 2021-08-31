@@ -96,7 +96,7 @@ class Config(object):
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_ROOT_VIEW: Union[str, List[Union[str, Tuple[str, List[str]]]]] = []
-    FLEXMEASURES_LISTED_VIEWS: List[str] = [
+    FLEXMEASURES_LISTED_VIEWS: List[Union[str, Tuple[str, List[str]]]] = [
         "dashboard",
         "analytics",
         "portfolio",

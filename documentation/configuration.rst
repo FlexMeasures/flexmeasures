@@ -451,8 +451,10 @@ Default ``[]``
 FLEXMEASURES_LISTED_VIEWS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A list of the views which are listed in the menu.
+A list of the view names which are listed in the menu.
 
-.. note:: This setting is likely to be deprecated soon, as we might want to control it per account (once we implemented a multi-tenant data model per FlexMeasures server).
+.. note:: This setting only lists the names of views, rather than making sure the views exist.
+
+For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC","Prosumer"]}``\ would show the link to the "details" page only to users who are connected to accounts with roles "MDC" or "Prosumer". 
 
 Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``

@@ -16,6 +16,7 @@ from flexmeasures.utils.time_utils import (
     localized_datetime_str,
     naturalized_datetime_str,
 )
+from flexmeasures.utils.app_utils import parse_applicable_viewname
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 
 # The ui blueprint. It is registered with the Flask app (see app.py)
@@ -133,6 +134,7 @@ def add_jinja_filters(app):
     )
     app.jinja_env.filters["asset_icon"] = asset_icon_name
     app.jinja_env.filters["username"] = username
+    app.jinja_env.filters["parsed_view_config_item"] = parse_applicable_viewname
 
 
 def add_jinja_variables(app):
