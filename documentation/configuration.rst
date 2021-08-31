@@ -443,6 +443,8 @@ For more fine-grained control, this can also be a list, where it's possible to s
 
 For example, ``[("metering-dashboard" ["MDC", "Prosumer"]), "default-dashboard"]``\ would show "/mdc-dashboard" for users connected to accounts with account roles "MDC" or "Prosumer", while all others would be routed to "/default-dashboard".
 
+.. note:: This fine-grained control requires FlexMeasures version v0.6.0
+
 If this setting is empty or not applicable for the current user, the "/" view will be shown (FlexMeasures' default dashboard or a plugin view which was registered at "/").
 
 Default ``[]``
@@ -456,5 +458,7 @@ A list of the view names which are listed in the menu.
 .. note:: This setting only lists the names of views, rather than making sure the views exist.
 
 For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC","Prosumer"]}``\ would show the link to the "details" page only to users who are connected to accounts with roles "MDC" or "Prosumer". 
+
+.. note:: This fine-grained control requires FlexMeasures version v0.6.0
 
 Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
