@@ -150,6 +150,9 @@ def parse_applicable_viewname(
                 f"Role names setting '{account_role_names}' in {setting_name} is not a list. Ignoring ..."
             )
             return None
+        if not hasattr(current_user, "account"):
+            # e.g. AnonymousUser
+            return None
         for account_role_name in account_role_names:
             if account_role_name in [
                 role.name for role in current_user.account.account_roles
