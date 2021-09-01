@@ -120,10 +120,10 @@ def root_dispatcher():
         )
         if root_view is not None:
             break
-    if not root_view.startswith("/"):
-        root_view = f"/{root_view}"
     if root_view in ("", "/", None):
         root_view = default_root_view
+    if not root_view.startswith("/"):
+        root_view = f"/{root_view}"
     current_app.logger.info(f"Redirecting root view to {root_view} ...")
     return redirect(root_view)
 
