@@ -2,7 +2,7 @@ import json
 
 from flask_classful import FlaskView, route
 from flask_login import login_required
-from flask_security import roles_required
+from flask_security import current_user
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
@@ -20,7 +20,6 @@ class SensorAPI(FlaskView):
     route_base = "/sensor"
 
     @login_required
-    @roles_required("admin")  # todo: remove after we check for sensor ownership
     @route("/<id>/chart/")
     @use_kwargs(
         {
@@ -39,7 +38,6 @@ class SensorAPI(FlaskView):
         return json.dumps(sensor.chart(**kwargs))
 
     @login_required
-    @roles_required("admin")  # todo: remove after we check for sensor ownership
     @route("/<id>/chart_data/")
     @use_kwargs(
         {
@@ -59,7 +57,6 @@ class SensorAPI(FlaskView):
         return sensor.search_beliefs(as_json=True, **kwargs)
 
     @login_required
-    @roles_required("admin")  # todo: remove after we check for sensor ownership
     def get(self, id: int):
         """GET from /sensor/<id>"""
         sensor = get_sensor_or_abort(id)
@@ -69,6 +66,12 @@ class SensorAPI(FlaskView):
 
 def get_sensor_or_abort(id: int) -> Sensor:
     sensor = Sensor.query.filter(Sensor.id == id).one_or_none()
+    if not (
+        current_user.has_role("admin")
+        or sensor.generic_asset.owner is None  # public
+        or sensor.generic_asset.owner == current_user.account  # private but authorized
+    ):
+        raise abort(403)
     if sensor is None:
         raise abort(404, f"Sensor {id} not found")
     return sensor
