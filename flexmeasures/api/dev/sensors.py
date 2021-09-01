@@ -66,10 +66,10 @@ class SensorAPI(FlaskView):
 
 def get_sensor_or_abort(id: int) -> Sensor:
     sensor = Sensor.query.filter(Sensor.id == id).one_or_none()
-    if (
-        not current_user.has_role("admin")
-        and sensor.generic_asset.owner is not None  # checks public nature
-        and sensor.generic_asset.owner != current_user.account  # checks private nature
+    if not (
+        current_user.has_role("admin")
+        or sensor.generic_asset.owner is None  # public
+        or sensor.generic_asset.owner == current_user.account  # private but authorized
     ):
         raise abort(403)
     if sensor is None:
