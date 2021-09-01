@@ -458,3 +458,21 @@ A list of the view names which are listed in the menu.
 For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC","Prosumer"]}``\ would show the link to the "details" page only to users who are connected to accounts with roles "MDC" or "Prosumer". 
 
 Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
+
+
+FLEXMEASURES_LISTED_VIEW_ICONS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary containing a Font Awesome icon name for each view name listed in the menu.
+For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowflake-o|) next to your freezer-view menu item.
+
+Default: ``{}``
+
+
+FLEXMEASURES_LISTED_VIEW_TITLES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary containing a string title for each view name listed in the menu.
+For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
+
+Default: ``{}``
