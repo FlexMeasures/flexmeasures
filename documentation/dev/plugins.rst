@@ -18,7 +18,7 @@ Use the config setting :ref:`plugin-config` to point to your plugin(s).
 Here are the assumptions FlexMeasures makes to be able to import your Blueprint:
 
 - The plugin folder contains an ``__init__.py`` file.
-- In this init, you define a Blueprint object called ``<plugin folder>_bp``.
+- In that file, you define a Blueprint object (or several).
     
 We'll refer to the plugin with the name of your plugin folder.
 
@@ -45,7 +45,7 @@ With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` 
     from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 
 
-    our_client_bp = Blueprint('our_client', 'our_client',
+    our_client_bp = Blueprint('our_client', __name__,
                               template_folder='templates')
 
     # Showcase: Adding a view
@@ -90,7 +90,7 @@ The template would live at ``<some_folder>/our_client/templates/my_page.html``, 
 
     {% set active_page = "my-page" %}
 
-    {% block title %} Our client Dashboard {% endblock %}
+    {% block title %} Our client dashboard {% endblock %}
 
     {% block divs %}
     
