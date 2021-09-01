@@ -71,9 +71,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
     ) = get_git_description()
     app_start_time = current_app.config.get("START_TIME")
     variables["app_running_since"] = time_utils.naturalized_datetime_str(app_start_time)
-    variables["loaded_plugins"] = ",".join(
-        f"{p_name} (v{p_version})"
-        for p_name, p_version in current_app.config.get("LOADED_PLUGINS", {}).items()
+    variables["loaded_plugins"] = ", ".join(
+        f"{p_name} ({'v' + [v for v in p_bp_dict.values()][0] if len(p_bp_dict) == 1 else ', '.join(bp_name + ' v' + bp_version for bp_name, bp_version in p_bp_dict.items())})"
+        for p_name, p_bp_dict in current_app.config.get("LOADED_PLUGINS", {}).items()
     )
 
     variables["user_is_logged_in"] = current_user.is_authenticated

@@ -205,7 +205,7 @@ def register_plugins(app: Flask):
         spec.loader.exec_module(module)
 
         # Look for blueprints in the plugin's main __init__ module and register them
-        plugin_blueprints = [
+        plugin_blueprints: List[Blueprint] = [
             getattr(module, a)
             for a in dir(module)
             if isinstance(getattr(module, a), Blueprint)
@@ -215,10 +215,12 @@ def register_plugins(app: Flask):
                 f"No blueprints found for plugin {plugin_name} at {plugin_path}."
             )
             continue
+        blueprint_dict = {}
         for plugin_blueprint in plugin_blueprints:
             app.register_blueprint(plugin_blueprint)
-
-        plugin_version = getattr(plugin_blueprint, "__version__", "0.1")
-        app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
+            blueprint_name = plugin_blueprint.name
+            plugin_version = getattr(plugin_blueprint, "__version__", "0.1")
+            blueprint_dict[blueprint_name] = plugin_version
+    app.config["LOADED_PLUGINS"][plugin_name] = blueprint_dict
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
     sentry_sdk.set_context("plugins", app.config.get("LOADED_PLUGINS", {}))
