@@ -103,6 +103,8 @@ class Config(object):
         "assets",
         "users",
     ]
+    FLEXMEASURES_LISTED_VIEW_ICONS: Dict[str, str] = {}
+    FLEXMEASURES_LISTED_VIEW_TITLES: Dict[str, str] = {}
     FLEXMEASURES_LP_SOLVER: str = "cbc"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
