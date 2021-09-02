@@ -5,7 +5,7 @@ import importlib.util
 from importlib.abc import Loader
 
 import click
-from flask import Flask, current_app, redirect
+from flask import Blueprint, Flask, current_app, redirect
 from flask.cli import FlaskGroup, with_appcontext
 from flask_security import current_user
 import sentry_sdk
@@ -111,53 +111,67 @@ def root_dispatcher():
     depending on the FLEXMEASURES_ROOT_VIEW setting.
     """
     default_root_view = root_view = "/dashboard"
-    root_view_configs = current_app.config.get("FLEXMEASURES_ROOT_VIEW", [])
-    if isinstance(root_view_configs, str):
-        root_view_configs = [root_view_configs]  # ignore: type
-    for root_view_config in root_view_configs:
-        root_view = parse_applicable_viewname(
-            root_view_config, "FLEXMEASURES_ROOT_VIEW"
-        )
-        if root_view is not None:
-            break
-    if not root_view.startswith("/"):
-        root_view = f"/{root_view}"
+    configs = current_app.config.get("FLEXMEASURES_ROOT_VIEW", [])
+    root_view = find_first_applicable_config_entry(configs, "FLEXMEASURES_ROOT_VIEW")
     if root_view in ("", "/", None):
         root_view = default_root_view
+    if not root_view.startswith("/"):
+        root_view = f"/{root_view}"
     current_app.logger.info(f"Redirecting root view to {root_view} ...")
     return redirect(root_view)
 
 
-def parse_applicable_viewname(
-    view_config: Union[str, Tuple[str, List[str]]],
+def find_first_applicable_config_entry(
+    configs: list, setting_name: str, app: Optional[Flask] = None
+) -> Optional[str]:
+    if app is None:
+        app = current_app
+    if isinstance(configs, str):
+        configs = [configs]  # ignore: type
+    for config in configs:
+        entry = parse_config_entry_by_account_roles(config, setting_name, app)
+        if entry is not None:
+            return entry
+    return None
+
+
+def parse_config_entry_by_account_roles(
+    config: Union[str, Tuple[str, List[str]]],
     setting_name: str,
+    app: Optional[Flask] = None,
 ) -> Optional[str]:
     """
-    Parse a view name config item (e.g. "dashboard" or ("dashboard", ["MDC"])).
-    If the view name is applicable to the current user, return it, otherwise return None.
+    Parse a config entry (which ca be a string, e.g. "dashboard" or a tuple, e.g. ("dashboard", ["MDC"])).
+    In the latter case, return the first item (a string) only if the current user's account roles match with the
+    list of roles in the second item. Otherwise return None.
     """
-    if isinstance(view_config, str):
-        return view_config
-    elif isinstance(view_config, tuple) and len(view_config) == 2:
-        view_name, account_role_names = view_config
-        if not isinstance(view_name, str):
-            current_app.logger.warning(
-                f"View name setting '{view_name}' in {setting_name} is not a string. Ignoring ..."
+    if app is None:
+        app = current_app
+    if isinstance(config, str):
+        return config
+    elif isinstance(config, tuple) and len(config) == 2:
+        entry, account_role_names = config
+        if not isinstance(entry, str):
+            app.logger.warning(
+                f"View name setting '{entry}' in {setting_name} is not a string. Ignoring ..."
             )
             return None
         if not isinstance(account_role_names, list):
-            current_app.logger.warning(
+            app.logger.warning(
                 f"Role names setting '{account_role_names}' in {setting_name} is not a list. Ignoring ..."
             )
+            return None
+        if not hasattr(current_user, "account"):
+            # e.g. AnonymousUser
             return None
         for account_role_name in account_role_names:
             if account_role_name in [
                 role.name for role in current_user.account.account_roles
             ]:
-                return view_name
+                return entry
     else:
-        current_app.logger.warn(
-            f"Setting '{view_config}' in {setting_name} is neither a string nor two-part tuple. Ignoring ..."
+        app.logger.warn(
+            f"Setting '{config}' in {setting_name} is neither a string nor two-part tuple. Ignoring ..."
         )
     return None
 
@@ -169,7 +183,7 @@ def register_plugins(app: Flask):
 
     Assumptions:
     - Your plugin folders contains an __init__.py file.
-    - In this init, you define a Blueprint object called <plugin folder>_bp
+    - In that file, you define a Blueprint object (or several).
 
     We'll refer to the plugins with the name of your plugin folders (last part of the path).
     """
@@ -200,8 +214,21 @@ def register_plugins(app: Flask):
         sys.modules[plugin_name] = module
         assert isinstance(spec.loader, Loader)
         spec.loader.exec_module(module)
-        plugin_blueprint = getattr(module, f"{plugin_name}_bp")
-        app.register_blueprint(plugin_blueprint)
+
+        # Look for blueprints in the plugin's main __init__ module and register them
+        plugin_blueprints = [
+            getattr(module, a)
+            for a in dir(module)
+            if isinstance(getattr(module, a), Blueprint)
+        ]
+        if not plugin_blueprints:
+            app.logger.warning(
+                f"No blueprints found for plugin {plugin_name} at {plugin_path}."
+            )
+            continue
+        for plugin_blueprint in plugin_blueprints:
+            app.register_blueprint(plugin_blueprint)
+
         plugin_version = getattr(plugin_blueprint, "__version__", "0.1")
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")

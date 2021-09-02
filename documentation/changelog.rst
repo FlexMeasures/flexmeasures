@@ -12,7 +12,7 @@ New features
 -----------
 * Analytics view offers grouping of all assets by location [see `PR #148 <http://www.github.com/SeitaBV/flexmeasures/pull/148>`_]
 * Multi-tenancy: Supporting multiple customers per FlexMeasures server, by introducing the `Account` concept. Accounts have users and assets associated. [see `PR #159 <http://www.github.com/SeitaBV/flexmeasures/pull/159>`_ and `PR #163 <http://www.github.com/SeitaBV/flexmeasures/pull/163>`_] 
-* In the UI, both the root view ("/") and the visible menu items can now be more tightly controlled (per account roles of the current user) [see `PR #163 <http://www.github.com/SeitaBV/flexmeasures/pull/163>`_]
+* In the UI, the root view ("/"), the platform name and the visible menu items can now be more tightly controlled (per account roles of the current user) [see `PR #163 <http://www.github.com/SeitaBV/flexmeasures/pull/163>`_]
 * Add (experimental) endpoint to post sensor data for any sensor. Also supports our ongoing integration with data internally represented using the `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib [see `PR #147 <http://www.github.com/SeitaBV/flexmeasures/pull/147>`_]
 
 Bugfixes

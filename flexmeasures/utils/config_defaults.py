@@ -82,7 +82,9 @@ class Config(object):
     FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: List[str] = []
 
-    FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
+    FLEXMEASURES_PLATFORM_NAME: Union[
+        str, List[Union[str, Tuple[str, List[str]]]]
+    ] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False

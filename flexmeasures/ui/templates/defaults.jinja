@@ -18,9 +18,11 @@
     "control": dict(title="Flexibility actions", icon="wrench")
 }
 %}
+    
+{% set FLEXMEASURES_PLATFORM_NAME = FLEXMEASURES_PLATFORM_NAME | find_first_applicable_config_entry("FLEXMEASURES_PLATFORM_NAME") %}
 
 {% for view_name in FLEXMEASURES_LISTED_VIEWS %}
-    {% set view_name = view_name | parsed_view_config_item("FLEXMEASURES_LISTED_VIEWS") %}
+    {% set view_name = view_name | parse_config_entry_by_account_roles("FLEXMEASURES_LISTED_VIEWS") %}
     {% if view_name %}
         {# add specs for views we don't know (plugin views) #}
         {% do nav_bar_specs.update({view_name: dict(title=FLEXMEASURES_LISTED_VIEW_TITLES[view_name] if view_name in FLEXMEASURES_LISTED_VIEW_TITLES else view_name.capitalize(), tooltip="", icon=FLEXMEASURES_LISTED_VIEW_ICONS[view_name] if view_name in FLEXMEASURES_LISTED_VIEW_ICONS else "info")}) if view_name not in nav_bar_specs %}

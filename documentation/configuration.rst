@@ -89,9 +89,66 @@ UI
 FLEXMEASURES_PLATFORM_NAME
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Name being used in headings
+Name being used in headings and in the menu bar.
+
+For more fine-grained control, this can also be a list, where it's possible to set the platform name for certain account roles (as a tuple of view name and list of applicable account roles). In this case, the list is searched from left to right, and the first fitting name is used.
+
+For example, ``("MyMDCApp", ["MDC"]), "MyApp"]`` would use the name "MyMDCApp" for users connected to accounts with the account role "MDC" while all others would see the name "/MyApp".
+
+.. note:: This fine-grained control requires FlexMeasures version v0.6.0
 
 Default: ``"FlexMeasures"``
+
+
+FLEXMEASURES_ROOT_VIEW
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Root view (reachable at "/"). For example ``"/dashboard"``.
+
+For more fine-grained control, this can also be a list, where it's possible to set the root view for certain account roles (as a tuple of view name and list of applicable account roles). In this case, the list is searched from left to right, and the first fitting view is shown.
+
+For example, ``[("metering-dashboard", ["MDC", "Prosumer"]), "default-dashboard"]`` would show "/mdc-dashboard" for users connected to accounts with account roles "MDC" or "Prosumer", while all others would be routed to "/default-dashboard".
+
+.. note:: This fine-grained control requires FlexMeasures version v0.6.0
+
+If this setting is empty or not applicable for the current user, the "/" view will be shown (FlexMeasures' default dashboard or a plugin view which was registered at "/").
+
+Default ``[]``
+
+
+.. _menu-config:
+
+FLEXMEASURES_LISTED_VIEWS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A list of the view names which are listed in the menu.
+
+.. note:: This setting only lists the names of views, rather than making sure the views exist.
+
+For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC","Prosumer"])`` would show the link to the "details" page only to users who are connected to accounts with roles "MDC" or "Prosumer". 
+
+.. note:: This fine-grained control requires FlexMeasures version v0.6.0
+
+Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
+
+
+FLEXMEASURES_LISTED_VIEW_ICONS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary containing a Font Awesome icon name for each view name listed in the menu.
+For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowflake-o|) next to your freezer-view menu item.
+
+Default: ``{}``
+
+
+FLEXMEASURES_LISTED_VIEW_TITLES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary containing a string title for each view name listed in the menu.
+For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
+
+Default: ``{}``
+
 
 FLEXMEASURES_HIDE_NAN_IN_UI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -429,50 +486,3 @@ When ``FLEXMEASURES_MODE=demo``\ , this setting can be used to make the FlexMeas
 so that old imported data can be demoed as if it were current.
 
 Default: ``None``
-
-
-.. _menu-config:
-
-
-FLEXMEASURES_ROOT_VIEW
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Root view (reachable at "/"). For example "/dashboard".
-
-For more fine-grained control, this can also be a list, where it's possible to set the root view for certain account roles (as a tuple of view name and list of applicable account roles). In this case, the list is searched from left to right, and the first fitting view is shown. If the list contains a string, then that value is simply chosen and search stops.
-
-For example, ``[("metering-dashboard" ["MDC", "Prosumer"]), "default-dashboard"]``\ would show "/mdc-dashboard" for users connected to accounts with account roles "MDC" or "Prosumer", while all others would be routed to "/default-dashboard".
-
-If this setting is empty or not applicable for the current user, the "/" view will be shown (FlexMeasures' default dashboard or a plugin view which was registered at "/").
-
-Default ``[]``
-
-
-FLEXMEASURES_LISTED_VIEWS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A list of the view names which are listed in the menu.
-
-.. note:: This setting only lists the names of views, rather than making sure the views exist.
-
-For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC","Prosumer"]}``\ would show the link to the "details" page only to users who are connected to accounts with roles "MDC" or "Prosumer". 
-
-Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
-
-
-FLEXMEASURES_LISTED_VIEW_ICONS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A dictionary containing a Font Awesome icon name for each view name listed in the menu.
-For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowflake-o|) next to your freezer-view menu item.
-
-Default: ``{}``
-
-
-FLEXMEASURES_LISTED_VIEW_TITLES
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A dictionary containing a string title for each view name listed in the menu.
-For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
-
-Default: ``{}``
