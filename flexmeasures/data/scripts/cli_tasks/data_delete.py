@@ -19,6 +19,29 @@ def fm_delete_data():
     """FlexMeasures: Delete data."""
 
 
+@fm_delete_data.command("account-role")
+@with_appcontext
+@click.option("--name", required=True)
+def delete_account_role(name: str):
+    """
+    Delete an account role, if it has no users, otherwise say which ones.
+    """
+    role: AccountRole = AccountRole.query.filter_by(name=name).one_or_none()
+    if role is None:
+        click.echo(f"Account role '{name}' does not exist.")
+        raise click.Abort
+    accounts = role.accounts.all()
+    if len(accounts) > 0:
+        click.echo(
+            f"The following accounts have role '{role.name}': {','.join([a.name for a in accounts])}. Removing this role from them ..."
+        )
+        for account in accounts:
+            account.account_roles.remove(role)
+    db.session.delete(role)
+    db.session.commit()
+    print(f"Account role '{name}'' has been deleted.")
+
+
 @fm_delete_data.command("account")
 @with_appcontext
 @click.option("--id", type=int)
@@ -61,8 +84,10 @@ def delete_account(id: int, force: bool):
     for asset in account.generic_assets:
         print(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
         db.session.delete(asset)
+    account_name = account.name
     db.session.delete(account)
     db.session.commit()
+    print(f"Account {account_name} has been deleted.")
 
 
 @fm_delete_data.command("user")
