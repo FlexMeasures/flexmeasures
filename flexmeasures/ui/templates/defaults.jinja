@@ -25,7 +25,11 @@
     {% set view_name = view_name | parse_config_entry_by_account_roles("FLEXMEASURES_MENU_LISTED_VIEWS") %}
     {% if view_name %}
         {# add specs for views we don't know (plugin views) #}
-        {% do nav_bar_specs.update({view_name: dict(title=FLEXMEASURES_MENU_LISTED_VIEW_TITLES[view_name] if view_name in FLEXMEASURES_MENU_LISTED_VIEW_TITLES else view_name.capitalize(), tooltip="", icon=FLEXMEASURES_MENU_LISTED_VIEW_ICONS[view_name] if view_name in FLEXMEASURES_MENU_LISTED_VIEW_ICONS else "info")}) if view_name not in nav_bar_specs %}
+        {% do nav_bar_specs.update({view_name: dict(title=view_name.capitalize(), tooltip="", icon= "info")}) if view_name not in nav_bar_specs %}
+        {# update specs for view titles by configuration #}
+        {% do nav_bar_specs[view_name].update(dict(title=FLEXMEASURES_MENU_LISTED_VIEW_TITLES[view_name])) if view_name in FLEXMEASURES_MENU_LISTED_VIEW_TITLES %}
+        {# update specs for view icons by configuration #}
+        {% do nav_bar_specs[view_name].update(dict(icon=FLEXMEASURES_MENU_LISTED_VIEW_ICONS[view_name])) if view_name in FLEXMEASURES_MENU_LISTED_VIEW_ICONS %}
         {# add view to menu if user is authenticated #}
         {% do navigation_bar.append(
             (view_name, view_name, nav_bar_specs[view_name]["title"], nav_bar_specs[view_name]["tooltip"], nav_bar_specs[view_name]["icon"])
