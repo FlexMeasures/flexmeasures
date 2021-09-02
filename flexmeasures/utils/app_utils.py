@@ -113,10 +113,10 @@ def root_dispatcher():
     default_root_view = root_view = "/dashboard"
     configs = current_app.config.get("FLEXMEASURES_ROOT_VIEW", [])
     root_view = find_first_applicable_config_entry(configs, "FLEXMEASURES_ROOT_VIEW")
-    if not root_view.startswith("/"):
-        root_view = f"/{root_view}"
     if root_view in ("", "/", None):
         root_view = default_root_view
+    if not root_view.startswith("/"):
+        root_view = f"/{root_view}"
     current_app.logger.info(f"Redirecting root view to {root_view} ...")
     return redirect(root_view)
 
