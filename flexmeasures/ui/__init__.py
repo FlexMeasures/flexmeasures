@@ -150,9 +150,9 @@ def add_jinja_variables(app):
     for v, d in (
         ("FLEXMEASURES_MODE", ""),
         ("FLEXMEASURES_PLATFORM_NAME", ""),
-        ("FLEXMEASURES_LISTED_VIEWS", []),
-        ("FLEXMEASURES_LISTED_VIEW_ICONS", {}),
-        ("FLEXMEASURES_LISTED_VIEW_TITLES", {}),
+        ("FLEXMEASURES_MENU_LISTED_VIEWS", []),
+        ("FLEXMEASURES_MENU_LISTED_VIEW_ICONS", {}),
+        ("FLEXMEASURES_MENU_LISTED_VIEW_TITLES", {}),
         ("FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS", ""),
     ):
         app.jinja_env.globals[v] = app.config.get(v, d)

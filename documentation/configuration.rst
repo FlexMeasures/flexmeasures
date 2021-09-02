@@ -109,16 +109,16 @@ For more fine-grained control, this can also be a list, where it's possible to s
 
 For example, ``[("metering-dashboard", ["MDC", "Prosumer"]), "default-dashboard"]`` would show "/mdc-dashboard" for users connected to accounts with account roles "MDC" or "Prosumer", while all others would be routed to "/default-dashboard".
 
-.. note:: This fine-grained control requires FlexMeasures version v0.6.0
-
 If this setting is empty or not applicable for the current user, the "/" view will be shown (FlexMeasures' default dashboard or a plugin view which was registered at "/").
 
 Default ``[]``
 
+.. note:: This setting was introduced in FlexMeasures version v0.6.0
+
 
 .. _menu-config:
 
-FLEXMEASURES_LISTED_VIEWS
+FLEXMEASURES_MENU_LISTED_VIEWS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A list of the view names which are listed in the menu.
@@ -132,7 +132,7 @@ For more fine-grained control, the entries can also be tuples of view names and 
 Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
 
 
-FLEXMEASURES_LISTED_VIEW_ICONS
+FLEXMEASURES_MENU_LISTED_VIEW_ICONS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a Font Awesome icon name for each view name listed in the menu.
@@ -140,14 +140,18 @@ For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowfla
 
 Default: ``{}``
 
+.. note:: This setting was introduced in FlexMeasures version v0.6.0
 
-FLEXMEASURES_LISTED_VIEW_TITLES
+
+FLEXMEASURES_MENU_LISTED_VIEW_TITLES
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dictionary containing a string title for each view name listed in the menu.
 For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
 
 Default: ``{}``
+
+.. note:: This setting was introduced in FlexMeasures version v0.6.0
 
 
 FLEXMEASURES_HIDE_NAN_IN_UI

@@ -98,15 +98,15 @@ class Config(object):
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_ROOT_VIEW: Union[str, List[Union[str, Tuple[str, List[str]]]]] = []
-    FLEXMEASURES_LISTED_VIEWS: List[Union[str, Tuple[str, List[str]]]] = [
+    FLEXMEASURES_MENU_LISTED_VIEWS: List[Union[str, Tuple[str, List[str]]]] = [
         "dashboard",
         "analytics",
         "portfolio",
         "assets",
         "users",
     ]
-    FLEXMEASURES_LISTED_VIEW_ICONS: Dict[str, str] = {}
-    FLEXMEASURES_LISTED_VIEW_TITLES: Dict[str, str] = {}
+    FLEXMEASURES_MENU_LISTED_VIEW_ICONS: Dict[str, str] = {}
+    FLEXMEASURES_MENU_LISTED_VIEW_TITLES: Dict[str, str] = {}
     FLEXMEASURES_LP_SOLVER: str = "cbc"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
