@@ -115,7 +115,7 @@ def root_dispatcher():
     if isinstance(root_view_configs, str):
         root_view_configs = [root_view_configs]  # ignore: type
     for root_view_config in root_view_configs:
-        root_view = parse_applicable_viewname(
+        root_view = parse_config_entry_by_account_roles(
             root_view_config, "FLEXMEASURES_ROOT_VIEW"
         )
         if root_view is not None:
@@ -128,13 +128,14 @@ def root_dispatcher():
     return redirect(root_view)
 
 
-def parse_applicable_viewname(
+def parse_config_entry_by_account_roles(
     view_config: Union[str, Tuple[str, List[str]]],
     setting_name: str,
 ) -> Optional[str]:
     """
-    Parse a view name config item (e.g. "dashboard" or ("dashboard", ["MDC"])).
-    If the view name is applicable to the current user, return it, otherwise return None.
+    Parse a config entry (which ca be a string, e.g. "dashboard" or a tuple, e.g. ("dashboard", ["MDC"])).
+    In the latter case, return the first item (a string) only if the current user's account roles match with the
+    list of roles in the second item. Otherwise return None.
     """
     if isinstance(view_config, str):
         return view_config

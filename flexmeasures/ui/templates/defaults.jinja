@@ -20,7 +20,7 @@
 %}
 
 {% for view_name in FLEXMEASURES_LISTED_VIEWS %}
-    {% set view_name = view_name | parsed_view_config_item("FLEXMEASURES_LISTED_VIEWS") %}
+    {% set view_name = view_name | parse_config_entry_by_account_roles("FLEXMEASURES_LISTED_VIEWS") %}
     {% if view_name %}
         {# add specs for views we don't know (plugin views) #}
         {% do nav_bar_specs.update({view_name: dict(title=view_name.capitalize(), tooltip="", icon="info")}) if view_name not in nav_bar_specs %}
