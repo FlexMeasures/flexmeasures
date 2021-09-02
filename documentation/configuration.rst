@@ -132,6 +132,24 @@ For more fine-grained control, the entries can also be tuples of view names and 
 Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
 
 
+FLEXMEASURES_LISTED_VIEW_ICONS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary containing a Font Awesome icon name for each view name listed in the menu.
+For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowflake-o|) next to your freezer-view menu item.
+
+Default: ``{}``
+
+
+FLEXMEASURES_LISTED_VIEW_TITLES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary containing a string title for each view name listed in the menu.
+For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
+
+Default: ``{}``
+
+
 FLEXMEASURES_HIDE_NAN_IN_UI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -468,4 +486,3 @@ When ``FLEXMEASURES_MODE=demo``\ , this setting can be used to make the FlexMeas
 so that old imported data can be demoed as if it were current.
 
 Default: ``None``
-

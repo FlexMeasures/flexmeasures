@@ -8,6 +8,7 @@
 
 from datetime import datetime
 from pkg_resources import get_distribution
+import sphinx_fontawesome
 
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -27,8 +28,7 @@ release = get_distribution("flexmeasures").version
 # The short X.Y.Z version
 version = ".".join(release.split(".")[:3])
 
-rst_prolog = """
-"""
+rst_prolog = sphinx_fontawesome.prolog
 
 # -- General configuration ---------------------------------------------------
 
@@ -47,6 +47,7 @@ extensions = [
     "sphinx.ext.imgmath",
     "sphinx.ext.ifconfig",
     "sphinx.ext.todo",
+    "sphinx_fontawesome",
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",
 ]
