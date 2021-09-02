@@ -34,7 +34,7 @@ def delete_account(id: int, force: bool):
         print(f"Account with ID '{id}' does not exist.")
         raise click.Abort
     if not force:
-        prompt = f"Delete account '{account.name}'', including generic assets, users and all their data?\n"
+        prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
         users = User.query.filter(User.account_id == id).all()
         if users:
             prompt += "Affected users: " + ",".join([u.username for u in users]) + "\n"

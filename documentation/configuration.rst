@@ -108,6 +108,38 @@ Interval in which viewing the queues dashboard refreshes itself, in milliseconds
 Default: ``3000`` (3 seconds) 
 
 
+FLEXMEASURES_ROOT_VIEW
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Root view (reachable at "/"). For example ``"/dashboard"``.
+
+For more fine-grained control, this can also be a list, where it's possible to set the root view for certain account roles (as a tuple of view name and list of applicable account roles). In this case, the list is searched from left to right, and the first fitting view is shown.
+
+For example, ``[("metering-dashboard" ["MDC", "Prosumer"]), "default-dashboard"]`` would show "/mdc-dashboard" for users connected to accounts with account roles "MDC" or "Prosumer", while all others would be routed to "/default-dashboard".
+
+.. note:: This fine-grained control requires FlexMeasures version v0.6.0
+
+If this setting is empty or not applicable for the current user, the "/" view will be shown (FlexMeasures' default dashboard or a plugin view which was registered at "/").
+
+Default ``[]``
+
+
+.. _menu-config:
+
+FLEXMEASURES_LISTED_VIEWS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A list of the view names which are listed in the menu.
+
+.. note:: This setting only lists the names of views, rather than making sure the views exist.
+
+For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC","Prosumer"])`` would show the link to the "details" page only to users who are connected to accounts with roles "MDC" or "Prosumer". 
+
+.. note:: This fine-grained control requires FlexMeasures version v0.6.0
+
+Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
+
+
 Timing
 ------
 
@@ -430,35 +462,3 @@ so that old imported data can be demoed as if it were current.
 
 Default: ``None``
 
-
-.. _menu-config:
-
-
-FLEXMEASURES_ROOT_VIEW
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Root view (reachable at "/"). For example "/dashboard".
-
-For more fine-grained control, this can also be a list, where it's possible to set the root view for certain account roles (as a tuple of view name and list of applicable account roles). In this case, the list is searched from left to right, and the first fitting view is shown. If the list contains a string, then that value is simply chosen and search stops.
-
-For example, ``[("metering-dashboard" ["MDC", "Prosumer"]), "default-dashboard"]``\ would show "/mdc-dashboard" for users connected to accounts with account roles "MDC" or "Prosumer", while all others would be routed to "/default-dashboard".
-
-.. note:: This fine-grained control requires FlexMeasures version v0.6.0
-
-If this setting is empty or not applicable for the current user, the "/" view will be shown (FlexMeasures' default dashboard or a plugin view which was registered at "/").
-
-Default ``[]``
-
-
-FLEXMEASURES_LISTED_VIEWS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A list of the view names which are listed in the menu.
-
-.. note:: This setting only lists the names of views, rather than making sure the views exist.
-
-For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC","Prosumer"]}``\ would show the link to the "details" page only to users who are connected to accounts with roles "MDC" or "Prosumer". 
-
-.. note:: This fine-grained control requires FlexMeasures version v0.6.0
-
-Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
