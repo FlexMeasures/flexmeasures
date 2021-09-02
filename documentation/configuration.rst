@@ -89,23 +89,15 @@ UI
 FLEXMEASURES_PLATFORM_NAME
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Name being used in headings
+Name being used in headings and in the menu bar.
+
+For more fine-grained control, this can also be a list, where it's possible to set the platform name for certain account roles (as a tuple of view name and list of applicable account roles). In this case, the list is searched from left to right, and the first fitting name is used.
+
+For example, ``("MyMDCApp", ["MDC"]), "MyApp"]`` would use the name "MyMDCApp" for users connected to accounts with the account role "MDC" while all others would see the name "/MyApp".
+
+.. note:: This fine-grained control requires FlexMeasures version v0.6.0
 
 Default: ``"FlexMeasures"``
-
-FLEXMEASURES_HIDE_NAN_IN_UI
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Whether to hide the word "nan" if any value in metrics tables is ``NaN``.
-
-Default: ``False``
-
-RQ_DASHBOARD_POLL_INTERVAL
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Interval in which viewing the queues dashboard refreshes itself, in milliseconds.
-
-Default: ``3000`` (3 seconds) 
 
 
 FLEXMEASURES_ROOT_VIEW
@@ -115,7 +107,7 @@ Root view (reachable at "/"). For example ``"/dashboard"``.
 
 For more fine-grained control, this can also be a list, where it's possible to set the root view for certain account roles (as a tuple of view name and list of applicable account roles). In this case, the list is searched from left to right, and the first fitting view is shown.
 
-For example, ``[("metering-dashboard" ["MDC", "Prosumer"]), "default-dashboard"]`` would show "/mdc-dashboard" for users connected to accounts with account roles "MDC" or "Prosumer", while all others would be routed to "/default-dashboard".
+For example, ``[("metering-dashboard", ["MDC", "Prosumer"]), "default-dashboard"]`` would show "/mdc-dashboard" for users connected to accounts with account roles "MDC" or "Prosumer", while all others would be routed to "/default-dashboard".
 
 .. note:: This fine-grained control requires FlexMeasures version v0.6.0
 
@@ -138,6 +130,21 @@ For more fine-grained control, the entries can also be tuples of view names and 
 .. note:: This fine-grained control requires FlexMeasures version v0.6.0
 
 Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
+
+
+FLEXMEASURES_HIDE_NAN_IN_UI
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether to hide the word "nan" if any value in metrics tables is ``NaN``.
+
+Default: ``False``
+
+RQ_DASHBOARD_POLL_INTERVAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Interval in which viewing the queues dashboard refreshes itself, in milliseconds.
+
+Default: ``3000`` (3 seconds) 
 
 
 Timing

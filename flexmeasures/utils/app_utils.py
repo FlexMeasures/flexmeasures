@@ -111,15 +111,8 @@ def root_dispatcher():
     depending on the FLEXMEASURES_ROOT_VIEW setting.
     """
     default_root_view = root_view = "/dashboard"
-    root_view_configs = current_app.config.get("FLEXMEASURES_ROOT_VIEW", [])
-    if isinstance(root_view_configs, str):
-        root_view_configs = [root_view_configs]  # ignore: type
-    for root_view_config in root_view_configs:
-        root_view = parse_config_entry_by_account_roles(
-            root_view_config, "FLEXMEASURES_ROOT_VIEW"
-        )
-        if root_view is not None:
-            break
+    configs = current_app.config.get("FLEXMEASURES_ROOT_VIEW", [])
+    root_view = find_first_applicable_config_entry(configs, "FLEXMEASURES_ROOT_VIEW")
     if not root_view.startswith("/"):
         root_view = f"/{root_view}"
     if root_view in ("", "/", None):
@@ -128,26 +121,43 @@ def root_dispatcher():
     return redirect(root_view)
 
 
+def find_first_applicable_config_entry(
+    configs: list, setting_name: str, app: Optional[Flask] = None
+) -> Optional[str]:
+    if app is None:
+        app = current_app
+    if isinstance(configs, str):
+        configs = [configs]  # ignore: type
+    for config in configs:
+        entry = parse_config_entry_by_account_roles(config, setting_name, app)
+        if entry is not None:
+            return entry
+    return None
+
+
 def parse_config_entry_by_account_roles(
-    view_config: Union[str, Tuple[str, List[str]]],
+    config: Union[str, Tuple[str, List[str]]],
     setting_name: str,
+    app: Optional[Flask] = None,
 ) -> Optional[str]:
     """
     Parse a config entry (which ca be a string, e.g. "dashboard" or a tuple, e.g. ("dashboard", ["MDC"])).
     In the latter case, return the first item (a string) only if the current user's account roles match with the
     list of roles in the second item. Otherwise return None.
     """
-    if isinstance(view_config, str):
-        return view_config
-    elif isinstance(view_config, tuple) and len(view_config) == 2:
-        view_name, account_role_names = view_config
-        if not isinstance(view_name, str):
-            current_app.logger.warning(
-                f"View name setting '{view_name}' in {setting_name} is not a string. Ignoring ..."
+    if app is None:
+        app = current_app
+    if isinstance(config, str):
+        return config
+    elif isinstance(config, tuple) and len(config) == 2:
+        entry, account_role_names = config
+        if not isinstance(entry, str):
+            app.logger.warning(
+                f"View name setting '{entry}' in {setting_name} is not a string. Ignoring ..."
             )
             return None
         if not isinstance(account_role_names, list):
-            current_app.logger.warning(
+            app.logger.warning(
                 f"Role names setting '{account_role_names}' in {setting_name} is not a list. Ignoring ..."
             )
             return None
@@ -158,10 +168,10 @@ def parse_config_entry_by_account_roles(
             if account_role_name in [
                 role.name for role in current_user.account.account_roles
             ]:
-                return view_name
+                return entry
     else:
-        current_app.logger.warn(
-            f"Setting '{view_config}' in {setting_name} is neither a string nor two-part tuple. Ignoring ..."
+        app.logger.warn(
+            f"Setting '{config}' in {setting_name} is neither a string nor two-part tuple. Ignoring ..."
         )
     return None
 

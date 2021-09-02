@@ -18,6 +18,8 @@
     "control": dict(title="Flexibility actions", icon="wrench")
 }
 %}
+    
+{% set FLEXMEASURES_PLATFORM_NAME = FLEXMEASURES_PLATFORM_NAME | find_first_applicable_config_entry("FLEXMEASURES_PLATFORM_NAME") %}
 
 {% for view_name in FLEXMEASURES_LISTED_VIEWS %}
     {% set view_name = view_name | parse_config_entry_by_account_roles("FLEXMEASURES_LISTED_VIEWS") %}

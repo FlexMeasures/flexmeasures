@@ -16,7 +16,10 @@ from flexmeasures.utils.time_utils import (
     localized_datetime_str,
     naturalized_datetime_str,
 )
-from flexmeasures.utils.app_utils import parse_config_entry_by_account_roles
+from flexmeasures.utils.app_utils import (
+    parse_config_entry_by_account_roles,
+    find_first_applicable_config_entry,
+)
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 
 # The ui blueprint. It is registered with the Flask app (see app.py)
@@ -137,6 +140,9 @@ def add_jinja_filters(app):
     app.jinja_env.filters[
         "parse_config_entry_by_account_roles"
     ] = parse_config_entry_by_account_roles
+    app.jinja_env.filters[
+        "find_first_applicable_config_entry"
+    ] = find_first_applicable_config_entry
 
 
 def add_jinja_variables(app):
