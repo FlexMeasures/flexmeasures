@@ -5,7 +5,7 @@ from flask import current_app as app
 from flask.cli import with_appcontext
 
 from flexmeasures.data import db
-from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
 from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.markets import Price
@@ -17,6 +17,29 @@ from flexmeasures.data.services.users import find_user_by_email, delete_user
 @click.group("delete")
 def fm_delete_data():
     """FlexMeasures: Delete data."""
+
+
+@fm_delete_data.command("account-role")
+@with_appcontext
+@click.option("--name", required=True)
+def delete_account_role(name: str):
+    """
+    Delete an account role, if it has no accounts connected, otherwise say which ones.
+    """
+    role: AccountRole = AccountRole.query.filter_by(name=name).one_or_none()
+    if role is None:
+        click.echo(f"Account role '{name}' does not exist.")
+        raise click.Abort
+    accounts = role.accounts.all()
+    if len(accounts) > 0:
+        click.echo(
+            f"The following accounts have role '{role.name}': {','.join([a.name for a in accounts])}. Removing this role from them ..."
+        )
+        for account in accounts:
+            account.account_roles.remove(role)
+    db.session.delete(role)
+    db.session.commit()
+    print(f"Account role '{name}'' has been deleted.")
 
 
 @fm_delete_data.command("account")
@@ -34,7 +57,7 @@ def delete_account(id: int, force: bool):
         print(f"Account with ID '{id}' does not exist.")
         raise click.Abort
     if not force:
-        prompt = "Delete account including generic assets, users and all their data?\n"
+        prompt = f"Delete account '{account.name}', including generic assets, users and all their data?\n"
         users = User.query.filter(User.account_id == id).all()
         if users:
             prompt += "Affected users: " + ",".join([u.username for u in users]) + "\n"
@@ -50,11 +73,21 @@ def delete_account(id: int, force: bool):
     for user in account.users:
         print(f"Deleting user {user} (and assets & data) ...")
         delete_user(user)
+    for role_account_association in RolesAccounts.query.filter_by(
+        account_id=account.id
+    ).all():
+        role = AccountRole.query.get(role_account_association.role_id)
+        print(
+            f"Deleting association of account {account.name} and role {role.name} ..."
+        )
+        db.session.delete(role_account_association)
     for asset in account.generic_assets:
         print(f"Deleting generic asset {asset} (and sensors & beliefs) ...")
         db.session.delete(asset)
+    account_name = account.name
     db.session.delete(account)
     db.session.commit()
+    print(f"Account {account_name} has been deleted.")
 
 
 @fm_delete_data.command("user")
@@ -69,7 +102,7 @@ def delete_user_and_data(email: str, force: bool):
     """
     if not force:
         # TODO: later, when assets belong to accounts, remove this.
-        prompt = "Delete user including all their assets and data?"
+        prompt = f"Delete user '{email}', including all their assets and data?"
         if not click.confirm(prompt):
             raise click.Abort()
     the_user = find_user_by_email(email)

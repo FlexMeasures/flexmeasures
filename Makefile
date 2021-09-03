@@ -46,7 +46,7 @@ install-pip-tools:
 	pip3 install -q pip-tools>=6.2
 
 install-sphinx-tools:
-	pip3 install sphinx>=4.0.3 sphinxcontrib.httpdomain sphinx-rtd-theme
+	pip3 install sphinx>=4.0.3 sphinxcontrib.httpdomain sphinx-rtd-theme sphinx_fontawesome
 
 freeze-deps:
 	make install-pip-tools

@@ -1,10 +1,13 @@
+from typing import Union, Tuple, List, Optional
 import os
 import sys
 import importlib.util
+from importlib.abc import Loader
 
 import click
-from flask import Flask
+from flask import Flask, current_app, redirect
 from flask.cli import FlaskGroup, with_appcontext
+from flask_security import current_user
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.rq import RqIntegration
@@ -102,6 +105,77 @@ def set_secret_key(app, filename="secret_key"):
         sys.exit(2)
 
 
+def root_dispatcher():
+    """
+    Re-routes to root views fitting for the current user,
+    depending on the FLEXMEASURES_ROOT_VIEW setting.
+    """
+    default_root_view = root_view = "/dashboard"
+    configs = current_app.config.get("FLEXMEASURES_ROOT_VIEW", [])
+    root_view = find_first_applicable_config_entry(configs, "FLEXMEASURES_ROOT_VIEW")
+    if root_view in ("", "/", None):
+        root_view = default_root_view
+    if not root_view.startswith("/"):
+        root_view = f"/{root_view}"
+    current_app.logger.info(f"Redirecting root view to {root_view} ...")
+    return redirect(root_view)
+
+
+def find_first_applicable_config_entry(
+    configs: list, setting_name: str, app: Optional[Flask] = None
+) -> Optional[str]:
+    if app is None:
+        app = current_app
+    if isinstance(configs, str):
+        configs = [configs]  # ignore: type
+    for config in configs:
+        entry = parse_config_entry_by_account_roles(config, setting_name, app)
+        if entry is not None:
+            return entry
+    return None
+
+
+def parse_config_entry_by_account_roles(
+    config: Union[str, Tuple[str, List[str]]],
+    setting_name: str,
+    app: Optional[Flask] = None,
+) -> Optional[str]:
+    """
+    Parse a config entry (which ca be a string, e.g. "dashboard" or a tuple, e.g. ("dashboard", ["MDC"])).
+    In the latter case, return the first item (a string) only if the current user's account roles match with the
+    list of roles in the second item. Otherwise return None.
+    """
+    if app is None:
+        app = current_app
+    if isinstance(config, str):
+        return config
+    elif isinstance(config, tuple) and len(config) == 2:
+        entry, account_role_names = config
+        if not isinstance(entry, str):
+            app.logger.warning(
+                f"View name setting '{entry}' in {setting_name} is not a string. Ignoring ..."
+            )
+            return None
+        if not isinstance(account_role_names, list):
+            app.logger.warning(
+                f"Role names setting '{account_role_names}' in {setting_name} is not a list. Ignoring ..."
+            )
+            return None
+        if not hasattr(current_user, "account"):
+            # e.g. AnonymousUser
+            return None
+        for account_role_name in account_role_names:
+            if account_role_name in [
+                role.name for role in current_user.account.account_roles
+            ]:
+                return entry
+    else:
+        app.logger.warn(
+            f"Setting '{config}' in {setting_name} is neither a string nor two-part tuple. Ignoring ..."
+        )
+    return None
+
+
 def register_plugins(app: Flask):
     """
     Register FlexMeasures plugins as Blueprints.
@@ -131,8 +205,14 @@ def register_plugins(app: Flask):
         spec = importlib.util.spec_from_file_location(
             plugin_name, os.path.join(plugin_path, "__init__.py")
         )
+        if spec is None:
+            app.logger.warning(
+                f"Could not load specs for plugin {plugin_name} at {plugin_path}."
+            )
+            continue
         module = importlib.util.module_from_spec(spec)
         sys.modules[plugin_name] = module
+        assert isinstance(spec.loader, Loader)
         spec.loader.exec_module(module)
         plugin_blueprint = getattr(module, f"{plugin_name}_bp")
         app.register_blueprint(plugin_blueprint)

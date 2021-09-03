@@ -15,7 +15,8 @@ import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
-from flexmeasures.data.services.users import create_user, Account
+from flexmeasures.data.services.users import create_user
+from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
@@ -45,19 +46,47 @@ def fm_dev_add_data():
     """Developer CLI commands not yet meant for users: Add data."""
 
 
+@fm_add_data.command("account-role")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option("--description")
+def new_account_role(name: str, description: str):
+    """
+    Create an account role.
+    """
+    role = AccountRole.query.filter_by(name=name).one_or_none()
+    if role is not None:
+        click.echo(f"Account role '{name}' already exists.")
+        raise click.Abort
+    role = AccountRole(name=name, description=description)
+    db.session.add(role)
+    db.session.commit()
+    print(f"Account role '{name}' (ID: {role.id}) successfully created.")
+
+
 @fm_add_data.command("account")
 @with_appcontext
 @click.option("--name", required=True)
-def new_account(name: str):
+@click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
+def new_account(name: str, roles: List[str]):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
     account = db.session.query(Account).filter_by(name=name).one_or_none()
     if account is not None:
-        print(f"Account '{name}' already exist.")
+        click.echo(f"Account '{name}' already exists.")
         raise click.Abort
     account = Account(name=name)
     db.session.add(account)
+    if roles:
+        for role_name in roles.split(","):
+            role = AccountRole.query.filter_by(name=role_name).one_or_none()
+            if role is None:
+                print(f"Adding account role {role_name} ...")
+                role = AccountRole(name=role_name)
+                db.session.add(role)
+            db.session.flush()
+            db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
     db.session.commit()
     print(f"Account '{name}' (ID: {account.id}) successfully created.")
 

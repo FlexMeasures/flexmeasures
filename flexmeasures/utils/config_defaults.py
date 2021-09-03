@@ -82,7 +82,9 @@ class Config(object):
     FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: List[str] = []
 
-    FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
+    FLEXMEASURES_PLATFORM_NAME: Union[
+        str, List[Union[str, Tuple[str, List[str]]]]
+    ] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
@@ -95,13 +97,16 @@ class Config(object):
     FLEXMEASURES_PLUGIN_PATHS: List[str] = []
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
-    FLEXMEASURES_LISTED_VIEWS: List[str] = [
+    FLEXMEASURES_ROOT_VIEW: Union[str, List[Union[str, Tuple[str, List[str]]]]] = []
+    FLEXMEASURES_MENU_LISTED_VIEWS: List[Union[str, Tuple[str, List[str]]]] = [
         "dashboard",
         "analytics",
         "portfolio",
         "assets",
         "users",
     ]
+    FLEXMEASURES_MENU_LISTED_VIEW_ICONS: Dict[str, str] = {}
+    FLEXMEASURES_MENU_LISTED_VIEW_TITLES: Dict[str, str] = {}
     FLEXMEASURES_LP_SOLVER: str = "cbc"
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
