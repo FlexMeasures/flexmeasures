@@ -22,10 +22,10 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
-
 * Add possibility to send errors to Sentry [see `PR #143 <http://www.github.com/SeitaBV/flexmeasures/pull/143>`_]
 * Add CLI task to monitor if tasks ran successfully and recently enough [see `PR #146 <http://www.github.com/SeitaBV/flexmeasures/pull/146>`_]
 * Document how to use a custom favicon in plugins [see `PR #152 <http://www.github.com/SeitaBV/flexmeasures/pull/152>`_]
+* Allow plugins to register multiple Flask blueprints [see `PR #171 <http://www.github.com/SeitaBV/flexmeasures/pull/171>`_]
 * Continue experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: link multiple sensors to a single asset [see `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
 * The experimental parts of the data model can now be visualised, as well, via `make show-data-model --uml --dev` [also in `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
 
