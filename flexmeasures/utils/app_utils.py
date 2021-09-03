@@ -5,7 +5,7 @@ import importlib.util
 from importlib.abc import Loader
 
 import click
-from flask import Blueprint, Flask, current_app, redirect
+from flask import Flask, current_app, redirect
 from flask.cli import FlaskGroup, with_appcontext
 from flask_security import current_user
 import sentry_sdk
@@ -183,7 +183,7 @@ def register_plugins(app: Flask):
 
     Assumptions:
     - Your plugin folders contains an __init__.py file.
-    - In that file, you define a Blueprint object (or several).
+    - In this init, you define a Blueprint object called <plugin folder>_bp
 
     We'll refer to the plugins with the name of your plugin folders (last part of the path).
     """
@@ -214,21 +214,8 @@ def register_plugins(app: Flask):
         sys.modules[plugin_name] = module
         assert isinstance(spec.loader, Loader)
         spec.loader.exec_module(module)
-
-        # Look for blueprints in the plugin's main __init__ module and register them
-        plugin_blueprints = [
-            getattr(module, a)
-            for a in dir(module)
-            if isinstance(getattr(module, a), Blueprint)
-        ]
-        if not plugin_blueprints:
-            app.logger.warning(
-                f"No blueprints found for plugin {plugin_name} at {plugin_path}."
-            )
-            continue
-        for plugin_blueprint in plugin_blueprints:
-            app.register_blueprint(plugin_blueprint)
-
+        plugin_blueprint = getattr(module, f"{plugin_name}_bp")
+        app.register_blueprint(plugin_blueprint)
         plugin_version = getattr(plugin_blueprint, "__version__", "0.1")
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
