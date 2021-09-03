@@ -24,7 +24,8 @@ def fm_delete_data():
 @click.option("--name", required=True)
 def delete_account_role(name: str):
     """
-    Delete an account role, if it has no accounts connected, otherwise say which ones.
+    Delete an account role.
+    If it has accounts connected, print them before deleting the connection.
     """
     role: AccountRole = AccountRole.query.filter_by(name=name).one_or_none()
     if role is None:

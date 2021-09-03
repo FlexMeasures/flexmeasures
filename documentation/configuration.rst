@@ -213,6 +213,7 @@ Token for accessing the MapBox API (for displaying maps on the dashboard and ass
 
 Default: ``None``
 
+.. _sentry_access_token:
 
 SENTRY_SDN
 ^^^^^^^^^^^^
@@ -425,6 +426,8 @@ Token which external services can use to check on the status of recurring tasks 
 
 Default: ``None``
 
+
+.. _monitoring_mail_recipients:
 
 FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
 ^^^^^^^^^^^^^^^^^^^^^^^

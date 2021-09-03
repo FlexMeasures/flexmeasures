@@ -128,27 +128,30 @@ def upgrade_data():
         new_generic_asset_types.append(new_generic_asset_type)
 
     # Construct generic asset types for each AssetType
-    print(
-        f"Constructing generic asset types for each of the following asset types: {asset_type_results_dict}"
-    )
+    if asset_type_results_dict:
+        print(
+            f"Constructing generic asset types for each of the following asset types: {asset_type_results_dict}"
+        )
     for name, display_name in asset_type_results_dict.items():
         # Create new GenericAssets with matching names
         new_generic_asset_type = GenericAssetType(name=name, description=display_name)
         new_generic_asset_types.append(new_generic_asset_type)
 
     # Construct generic asset types for each MarketType
-    print(
-        f"Constructing generic asset types for each of the following market types: {market_type_results_dict}"
-    )
+    if market_type_results_dict:
+        print(
+            f"Constructing generic asset types for each of the following market types: {market_type_results_dict}"
+        )
     for name, display_name in market_type_results_dict.items():
         # Create new GenericAssets with matching names
         new_generic_asset_type = GenericAssetType(name=name, description=display_name)
         new_generic_asset_types.append(new_generic_asset_type)
 
     # Construct generic asset types for each WeatherSensorType
-    print(
-        f"Constructing generic asset types for each of the following weather sensor types: {weather_sensor_type_results_dict}"
-    )
+    if weather_sensor_type_results_dict:
+        print(
+            f"Constructing generic asset types for each of the following weather sensor types: {weather_sensor_type_results_dict}"
+        )
     for name, display_name in weather_sensor_type_results_dict.items():
         # Create new GenericAssets with matching names
         new_generic_asset_type = GenericAssetType(name=name, description=display_name)

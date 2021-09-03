@@ -199,6 +199,7 @@ def downgrade_data():
 
 def backup_generic_asset_user_associations():
     asset_ownership_results = _generic_asset_ownership()
+    backed_up_ownerships = 0
     with open(asset_ownership_backup_script, "w") as bckp_file:
         for aid, oid in asset_ownership_results:
             if oid is None:
@@ -206,11 +207,13 @@ def backup_generic_asset_user_associations():
             bckp_file.write(
                 f"UPDATE generic_asset SET owner_id = {oid} WHERE id = {aid};\n"
             )
+            backed_up_ownerships += 1
 
-    print("Your generic_asset.owner_id associations are being dropped!")
-    print(
-        f"We saved UPDATE statements to put them back in {asset_ownership_backup_script}."
-    )
+    if backed_up_ownerships > 0:
+        print("Your generic_asset.owner_id associations are being dropped!")
+        print(
+            f"We saved UPDATE statements to put them back in {asset_ownership_backup_script}."
+        )
 
 
 def _generic_asset_ownership() -> List[Tuple[int, int]]:

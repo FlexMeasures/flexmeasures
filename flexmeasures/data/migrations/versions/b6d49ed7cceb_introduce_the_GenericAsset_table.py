@@ -135,9 +135,10 @@ def upgrade_data():
             sensor_results_dict.pop(id)
 
     # Construct generic assets for all remaining sensors
-    print(
-        f"Constructing generic assets for each of the following sensors: {sensor_results_dict}"
-    )
+    if sensor_results_dict:
+        print(
+            f"Constructing generic assets for each of the following sensors: {sensor_results_dict}"
+        )
     for id_, name in sensor_results_dict.items():
         _sensors = [sensor for sensor in sensors if sensor.id == id_]
 
