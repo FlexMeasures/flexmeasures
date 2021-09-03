@@ -95,7 +95,7 @@ For more fine-grained control, this can also be a list, where it's possible to s
 
 For example, ``("MyMDCApp", ["MDC"]), "MyApp"]`` would use the name "MyMDCApp" for users connected to accounts with the account role "MDC" while all others would see the name "/MyApp".
 
-.. note:: This fine-grained control requires FlexMeasures version v0.6.0
+.. note:: This fine-grained control requires FlexMeasures version 0.6.0
 
 Default: ``"FlexMeasures"``
 
@@ -113,7 +113,7 @@ If this setting is empty or not applicable for the current user, the "/" view wi
 
 Default ``[]``
 
-.. note:: This setting was introduced in FlexMeasures version v0.6.0
+.. note:: This setting was introduced in FlexMeasures version 0.6.0
 
 
 .. _menu-config:
@@ -125,9 +125,9 @@ A list of the view names which are listed in the menu.
 
 .. note:: This setting only lists the names of views, rather than making sure the views exist.
 
-For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC","Prosumer"])`` would show the link to the "details" page only to users who are connected to accounts with roles "MDC" or "Prosumer". 
+For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC", "Prosumer"])`` would show the link to the "details" page only to users who are connected to accounts with roles "MDC" or "Prosumer".
 
-.. note:: This fine-grained control requires FlexMeasures version v0.6.0
+.. note:: This fine-grained control requires FlexMeasures version 0.6.0
 
 Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
 
@@ -140,7 +140,7 @@ For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowfla
 
 Default: ``{}``
 
-.. note:: This setting was introduced in FlexMeasures version v0.6.0
+.. note:: This setting was introduced in FlexMeasures version 0.6.0
 
 
 FLEXMEASURES_MENU_LISTED_VIEW_TITLES
@@ -151,7 +151,7 @@ For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the 
 
 Default: ``{}``
 
-.. note:: This setting was introduced in FlexMeasures version v0.6.0
+.. note:: This setting was introduced in FlexMeasures version 0.6.0
 
 
 FLEXMEASURES_HIDE_NAN_IN_UI
