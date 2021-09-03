@@ -37,6 +37,8 @@ With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` 
 
 .. code-block:: python
 
+    __version__ = "2.0"
+
     from flask import Blueprint, render_template, abort
 
     from flask_security import login_required
@@ -45,8 +47,6 @@ With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` 
 
     our_client_bp = Blueprint('our_client', 'our_client',
                               template_folder='templates')
-
-    our_client_bp.__version__ = "2.0"
 
     # Showcase: Adding a view
 
@@ -79,7 +79,7 @@ With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` 
 
 .. note:: You can overwrite FlexMeasures routing in your plugin. In our example above, we are using the root route ``/``. FlexMeasures registers plugin routes before its own, so in this case visiting the root URL of your app will display this plugged-in view (the same you'd see at `/my-page`).
 
-.. note:: The ``__version__`` attribute on our blueprint object is being displayed in the standard FlexMeasures UI footer, where we show loaded plugins. Of course, it can also be useful for your own maintenance.
+.. note:: The ``__version__`` attribute on our module is being displayed in the standard FlexMeasures UI footer, where we show loaded plugins. Of course, it can also be useful for your own maintenance.
 
 
 The template would live at ``<some_folder>/our_client/templates/my_page.html``, which works just as other FlexMeasures templates (they are Jinja2 templates):

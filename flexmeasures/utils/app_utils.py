@@ -216,7 +216,7 @@ def register_plugins(app: Flask):
         spec.loader.exec_module(module)
         plugin_blueprint = getattr(module, f"{plugin_name}_bp")
         app.register_blueprint(plugin_blueprint)
-        plugin_version = getattr(plugin_blueprint, "__version__", "0.1")
+        plugin_version = getattr(module, "__version__", "0.1")
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
     sentry_sdk.set_context("plugins", app.config.get("LOADED_PLUGINS", {}))
