@@ -18,7 +18,7 @@ Use the config setting :ref:`plugin-config` to point to your plugin(s).
 Here are the assumptions FlexMeasures makes to be able to import your Blueprint:
 
 - The plugin folder contains an ``__init__.py`` file.
-- In this init, you define a Blueprint object called ``<plugin folder>_bp``.
+- In that file, you define a Blueprint object (or several).
     
 We'll refer to the plugin with the name of your plugin folder.
 
@@ -37,16 +37,16 @@ With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` 
 
 .. code-block:: python
 
+    __version__ = "2.0"
+
     from flask import Blueprint, render_template, abort
 
     from flask_security import login_required
     from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 
 
-    our_client_bp = Blueprint('our_client', 'our_client',
+    our_client_bp = Blueprint('our_client', __name__,
                               template_folder='templates')
-
-    our_client_bp.__version__ = "2.0"
 
     # Showcase: Adding a view
 
@@ -79,7 +79,7 @@ With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` 
 
 .. note:: You can overwrite FlexMeasures routing in your plugin. In our example above, we are using the root route ``/``. FlexMeasures registers plugin routes before its own, so in this case visiting the root URL of your app will display this plugged-in view (the same you'd see at `/my-page`).
 
-.. note:: The ``__version__`` attribute on our blueprint object is being displayed in the standard FlexMeasures UI footer, where we show loaded plugins. Of course, it can also be useful for your own maintenance.
+.. note:: The ``__version__`` attribute on our module is being displayed in the standard FlexMeasures UI footer, where we show loaded plugins. Of course, it can also be useful for your own maintenance.
 
 
 The template would live at ``<some_folder>/our_client/templates/my_page.html``, which works just as other FlexMeasures templates (they are Jinja2 templates):
@@ -90,7 +90,7 @@ The template would live at ``<some_folder>/our_client/templates/my_page.html``, 
 
     {% set active_page = "my-page" %}
 
-    {% block title %} Our client Dashboard {% endblock %}
+    {% block title %} Our client dashboard {% endblock %}
 
     {% block divs %}
     

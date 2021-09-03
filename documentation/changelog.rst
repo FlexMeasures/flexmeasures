@@ -10,10 +10,12 @@ v0.6.0 | August XX, 2021
 
 .. warning:: The config setting ``FLEXMEASURES_LISTED_VIEWS`` has been renamed to ``FLEXMEASURES_MENU_LISTED_VIEWS``.
 
+.. warning:: Plugins now need to set their version on their module rather than on their blueprint. See the `documentation for writing plugins <https://flexmeasures.readthedocs.io/en/v0.6.0/dev/plugins.html>`_.
+
 New features
 -----------
 * Analytics view offers grouping of all assets by location [see `PR #148 <http://www.github.com/SeitaBV/flexmeasures/pull/148>`_]
-* Multi-tenancy: Supporting multiple customers per FlexMeasures server, by introducing the `Account` concept. Accounts have users and assets associated. [see `PR #159 <http://www.github.com/SeitaBV/flexmeasures/pull/159>`_ and `PR #163 <http://www.github.com/SeitaBV/flexmeasures/pull/163>`_] 
+* Multi-tenancy: Supporting multiple customers per FlexMeasures server, by introducing the `Account` concept. Accounts have users and assets associated. [see `PR #159 <http://www.github.com/SeitaBV/flexmeasures/pull/159>`_ and `PR #163 <http://www.github.com/SeitaBV/flexmeasures/pull/163>`_]
 * In the UI, the root view ("/"), the platform name and the visible menu items can now be more tightly controlled (per account roles of the current user) [see also `PR #163 <http://www.github.com/SeitaBV/flexmeasures/pull/163>`_]
 * Add (experimental) endpoint to post sensor data for any sensor. Also supports our ongoing integration with data internally represented using the `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib [see `PR #147 <http://www.github.com/SeitaBV/flexmeasures/pull/147>`_]
 
@@ -22,10 +24,10 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
-
 * Add possibility to send errors to Sentry [see `PR #143 <http://www.github.com/SeitaBV/flexmeasures/pull/143>`_]
 * Add CLI task to monitor if tasks ran successfully and recently enough [see `PR #146 <http://www.github.com/SeitaBV/flexmeasures/pull/146>`_]
 * Document how to use a custom favicon in plugins [see `PR #152 <http://www.github.com/SeitaBV/flexmeasures/pull/152>`_]
+* Allow plugins to register multiple Flask blueprints [see `PR #171 <http://www.github.com/SeitaBV/flexmeasures/pull/171>`_]
 * Continue experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: link multiple sensors to a single asset [see `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
 * The experimental parts of the data model can now be visualised, as well, via `make show-data-model --uml --dev` [also in `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
 
