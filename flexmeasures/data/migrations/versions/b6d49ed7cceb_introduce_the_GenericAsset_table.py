@@ -8,11 +8,11 @@ Create Date: 2021-07-20 20:15:28.019102
 import json
 
 from alembic import context, op
-from sqlalchemy import orm
+from sqlalchemy import orm, insert, update
 import sqlalchemy as sa
 
 from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
+from flexmeasures.data.models.generic_assets import GenericAssetType
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.weather import WeatherSensor
@@ -23,6 +23,23 @@ revision = "b6d49ed7cceb"
 down_revision = "565e092a6c5e"
 branch_labels = None
 depends_on = None
+
+# Declare ORM table views we are using
+t_sensors = sa.Table(
+    "sensor",
+    sa.MetaData(),
+    sa.Column("id", sa.Integer),
+    sa.Column("name", sa.String(80)),
+    sa.Column("generic_asset_id", sa.Integer),
+)
+t_generic_assets = sa.Table(
+    "generic_asset",
+    sa.MetaData(),
+    sa.Column("id", sa.Integer),
+    sa.Column("name", sa.String(80)),
+    sa.Column("generic_asset_type_id", sa.Integer),
+    sa.Column("owner_id", sa.Integer),
+)
 
 
 def upgrade():
@@ -59,14 +76,6 @@ def upgrade_data():
     # Get user defined sensor groups
     sensor_groups = context.get_x_argument()
 
-    # Declare ORM table views
-    t_sensors = sa.Table(
-        "sensor",
-        sa.MetaData(),
-        sa.Column("id", sa.Integer),
-        sa.Column("name", sa.String(80)),
-    )
-
     # Use SQLAlchemy's connection and transaction to go through the data
     connection = op.get_bind()
     session = orm.Session(bind=connection)
@@ -81,9 +90,6 @@ def upgrade_data():
         )
     ).fetchall()
     sensors = session.query(Sensor).all()
-
-    # Prepare to build a list of new generic assets
-    new_generic_assets = []
 
     # Construct generic asset for each user defined sensor group
     sensor_results_dict = {k: v for k, v in sensor_results}
@@ -108,13 +114,23 @@ def upgrade_data():
         group_sensors = [
             sensor for sensor in sensors if sensor.id in sensor_group_dict["sensor_ids"]
         ]
-        new_generic_asset = GenericAsset(
-            name=sensor_group_dict["asset_name"],
-            generic_asset_type=generic_asset_type,
-            sensors=group_sensors,
-            owner_id=sensor_group_dict["owner_id"],
+        connection.execute(
+            insert(t_generic_assets).values(
+                name=sensor_group_dict["asset_name"],
+                generic_asset_type_id=generic_asset_type.id,
+                owner_id=sensor_group_dict["owner_id"],
+            )
         )
-        new_generic_assets.append(new_generic_asset)
+        latest_ga_id = get_latest_generic_asset_id(connection)
+        print(
+            f"Created new generic asset with ID {latest_ga_id}. Now tying {len(group_sensors)} sensors to it ..."
+        )
+        for sensor in group_sensors:
+            connection.execute(
+                update(t_sensors)
+                .where(t_sensors.c.id == sensor.id)
+                .values(generic_asset_id=latest_ga_id)
+            )
         for id in sensor_group_dict["sensor_ids"]:
             sensor_results_dict.pop(id)
 
@@ -150,13 +166,23 @@ def upgrade_data():
         )
 
         # Create new GenericAssets with matching names
-        new_generic_asset = GenericAsset(
-            name=name, generic_asset_type=generic_asset_type, sensors=_sensors
+        connection.execute(
+            insert(t_generic_assets).values(
+                name=name,
+                generic_asset_type_id=generic_asset_type.id,
+            )
         )
-        new_generic_assets.append(new_generic_asset)
+        latest_ga_id = get_latest_generic_asset_id(connection)
+        print(
+            f"Created new generic asset with ID {latest_ga_id}. Now tying {len(_sensors)} sensors to it ..."
+        )
+        for sensor in _sensors:
+            connection.execute(
+                update(t_sensors)
+                .where(t_sensors.c.id == sensor.id)
+                .values(generic_asset_id=latest_ga_id)
+            )
 
-    # Add the new generic assets
-    session.add_all(new_generic_assets)
     session.commit()
 
 
@@ -194,3 +220,15 @@ def upgrade_schema():
         ["generic_asset_id"],
         ["id"],
     )
+
+
+def get_latest_generic_asset_id(connection) -> int:
+    """
+    Getting the latest (highest) GenericAsset ID.
+    This is a useful method as somehow there was no inserted_primary_key available
+    through the engine result (see
+    https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.LegacyCursorResult.inserted_primary_key)
+    """
+    return connection.execute(
+        sa.select([t_generic_assets.c.id]).order_by(t_generic_assets.c.id)
+    ).fetchall()[-1][0]
