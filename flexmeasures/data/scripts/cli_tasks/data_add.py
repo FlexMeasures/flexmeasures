@@ -175,10 +175,9 @@ def add_sensor(**args):
 @with_appcontext
 @click.option("--name", required=True)
 @click.option(
-    "--hover-label",
+    "--description",
     type=str,
-    help="Label visible when hovering over the name in the UI.\n"
-    "Useful to explain acronyms, for example.",
+    help="Description (useful to explain acronyms, for example).",
 )
 def add_generic_asset_type(**args):
     """Add a generic asset type."""
