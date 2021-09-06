@@ -15,6 +15,19 @@ Infrastructure / Support
 ----------------------
 
 
+v0.6.1 | September XX, 2021
+===========================
+
+New features
+-----------
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
 v0.6.0 | September 3, 2021
 ===========================
 
