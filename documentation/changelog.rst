@@ -10,6 +10,7 @@ New features
 
 Bugfixes
 -----------
+* Fix (dev) CLI command for adding a GenericAssetType [see `PR #173 <http://www.github.com/SeitaBV/flexmeasures/pull/173>`_]
 
 Infrastructure / Support
 ----------------------
