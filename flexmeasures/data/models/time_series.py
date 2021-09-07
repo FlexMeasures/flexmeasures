@@ -39,10 +39,22 @@ class Sensor(db.Model, tb.SensorDBMixin):
         ),
     )
 
-    def __init__(self, name: str, generic_asset: GenericAsset, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        generic_asset: Optional[GenericAsset] = None,
+        generic_asset_id: Optional[int] = None,
+        **kwargs,
+    ):
+        assert (generic_asset is None) ^ (
+            generic_asset_id is None
+        ), "Either generic_asset_id or generic_asset must be set."
         tb.SensorDBMixin.__init__(self, name, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.SensorDBMixin, kwargs)
-        kwargs["generic_asset"] = generic_asset
+        if generic_asset is not None:
+            kwargs["generic_asset"] = generic_asset
+        else:
+            kwargs["generic_asset_id"] = generic_asset_id
         db.Model.__init__(self, **kwargs)
 
     @property

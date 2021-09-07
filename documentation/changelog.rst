@@ -24,6 +24,7 @@ New features
 Bugfixes
 -----------
 * Fix (dev) CLI command for adding a GenericAssetType [see `PR #173 <http://www.github.com/SeitaBV/flexmeasures/pull/173>`_]
+* Fix (dev) CLI command for adding a Sensor [see `PR #176 <http://www.github.com/SeitaBV/flexmeasures/pull/176>`_]
 
 Infrastructure / Support
 ----------------------
