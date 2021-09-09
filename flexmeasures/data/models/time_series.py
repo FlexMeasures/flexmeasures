@@ -448,4 +448,6 @@ def parse_source_arg(
                 )
             else:
                 parsed_sources.extend(_parsed_sources)
+        else:
+            parsed_sources.append(source)
     return parsed_sources
