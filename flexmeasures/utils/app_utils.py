@@ -200,7 +200,7 @@ def register_plugins(app: Flask):
             app.logger.warning(
                 f"Plugin {plugin_name} does not contain an '__init__.py' file. Cannot load plugin {plugin_name}."
             )
-            return
+            continue
         app.logger.debug(f"Importing plugin {plugin_name} ...")
         spec = importlib.util.spec_from_file_location(
             plugin_name, os.path.join(plugin_path, "__init__.py")
