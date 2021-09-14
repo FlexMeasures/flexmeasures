@@ -69,7 +69,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         beliefs_before: Optional[datetime_type] = None,
         source: Optional[Union[int, List[int], str, List[str]]] = None,
         as_json: bool = False,
-    ):
+    ) -> Union[tb.BeliefsDataFrame, str]:
         """Search all beliefs about events for this sensor.
 
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
@@ -78,6 +78,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass its name or id) or list of sources
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
         bdf = TimedBelief.search(
             sensor=self,

@@ -6,6 +6,7 @@ from flask import current_app
 import pandas as pd
 from sqlalchemy.orm.query import Query
 import timely_beliefs as tb
+from timely_beliefs.beliefs import utils as belief_utils
 import isodate
 
 from flexmeasures.data.queries.utils import simplify_index
@@ -309,3 +310,43 @@ def set_bdf_source(bdf: tb.BeliefsDataFrame, source_name: str) -> tb.BeliefsData
     bdf = bdf.reset_index()
     bdf["source"] = DataSource(source_name)
     return bdf.set_index(index_cols)
+
+
+def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
+    """Drop beliefs that are already stored in the database with an earlier belief time.
+
+    Quite useful function to prevent cluttering up your database with beliefs that remain unchanged over time.
+    Only works on BeliefsDataFrames with a unique belief time and unique source.
+    """
+    if bdf.empty:
+        return bdf
+    if len(bdf.lineage.belief_times) > 1:
+        raise NotImplementedError("Beliefs should share a unique belief time.")
+    if len(bdf.lineage.sources) > 1:
+        raise NotImplementedError("Beliefs should share a unique source.")
+    previous_beliefs = bdf.sensor.search_beliefs(
+        event_starts_after=bdf.event_starts[0],
+        event_ends_before=bdf.event_ends[-1],
+        beliefs_before=bdf.lineage.belief_times[0],  # unique belief time
+        source=bdf.lineage.sources[0],  # unique source
+    )
+    previous_most_recent_beliefs = belief_utils.select_most_recent_belief(
+        previous_beliefs
+    )
+
+    a = bdf.reset_index().set_index(
+        ["event_start", "source", "cumulative_probability", "event_value"]
+    )
+    b = previous_most_recent_beliefs.reset_index().set_index(
+        ["event_start", "source", "cumulative_probability", "event_value"]
+    )
+    bdf = (
+        a.drop(
+            b.index,
+            errors="ignore",
+            axis=0,
+        )
+        .reset_index()
+        .set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+    )
+    return bdf
