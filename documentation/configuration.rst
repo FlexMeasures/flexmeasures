@@ -58,12 +58,18 @@ Default: ``{"flexmeasures.io": "2021-01"}``
 
 .. _plugin-config:
 
-FLEXMEASURES_PLUGIN_PATHS
+FLEXMEASURES_PLUGINS
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A list of absolute paths to Blueprint-based plugins for FlexMeasures (e.g. for custom views or CLI functions).
-Each plugin path points to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined. 
-See :ref:`plugins` on what is expected for content.
+A list of plugins you want FlexMeasures to load (e.g. for custom views or CLI functions). 
+
+There is two types of entries here:
+
+* File paths (absolute or relative) to plugins. Each such path needs to point to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined. 
+* Names of installed Python modules. 
+
+Added functionality in plugins needs to be based on Flask Blueprints. See :ref:`plugins` for more information and examples.
+
 
 Default: ``[]``
 

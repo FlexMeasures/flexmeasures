@@ -3,24 +3,35 @@
 Writing Plugins
 ====================
 
-You can extend FlexMeasures with functionality like UI pages or CLI functions.
+You can extend FlexMeasures with functionality like UI pages, API endpoints, or CLI functions.
+This is eventually how energy flexibility services are built on top of FlexMeasures!
 
-A FlexMeasures plugin works as a `Flask Blueprint <https://flask.palletsprojects.com/en/1.1.x/tutorial/views/>`_.
+In an nutshell, a FlexMeasures plugin adds functionality via one or more `Flask Blueprints <https://flask.palletsprojects.com/en/1.1.x/tutorial/views/>`_.
 
 .. todo:: We'll use this to allow for custom forecasting and scheduling algorithms, as well.
 
 
-How it works
-^^^^^^^^^^^^^^
+How to make FlexMeasures load your plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use the config setting :ref:`plugin-config` to point to your plugin(s).
+Use the config setting :ref:`plugin-config` to list to your plugin(s).
 
-Here are the assumptions FlexMeasures makes to be able to import your Blueprint:
+A setting in this list can:
 
-- The plugin folder contains an ``__init__.py`` file.
-- In that file, you define a Blueprint object (or several).
-    
-We'll refer to the plugin with the name of your plugin folder.
+1. point to a plugin folder containing an __init__.py file
+2. be the name of an installed module (i.e. in a Python console `import <module_name>` would work)
+
+Each plugin defines at least one Blueprint object. These will be registered with the Flask app,
+so their functionality (e.g. routes) becomes available.
+
+We'll discuss an example below.
+
+In that example, we use the first option from above to tell FlexMeasures about the plugin. It is the simplest way to start playing around.
+
+The second option (the plugin being an importable Python package) allows for more professional software development. For instance, it is more straightforward in that case to add code hygiene, version management and dependencies (your plugin can depend on a specific FlexMeasures version and other plugins can depend on yours).
+
+To hit the ground running with that approach, we provide a `CookieCutter template <https://github.com/SeitaBV/flexmeasures-plugin-template>`_.
+It also includes a few Blueprint examples and best practices.
 
 
 Showcase
@@ -29,7 +40,7 @@ Showcase
 Here is a showcase file which constitutes a FlexMeasures plugin called ``our_client``.
 
 * We demonstrate adding a view, which can be rendered using the FlexMeasures base templates.
-* We also showcase a CLI function which has access to the FlexMeasures `app` object. It can be called via ``flexmeasures our_client test``. 
+* We also showcase a CLI function which has access to the FlexMeasures `app` object. It can be called via ``flexmeasures our-client test``. 
 
 We first create the file ``<some_folder>/our_client/__init__.py``. This means that ``our_client`` is the plugin folder and becomes the plugin name.
 
@@ -45,7 +56,7 @@ With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` 
     from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 
 
-    our_client_bp = Blueprint('our_client', __name__,
+    our_client_bp = Blueprint('our-client', __name__,
                               template_folder='templates')
 
     # Showcase: Adding a view
@@ -53,7 +64,7 @@ With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` 
     @our_client_bp.route('/')
     @our_client_bp.route('/my-page')
     @login_required
-    def metrics():
+    def my_page():
         msg = "I am a FlexMeasures plugin !"
         # Note that we render via the in-built FlexMeasures way
         return render_flexmeasures_template(
@@ -73,7 +84,7 @@ With the ``__init__.py`` below, plus the custom Jinja2 template, ``our_client`` 
 
     @our_client_bp.cli.command("test")
     @with_appcontext
-    def oc_test():
+    def our_client_test():
         print(f"I am a CLI command, part of FlexMeasures: {current_app}")
 
 
@@ -121,11 +132,14 @@ Starting the template with ``{% extends "base.html" %}`` integrates your page co
 We'd name this file ``our_client_base.html``. Then, we'd extend our page template from ``our_client_base.html``, instead of ``base.html``.
 
 
-Using other code files in your plugin
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Using other code files in your non-package plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Say you want to include other Python files in your plugin, importing them in your ``__init__.py`` file.
-This can be done if you put the plugin path on the import path. Do it like this in your ``__init__.py``:
+With this file-only version of loading the plugin (if your plugin isn't imported as a package),
+this is a bit tricky.
+
+But it can be achieved if you put the plugin path on the import path. Do it like this in your ``__init__.py``:
 
 .. code-block:: python
 

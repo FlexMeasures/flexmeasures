@@ -21,9 +21,9 @@ from flexmeasures.app import create as create_app
 def flexmeasures_cli():
     """
     Management scripts for the FlexMeasures platform.
-    We use @app_context here so things from the app setup are initialised
-    only once. This is crucial for Sentry, for example.
     """
+    # We use @app_context above, so things from the app setup are initialised
+    # only once! This is crucial for Sentry, for example.
     pass
 
 
@@ -179,41 +179,68 @@ def parse_config_entry_by_account_roles(
 def register_plugins(app: Flask):
     """
     Register FlexMeasures plugins as Blueprints.
-    This is configured by the config setting FLEXMEASURES_PLUGIN_PATHS.
+    This is configured by the config setting FLEXMEASURES_PLUGINS.
 
     Assumptions:
-    - Your plugin folders contains an __init__.py file.
-    - In that file, you define a Blueprint object (or several).
+    - a setting EITHER points to a plugin folder containing an __init__.py file
+      OR it is the name of an installed module, which can be imported.
+    - each plugin defines at least one Blueprint object. These will be registered with the Flask app,
+      so their functionality (e.g. routes) becomes available.
 
-    We'll refer to the plugins with the name of your plugin folders (last part of the path).
+    If you load a plugin via a file path, we'll refer to the plugin with the name of your plugin folder
+    (last part of the path).
     """
-    plugin_paths = app.config.get("FLEXMEASURES_PLUGIN_PATHS", "")
-    if not isinstance(plugin_paths, list):
-        app.logger.warning(
-            f"The value of FLEXMEASURES_PLUGIN_PATHS is not a list: {plugin_paths}. Cannot install plugins ..."
+    plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
+    if not plugins:
+        # this is deprecated behaviour which we should remove in version 1.0
+        app.logger.debug(
+            "No plugins configured. Attempting deprecated setting FLEXMEASURES_PLUGIN_PATHS ..."
+        )
+        plugins = app.config.get("FLEXMEASURES_PLUGIN_PATHS", [])
+    if not isinstance(plugins, list):
+        app.logger.error(
+            f"The value of FLEXMEASURES_PLUGINS is not a list: {plugins}. Cannot install plugins ..."
         )
         return
     app.config["LOADED_PLUGINS"] = {}
-    for plugin_path in plugin_paths:
-        plugin_name = plugin_path.split("/")[-1]
-        if not os.path.exists(os.path.join(plugin_path, "__init__.py")):
-            app.logger.warning(
-                f"Plugin {plugin_name} does not contain an '__init__.py' file. Cannot load plugin {plugin_name}."
+    for plugin in plugins:
+        plugin_name = plugin.split("/")[-1]
+        app.logger.info(f"Importing plugin {plugin_name} ...")
+        module = None
+        if not os.path.exists(plugin):  # assume plugin is a package
+            app.logger.debug(
+                f"Attempting to import {plugin} as an installed package ..."
             )
-            return
-        app.logger.debug(f"Importing plugin {plugin_name} ...")
-        spec = importlib.util.spec_from_file_location(
-            plugin_name, os.path.join(plugin_path, "__init__.py")
-        )
-        if spec is None:
-            app.logger.warning(
-                f"Could not load specs for plugin {plugin_name} at {plugin_path}."
+            try:
+                module = importlib.import_module(plugin)
+            except ModuleNotFoundError:
+                app.logger.warning(
+                    f"Attempted to import module {plugin}, but it is not installed nor a valid path."
+                )
+        else:  # assume plugin is a file path
+            if not os.path.exists(os.path.join(plugin, "__init__.py")):
+                app.logger.warning(
+                    f"Plugin {plugin_name} does not contain an '__init__.py' file. Cannot load plugin {plugin_name}."
+                )
+                continue
+            spec = importlib.util.spec_from_file_location(
+                plugin_name, os.path.join(plugin, "__init__.py")
             )
+            if spec is None:
+                app.logger.warning(
+                    f"Could not load specs for plugin {plugin_name} at {plugin}."
+                )
+                continue
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[plugin_name] = module
+            assert isinstance(spec.loader, Loader)
+            spec.loader.exec_module(module)
+
+        if module is None:
+            app.logger.error(f"Plugin {plugin} could not be loaded.")
             continue
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[plugin_name] = module
-        assert isinstance(spec.loader, Loader)
-        spec.loader.exec_module(module)
+
+        plugin_version = getattr(module, "__version__", "0.1")
 
         # Look for blueprints in the plugin's main __init__ module and register them
         plugin_blueprints = [
@@ -223,13 +250,13 @@ def register_plugins(app: Flask):
         ]
         if not plugin_blueprints:
             app.logger.warning(
-                f"No blueprints found for plugin {plugin_name} at {plugin_path}."
+                f"No blueprints found for plugin {plugin_name} at {plugin}."
             )
             continue
         for plugin_blueprint in plugin_blueprints:
+            app.logger.debug(f"Registering {plugin_blueprint} ...")
             app.register_blueprint(plugin_blueprint)
 
-        plugin_version = getattr(module, "__version__", "0.1")
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
     sentry_sdk.set_context("plugins", app.config.get("LOADED_PLUGINS", {}))
