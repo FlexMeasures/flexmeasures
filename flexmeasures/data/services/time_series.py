@@ -324,22 +324,19 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         raise NotImplementedError("Beliefs should share a unique belief time.")
     if len(bdf.lineage.sources) > 1:
         raise NotImplementedError("Beliefs should share a unique source.")
-    previous_beliefs = bdf.sensor.search_beliefs(
+    previous_beliefs_in_db = bdf.sensor.search_beliefs(
         event_starts_after=bdf.event_starts[0],
         event_ends_before=bdf.event_ends[-1],
         beliefs_before=bdf.lineage.belief_times[0],  # unique belief time
         source=bdf.lineage.sources[0],  # unique source
     )
-    previous_most_recent_beliefs = belief_utils.select_most_recent_belief(
-        previous_beliefs
+    previous_most_recent_beliefs_in_db = belief_utils.select_most_recent_belief(
+        previous_beliefs_in_db
     )
 
-    a = bdf.reset_index().set_index(
-        ["event_start", "source", "cumulative_probability", "event_value"]
-    )
-    b = previous_most_recent_beliefs.reset_index().set_index(
-        ["event_start", "source", "cumulative_probability", "event_value"]
-    )
+    compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
+    a = bdf.reset_index().set_index(compare_fields)
+    b = previous_most_recent_beliefs_in_db.reset_index().set_index(compare_fields)
     bdf = (
         a.drop(
             b.index,
