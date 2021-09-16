@@ -208,26 +208,30 @@ def register_plugins(app: Flask):
         app.logger.info(f"Importing plugin {plugin_name} ...")
         module = None
         if not os.path.exists(plugin):  # assume plugin is a package
+            pkg_name = os.path.split(plugin)[
+                -1
+            ]  # rule out attempts for relative package imports
             app.logger.debug(
-                f"Attempting to import {plugin} as an installed package ..."
+                f"Attempting to import {pkg_name} as an installed package ..."
             )
             try:
-                module = importlib.import_module(plugin)
+                module = importlib.import_module(pkg_name)
             except ModuleNotFoundError:
-                app.logger.warning(
-                    f"Attempted to import module {plugin}, but it is not installed nor a valid path."
+                app.logger.error(
+                    f"Attempted to import module {pkg_name} (as it is not a valid file path), but it is not installed."
                 )
+                continue
         else:  # assume plugin is a file path
             if not os.path.exists(os.path.join(plugin, "__init__.py")):
-                app.logger.warning(
-                    f"Plugin {plugin_name} does not contain an '__init__.py' file. Cannot load plugin {plugin_name}."
+                app.logger.error(
+                    f"Plugin {plugin_name} is a valid file path, but does not contain an '__init__.py' file. Cannot load plugin {plugin_name}."
                 )
                 continue
             spec = importlib.util.spec_from_file_location(
                 plugin_name, os.path.join(plugin, "__init__.py")
             )
             if spec is None:
-                app.logger.warning(
+                app.logger.error(
                     f"Could not load specs for plugin {plugin_name} at {plugin}."
                 )
                 continue

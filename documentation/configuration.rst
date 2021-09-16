@@ -63,7 +63,7 @@ FLEXMEASURES_PLUGINS
 
 A list of plugins you want FlexMeasures to load (e.g. for custom views or CLI functions). 
 
-There is two types of entries here:
+Two types of entries are possible here:
 
 * File paths (absolute or relative) to plugins. Each such path needs to point to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined. 
 * Names of installed Python modules. 

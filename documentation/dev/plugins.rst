@@ -12,9 +12,9 @@ In an nutshell, a FlexMeasures plugin adds functionality via one or more `Flask 
 
 
 How to make FlexMeasures load your plugin
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use the config setting :ref:`plugin-config` to list to your plugin(s).
+Use the config setting :ref:`plugin-config` to list your plugin(s).
 
 A setting in this list can:
 
@@ -133,7 +133,7 @@ We'd name this file ``our_client_base.html``. Then, we'd extend our page templat
 
 
 Using other code files in your non-package plugin
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Say you want to include other Python files in your plugin, importing them in your ``__init__.py`` file.
 With this file-only version of loading the plugin (if your plugin isn't imported as a package),
