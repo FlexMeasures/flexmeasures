@@ -5,6 +5,8 @@ FlexMeasures Changelog
 v0.7.0 | October XX, 2021
 ===========================
 
+.. warning:: The config setting ``FLEXMEASURES_PLUGIN_PATHS`` has been renamed to ``FLEXMEASURES_PLUGINS``. The old name still works but is deprecated.
+
 New features
 -----------
 
@@ -13,6 +15,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* FlexMeasures plugins can be Python packages now. We provide `a cookie-cutter template <https://github.com/SeitaBV/flexmeasures-plugin-template>`_ for this approach. [see `PR #182 <http://www.github.com/SeitaBV/flexmeasures/pull/182>`_]
 
 
 v0.6.1 | September XX, 2021
