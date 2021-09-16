@@ -9,6 +9,8 @@ v0.7.0 | October XX, 2021
 
 New features
 -----------
+* Set a logo for the top left corner with the new FLEXMEASURES_MENU_LOGO_PATH setting [see `PR #184 <http://www.github.com/SeitaBV/flexmeasures/pull/184>`_]
+ 
 
 Bugfixes
 -----------
