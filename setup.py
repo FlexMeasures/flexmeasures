@@ -16,7 +16,7 @@ def load_requirements(use_case):
 
 setup(
     name="flexmeasures",
-    description="FlexMeasures - A free platform for real-time optimization of flexible energy.",
+    description="FlexMeasures - A free platform to build services for real-time optimization of flexible energy.",
     author="Seita BV",
     author_email="nicolas@seita.nl",
     url="https://github.com/seitabv/flexmeasures",

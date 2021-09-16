@@ -106,6 +106,15 @@ For example, ``("MyMDCApp", ["MDC"]), "MyApp"]`` would show the name "MyMDCApp" 
 Default: ``"FlexMeasures"``
 
 
+FLEXMEASURES_MENU_LOGO_PATH
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL path to identify an image being used as logo in the upper left corner (replacing some generic text made from platform name and the page title).
+The path can be a complete URL or a relative from the app root. 
+
+Default: ""
+
+
 FLEXMEASURES_ROOT_VIEW
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 

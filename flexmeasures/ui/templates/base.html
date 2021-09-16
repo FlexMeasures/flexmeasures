@@ -63,7 +63,15 @@
                     <span class="icon-bar"></span>
                 </button>
                 <span class="navbar-brand">
-                    <a href="/"><span class="navbar-tool-name">{{ FLEXMEASURES_PLATFORM_NAME }} {% if not "Error" in self.title() %} - {{ self.title() }} {% endif %}</span></a>
+                    <a href="/">
+                        <span class="navbar-tool-name">
+                        {% if menu_logo %}
+                            <img id="menu-logo" src="{{menu_logo}}"/>
+                        {% else %}
+                            {{ FLEXMEASURES_PLATFORM_NAME }} {% if not "Error" in self.title() %} - {{ self.title() }} {% endif %}
+                        {% endif %}
+                        </span>
+                    </a>
                 </span>
             </div>
             <div class="collapse navbar-collapse  navbar-right" id="bs-example-navbar-collapse-1">
