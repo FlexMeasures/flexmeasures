@@ -132,6 +132,25 @@ Starting the template with ``{% extends "base.html" %}`` integrates your page co
 We'd name this file ``our_client_base.html``. Then, we'd extend our page template from ``our_client_base.html``, instead of ``base.html``.
 
 
+Adding your own stylesheets
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can style your plugin's pages in a distinct way by adding your own style-sheet. This happens by overwriting FlexMeasures ``styles`` block. Add to your plugin's base template (see above):
+
+.. code-block:: html 
+
+{% block styles %}
+ {{ super() }}
+ <!-- Our client styles -->
+ <link rel="stylesheet" href="{{ url_for('our_client_bp.static', filename='css/style.css')}}">
+{% endblock %}
+
+This will find `css/styles.css` if you add that folder and file to your Blueprint's static folder.
+
+.. note:: This styling will only apply to the pages defined in your plugin (to pages based on your own base template). To apply a styling to all other pages which are served by FlexMeasures, consider using the config setting :ref:`extra-css-config`. 
+
+
+
 Using other code files in your non-package plugin
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -150,6 +169,8 @@ But it can be achieved if you put the plugin path on the import path. Do it like
     sys.path.insert(0, HERE)
 
     from my_other_file import my_function
+
+
 
 
 Using a custom favicon icon

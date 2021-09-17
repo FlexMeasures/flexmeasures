@@ -115,6 +115,19 @@ The path can be a complete URL or a relative from the app root.
 Default: ""
 
 
+.. _extra-css-config:
+
+FLEXMEASURES_EXTRA_CSS_PATH
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL path to identify a CSS style-sheet to be added to the base template.
+The path can be a complete URL or a relative from the app root. 
+
+.. note:: You can also add extra styles for plugins with the usual Blueprint method. That is more elegant but only applies to the Blueprint's views.
+
+Default: ""
+
+
 FLEXMEASURES_ROOT_VIEW
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
