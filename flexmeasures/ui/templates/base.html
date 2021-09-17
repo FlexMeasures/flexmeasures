@@ -14,6 +14,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="favicon.ico" type="image/x-icon" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+    {% block styles %}
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
@@ -44,6 +45,10 @@
     {% elif active_page in ("assets", "users", "portfolio") %}
     <link href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css" rel="stylesheet" />
     {% endif %}
+    {% if extra_css %}
+    <link href="{{ extra_css }}" rel="stylesheet" />
+    {% endif %}
+    {% endblock %}
 </head>
 
 <body>

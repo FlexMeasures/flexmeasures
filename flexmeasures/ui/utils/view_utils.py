@@ -90,6 +90,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["js_versions"] = current_app.config.get("FLEXMEASURES_JS_VERSIONS")
 
     variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+    variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
 
     return render_template(html_filename, **variables)
 

@@ -97,6 +97,8 @@ class Config(object):
     FLEXMEASURES_PLUGINS: List[str] = []
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
+    FLEXMEASURES_MENU_LOGO_PATH: str = ""
+    FLEXMEASURES_EXTRA_CSS_PATH: str = ""
     FLEXMEASURES_ROOT_VIEW: Union[str, List[Union[str, Tuple[str, List[str]]]]] = []
     FLEXMEASURES_MENU_LISTED_VIEWS: List[Union[str, Tuple[str, List[str]]]] = [
         "dashboard",
