@@ -110,7 +110,8 @@ def root_dispatcher():
     Re-routes to root views fitting for the current user,
     depending on the FLEXMEASURES_ROOT_VIEW setting.
     """
-    default_root_view = root_view = "/dashboard"
+    default_root_view = "/dashboard"
+    root_view = default_root_view
     configs = current_app.config.get("FLEXMEASURES_ROOT_VIEW", [])
     root_view = find_first_applicable_config_entry(configs, "FLEXMEASURES_ROOT_VIEW")
     if root_view in ("", "/", None):
@@ -141,7 +142,7 @@ def parse_config_entry_by_account_roles(
     app: Optional[Flask] = None,
 ) -> Optional[str]:
     """
-    Parse a config entry (which ca be a string, e.g. "dashboard" or a tuple, e.g. ("dashboard", ["MDC"])).
+    Parse a config entry (which can be a string, e.g. "dashboard" or a tuple, e.g. ("dashboard", ["MDC"])).
     In the latter case, return the first item (a string) only if the current user's account roles match with the
     list of roles in the second item. Otherwise return None.
     """
