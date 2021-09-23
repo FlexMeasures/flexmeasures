@@ -16,7 +16,7 @@ def load_requirements(use_case):
 
 setup(
     name="flexmeasures",
-    description="FlexMeasures - A free platform to build services for real-time optimization of flexible energy.",
+    description="FlexMeasures - a tool for building real-time energy flexibility services, rapidly and scalable.",
     author="Seita BV",
     author_email="nicolas@seita.nl",
     url="https://github.com/seitabv/flexmeasures",
@@ -41,11 +41,22 @@ setup(
         "Operating System :: OS Independent",
     ],
     long_description="""\
-The *FlexMeasures Platform* is a tool for scheduling flexible actions for energy assets.
-For this purpose, it performs monitoring, forecasting and scheduling services.
+FlexMeasures is a tool for building real-time energy flexibility services, rapidly and scalable.
 
-FlexMeasures is fully usable via APIs, which are inspired by the Universal Smart Energy Framework (USEF).
-Some algorithms are included, but projects will usually write their own (WIP).
+In a world with renewable energy, flexibility is crucial and valuable.
+Planning ahead allows flexible assets to serve the whole system with their flexibility,
+e.g. by shifting or curtailing energy use. This can also be profitable for their owners.
+
+- Developing energy flexibility services (e.g. to enable demand response) is crucial, but expensive.
+- To enable rapid creation of scalable services, we offer the FlexMeasures platform. For free.
+- FlexMeasures reduces development costs with real-time data integrations, uncertainty models and API/UI support.
+
+For this purpose, it delivers three core values:
+
+
+ * Real-time updates & advice ― Support for real-time updates, forecasting for the upcoming hours & schedule optimization.
+ * Uncertainty models ― Dealing with uncertain forecasts and outcomes is crucial. FlexMeasures is built on [timely-beliefs](https://github.com/SeitaBV/timely-beliefs), so we model this real-world aspect accurately.
+ * Service building ― Building customer-facing services is where developers make impact. We make their work easy with a well-documented API (inspired by the Universal Smart Energy Framework - USEF), plugin support & plotting support.
 
 Energy Flexibility is one of the key ingredients to reducing CO2. FlexMeasures is meant
 to facilitate the transition to a carbon-free energy system. By open-sourcing FlexMeasures,
