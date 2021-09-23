@@ -99,11 +99,14 @@ def new_account(name: str, roles: List[str]):
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--timezone",
-    default="UTC",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
 def new_user(
-    username: str, email: str, account_id: int, roles: List[str], timezone: str
+    username: str,
+    email: str,
+    account_id: int,
+    roles: List[str],
+    timezone: Optional[str],
 ):
     """
     Create a FlexMeasures user.
@@ -111,6 +114,11 @@ def new_user(
     The `users create` task from Flask Security Too is too simple for us.
     Use this to add email, timezone and roles.
     """
+    if timezone is None:
+        timezone = app.config.get("FLEXMEASURES_TIMEZONE")
+        print(
+            f"Setting user timezone to {timezone} (taken from FLEXMEASURES_TIMEZONE config setting)..."
+        )
     try:
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
