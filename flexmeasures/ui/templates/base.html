@@ -296,11 +296,12 @@
                 </div>
                 {% endblock credits %}
 
+                {% block technical_info %}
                 <!-- We might render templates from plugins, where this meta info is not available -->
                 {% if app_running_since %}
                     This app is running since {{ app_running_since }}
                 {% endif %}
-                {% if not current_user.has_role('anonymous') %}
+                {% if (flexmeasures_version or git_version) and not current_user.has_role('anonymous') %}
                     {% if flexmeasures_version %}
                         on version {{ flexmeasures_version }}.
                     {% else %}
@@ -314,6 +315,7 @@
                 {% if loaded_plugins %}
                     Loaded plugins: {{ loaded_plugins }}.
                 {% endif %}
+                {% endblock technical_info %}
             </div>
             <div>
                 <a href="https://seita.nl/"><i class="icon-seita_bird supersize"></i></a>

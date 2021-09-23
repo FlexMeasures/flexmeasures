@@ -8,7 +8,7 @@
 # The version comes from setuptools_scm. See `python setup.py --version`.
 # setuptools_scm works via git tags that should implement a semantic versioning scheme, e.g. v0.2.3
 #
-# If there were zero commits since since tag, we have a real release and the version basically *is* what the tag says.
+# If there were zero commits since the most recent tag, we have a real release and the version basically *is* what the tag says.
 # Otherwise, the version also includes a .devN identifier, where N is the number of commits since the last version tag.
 #
 # More information on creating a dev release
