@@ -301,7 +301,7 @@
                 {% if app_running_since %}
                     This app is running since {{ app_running_since }}
                 {% endif %}
-                {% if not current_user.has_role('anonymous') %}
+                {% if (flexmeasures_version or git_version) and not current_user.has_role('anonymous') %}
                     {% if flexmeasures_version %}
                         on version {{ flexmeasures_version }}.
                     {% else %}
