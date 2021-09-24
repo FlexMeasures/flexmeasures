@@ -21,5 +21,18 @@ This task status monitoring is enabled by decorating the functions behind these 
 .. code-block:: python
 
     @task_with_status_report
+    def my_function():
+        ...
 
-Then, FlexMeasures will log if this task ran, and if it succeeded or failed.
+Then, FlexMeasures will log if this task ran, and if it succeeded or failed. The result is in the table ``latest_task_runs``, and that's where the ``flexmeasures monitor tasks`` will look.
+
+.. note:: The decorator should be placed right before the function (after all other decorators).
+
+Per default the function name is used as task name. If the number of tasks accumulate (e.g. by using multiple plugins which each define a task or two), it is useful to come up with more dedicated names. You can add a custom name as argument to the decorator:
+
+.. code-block:: python
+
+    @task_with_status_report("pluginA_myFunction")
+    def my_function():
+        ...
+
