@@ -6,12 +6,40 @@ Planning ahead allows flexible assets to serve the whole system with their flexi
 e.g. by shifting or curtailing energy use.
 This can also be profitable for their owners.
 
-The FlexMeasures Platform is a tool for scheduling flexibility activations for energy assets.
-For this purpose, it performs three services:
+The *FlexMeasures Platform* is a tool for building real-time energy flexibility services, rapidly and scalable.
 
-* Monitoring of incoming measurements
-* Forecasting of expected measurements
-* Scheduling flexibility activations with custom optimisation
+- Developing energy flexibility services (e.g. to enable demand response) is crucial, but expensive.
+- FlexMeasures reduces development costs with real-time data integrations, uncertainty models and API/UI support.
+
+Let's take a closer look at the three core values:
+
+
+Real-time data updates & advice
+----------------------------
+
+Energy flexibility services need to interact multiple times per day or hour. We equipped FlexMeasures with:
+
+- Support for real-time updates
+- Forecasting for the upcoming hours
+- Schedule optimization
+
+
+Uncertainty models
+-----------------------
+
+Dealing with uncertain forecasts and outcomes is crucial.
+
+FlexMeasures is therefore built on the `timely-beliefs framework <https://github.com/SeitaBV/timely-beliefs>`_, so we model this real-world aspect accurately.
+
+
+Service building
+-----------------------
+Building customer-facing services is where developers make impact. We make their work easy.
+
+- Well-documented API
+- Plugin support
+- Plotting support
+
 
 For more on FlexMeasures services, read :ref:`services`. Or head right over to :ref:`getting_started`.
 
