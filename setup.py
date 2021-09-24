@@ -16,7 +16,7 @@ def load_requirements(use_case):
 
 setup(
     name="flexmeasures",
-    description="FlexMeasures - a tool for building real-time energy flexibility services, rapidly and scalable.",
+    description="The *FlexMeasures Platform* - a tool for building real-time energy flexibility services, rapidly and scalable.",
     author="Seita BV",
     author_email="nicolas@seita.nl",
     url="https://github.com/seitabv/flexmeasures",
@@ -41,7 +41,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     long_description="""\
-FlexMeasures is a tool for building real-time energy flexibility services, rapidly and scalable.
+The *FlexMeasures Platform* is a tool for building real-time energy flexibility services, rapidly and scalable.
 
 In a world with renewable energy, flexibility is crucial and valuable.
 Planning ahead allows flexible assets to serve the whole system with their flexibility,

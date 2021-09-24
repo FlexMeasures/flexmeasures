@@ -8,7 +8,7 @@
 The *FlexMeasures Platform* is a tool for building real-time energy flexibility services, rapidly and scalable. 
 
 - Developing energy flexibility services (e.g. to enable demand response) is crucial, but expensive.
-- FlexMeasures reduces development costs with real-time data integrations, [uncertainty models]() and API/UI support.
+- FlexMeasures reduces development costs with real-time data integrations, uncertainty models and API/UI support.
 
 ![Separation of concerns ― FlexMeasures enhancing Energy Service Company services](https://seita.nl/wp-content/uploads/2021/02/SeparationOfConcerns.png)
 
