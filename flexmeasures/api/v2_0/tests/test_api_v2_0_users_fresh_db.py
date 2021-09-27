@@ -11,14 +11,13 @@ from flexmeasures.data.services.users import find_user_by_email
         (""),
         ("test_supplier@seita.nl"),
         ("test_prosumer@seita.nl"),
-        ("test_prosumer@seita.nl"),
-        ("test_prosumer@seita.nl"),
+        ("inactive@seita.nl"),
     ),
 )
-def test_user_reset_password(app, client, sender):
+def test_user_reset_password(app, client, setup_inactive_user, sender):
     """
     Reset the password of supplier.
-    Only the prosumer is allowed to do that (as admin).
+    Only the prosumer (as admin) and the supplier themselves are allowed to do that.
     """
     with UserContext("test_supplier@seita.nl") as supplier:
         supplier_id = supplier.id
@@ -34,12 +33,8 @@ def test_user_reset_password(app, client, sender):
         )
         print("Server responded with:\n%s" % pwd_reset_response.json)
 
-        if sender == "":
+        if sender in ("", "inactive@seita.nl"):
             assert pwd_reset_response.status_code == 401
-            return
-
-        if sender == "test_supplier@seita.nl":
-            assert pwd_reset_response.status_code == 403
             return
 
         assert pwd_reset_response.status_code == 200
