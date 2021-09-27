@@ -11,7 +11,6 @@ New features
 -----------
 * Set a logo for the top left corner with the new FLEXMEASURES_MENU_LOGO_PATH setting [see `PR #184 <http://www.github.com/SeitaBV/flexmeasures/pull/184>`_]
 * Add an extra style-sheet which applies to all pages with the new FLEXMEASURES_EXTRA_CSS_PATH setting [see `PR #185 <http://www.github.com/SeitaBV/flexmeasures/pull/185>`_]
- 
 
 Bugfixes
 -----------
@@ -21,6 +20,7 @@ Infrastructure / Support
 ----------------------
 * FlexMeasures plugins can be Python packages now. We provide `a cookie-cutter template <https://github.com/SeitaBV/flexmeasures-plugin-template>`_ for this approach. [see `PR #182 <http://www.github.com/SeitaBV/flexmeasures/pull/182>`_]
 * Set default timezone for new users using the FLEXMEASURES_TIMEZONE config setting [see `PR #190 <http://www.github.com/SeitaBV/flexmeasures/pull/190>`_]
+* Monitored CLI tasks can get better names for identification [see `PR #193 <http://www.github.com/SeitaBV/flexmeasures/pull/193>`_]
 
 
 v0.6.1 | September XX, 2021
