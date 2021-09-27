@@ -28,7 +28,7 @@ Then, FlexMeasures will log if this task ran, and if it succeeded or failed. The
 
 .. note:: The decorator should be placed right before the function (after all other decorators).
 
-Per default the function name is used as task name. If the number of tasks accumulate (e.g. by using multiple plugins which each define a task or two), it is useful to come up with more dedicated names. You can add a custom name as argument to the decorator:
+Per default the function name is used as task name. If the number of tasks accumulate (e.g. by using multiple plugins that each define a task or two), it is useful to come up with more dedicated names. You can add a custom name as argument to the decorator:
 
 .. code-block:: python
 
