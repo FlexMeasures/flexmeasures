@@ -487,7 +487,7 @@ def reset_user_password(id: int):
     It sets the current password to something random, invalidates cookies and auth tokens,
     and also sends an email for resetting the password to the user.
 
-    Only admins can use this endpoint.
+    Users can reset their own passwords. Only admins can use this endpoint to reset passwords of other users.
 
     :reqheader Authorization: The authentication token
     :reqheader Content-Type: application/json

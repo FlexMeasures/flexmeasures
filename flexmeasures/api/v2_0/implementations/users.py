@@ -123,13 +123,16 @@ def patch(db_user: UserModel, user_data: dict):
     return user_schema.dump(db_user), 200
 
 
-@load_user(admins_only=True)
+@load_user()
 @as_json
 def reset_password(user):
     """
     Reset the user's current password, cookies and auth tokens.
     Send a password reset link to the user.
     """
+    # Don't allow non-admins to reset passwords of other users
+    if current_user.id != user.id and not current_user.has_role("admin"):
+        return unauthorized_handler(None, [])
     set_random_password(user)
     remove_cookie_and_token_access(user)
     send_reset_password_instructions(user)

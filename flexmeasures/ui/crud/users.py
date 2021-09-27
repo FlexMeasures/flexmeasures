@@ -6,7 +6,7 @@ from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired
-from flask_security import roles_required
+from flask_security import roles_required, login_required
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.user import User, Role, Account
@@ -126,7 +126,7 @@ class UserCrudUI(FlaskView):
             % (patched_user.username, patched_user.active),
         )
 
-    @roles_required("admin")
+    @login_required
     def reset_password_for(self, id: str):
         """/users/reset_password_for/<id>
         Set the password to something random (in case of worries the password might be compromised)
@@ -138,5 +138,6 @@ class UserCrudUI(FlaskView):
         return render_user(
             user,
             msg="The user's password has been changed to a random password"
-            " and password reset instructions have been sent to the user.",
+            " and password reset instructions have been sent to the user."
+            " Cookies and the API access token have also been invalidated.",
         )
