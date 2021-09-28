@@ -92,7 +92,7 @@ class User(db.Model, UserMixin):
     )
 
     def __repr__(self):
-        return "<User %s (ID:%d)" % (self.username, self.id)
+        return "<User %s (ID:%d)>" % (self.username, self.id)
 
     @property
     def is_authenticated(self):

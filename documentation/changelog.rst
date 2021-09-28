@@ -15,6 +15,7 @@ New features
 Bugfixes
 -----------
 * Fix missing conversion of data source names and ids to DataSource objects [see `PR #178 <http://www.github.com/SeitaBV/flexmeasures/pull/178>`_]
+* Fix users resetting their own password [see `PR #195 <http://www.github.com/SeitaBV/flexmeasures/pull/195>`_]
 
 Infrastructure / Support
 ----------------------
