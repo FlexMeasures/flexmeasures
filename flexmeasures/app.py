@@ -31,7 +31,7 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     # Create app
 
-    configure_logging()  # do this first, see http://flask.pocoo.org/docs/dev/logging/
+    configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     # we're loading dotenv files manually & early (can do Flask.run(load_dotenv=False)),
     # as we need to know the ENV now (for it to be recognised by Flask()).
     load_dotenv()

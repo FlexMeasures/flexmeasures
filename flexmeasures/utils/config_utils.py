@@ -16,14 +16,12 @@ from flexmeasures.utils.config_defaults import (
 )
 
 
-basedir = os.path.abspath(os.path.dirname(__file__))
-
 flexmeasures_logging_config = {
     "version": 1,
     "formatters": {
         "default": {"format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s"},
         "detail": {
-            "format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s [log made in %(pathname)s:%(lineno)d]"
+            "format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s [logged in %(pathname)s:%(lineno)d]"
         },
     },
     "handlers": {
@@ -36,7 +34,7 @@ flexmeasures_logging_config = {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "INFO",
             "formatter": "detail",
-            "filename": basedir + "/../../flexmeasures.log",
+            "filename": "flexmeasures.log",
             "maxBytes": 10_000_000,
             "backupCount": 6,
         },
