@@ -16,6 +16,7 @@ from flexmeasures.data import db
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.weather import WeatherSensor, Weather
+from flexmeasures.data.services.time_series import drop_unchanged_beliefs
 from flexmeasures.data.utils import save_to_session
 from flexmeasures.api.common.responses import (
     unrecognized_sensor,
@@ -349,6 +350,20 @@ def save_to_db(
     :param forecasting_jobs: list of forecasting Jobs for redis queues.
     :returns: ResponseTuple
     """
+
+    if isinstance(timed_values, BeliefsDataFrame):
+
+        # Drop beliefs that haven't changed
+        timed_values = (
+            timed_values.convert_index_from_belief_horizon_to_time()
+            .groupby(level=["belief_time", "source"], as_index=False)
+            .apply(drop_unchanged_beliefs)
+        )
+
+        if timed_values.empty:
+            current_app.logger.debug("Nothing new to save")
+            return already_received_and_successfully_processed()
+
     current_app.logger.info("SAVING TO DB AND QUEUEING...")
     try:
         if isinstance(timed_values, BeliefsDataFrame):
