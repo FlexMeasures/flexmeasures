@@ -40,3 +40,36 @@ def test_do_not_drop_beliefs_copied_by_another_source(setup_beliefs):
     bdf = sensor.search_beliefs()
     num_beliefs_after = len(bdf)
     assert num_beliefs_after == 2 * num_beliefs_before
+
+
+def test_do_not_drop_changed_probabilistic_belief(setup_beliefs):
+    """Trying to save a changed probabilistic belief should result in saving the whole belief.
+
+    For example, given a belief that defines both cp=0.2 and cp=0.5,
+    if that belief becomes more certain (e.g. cp=0.3 and cp=0.5),
+    we expect to see the full new belief stored, rather than just the cp=0.3 value.
+    """
+    sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
+    bdf = sensor.search_beliefs(source="Seita")
+    num_beliefs_before = len(bdf)
+    old_belief = bdf.loc[
+        (
+            bdf.index.get_level_values("event_start")
+            == pd.Timestamp("2021-03-28 16:00:00+00:00")
+        )
+        & (
+            bdf.index.get_level_values("belief_time")
+            == pd.Timestamp("2021-03-28 14:00:00+00:00")
+        )
+    ]
+    # More certainty one hour later
+    new_belief = tb_utils.replace_multi_index_level(
+        old_belief, "cumulative_probability", pd.Index([0.3, 0.5])
+    )
+    new_belief = tb_utils.replace_multi_index_level(
+        new_belief, "belief_time", new_belief.belief_times + pd.Timedelta("1H")
+    )
+    save_to_db(new_belief)
+    bdf = sensor.search_beliefs(source="Seita")
+    num_beliefs_after = len(bdf)
+    assert num_beliefs_after == num_beliefs_before + len(new_belief)

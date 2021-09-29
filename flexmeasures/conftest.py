@@ -307,9 +307,16 @@ def setup_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
         TimedBelief(
             sensor=sensor,
             source=setup_sources["Seita"],
+            event_value=21,
+            event_start="2021-03-28 17:00+01",
+            belief_horizon=timedelta(0),
+        ),
+        TimedBelief(
+            sensor=sensor,
+            source=setup_sources["Seita"],
             event_value=20,
             event_start="2021-03-28 17:00+01",
-            belief_horizon=timedelta(hours=1),
+            belief_horizon=timedelta(hours=2),
             cp=0.2,
         ),
         TimedBelief(
@@ -317,7 +324,7 @@ def setup_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
             source=setup_sources["Seita"],
             event_value=21,
             event_start="2021-03-28 17:00+01",
-            belief_horizon=timedelta(hours=1),
+            belief_horizon=timedelta(hours=2),
             cp=0.5,
         ),
     ]

@@ -337,13 +337,18 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
     a = bdf.reset_index().set_index(compare_fields)
     b = previous_most_recent_beliefs_in_db.reset_index().set_index(compare_fields)
-    bdf = (
-        a.drop(
-            b.index,
-            errors="ignore",
-            axis=0,
-        )
-        .reset_index()
-        .set_index(["event_start", "belief_time", "source", "cumulative_probability"])
+    bdf = a.drop(
+        b.index,
+        errors="ignore",
+        axis=0,
+    )
+
+    # Keep whole probabilistic beliefs, not just the parts that changed
+    c = bdf.reset_index().set_index(["event_start", "source"])
+    d = a.reset_index().set_index(["event_start", "source"])
+    bdf = d[d.index.isin(c.index)]
+
+    bdf = bdf.reset_index().set_index(
+        ["event_start", "belief_time", "source", "cumulative_probability"]
     )
     return bdf
