@@ -360,6 +360,10 @@ def save_to_db(
             .apply(drop_unchanged_beliefs)
         )
 
+        # Work around bug in which groupby still introduces an index level, even though we asked it not to
+        if None in timed_values.index.names:
+            timed_values.index = timed_values.index.droplevel(None)
+
         if timed_values.empty:
             current_app.logger.debug("Nothing new to save")
             return already_received_and_successfully_processed()
