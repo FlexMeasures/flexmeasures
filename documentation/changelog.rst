@@ -23,6 +23,7 @@ Infrastructure / Support
 * Set default timezone for new users using the FLEXMEASURES_TIMEZONE config setting [see `PR #190 <http://www.github.com/SeitaBV/flexmeasures/pull/190>`_]
 * Monitored CLI tasks can get better names for identification [see `PR #193 <http://www.github.com/SeitaBV/flexmeasures/pull/193>`_]
 * Less custom logfile location, document logging for devs [see `PR #196 <http://www.github.com/SeitaBV/flexmeasures/pull/196>`_]
+* Keep forecasting and scheduling jobs in the queues for only up to one day [see `PR #198 <http://www.github.com/SeitaBV/flexmeasures/pull/198>`_]
 
 
 v0.6.1 | September XX, 2021
