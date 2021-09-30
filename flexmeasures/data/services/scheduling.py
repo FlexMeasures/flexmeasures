@@ -64,6 +64,7 @@ def create_scheduling_job(
         ),
         id=udi_event_ea,
         connection=current_app.queues["scheduling"].connection,
+        ttl=24 * 60 * 60,  # try up to one day
         result_ttl=int(
             current_app.config.get(
                 "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
