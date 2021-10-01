@@ -24,6 +24,7 @@ Infrastructure / Support
 * To avoid databases from filling up with irrelevant information, only beliefs data representing *changed beliefs are saved*, and *unchanged beliefs are dropped* [see `PR #194 <http://www.github.com/SeitaBV/flexmeasures/pull/194>`_]
 * Monitored CLI tasks can get better names for identification [see `PR #193 <http://www.github.com/SeitaBV/flexmeasures/pull/193>`_]
 * Less custom logfile location, document logging for devs [see `PR #196 <http://www.github.com/SeitaBV/flexmeasures/pull/196>`_]
+* Keep forecasting and scheduling jobs in the queues for only up to one day [see `PR #198 <http://www.github.com/SeitaBV/flexmeasures/pull/198>`_]
 
 
 v0.6.1 | September XX, 2021
