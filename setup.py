@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 
 def load_requirements(use_case):
@@ -26,8 +26,7 @@ setup(
     tests_require=load_requirements("test"),
     setup_requires=["pytest-runner", "setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
-    packages=find_packages(),
-    include_package_data=True,  # setuptools_scm takes care of adding the files in SCM
+    include_package_data=True,  # now setuptools_scm adds all files under source control
     entry_points={
         "console_scripts": [
             "flexmeasures=flexmeasures.utils.app_utils:flexmeasures_cli"

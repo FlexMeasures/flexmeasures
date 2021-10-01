@@ -10,9 +10,7 @@ Actual logic is tested in the API tests.
 """
 
 
-@pytest.mark.parametrize(
-    "view", ["index", "get", "toggle_active", "reset_password_for"]
-)
+@pytest.mark.parametrize("view", ["index", "get", "toggle_active"])
 def test_user_crud_as_non_admin(client, as_prosumer, view):
     user_index = client.get(url_for("UserCrudUI:index"), follow_redirects=True)
     assert user_index.status_code == 403

@@ -74,6 +74,43 @@ def rgetattr(obj, attr, *args):
     return functools.reduce(_getattr, [obj] + attr.split("."))
 
 
+def optional_arg_decorator(fn):
+    """
+    A decorator which _optionally_ accepts arguments.
+
+    So a decorator like this:
+
+    @optional_arg_decorator
+    def register_something(fn, optional_arg = 'Default Value'):
+        ...
+        return fn
+
+    will work in both of these usage scenarios:
+
+    @register_something('Custom Name')
+    def custom_name():
+        pass
+
+    @register_something
+    def default_name():
+        pass
+
+    Thanks to https://stackoverflow.com/questions/3888158/making-decorators-with-optional-arguments#comment65959042_24617244
+    """
+
+    def wrapped_decorator(*args):
+        if len(args) == 1 and callable(args[0]):
+            return fn(args[0])
+        else:
+
+            def real_decorator(decoratee):
+                return fn(decoratee, *args)
+
+            return real_decorator
+
+    return wrapped_decorator
+
+
 def sort_dict(unsorted_dict: dict) -> dict:
     sorted_dict = dict(sorted(unsorted_dict.items(), key=lambda item: item[0]))
     return sorted_dict
