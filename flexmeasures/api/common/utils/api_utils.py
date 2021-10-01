@@ -339,6 +339,7 @@ def get_weather_sensor_by(
 def save_to_db(
     timed_values: Union[BeliefsDataFrame, List[Union[Power, Price, Weather]]],
     forecasting_jobs: List[Job] = [],
+    save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
     """Put the timed values into the database and enqueue forecasting jobs.
 
@@ -348,21 +349,23 @@ def save_to_db(
 
     :param timed_values: BeliefsDataFrame or a list of Power, Price or Weather values to be saved
     :param forecasting_jobs: list of forecasting Jobs for redis queues.
+    :param save_changed_beliefs_only: if True, beliefs that are already stored in the database with an earlier belief time are dropped.
     :returns: ResponseTuple
     """
 
     if isinstance(timed_values, BeliefsDataFrame):
 
-        # Drop beliefs that haven't changed
-        timed_values = (
-            timed_values.convert_index_from_belief_horizon_to_time()
-            .groupby(level=["belief_time", "source"], as_index=False)
-            .apply(drop_unchanged_beliefs)
-        )
+        if save_changed_beliefs_only:
+            # Drop beliefs that haven't changed
+            timed_values = (
+                timed_values.convert_index_from_belief_horizon_to_time()
+                .groupby(level=["belief_time", "source"], as_index=False)
+                .apply(drop_unchanged_beliefs)
+            )
 
-        # Work around bug in which groupby still introduces an index level, even though we asked it not to
-        if None in timed_values.index.names:
-            timed_values.index = timed_values.index.droplevel(None)
+            # Work around bug in which groupby still introduces an index level, even though we asked it not to
+            if None in timed_values.index.names:
+                timed_values.index = timed_values.index.droplevel(None)
 
         if timed_values.empty:
             current_app.logger.debug("Nothing new to save")
