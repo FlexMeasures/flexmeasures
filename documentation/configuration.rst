@@ -207,6 +207,16 @@ Timezone in which the platform operates. This is useful when datetimes are being
 
 Default: ``"Asia/Seoul"``
 
+
+FLEXMEASURES_JOB_TTL
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Time to live for jobs (e.g. forecasting, scheduling) in their respective queue.
+
+A job that is passed this time to live might get cleaned out by Redis' memory manager.
+
+Default: ``timedelta(days=1)``
+
 FLEXMEASURES_PLANNING_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 

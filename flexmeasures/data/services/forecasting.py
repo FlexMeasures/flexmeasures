@@ -108,7 +108,11 @@ def create_forecasting_jobs(
                 custom_model_params=custom_model_params,
             ),
             connection=current_app.queues["forecasting"].connection,
-            ttl=24 * 60 * 60,  # try up to one day
+            ttl=int(
+                current_app.config.get(
+                    "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                ).total_seconds()
+            ),
         )
         job.meta["model_search_term"] = model_search_term
         job.save_meta()
