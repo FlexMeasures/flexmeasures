@@ -26,6 +26,7 @@ setup(
     tests_require=load_requirements("test"),
     setup_requires=["pytest-runner", "setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
+    packages=["flexmeasures"],
     include_package_data=True,  # now setuptools_scm adds all files under source control
     entry_points={
         "console_scripts": [

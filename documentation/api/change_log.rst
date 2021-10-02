@@ -7,7 +7,7 @@ API change log
 
 
 v2.0-3 | 2021-06-07
-"""""""""""""""""
+"""""""""""""""""""
 
 - Updated all entity addresses in documentation according to the fm0 scheme, preserving backwards compatibility.
 - Introduced the fm1 scheme for entity addresses for connections, markets, weather sensors and sensors.
@@ -15,7 +15,7 @@ v2.0-3 | 2021-06-07
 
 
 v2.0-2 | 2021-04-02
-"""""""""""""""""
+"""""""""""""""""""
 
 - [**Breaking change**] Switched the interpretation of horizons to rolling horizons.
 - [**Breaking change**] Deprecated the use of ISO 8601 repeating time intervals to denote rolling horizons.
@@ -40,7 +40,7 @@ v2.0-0 | 2020-11-14
 
 
 v1.3.9 | 2021-04-21
-"""""""""""""""""
+"""""""""""""""""""
 
 *Affects all versions since v1.0*.
 
