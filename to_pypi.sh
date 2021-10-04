@@ -44,7 +44,7 @@
 NUM_PY_FILES_IN_FM=$(git status --porcelain flexmeasures | grep '??.*\.py' | wc -l)
 if [ $NUM_PY_FILES_IN_FM -gt 0 ]; then
     PY_FILES_IN_FM=$(git status --porcelain flexmeasures | grep '??.*\.py')
-    echo """[TO_PYPI] The following python files are not under git control but would be packaged anyways:
+    echo """[TO_PYPI] The following python files are not under git control but would be packaged anyways (unless explicitly excluded, e.g. in MANIFEST.in):
 
 $PY_FILES_IN_FM
 
