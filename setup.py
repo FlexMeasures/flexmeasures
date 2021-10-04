@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def load_requirements(use_case):
@@ -26,13 +26,14 @@ setup(
     tests_require=load_requirements("test"),
     setup_requires=["pytest-runner", "setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
-    packages=["flexmeasures"],
+    packages=find_packages(),  # will include *.py files and some other types
     include_package_data=True,  # now setuptools_scm adds all files under source control
     entry_points={
         "console_scripts": [
             "flexmeasures=flexmeasures.utils.app_utils:flexmeasures_cli"
         ],
     },
+    license="Apache2.0",
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3.7",

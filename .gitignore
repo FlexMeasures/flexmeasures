@@ -24,8 +24,6 @@ __pycache__
 notebooks/.ipynb_checkpoints/
 
 flexmeasures/ui/static/documentation
-flexmeasures/development_config.py
-flexmeasures/testing_config.py
 documentation/img/screenshot_*
 migrations/dumps
 

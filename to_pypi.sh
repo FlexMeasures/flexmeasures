@@ -3,6 +3,18 @@
 
 # Script to release FlexMeasures to PyPi.
 #
+# Cleans up build and dist dirs, checks for python files which are not in git, installs dependencies
+# and finally uploads tar and wheel packages to Pypi.
+#
+#
+# Usage
+# ------------
+#
+# ./to_pypi [--dry-run]
+#
+# If the --dry-run flag is present, this script will do all steps, but skip the upload to Pypi.
+# 
+#
 # The version
 # -------------
 # The version comes from setuptools_scm. See `python setup.py --version`.
@@ -29,11 +41,37 @@
 # If you want, you can read more about acceptable versions in PEP 440: https://www.python.org/dev/peps/pep-0440/
 
 
+NUM_PY_FILES_IN_FM=$(git status --porcelain flexmeasures | grep '??.*\.py' | wc -l)
+if [ $NUM_PY_FILES_IN_FM -gt 0 ]; then
+    PY_FILES_IN_FM=$(git status --porcelain flexmeasures | grep '??.*\.py')
+    echo """[TO_PYPI] The following python files are not under git control but would be packaged anyways:
+
+$PY_FILES_IN_FM
+
+You probably want to remove any files with sensitive data; or add a MANIFEST.in file with 'exclude flexmeasures/path/to/filename' ...
+    """
+    read -p "Continue (y/n)? " choice
+    case "$choice" in 
+        y|Y ) echo "If you say so. Continuing ...";;
+        n|N ) echo "Aborting ..."; exit 2;;
+        * ) echo "invalid choice";;
+    esac
+fi
+
+echo "[TO_PYPI] Cleaning ..."
 rm -rf build/* dist/*
+
+echo "[TO_PYPI] Installing dependencies ..."
 pip -q install twine
 pip -q install wheel
 
+echo "[TO_PYPI] Packaging ..."
 python setup.py egg_info sdist
 python setup.py egg_info bdist_wheel
 
+if [ "$1" == "--dry-run" ]; then
+    echo "[TO_PYPI] Not uploading to Pypi (--dry-run active) ..."
+    exit
+fi
+echo "[TO_PYPI] Uploading to Pypi ..."
 twine upload dist/*
