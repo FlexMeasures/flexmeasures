@@ -97,6 +97,12 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     register_db_at(app)
 
+    # Register the CLI
+
+    from flexmeasures.cli import register_at as register_cli_at
+
+    register_cli_at(app)
+
     # Register the API
 
     from flexmeasures.api import register_at as register_api_at

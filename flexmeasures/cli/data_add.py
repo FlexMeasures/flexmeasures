@@ -68,7 +68,7 @@ def new_account_role(name: str, description: str):
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
-def new_account(name: str, roles: List[str]):
+def new_account(name: str, roles: str):
     """
     Create an account for a tenant in the FlexMeasures platform.
     """
@@ -99,6 +99,7 @@ def new_account(name: str, roles: List[str]):
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--timezone",
+    "timezone_optional",
     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
 def new_user(
@@ -106,7 +107,7 @@ def new_user(
     email: str,
     account_id: int,
     roles: List[str],
-    timezone: Optional[str],
+    timezone_optional: Optional[str],
 ):
     """
     Create a FlexMeasures user.
@@ -114,11 +115,13 @@ def new_user(
     The `users create` task from Flask Security Too is too simple for us.
     Use this to add email, timezone and roles.
     """
-    if timezone is None:
-        timezone = app.config.get("FLEXMEASURES_TIMEZONE")
+    if timezone_optional is None:
+        timezone = app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
         print(
             f"Setting user timezone to {timezone} (taken from FLEXMEASURES_TIMEZONE config setting)..."
         )
+    else:
+        timezone = timezone_optional
     try:
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
@@ -536,17 +539,19 @@ def add_beliefs(
 )
 @click.option(
     "--from-date",
+    "from_date_str",
     default="2015-02-08",
     help="Forecast from date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
 )
 @click.option(
     "--to-date",
+    "to_date_str",
     default="2015-12-31",
     help="Forecast to date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
 )
 @click.option(
     "--horizon",
-    "horizons",
+    "horizons_as_hours",
     multiple=True,
     type=click.Choice(["1", "6", "24", "48"]),
     default=["1", "6", "24", "48"],
@@ -562,9 +567,9 @@ def add_beliefs(
 def create_forecasts(
     asset_type: str = None,
     asset_id: int = None,
-    from_date: str = "2015-02-08",
-    to_date: str = "2015-12-31",
-    horizons: List[str] = ["1"],
+    from_date_str: str = "2015-02-08",
+    to_date_str: str = "2015-12-31",
+    horizons_as_hours: List[str] = ["1"],
     as_job: bool = False,
 ):
     """
@@ -579,12 +584,12 @@ def create_forecasts(
 
     """
     # make horizons
-    horizons = [timedelta(hours=int(h)) for h in horizons]
+    horizons = [timedelta(hours=int(h)) for h in horizons_as_hours]
 
     # apply timezone:
     timezone = app.config.get("FLEXMEASURES_TIMEZONE")
-    from_date = pd.Timestamp(from_date).tz_localize(timezone)
-    to_date = pd.Timestamp(to_date).tz_localize(timezone)
+    from_date = pd.Timestamp(from_date_str).tz_localize(timezone)
+    to_date = pd.Timestamp(to_date_str).tz_localize(timezone)
 
     if as_job:
         if asset_type == "Asset":
