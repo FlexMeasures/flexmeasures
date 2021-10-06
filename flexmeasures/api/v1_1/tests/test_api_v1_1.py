@@ -21,8 +21,7 @@ from flexmeasures.api.v1_1.tests.utils import (
     verify_prices_in_db,
     get_forecasting_jobs,
 )
-from flexmeasures.data.auth_setup import UNAUTH_ERROR_STATUS
-
+from flexmeasures.auth.error_handling import UNAUTH_ERROR_STATUS
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import User
 from flexmeasures.data.models.markets import Market

@@ -5,7 +5,7 @@ import pytz
 import isodate
 
 from flexmeasures.api.tests.utils import get_auth_token, get_task_run, post_task_run
-from flexmeasures.data.auth_setup import (
+from flexmeasures.auth.error_handling import (
     FORBIDDEN_ERROR_STATUS,
     FORBIDDEN_STATUS_CODE,
     FORBIDDEN_ERROR_CLASS,

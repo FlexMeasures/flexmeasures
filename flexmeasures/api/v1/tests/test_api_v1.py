@@ -20,7 +20,7 @@ from flexmeasures.api.v1.tests.utils import (
     message_for_post_meter_data,
     verify_power_in_db,
 )
-from flexmeasures.data.auth_setup import UNAUTH_ERROR_STATUS
+from flexmeasures.auth.error_handling import UNAUTH_ERROR_STATUS
 from flexmeasures.data.models.assets import Asset
 
 

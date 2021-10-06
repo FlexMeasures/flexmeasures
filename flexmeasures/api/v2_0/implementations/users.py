@@ -15,7 +15,7 @@ from flexmeasures.data.services.users import (
     set_random_password,
     remove_cookie_and_token_access,
 )
-from flexmeasures.data.auth_setup import unauthorized_handler
+from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.api.common.responses import required_info_missing
 from flexmeasures.data.config import db
 

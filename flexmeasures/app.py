@@ -97,6 +97,12 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     register_db_at(app)
 
+    # add auth policy
+
+    from flexmeasures.auth import register_at as register_auth_at
+
+    register_auth_at(app)
+
     # Register the API
 
     from flexmeasures.api import register_at as register_api_at

@@ -12,7 +12,7 @@ from flexmeasures.data.services.resources import get_assets
 from flexmeasures.data.models.user import User
 from flexmeasures.data.models.assets import Asset as AssetModel
 from flexmeasures.data.schemas.assets import AssetSchema
-from flexmeasures.data.auth_setup import unauthorized_handler
+from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.config import db
 from flexmeasures.api.common.responses import required_info_missing
 
