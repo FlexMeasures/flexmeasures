@@ -10,4 +10,4 @@ To view the available commands, run:
 For help on individual commands, type `flexmesaures <command> --help`.
 Structural data refers to database tables which do not contain time series data.
 
-To create new commands, be sure to register any new file (containing the corresponding script) with the flask cli in `flexmeasures/data/__init__.py`.
+To create new commands, be sure to register any new file (containing the corresponding script) with the flexmeasures CLI in `flexmeasures/cli/__init__.py`.
