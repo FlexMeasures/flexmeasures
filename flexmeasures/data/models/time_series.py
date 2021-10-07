@@ -82,7 +82,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
-        :param most_recent_only: only return the most recent beliefs from each source about each event
+        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
@@ -232,7 +232,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
-        :param most_recent_only: only return the most recent beliefs from each source about each event
+        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         """
         parsed_sources = parse_source_arg(source)
         return cls.search_session(
