@@ -200,10 +200,10 @@ def query_time_series_data(
         )
 
         # Slice query window after resampling
-        bdf = bdf[
-            (bdf.index.get_level_values("event_start") >= query_window[0])
-            & (bdf.index.get_level_values("event_start") < query_window[1])
-        ]
+        if query_window[0] is not None:
+            bdf = bdf[bdf.index.get_level_values("event_start") >= query_window[0]]
+        if query_window[1] is not None:
+            bdf = bdf[bdf.index.get_level_values("event_start") < query_window[1]]
 
         bdf_dict[generic_asset_name] = bdf
 
