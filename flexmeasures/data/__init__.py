@@ -19,14 +19,4 @@ def register_at(app: Flask):
     global ma
     ma.init_app(app)
 
-    if app.cli:
-        # Register some useful custom scripts with the flask cli
-        with app.app_context():
-            import flexmeasures.data.scripts.cli_tasks.jobs
-            import flexmeasures.data.scripts.cli_tasks.monitor
-            import flexmeasures.data.scripts.cli_tasks.data_add
-            import flexmeasures.data.scripts.cli_tasks.data_delete
-            import flexmeasures.data.scripts.cli_tasks.db_ops
-            import flexmeasures.data.scripts.cli_tasks.testing  # noqa: F401
-
     app.teardown_request(after_request_exception_rollback_session)

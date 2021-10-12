@@ -72,6 +72,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
+        most_recent_only: bool = False,
         as_json: bool = False,
     ) -> Union[tb.BeliefsDataFrame, str]:
         """Search all beliefs about events for this sensor.
@@ -81,6 +82,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
@@ -91,6 +93,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
             beliefs_after=beliefs_after,
             beliefs_before=beliefs_before,
             source=source,
+            most_recent_only=most_recent_only,
         )
         if as_json:
             df = bdf.reset_index()
@@ -219,6 +222,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
+        most_recent_only: bool = False,
     ) -> tb.BeliefsDataFrame:
         """Search all beliefs about events for a given sensor.
 
@@ -228,6 +232,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         """
         parsed_sources = parse_source_arg(source)
         return cls.search_session(
@@ -238,6 +243,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             beliefs_after=beliefs_after,
             beliefs_before=beliefs_before,
             source=parsed_sources,
+            most_recent_only=most_recent_only,
         )
 
     @classmethod

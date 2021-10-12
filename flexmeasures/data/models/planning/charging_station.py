@@ -1,7 +1,7 @@
 from typing import Union
 from datetime import datetime, timedelta
 
-from pandas import Series
+from pandas import Series, Timestamp
 
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.markets import Market
@@ -35,6 +35,9 @@ def schedule_charging_station(
         market, (start, end), resolution, allow_trimmed_query_window=True
     )
     # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
+    soc_targets = soc_targets.tz_convert("UTC")
+    start = Timestamp(start).tz_convert("UTC")
+    end = Timestamp(end).tz_convert("UTC")
     soc_targets = soc_targets[start + resolution : end]
 
     # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.

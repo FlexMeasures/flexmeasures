@@ -95,7 +95,7 @@ def test_generic_model(
     asset: Optional[str] = None,
     from_date: str = "2015-03-10",
     period: int = 3,
-    horizon: int = 1,
+    horizon_hours: int = 1,
     training: int = 30,
 ):
     """Manually test integration of timetomodel for our generic model."""
@@ -108,7 +108,7 @@ def test_generic_model(
     start = as_server_time(datetime.strptime(from_date, "%Y-%m-%d"))
     end = start + timedelta(days=period)
     training_and_testing_period = timedelta(days=training)
-    horizon = timedelta(hours=horizon)
+    horizon = timedelta(hours=horizon_hours)
 
     with app.app_context():
         asset = (
