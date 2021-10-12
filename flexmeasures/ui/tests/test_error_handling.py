@@ -30,13 +30,17 @@ We also test unauth handling, whether flask security raises in its own way or we
 def test_error_handling(
     client, error_endpoints, raising_url, status_code, expected_message
 ):
+    """
+    Make requests and check if the error comes back as expected.
+    Try json as well as html content types.
+    """
     res = client.get(raising_url, headers={"Content-Type": "application/json"})
     assert res.status_code == status_code
     assert "application/json" in res.content_type
     if expected_message:
-        assert json.loads(res.data)["message"] == expected_message
+        assert expected_message in json.loads(res.data)["message"]
 
-    res = client.get(raising_url)
+    res = client.get(raising_url, headers={"Content-Type": "text/html"})
     print(f"Server responded with {res.data}")
     assert res.status_code == status_code
     assert "text/html" in res.content_type

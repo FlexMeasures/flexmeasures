@@ -24,7 +24,7 @@ def test_post_sensor_data(
     print(f"BELIEFS BEFORE: {beliefs_before}")
     assert len(beliefs_before) == 0
 
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
     response = client.post(
         url_for("post_sensor_data"),
         json=post_data,

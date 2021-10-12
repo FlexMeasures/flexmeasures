@@ -37,7 +37,7 @@ def test_post_price_data_unexpected_resolution(
     which might be fixed with upsampling or otherwise fail.
     """
     db = setup_fresh_api_v1_1_test_data
-    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
     post_price_data_response = client.post(
         url_for("flexmeasures_api_v1_1.post_price_data"),
         json=post_message,
@@ -67,7 +67,7 @@ def test_post_weather_data(
     """
     Try to post wind speed data as a logged-in test user, which should lead to forecasting jobs.
     """
-    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user_2@seita.nl", "testtest")
     post_weather_data_response = client.post(
         url_for("flexmeasures_api_v1_1.post_weather_data"),
         json=post_message,

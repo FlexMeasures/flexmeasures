@@ -20,9 +20,9 @@ def test_get_assets_badauth(client, use_auth):
     if use_auth:
         # in this case, we successfully authenticate, but fail authorization
         headers["Authorization"] = get_auth_token(
-            client, "test_supplier@seita.nl", "testtest"
+            client, "test_user_2@seita.nl", "testtest"
         )
-        test_prosumer_id = find_user_by_email("test_prosumer@seita.nl").id
+        test_prosumer_id = find_user_by_email("test_user@seita.nl").id
         query = {"owner_id": test_prosumer_id}
 
     get_assets_response = client.get(
@@ -37,13 +37,13 @@ def test_get_assets_badauth(client, use_auth):
 
 def test_get_asset_nonadmin_access(client):
     """Without being an admin, test correct responses when accessing one asset."""
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user@seita.nl") as prosumer:
         prosumer_assets = prosumer.assets
-    with UserContext("test_supplier@seita.nl") as supplier:
+    with UserContext("test_user_2@seita.nl") as supplier:
         supplier_assets = supplier.assets
     headers = {
         "content-type": "application/json",
-        "Authorization": get_auth_token(client, "test_supplier@seita.nl", "testtest"),
+        "Authorization": get_auth_token(client, "test_user_2@seita.nl", "testtest"),
     }
 
     # okay to look at own asset
@@ -76,8 +76,8 @@ def test_get_assets(client, add_charging_station_assets, use_owner_id, num_asset
     Get assets, either for all users (prosumer is admin, so is allowed to see all 7 assets) or for
     a unique one (supplier user has one asset ― "Test battery").
     """
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
-    test_supplier_id = find_user_by_email("test_supplier@seita.nl").id
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+    test_supplier_id = find_user_by_email("test_user_2@seita.nl").id
 
     query = {}
     if use_owner_id:
@@ -106,9 +106,9 @@ def test_get_assets(client, add_charging_station_assets, use_owner_id, num_asset
 
 def test_alter_an_asset_wrongauth(client):
     # without admin and owner rights, no asset can be created ...
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user@seita.nl") as prosumer:
         prosumer_asset = prosumer.assets[0]
-    with UserContext("test_supplier@seita.nl") as supplier:
+    with UserContext("test_user_2@seita.nl") as supplier:
         auth_token = supplier.get_auth_token()
         supplier_asset = supplier.assets[0]
     asset_creation_response = client.post(
@@ -143,7 +143,7 @@ def test_alter_an_asset_wrongauth(client):
 
 def test_post_an_asset_with_existing_name(client):
     """Catch DB error (Unique key violated) correctly"""
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user@seita.nl") as prosumer:
         auth_token = prosumer.get_auth_token()
         existing_asset = prosumer.assets[0]
     post_data = get_asset_post_data()
@@ -159,7 +159,7 @@ def test_post_an_asset_with_existing_name(client):
 
 def test_post_an_asset_with_nonexisting_field(client):
     """Posting a field that is unexpected leads to a 422"""
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user@seita.nl") as prosumer:
         auth_token = prosumer.get_auth_token()
     post_data = get_asset_post_data()
     post_data["nnname"] = "This field does not exist"
@@ -174,7 +174,7 @@ def test_post_an_asset_with_nonexisting_field(client):
 
 def test_posting_multiple_assets(client):
     """We can only send one at a time"""
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user@seita.nl") as prosumer:
         auth_token = prosumer.get_auth_token()
     post_data1 = get_asset_post_data()
     post_data2 = get_asset_post_data()
@@ -193,7 +193,7 @@ def test_post_an_asset(client):
     """
     Post one extra asset, as the prosumer user (an admin).
     """
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
     post_data = get_asset_post_data()
     post_assets_response = client.post(
         url_for("flexmeasures_api_v2_0.post_assets"),
@@ -214,10 +214,10 @@ def test_post_an_asset_with_invalid_data(client, db):
     Add an asset with some fields having invalid data and one field missing.
     The right error messages should be in the response and the number of assets has not increased.
     """
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user@seita.nl") as prosumer:
         num_assets_before = len(prosumer.assets)
 
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
 
     post_data = get_asset_post_data()
     post_data["latitude"] = 70.4
@@ -253,11 +253,11 @@ def test_post_an_asset_with_invalid_data(client, db):
 
 
 def test_edit_an_asset(client, db):
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user@seita.nl") as prosumer:
         existing_asset = prosumer.assets[1]
 
     post_data = dict(latitude=10, id=999)  # id will be ignored
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
     edit_asset_response = client.patch(
         url_for("flexmeasures_api_v2_0.patch_asset", id=existing_asset.id),
         json=post_data,
@@ -272,10 +272,10 @@ def test_edit_an_asset(client, db):
 
 
 def test_delete_an_asset(client, db):
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user@seita.nl") as prosumer:
         existing_asset_id = prosumer.assets[0].id
 
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
     delete_asset_response = client.delete(
         url_for("flexmeasures_api_v2_0.delete_asset", id=existing_asset_id),
         headers={"content-type": "application/json", "Authorization": auth_token},

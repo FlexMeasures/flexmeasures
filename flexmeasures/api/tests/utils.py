@@ -36,7 +36,7 @@ class UserContext(object):
     While the context is alive, you can collect any useful information, like
     the user's assets:
 
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user@seita.nl") as prosumer:
         assets = prosumer.assets
     """
 

@@ -6,20 +6,22 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import mock_asset_response, mock_api_data_as_form_input
 
 """
-Testing if our asset UI proceeds with the expected roundtrip.
+Testing if our asset UI proceeds with the expected round trip.
 Here, we mock the API responses (we have to, as our UI layer contacts FlexMeasures as a server, which does not run during tests).
 The real logic tests are done in the api package, which is also the better place for that.
 """
 
 
-def test_assets_page_empty(db, client, requests_mock, as_prosumer):
+def test_assets_page_empty(db, client, requests_mock, as_prosumer_user1):
     requests_mock.get("http://localhost//api/v2_0/assets", status_code=200, json={})
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
 
 
 @pytest.mark.parametrize("use_owned_by", [False, True])
-def test_assets_page_nonempty(db, client, requests_mock, as_prosumer, use_owned_by):
+def test_assets_page_nonempty(
+    db, client, requests_mock, as_prosumer_user1, use_owned_by
+):
     mock_assets = mock_asset_response(multiple=True)
     requests_mock.get(
         "http://localhost//api/v2_0/assets", status_code=200, json=mock_assets
@@ -40,10 +42,10 @@ def test_new_asset_page(client, setup_assets, as_admin):
     assert b"Creating a new asset" in asset_page.data
 
 
-def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer):
-    prosumer = find_user_by_email("test_prosumer@seita.nl")
-    asset = prosumer.assets[0]
-    db.session.expunge(prosumer)
+def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
+    user = find_user_by_email("test_user@seita.nl")
+    asset = user.assets[0]
+    db.session.expunge(user)
     mock_asset = mock_asset_response(as_list=False)
     mock_asset["capacity_in_mw"] = asset.capacity_in_mw
     mock_asset["latitude"] = asset.latitude
@@ -80,8 +82,8 @@ def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
 
 def test_add_asset(db, client, setup_assets, requests_mock, as_admin):
     """Add a new asset"""
-    prosumer = find_user_by_email("test_prosumer@seita.nl")
-    mock_asset = mock_asset_response(owner_id=prosumer.id, as_list=False)
+    user = find_user_by_email("test_user@seita.nl")
+    mock_asset = mock_asset_response(owner_id=user.id, as_list=False)
     requests_mock.post(
         "http://localhost//api/v2_0/assets", status_code=201, json=mock_asset
     )

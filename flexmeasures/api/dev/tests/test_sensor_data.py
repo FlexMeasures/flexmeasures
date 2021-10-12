@@ -6,7 +6,7 @@ from flexmeasures.api.dev.tests.utils import make_sensor_data_request
 
 
 @pytest.mark.parametrize("use_auth", [False, True])
-def test_post_sensor_data_bad_auth(client, use_auth):
+def test_post_sensor_data_bad_auth(client, setup_api_test_data, use_auth):
     """
     Attempt to post sensor data with insufficient or missing auth.
     """
@@ -16,7 +16,7 @@ def test_post_sensor_data_bad_auth(client, use_auth):
         # in this case, we successfully authenticate,
         # but fail authorization (no admin or MDC role)
         headers["Authorization"] = get_auth_token(
-            client, "test_supplier@seita.nl", "testtest"
+            client, "test_user_2@seita.nl", "testtest"
         )
 
     post_data_response = client.post(
@@ -51,7 +51,7 @@ def test_post_invalid_sensor_data(
     post_data = make_sensor_data_request()
     post_data[request_field] = new_value
     # this guy is allowed to post sensorData
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
     response = client.post(
         url_for("post_sensor_data"),
         json=post_data,
@@ -63,7 +63,7 @@ def test_post_invalid_sensor_data(
 
 
 def test_post_sensor_data_twice(client, setup_api_test_data):
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
     post_data = make_sensor_data_request()
     response = client.post(
         url_for("post_sensor_data"),

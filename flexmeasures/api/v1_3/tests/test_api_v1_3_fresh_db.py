@@ -25,7 +25,7 @@ def test_post_udi_event_and_get_device_message_with_unknown_prices(
         asset_id = asset.id
         asset_owner_id = asset.owner_id
         message["event"] = message["event"] % (asset.owner_id, asset.id)
-        auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+        auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
         post_udi_event_response = client.post(
             url_for("flexmeasures_api_v1_3.post_udi_event"),
             json=message,
@@ -66,7 +66,7 @@ def test_post_udi_event_and_get_device_message_with_unknown_prices(
         # try to retrieve the schedule through the getDeviceMessage api endpoint
         message = message_for_get_device_message()
         message["event"] = message["event"] % (asset_owner_id, asset_id)
-        auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+        auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
         get_device_message_response = client.get(
             url_for("flexmeasures_api_v1_3.get_device_message"),
             query_string=message,

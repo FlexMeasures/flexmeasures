@@ -16,7 +16,7 @@ from flexmeasures.api.v2_0.tests.utils import (
 )
 def test_post_prognosis_2_0(db, app, post_message, fm_scheme):
     with app.test_client() as client:
-        auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+        auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
         post_prognosis_response = client.post(
             url_for("flexmeasures_api_v2_0.post_prognosis"),
             json=post_message,

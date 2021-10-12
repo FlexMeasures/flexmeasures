@@ -12,16 +12,17 @@ def test_get_users_bad_auth(client, use_auth):
     """
     # the case without auth: authentication will fail
     headers = {"content-type": "application/json"}
+    query = {}
     if use_auth:
         # in this case, we successfully authenticate,
-        # but fail authorization (no admin)
+        # but fail authorization (non-admin accessing another account)
         headers["Authorization"] = get_auth_token(
-            client, "test_supplier@seita.nl", "testtest"
+            client, "test_user_2@seita.nl", "testtest"
         )
+        query = {"account_name": "Test Supplier Account"}
 
     get_users_response = client.get(
-        url_for("flexmeasures_api_v2_0.get_users"),
-        headers=headers,
+        url_for("flexmeasures_api_v2_0.get_users"), headers=headers, query_string=query
     )
     print("Server responded with:\n%s" % get_users_response.data)
     if use_auth:
@@ -34,7 +35,7 @@ def test_get_users_bad_auth(client, use_auth):
 def test_get_users_inactive(client, setup_inactive_user, include_inactive):
     headers = {
         "content-type": "application/json",
-        "Authorization": get_auth_token(client, "test_prosumer@seita.nl", "testtest"),
+        "Authorization": get_auth_token(client, "test_user_2@seita.nl", "testtest"),
     }
     query = {}
     if include_inactive in (True, False):
@@ -52,26 +53,26 @@ def test_get_users_inactive(client, setup_inactive_user, include_inactive):
 
 
 def test_get_one_user(client):
-    test_supplier_id = find_user_by_email("test_supplier@seita.nl").id
+    test_user2_id = find_user_by_email("test_user_2@seita.nl").id
     headers = {
         "content-type": "application/json",
-        "Authorization": get_auth_token(client, "test_prosumer@seita.nl", "testtest"),
+        "Authorization": get_auth_token(client, "test_user@seita.nl", "testtest"),
     }
 
     get_user_response = client.get(
-        url_for("flexmeasures_api_v2_0.get_user", id=test_supplier_id),
+        url_for("flexmeasures_api_v2_0.get_user", id=test_user2_id),
         headers=headers,
     )
     print("Server responded with:\n%s" % get_user_response.data)
     assert get_user_response.status_code == 200
-    assert get_user_response.json["username"] == "Test Supplier"
+    assert get_user_response.json["username"] == "Test User 2"
 
 
 def test_edit_user(client):
-    with UserContext("test_supplier@seita.nl") as supplier:
-        supplier_auth_token = supplier.get_auth_token()  # supplier is no admin
-        supplier_id = supplier.id
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user_2@seita.nl") as user2:
+        user2_auth_token = user2.get_auth_token()  # user2 is no admin
+        user2_id = user2.id
+    with UserContext("test_user@seita.nl") as prosumer:
         prosumer_auth_token = prosumer.get_auth_token()  # prosumer is an admin
         prosumer_id = prosumer.id
     # without being the user themselves or an admin, the user cannot be edited
@@ -79,31 +80,31 @@ def test_edit_user(client):
         url_for("flexmeasures_api_v2_0.patch_user", id=prosumer_id),
         headers={
             "content-type": "application/json",
-            "Authorization": supplier_auth_token,
+            "Authorization": user2_auth_token,
         },
         json={},
     )
     assert user_edit_response.status_code == 403
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=supplier_id),
+        url_for("flexmeasures_api_v2_0.patch_user", id=user2_id),
         headers={"content-type": "application/json"},
         json={},
     )
     assert user_edit_response.status_code == 401
-    # admin can deactivate supplier, other changes will be ignored
+    # admin can deactivate user2, other changes will be ignored
     # (id is in the User schema of the API, but we ignore it)
     headers = {"content-type": "application/json", "Authorization": prosumer_auth_token}
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=supplier_id),
+        url_for("flexmeasures_api_v2_0.patch_user", id=user2_id),
         headers=headers,
         json={"active": False, "id": 888},
     )
     print("Server responded with:\n%s" % user_edit_response.json)
     assert user_edit_response.status_code == 200
     assert user_edit_response.json["active"] is False
-    supplier = find_user_by_email("test_supplier@seita.nl")
-    assert supplier.active is False
-    assert supplier.id == supplier_id
+    user2 = find_user_by_email("test_user_2@seita.nl")
+    assert user2.active is False
+    assert user2.id == user2_id
     # admin can edit themselves but not sensitive fields
     headers = {"content-type": "application/json", "Authorization": prosumer_auth_token}
     user_edit_response = client.patch(
@@ -117,12 +118,12 @@ def test_edit_user(client):
 
 def test_edit_user_with_unexpected_fields(client):
     """Sending unexpected fields (not in Schema) is an Unprocessable Entity error."""
-    with UserContext("test_supplier@seita.nl") as supplier:
-        supplier_id = supplier.id
-    with UserContext("test_prosumer@seita.nl") as prosumer:
+    with UserContext("test_user_2@seita.nl") as user2:
+        user2_id = user2.id
+    with UserContext("test_user@seita.nl") as prosumer:
         prosumer_auth_token = prosumer.get_auth_token()  # prosumer is an admin
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=supplier_id),
+        url_for("flexmeasures_api_v2_0.patch_user", id=user2_id),
         headers={
             "content-type": "application/json",
             "Authorization": prosumer_auth_token,

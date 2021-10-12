@@ -28,7 +28,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.markets import Market, MarketType, Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.user import User, Account
+from flexmeasures.data.models.user import User, Account, AccountRole
 
 
 """
@@ -112,48 +112,79 @@ def create_test_db(app):
 
 
 @pytest.fixture(scope="module")
-def setup_account(db) -> Dict[str, Account]:
-    return create_test_account(db)
+def setup_accounts(db) -> Dict[str, Account]:
+    return create_test_accounts(db)
 
 
 @pytest.fixture(scope="function")
-def setup_account_fresh_db(fresh_db) -> Dict[str, Account]:
-    return create_test_account(fresh_db)
+def setup_accounts_fresh_db(fresh_db) -> Dict[str, Account]:
+    return create_test_accounts(fresh_db)
 
 
-def create_test_account(db) -> Dict[str, Account]:
-    test_account = Account(name="Test Account")
-    db.session.add(test_account)
-    return test_account
+def create_test_accounts(db) -> Dict[str, Account]:
+    prosumer_account_role = AccountRole(name="Prosumer", description="A Prosumer")
+    prosumer_account = Account(
+        name="Test Prosumer Account", account_roles=[prosumer_account_role]
+    )
+    db.session.add(prosumer_account)
+    supplier_account_role = AccountRole(
+        name="Supplier", description="A supplier trading on markets"
+    )
+    supplier_account = Account(
+        name="Test Supplier Account", account_roles=[supplier_account_role]
+    )
+    db.session.add(supplier_account)
+    dummy_account_role = AccountRole(
+        name="Dummy", description="A role we haven't hardcoded anywhere"
+    )
+    dummy_account = Account(
+        name="Test Dummy Account", account_roles=[dummy_account_role]
+    )
+    db.session.add(dummy_account)
+    return dict(
+        Prosumer=prosumer_account, Supplier=supplier_account, Dummy=dummy_account
+    )
 
 
 @pytest.fixture(scope="module")
-def setup_roles_users(db, setup_account) -> Dict[str, User]:
-    return create_roles_users(db, setup_account)
+def setup_roles_users(db, setup_accounts) -> Dict[str, User]:
+    return create_roles_users(db, setup_accounts)
 
 
 @pytest.fixture(scope="function")
-def setup_roles_users_fresh_db(fresh_db, setup_account_fresh_db) -> Dict[str, User]:
-    return create_roles_users(fresh_db, setup_account_fresh_db)
+def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> Dict[str, User]:
+    return create_roles_users(fresh_db, setup_accounts_fresh_db)
 
 
-def create_roles_users(db, test_account) -> Dict[str, User]:
+def create_roles_users(db, test_accounts) -> Dict[str, User]:
     """Create a minimal set of roles and users"""
-    test_prosumer = create_user(
-        username="Test Prosumer",
-        email="test_prosumer@seita.nl",
-        account_name=test_account.name,
+    test_user = create_user(
+        username="Test User",
+        email="test_user@seita.nl",
+        account_name=test_accounts["Prosumer"].name,
         password=hash_password("testtest"),
-        user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
+        # TODO: test some normal user roles later in our auth progress
+        # user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
     )
-    test_supplier = create_user(
-        username="Test Supplier",
-        email="test_supplier@seita.nl",
-        account_name=test_account.name,
+    test_user_2 = create_user(
+        username="Test User 2",
+        email="test_user_2@seita.nl",
+        account_name=test_accounts["Prosumer"].name,
         password=hash_password("testtest"),
-        user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
+        # TODO: test some normal user roles later in our auth progress
+        # user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
     )
-    return {"Test Prosumer": test_prosumer, "Test Supplier": test_supplier}
+    test_user_3 = create_user(
+        username="Test User 3",
+        email="test_user_3@seita.nl",
+        account_name=test_accounts["Dummy"].name,
+        password=hash_password("testtest"),
+    )
+    return {
+        "Test User": test_user,
+        "Test User 2": test_user_2,
+        "Test User 3": test_user_3,
+    }
 
 
 @pytest.fixture(scope="module")
@@ -269,7 +300,7 @@ def setup_assets(
             unit="MW",
             market_id=setup_markets["epex_da"].id,
         )
-        asset.owner = setup_roles_users["Test Prosumer"]
+        asset.owner = setup_roles_users["Test User"]
         db.session.add(asset)
         assets.append(asset)
 
@@ -415,7 +446,7 @@ def create_test_battery_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    test_battery.owner = setup_roles_users["Test Prosumer"]
+    test_battery.owner = setup_roles_users["Test User"]
     db.session.add(test_battery)
 
     test_battery_no_prices = Asset(
@@ -433,7 +464,7 @@ def create_test_battery_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    test_battery_no_prices.owner = setup_roles_users["Test Prosumer"]
+    test_battery_no_prices.owner = setup_roles_users["Test User"]
     db.session.add(test_battery_no_prices)
     return {
         "Test battery": test_battery,
@@ -486,7 +517,7 @@ def add_charging_station_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    charging_station.owner = setup_roles_users["Test Prosumer"]
+    charging_station.owner = setup_roles_users["Test User"]
     db.session.add(charging_station)
 
     bidirectional_charging_station = Asset(
@@ -504,7 +535,7 @@ def add_charging_station_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    bidirectional_charging_station.owner = setup_roles_users["Test Prosumer"]
+    bidirectional_charging_station.owner = setup_roles_users["Test User"]
     db.session.add(bidirectional_charging_station)
     return {
         "Test charging station": charging_station,

@@ -42,7 +42,7 @@ def test_post_and_get_meter_data(
     """
 
     # post meter data
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
     post_meter_data_response = client.post(
         url_for("flexmeasures_api_v1.post_meter_data"),
         json=message_replace_name_with_ea(post_message),
