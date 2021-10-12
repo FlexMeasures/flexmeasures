@@ -32,13 +32,14 @@ UNAUTH_MSG = (
 # Preferably to be used when the user is logged in but is not authorized for the resource.
 # Advice: a not logged-in user should preferably see a 404 NotFound.
 FORBIDDEN_STATUS_CODE = 403
-FORBIDDEN_ERROR_CLASS = "Forbidden"
-FORBIDDEN_ERROR_STATUS = "FORBIDDEN"
+FORBIDDEN_ERROR_CLASS = "InvalidSender"
+FORBIDDEN_ERROR_STATUS = "INVALID_SENDER"
 FORBIDDEN_MSG = "You cannot be authorized for this content or functionality."
 
 
 def unauthorized_handler_e(e):
     """Swallow error. Useful for classical Flask error handler registration."""
+    current_app.logger.error(f"Authorization error: {e}")
     return unauthorized_handler(None, [])
 
 
@@ -47,23 +48,24 @@ def unauthorized_handler(func: Optional[Callable], params: list):
     Handler for authorization problems.
     :param func: the Flask-Security-Too decorator, if relevant, and params are its parameters.
 
-    We support json if the request supports it.
-    The ui package can also define how it wants to render HTML errors.
+    We respond with json if the request doesn't say otherwise.
+    Also, other FlexMeasures packages can define that they want to wrap JSON responses
+    render HTML error pages (for non-JSON requests) in custom ways.
     """
-    if func is not None:
-        func(*params)
-    if request.is_json:
+    if request.is_json or request.content_type is None:
+        if hasattr(current_app, "unauthorized_handler_api"):
+            return current_app.unauthorized_handler_api(func, params)
         response = jsonify(dict(message=FORBIDDEN_MSG, status=FORBIDDEN_ERROR_STATUS))
         response.status_code = FORBIDDEN_STATUS_CODE
         return response
-    elif hasattr(current_app, "unauthorized_handler_html"):
+    if hasattr(current_app, "unauthorized_handler_html"):
         return current_app.unauthorized_handler_html()
-    else:
-        return "%s:%s" % (FORBIDDEN_ERROR_CLASS, FORBIDDEN_MSG), FORBIDDEN_STATUS_CODE
+    return "%s:%s" % (FORBIDDEN_ERROR_CLASS, FORBIDDEN_MSG), FORBIDDEN_STATUS_CODE
 
 
 def unauthenticated_handler_e(e):
     """Swallow error. Useful for classical Flask error handler registration."""
+    current_app.logger.error(f"Authentication error: {e}")
     return unauthenticated_handler([])
 
 
@@ -72,16 +74,18 @@ def unauthenticated_handler(mechanisms: list, headers: Optional[dict] = None):
     Handler for authentication problems.
     :param mechanisms: a list of which authentication mechanisms were tried.
     :param headers: a dict of headers to return.
-    We support json if the request supports it.
-    The ui package can also define how it wants to render HTML errors.
+    We respond with json if the request doesn't say otherwise.
+    Also, other FlexMeasures packages can define that they want to wrap JSON responses
+    render HTML error pages (for non-JSON requests) in custom ways.
     """
-    if request.is_json:
+    if request.is_json or request.content_type is None:
+        if hasattr(current_app, "unauthenticated_handler_api"):
+            return current_app.unauthenticated_handler_api(None, [])
         response = jsonify(dict(message=UNAUTH_MSG, status=UNAUTH_ERROR_STATUS))
         response.status_code = UNAUTH_STATUS_CODE
         if headers is not None:
             response.headers.update(headers)
         return response
-    elif hasattr(current_app, "unauthenticated_handler_html"):
+    if hasattr(current_app, "unauthenticated_handler_html"):
         return current_app.unauthenticated_handler_html()
-    else:
-        return "%s:%s" % (UNAUTH_ERROR_CLASS, UNAUTH_MSG), UNAUTH_STATUS_CODE
+    return "%s:%s" % (UNAUTH_ERROR_CLASS, UNAUTH_MSG), UNAUTH_STATUS_CODE

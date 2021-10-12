@@ -1,6 +1,8 @@
-from typing import Optional, Tuple, Union, Sequence
+from typing import Callable, List, Optional, Tuple, Union, Sequence
 import inflect
 from functools import wraps
+
+from flexmeasures.auth.error_handling import FORBIDDEN_MSG, FORBIDDEN_STATUS_CODE
 
 p = inflect.engine()
 
@@ -140,28 +142,23 @@ def invalid_role(requested_access_role: str) -> ResponseTuple:
 
 
 def invalid_sender(
-    user_role_names: Union[str, Sequence[str]], *allowed_role_names: str
+    calling_function: Optional[Callable] = None,
+    allowed_role_names: Optional[List[str]] = None,
 ) -> ResponseTuple:
-    if isinstance(user_role_names, str):
-        user_role_names = [user_role_names]
-    if not user_role_names:
-        user_roles_str = "have no role"
-    else:
-        user_role_names = [p.a(role_name) for role_name in user_role_names]
-        user_roles_str = "are %s" % p.join(user_role_names)
-    allowed_role_names = tuple(
-        [pluralize(role_name) for role_name in allowed_role_names]
-    )
-    allowed_role_names = p.join(allowed_role_names)
+    """
+    Signify that a sender is invalid.
+    We use this as a stand-in for flask-security auth handlers,
+    thus the arguments fit it.
+    - calling_function is usually an auth decorator like roles_required.
+    - allowed_role_names can be used if the security check involved roles.
+    """
+    message = FORBIDDEN_MSG
+    if allowed_role_names:
+        allowed_role_names = [pluralize(role_name) for role_name in allowed_role_names]
+        message += f" It is reserved for {p.join(allowed_role_names)}."
     return (
-        dict(
-            result="Rejected",
-            status="INVALID_SENDER",
-            message="You don't have the right role to access this service. "
-            "You %s while this service is reserved for %s."
-            % (user_roles_str, allowed_role_names),
-        ),
-        403,
+        dict(result="Rejected", status="INVALID_SENDER", message=message),
+        FORBIDDEN_STATUS_CODE,
     )
 
 

@@ -30,12 +30,24 @@ def get_user(id: str) -> User:
     return user
 
 
-def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List[User]:
+def get_users(
+    account_name: Optional[str] = None,
+    role_name: Optional[str] = None,
+    account_role_name: Optional[str] = None,
+    only_active: bool = True,
+) -> List[User]:
     """Return a list of User objects.
     The role_name parameter allows to filter by role.
     Set only_active to False if you also want non-active users.
     """
     user_query = User.query
+
+    if account_name is not None:
+        account = Account.query.filter(Account.name == account_name).one_or_none()
+        if not account:
+            raise NotFound(f"There is no account named {account_name}!")
+        user_query = user_query.filter(User.account == account)
+
     if only_active:
         user_query = user_query.filter(User.active.is_(True))
 
@@ -44,7 +56,12 @@ def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List
         if role:
             user_query = user_query.filter(User.flexmeasures_roles.contains(role))
 
-    return user_query.all()
+    users = user_query.all()
+
+    if account_role_name is not None:
+        users = [u for u in users if u.account.has_role(account_role_name)]
+
+    return users
 
 
 def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
@@ -146,6 +163,7 @@ def create_user(  # noqa: C901
             user_datastore.add_role_to_user(user, role)
 
     # create data source
+    db.session.flush()
     db.session.add(DataSource(user=user))
 
     return user

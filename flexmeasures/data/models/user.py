@@ -1,3 +1,4 @@
+from typing import Union
 from datetime import datetime
 
 from flask_security import UserMixin, RoleMixin
@@ -42,6 +43,15 @@ class Account(db.Model):
 
     def __repr__(self):
         return "<Account %s (ID:%d)" % (self.name, self.id)
+
+    def has_role(self, role):
+        """Returns `True` if the account has the specified role.
+
+        :param role: An account role name or `AccountRole` instance"""
+        if isinstance(role, str):
+            return role in (role.name for role in self.account_roles)
+        else:
+            return role in self.account_roles
 
 
 class RolesUsers(db.Model):
@@ -120,7 +130,7 @@ class User(db.Model, UserMixin):
         """See comment in roles property why we overload."""
         self.flexmeasures_roles = new_roles
 
-    def has_role(self, role):
+    def has_role(self, role: Union[str, Role]):
         """Returns `True` if the user identifies with the specified role.
             Overwritten from flask_security.core.UserMixin.
 
@@ -129,6 +139,15 @@ class User(db.Model, UserMixin):
             return role in (role.name for role in self.flexmeasures_roles)
         else:
             return role in self.flexmeasures_roles
+
+    def has_account_role(self, role: Union[str, AccountRole]):
+        """Returns `True` if the user's account has the specified account role.
+
+        :param role: An account role name or `Role` instance"""
+        if isinstance(role, str):
+            return role in (role.name for role in self.account.account_roles)
+        else:
+            return role in self.account.account_roles
 
 
 def remember_login(the_app, user):

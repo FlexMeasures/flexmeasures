@@ -6,6 +6,7 @@ from werkzeug.exceptions import Forbidden, Unauthorized
 from flexmeasures.data.config import db
 from flexmeasures.data.models.user import User, Role, remember_login
 
+
 """
 Configure authentication and authorization.
 """

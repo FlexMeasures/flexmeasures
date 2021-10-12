@@ -10,7 +10,6 @@ from inflection import pluralize
 from pandas.tseries.frequencies import to_offset
 from flask import request, current_app
 from flask_json import as_json
-from flask_principal import Permission, RoleNeed
 from flask_security import current_user
 import marshmallow
 
@@ -27,7 +26,6 @@ from flexmeasures.api.common.responses import (  # noqa: F401
     unapplicable_resolution,
     invalid_resolution_str,
     conflicting_resolutions,
-    invalid_sender,
     invalid_source,
     invalid_timezone,
     invalid_unit,
@@ -76,8 +74,8 @@ def validate_user_sources(sources: Union[int, str, List[Union[int, str]]]) -> Li
             except TypeError:
                 current_app.logger.warning("Could not retrieve data source %s" % source)
                 pass
-        else:  # Parse as role name
-            user_ids = [user.id for user in get_users(source)]
+        else:  # Parse as account role name
+            user_ids = [user.id for user in get_users(account_role_name=source)]
             user_source_ids.extend(
                 [
                     params[0]
@@ -908,49 +906,6 @@ def get_data_downsampling_allowed(entity_type: str, fm_scheme: str):
                 ).freqstr  # Convert ISO period string to pandas frequency string
 
             return fn(*args, **kwargs)
-
-        return decorated_service
-
-    return wrapper
-
-
-def usef_roles_accepted(*usef_roles):
-    """Decorator which specifies that a user must have at least one of the
-    specified USEF roles (or must be an admin). Example:
-
-        @app.route('/postMeterData')
-        @roles_accepted('Prosumer', 'MDC')
-        def post_meter_data():
-            return 'Meter data posted'
-
-    The current user must have either the `Prosumer` role or `MDC` role in
-    order to use the service.
-    And finally, users with the anonymous user role are never accepted.
-
-    :param usef_roles: The possible roles.
-    """
-
-    def wrapper(fn):
-        @wraps(fn)
-        @as_json
-        def decorated_service(*args, **kwargs):
-            perm = Permission(*[RoleNeed(role) for role in usef_roles])
-            if current_user.has_role(
-                "anonymous"
-            ):  # TODO: this role needs to go, we should not mix permissive and restrictive roles
-                current_app.logger.warning(
-                    "Anonymous user is not accepted for this service"
-                )
-                return invalid_sender("anonymous user", "non-anonymous user")
-            elif perm.can() or current_user.has_role("admin"):
-                return fn(*args, **kwargs)
-            else:
-                current_app.logger.warning(
-                    "User does not have necessary authorization for this service"
-                )
-                return invalid_sender(
-                    [role.name for role in current_user.roles], *usef_roles
-                )
 
         return decorated_service
 
