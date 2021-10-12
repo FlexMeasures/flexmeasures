@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 
 from flask import request, session, current_app
-from flask_security import roles_accepted
 from flask_security.core import current_user
 import pandas as pd
 import numpy as np
@@ -10,6 +9,7 @@ from bokeh.embed import components
 import bokeh.palettes as palettes
 from bokeh.plotting import Figure
 
+from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Price
 from flexmeasures.data.queries.portfolio import (
@@ -29,7 +29,7 @@ from flexmeasures.ui.utils.view_utils import (
 
 
 @flexmeasures_ui.route("/portfolio", methods=["GET", "POST"])
-@roles_accepted("admin", "Prosumer")
+@account_roles_accepted("Prosumer")
 def portfolio_view():  # noqa: C901
     """Portfolio view.
     By default, this page shows live results (production, consumption and market data) from the user's portfolio.

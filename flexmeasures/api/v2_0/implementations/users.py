@@ -7,6 +7,7 @@ from webargs.flaskparser import use_args
 from flask_security import current_user
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
+from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data.models.user import User as UserModel
 from flexmeasures.data.schemas.users import UserSchema
@@ -29,11 +30,35 @@ user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 
 
-@use_args({"include_inactive": fields.Bool(missing=False)}, location="query")
+@use_args(
+    {
+        "account_name": fields.Str(),
+        "include_inactive": fields.Bool(missing=False),
+    },
+    location="query",
+)
 @as_json
 def get(args):
-    """List all users."""
-    users = get_users(only_active=not args["include_inactive"])
+    """List users. Defaults to users in non-admin's account."""
+
+    user_is_admin = current_user.has_role("admin") or current_user.has_role(
+        "admin-reader"
+    )
+    account_name = args.get("account_name", None)
+
+    if account_name is None and not user_is_admin:
+        account_name = current_user.account.name
+    if (
+        account_name is not None
+        and account_name != current_user.account.name
+        and not user_is_admin
+    ):
+        raise Forbidden(
+            f"User {current_user.username} cannot list users from account {account_name}."
+        )
+    users = get_users(
+        account_name=account_name, only_active=not args["include_inactive"]
+    )
     return users_schema.dump(users), 200
 
 
