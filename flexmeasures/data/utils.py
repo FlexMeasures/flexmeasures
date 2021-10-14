@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import click
 
@@ -16,20 +16,36 @@ def save_to_session(objects: List[db.Model], overwrite: bool = False):
 
 
 def get_data_source(
-    data_source_name: str, data_source_type: str = "script"
+    data_source_name: str,
+    data_source_model: Optional[str] = None,
+    data_source_version: Optional[str] = None,
+    data_source_type: str = "script",
 ) -> DataSource:
     """Make sure we have a data source. Create one if it doesn't exist, and add to session.
     Meant for scripts that may run for the first time.
-    It should probably not be used in the middle of a transaction, because we commit to the session."""
+    """
 
     data_source = DataSource.query.filter_by(
-        name=data_source_name, type=data_source_type
+        name=data_source_name,
+        model=data_source_model,
+        version=data_source_version,
+        type=data_source_type,
     ).one_or_none()
     if data_source is None:
-        data_source = DataSource(name=data_source_name, type=data_source_type)
+        data_source = DataSource(
+            name=data_source_name,
+            model=data_source_model,
+            version=data_source_version,
+            type=data_source_type,
+        )
         db.session.add(data_source)
         db.session.flush()  # populate the primary key attributes (like id) without committing the transaction
-        click.echo(
-            f'Session updated with new {data_source_type} data source named "{data_source_name}".'
-        )
+        if data_source_model is None:
+            click.echo(
+                f'Session updated with new {data_source_type} data source named "{data_source_name}".'
+            )
+        else:
+            click.echo(
+                f'Session updated with new {data_source_type} data source named "{data_source_name}" ({data_source_model} model v{data_source_version}).'
+            )
     return data_source

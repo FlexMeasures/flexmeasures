@@ -2,6 +2,7 @@ from typing import Optional, Union
 
 import timely_beliefs as tb
 from flask import current_app
+from sqlalchemy.ext.hybrid import hybrid_method
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.user import User, is_user
@@ -14,12 +15,19 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     # The type of data source (e.g. user, forecasting script or scheduling script)
     type = db.Column(db.String(80), default="")
-    # The id of the source (can link e.g. to fm_user table)
+
+    # The id of the user source (can link e.g. to fm_user table)
     user_id = db.Column(
         db.Integer, db.ForeignKey("fm_user.id"), nullable=True, unique=True
     )
-
     user = db.relationship("User", backref=db.backref("data_source", lazy=True))
+
+    # The model and version of a script source
+    model = db.Column(db.String(80), nullable=True)
+    version = db.Column(
+        db.String(17),  # length supports up to version 999.999.999dev999
+        nullable=True,
+    )
 
     def __init__(
         self,
@@ -53,6 +61,25 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             return f"demo data entered by {self.name}"
         else:
             return f"data from {self.name}"
+
+    @hybrid_method
+    def description(self, include_model: bool = True, include_version: bool = True):
+        """Extended description
+
+        For example:
+
+            >>> DataSource("Seita", type="forecasting script", model="naive", version="1.2").description()
+            <<< "forecast by Seita (naive model v1.2)"
+
+        """
+        descr = self.label
+        if include_model and self.model:
+            descr += f" ({self.model} model"
+            if include_version and self.version:
+                descr += f" v{self.version})"
+            else:
+                descr += ")"
+        return descr
 
     def __repr__(self):
         return "<Data source %r (%s)>" % (self.id, self.label)
