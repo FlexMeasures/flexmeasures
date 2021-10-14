@@ -198,6 +198,13 @@ def query_time_series_data(
         bdf = bdf.resample_events(
             event_resolution=resolution, keep_only_most_recent_belief=True
         )
+
+        # Slice query window after resampling
+        if query_window[0] is not None:
+            bdf = bdf[bdf.index.get_level_values("event_start") >= query_window[0]]
+        if query_window[1] is not None:
+            bdf = bdf[bdf.index.get_level_values("event_start") < query_window[1]]
+
         bdf_dict[generic_asset_name] = bdf
 
     return bdf_dict
