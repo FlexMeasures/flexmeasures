@@ -10,6 +10,8 @@ from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 
 def check_user_access(user: User, sensor: Union[Sensor, Asset], permission: str):
     """
+    TODO: use or delete
+
     Only allow access if the user is on the same account as the asset or if they are admins.
 
     Raises auth error if they are not.
