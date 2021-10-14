@@ -39,6 +39,7 @@ Building customer-facing services is where developers make impact. We make their
 - Well-documented API
 - Plugin support
 - Plotting support
+- Multi-tenancy
 
 
 For more on FlexMeasures services, read :ref:`services`. Or head right over to :ref:`getting_started`.
@@ -66,9 +67,9 @@ The platform operator of FlexMeasures can be an Aggregator.
     :caption: Concepts
     :maxdepth: 1
 
-    concepts/services
     concepts/benefits
     concepts/benefits_of_flex
+    concepts/inbuilt-smart-functionality
     concepts/algorithms
     concepts/security_auth
 
