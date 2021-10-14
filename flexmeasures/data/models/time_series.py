@@ -682,3 +682,77 @@ def parse_source_arg(
         else:
             parsed_sources.append(source)
     return parsed_sources
+
+
+class Annotation(db.Model):
+    """An annotation is a nominal value that applies to a specific time or time span.
+
+    Examples of annotation types:
+        - user annotation: annotation.type == "label" and annotation.source.type == "user"
+        - unresolved alert: annotation.type == "alert"
+        - resolved alert: annotation.type == "label" and annotation.source.type == "alerting script"
+        - organisation holiday: annotation.type == "holiday" and annotation.source.type == "user"
+        - national, school or public holiday: annotation.type == "holiday" and annotation.source.type == "holiday script"
+    """
+
+    id = db.Column(db.Integer, nullable=False, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    start = db.Column(db.DateTime(timezone=True), nullable=False)
+    end = db.Column(db.DateTime(timezone=True), nullable=False)
+    source_id = db.Column(
+        db.Integer, db.ForeignKey(DataSource.__tablename__ + ".id"), primary_key=True
+    )
+    source = db.relationship(
+        "DataSource",
+        foreign_keys=[source_id],
+        backref=db.backref("annotations", lazy=True),
+    )
+    type = db.Column(db.Enum("alert", "holiday", "label"))
+
+    @property
+    def duration(self) -> timedelta:
+        return self.end - self.start
+
+
+class GenericAssetAnnotationRelationship(db.Model):
+    """Links annotations to generic assets."""
+
+    generic_asset_id = db.Column(
+        db.Integer, db.ForeignKey("generic_asset.id"), nullable=False, primary_key=True
+    )
+    asset = db.relationship(
+        "GenericAsset",
+        foreign_keys=[generic_asset_id],
+        backref=db.backref("annotations", lazy=True),
+    )
+
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id"), nullable=False
+    )
+    annotation = db.relationship(
+        "Annotation",
+        foreign_keys=[annotation_id],
+        backref=db.backref("generic_assets", lazy=True),
+    )
+
+
+class SensorAnnotationRelationship(db.Model):
+    """Links annotations to sensors."""
+
+    sensor_id = db.Column(
+        db.Integer, db.ForeignKey("sensor.id"), nullable=False, primary_key=True
+    )
+    sensor = db.relationship(
+        "Sensor",
+        foreign_keys=[sensor_id],
+        backref=db.backref("annotations", lazy=True),
+    )
+
+    annotation_id = db.Column(
+        db.Integer, db.ForeignKey("annotation.id"), nullable=False
+    )
+    annotation = db.relationship(
+        "Annotation",
+        foreign_keys=[annotation_id],
+        backref=db.backref("sensors", lazy=True),
+    )
