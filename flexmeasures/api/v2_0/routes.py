@@ -12,6 +12,7 @@ from flexmeasures.api.v1_3 import routes as v1_3_routes
 
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 from flexmeasures.api.v2_0 import implementations as v2_0_implementations
+from flexmeasures.auth.policy import ADMIN_ROLE
 
 
 # The service listing for this API version (import from previous version or update if needed)
@@ -145,7 +146,7 @@ def get_assets():
 
 @flexmeasures_api_v2_0.route("/assets", methods=["POST"])
 @auth_token_required
-@roles_required("admin")
+@roles_required(ADMIN_ROLE)
 # @account_roles_accepted(*list_access(v2_0_service_listing, "POST /assets"))
 def post_assets():
     """API endpoint to post a new asset.

@@ -16,6 +16,7 @@ from flexmeasures.data.services.users import (
     set_random_password,
     remove_cookie_and_token_access,
 )
+from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.api.common.responses import required_info_missing
 from flexmeasures.data.config import db
@@ -41,8 +42,8 @@ users_schema = UserSchema(many=True)
 def get(args):
     """List users. Defaults to users in non-admin's account."""
 
-    user_is_admin = current_user.has_role("admin") or current_user.has_role(
-        "admin-reader"
+    user_is_admin = current_user.has_role(ADMIN_ROLE) or current_user.has_role(
+        ADMIN_READER_ROLE
     )
     account_name = args.get("account_name", None)
 

@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_args
 from marshmallow import fields
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.data.services.resources import get_assets
 from flexmeasures.data.models.user import User
 from flexmeasures.data.models.assets import Asset as AssetModel
@@ -104,7 +105,7 @@ def load_asset(admins_only: bool = False):
             if asset is None:
                 raise abort(404, f"Asset {id} not found")
 
-            if not current_user.has_role("admin"):
+            if not current_user.has_role(ADMIN_ROLE):
                 if admins_only or asset.owner != current_user:
                     return unauthorized_handler(None, [])
 

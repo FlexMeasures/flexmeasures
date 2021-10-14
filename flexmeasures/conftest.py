@@ -20,6 +20,7 @@ from werkzeug.exceptions import (
 )
 
 from flexmeasures.app import create as create_app
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset, Power
@@ -623,6 +624,6 @@ def error_endpoints(app):
         return jsonify({"message": "Nothing bad happened."}), 200
 
     @app.route("/protected-endpoint-only-for-admins")
-    @roles_accepted("admin")
+    @roles_accepted(ADMIN_ROLE)
     def vips_only():
         return jsonify({"message": "Nothing bad happened."}), 200

@@ -5,6 +5,7 @@ from flask_security import login_required
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.auth.decorators import roles_required
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.api.dev.sensors import SensorAPI
@@ -21,7 +22,7 @@ class SensorUI(FlaskView):
     route_base = "/sensors"
 
     @login_required
-    @roles_required("admin")  # todo: remove after we check for sensor ownership
+    @roles_required(ADMIN_ROLE)  # todo: remove after we check for sensor ownership
     @route("/<id>/chart/")
     @use_kwargs(
         {
@@ -51,7 +52,7 @@ class SensorUI(FlaskView):
         )
 
     @login_required
-    @roles_required("admin")  # todo: remove after we check for sensor ownership
+    @roles_required(ADMIN_ROLE)  # todo: remove after we check for sensor ownership
     def get(self, id: int):
         """GET from /sensors/<id>"""
         return render_flexmeasures_template(

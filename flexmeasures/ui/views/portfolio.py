@@ -9,6 +9,7 @@ from bokeh.embed import components
 import bokeh.palettes as palettes
 from bokeh.plotting import Figure
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Price
@@ -251,7 +252,7 @@ def mock_flex_figure(x_range, x_index, fig_width) -> Figure:
     next_action_hour4 = get_flex_action_hour(4)
     if next_action_hour4 in df_actions.index:
         if current_user.is_authenticated:
-            if current_user.has_role("admin"):
+            if current_user.has_role(ADMIN_ROLE):
                 df_actions.loc[next_action_hour4] = -2.4  # mock two actions
             elif "wind" in current_user.email:
                 df_actions.loc[next_action_hour4] = -1.3  # mock one action
@@ -263,7 +264,7 @@ def mock_flex_figure(x_range, x_index, fig_width) -> Figure:
         if next_action_hour2 < next_action_hour4 and (
             current_user.is_authenticated
             and (
-                current_user.has_role("admin")
+                current_user.has_role(ADMIN_ROLE)
                 or "wind" in current_user.email
                 or "charging" in current_user.email
             )
@@ -273,7 +274,7 @@ def mock_flex_figure(x_range, x_index, fig_width) -> Figure:
 
     next_action_hour9 = get_flex_action_hour(9)
     if next_action_hour9 in df_actions.index:
-        # mock some other ordered actions that are not in an opportunity hour anymore
+        # mock some other ordered actions that are not in an opportunity hour any more
         df_actions.loc[next_action_hour9] = 3.5
 
     fig_actions = plotting.create_graph(
@@ -288,7 +289,7 @@ def mock_flex_figure(x_range, x_index, fig_width) -> Figure:
     fig_actions.xaxis.visible = False
 
     if current_user.is_authenticated and (
-        current_user.has_role("admin")
+        current_user.has_role(ADMIN_ROLE)
         or "wind" in current_user.email
         or "charging" in current_user.email
     ):
@@ -304,7 +305,7 @@ def mock_flex_figure(x_range, x_index, fig_width) -> Figure:
 def mock_flex_action_in_main_figure(fig_profile: Figure):
     # show when user has (possible) actions in order book for a time slot
     if current_user.is_authenticated and (
-        current_user.has_role("admin")
+        current_user.has_role(ADMIN_ROLE)
         or "wind" in current_user.email
         or "charging" in current_user.email
     ):
