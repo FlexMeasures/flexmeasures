@@ -2,7 +2,6 @@ from typing import Optional, Union
 
 import timely_beliefs as tb
 from flask import current_app
-from sqlalchemy.ext.hybrid import hybrid_method
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.user import User, is_user
@@ -63,23 +62,21 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         else:
             return f"data from {self.name}"
 
-    @hybrid_method
-    def description(self, include_model: bool = True, include_version: bool = True):
+    @property
+    def description(self):
         """Extended description
 
         For example:
 
-            >>> DataSource("Seita", type="forecasting script", model="naive", version="1.2").description()
-            <<< "forecast by Seita (naive model v1.2)"
+            >>> DataSource("Seita", type="forecasting script", model="naive", version="1.2").description
+            <<< "Seita's naive model v1.2.0"
 
         """
-        descr = self.label
-        if include_model and self.model:
-            descr += f" ({self.model} model"
-            if include_version and self.version:
-                descr += f" v{self.version})"
-            else:
-                descr += ")"
+        descr = self.name
+        if self.model:
+            descr += f"'s {self.model} model"
+            if self.version:
+                descr += f" v{self.version}"
         return descr
 
     def __repr__(self):
