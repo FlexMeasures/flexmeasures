@@ -12,6 +12,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
+    __table_args__ = (db.UniqueConstraint("name", "user_id", "model", "version"),)
 
     # The type of data source (e.g. user, forecasting script or scheduling script)
     type = db.Column(db.String(80), default="")
