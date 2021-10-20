@@ -11,6 +11,7 @@ New features
 -----------
 * Set a logo for the top left corner with the new FLEXMEASURES_MENU_LOGO_PATH setting [see `PR #184 <http://www.github.com/SeitaBV/flexmeasures/pull/184>`_]
 * Add an extra style-sheet which applies to all pages with the new FLEXMEASURES_EXTRA_CSS_PATH setting [see `PR #185 <http://www.github.com/SeitaBV/flexmeasures/pull/185>`_]
+* Data sources can be further distinguished by what model (and version) they ran [see `PR #215 <http://www.github.com/SeitaBV/flexmeasures/pull/215>`_]
 
 Bugfixes
 -----------
