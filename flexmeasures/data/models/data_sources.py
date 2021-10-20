@@ -80,7 +80,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         return descr
 
     def __repr__(self):
-        return "<Data source %r (%s)>" % (self.id, self.label)
+        return "<Data source %r (%s)>" % (self.id, self.description)
 
 
 def get_or_create_source(
