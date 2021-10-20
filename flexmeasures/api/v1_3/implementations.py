@@ -149,6 +149,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 .filter(Power.data_source_id == scheduler_source.id)
                 .filter(Power.datetime >= schedule_start)
                 .filter(Power.datetime < schedule_start + planning_horizon)
+                .order_by(Power.datetime.asc())
                 .all()
             )
             consumption_schedule = pd.Series(
