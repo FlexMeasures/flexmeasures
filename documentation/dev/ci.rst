@@ -92,20 +92,24 @@ We trigger this deployment in ``deploy.yml`` and it's being done in ``DEPLOY.sh`
 We thus need to tell the deployment environment two things:
 
 
-* Add the setting ``STAGING_REMOTE_REPO`` as an environment variable on the deployment environment (e.g. ``deploy.yml`` expects it in the Github repository secrets). An example value is ``seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git``.
-* Make sure the env variable ``BRANCH_NAME`` is set, e.g. to "main", so that the deployment environment knows what exact code to push to your deployment server.
+* Add the setting ``STAGING_REMOTE_REPO`` as an environment variable on the CI environment (e.g. ``deploy.yml`` expects it in the Github repository secrets). An example value is ``seita@ssh.our-server.com:/home/seita/flexmeasures-staging/flexmeasures.git``. So in this case, ``ssh.our-server.com`` is the deployment server, which we'll also use below. `seita` needs to become your ssh username on that server and the rest is the path to where you want to check out the repo.
+* Make sure the env variable ``BRANCH_NAME`` is set, e.g. to "main", so that the CI environment knows what exact code to push to your deployment server.
 
 
 Authenticate at the deployment server (with an ssh key)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The CI environment needs to authenticate at the deployment server using an SSH key pair (use ``ssh-keygen`` to create one, using no password).
+For CI environment and deployment server to interact securely, we of course need to put in place some authentication measures.  
 
-To make this work, we need to configure the following:
+First, they need to know each other. Let the deployment server know it's okay to talk to the CI environment, by adding an entry to ``~/.ssh/known_hosts``. Similarly, you might need to let the CI environment know it's okay to talk to the deployment server (e.g. in our Github Actions config, ``deploy.yml`` expects this entry in the Github repository secrets as ``KNOWN_DEPLOYMENT_HOSTS``\ ).
 
+You can create these entries with ``ssh-keyscan -t rsa <your host>``, where host might be `github.com` or `ssh.our-server.com` (see above).
 
-* Add the deployment server to ``~/.ssh/known_hosts`` of the deployment environment, so that the deployment environment knows it's okay to talk to the deployment server (e.g. ``deploy.yml`` expects it in the Github repository secrets as ``KNOWN_DEPLOYMENT_HOSTS``\ ). You can create this entry with ``ssh-keyscan -t rsa <your host>``.
-* Add the private part of the ssh key pair as key in the deployment environment, so that the deployment server can accept the pushed code. (e.g. as ``~/.ssh/id_rsa``\ ). In ``deploy.yml``\ , we expect it as the secret ``SSH_DEPLOYMENT_KEY``\ , which adds the key for us.
+Second, the CI environment needs to authenticate at the deployment server using an SSH key pair. 
+
+Use ``ssh-keygen`` to create one, using no password.
+
+* Add the private part of this ssh key pair to the CI environment, so that the deployment server can accept the pushed code. (e.g. as ``~/.ssh/id_rsa``\ ). In ``deploy.yml``\ , we expect it as the secret ``SSH_DEPLOYMENT_KEY``\ , which adds the key for us.
 * Finally, the public part of the key pair should be in ``~/.ssh/authorized_keys`` on your deployment server.
 
 
@@ -114,12 +118,12 @@ To make this work, we need to configure the following:
 
 Only pushing the code will not actually deploy the updated FlexMeasures into a usable web app on the deployment server. For this, we need to trigger a script.
 
-Log on to the server (via SSH) and install a script to (re-)start FlexMeasures as a Git Post Receive Hook in the remote repo where we deployed the code (see above). This hook will be triggered when a push is received from the deployment environment.
+Log on to the deployment server (via SSH) and install a script to (re-)start FlexMeasures as a Git Post Receive Hook in the remote repo where we deployed the code (see above). This hook will be triggered whenever a push is received from the deployment environment.
 
 The example script below can be a Post Receive Hook (save as ``hooks/post-receive`` in your remote origin repo and update paths).
 It will force checkout the main branch, update dependencies, upgrade the database structure,
 update the documentation and finally touch the wsgi.py file.
-This last step is often a way to soft restart the running application, but here you need to adapt to your circumstances.
+This last step is often used as a way to soft-restart the running application ― here you need to adapt to your circumstances.
 
 .. code-block:: bash
 
