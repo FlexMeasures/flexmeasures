@@ -40,12 +40,7 @@ def get_data_source(
         )
         db.session.add(data_source)
         db.session.flush()  # populate the primary key attributes (like id) without committing the transaction
-        if data_source_model is None:
-            click.echo(
-                f'Session updated with new {data_source_type} data source named "{data_source_name}".'
-            )
-        else:
-            click.echo(
-                f'Session updated with new {data_source_type} data source named "{data_source_name}" ({data_source_model} model v{data_source_version}).'
-            )
+        click.echo(
+            f'Session updated with new {data_source_type} data source "{data_source.__repr__()}".'
+        )
     return data_source
