@@ -103,7 +103,7 @@ For CI environment and deployment server to interact securely, we of course need
 
 First, they need to know each other. Let the deployment server know it's okay to talk to the CI environment, by adding an entry to ``~/.ssh/known_hosts``. Similarly, you might need to let the CI environment know it's okay to talk to the deployment server (e.g. in our Github Actions config, ``deploy.yml`` expects this entry in the Github repository secrets as ``KNOWN_DEPLOYMENT_HOSTS``\ ).
 
-You can create these entry with ``ssh-keyscan -t rsa <your host>``, where host might be `github.com` or `ssh.our-server.com` (see above).
+You can create these entries with ``ssh-keyscan -t rsa <your host>``, where host might be `github.com` or `ssh.our-server.com` (see above).
 
 Second, the CI environment needs to authenticate at the deployment server using an SSH key pair. 
 
