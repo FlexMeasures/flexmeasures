@@ -123,7 +123,7 @@ Log on to the deployment server (via SSH) and install a script to (re-)start Fle
 The example script below can be a Post Receive Hook (save as ``hooks/post-receive`` in your remote origin repo and update paths).
 It will force a checkout of the main branch into our working directory, update dependencies, upgrade the database structure and finally touch the wsgi.py file.
 
-.. note:: Note that we are not installing FlexMeasures itself (that would require ``make install-flexmeasures``, which essentially is ``python setup.py develop``), as that is not needed for our base requirement here: to run this checked-out code. Also, installing FlexMeasures requires a version, which is gotten from the git status (via setuptool_scm). We are working on a checked-out copy of the git code here without git meta information, so installing would fail anyways.
+.. note:: Note that we are not installing FlexMeasures itself (that would require ``make install-flexmeasures``, which essentially is ``python setup.py develop``), as that is not needed for our base requirement here: to run this checked-out code with a web server that uses a WSGI file to define the app. Running CLI commands will not work without installation. Also, installing FlexMeasures requires a version, which is gotten from the git status (via setuptool_scm). We are working on a checked-out copy of the git code here without git meta information, so installing would fail anyways.
 
 The last step, touching a wsgi.py file, is often used as a way to soft-restart the running application ― here you need to adapt to your circumstances.
 
