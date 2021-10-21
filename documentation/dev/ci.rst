@@ -121,9 +121,11 @@ Only pushing the code will not actually deploy the updated FlexMeasures into a u
 Log on to the deployment server (via SSH) and install a script to (re-)start FlexMeasures as a Git Post Receive Hook in the remote repo where we deployed the code (see above). This hook will be triggered whenever a push is received from the deployment environment.
 
 The example script below can be a Post Receive Hook (save as ``hooks/post-receive`` in your remote origin repo and update paths).
-It will force checkout the main branch, update dependencies, upgrade the database structure,
-update the documentation and finally touch the wsgi.py file.
-This last step is often used as a way to soft-restart the running application ― here you need to adapt to your circumstances.
+It will force a checkout of the main branch into our working directory, update dependencies, upgrade the database structure and finally touch the wsgi.py file.
+
+.. note:: Note that we are not installing FlexMeasures itself (that would require ``make install-flexmeasures``, which essentially is ``python setup.py develop``), as that is not needed for our base requirement here: to run this checked-out code. Also, installing FlexMeasures requires a version, which is gotten from the git status (via setuptool_scm). We are working on a checked-out copy of the git code here without git meta information, so installing would fail anyways.
+
+The last step, touching a wsgi.py file, is often used as a way to soft-restart the running application ― here you need to adapt to your circumstances.
 
 .. code-block:: bash
 
@@ -142,14 +144,8 @@ This last step is often used as a way to soft-restart the running application �
    echo "INSTALLING DEPENDENCIES ..."
    make install-deps
 
-   echo "INSTALLING FlexMeasures ..."
-   make install-flexmeasures
-
    echo "UPGRADING DATABASE STRUCTURE ..."
    make upgrade-db
-
-   echo "UPDATING DOCUMENTATION ..."
-   make update-docs
 
    echo "RESTARTING APPLICATION ..."
    touch $PATH_TO_WSGI
