@@ -10,6 +10,7 @@ def load_requirements(use_case):
             if not req.strip() == ""
             and not req.strip().startswith("#")
             and not req.strip().startswith("-c")
+            and not req.strip().startswith("--find-links")
         ]
     return reqs
 
