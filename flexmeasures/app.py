@@ -25,7 +25,9 @@ def create(
     Set the environment by setting FLASK_ENV as environment variable (also possible in .env).
     Or, overwrite any FLASK_ENV setting by passing an env in directly (useful for testing for instance).
 
-    A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories)
+    A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories).
+
+    Also, a list of plugins can be set. Usually this works as a config setting, but this is useful for automated testing.
     """
 
     from flexmeasures.utils import config_defaults
