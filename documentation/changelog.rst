@@ -15,7 +15,6 @@ New features
 
 Bugfixes
 -----------
-* Fix missing conversion of data source names and ids to DataSource objects [see `PR #178 <http://www.github.com/SeitaBV/flexmeasures/pull/178>`_]
 * Fix users resetting their own password [see `PR #195 <http://www.github.com/SeitaBV/flexmeasures/pull/195>`_]
 * Fix scheduling for heterogeneous settings, for instance, involving sensors with different timezones and/or resolutions [see `PR #207 <http://www.github.com/SeitaBV/flexmeasures/pull/207>`_]
 
@@ -29,7 +28,7 @@ Infrastructure / Support
 * Keep forecasting and scheduling jobs in the queues for only up to one day [see `PR #198 <http://www.github.com/SeitaBV/flexmeasures/pull/198>`_]
 
 
-v0.6.1 | September XX, 2021
+v0.6.1 | October 23, 2021
 ===========================
 
 New features
@@ -39,6 +38,7 @@ Bugfixes
 -----------
 * Fix (dev) CLI command for adding a GenericAssetType [see `PR #173 <http://www.github.com/SeitaBV/flexmeasures/pull/173>`_]
 * Fix (dev) CLI command for adding a Sensor [see `PR #176 <http://www.github.com/SeitaBV/flexmeasures/pull/176>`_]
+* Fix missing conversion of data source names and ids to DataSource objects [see `PR #178 <http://www.github.com/SeitaBV/flexmeasures/pull/178>`_]
 * Fix GetDeviceMessage to ensure chronological ordering of values [see `PR #216 <http://www.github.com/SeitaBV/flexmeasures/pull/216>`_]
 
 Infrastructure / Support
