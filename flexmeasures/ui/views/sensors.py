@@ -1,3 +1,5 @@
+import json
+
 from altair.utils.html import spec_to_html
 from flask import current_app
 from flask_classful import FlaskView, route
@@ -33,19 +35,17 @@ class SensorUI(FlaskView):
     )
     def get_chart(self, id, **kwargs):
         """GET from /sensors/<id>/chart"""
-        chart_specs = SensorAPI().get_chart(
-            id, include_data=True, as_html=True, **kwargs
-        )
+        chart_specs = SensorAPI().get_chart(id, include_data=True, **kwargs)
         return spec_to_html(
-            chart_specs,
-            "vega-lite",
-            vega_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS").vega,
-            vegaembed_version=current_app.config.get(
-                "FLEXMEASURES_JS_VERSIONS"
-            ).vegaembed,
-            vegalite_version=current_app.config.get(
-                "FLEXMEASURES_JS_VERSIONS"
-            ).vegalite,
+            json.loads(chart_specs),
+            mode="vega-lite",
+            vega_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")["vega"],
+            vegaembed_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")[
+                "vegaembed"
+            ],
+            vegalite_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")[
+                "vegalite"
+            ],
         )
 
     @login_required
