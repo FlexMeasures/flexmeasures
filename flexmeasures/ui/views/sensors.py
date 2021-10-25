@@ -1,7 +1,7 @@
 from altair.utils.html import spec_to_html
 from flask import current_app
 from flask_classful import FlaskView, route
-from flask_security import login_required, roles_required
+from flask_security import login_required
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 
@@ -20,7 +20,6 @@ class SensorUI(FlaskView):
     route_base = "/sensors"
 
     @login_required
-    @roles_required("admin")  # todo: remove after we check for sensor ownership
     @route("/<id>/chart/")
     @use_kwargs(
         {
@@ -50,7 +49,6 @@ class SensorUI(FlaskView):
         )
 
     @login_required
-    @roles_required("admin")  # todo: remove after we check for sensor ownership
     def get(self, id: int):
         """GET from /sensors/<id>"""
         return render_flexmeasures_template(
