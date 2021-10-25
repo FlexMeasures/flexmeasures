@@ -1,7 +1,7 @@
 # flake8: noqa: E402
 import os
 import time
-from typing import Optional
+from typing import Optional, List
 
 from flask import Flask, g, request
 from flask.cli import load_dotenv
@@ -14,14 +14,20 @@ from redis import Redis
 from rq import Queue
 
 
-def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> Flask:
+def create(
+    env: Optional[str] = None,
+    path_to_config: Optional[str] = None,
+    plugins: Optional[List[str]] = None,
+) -> Flask:
     """
     Create a Flask app and configure it.
 
     Set the environment by setting FLASK_ENV as environment variable (also possible in .env).
     Or, overwrite any FLASK_ENV setting by passing an env in directly (useful for testing for instance).
 
-    A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories)
+    A path to a config file can be passed in (otherwise a config file will be searched in the home or instance directories).
+
+    Also, a list of plugins can be set. Usually this works as a config setting, but this is useful for automated testing.
     """
 
     from flexmeasures.utils import config_defaults
@@ -47,6 +53,8 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
     # App configuration
 
     read_config(app, custom_path_to_config=path_to_config)
+    if plugins:
+        app.config["FLEXMEASURES_PLUGINS"] += plugins
     add_basic_error_handlers(app)
     if not app.env in ("development", "documentation") and not app.testing:
         init_sentry(app)
@@ -82,12 +90,9 @@ def create(env: Optional[str] = None, path_to_config: Optional[str] = None) -> F
 
     # Some basic security measures
 
-    if not app.env == "documentation":
-        set_secret_key(app)
-        if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
-            app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
-    else:
-        app.config["SECRET_KEY"] = "dummy-secret-for-documentation-creation"
+    set_secret_key(app)
+    if app.config.get("SECURITY_PASSWORD_SALT", None) is None:
+        app.config["SECURITY_PASSWORD_SALT"] = app.config["SECRET_KEY"]
     if not app.env in ("documentation", "development"):
         SSLify(app)
 
