@@ -40,15 +40,16 @@ class SensorUI(FlaskView):
 
         # Chart theme
         chart_theme = kwargs.pop("chart_theme", None)
+        embed_options = chart_options.copy()
         if chart_theme:
-            chart_options["theme"] = chart_theme
-            chart_options["tooltip"]["theme"] = chart_theme
+            embed_options["theme"] = chart_theme
+            embed_options["tooltip"]["theme"] = chart_theme
 
         # Chart specs
         chart_specs = SensorAPI().get_chart(id, include_data=True, **kwargs)
         return spec_to_html(
             json.loads(chart_specs),
-            mode=chart_options["mode"],
+            mode=embed_options["mode"],
             vega_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")["vega"],
             vegaembed_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")[
                 "vegaembed"
@@ -56,7 +57,7 @@ class SensorUI(FlaskView):
             vegalite_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")[
                 "vegalite"
             ],
-            embed_options=chart_options,
+            embed_options=embed_options,
         )
 
     @login_required
