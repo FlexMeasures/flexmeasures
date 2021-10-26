@@ -139,16 +139,30 @@ You can style your plugin's pages in a distinct way by adding your own style-she
 
 .. code-block:: html 
 
-{% block styles %}
- {{ super() }}
- <!-- Our client styles -->
- <link rel="stylesheet" href="{{ url_for('our_client_bp.static', filename='css/style.css')}}">
-{% endblock %}
+    {% block styles %}
+        {{ super() }}
+        <!-- Our client styles -->
+        <link rel="stylesheet" href="{{ url_for('our_client_bp.static', filename='css/style.css')}}">
+    {% endblock %}
 
 This will find `css/styles.css` if you add that folder and file to your Blueprint's static folder.
 
 .. note:: This styling will only apply to the pages defined in your plugin (to pages based on your own base template). To apply a styling to all other pages which are served by FlexMeasures, consider using the config setting :ref:`extra-css-config`. 
 
+
+Adding config options
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+You might want to override some FlexMEasures configuration settings from within your plugin. Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below). There is a `record_once` function on Blueprints which can help with this. Example:
+
+.. code-block: python
+
+    @our_client_bp.record_once
+    def record_logo_path(setup_state):
+        setup_state.app.config[
+            "FLEXMEASURES_MENU_LOGO_PATH"
+        ] = "/path/to/my/logo.svg"
+    
 
 
 Using other code files in your non-package plugin

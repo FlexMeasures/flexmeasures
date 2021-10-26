@@ -2,7 +2,7 @@
 FlexMeasures Changelog
 **********************
 
-v0.7.0 | October XX, 2021
+v0.7.0 | October 26, 2021
 ===========================
 
 .. warning:: The config setting ``FLEXMEASURES_PLUGIN_PATHS`` has been renamed to ``FLEXMEASURES_PLUGINS``. The old name still works but is deprecated.
@@ -14,10 +14,12 @@ New features
 * Data sources can be further distinguished by what model (and version) they ran [see `PR #215 <http://www.github.com/SeitaBV/flexmeasures/pull/215>`_]
 * Enable plugins to automate tests with app context [see `PR #220 <http://www.github.com/SeitaBV/flexmeasures/pull/220>`_]
 
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/070-professional-plugins/>`__.
+
 Bugfixes
 -----------
 * Fix users resetting their own password [see `PR #195 <http://www.github.com/SeitaBV/flexmeasures/pull/195>`_]
-* Fix scheduling for heterogeneous settings, for instance, involving sensors with different timezones and/or resolutions [see `PR #207 <http://www.github.com/SeitaBV/flexmeasures/pull/207>`_]
+* Fix scheduling for heterogeneous settings, for instance, involving sensors with different time zones and/or resolutions [see `PR #207 <http://www.github.com/SeitaBV/flexmeasures/pull/207>`_]
 * Fix ``sensors/<id>/chart`` view [see `PR #223 <http://www.github.com/SeitaBV/flexmeasures/pull/223>`_]
 
 Infrastructure / Support
@@ -76,7 +78,7 @@ Infrastructure / Support
 * Document how to use a custom favicon in plugins [see `PR #152 <http://www.github.com/SeitaBV/flexmeasures/pull/152>`_]
 * Allow plugins to register multiple Flask blueprints [see `PR #171 <http://www.github.com/SeitaBV/flexmeasures/pull/171>`_]
 * Continue experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: link multiple sensors to a single asset [see `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
-* The experimental parts of the data model can now be visualised, as well, via `make show-data-model --uml --dev` [also in `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
+* The experimental parts of the data model can now be visualised, as well, via `make show-data-model` (add the --dev option in Makefile) [also in `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
 
 
 
