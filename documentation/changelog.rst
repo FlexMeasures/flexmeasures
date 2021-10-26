@@ -12,12 +12,13 @@ New features
 * Set a logo for the top left corner with the new FLEXMEASURES_MENU_LOGO_PATH setting [see `PR #184 <http://www.github.com/SeitaBV/flexmeasures/pull/184>`_]
 * Add an extra style-sheet which applies to all pages with the new FLEXMEASURES_EXTRA_CSS_PATH setting [see `PR #185 <http://www.github.com/SeitaBV/flexmeasures/pull/185>`_]
 * Data sources can be further distinguished by what model (and version) they ran [see `PR #215 <http://www.github.com/SeitaBV/flexmeasures/pull/215>`_]
+* Enable plugins to automate tests with app context [see `PR #220 <http://www.github.com/SeitaBV/flexmeasures/pull/220>`_]
 
 Bugfixes
 -----------
-* Fix missing conversion of data source names and ids to DataSource objects [see `PR #178 <http://www.github.com/SeitaBV/flexmeasures/pull/178>`_]
 * Fix users resetting their own password [see `PR #195 <http://www.github.com/SeitaBV/flexmeasures/pull/195>`_]
 * Fix scheduling for heterogeneous settings, for instance, involving sensors with different timezones and/or resolutions [see `PR #207 <http://www.github.com/SeitaBV/flexmeasures/pull/207>`_]
+* Fix ``sensors/<id>/chart`` view [see `PR #223 <http://www.github.com/SeitaBV/flexmeasures/pull/223>`_]
 
 Infrastructure / Support
 ----------------------
@@ -29,7 +30,7 @@ Infrastructure / Support
 * Keep forecasting and scheduling jobs in the queues for only up to one day [see `PR #198 <http://www.github.com/SeitaBV/flexmeasures/pull/198>`_]
 
 
-v0.6.1 | September XX, 2021
+v0.6.1 | October 23, 2021
 ===========================
 
 New features
@@ -39,6 +40,7 @@ Bugfixes
 -----------
 * Fix (dev) CLI command for adding a GenericAssetType [see `PR #173 <http://www.github.com/SeitaBV/flexmeasures/pull/173>`_]
 * Fix (dev) CLI command for adding a Sensor [see `PR #176 <http://www.github.com/SeitaBV/flexmeasures/pull/176>`_]
+* Fix missing conversion of data source names and ids to DataSource objects [see `PR #178 <http://www.github.com/SeitaBV/flexmeasures/pull/178>`_]
 * Fix GetDeviceMessage to ensure chronological ordering of values [see `PR #216 <http://www.github.com/SeitaBV/flexmeasures/pull/216>`_]
 
 Infrastructure / Support

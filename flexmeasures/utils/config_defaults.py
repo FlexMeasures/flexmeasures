@@ -176,6 +176,7 @@ class TestingConfig(Config):
     LOGGING_LEVEL = logging.INFO
     WTF_CSRF_ENABLED = False  # also necessary for logging in during tests
 
+    SECRET_KEY = "dummy-key-for-testing"
     SECURITY_PASSWORD_SALT = "$2b$19$abcdefghijklmnopqrstuv"
     SQLALCHEMY_DATABASE_URI = (
         "postgresql://flexmeasures_test:flexmeasures_test@localhost/flexmeasures_test"
@@ -194,4 +195,4 @@ class TestingConfig(Config):
 
 
 class DocumentationConfig(Config):
-    pass
+    SECRET_KEY = "dummy-key-for-documentation"

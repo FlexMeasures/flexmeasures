@@ -43,7 +43,7 @@ install-flexmeasures:
 	python setup.py develop
 
 install-pip-tools:
-	pip3 install -q "pip-tools>=6.2"
+	pip3 install -q "pip-tools>=6.4"
 
 install-sphinx-tools:
 	pip3 install "sphinx>=4.0.3" sphinxcontrib.httpdomain sphinx-rtd-theme sphinx_fontawesome
