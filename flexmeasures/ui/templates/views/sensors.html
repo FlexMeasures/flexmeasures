@@ -23,7 +23,6 @@
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/mobilefriendly.js"></script>
 
     <!-- Render Charts -->
-    <script type="text/javascript" src="{{ url_for('flexmeasures_ui.static', filename='js/chart-utils.js') }}"></script>
     <script type="module" type="text/javascript">
 
       import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
@@ -32,7 +31,7 @@
 
       async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName, FlexMeasuresChartOptions)
+        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName, {{ chart_options | safe }})
         .then(function (result) {
           // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
           vegaView = result.view;
