@@ -82,6 +82,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     def __repr__(self):
         return "<Data source %r (%s)>" % (self.id, self.description)
 
+    def __str__(self):
+        return self.description
+
 
 def get_or_create_source(
     source: Union[User, str], source_type: Optional[str] = None, flush: bool = True
