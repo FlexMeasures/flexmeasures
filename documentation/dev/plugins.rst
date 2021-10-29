@@ -139,16 +139,30 @@ You can style your plugin's pages in a distinct way by adding your own style-she
 
 .. code-block:: html 
 
-{% block styles %}
- {{ super() }}
- <!-- Our client styles -->
- <link rel="stylesheet" href="{{ url_for('our_client_bp.static', filename='css/style.css')}}">
-{% endblock %}
+    {% block styles %}
+        {{ super() }}
+        <!-- Our client styles -->
+        <link rel="stylesheet" href="{{ url_for('our_client_bp.static', filename='css/style.css')}}">
+    {% endblock %}
 
 This will find `css/styles.css` if you add that folder and file to your Blueprint's static folder.
 
 .. note:: This styling will only apply to the pages defined in your plugin (to pages based on your own base template). To apply a styling to all other pages which are served by FlexMeasures, consider using the config setting :ref:`extra-css-config`. 
 
+
+Adding config options
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+You might want to override some FlexMEasures configuration settings from within your plugin. Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below). There is a `record_once` function on Blueprints which can help with this. Example:
+
+.. code-block: python
+
+    @our_client_bp.record_once
+    def record_logo_path(setup_state):
+        setup_state.app.config[
+            "FLEXMEASURES_MENU_LOGO_PATH"
+        ] = "/path/to/my/logo.svg"
+    
 
 
 Using other code files in your non-package plugin
@@ -169,8 +183,6 @@ But it can be achieved if you put the plugin path on the import path. Do it like
     sys.path.insert(0, HERE)
 
     from my_other_file import my_function
-
-
 
 
 Using a custom favicon icon
@@ -205,6 +217,43 @@ Then, overwrite the ``/favicon.ico`` route which FlexMeasures uses to get the fa
         )
 
 Here we assume your favicon is a PNG file. You can also use a classic `.ico` file, then your mime type probably works best as ``image/x-icon``.
+
+
+Notes on writing tests for your plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Good software practice is to write automatable tests. We encourage you to also do this in your plugin.
+We do, and our CookieCutter template for plugins (see above) has simple examples how that can work for the different use cases
+(i.e. UI, API, CLI).
+
+However, there are two caveats to look into:
+
+* Your tests need a FlexMeasures app context. FlexMeasure's app creation function provides a way to inject a list of plugins directly. The following could be used for instance in your ``app`` fixture within the top-level ``conftest.py`` if you are using pytest:
+
+.. code-block:: python
+
+    from flexmeasures.app import create as create_flexmeasures_app
+    from .. import __name__
+
+    test_app = create_flexmeasures_app(env="testing", plugins=[f"../"{__name__}])
+
+* Test frameworks collect tests from your code and therefore might import your modules. This can interfere with the registration of routes on your Blueprint objects during plugin registration. Therefore, we recommend reloading your route modules, after the Blueprint is defined and before you import them. For example:
+
+.. code-block:: python
+
+    my_plugin_ui_bp: Blueprint = Blueprint(
+        "MyPlugin-UI",
+        __name__,
+        template_folder="my_plugin/ui/templates",
+        static_folder="my_plugin/ui/static",
+        url_prefix="/MyPlugin",
+    )
+    # Now, before we import this dashboard module, in which the "/dashboard" route is attached to my_plugin_ui_bp,
+    # we make sure it's being imported now, *after* the Blueprint's creation.
+    importlib.reload(sys.modules["my_plugin.my_plugin.ui.views.dashboard"])
+    from my_plugin.ui.views import dashboard
+
+The packaging path depends on your plugin's package setup, of course.
 
 
 Validating arguments in your CLI commands with marshmallow

@@ -11,15 +11,23 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
+    __table_args__ = (db.UniqueConstraint("name", "user_id", "model", "version"),)
 
     # The type of data source (e.g. user, forecasting script or scheduling script)
     type = db.Column(db.String(80), default="")
-    # The id of the source (can link e.g. to fm_user table)
+
+    # The id of the user source (can link e.g. to fm_user table)
     user_id = db.Column(
         db.Integer, db.ForeignKey("fm_user.id"), nullable=True, unique=True
     )
-
     user = db.relationship("User", backref=db.backref("data_source", lazy=True))
+
+    # The model and version of a script source
+    model = db.Column(db.String(80), nullable=True)
+    version = db.Column(
+        db.String(17),  # length supports up to version 999.999.999dev999
+        nullable=True,
+    )
 
     def __init__(
         self,
@@ -54,8 +62,28 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         else:
             return f"data from {self.name}"
 
+    @property
+    def description(self):
+        """Extended description
+
+        For example:
+
+            >>> DataSource("Seita", type="forecasting script", model="naive", version="1.2").description
+            <<< "Seita's naive model v1.2.0"
+
+        """
+        descr = self.name
+        if self.model:
+            descr += f"'s {self.model} model"
+            if self.version:
+                descr += f" v{self.version}"
+        return descr
+
     def __repr__(self):
-        return "<Data source %r (%s)>" % (self.id, self.label)
+        return "<Data source %r (%s)>" % (self.id, self.description)
+
+    def __str__(self):
+        return self.description
 
 
 def get_or_create_source(

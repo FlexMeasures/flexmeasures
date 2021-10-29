@@ -43,7 +43,7 @@ install-flexmeasures:
 	python setup.py develop
 
 install-pip-tools:
-	pip3 install -q "pip-tools>=6.2"
+	pip3 install -q "pip-tools>=6.4"
 
 install-sphinx-tools:
 	pip3 install "sphinx>=4.0.3" sphinxcontrib.httpdomain sphinx-rtd-theme sphinx_fontawesome
@@ -78,4 +78,4 @@ show-data-model:
 	# Also try with --schema for the database model. 
 	# With --dev, you'll see the currently experimental parts, as well.
 	# Use --help to learn more. 
-	./flexmeasures/data/scripts/visualize_data_model.py --uml --store
+	./flexmeasures/data/scripts/visualize_data_model.py --uml --dev

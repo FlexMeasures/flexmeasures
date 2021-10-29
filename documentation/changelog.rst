@@ -2,7 +2,20 @@
 FlexMeasures Changelog
 **********************
 
-v0.7.0 | October XX, 2021
+v0.8.0 | November XX, 2021
+===========================
+
+New features
+-----------
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
+v0.7.0 | October 26, 2021
 ===========================
 
 .. warning:: The config setting ``FLEXMEASURES_PLUGIN_PATHS`` has been renamed to ``FLEXMEASURES_PLUGINS``. The old name still works but is deprecated.
@@ -11,12 +24,16 @@ New features
 -----------
 * Set a logo for the top left corner with the new FLEXMEASURES_MENU_LOGO_PATH setting [see `PR #184 <http://www.github.com/SeitaBV/flexmeasures/pull/184>`_]
 * Add an extra style-sheet which applies to all pages with the new FLEXMEASURES_EXTRA_CSS_PATH setting [see `PR #185 <http://www.github.com/SeitaBV/flexmeasures/pull/185>`_]
+* Data sources can be further distinguished by what model (and version) they ran [see `PR #215 <http://www.github.com/SeitaBV/flexmeasures/pull/215>`_]
+* Enable plugins to automate tests with app context [see `PR #220 <http://www.github.com/SeitaBV/flexmeasures/pull/220>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/070-professional-plugins/>`__.
 
 Bugfixes
 -----------
-* Fix missing conversion of data source names and ids to DataSource objects [see `PR #178 <http://www.github.com/SeitaBV/flexmeasures/pull/178>`_]
 * Fix users resetting their own password [see `PR #195 <http://www.github.com/SeitaBV/flexmeasures/pull/195>`_]
-* Fix scheduling for heterogeneous settings, for instance, involving sensors with different timezones and/or resolutions [see `PR #207 <http://www.github.com/SeitaBV/flexmeasures/pull/207>`_]
+* Fix scheduling for heterogeneous settings, for instance, involving sensors with different time zones and/or resolutions [see `PR #207 <http://www.github.com/SeitaBV/flexmeasures/pull/207>`_]
+* Fix ``sensors/<id>/chart`` view [see `PR #223 <http://www.github.com/SeitaBV/flexmeasures/pull/223>`_]
 
 Infrastructure / Support
 ----------------------
@@ -29,7 +46,7 @@ Infrastructure / Support
 * Keep forecasting and scheduling jobs in the queues for only up to one day [see `PR #198 <http://www.github.com/SeitaBV/flexmeasures/pull/198>`_]
 
 
-v0.6.1 | September XX, 2021
+v0.6.1 | October 23, 2021
 ===========================
 
 New features
@@ -39,6 +56,8 @@ Bugfixes
 -----------
 * Fix (dev) CLI command for adding a GenericAssetType [see `PR #173 <http://www.github.com/SeitaBV/flexmeasures/pull/173>`_]
 * Fix (dev) CLI command for adding a Sensor [see `PR #176 <http://www.github.com/SeitaBV/flexmeasures/pull/176>`_]
+* Fix missing conversion of data source names and ids to DataSource objects [see `PR #178 <http://www.github.com/SeitaBV/flexmeasures/pull/178>`_]
+* Fix GetDeviceMessage to ensure chronological ordering of values [see `PR #216 <http://www.github.com/SeitaBV/flexmeasures/pull/216>`_]
 
 Infrastructure / Support
 ----------------------
@@ -73,7 +92,7 @@ Infrastructure / Support
 * Document how to use a custom favicon in plugins [see `PR #152 <http://www.github.com/SeitaBV/flexmeasures/pull/152>`_]
 * Allow plugins to register multiple Flask blueprints [see `PR #171 <http://www.github.com/SeitaBV/flexmeasures/pull/171>`_]
 * Continue experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: link multiple sensors to a single asset [see `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
-* The experimental parts of the data model can now be visualised, as well, via `make show-data-model --uml --dev` [also in `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
+* The experimental parts of the data model can now be visualised, as well, via `make show-data-model` (add the --dev option in Makefile) [also in `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
 
 
 
