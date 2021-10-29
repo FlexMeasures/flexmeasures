@@ -160,20 +160,6 @@ def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> Dict[str, U
 def create_roles_users(db, test_accounts) -> Dict[str, User]:
     """Create a minimal set of roles and users"""
     new_users: List[User] = []
-    # One platform admin
-    new_users.append(
-        create_user(
-            username="Test Admin User",
-            email="test_admin_user@seita.nl",
-            account_name=test_accounts[
-                "Dummy"
-            ].name,  # the account does not give rights
-            password=hash_password("testtest"),
-            user_roles=dict(
-                name=ADMIN_ROLE, description="A user who can do everything."
-            ),
-        )
-    )
     # Two Prosumer users
     new_users.append(
         create_user(
@@ -203,6 +189,20 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             email="test_dummy_user_3@seita.nl",
             account_name=test_accounts["Dummy"].name,
             password=hash_password("testtest"),
+        )
+    )
+    # One platform admin
+    new_users.append(
+        create_user(
+            username="Test Admin User",
+            email="test_admin_user@seita.nl",
+            account_name=test_accounts[
+                "Dummy"
+            ].name,  # the account does not give rights
+            password=hash_password("testtest"),
+            user_roles=dict(
+                name=ADMIN_ROLE, description="A user who can do everything."
+            ),
         )
     )
     return {user.username: user for user in new_users}
