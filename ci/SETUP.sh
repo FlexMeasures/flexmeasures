@@ -1,13 +1,8 @@
 #!/bin/bash
 
-##############################################
-# This script sets up a new FlexMeasures instance
-##############################################
-
-
-# A secret key is used by Flask, for example, to encrypt the session
-mkdir -p ./instance
-head -c 24 /dev/urandom > ./instance/secret_key
+######################################################################
+# This script sets up a new FlexMeasures instance in a CI environment
+######################################################################
 
 
 # Install dependencies

@@ -1,3 +1,5 @@
+import json
+
 from altair.utils.html import spec_to_html
 from flask import current_app
 from flask_classful import FlaskView, route
@@ -22,7 +24,6 @@ class SensorUI(FlaskView):
     route_base = "/sensors"
 
     @login_required
-    @roles_required(ADMIN_ROLE)  # todo: remove after we check for sensor ownership
     @route("/<id>/chart/")
     @use_kwargs(
         {
@@ -36,23 +37,20 @@ class SensorUI(FlaskView):
     )
     def get_chart(self, id, **kwargs):
         """GET from /sensors/<id>/chart"""
-        chart_specs = SensorAPI().get_chart(
-            id, include_data=True, as_html=True, **kwargs
-        )
+        chart_specs = SensorAPI().get_chart(id, include_data=True, **kwargs)
         return spec_to_html(
-            chart_specs,
-            "vega-lite",
-            vega_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS").vega,
-            vegaembed_version=current_app.config.get(
-                "FLEXMEASURES_JS_VERSIONS"
-            ).vegaembed,
-            vegalite_version=current_app.config.get(
-                "FLEXMEASURES_JS_VERSIONS"
-            ).vegalite,
+            json.loads(chart_specs),
+            mode="vega-lite",
+            vega_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")["vega"],
+            vegaembed_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")[
+                "vegaembed"
+            ],
+            vegalite_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")[
+                "vegalite"
+            ],
         )
 
     @login_required
-    @roles_required(ADMIN_ROLE)  # todo: remove after we check for sensor ownership
     def get(self, id: int):
         """GET from /sensors/<id>"""
         return render_flexmeasures_template(
