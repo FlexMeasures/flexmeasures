@@ -3,7 +3,7 @@ from functools import wraps
 from flask import current_app, abort
 from flask_security import current_user
 from flask_json import as_json
-
+from werkzeug.exceptions import Forbidden
 from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_args
 from marshmallow import fields
@@ -13,7 +13,6 @@ from flexmeasures.data.services.resources import get_assets
 from flexmeasures.data.models.user import User
 from flexmeasures.data.models.assets import Asset as AssetModel
 from flexmeasures.data.schemas.assets import AssetSchema
-from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.config import db
 from flexmeasures.api.common.responses import required_info_missing
 
@@ -31,7 +30,7 @@ def get(args):
     if "owner_id" in args:
         # get_assets ignores owner_id if user is not admin. Here we want to raise a proper auth error.
         if not (current_user.has_role("admin") or args["owner_id"] == current_user.id):
-            return unauthorized_handler(None, [])
+            raise Forbidden("Only admins or the owner can set owner_id.")
         assets = get_assets(owner_id=int(args["owner_id"]))
     else:
         assets = get_assets()
@@ -45,9 +44,9 @@ def post(asset_data):
     """Create new asset"""
 
     if current_user.has_role("anonymous"):
-        return unauthorized_handler(
-            None, []
-        )  # Disallow edit access, even to own assets TODO: review, such a role should not exist
+        raise Forbidden(
+            "anonymous user cannot edit any assets."
+        )  # TODO: review, such a role should not exist
 
     asset = AssetModel(**asset_data)
     db.session.add(asset)
@@ -107,7 +106,7 @@ def load_asset(admins_only: bool = False):
 
             if not current_user.has_role(ADMIN_ROLE):
                 if admins_only or asset.owner != current_user:
-                    return unauthorized_handler(None, [])
+                    raise Forbidden("Needs to be admin or the asset owner.")
 
             args = (asset,)
             return fn(*args, **kwargs)

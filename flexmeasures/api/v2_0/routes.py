@@ -24,6 +24,7 @@ v2_0_service_listing["version"] = "2.0"
 
 # Note: No account role access is added to asset or user endpoints
 #       We will add access control based on the models' ACLs soon.
+#       See https://github.com/SeitaBV/flexmeasures/issues/200
 # assets
 v2_0_service_listing["services"].append(
     {

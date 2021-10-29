@@ -58,7 +58,11 @@ p = inflect.engine()
 
 
 def validate_user_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[int]:
-    """Return a list of user source ids given a user id, a role name or a list thereof."""
+    """
+    Return a list of user-based data source ids, given:
+    - one ore more user ids
+    - one or more account role names
+    """
     sources = (
         sources if isinstance(sources, list) else [sources]
     )  # Make sure sources is a list

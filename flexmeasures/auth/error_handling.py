@@ -7,9 +7,11 @@ Beware: There is a historical confusion of naming between authentication and aut
 """
 
 
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 
 from flask import request, jsonify, current_app
+
+from flexmeasures.utils.error_utils import log_error
 
 
 # "Unauthorized"
@@ -39,18 +41,21 @@ FORBIDDEN_MSG = "You cannot be authorized for this content or functionality."
 
 def unauthorized_handler_e(e):
     """Swallow error. Useful for classical Flask error handler registration."""
-    current_app.logger.error(f"Authorization error: {e}")
-    return unauthorized_handler(None, [])
+    log_error(e, str(e))
+    return unauthorized_handler()
 
 
-def unauthorized_handler(func: Optional[Callable], params: list):
+def unauthorized_handler(
+    func: Optional[Callable] = None, params: Optional[List] = None
+):
     """
     Handler for authorization problems.
     :param func: the Flask-Security-Too decorator, if relevant, and params are its parameters.
 
     We respond with json if the request doesn't say otherwise.
     Also, other FlexMeasures packages can define that they want to wrap JSON responses
-    render HTML error pages (for non-JSON requests) in custom ways.
+    and/or render HTML error pages (for non-JSON requests) in custom ways ―
+    by registering unauthorized_handler_api & unauthorized_handler_html, respectively.
     """
     if request.is_json or request.content_type is None:
         if hasattr(current_app, "unauthorized_handler_api"):
@@ -65,18 +70,21 @@ def unauthorized_handler(func: Optional[Callable], params: list):
 
 def unauthenticated_handler_e(e):
     """Swallow error. Useful for classical Flask error handler registration."""
-    current_app.logger.error(f"Authentication error: {e}")
-    return unauthenticated_handler([])
+    log_error(e, str(e))
+    return unauthenticated_handler()
 
 
-def unauthenticated_handler(mechanisms: list, headers: Optional[dict] = None):
+def unauthenticated_handler(
+    mechanisms: Optional[List] = None, headers: Optional[dict] = None
+):
     """
     Handler for authentication problems.
     :param mechanisms: a list of which authentication mechanisms were tried.
     :param headers: a dict of headers to return.
     We respond with json if the request doesn't say otherwise.
     Also, other FlexMeasures packages can define that they want to wrap JSON responses
-    render HTML error pages (for non-JSON requests) in custom ways.
+    and/or render HTML error pages (for non-JSON requests) in custom ways ―
+    by registering unauthenticated_handler_api & unauthenticated_handler_html, respectively.
     """
     if request.is_json or request.content_type is None:
         if hasattr(current_app, "unauthenticated_handler_api"):

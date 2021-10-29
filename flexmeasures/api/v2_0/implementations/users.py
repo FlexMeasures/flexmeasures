@@ -17,7 +17,6 @@ from flexmeasures.data.services.users import (
     remove_cookie_and_token_access,
 )
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
-from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.api.common.responses import required_info_missing
 from flexmeasures.data.config import db
 
@@ -111,7 +110,7 @@ def load_user(admins_only: bool = False):
 
             if not current_user.has_role("admin"):
                 if admins_only or user != current_user:
-                    return unauthorized_handler(None, [])
+                    raise Forbidden("Needs to be admin or the current user.")
 
             args = (user,)
             return fn(*args, **kwargs)
@@ -135,9 +134,8 @@ def patch(db_user: UserModel, user_data: dict):
     """Update a user given its identifier"""
     allowed_fields = ["email", "username", "active", "timezone", "flexmeasures_roles"]
     for k, v in [(k, v) for k, v in user_data.items() if k in allowed_fields]:
-        # Don't allow users who edit themselves to edit sensitive fields
         if current_user.id == db_user.id and k in ("active", "flexmeasures_roles"):
-            return unauthorized_handler(None, [])
+            raise Forbidden("Users who edit themselves cannot edit sensitive fields.")
         setattr(db_user, k, v)
         if k == "active" and v is False:
             remove_cookie_and_token_access(db_user)
@@ -156,9 +154,8 @@ def reset_password(user):
     Reset the user's current password, cookies and auth tokens.
     Send a password reset link to the user.
     """
-    # Don't allow non-admins to reset passwords of other users
     if current_user.id != user.id and not current_user.has_role("admin"):
-        return unauthorized_handler(None, [])
+        raise Forbidden("Non-admins cannot reset passwords of other users.")
     set_random_password(user)
     remove_cookie_and_token_access(user)
     send_reset_password_instructions(user)

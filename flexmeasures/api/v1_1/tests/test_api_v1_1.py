@@ -193,7 +193,7 @@ def test_post_weather_forecasts(
     setup_api_test_data, add_weather_sensors, app, client, post_message
 ):
     """
-    Try to post wind speed and temperature forecasts as a logged-in test user with the user role, which should succeed.
+    Try to post wind speed and temperature forecasts as a logged-in test user with the Prosumer role, which should succeed.
     As only forecasts are sent, no forecasting jobs are expected.
     """
     assert len(get_forecasting_jobs("Weather")) == 0
