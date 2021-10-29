@@ -58,9 +58,7 @@ def test_get_one_user(client):
     test_user2_id = find_user_by_email("test_prosumer_user_2@seita.nl").id
     headers = {
         "content-type": "application/json",
-        "Authorization": get_auth_token(
-            client, "test_prosumer_user@seita.nl", "testtest"
-        ),
+        "Authorization": get_auth_token(client, "test_admin_user@seita.nl", "testtest"),
     }
 
     get_user_response = client.get(
@@ -76,12 +74,12 @@ def test_edit_user(client):
     with UserContext("test_prosumer_user_2@seita.nl") as user2:
         user2_auth_token = user2.get_auth_token()  # user2 is no admin
         user2_id = user2.id
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
-        prosumer_auth_token = prosumer.get_auth_token()  # prosumer is an admin
-        prosumer_id = prosumer.id
+    with UserContext("test_admin_user@seita.nl") as admin:
+        admin_auth_token = admin.get_auth_token()
+        admin_id = admin.id
     # without being the user themselves or an admin, the user cannot be edited
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=prosumer_id),
+        url_for("flexmeasures_api_v2_0.patch_user", id=admin_id),
         headers={
             "content-type": "application/json",
             "Authorization": user2_auth_token,
@@ -97,7 +95,7 @@ def test_edit_user(client):
     assert user_edit_response.status_code == 401
     # admin can deactivate user2, other changes will be ignored
     # (id is in the User schema of the API, but we ignore it)
-    headers = {"content-type": "application/json", "Authorization": prosumer_auth_token}
+    headers = {"content-type": "application/json", "Authorization": admin_auth_token}
     user_edit_response = client.patch(
         url_for("flexmeasures_api_v2_0.patch_user", id=user2_id),
         headers=headers,
@@ -110,9 +108,9 @@ def test_edit_user(client):
     assert user2.active is False
     assert user2.id == user2_id
     # admin can edit themselves but not sensitive fields
-    headers = {"content-type": "application/json", "Authorization": prosumer_auth_token}
+    headers = {"content-type": "application/json", "Authorization": admin_auth_token}
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=prosumer_id),
+        url_for("flexmeasures_api_v2_0.patch_user", id=admin_id),
         headers=headers,
         json={"active": False},
     )
@@ -124,13 +122,13 @@ def test_edit_user_with_unexpected_fields(client):
     """Sending unexpected fields (not in Schema) is an Unprocessable Entity error."""
     with UserContext("test_prosumer_user_2@seita.nl") as user2:
         user2_id = user2.id
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
-        prosumer_auth_token = prosumer.get_auth_token()  # prosumer is an admin
+    with UserContext("test_admin_user@seita.nl") as admin:
+        admin_auth_token = admin.get_auth_token()
     user_edit_response = client.patch(
         url_for("flexmeasures_api_v2_0.patch_user", id=user2_id),
         headers={
             "content-type": "application/json",
-            "Authorization": prosumer_auth_token,
+            "Authorization": admin_auth_token,
         },
         json={"active": False, "password": "I-should-not-be-sending-this"},
     )

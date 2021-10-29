@@ -16,7 +16,7 @@ def test_post_sensor_data_bad_auth(client, setup_api_test_data, use_auth):
         # in this case, we successfully authenticate,
         # but fail authorization (no admin or MDC role)
         headers["Authorization"] = get_auth_token(
-            client, "test_prosumer_user_2@seita.nl", "testtest"
+            client, "test_dummy_user_3@seita.nl", "testtest"
         )
 
     post_data_response = client.post(

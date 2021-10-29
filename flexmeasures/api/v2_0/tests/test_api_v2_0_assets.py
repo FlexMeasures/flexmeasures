@@ -37,10 +37,10 @@ def test_get_assets_badauth(client, use_auth):
 
 def test_get_asset_nonadmin_access(client):
     """Without being an admin, test correct responses when accessing one asset."""
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
-        prosumer_assets = prosumer.assets
-    with UserContext("test_prosumer_user_2@seita.nl") as supplier:
-        supplier_assets = supplier.assets
+    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
+        prosumer1_assets = prosumer1.assets
+    with UserContext("test_prosumer_user_2@seita.nl") as prosumer2:
+        prosumer2_assets = prosumer2.assets
     headers = {
         "content-type": "application/json",
         "Authorization": get_auth_token(
@@ -50,14 +50,14 @@ def test_get_asset_nonadmin_access(client):
 
     # okay to look at own asset
     asset_response = client.get(
-        url_for("flexmeasures_api_v2_0.get_asset", id=supplier_assets[0].id),
+        url_for("flexmeasures_api_v2_0.get_asset", id=prosumer2_assets[0].id),
         headers=headers,
         follow_redirects=True,
     )
     assert asset_response.status_code == 200
     # not okay to see assets owned by others
     asset_response = client.get(
-        url_for("flexmeasures_api_v2_0.get_asset", id=prosumer_assets[0].id),
+        url_for("flexmeasures_api_v2_0.get_asset", id=prosumer1_assets[0].id),
         headers=headers,
         follow_redirects=True,
     )
@@ -75,15 +75,15 @@ def test_get_asset_nonadmin_access(client):
 @pytest.mark.parametrize("use_owner_id, num_assets", [(False, 7), (True, 1)])
 def test_get_assets(client, add_charging_station_assets, use_owner_id, num_assets):
     """
-    Get assets, either for all users (prosumer is admin, so is allowed to see all 7 assets) or for
-    a unique one (supplier user has one asset ― "Test battery").
+    Get assets, either for all users (our user here is admin, so is allowed to see all 7 assets) or for
+    a unique one (prosumer user 2 has one asset ― "Test battery").
     """
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
-    test_supplier_id = find_user_by_email("test_prosumer_user_2@seita.nl").id
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    test_prosumer2_id = find_user_by_email("test_prosumer_user_2@seita.nl").id
 
     query = {}
     if use_owner_id:
-        query["owner_id"] = test_supplier_id
+        query["owner_id"] = test_prosumer2_id
 
     get_assets_response = client.get(
         url_for("flexmeasures_api_v2_0.get_assets"),
@@ -102,17 +102,17 @@ def test_get_assets(client, add_charging_station_assets, use_owner_id, num_asset
     assert pd.Timestamp(battery["soc_datetime"]) == pd.Timestamp(
         "2015-01-01T00:00:00+00:00"
     )
-    assert battery["owner_id"] == test_supplier_id
+    assert battery["owner_id"] == test_prosumer2_id
     assert battery["capacity_in_mw"] == 2
 
 
 def test_alter_an_asset_wrongauth(client):
     # without admin and owner rights, no asset can be created ...
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
-        prosumer_asset = prosumer.assets[0]
-    with UserContext("test_prosumer_user_2@seita.nl") as supplier:
-        auth_token = supplier.get_auth_token()
-        supplier_asset = supplier.assets[0]
+    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
+        prosumer1_asset = prosumer1.assets[0]
+    with UserContext("test_prosumer_user_2@seita.nl") as prosumer2:
+        auth_token = prosumer2.get_auth_token()
+        prosumer2_asset = prosumer2.assets[0]
     asset_creation_response = client.post(
         url_for("flexmeasures_api_v2_0.post_assets"),
         headers={"content-type": "application/json", "Authorization": auth_token},
@@ -122,21 +122,21 @@ def test_alter_an_asset_wrongauth(client):
     assert asset_creation_response.status_code == 403
     # ... or edited ...
     asset_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_asset", id=prosumer_asset.id),
+        url_for("flexmeasures_api_v2_0.patch_asset", id=prosumer1_asset.id),
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={},
     )
     assert asset_edit_response.status_code == 403
     # ... or deleted ...
     asset_delete_response = client.delete(
-        url_for("flexmeasures_api_v2_0.delete_asset", id=prosumer_asset.id),
+        url_for("flexmeasures_api_v2_0.delete_asset", id=prosumer1_asset.id),
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={},
     )
     assert asset_delete_response.status_code == 403
     # ... which is impossible even if you're the owner
     asset_delete_response = client.delete(
-        url_for("flexmeasures_api_v2_0.delete_asset", id=supplier_asset.id),
+        url_for("flexmeasures_api_v2_0.delete_asset", id=prosumer2_asset.id),
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={},
     )
@@ -145,11 +145,14 @@ def test_alter_an_asset_wrongauth(client):
 
 def test_post_an_asset_with_existing_name(client):
     """Catch DB error (Unique key violated) correctly"""
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
+    with UserContext("test_admin_user@seita.nl") as prosumer:
         auth_token = prosumer.get_auth_token()
+    with UserContext("test_prosumer_user@seita.nl") as prosumer:
+        test_prosumer_id = prosumer.id
         existing_asset = prosumer.assets[0]
     post_data = get_asset_post_data()
     post_data["name"] = existing_asset.name
+    post_data["owner_id"] = test_prosumer_id
     asset_creation = client.post(
         url_for("flexmeasures_api_v2_0.post_assets"),
         json=post_data,
@@ -161,7 +164,7 @@ def test_post_an_asset_with_existing_name(client):
 
 def test_post_an_asset_with_nonexisting_field(client):
     """Posting a field that is unexpected leads to a 422"""
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
+    with UserContext("test_admin_user@seita.nl") as prosumer:
         auth_token = prosumer.get_auth_token()
     post_data = get_asset_post_data()
     post_data["nnname"] = "This field does not exist"
@@ -176,7 +179,7 @@ def test_post_an_asset_with_nonexisting_field(client):
 
 def test_posting_multiple_assets(client):
     """We can only send one at a time"""
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
+    with UserContext("test_admin_user@seita.nl") as prosumer:
         auth_token = prosumer.get_auth_token()
     post_data1 = get_asset_post_data()
     post_data2 = get_asset_post_data()
@@ -193,9 +196,12 @@ def test_posting_multiple_assets(client):
 
 def test_post_an_asset(client):
     """
-    Post one extra asset, as the prosumer user (an admin).
+    Post one extra asset, as an admin user.
+    TODO: Soon we'll allow creating assets on an account-basis, i.e. for users
+          who have the user role "account-admin" or sthg similar. Then we'll
+          test that here.
     """
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     post_data = get_asset_post_data()
     post_assets_response = client.post(
         url_for("flexmeasures_api_v2_0.post_assets"),
@@ -216,10 +222,10 @@ def test_post_an_asset_with_invalid_data(client, db):
     Add an asset with some fields having invalid data and one field missing.
     The right error messages should be in the response and the number of assets has not increased.
     """
-    with UserContext("test_prosumer_user@seita.nl") as prosumer:
+    with UserContext("test_admin_user@seita.nl") as prosumer:
         num_assets_before = len(prosumer.assets)
 
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
 
     post_data = get_asset_post_data()
     post_data["latitude"] = 70.4
@@ -259,7 +265,7 @@ def test_edit_an_asset(client, db):
         existing_asset = prosumer.assets[1]
 
     post_data = dict(latitude=10, id=999)  # id will be ignored
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     edit_asset_response = client.patch(
         url_for("flexmeasures_api_v2_0.patch_asset", id=existing_asset.id),
         json=post_data,
@@ -277,7 +283,7 @@ def test_delete_an_asset(client, db):
     with UserContext("test_prosumer_user@seita.nl") as prosumer:
         existing_asset_id = prosumer.assets[0].id
 
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     delete_asset_response = client.delete(
         url_for("flexmeasures_api_v2_0.delete_asset", id=existing_asset_id),
         headers={"content-type": "application/json", "Authorization": auth_token},

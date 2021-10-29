@@ -160,6 +160,21 @@ def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> Dict[str, U
 def create_roles_users(db, test_accounts) -> Dict[str, User]:
     """Create a minimal set of roles and users"""
     new_users: List[User] = []
+    # One platform admin
+    new_users.append(
+        create_user(
+            username="Test Admin User",
+            email="test_admin_user@seita.nl",
+            account_name=test_accounts[
+                "Dummy"
+            ].name,  # the account does not give rights
+            password=hash_password("testtest"),
+            user_roles=dict(
+                name=ADMIN_ROLE, description="A user who can do everything."
+            ),
+        )
+    )
+    # Two Prosumer users
     new_users.append(
         create_user(
             username="Test Prosumer User",
@@ -167,7 +182,7 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             account_name=test_accounts["Prosumer"].name,
             password=hash_password("testtest"),
             # TODO: test some normal user roles later in our auth progress
-            # user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
+            # user_roles=dict(name="", description=""),
         )
     )
     new_users.append(
@@ -178,9 +193,10 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             password=hash_password("testtest"),
             # TODO: Test some normal user roles later in our auth progress.
             #       This user will then differ from the user above
-            # user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
+            # user_roles=dict(name="", description=""),
         )
     )
+    # A user on an account without any special rights
     new_users.append(
         create_user(
             username="Test Dummy User",

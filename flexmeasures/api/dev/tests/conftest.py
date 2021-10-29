@@ -2,7 +2,6 @@ from datetime import timedelta
 
 import pytest
 
-from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 
@@ -14,7 +13,6 @@ def setup_api_test_data(db, setup_roles_users):
     """
     print("Setting up data for API v2.0 tests on %s" % db.engine)
     add_gas_sensor(db, setup_roles_users["Test Prosumer User 2"])
-    move_user2_to_supplier()
 
 
 @pytest.fixture(scope="function")
@@ -26,7 +24,6 @@ def setup_api_fresh_test_data(fresh_db, setup_roles_users_fresh_db):
     for sensor in Sensor.query.all():
         fresh_db.delete(sensor)
     add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test Prosumer User 2"])
-    move_user2_to_supplier()
 
 
 def add_gas_sensor(db, test_supplier):
@@ -50,16 +47,3 @@ def add_gas_sensor(db, test_supplier):
     )
     db.session.add(gas_sensor)
     gas_sensor.owner = test_supplier
-
-
-def move_user2_to_supplier():
-    """
-    move the user 2 to the supplier account
-    """
-    supplier_account = Account.query.filter(
-        Account.name == "Test Supplier Account"
-    ).one_or_none()
-    user2 = User.query.filter(
-        User.email == "test_prosumer_user_2@seita.nl"
-    ).one_or_none()
-    user2.account = supplier_account
