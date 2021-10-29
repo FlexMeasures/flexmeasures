@@ -53,14 +53,14 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     # Create a test user without a USEF role
     create_user(
         username="test user without roles",
-        email="test_user@seita.nl",
+        email="test_prosumer_user@seita.nl",
         password=hash_password("testtest"),
         account_name=setup_accounts["Prosumer"].name,
     )
     """
 
     # Create 5 test assets for the test user
-    test_user = setup_roles_users["Test User"]
+    test_user = setup_roles_users["Test Prosumer User"]
     asset_names = ["CS 1", "CS 2", "CS 3", "CS 4", "CS 5"]
     assets: List[Asset] = []
     for asset_name in asset_names:
@@ -84,7 +84,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     user1_data_source = DataSource.query.filter(
         DataSource.user == test_user
     ).one_or_none()
-    test_user_2 = setup_roles_users["Test User 2"]
+    test_user_2 = setup_roles_users["Test Prosumer User 2"]
     user2_data_source = DataSource.query.filter(
         DataSource.user == test_user_2
     ).one_or_none()
@@ -120,7 +120,7 @@ def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.data.models.assets import Asset, AssetType
 
     # Create 5 test assets for the test_prosumer user
-    test_user = setup_roles_users["Test User"]
+    test_user = setup_roles_users["Test Prosumer User"]
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
     asset_names = ["CS 1", "CS 2", "CS 3", "CS 4", "CS 5"]

@@ -66,7 +66,7 @@ def setup_fresh_test_data(
             unit="MW",
             market_id=setup_markets["epex_da"].id,
         )
-        asset.owner = setup_roles_users["Test User"]
+        asset.owner = setup_roles_users["Test Prosumer User"]
         db.session.add(asset)
 
         time_slots = pd.date_range(

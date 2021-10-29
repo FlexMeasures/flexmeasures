@@ -9,8 +9,8 @@ from flexmeasures.data.services.users import find_user_by_email
     "sender",
     (
         (""),
-        ("test_user_2@seita.nl"),
-        ("test_user@seita.nl"),
+        ("test_prosumer_user_2@seita.nl"),
+        ("test_prosumer_user@seita.nl"),
         ("inactive@seita.nl"),
     ),
 )
@@ -19,7 +19,7 @@ def test_user_reset_password(app, client, setup_inactive_user, sender):
     Reset the password of User 2.
     Only User 1 (as admin) and User 2 themselves are allowed to do that.
     """
-    with UserContext("test_user_2@seita.nl") as user2:
+    with UserContext("test_prosumer_user_2@seita.nl") as user2:
         user2_id = user2.id
         old_password = user2.password
     headers = {"content-type": "application/json"}
@@ -39,7 +39,7 @@ def test_user_reset_password(app, client, setup_inactive_user, sender):
 
         assert pwd_reset_response.status_code == 200
 
-        user2 = find_user_by_email("test_user_2@seita.nl")
+        user2 = find_user_by_email("test_prosumer_user_2@seita.nl")
         assert len(outbox) == 2
         assert "has been reset" in outbox[0].subject
         pwd_reset_instructions = outbox[1]

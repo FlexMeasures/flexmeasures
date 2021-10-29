@@ -62,7 +62,7 @@ def test_unauthorized_prognosis_request(client):
     ],
 )
 def test_invalid_horizon(setup_api_test_data, client, message):
-    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("flexmeasures_api_v1_1.get_prognosis"),
         query_string=message,
@@ -75,7 +75,7 @@ def test_invalid_horizon(setup_api_test_data, client, message):
 
 
 def test_no_data(setup_api_test_data, client):
-    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("flexmeasures_api_v1_1.get_prognosis"),
         query_string=message_replace_name_with_ea(
@@ -102,7 +102,7 @@ def test_no_data(setup_api_test_data, client):
     ],
 )
 def test_get_prognosis(setup_api_test_data, client, message):
-    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("flexmeasures_api_v1_1.get_prognosis"),
         query_string=message_replace_name_with_ea(message),
@@ -132,7 +132,7 @@ def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message
     # after-effects in the database after teardown committed.
     with app.test_client() as client:
         # post price data
-        auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         post_price_data_response = client.post(
             url_for("flexmeasures_api_v1_1.post_price_data"),
             json=post_message,
@@ -167,7 +167,7 @@ def test_post_price_data_invalid_unit(setup_api_test_data, client, post_message)
     """
 
     # post price data
-    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_price_data_response = client.post(
         url_for("flexmeasures_api_v1_1.post_price_data"),
         json=post_message,
@@ -199,7 +199,7 @@ def test_post_weather_forecasts(
     assert len(get_forecasting_jobs("Weather")) == 0
 
     # post weather data
-    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_weather_data_response = client.post(
         url_for("flexmeasures_api_v1_1.post_weather_data"),
         json=post_message,
@@ -222,7 +222,7 @@ def test_post_weather_forecasts_invalid_unit(setup_api_test_data, client, post_m
     """
 
     # post weather data
-    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_weather_data_response = client.post(
         url_for("flexmeasures_api_v1_1.post_weather_data"),
         json=post_message,

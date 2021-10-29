@@ -13,7 +13,7 @@ def as_prosumer_user1(client):
     """
     Login the default test prosumer and log him out afterwards.
     """
-    login(client, "test_user@seita.nl", "testtest")
+    login(client, "test_prosumer_user@seita.nl", "testtest")
     yield
     logout(client)
 
@@ -52,7 +52,7 @@ def setup_ui_test_data(
     )
 
     test_user_ui = create_user(
-        username=" Test User UI",
+        username=" Test Prosumer User UI",
         email="test_user_ui@seita.nl",
         password=hash_password("testtest"),
         account_name=setup_accounts["Prosumer"].name,

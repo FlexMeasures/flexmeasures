@@ -43,7 +43,7 @@ def test_new_asset_page(client, setup_assets, as_admin):
 
 
 def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
-    user = find_user_by_email("test_user@seita.nl")
+    user = find_user_by_email("test_prosumer_user@seita.nl")
     asset = user.assets[0]
     db.session.expunge(user)
     mock_asset = mock_asset_response(as_list=False)
@@ -82,7 +82,7 @@ def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
 
 def test_add_asset(db, client, setup_assets, requests_mock, as_admin):
     """Add a new asset"""
-    user = find_user_by_email("test_user@seita.nl")
+    user = find_user_by_email("test_prosumer_user@seita.nl")
     mock_asset = mock_asset_response(owner_id=user.id, as_list=False)
     requests_mock.post(
         "http://localhost//api/v2_0/assets", status_code=201, json=mock_asset

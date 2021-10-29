@@ -13,7 +13,7 @@ def setup_api_test_data(db, setup_roles_users):
     Set up data for API dev tests.
     """
     print("Setting up data for API v2.0 tests on %s" % db.engine)
-    add_gas_sensor(db, setup_roles_users["Test User 2"])
+    add_gas_sensor(db, setup_roles_users["Test Prosumer User 2"])
     move_user2_to_supplier()
 
 
@@ -25,7 +25,7 @@ def setup_api_fresh_test_data(fresh_db, setup_roles_users_fresh_db):
     print("Setting up fresh data for API dev tests on %s" % fresh_db.engine)
     for sensor in Sensor.query.all():
         fresh_db.delete(sensor)
-    add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test User 2"])
+    add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test Prosumer User 2"])
     move_user2_to_supplier()
 
 
@@ -59,5 +59,7 @@ def move_user2_to_supplier():
     supplier_account = Account.query.filter(
         Account.name == "Test Supplier Account"
     ).one_or_none()
-    user2 = User.query.filter(User.email == "test_user_2@seita.nl").one_or_none()
+    user2 = User.query.filter(
+        User.email == "test_prosumer_user_2@seita.nl"
+    ).one_or_none()
     user2.account = supplier_account

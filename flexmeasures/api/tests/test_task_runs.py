@@ -14,7 +14,7 @@ from flexmeasures.auth.error_handling import (
 
 def test_api_task_run_post_unauthorized_wrong_role(client):
     url = url_for("flexmeasures_api_ops.post_task_run")
-    auth_token = get_auth_token(client, "test_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_req_params = dict(
         query_string={"name": "my-task"}, headers={"Authorization": auth_token}
     )

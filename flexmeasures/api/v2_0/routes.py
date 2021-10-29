@@ -373,7 +373,7 @@ def get_users():
                 'flexmeasures_roles': [1, 3],
                 'id': 1,
                 'timezone': 'Europe/Amsterdam',
-                'username': 'Test User'
+                'username': 'Test Prosumer User'
             }
         ]
 
@@ -410,7 +410,7 @@ def get_user(id: int):
             'flexmeasures_roles': [1, 3],
             'id': 1,
             'timezone': 'Europe/Amsterdam',
-            'username': 'Test User'
+            'username': 'Test Prosumer User'
         }
 
     :reqheader Authorization: The authentication token
@@ -460,7 +460,7 @@ def patch_user(id: int):
             'flexmeasures_roles': [1, 3],
             'id': 1,
             'timezone': 'Europe/Amsterdam',
-            'username': 'Test User'
+            'username': 'Test Prosumer User'
         }
 
     :reqheader Authorization: The authentication token

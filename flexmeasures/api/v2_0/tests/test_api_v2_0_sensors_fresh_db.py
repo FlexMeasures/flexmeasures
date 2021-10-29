@@ -35,7 +35,7 @@ def test_post_price_data_2_0(
     # after-effects in the database after teardown committed.
     with app.test_client() as client:
         # post price data
-        auth_token = get_auth_token(client, "test_user_2@seita.nl", "testtest")
+        auth_token = get_auth_token(client, "test_prosumer_user_2@seita.nl", "testtest")
         post_price_data_response = client.post(
             url_for("flexmeasures_api_v2_0.post_price_data"),
             json=post_message,

@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import pytest
 from random import random
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import List, Dict
 
 from isodate import parse_duration
 import pandas as pd
@@ -159,33 +159,37 @@ def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> Dict[str, U
 
 def create_roles_users(db, test_accounts) -> Dict[str, User]:
     """Create a minimal set of roles and users"""
-    test_user = create_user(
-        username="Test User",
-        email="test_user@seita.nl",
-        account_name=test_accounts["Prosumer"].name,
-        password=hash_password("testtest"),
-        # TODO: test some normal user roles later in our auth progress
-        # user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
+    new_users: List[User] = []
+    new_users.append(
+        create_user(
+            username="Test Prosumer User",
+            email="test_prosumer_user@seita.nl",
+            account_name=test_accounts["Prosumer"].name,
+            password=hash_password("testtest"),
+            # TODO: test some normal user roles later in our auth progress
+            # user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
+        )
     )
-    test_user_2 = create_user(
-        username="Test User 2",
-        email="test_user_2@seita.nl",
-        account_name=test_accounts["Prosumer"].name,
-        password=hash_password("testtest"),
-        # TODO: test some normal user roles later in our auth progress
-        # user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
+    new_users.append(
+        create_user(
+            username="Test Prosumer User 2",
+            email="test_prosumer_user_2@seita.nl",
+            account_name=test_accounts["Prosumer"].name,
+            password=hash_password("testtest"),
+            # TODO: Test some normal user roles later in our auth progress.
+            #       This user will then differ from the user above
+            # user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
+        )
     )
-    test_user_3 = create_user(
-        username="Test User 3",
-        email="test_user_3@seita.nl",
-        account_name=test_accounts["Dummy"].name,
-        password=hash_password("testtest"),
+    new_users.append(
+        create_user(
+            username="Test Dummy User",
+            email="test_dummy_user_3@seita.nl",
+            account_name=test_accounts["Dummy"].name,
+            password=hash_password("testtest"),
+        )
     )
-    return {
-        "Test User": test_user,
-        "Test User 2": test_user_2,
-        "Test User 3": test_user_3,
-    }
+    return {user.username: user for user in new_users}
 
 
 @pytest.fixture(scope="module")
@@ -301,7 +305,7 @@ def setup_assets(
             unit="MW",
             market_id=setup_markets["epex_da"].id,
         )
-        asset.owner = setup_roles_users["Test User"]
+        asset.owner = setup_roles_users["Test Prosumer User"]
         db.session.add(asset)
         assets.append(asset)
 
@@ -447,7 +451,7 @@ def create_test_battery_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    test_battery.owner = setup_roles_users["Test User"]
+    test_battery.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(test_battery)
 
     test_battery_no_prices = Asset(
@@ -465,7 +469,7 @@ def create_test_battery_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    test_battery_no_prices.owner = setup_roles_users["Test User"]
+    test_battery_no_prices.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(test_battery_no_prices)
     return {
         "Test battery": test_battery,
@@ -518,7 +522,7 @@ def add_charging_station_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    charging_station.owner = setup_roles_users["Test User"]
+    charging_station.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(charging_station)
 
     bidirectional_charging_station = Asset(
@@ -536,7 +540,7 @@ def add_charging_station_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    bidirectional_charging_station.owner = setup_roles_users["Test User"]
+    bidirectional_charging_station.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(bidirectional_charging_station)
     return {
         "Test charging station": charging_station,

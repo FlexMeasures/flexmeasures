@@ -58,7 +58,7 @@ def test_create_invalid_user(
     """
     with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
         create_user(
-            email="test_user@seita.nl",
+            email="test_prosumer_user@seita.nl",
             password=hash_password("testtest"),
             account_name=setup_accounts_fresh_db["Prosumer"].name,
         )
@@ -66,7 +66,7 @@ def test_create_invalid_user(
     with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
         create_user(
             email="new_user@seita.nl",
-            username="Test User",
+            username="Test Prosumer User",
             password=hash_password("testtest"),
             account_name=setup_accounts_fresh_db["Prosumer"].name,
         )
@@ -74,7 +74,7 @@ def test_create_invalid_user(
     with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
         create_user(
             email="new_user@seita.nl",
-            username="New Test User",
+            username="New Test Prosumer User",
             password=hash_password("testtest"),
         )
     assert "without knowing the name of the account" in str(exc_info.value)
@@ -82,7 +82,7 @@ def test_create_invalid_user(
 
 def test_delete_user(fresh_db, setup_roles_users_fresh_db, app):
     """Assert user has assets and power measurements. Deleting removes all of that."""
-    prosumer: User = find_user_by_email("test_user@seita.nl")
+    prosumer: User = find_user_by_email("test_prosumer_user@seita.nl")
     num_users_before = User.query.count()
     user_assets_with_measurements_before = Asset.query.filter(
         Asset.owner_id == prosumer.id, Asset.asset_type_name.in_(["wind", "solar"])
@@ -92,7 +92,7 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, app):
         num_power_measurements = Power.query.filter(Power.asset_id == asset_id).count()
         assert num_power_measurements == 96
     delete_user(prosumer)
-    assert find_user_by_email("test_user@seita.nl") is None
+    assert find_user_by_email("test_prosumer_user@seita.nl") is None
     user_assets_after = Asset.query.filter(Asset.owner_id == prosumer.id).all()
     assert len(user_assets_after) == 0
     assert User.query.count() == num_users_before - 1

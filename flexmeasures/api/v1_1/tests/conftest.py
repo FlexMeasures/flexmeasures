@@ -31,7 +31,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     )
 
     # Create 3 test assets for the test_user
-    test_user = setup_roles_users["Test User"]
+    test_user = setup_roles_users["Test Prosumer User"]
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
     asset_names = ["CS 1", "CS 2", "CS 3"]

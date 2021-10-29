@@ -18,10 +18,10 @@ def setup_api_test_data(db, setup_roles_users, add_market_prices, add_battery_as
 
     # Add battery asset
     battery = add_battery_assets["Test battery"]
-    battery.owner = setup_roles_users["Test User 2"]
+    battery.owner = setup_roles_users["Test Prosumer User 2"]
 
     # Make the test user an admin
-    test_user = user_datastore.find_user(email="test_user@seita.nl")
+    test_user = user_datastore.find_user(email="test_prosumer_user@seita.nl")
     admin_role = user_datastore.create_role(name=ADMIN_ROLE, description="God powers")
     user_datastore.add_role_to_user(test_user, admin_role)
 
