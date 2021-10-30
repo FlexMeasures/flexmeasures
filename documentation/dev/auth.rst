@@ -3,7 +3,7 @@
 Custom authorization
 ======================
 
-Section :ref:`auth` describes general authentication and authorization handling in FlexMeasures. However, custom energy flexibility services developed on top of FlexMeasures probably also want to their custom authorization. 
+Our :ref:`auth` section describes general authentication and authorization handling in FlexMeasures. However, custom energy flexibility services developed on top of FlexMeasures probably also need their custom authorization. 
 
 One means for this is to define custom account roles. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role. To make sure that only users of such accounts can use the endpoints:
 
@@ -16,7 +16,7 @@ One means for this is to define custom account roles. E.g. if several services r
 
 .. note:: This endpoint decorator lists required roles, so the authenticated user's account needs to have each role. You can also use the ``account_roles_accepted`` decorator. Then the user's account only needs to have at least one of the roles.
 
-There is also decorators to check user roles:
+There are also decorators to check user roles:
 
 .. code-block:: python 
 

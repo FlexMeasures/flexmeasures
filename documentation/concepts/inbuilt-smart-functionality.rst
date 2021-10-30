@@ -6,7 +6,7 @@
 In-built smart functionality 
 **************************************************
 
-The main purpose of the FlexMeasures platform is to serve as a basis to rapidly built energy flexibility services.
+The main purpose of the FlexMeasures platform is to serve as a basis to rapidly build energy flexibility services.
 Much software architecture and wiring groundwork is already included for this purpose, like an API, support for plotting and multi-tenancy and extensibility.
 
 That said, several smart features come with FlexMeasures. Once the sensor structure and data is in place, they should be usable without much coding.

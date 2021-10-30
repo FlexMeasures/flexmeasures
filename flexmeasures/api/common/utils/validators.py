@@ -60,7 +60,7 @@ p = inflect.engine()
 def validate_user_sources(sources: Union[int, str, List[Union[int, str]]]) -> List[int]:
     """
     Return a list of user-based data source ids, given:
-    - one ore more user ids
+    - one or more user ids
     - one or more account role names
     """
     sources = (

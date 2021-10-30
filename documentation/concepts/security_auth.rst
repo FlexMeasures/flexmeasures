@@ -6,14 +6,13 @@ Security aspects
 Data
 -------
 
-There are two types of data on FlexMeasures servers - files (e.g. source code, images) and data in a database (e.g. user
-data and time series for energy consumption/generation or weather).
+There are two types of data on FlexMeasures servers - files (e.g. source code, images) and data in a database (e.g. user data and time series for energy consumption/generation or weather).
 
 * Files are stored on EBS volumes on Amazon Web Services. These are shared with other customers of Amazon, but protected from them by Linux's chroot system -- each user can see only the files in their own section of the disk.
 
 * Database data is stored in PostgresDB instances which are not shared with other Amazon customers. They are password-protected.
 
-* Finally, The application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security. This is used even if the application is accessed via `http://`.
+* Finally, The application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security. This is used even if the application is accessed via ``http://``.
 
 
 .. _auth:
@@ -31,10 +30,10 @@ This involves a username/password combination ("credentials") or an access token
 .. note:: Authentication (and authorization, see below) affects the FlexMeasures API and UI. The CLI (command line interface) can only be used if the user is already on the server and can execute ``flexmeasures`` commands, thus we can safely assume they are admins.
 
 
-Authorisation
+Authorization
 --------------
 
-*Authorisation* is the system by which the FlexMeasures platform decides whether an authenticated user can access a feature. For instance, many features are reserved for administrators, others for users belonging to certain accounts. An example for the latter is that a user might need to belong to an account with the "Prosumer" account role (usually the owner of assets).
+*Authorization* is the system by which the FlexMeasures platform decides whether an authenticated user can access a feature. For instance, many features are reserved for administrators, others for users belonging to certain accounts. An example for the latter is that a user might need to belong to an account with the "Prosumer" account role (usually the owner of assets).
 
 .. note:: Each user belongs to exactly one account.
 
@@ -43,7 +42,7 @@ Authorisation
 All other authorization is achieved via *roles*. 
 
 * Account roles are most commonly used for deciding who can access a resource (usually guarded by an API endpoint). We support several roles which are mentioned in the USEF framework but more roles are possible (e.g. defined by customer services, see below). 
-* User roles give a user personal authorizations. For instance, we have a few `admin`s who can perform all actions, and `admin-reader`s who can read everything. Other roles have only an effect within the user's account.
+* User roles give a user personal authorizations. For instance, we have a few `admin`\ s who can perform all actions, and `admin-reader`\s who can read everything. Other roles have only an effect within the user's account.
 * Roles cannot be edited via the UI at the moment. They are decided when a user or account is created in the CLI (for adding roles later, we use the database for now). Editing roles in UI and CLI is future work.
 
 .. note:: Custom energy flexibility services developed on top of FlexMeasures can use account roles to achieve their custom authorization. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role, to make sure that only users of such accounts can use the endpoints. More on this in :ref:`auth-dev`.
