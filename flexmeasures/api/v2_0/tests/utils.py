@@ -25,7 +25,7 @@ def get_asset_post_data() -> dict:
         "latitude": 30.1,
         "longitude": 100.42,
         "asset_type_name": "battery",
-        "owner_id": find_user_by_email("test_prosumer@seita.nl").id,
+        "owner_id": find_user_by_email("test_prosumer_user@seita.nl").id,
         "market_id": Market.query.filter_by(name="epex_da").one_or_none().id,
     }
     return post_data

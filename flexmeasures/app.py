@@ -102,6 +102,12 @@ def create(
 
     register_db_at(app)
 
+    # add auth policy
+
+    from flexmeasures.auth import register_at as register_auth_at
+
+    register_auth_at(app)
+
     # Register the CLI
 
     from flexmeasures.cli import register_at as register_cli_at

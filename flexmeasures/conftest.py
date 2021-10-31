@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import pytest
 from random import random
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import List, Dict
 
 from isodate import parse_duration
 import pandas as pd
@@ -20,6 +20,7 @@ from werkzeug.exceptions import (
 )
 
 from flexmeasures.app import create as create_app
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset, Power
@@ -28,7 +29,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.markets import Market, MarketType, Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.user import User, Account
+from flexmeasures.data.models.user import User, Account, AccountRole
 
 
 """
@@ -112,48 +113,99 @@ def create_test_db(app):
 
 
 @pytest.fixture(scope="module")
-def setup_account(db) -> Dict[str, Account]:
-    return create_test_account(db)
+def setup_accounts(db) -> Dict[str, Account]:
+    return create_test_accounts(db)
 
 
 @pytest.fixture(scope="function")
-def setup_account_fresh_db(fresh_db) -> Dict[str, Account]:
-    return create_test_account(fresh_db)
+def setup_accounts_fresh_db(fresh_db) -> Dict[str, Account]:
+    return create_test_accounts(fresh_db)
 
 
-def create_test_account(db) -> Dict[str, Account]:
-    test_account = Account(name="Test Account")
-    db.session.add(test_account)
-    return test_account
+def create_test_accounts(db) -> Dict[str, Account]:
+    prosumer_account_role = AccountRole(name="Prosumer", description="A Prosumer")
+    prosumer_account = Account(
+        name="Test Prosumer Account", account_roles=[prosumer_account_role]
+    )
+    db.session.add(prosumer_account)
+    supplier_account_role = AccountRole(
+        name="Supplier", description="A supplier trading on markets"
+    )
+    supplier_account = Account(
+        name="Test Supplier Account", account_roles=[supplier_account_role]
+    )
+    db.session.add(supplier_account)
+    dummy_account_role = AccountRole(
+        name="Dummy", description="A role we haven't hardcoded anywhere"
+    )
+    dummy_account = Account(
+        name="Test Dummy Account", account_roles=[dummy_account_role]
+    )
+    db.session.add(dummy_account)
+    return dict(
+        Prosumer=prosumer_account, Supplier=supplier_account, Dummy=dummy_account
+    )
 
 
 @pytest.fixture(scope="module")
-def setup_roles_users(db, setup_account) -> Dict[str, User]:
-    return create_roles_users(db, setup_account)
+def setup_roles_users(db, setup_accounts) -> Dict[str, User]:
+    return create_roles_users(db, setup_accounts)
 
 
 @pytest.fixture(scope="function")
-def setup_roles_users_fresh_db(fresh_db, setup_account_fresh_db) -> Dict[str, User]:
-    return create_roles_users(fresh_db, setup_account_fresh_db)
+def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> Dict[str, User]:
+    return create_roles_users(fresh_db, setup_accounts_fresh_db)
 
 
-def create_roles_users(db, test_account) -> Dict[str, User]:
+def create_roles_users(db, test_accounts) -> Dict[str, User]:
     """Create a minimal set of roles and users"""
-    test_prosumer = create_user(
-        username="Test Prosumer",
-        email="test_prosumer@seita.nl",
-        account_name=test_account.name,
-        password=hash_password("testtest"),
-        user_roles=dict(name="Prosumer", description="A Prosumer with a few assets."),
+    new_users: List[User] = []
+    # Two Prosumer users
+    new_users.append(
+        create_user(
+            username="Test Prosumer User",
+            email="test_prosumer_user@seita.nl",
+            account_name=test_accounts["Prosumer"].name,
+            password=hash_password("testtest"),
+            # TODO: test some normal user roles later in our auth progress
+            # user_roles=dict(name="", description=""),
+        )
     )
-    test_supplier = create_user(
-        username="Test Supplier",
-        email="test_supplier@seita.nl",
-        account_name=test_account.name,
-        password=hash_password("testtest"),
-        user_roles=dict(name="Supplier", description="A Supplier trading on markets."),
+    new_users.append(
+        create_user(
+            username="Test Prosumer User 2",
+            email="test_prosumer_user_2@seita.nl",
+            account_name=test_accounts["Prosumer"].name,
+            password=hash_password("testtest"),
+            # TODO: Test some normal user roles later in our auth progress.
+            #       This user will then differ from the user above
+            # user_roles=dict(name="", description=""),
+        )
     )
-    return {"Test Prosumer": test_prosumer, "Test Supplier": test_supplier}
+    # A user on an account without any special rights
+    new_users.append(
+        create_user(
+            username="Test Dummy User",
+            email="test_dummy_user_3@seita.nl",
+            account_name=test_accounts["Dummy"].name,
+            password=hash_password("testtest"),
+        )
+    )
+    # One platform admin
+    new_users.append(
+        create_user(
+            username="Test Admin User",
+            email="test_admin_user@seita.nl",
+            account_name=test_accounts[
+                "Dummy"
+            ].name,  # the account does not give rights
+            password=hash_password("testtest"),
+            user_roles=dict(
+                name=ADMIN_ROLE, description="A user who can do everything."
+            ),
+        )
+    )
+    return {user.username: user for user in new_users}
 
 
 @pytest.fixture(scope="module")
@@ -269,7 +321,7 @@ def setup_assets(
             unit="MW",
             market_id=setup_markets["epex_da"].id,
         )
-        asset.owner = setup_roles_users["Test Prosumer"]
+        asset.owner = setup_roles_users["Test Prosumer User"]
         db.session.add(asset)
         assets.append(asset)
 
@@ -415,7 +467,7 @@ def create_test_battery_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    test_battery.owner = setup_roles_users["Test Prosumer"]
+    test_battery.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(test_battery)
 
     test_battery_no_prices = Asset(
@@ -433,7 +485,7 @@ def create_test_battery_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    test_battery_no_prices.owner = setup_roles_users["Test Prosumer"]
+    test_battery_no_prices.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(test_battery_no_prices)
     return {
         "Test battery": test_battery,
@@ -486,7 +538,7 @@ def add_charging_station_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    charging_station.owner = setup_roles_users["Test Prosumer"]
+    charging_station.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(charging_station)
 
     bidirectional_charging_station = Asset(
@@ -504,7 +556,7 @@ def add_charging_station_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    bidirectional_charging_station.owner = setup_roles_users["Test Prosumer"]
+    bidirectional_charging_station.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(bidirectional_charging_station)
     return {
         "Test charging station": charging_station,
@@ -592,6 +644,6 @@ def error_endpoints(app):
         return jsonify({"message": "Nothing bad happened."}), 200
 
     @app.route("/protected-endpoint-only-for-admins")
-    @roles_accepted("admin")
+    @roles_accepted(ADMIN_ROLE)
     def vips_only():
         return jsonify({"message": "Nothing bad happened."}), 200

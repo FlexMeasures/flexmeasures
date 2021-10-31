@@ -26,10 +26,10 @@ class AssetSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
         owner = User.query.get(owner_id)
         if not owner:
             raise ValidationError(f"Owner with id {owner_id} doesn't exist.")
-        if "Prosumer" not in owner.flexmeasures_roles:
+        if not owner.account.has_role("Prosumer"):
             raise ValidationError(
-                "Asset owner must have role 'Prosumer'."
-                f" User {owner_id} has roles {[r.name for r in owner.flexmeasures_roles]}."
+                "Asset owner's account must have role 'Prosumer'."
+                f" User {owner_id}'s account has roles: {'.'.join([r.name for r in owner.account.account_roles])}."
             )
 
     @validates("market_id")

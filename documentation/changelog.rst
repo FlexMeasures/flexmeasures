@@ -13,6 +13,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Account-based authorization, incl. new decorators for endpoints [see `PR #210 <http://www.github.com/SeitaBV/flexmeasures/pull/210>`_]
 
 
 v0.7.0 | October 26, 2021

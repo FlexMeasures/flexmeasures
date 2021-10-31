@@ -34,7 +34,6 @@ from flexmeasures.api.common.utils.validators import (
     type_accepted,
     assets_required,
     optional_duration_accepted,
-    usef_roles_accepted,
     units_accepted,
     parse_isodate_str,
 )
@@ -184,7 +183,6 @@ def get_device_message_response(generic_asset_name_groups, duration):
     return dict(**response, **d), s
 
 
-@usef_roles_accepted("Prosumer")  # noqa: C901
 @type_accepted("PostUdiEventRequest")
 @units_accepted("State of charge", "kWh", "MWh")
 @as_json

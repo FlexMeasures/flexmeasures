@@ -4,7 +4,7 @@ from flask import Flask
 from werkzeug.exceptions import BadRequest, InternalServerError, HTTPException
 
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
-from flexmeasures.data import auth_setup
+from flexmeasures.auth import error_handling as auth_error_handling
 
 
 def add_html_error_views(app: Flask):
@@ -76,10 +76,10 @@ def unauthenticated_handler():
     return (
         render_flexmeasures_template(
             "error.html",
-            error_class=auth_setup.UNAUTH_ERROR_CLASS,
-            error_message=auth_setup.UNAUTH_MSG,
+            error_class=auth_error_handling.UNAUTH_ERROR_CLASS,
+            error_message=auth_error_handling.UNAUTH_MSG,
         ),
-        auth_setup.UNAUTH_STATUS_CODE,
+        auth_error_handling.UNAUTH_STATUS_CODE,
     )
 
 
@@ -88,8 +88,8 @@ def unauthorized_handler():
     return (
         render_flexmeasures_template(
             "error.html",
-            error_class=auth_setup.FORBIDDEN_ERROR_CLASS,
-            error_message=auth_setup.FORBIDDEN_MSG,
+            error_class=auth_error_handling.FORBIDDEN_ERROR_CLASS,
+            error_message=auth_error_handling.FORBIDDEN_MSG,
         ),
-        auth_setup.FORBIDDEN_STATUS_CODE,
+        auth_error_handling.FORBIDDEN_STATUS_CODE,
     )

@@ -7,6 +7,7 @@ from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.models.time_series import Sensor
 
@@ -66,12 +67,12 @@ class SensorAPI(FlaskView):
 
 def get_sensor_or_abort(id: int) -> Sensor:
     sensor = Sensor.query.filter(Sensor.id == id).one_or_none()
+    if sensor is None:
+        raise abort(404, f"Sensor {id} not found")
     if not (
-        current_user.has_role("admin")
+        current_user.has_role(ADMIN_ROLE)
         or sensor.generic_asset.owner is None  # public
         or sensor.generic_asset.owner == current_user.account  # private but authorized
     ):
         raise abort(403)
-    if sensor is None:
-        raise abort(404, f"Sensor {id} not found")
     return sensor

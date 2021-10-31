@@ -8,7 +8,7 @@ from flask_security.utils import hash_password
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_api_test_data(db, setup_account, setup_roles_users):
+def setup_api_test_data(db, setup_accounts, setup_roles_users):
     """
     Adding the task-runner
     """
@@ -31,7 +31,7 @@ def setup_api_test_data(db, setup_account, setup_roles_users):
         username="test user",
         email="task_runner@seita.nl",
         password=hash_password("testtest"),
-        account_id=setup_account.id,
+        account_id=setup_accounts["Prosumer"].id,
     )
     user_datastore.add_role_to_user(test_task_runner, test_task_runner_role)
 

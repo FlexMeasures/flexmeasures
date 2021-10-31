@@ -8,6 +8,7 @@ from wtforms import StringField, FloatField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired
 from flask_security import roles_required, login_required
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.data.config import db
 from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
@@ -75,7 +76,7 @@ class UserCrudUI(FlaskView):
     route_base = "/users"
     trailing_slash = False
 
-    @roles_required("admin")
+    @roles_required(ADMIN_ROLE)
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
@@ -92,7 +93,7 @@ class UserCrudUI(FlaskView):
             "crud/users.html", users=users, include_inactive=include_inactive
         )
 
-    @roles_required("admin")
+    @roles_required(ADMIN_ROLE)
     def get(self, id: str):
         """GET from /users/<id>"""
         get_user_response = InternalApi().get(
@@ -109,7 +110,7 @@ class UserCrudUI(FlaskView):
             asset_count = len(get_users_assets_response.json())
         return render_user(user, asset_count=asset_count)
 
-    @roles_required("admin")
+    @roles_required(ADMIN_ROLE)
     def toggle_active(self, id: str):
         """Toggle activation status via /users/toggle_active/<id>"""
         user: User = get_user(id)

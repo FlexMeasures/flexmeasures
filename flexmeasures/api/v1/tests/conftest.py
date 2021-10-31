@@ -10,7 +10,7 @@ from flexmeasures.data.services.users import create_user
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices):
+def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices):
     """
     Set up data for API v1 tests.
     """
@@ -19,14 +19,13 @@ def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices)
     from flexmeasures.data.models.assets import Asset, AssetType, Power
     from flexmeasures.data.models.data_sources import DataSource
 
-    # Create an anonymous user
-    test_anonymous_prosumer = create_user(
-        username="anonymous user with Prosumer role",
+    # Create an anonymous user TODO: used for demo purposes, maybe "demo-user" would be a better name
+    test_anonymous_user = create_user(
+        username="anonymous user",
         email="demo@seita.nl",
         password=hash_password("testtest"),
-        account_name=setup_account.name,
+        account_name=setup_accounts["Dummy"].name,
         user_roles=[
-            "Prosumer",
             dict(name="anonymous", description="Anonymous test user"),
         ],
     )
@@ -46,20 +45,22 @@ def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices)
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_anonymous_prosumer
+        asset.owner = test_anonymous_user
         assets.append(asset)
         db.session.add(asset)
 
+    """
     # Create a test user without a USEF role
     create_user(
         username="test user without roles",
-        email="test_user@seita.nl",
+        email="test_prosumer_user@seita.nl",
         password=hash_password("testtest"),
-        account_name=setup_account.name,
+        account_name=setup_accounts["Prosumer"].name,
     )
+    """
 
-    # Create 5 test assets for the test_prosumer user
-    test_prosumer = setup_roles_users["Test Prosumer"]
+    # Create 5 test assets for the test user
+    test_user = setup_roles_users["Test Prosumer User"]
     asset_names = ["CS 1", "CS 2", "CS 3", "CS 4", "CS 5"]
     assets: List[Asset] = []
     for asset_name in asset_names:
@@ -72,7 +73,7 @@ def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices)
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_prosumer
+        asset.owner = test_user
         if asset_name == "CS 4":
             asset.event_resolution = timedelta(hours=1)
         assets.append(asset)
@@ -80,12 +81,12 @@ def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices)
 
     # Add power forecasts to one of the assets, for two sources
     cs_5 = Asset.query.filter(Asset.name == "CS 5").one_or_none()
-    test_supplier = setup_roles_users["Test Supplier"]
-    prosumer_data_source = DataSource.query.filter(
-        DataSource.user == test_prosumer
+    user1_data_source = DataSource.query.filter(
+        DataSource.user == test_user
     ).one_or_none()
-    supplier_data_source = DataSource.query.filter(
-        DataSource.user == test_supplier
+    test_user_2 = setup_roles_users["Test Prosumer User 2"]
+    user2_data_source = DataSource.query.filter(
+        DataSource.user == test_user_2
     ).one_or_none()
     meter_data = []
     for i in range(6):
@@ -95,7 +96,7 @@ def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices)
             horizon=timedelta(0),
             value=(100.0 + i) * -1,
             asset_id=cs_5.id,
-            data_source_id=prosumer_data_source.id,
+            data_source_id=user1_data_source.id,
         )
         p_2 = Power(
             datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
@@ -103,7 +104,7 @@ def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices)
             horizon=timedelta(hours=0),
             value=(1000.0 - 10 * i) * -1,
             asset_id=cs_5.id,
-            data_source_id=supplier_data_source.id,
+            data_source_id=user2_data_source.id,
         )
         meter_data.append(p_1)
         meter_data.append(p_2)
@@ -119,7 +120,7 @@ def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.data.models.assets import Asset, AssetType
 
     # Create 5 test assets for the test_prosumer user
-    test_prosumer = setup_roles_users["Test Prosumer"]
+    test_user = setup_roles_users["Test Prosumer User"]
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
     asset_names = ["CS 1", "CS 2", "CS 3", "CS 4", "CS 5"]
@@ -134,7 +135,7 @@ def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_prosumer
+        asset.owner = test_user
         if asset_name == "CS 4":
             asset.event_resolution = timedelta(hours=1)
         assets.append(asset)
