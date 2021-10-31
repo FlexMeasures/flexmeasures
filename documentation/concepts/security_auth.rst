@@ -42,7 +42,7 @@ Authorization
 All other authorization is achieved via *roles*. 
 
 * Account roles are most commonly used for deciding who can access a resource (usually guarded by an API endpoint). We support several roles which are mentioned in the USEF framework but more roles are possible (e.g. defined by customer services, see below). 
-* User roles give a user personal authorizations. For instance, we have a few `admin`\ s who can perform all actions, and `admin-reader`\s who can read everything. Other roles have only an effect within the user's account.
+* User roles give a user personal authorizations. For instance, we have a few `admin`\ s who can perform all actions, and `admin-reader`\ s who can read everything. Other roles have only an effect within the user's account.
 * Roles cannot be edited via the UI at the moment. They are decided when a user or account is created in the CLI (for adding roles later, we use the database for now). Editing roles in UI and CLI is future work.
 
 .. note:: Custom energy flexibility services developed on top of FlexMeasures can use account roles to achieve their custom authorization. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role, to make sure that only users of such accounts can use the endpoints. More on this in :ref:`auth-dev`.
