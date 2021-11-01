@@ -14,6 +14,7 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * Account-based authorization, incl. new decorators for endpoints [see `PR #210 <http://www.github.com/SeitaBV/flexmeasures/pull/210>`_]
+* Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <http://www.github.com/SeitaBV/flexmeasures/pull/154>`_]
 
 
 v0.7.0 | October 26, 2021
@@ -93,7 +94,6 @@ Infrastructure / Support
 * Allow plugins to register multiple Flask blueprints [see `PR #171 <http://www.github.com/SeitaBV/flexmeasures/pull/171>`_]
 * Continue experimental integration with `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib: link multiple sensors to a single asset [see `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
 * The experimental parts of the data model can now be visualised, as well, via `make show-data-model` (add the --dev option in Makefile) [also in `PR #157 <https://github.com/SeitaBV/flexmeasures/pull/157>`_]
-
 
 
 v0.5.0 | June 7, 2021

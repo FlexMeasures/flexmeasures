@@ -321,7 +321,7 @@ threadpoolctl==2.1.0
     # via scikit-learn
 timely-beliefs==1.5.0
     # via -r requirements/app.in
-timetomodel==0.6.9
+timetomodel==0.7.1
     # via -r requirements/app.in
 tldextract==3.1.0
     # via -r requirements/app.in

@@ -204,7 +204,8 @@ def test_multiplication_with_both_empty_dataframe():
     pd.testing.assert_frame_equal(df, df_compare)
 
 
-def test_simplify_index(setup_test_data):
+@pytest.mark.parametrize("check_empty_frame", [True, False])
+def test_simplify_index(setup_test_data, check_empty_frame):
     """Check whether simplify_index retains the event resolution."""
     wind_device_1 = Asset.query.filter_by(name="wind-asset-1").one_or_none()
     bdf: tb.BeliefsDataFrame = Power.collect(
@@ -215,6 +216,9 @@ def test_simplify_index(setup_test_data):
         ),
         resolution=timedelta(minutes=15),
     )
+    if check_empty_frame:
+        # We empty the BeliefsDataFrame, which retains the metadata such as sensor and resolution
+        bdf = bdf.iloc[0:0, :]
     df = simplify_index(bdf)
     assert df.event_resolution == timedelta(minutes=15)
 
