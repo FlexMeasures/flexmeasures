@@ -92,7 +92,6 @@ def create_initial_model_specs(  # noqa: C901
 
     outcome_var_spec = DBSeriesSpecs(
         name=generic_asset_type.name,
-        db_engine=db.engine,
         query=generic_asset_value_class.make_query(
             asset_names=[generic_asset.name],
             query_window=query_window,
@@ -210,7 +209,6 @@ def configure_regressors_for_nearest_weather_sensor(
                 regressor_specs.append(
                     DBSeriesSpecs(
                         name=regressor_specs_name,
-                        db_engine=db.engine,
                         query=Weather.make_query(
                             asset_names=[closest_sensor.name],
                             query_window=query_window,
