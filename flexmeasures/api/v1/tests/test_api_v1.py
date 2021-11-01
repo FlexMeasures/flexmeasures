@@ -20,7 +20,7 @@ from flexmeasures.api.v1.tests.utils import (
     message_for_post_meter_data,
     verify_power_in_db,
 )
-from flexmeasures.data.auth_setup import UNAUTH_ERROR_STATUS
+from flexmeasures.auth.error_handling import UNAUTH_ERROR_STATUS
 from flexmeasures.data.models.assets import Asset
 
 
@@ -58,7 +58,7 @@ def test_no_connection_in_get_request(client):
         query_string=message_for_get_meter_data(no_connection=True),
         headers={
             "Authorization": get_auth_token(
-                client, "test_prosumer@seita.nl", "testtest"
+                client, "test_prosumer_user@seita.nl", "testtest"
             )
         },
     )
@@ -77,7 +77,7 @@ def test_invalid_connection_in_get_request(client):
         query_string=message_for_get_meter_data(invalid_connection=True),
         headers={
             "Authorization": get_auth_token(
-                client, "test_prosumer@seita.nl", "testtest"
+                client, "test_prosumer_user@seita.nl", "testtest"
             )
         },
     )
@@ -102,7 +102,7 @@ def test_invalid_or_no_unit(client, method, message):
             query_string=message,
             headers={
                 "Authorization": get_auth_token(
-                    client, "test_prosumer@seita.nl", "testtest"
+                    client, "test_prosumer_user@seita.nl", "testtest"
                 )
             },
         )
@@ -112,7 +112,7 @@ def test_invalid_or_no_unit(client, method, message):
             json=message,
             headers={
                 "Authorization": get_auth_token(
-                    client, "test_prosumer@seita.nl", "testtest"
+                    client, "test_prosumer_user@seita.nl", "testtest"
                 )
             },
         )
@@ -129,13 +129,14 @@ def test_invalid_or_no_unit(client, method, message):
 @pytest.mark.parametrize(
     "user_email, get_message",
     [
-        ["test_user@seita.nl", message_for_get_meter_data()],
+        ["test_dummy_user_3@seita.nl", message_for_get_meter_data()],
         ["demo@seita.nl", message_for_get_meter_data(demo_connection=True)],
     ],
 )
 def test_invalid_sender_and_logout(client, user_email, get_message):
     """
-    Tries to get meter data as a logged-in test user without any USEF role, which should fail.
+    Tries to get meter data as a logged-in test user without any suitable
+    account role, which should fail.
     Then tries to log out, which should succeed as a url direction.
     """
 
@@ -160,7 +161,7 @@ def test_invalid_sender_and_logout(client, user_email, get_message):
 
 
 def test_invalid_resolution_str(client):
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     query_string = message_for_get_meter_data()
     query_string["resolution"] = "15M"  # invalid
     get_meter_data_response = client.get(
@@ -235,7 +236,7 @@ def test_get_meter_data(db, app, client, message):
     verify_power_in_db(message, cs_5, expected_values, db, swapped_sign=True)
 
     # check whether the API returns the expected values (currently only the Prosumer data is returned)
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_meter_data_response = client.get(
         url_for("flexmeasures_api_v1.get_meter_data"),
         query_string=message_replace_name_with_ea(message),
@@ -252,7 +253,7 @@ def test_post_meter_data_to_different_resolutions(app, client):
     """
 
     post_message = message_for_post_meter_data(different_target_resolutions=True)
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_meter_data_response = client.post(
         url_for("flexmeasures_api_v1.post_meter_data"),
         json=message_replace_name_with_ea(post_message),

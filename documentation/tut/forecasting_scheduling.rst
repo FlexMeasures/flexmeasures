@@ -65,9 +65,9 @@ If you host FlexMeasures yourself, we provide a CLI task for adding forecasts fo
 
 .. code-block:: bash
 
-    flexmeasures add forecasts --from_date 2020-01-02 --to_date 2020-6-30 --horizon_hours 6  --asset-id 2
+     flexmeasures add forecasts --from_date 2020-01-02 --to_date 2020-6-30 --horizon_hours 6  --resolution 60 --asset-id 2
 
-Here, forecasts are being computed for asset 2, with one horizon (6 hours).
+Here, forecasts are being computed for asset 2, with one horizon (6 hours) and a resolution of 60 minutes.
 This is half a year of data, so it will take a while.
 You can also queue this work to workers (see above) with the additional ``--as-job`` parameter (though in general we'd advise to dispatch this work in smaller chunks).
 

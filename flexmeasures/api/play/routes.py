@@ -1,5 +1,6 @@
 from flask_security import auth_token_required, roles_required
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.api.play import (
     flexmeasures_api as flexmeasures_api_play,
     implementations as play_implementations,
@@ -8,7 +9,7 @@ from flexmeasures.api.play import (
 
 @flexmeasures_api_play.route("/restoreData", methods=["PUT"])
 @auth_token_required
-@roles_required("admin")
+@roles_required(ADMIN_ROLE)
 def restore_data():
     """API endpoint to restore the database to one of the saved backups.
 

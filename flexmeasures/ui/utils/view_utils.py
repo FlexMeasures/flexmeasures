@@ -1,4 +1,5 @@
 """Utilities for views"""
+import json
 import os
 import subprocess
 from typing import Tuple, List, Optional
@@ -11,6 +12,7 @@ from werkzeug.exceptions import BadRequest
 import iso8601
 
 from flexmeasures import __version__ as flexmeasures_version
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User
@@ -18,6 +20,7 @@ from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensorType
 from flexmeasures.data.services.resources import Resource
+from flexmeasures.ui.utils.chart_defaults import chart_options
 
 
 def render_flexmeasures_template(html_filename: str, **variables):
@@ -31,7 +34,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["show_queues"] = False
     if current_user.is_authenticated:
         if (
-            current_user.has_role("admin")
+            current_user.has_role(ADMIN_ROLE)
             or current_app.config.get("FLEXMEASURES_MODE", "") == "demo"
         ):
             variables["show_queues"] = True
@@ -79,7 +82,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_is_logged_in"] = current_user.is_authenticated
     variables[
         "user_is_admin"
-    ] = current_user.is_authenticated and current_user.has_role("admin")
+    ] = current_user.is_authenticated and current_user.has_role(ADMIN_ROLE)
     variables[
         "user_is_anonymous"
     ] = current_user.is_authenticated and current_user.has_role("anonymous")
@@ -88,6 +91,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
         current_user.is_authenticated and current_user.username or ""
     )
     variables["js_versions"] = current_app.config.get("FLEXMEASURES_JS_VERSIONS")
+    variables["chart_options"] = json.dumps(chart_options)
 
     variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")

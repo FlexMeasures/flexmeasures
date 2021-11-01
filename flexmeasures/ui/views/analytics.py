@@ -7,13 +7,13 @@ import math
 
 import pandas as pd
 from flask import session, current_app, make_response
-from flask_security import roles_accepted
 from bokeh.plotting import Figure
 from bokeh.embed import components
 from bokeh.util.string import encode_utf8
 from bokeh.models import Range1d
 from pandas.tseries.frequencies import to_offset
 
+from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.services.resources import (
@@ -45,7 +45,7 @@ from flexmeasures.ui.views import flexmeasures_ui
 
 
 @flexmeasures_ui.route("/analytics", methods=["GET", "POST"])
-@roles_accepted("admin", "Prosumer")
+@account_roles_accepted("Prosumer")
 def analytics_view():
     """Analytics view. Here, four plots (consumption/generation, weather, prices and a profit/loss calculation)
     and a table of metrics data are prepared. This view allows to select a resource name, from which a
@@ -206,7 +206,7 @@ def analytics_view():
 
 
 @flexmeasures_ui.route("/analytics_data/<content>/<content_type>", methods=["GET"])
-@roles_accepted("admin", "Prosumer")
+@account_roles_accepted("Prosumer")
 def analytics_data_view(content, content_type):
     """Analytics view as above, but here we only download data.
     Content can be either source or metrics.

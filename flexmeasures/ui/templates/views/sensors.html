@@ -30,13 +30,8 @@
       let vegaView;
 
       async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
-        var opt = {
-          mode: 'vega-lite',
-          renderer: 'svg',
-          actions: {export: true, source: true, editor: true},
-        };
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName, opt)
+        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName, {{ chart_options | safe }})
         .then(function (result) {
           // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
           vegaView = result.view;

@@ -1,5 +1,7 @@
 from flask import Flask
-from flask_security import auth_token_required, roles_accepted
+from flask_security import auth_token_required
+
+from flexmeasures.auth.decorators import account_roles_accepted
 
 
 def register_at(app: Flask):
@@ -12,7 +14,7 @@ def register_at(app: Flask):
 
     @app.route("/sensorData", methods=["POST"])
     @auth_token_required
-    @roles_accepted("admin", "MDC", "Prosumer")
+    @account_roles_accepted("MDC", "Prosumer")
     def post_sensor_data():
         """
         Post sensor data to FlexMeasures.

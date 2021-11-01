@@ -550,6 +550,11 @@ def add_beliefs(
     help="Forecast to date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
 )
 @click.option(
+    "--resolution",
+    type=int,
+    help="Resolution of forecast in minutes. If not set, resolution is determined from the asset to be forecasted",
+)
+@click.option(
     "--horizon",
     "horizons_as_hours",
     multiple=True,
@@ -570,6 +575,7 @@ def create_forecasts(
     from_date_str: str = "2015-02-08",
     to_date_str: str = "2015-12-31",
     horizons_as_hours: List[str] = ["1"],
+    resolution: Optional[int] = None,
     as_job: bool = False,
 ):
     """
@@ -579,25 +585,35 @@ def create_forecasts(
 
         --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6
 
-        This will create forecast values from 0am on May 2nd to 0am on May 4th,
+        This will create forecast values from 0am on May 2nd to 0am on May 5th,
         based on a 6 hour horizon.
 
     """
     # make horizons
     horizons = [timedelta(hours=int(h)) for h in horizons_as_hours]
 
-    # apply timezone:
+    # apply timezone and set forecast_end to be an inclusive version of to_date
     timezone = app.config.get("FLEXMEASURES_TIMEZONE")
-    from_date = pd.Timestamp(from_date_str).tz_localize(timezone)
-    to_date = pd.Timestamp(to_date_str).tz_localize(timezone)
+    forecast_start = pd.Timestamp(from_date_str).tz_localize(timezone)
+    forecast_end = (pd.Timestamp(to_date_str) + pd.Timedelta("1D")).tz_localize(
+        timezone
+    )
+
+    event_resolution: Optional[timedelta]
+    if resolution is not None:
+        event_resolution = timedelta(minutes=resolution)
+    else:
+        event_resolution = None
 
     if as_job:
         if asset_type == "Asset":
             value_type = "Power"
-        if asset_type == "Market":
+        elif asset_type == "Market":
             value_type = "Price"
-        if asset_type == "WeatherSensor":
+        elif asset_type == "WeatherSensor":
             value_type = "Weather"
+        else:
+            raise TypeError(f"Unknown asset_type {asset_type}")
 
         for horizon in horizons:
             # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
@@ -606,14 +622,20 @@ def create_forecasts(
                 asset_id=asset_id,
                 timed_value_type=value_type,
                 horizons=[horizon],
-                start_of_roll=from_date - horizon,
-                end_of_roll=to_date - horizon,
+                start_of_roll=forecast_start - horizon,
+                end_of_roll=forecast_end - horizon,
             )
     else:
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
 
         populate_time_series_forecasts(
-            db, horizons, from_date, to_date, asset_type, asset_id
+            db=app.db,
+            horizons=horizons,
+            forecast_start=forecast_start,
+            forecast_end=forecast_end,
+            event_resolution=event_resolution,
+            generic_asset_type=asset_type,
+            generic_asset_id=asset_id,
         )
 
 

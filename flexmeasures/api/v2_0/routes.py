@@ -2,9 +2,9 @@ import copy
 
 from flask_security import auth_token_required, roles_required
 
+from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.api.common.utils.api_utils import list_access, append_doc_of
 from flexmeasures.api.common.utils.decorators import as_response_type
-from flexmeasures.api.common.utils.validators import usef_roles_accepted
 from flexmeasures.api.v1 import implementations as v1_implementations
 from flexmeasures.api.v1_1 import implementations as v1_1_implementations
 from flexmeasures.api.v1_3 import implementations as v1_3_implementations
@@ -12,6 +12,7 @@ from flexmeasures.api.v1_3 import routes as v1_3_routes
 
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 from flexmeasures.api.v2_0 import implementations as v2_0_implementations
+from flexmeasures.auth.policy import ADMIN_ROLE
 
 
 # The service listing for this API version (import from previous version or update if needed)
@@ -21,8 +22,9 @@ v2_0_service_listing["version"] = "2.0"
 # TODO: Use https://github.com/marshmallow-code/apispec and https://github.com/sveint/flask-swagger-ui
 #       to serve as OpenApi (swagger).
 
-# Note: For the time being, no (USEF) role access is added to asset or user endpoints
-# TODO: Add role access when multi-tenancy is added
+# Note: No account role access is added to asset or user endpoints
+#       We will add access control based on the models' ACLs soon.
+#       See https://github.com/SeitaBV/flexmeasures/issues/200
 # assets
 v2_0_service_listing["services"].append(
     {
@@ -145,8 +147,8 @@ def get_assets():
 
 @flexmeasures_api_v2_0.route("/assets", methods=["POST"])
 @auth_token_required
-@roles_required("admin")
-# @usef_roles_accepted(*list_access(v2_0_service_listing, "POST /assets"))
+@roles_required(ADMIN_ROLE)
+# @account_roles_accepted(*list_access(v2_0_service_listing, "POST /assets"))
 def post_assets():
     """API endpoint to post a new asset.
 
@@ -217,7 +219,7 @@ def post_assets():
 
 @flexmeasures_api_v2_0.route("/asset/<id>", methods=["GET"])
 @auth_token_required
-# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /asset/<id>"))
+# @account_roles_accepted(*check_access(v2_0_service_listing, "GET /asset/<id>"))
 def get_asset(id: int):
     """API endpoint to get an asset.
 
@@ -262,7 +264,7 @@ def get_asset(id: int):
 
 @flexmeasures_api_v2_0.route("/asset/<id>", methods=["PATCH"])
 @auth_token_required
-# @usef_roles_accepted(*list_access(v2_0_service_listing, "PATCH /assets"))
+# @account_roles_accepted(*list_access(v2_0_service_listing, "PATCH /assets"))
 def patch_asset(id: int):
     """API endpoint to patch asset data.
 
@@ -325,7 +327,7 @@ def patch_asset(id: int):
 
 @flexmeasures_api_v2_0.route("/asset/<id>", methods=["DELETE"])
 @auth_token_required
-# @usef_roles_accepted(*list_access(v2_0_service_listing, "DELETE /assets"))
+# @account_roles_accepted(*list_access(v2_0_service_listing, "DELETE /assets"))
 def delete_asset(id: int):
     """API endpoint to delete an asset, and its sensed data.
 
@@ -347,7 +349,6 @@ def delete_asset(id: int):
 
 @flexmeasures_api_v2_0.route("/users", methods=["GET"])
 @auth_token_required
-@roles_required("admin")
 def get_users():
     """API endpoint to get users.
 
@@ -372,7 +373,7 @@ def get_users():
                 'flexmeasures_roles': [1, 3],
                 'id': 1,
                 'timezone': 'Europe/Amsterdam',
-                'username': 'Test Prosumer'
+                'username': 'Test Prosumer User'
             }
         ]
 
@@ -389,7 +390,7 @@ def get_users():
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["GET"])
 @auth_token_required
-# @usef_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
+# @account_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
 def get_user(id: int):
     """API endpoint to get a user.
 
@@ -409,7 +410,7 @@ def get_user(id: int):
             'flexmeasures_roles': [1, 3],
             'id': 1,
             'timezone': 'Europe/Amsterdam',
-            'username': 'Test Prosumer'
+            'username': 'Test Prosumer User'
         }
 
     :reqheader Authorization: The authentication token
@@ -425,7 +426,7 @@ def get_user(id: int):
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["PATCH"])
 @auth_token_required
-# @usef_roles_accepted(*list_access(v2_0_service_listing, "PATCH /user/<id>"))
+# @account_roles_accepted(*list_access(v2_0_service_listing, "PATCH /user/<id>"))
 def patch_user(id: int):
     """API endpoint to patch user data.
 
@@ -459,7 +460,7 @@ def patch_user(id: int):
             'flexmeasures_roles': [1, 3],
             'id': 1,
             'timezone': 'Europe/Amsterdam',
-            'username': 'Test Prosumer'
+            'username': 'Test Prosumer User'
         }
 
     :reqheader Authorization: The authentication token
@@ -476,7 +477,7 @@ def patch_user(id: int):
 
 @flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["PATCH"])
 @auth_token_required
-# @usef_roles_accepted(*check_access(v2_0_service_listing, "PATCH /user/<id>password-reset"))
+# @account_roles_accepted(*check_access(v2_0_service_listing, "PATCH /user/<id>password-reset"))
 def reset_user_password(id: int):
     """API endpoint to reset the user password. They'll get an email to choose a new password.
 
@@ -506,7 +507,7 @@ def reset_user_password(id: int):
 @flexmeasures_api_v2_0.route("/getConnection", methods=["GET"])
 @as_response_type("GetConnectionResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v2_0_service_listing, "getConnection"))
+@account_roles_accepted(*list_access(v2_0_service_listing, "getConnection"))
 @append_doc_of(v1_3_routes.get_connection)
 def get_connection():
     return v1_1_implementations.get_connection_response()
@@ -515,7 +516,7 @@ def get_connection():
 @flexmeasures_api_v2_0.route("/postPriceData", methods=["POST"])
 @as_response_type("PostPriceDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v2_0_service_listing, "postPriceData"))
+@account_roles_accepted(*list_access(v2_0_service_listing, "postPriceData"))
 def post_price_data():
     """API endpoint to post price data.
 
@@ -597,7 +598,7 @@ def post_price_data():
 @flexmeasures_api_v2_0.route("/postWeatherData", methods=["POST"])
 @as_response_type("PostWeatherDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v2_0_service_listing, "postWeatherData"))
+@account_roles_accepted(*list_access(v2_0_service_listing, "postWeatherData"))
 def post_weather_data():
     """API endpoint to post weather data, such as:
 
@@ -672,7 +673,7 @@ def post_weather_data():
 @flexmeasures_api_v2_0.route("/getPrognosis", methods=["GET"])
 @as_response_type("GetPrognosisResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v2_0_service_listing, "getPrognosis"))
+@account_roles_accepted(*list_access(v2_0_service_listing, "getPrognosis"))
 @append_doc_of(v1_3_routes.get_prognosis)
 def get_prognosis():
     return v1_1_implementations.get_prognosis_response()
@@ -681,7 +682,7 @@ def get_prognosis():
 @flexmeasures_api_v2_0.route("/getMeterData", methods=["GET"])
 @as_response_type("GetMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v2_0_service_listing, "getMeterData"))
+@account_roles_accepted(*list_access(v2_0_service_listing, "getMeterData"))
 @append_doc_of(v1_3_routes.get_meter_data)
 def get_meter_data():
     return v1_implementations.get_meter_data_response()
@@ -690,7 +691,7 @@ def get_meter_data():
 @flexmeasures_api_v2_0.route("/postMeterData", methods=["POST"])
 @as_response_type("PostMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v2_0_service_listing, "postMeterData"))
+@account_roles_accepted(*list_access(v2_0_service_listing, "postMeterData"))
 def post_meter_data():
     """API endpoint to post meter data.
 
@@ -773,7 +774,7 @@ def post_meter_data():
 @flexmeasures_api_v2_0.route("/postPrognosis", methods=["POST"])
 @as_response_type("PostPrognosisResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v2_0_service_listing, "postPrognosis"))
+@account_roles_accepted(*list_access(v2_0_service_listing, "postPrognosis"))
 def post_prognosis():
     """API endpoint to post prognoses about meter data.
 
@@ -864,7 +865,7 @@ def get_service(service_listing=v2_0_service_listing):
 @flexmeasures_api_v2_0.route("/getDeviceMessage", methods=["GET"])
 @as_response_type("GetDeviceMessageResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v2_0_service_listing, "getDeviceMessage"))
+@account_roles_accepted(*list_access(v2_0_service_listing, "getDeviceMessage"))
 @append_doc_of(v1_3_routes.get_device_message)
 def get_device_message():
     return v1_3_implementations.get_device_message_response()
@@ -873,7 +874,7 @@ def get_device_message():
 @flexmeasures_api_v2_0.route("/postUdiEvent", methods=["POST"])
 @as_response_type("PostUdiEventResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v2_0_service_listing, "postUdiEvent"))
+@account_roles_accepted(*list_access(v2_0_service_listing, "postUdiEvent"))
 @append_doc_of(v1_3_routes.post_udi_event)
 def post_udi_event():
     return v1_3_implementations.post_udi_event_response()

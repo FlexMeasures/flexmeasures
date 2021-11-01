@@ -8,11 +8,10 @@ from flask_security.utils import hash_password
 
 from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.services.users import create_user
 
 
 @pytest.fixture(scope="module")
-def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices):
+def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices):
     """
     Set up data for API v1.1 tests.
     """
@@ -24,25 +23,15 @@ def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices)
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
 
     # Create a user without proper registration as a data source
-    user = user_datastore.create_user(
+    user_datastore.create_user(
         username="test user with improper registration",
         email="test_improper_user@seita.nl",
         password=hash_password("testtest"),
-        account_id=setup_account.id,
-    )
-    role = user_datastore.find_role("Prosumer")
-    user_datastore.add_role_to_user(user, role)
-
-    # Create a test user without a USEF role
-    create_user(
-        username="test user without roles",
-        email="test_user@seita.nl",
-        password=hash_password("testtest"),
-        account_name=setup_account.name,
+        account_id=setup_accounts["Prosumer"].id,
     )
 
-    # Create 3 test assets for the test_prosumer user
-    test_prosumer = setup_roles_users["Test Prosumer"]
+    # Create 3 test assets for the test_user
+    test_user = setup_roles_users["Test Prosumer User"]
     test_asset_type = AssetType(name="test-type")
     db.session.add(test_asset_type)
     asset_names = ["CS 1", "CS 2", "CS 3"]
@@ -57,7 +46,7 @@ def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices)
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_prosumer
+        asset.owner = test_user
         assets.append(asset)
         db.session.add(asset)
 
@@ -65,9 +54,7 @@ def setup_api_test_data(db, setup_account, setup_roles_users, add_market_prices)
     cs_1 = Asset.query.filter(Asset.name == "CS 1").one_or_none()
     cs_2 = Asset.query.filter(Asset.name == "CS 2").one_or_none()
     cs_3 = Asset.query.filter(Asset.name == "CS 3").one_or_none()
-    data_source = DataSource.query.filter(
-        DataSource.user == test_prosumer
-    ).one_or_none()
+    data_source = DataSource.query.filter(DataSource.user == test_user).one_or_none()
     power_forecasts = []
     for i in range(6):
         p_1 = Power(

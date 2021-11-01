@@ -16,6 +16,7 @@ from sqlalchemy.orm import Query, Session
 from sqlalchemy.engine import Row
 import timely_beliefs as tb
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.data.models.assets import (
     AssetType,
     Asset,
@@ -62,7 +63,7 @@ def has_assets(owner_id: Optional[int] = None) -> bool:
 def can_access_asset(asset: Asset) -> bool:
     """Return True if the current user is an admin or the owner of the asset:"""
     if current_user.is_authenticated:
-        if current_user.has_role("admin"):
+        if current_user.has_role(ADMIN_ROLE):
             return True
         if asset.owner == current_user:
             return True
@@ -81,7 +82,7 @@ def _build_asset_query(
     order_direction can be "asc" or "desc".
     """
     if current_user.is_authenticated:
-        if current_user.has_role("admin"):
+        if current_user.has_role(ADMIN_ROLE):
             if owner_id is not None:
                 if not isinstance(owner_id, int):
                     try:
@@ -195,7 +196,7 @@ def mask_inaccessible_assets(
     We do not explicitly check user authentication here, because non-authenticated users are not admins
     and have no asset ownership, so applying this filter for non-admins masks all assets.
     """
-    if not current_user.has_role("admin"):
+    if not current_user.has_role(ADMIN_ROLE):
         if isinstance(asset_queries, dict):
             for name, query in asset_queries.items():
                 asset_queries[name] = query.filter_by(owner=current_user)
@@ -216,7 +217,7 @@ def get_center_location(db: Session, user: Optional[User]) -> Tuple[float, float
         " (min(longitude) + max(longitude)) / 2 as longitude"
         " from asset"
     )
-    if user and not user.has_role("admin"):
+    if user and not user.has_role(ADMIN_ROLE):
         query += f" where owner_id = {user.id}"
     locations: List[Row] = db.session.execute(query + ";").fetchall()
     if (

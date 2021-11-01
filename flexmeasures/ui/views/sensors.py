@@ -10,6 +10,7 @@ from webargs.flaskparser import use_kwargs
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.api.dev.sensors import SensorAPI
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.ui.utils.chart_defaults import chart_options
 
 
 class SensorUI(FlaskView):
@@ -30,15 +31,25 @@ class SensorUI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "dataset_name": fields.Str(required=False),
+            "chart_theme": fields.Str(required=False),
         },
         location="query",
     )
     def get_chart(self, id, **kwargs):
         """GET from /sensors/<id>/chart"""
+
+        # Chart theme
+        chart_theme = kwargs.pop("chart_theme", None)
+        embed_options = chart_options.copy()
+        if chart_theme:
+            embed_options["theme"] = chart_theme
+            embed_options["tooltip"]["theme"] = chart_theme
+
+        # Chart specs
         chart_specs = SensorAPI().get_chart(id, include_data=True, **kwargs)
         return spec_to_html(
             json.loads(chart_specs),
-            mode="vega-lite",
+            mode=embed_options["mode"],
             vega_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")["vega"],
             vegaembed_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")[
                 "vegaembed"
@@ -46,6 +57,7 @@ class SensorUI(FlaskView):
             vegalite_version=current_app.config.get("FLEXMEASURES_JS_VERSIONS")[
                 "vegalite"
             ],
+            embed_options=embed_options,
         )
 
     @login_required
