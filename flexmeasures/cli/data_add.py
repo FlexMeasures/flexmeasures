@@ -1,7 +1,7 @@
 """CLI Tasks for (de)populating the database - most useful in development"""
 
 from datetime import timedelta
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import pandas as pd
 import pytz
@@ -16,10 +16,16 @@ import timely_beliefs as tb
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.schemas.generic_assets import (
+    GenericAssetSchema,
+    GenericAssetTypeSchema,
+)
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.schemas.assets import AssetSchema
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.schemas.weather import WeatherSensorSchema
@@ -40,27 +46,90 @@ def fm_dev_add_data():
     """Developer CLI commands not yet meant for users: Add data."""
 
 
+@fm_add_data.command("account-role")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option("--description")
+def new_account_role(name: str, description: str):
+    """
+    Create an account role.
+    """
+    role = AccountRole.query.filter_by(name=name).one_or_none()
+    if role is not None:
+        click.echo(f"Account role '{name}' already exists.")
+        raise click.Abort
+    role = AccountRole(name=name, description=description)
+    db.session.add(role)
+    db.session.commit()
+    print(f"Account role '{name}' (ID: {role.id}) successfully created.")
+
+
+@fm_add_data.command("account")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
+def new_account(name: str, roles: str):
+    """
+    Create an account for a tenant in the FlexMeasures platform.
+    """
+    account = db.session.query(Account).filter_by(name=name).one_or_none()
+    if account is not None:
+        click.echo(f"Account '{name}' already exists.")
+        raise click.Abort
+    account = Account(name=name)
+    db.session.add(account)
+    if roles:
+        for role_name in roles.split(","):
+            role = AccountRole.query.filter_by(name=role_name).one_or_none()
+            if role is None:
+                print(f"Adding account role {role_name} ...")
+                role = AccountRole(name=role_name)
+                db.session.add(role)
+            db.session.flush()
+            db.session.add(RolesAccounts(role_id=role.id, account_id=account.id))
+    db.session.commit()
+    print(f"Account '{name}' (ID: {account.id}) successfully created.")
+
+
 @fm_add_data.command("user")
 @with_appcontext
 @click.option("--username", required=True)
 @click.option("--email", required=True)
+@click.option("--account-id", type=int, required=True)
 @click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
 @click.option(
     "--timezone",
-    default="UTC",
-    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+    "timezone_optional",
+    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam' (defaults to FLEXMEASURES_TIMEZONE config setting)",
 )
-def new_user(username: str, email: str, roles: List[str], timezone: str):
+def new_user(
+    username: str,
+    email: str,
+    account_id: int,
+    roles: List[str],
+    timezone_optional: Optional[str],
+):
     """
     Create a FlexMeasures user.
 
     The `users create` task from Flask Security Too is too simple for us.
     Use this to add email, timezone and roles.
     """
+    if timezone_optional is None:
+        timezone = app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
+        print(
+            f"Setting user timezone to {timezone} (taken from FLEXMEASURES_TIMEZONE config setting)..."
+        )
+    else:
+        timezone = timezone_optional
     try:
         pytz.timezone(timezone)
     except pytz.UnknownTimeZoneError:
-        print("Timezone %s is unknown!" % timezone)
+        print(f"Timezone {timezone} is unknown!")
+        raise click.Abort
+    account = db.session.query(Account).get(account_id)
+    if account is None:
+        print(f"No account with id {account_id} found!")
         raise click.Abort
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
@@ -71,11 +140,12 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
         username=username,
         email=email,
         password=hash_password(pwd1),
+        account_name=account.name,
         timezone=timezone,
         user_roles=roles,
-        check_deliverability=False,
+        check_email_deliverability=False,
     )
-    app.db.session.commit()
+    db.session.commit()
     print(f"Successfully created user {created_user}")
 
 
@@ -94,17 +164,70 @@ def new_user(username: str, email: str, roles: List[str], timezone: str):
     required=True,
     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
+@click.option(
+    "--generic-asset-id",
+    required=True,
+    type=int,
+    help="Generic asset to assign this sensor to",
+)
 def add_sensor(**args):
     """Add a sensor."""
     check_timezone(args["timezone"])
     check_errors(SensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     sensor = Sensor(**args)
-    app.db.session.add(sensor)
-    app.db.session.commit()
+    db.session.add(sensor)
+    db.session.commit()
     print(f"Successfully created sensor with ID {sensor.id}")
-    # TODO: uncomment when #66 has landed
-    # print(f"You can access it at its entity address {sensor.entity_address}")
+    print(f"You can access it at its entity address {sensor.entity_address}")
+
+
+@fm_dev_add_data.command("generic-asset-type")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option(
+    "--description",
+    type=str,
+    help="Description (useful to explain acronyms, for example).",
+)
+def add_generic_asset_type(**args):
+    """Add a generic asset type."""
+    check_errors(GenericAssetTypeSchema().validate(args))
+    generic_asset_type = GenericAssetType(**args)
+    db.session.add(generic_asset_type)
+    db.session.commit()
+    print(f"Successfully created generic asset type with ID {generic_asset_type.id}")
+    print("You can now assign generic assets to it")
+
+
+@fm_dev_add_data.command("generic-asset")
+@with_appcontext
+@click.option("--name", required=True)
+@click.option(
+    "--latitude",
+    type=float,
+    help="Latitude of the asset's location",
+)
+@click.option(
+    "--longitude",
+    type=float,
+    help="Longitude of the asset's location",
+)
+@click.option("--account-id", type=int, required=True)
+@click.option(
+    "--generic-asset-type-id",
+    required=True,
+    type=int,
+    help="Generic asset type to assign to this asset",
+)
+def add_generic_asset(**args):
+    """Add a generic asset."""
+    check_errors(GenericAssetSchema().validate(args))
+    generic_asset = GenericAsset(**args)
+    db.session.add(generic_asset)
+    db.session.commit()
+    print(f"Successfully created generic asset with ID {generic_asset.id}")
+    print("You can now assign sensors to it")
 
 
 @fm_add_data.command("asset")
@@ -171,8 +294,8 @@ def new_asset(**args):
     check_errors(AssetSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     asset = Asset(**args)
-    app.db.session.add(asset)
-    app.db.session.commit()
+    db.session.add(asset)
+    db.session.commit()
     print(f"Successfully created asset with ID {asset.id}")
     print(f"You can access it at its entity address {asset.entity_address}")
 
@@ -211,8 +334,8 @@ def add_weather_sensor(**args):
     check_errors(WeatherSensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     sensor = WeatherSensor(**args)
-    app.db.session.add(sensor)
-    app.db.session.commit()
+    db.session.add(sensor)
+    db.session.commit()
     print(f"Successfully created weather sensor with ID {sensor.id}")
     print(f" You can access it at its entity address {sensor.entity_address}")
 
@@ -223,7 +346,7 @@ def add_initial_structure():
     """Initialize structural data like asset types, market types and weather sensor types."""
     from flexmeasures.data.scripts.data_gen import populate_structure
 
-    populate_structure(app.db)
+    populate_structure(db)
 
 
 @fm_dev_add_data.command("beliefs")
@@ -416,11 +539,13 @@ def add_beliefs(
 )
 @click.option(
     "--from-date",
+    "from_date_str",
     default="2015-02-08",
     help="Forecast from date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
 )
 @click.option(
     "--to-date",
+    "to_date_str",
     default="2015-12-31",
     help="Forecast to date (inclusive). Follow up with a date in the form yyyy-mm-dd.",
 )
@@ -431,7 +556,7 @@ def add_beliefs(
 )
 @click.option(
     "--horizon",
-    "horizons",
+    "horizons_as_hours",
     multiple=True,
     type=click.Choice(["1", "6", "24", "48"]),
     default=["1", "6", "24", "48"],
@@ -447,10 +572,10 @@ def add_beliefs(
 def create_forecasts(
     asset_type: str = None,
     asset_id: int = None,
-    from_date: str = "2015-02-08",
-    to_date: str = "2015-12-31",
+    from_date_str: str = "2015-02-08",
+    to_date_str: str = "2015-12-31",
+    horizons_as_hours: List[str] = ["1"],
     resolution: Optional[int] = None,
-    horizons: List[str] = ["1"],
     as_job: bool = False,
 ):
     """
@@ -465,13 +590,16 @@ def create_forecasts(
 
     """
     # make horizons
-    horizons = [timedelta(hours=int(h)) for h in horizons]
+    horizons = [timedelta(hours=int(h)) for h in horizons_as_hours]
 
     # apply timezone and set forecast_end to be an inclusive version of to_date
     timezone = app.config.get("FLEXMEASURES_TIMEZONE")
-    forecast_start = pd.Timestamp(from_date).tz_localize(timezone)
-    forecast_end = (pd.Timestamp(to_date) + pd.Timedelta("1D")).tz_localize(timezone)
+    forecast_start = pd.Timestamp(from_date_str).tz_localize(timezone)
+    forecast_end = (pd.Timestamp(to_date_str) + pd.Timedelta("1D")).tz_localize(
+        timezone
+    )
 
+    event_resolution: Optional[timedelta]
     if resolution is not None:
         event_resolution = timedelta(minutes=resolution)
     else:
@@ -569,7 +697,7 @@ def check_timezone(timezone):
         raise click.Abort
 
 
-def check_errors(errors: list):
+def check_errors(errors: Dict[str, List[str]]):
     if errors:
         print(
             f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more."

@@ -11,6 +11,7 @@ from werkzeug.exceptions import BadRequest
 import iso8601
 
 from flexmeasures import __version__ as flexmeasures_version
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User
@@ -31,7 +32,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["show_queues"] = False
     if current_user.is_authenticated:
         if (
-            current_user.has_role("admin")
+            current_user.has_role(ADMIN_ROLE)
             or current_app.config.get("FLEXMEASURES_MODE", "") == "demo"
         ):
             variables["show_queues"] = True
@@ -71,7 +72,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     ) = get_git_description()
     app_start_time = current_app.config.get("START_TIME")
     variables["app_running_since"] = time_utils.naturalized_datetime_str(app_start_time)
-    variables["loaded_plugins"] = ",".join(
+    variables["loaded_plugins"] = ", ".join(
         f"{p_name} (v{p_version})"
         for p_name, p_version in current_app.config.get("LOADED_PLUGINS", {}).items()
     )
@@ -79,7 +80,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["user_is_logged_in"] = current_user.is_authenticated
     variables[
         "user_is_admin"
-    ] = current_user.is_authenticated and current_user.has_role("admin")
+    ] = current_user.is_authenticated and current_user.has_role(ADMIN_ROLE)
     variables[
         "user_is_anonymous"
     ] = current_user.is_authenticated and current_user.has_role("anonymous")
@@ -88,6 +89,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
         current_user.is_authenticated and current_user.username or ""
     )
     variables["js_versions"] = current_app.config.get("FLEXMEASURES_JS_VERSIONS")
+
+    variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
+    variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
 
     return render_template(html_filename, **variables)
 

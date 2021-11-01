@@ -1,9 +1,9 @@
-from flask_security import roles_accepted
 from flask_json import as_json
 from bokeh.embed import json_item
 from marshmallow import Schema, fields, validate
 from webargs.flaskparser import use_args
 
+from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 from flexmeasures.api.v2_0.routes import v2_0_service_listing
 from flexmeasures.data.schemas.times import DurationField
@@ -49,7 +49,7 @@ class ChartRequestSchema(Schema):
 
 
 @flexmeasures_api_v2_0.route("/charts/power", methods=["GET"])
-@roles_accepted("admin", "Prosumer")
+@account_roles_accepted("Prosumer")
 @use_args(ChartRequestSchema(), location="querystring")
 @as_json
 def get_power_chart(chart_request):

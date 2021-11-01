@@ -1,7 +1,6 @@
 from datetime import timedelta
 
-from flask_security import roles_accepted
-
+from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.ui.views import flexmeasures_ui
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.utils import time_utils
@@ -9,7 +8,7 @@ from flexmeasures.utils import time_utils
 
 # Control view
 @flexmeasures_ui.route("/control", methods=["GET", "POST"])
-@roles_accepted("admin", "Prosumer")
+@account_roles_accepted("Prosumer")
 def control_view():
     """Control view.
     This page lists balancing opportunities for a selected time window.

@@ -61,6 +61,10 @@ Find the ``timezone`` setting and set it to 'UTC'.
 
 Then restart the postgres server.
 
+.. code-block:: bash
+
+    service postgresql restart
+
 
 Setup the "flexmeasures" Unix user
 ^^^^^^^^^^^^^

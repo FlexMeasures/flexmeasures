@@ -12,6 +12,7 @@ from flexmeasures.data.models.time_series import TimedBelief, Sensor
     [
         (6, 6),
         (3, 6),  # upsample
+        (1, 6),  # upsample single value sent as float rather than list of floats
     ],
 )
 def test_post_sensor_data(
@@ -23,7 +24,7 @@ def test_post_sensor_data(
     print(f"BELIEFS BEFORE: {beliefs_before}")
     assert len(beliefs_before) == 0
 
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     response = client.post(
         url_for("post_sensor_data"),
         json=post_data,

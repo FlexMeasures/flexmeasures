@@ -68,6 +68,15 @@ Or:
 And access the server at http://localhost:5000
 
 
+Logfile
+--------
+
+FlexMeasures logs to a file called ``flexmeasures.log``. You'll find this in the application's context folder, e.g. where you called ``flexmeasures run``.
+
+A rolling log file handler is used, so if ``flexmeasures.log`` gets to a few megabytes in size, it is copied to `flexmeasures.log.1` and the original file starts over empty again. 
+
+The default logging level is ``WARNING``. To see more, you can update this with the config setting ``LOGGING_LEVEL``, e.g. to ``INFO`` or ``DEBUG``
+
 
 Tests
 -----

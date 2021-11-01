@@ -6,10 +6,11 @@ from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired
-from flask_security import roles_required
+from flask_security import roles_required, login_required
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.data.config import db
-from flexmeasures.data.models.user import User, Role
+from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
     get_user,
 )
@@ -64,6 +65,7 @@ def process_internal_api_response(
             user_data["id"] = user_id
         if make_obj:
             user = User(**user_data)
+            user.account = Account.query.get(user_data.get("account_id", -1))
             if user in db.session:
                 db.session.expunge(user)
             return user
@@ -74,7 +76,7 @@ class UserCrudUI(FlaskView):
     route_base = "/users"
     trailing_slash = False
 
-    @roles_required("admin")
+    @roles_required(ADMIN_ROLE)
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
@@ -91,7 +93,7 @@ class UserCrudUI(FlaskView):
             "crud/users.html", users=users, include_inactive=include_inactive
         )
 
-    @roles_required("admin")
+    @roles_required(ADMIN_ROLE)
     def get(self, id: str):
         """GET from /users/<id>"""
         get_user_response = InternalApi().get(
@@ -108,7 +110,7 @@ class UserCrudUI(FlaskView):
             asset_count = len(get_users_assets_response.json())
         return render_user(user, asset_count=asset_count)
 
-    @roles_required("admin")
+    @roles_required(ADMIN_ROLE)
     def toggle_active(self, id: str):
         """Toggle activation status via /users/toggle_active/<id>"""
         user: User = get_user(id)
@@ -125,7 +127,7 @@ class UserCrudUI(FlaskView):
             % (patched_user.username, patched_user.active),
         )
 
-    @roles_required("admin")
+    @login_required
     def reset_password_for(self, id: str):
         """/users/reset_password_for/<id>
         Set the password to something random (in case of worries the password might be compromised)
@@ -137,5 +139,6 @@ class UserCrudUI(FlaskView):
         return render_user(
             user,
             msg="The user's password has been changed to a random password"
-            " and password reset instructions have been sent to the user.",
+            " and password reset instructions have been sent to the user."
+            " Cookies and the API access token have also been invalidated.",
         )

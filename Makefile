@@ -15,13 +15,13 @@ test:
 # ---- Documentation ---
 
 update-docs:
-	pip3 install sphinx>=4.0.3 sphinxcontrib.httpdomain sphinx-rtd-theme
+	make install-sphinx-tools
 	cd documentation; make clean; make html; cd ..
 
 update-docs-pdf:
 	@echo "NOTE: PDF documentation requires packages (on Debian: latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended)"
 	@echo "NOTE: Currently, the docs require some pictures which are not in the git repo atm. Ask the devs."
-	pip3 install sphinx sphinxcontrib.httpdomain sphinx-rtd-theme
+	make install-sphinx-tools
 
 	cd documentation; make clean; make latexpdf; make latexpdf; cd ..  # make latexpdf can require two passes
 
@@ -30,27 +30,32 @@ update-docs-pdf:
 install: install-deps install-flexmeasures
 
 install-for-dev:
-	pip3 install -q pip-tools
 	make freeze-deps
 	pip-sync requirements/app.txt requirements/dev.txt requirements/test.txt
 	make install-flexmeasures
 
 install-deps:
-	pip3 install -q pip-tools
+	make install-pip-tools
 	make freeze-deps
 	pip-sync requirements/app.txt
 
 install-flexmeasures:
 	python setup.py develop
 
+install-pip-tools:
+	pip3 install -q "pip-tools>=6.4"
+
+install-sphinx-tools:
+	pip3 install "sphinx>=4.0.3" sphinxcontrib.httpdomain sphinx-rtd-theme sphinx_fontawesome
+
 freeze-deps:
-	pip3 install -q pip-tools
+	make install-pip-tools
 	pip-compile -o requirements/app.txt requirements/app.in
 	pip-compile -o requirements/dev.txt requirements/dev.in
 	pip-compile -o requirements/test.txt requirements/test.in
 
 upgrade-deps:
-	pip3 install -q pip-tools
+	make install-pip-tools
 	pip-compile --upgrade -o requirements/app.txt requirements/app.in
 	pip-compile --upgrade -o requirements/test.txt requirements/test.in
 	pip-compile --upgrade -o requirements/dev.txt requirements/dev.in
@@ -69,4 +74,8 @@ upgrade-db:
 	flask db current
 
 show-data-model:
-	./flexmeasures/data/scripts/visualize_data_model.py --uml --store  # also try with --schema for database model
+	# This generates the data model, as currently written in code, as a PNG picture.
+	# Also try with --schema for the database model. 
+	# With --dev, you'll see the currently experimental parts, as well.
+	# Use --help to learn more. 
+	./flexmeasures/data/scripts/visualize_data_model.py --uml --dev

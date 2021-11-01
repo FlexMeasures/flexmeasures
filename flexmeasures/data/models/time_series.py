@@ -2,6 +2,7 @@ from typing import List, Dict, Optional, Union, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
 
+from flask import current_app
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
@@ -18,6 +19,8 @@ from flexmeasures.data.queries.utils import (
 from flexmeasures.data.services.time_series import collect_time_series_data
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
+from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
@@ -25,9 +28,35 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
-    def __init__(self, name: str, **kwargs):
+    generic_asset_id = db.Column(
+        db.Integer,
+        db.ForeignKey("generic_asset.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    generic_asset = db.relationship(
+        "GenericAsset",
+        foreign_keys=[generic_asset_id],
+        backref=db.backref(
+            "sensors", lazy=True, cascade="all, delete-orphan", passive_deletes=True
+        ),
+    )
+
+    def __init__(
+        self,
+        name: str,
+        generic_asset: Optional[GenericAsset] = None,
+        generic_asset_id: Optional[int] = None,
+        **kwargs,
+    ):
+        assert (generic_asset is None) ^ (
+            generic_asset_id is None
+        ), "Either generic_asset_id or generic_asset must be set."
         tb.SensorDBMixin.__init__(self, name, **kwargs)
         tb_utils.remove_class_init_kwargs(tb.SensorDBMixin, kwargs)
+        if generic_asset is not None:
+            kwargs["generic_asset"] = generic_asset
+        else:
+            kwargs["generic_asset_id"] = generic_asset_id
         db.Model.__init__(self, **kwargs)
 
     @property
@@ -40,17 +69,22 @@ class Sensor(db.Model, tb.SensorDBMixin):
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
         beliefs_before: Optional[datetime_type] = None,
-        source: Optional[Union[int, List[int], str, List[str]]] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
+        most_recent_only: bool = False,
         as_json: bool = False,
-    ):
+    ) -> Union[tb.BeliefsDataFrame, str]:
         """Search all beliefs about events for this sensor.
 
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
-        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
         bdf = TimedBelief.search(
             sensor=self,
@@ -59,6 +93,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
             beliefs_after=beliefs_after,
             beliefs_before=beliefs_before,
             source=source,
+            most_recent_only=most_recent_only,
         )
         if as_json:
             df = bdf.reset_index()
@@ -73,7 +108,9 @@ class Sensor(db.Model, tb.SensorDBMixin):
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
         beliefs_before: Optional[datetime_type] = None,
-        source: Optional[Union[int, List[int], str, List[str]]] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
         include_data: bool = False,
         dataset_name: Optional[str] = None,
         **kwargs,
@@ -85,7 +122,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
-        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param include_data: if True, include data in the chart, or if False, exclude data
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         """
@@ -182,7 +219,10 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
         beliefs_before: Optional[datetime_type] = None,
-        source: Optional[Union[int, List[int], str, List[str]]] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
+        most_recent_only: bool = False,
     ) -> tb.BeliefsDataFrame:
         """Search all beliefs about events for a given sensor.
 
@@ -191,8 +231,10 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
-        :param source: search only beliefs by this source (pass its name or id) or list of sources
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         """
+        parsed_sources = parse_source_arg(source)
         return cls.search_session(
             session=db.session,
             sensor=sensor,
@@ -200,7 +242,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             event_ends_before=event_ends_before,
             beliefs_after=beliefs_after,
             beliefs_before=beliefs_before,
-            source=source,
+            source=parsed_sources,
+            most_recent_only=most_recent_only,
         )
 
     @classmethod
@@ -380,3 +423,38 @@ class TimedValue(object):
             resolution=resolution,
             sum_multiple=sum_multiple,
         )
+
+
+def parse_source_arg(
+    source: Optional[
+        Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+    ]
+) -> Optional[List[DataSource]]:
+    """Parse the "source" argument by looking up DataSources corresponding to any given ids or names."""
+    if source is None:
+        return source
+    if not isinstance(source, list):
+        sources = [source]
+    else:
+        sources = source
+    parsed_sources: List[DataSource] = []
+    for source in sources:
+        if isinstance(source, int):
+            parsed_source = DataSource.query.filter_by(id=source).one_or_none()
+            if parsed_source is None:
+                current_app.logger.warning(
+                    f"Beliefs searched for unknown source {source}"
+                )
+            else:
+                parsed_sources.append(parsed_source)
+        elif isinstance(source, str):
+            _parsed_sources = DataSource.query.filter_by(name=source).all()
+            if _parsed_sources is []:
+                current_app.logger.warning(
+                    f"Beliefs searched for unknown source {source}"
+                )
+            else:
+                parsed_sources.extend(_parsed_sources)
+        else:
+            parsed_sources.append(source)
+    return parsed_sources

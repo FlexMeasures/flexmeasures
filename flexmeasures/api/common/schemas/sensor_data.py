@@ -1,8 +1,10 @@
 from datetime import timedelta
+from typing import List, Union
 
 from flask_login import current_user
 from marshmallow import fields, post_load, validates_schema, ValidationError
 from marshmallow.validate import Equal, OneOf
+from marshmallow_polyfield import PolyField
 from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
@@ -11,6 +13,44 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+
+
+class SingleValueField(fields.Float):
+    """Field that both de-serializes and serializes a single value to a list of floats (length 1)."""
+
+    def _deserialize(self, value, attr, obj, **kwargs) -> List[float]:
+        return [self._validated(value)]
+
+    def _serialize(self, value, attr, data, **kwargs) -> List[float]:
+        return [self._validated(value)]
+
+
+def select_schema_to_ensure_list_of_floats(
+    values: Union[List[float], float], _
+) -> Union[fields.List, SingleValueField]:
+    """Allows both a single float and a list of floats. Always returns a list of floats.
+
+    Meant to improve user experience by not needing to make a list out of a single item, such that:
+
+        {
+            "values": [3.7]
+        }
+
+    can be written as:
+
+        {
+            "values": 3.7
+        }
+
+    Either will be de-serialized to [3.7].
+
+    Note that serialization always results in a list of floats.
+    This ensures that we are not requiring the same flexibility from users who are retrieving data.
+    """
+    if isinstance(values, list):
+        return fields.List(fields.Float)
+    else:
+        return SingleValueField()
 
 
 class SensorDataDescriptionSchema(ma.Schema):
@@ -62,7 +102,11 @@ class SensorDataSchema(SensorDataDescriptionSchema):
     type = fields.Str(
         validate=OneOf(["PostSensorDataRequest", "GetSensorDataResponse"])
     )
-    values = fields.List(fields.Float())
+    values = PolyField(
+        deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        serialization_schema_selector=select_schema_to_ensure_list_of_floats,
+        many=False,
+    )
 
     @validates_schema
     def check_resolution_compatibility_of_values(self, data, **kwargs):

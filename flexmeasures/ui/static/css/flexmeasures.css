@@ -2,6 +2,11 @@ body {
     padding-top: 100px;  /* This default is overridden by flexmeasures.js to support a fluid navbar */
 }
 
+#menu-logo {
+    height: 50px;
+    position: fixed; top: 0; left: 0;
+}
+
 #alerts {
     position: absolute;
     right: 10px;

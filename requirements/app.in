@@ -32,7 +32,7 @@ netCDF4
 siphon
 tables
 timetomodel>=0.7.1
-timely-beliefs>=1.4.3
+timely-beliefs>=1.5.0
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
@@ -49,6 +49,7 @@ Flask-Classful
 Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
+marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
 webargs
 # flask should be after all the flask plugins, because setup might find they ARE flask

@@ -9,11 +9,11 @@ from flexmeasures.ui.tests.utils import login, logout
 
 
 @pytest.fixture(scope="function")
-def as_prosumer(client):
+def as_prosumer_user1(client):
     """
     Login the default test prosumer and log him out afterwards.
     """
-    login(client, "test_prosumer@seita.nl", "testtest")
+    login(client, "test_prosumer_user@seita.nl", "testtest")
     yield
     logout(client)
 
@@ -30,7 +30,12 @@ def as_admin(client):
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_ui_test_data(
-    db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
+    db,
+    setup_accounts,
+    setup_roles_users,
+    setup_markets,
+    setup_sources,
+    setup_asset_types,
 ):
     """
     Create another prosumer, without data, and an admin
@@ -42,16 +47,15 @@ def setup_ui_test_data(
         username="Site Admin",
         email="flexmeasures-admin@seita.nl",
         password=hash_password("testtest"),
+        account_name=setup_accounts["Prosumer"].name,
         user_roles=dict(name="admin", description="A site admin."),
     )
 
-    test_prosumer2 = create_user(
-        username="Second Test Prosumer",
-        email="test_prosumer2@seita.nl",
+    test_user_ui = create_user(
+        username=" Test Prosumer User UI",
+        email="test_user_ui@seita.nl",
         password=hash_password("testtest"),
-        user_roles=dict(
-            name="Prosumer", description="A Prosumer with one asset but no data."
-        ),
+        account_name=setup_accounts["Prosumer"].name,
     )
     asset = Asset(
         name="solar pane 1",
@@ -66,7 +70,7 @@ def setup_ui_test_data(
         soc_in_mwh=0,
     )
     db.session.add(asset)
-    asset.owner = test_prosumer2
+    asset.owner = test_user_ui
 
     # Create 1 weather sensor
     test_sensor_type = WeatherSensorType(name="radiation")

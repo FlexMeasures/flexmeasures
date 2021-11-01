@@ -15,7 +15,7 @@ from werkzeug.exceptions import NotFound
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.user import User, Role
+from flexmeasures.data.models.user import User, Role, Account
 
 
 class InvalidFlexMeasuresUser(Exception):
@@ -30,12 +30,24 @@ def get_user(id: str) -> User:
     return user
 
 
-def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List[User]:
+def get_users(
+    account_name: Optional[str] = None,
+    role_name: Optional[str] = None,
+    account_role_name: Optional[str] = None,
+    only_active: bool = True,
+) -> List[User]:
     """Return a list of User objects.
     The role_name parameter allows to filter by role.
     Set only_active to False if you also want non-active users.
     """
     user_query = User.query
+
+    if account_name is not None:
+        account = Account.query.filter(Account.name == account_name).one_or_none()
+        if not account:
+            raise NotFound(f"There is no account named {account_name}!")
+        user_query = user_query.filter(User.account == account)
+
     if only_active:
         user_query = user_query.filter(User.active.is_(True))
 
@@ -44,7 +56,12 @@ def get_users(role_name: Optional[str] = None, only_active: bool = True) -> List
         if role:
             user_query = user_query.filter(User.flexmeasures_roles.contains(role))
 
-    return user_query.all()
+    users = user_query.all()
+
+    if account_role_name is not None:
+        users = [u for u in users if u.account.has_role(account_role_name)]
+
+    return users
 
 
 def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
@@ -58,12 +75,15 @@ def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
 
 def create_user(  # noqa: C901
     user_roles: Union[Dict[str, str], List[Dict[str, str]], str, List[str]] = None,
-    check_deliverability: bool = True,
-    **kwargs
+    check_email_deliverability: bool = True,
+    account_name: Optional[str] = None,
+    **kwargs,
 ) -> User:
     """
-    Convenience wrapper to create a new User object and new Role objects (if user roles do not already exist),
-    and new DataSource object that corresponds to the user.
+    Convenience wrapper to create a new User object, together with
+    - new Role objects (if user roles do not already exist)
+    - an Account object (if it does not exist yet)
+    - a new DataSource object that corresponds to the user
 
     Remember to commit the session after calling this function!
     """
@@ -76,7 +96,7 @@ def create_user(  # noqa: C901
         email_info = validate_email(email, check_deliverability=False)
         # The mx check talks to the SMTP server. During testing, we skip it because it
         # takes a bit of time and without internet connection it fails.
-        if check_deliverability and not current_app.testing:
+        if check_email_deliverability and not current_app.testing:
             try:
                 validate_email_deliverability(
                     email_info.domain, email_info["domain_i18n"]
@@ -105,12 +125,26 @@ def create_user(  # noqa: C901
             "User with username %s already exists." % username
         )
 
+    # check if we can link/create an account
+    if account_name is None:
+        raise InvalidFlexMeasuresUser(
+            "Cannot create user without knowing the name of the account which this user is associated with."
+        )
+    account = db.session.query(Account).filter_by(name=account_name).one_or_none()
+    if account is None:
+        print(f"Creating account {account_name} ...")
+        account = Account(name=account_name)
+        db.session.add(account)
+        db.session.flush()
+
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     kwargs.update(email=email, username=username)
     user = user_datastore.create_user(**kwargs)
 
     if user.password is None:
         set_random_password(user)
+
+    user.account_id = account.id
 
     # add roles to user (creating new roles if necessary)
     if user_roles:
@@ -129,6 +163,7 @@ def create_user(  # noqa: C901
             user_datastore.add_role_to_user(user, role)
 
     # create data source
+    db.session.flush()
     db.session.add(DataSource(user=user))
 
     return user

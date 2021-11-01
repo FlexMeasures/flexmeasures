@@ -16,14 +16,12 @@ from flexmeasures.utils.config_defaults import (
 )
 
 
-basedir = os.path.abspath(os.path.dirname(__file__))
-
 flexmeasures_logging_config = {
     "version": 1,
     "formatters": {
         "default": {"format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s"},
         "detail": {
-            "format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s [log made in %(pathname)s:%(lineno)d]"
+            "format": "[FLEXMEASURES][%(asctime)s] %(levelname)s: %(message)s [logged in %(pathname)s:%(lineno)d]"
         },
     },
     "handlers": {
@@ -36,7 +34,7 @@ flexmeasures_logging_config = {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "INFO",
             "formatter": "detail",
-            "filename": basedir + "/../../flexmeasures.log",
+            "filename": "flexmeasures.log",
             "maxBytes": 10_000_000,
             "backupCount": 6,
         },
@@ -50,10 +48,8 @@ def configure_logging():
     loggingDictConfig(flexmeasures_logging_config)
 
 
-def read_config(app: Flask, custom_path_to_config: Optional[str]):
-    """Read configuration from various expected sources, complain if not setup correctly. """
-
-    if app.env not in (
+def check_app_env(env: Optional[str]):
+    if env not in (
         "documentation",
         "development",
         "testing",
@@ -61,24 +57,33 @@ def read_config(app: Flask, custom_path_to_config: Optional[str]):
         "production",
     ):
         print(
-            'Flask(flexmeasures) environment needs to be either "documentation", "development", "testing", "staging" or "production".'
+            f'Flask(flexmeasures) environment needs to be either "documentation", "development", "testing", "staging" or "production". It currently is "{env}".'
         )
         sys.exit(2)
+
+
+def read_config(app: Flask, custom_path_to_config: Optional[str]):
+    """Read configuration from various expected sources, complain if not setup correctly. """
+
+    check_app_env(app.env)
 
     # First, load default config settings
     app.config.from_object(
         "flexmeasures.utils.config_defaults.%sConfig" % camelize(app.env)
     )
 
-    # Now, potentially overwrite those from config file
+    # Now, potentially overwrite those from config file or environment variables
+
     # These two locations are possible (besides the custom path)
     path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
     path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
-    if not app.testing:  # testing runs completely on defaults
-        # If no custom path is given, this will try home dir first, then instance dir
+
+    # Don't overwrite when testing (that should run completely on defaults)
+    if not app.testing:
         used_path_to_config = read_custom_config(
             app, custom_path_to_config, path_to_config_home, path_to_config_instance
         )
+        read_required_env_vars(app)
 
     # Check for missing values.
     # Documentation runs fine without them.
@@ -109,9 +114,16 @@ def read_config(app: Flask, custom_path_to_config: Optional[str]):
 
 
 def read_custom_config(
-    app, suggested_path_to_config, path_to_config_home, path_to_config_instance
+    app: Flask, suggested_path_to_config, path_to_config_home, path_to_config_instance
 ) -> str:
-    """ read in a custom config file or env vars. Return the path to the config file."""
+    """
+    Read in a custom config file and env vars.
+    For the config, there are two fallback options, tried in a specific order:
+    If no custom path is suggested, we'll try the path in the home dir first,
+    then in the instance dir.
+
+    Return the path to the config file.
+    """
     if suggested_path_to_config is not None and not os.path.exists(
         suggested_path_to_config
     ):
@@ -123,14 +135,21 @@ def read_custom_config(
             path_to_config = path_to_config_instance
     else:
         path_to_config = suggested_path_to_config
+    app.logger.info(f"Loading config from {path_to_config} ...")
     try:
         app.config.from_pyfile(path_to_config)
     except FileNotFoundError:
-        pass
-    # Finally, all required variables can be set as env var:
-    for req_var in required:
-        app.config[req_var] = os.getenv(req_var, app.config.get(req_var, None))
+        app.logger.warning(
+            f"File {path_to_config} could not be found! (work dir is {os.getcwd()})"
+        )
+        app.logger.warning(f"File exists: {os.path.exists(path_to_config)}")
     return path_to_config
+
+
+def read_required_env_vars(app: Flask):
+    """ All required variables and the plugins can be set as env var"""
+    for var in required:
+        app.config[var] = os.getenv(var, app.config.get(var, None))
 
 
 def are_required_settings_complete(app) -> bool:

@@ -21,8 +21,7 @@ from flexmeasures.api.v1_1.tests.utils import (
     verify_prices_in_db,
     get_forecasting_jobs,
 )
-from flexmeasures.data.auth_setup import UNAUTH_ERROR_STATUS
-
+from flexmeasures.auth.error_handling import UNAUTH_ERROR_STATUS
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import User
 from flexmeasures.data.models.markets import Market
@@ -63,7 +62,7 @@ def test_unauthorized_prognosis_request(client):
     ],
 )
 def test_invalid_horizon(setup_api_test_data, client, message):
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("flexmeasures_api_v1_1.get_prognosis"),
         query_string=message,
@@ -76,7 +75,7 @@ def test_invalid_horizon(setup_api_test_data, client, message):
 
 
 def test_no_data(setup_api_test_data, client):
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("flexmeasures_api_v1_1.get_prognosis"),
         query_string=message_replace_name_with_ea(
@@ -103,7 +102,7 @@ def test_no_data(setup_api_test_data, client):
     ],
 )
 def test_get_prognosis(setup_api_test_data, client, message):
-    auth_token = get_auth_token(client, "test_prosumer@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_prognosis_response = client.get(
         url_for("flexmeasures_api_v1_1.get_prognosis"),
         query_string=message_replace_name_with_ea(message),
@@ -127,13 +126,13 @@ def test_get_prognosis(setup_api_test_data, client, message):
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
 def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message):
     """
-    Try to post price data as a logged-in test user with the Supplier role, which should succeed.
+    Try to post price data as a logged-in test user with the Prosumer role, which should succeed.
     """
     # call with client whose context ends, so that we can test for,
     # after-effects in the database after teardown committed.
     with app.test_client() as client:
         # post price data
-        auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         post_price_data_response = client.post(
             url_for("flexmeasures_api_v1_1.post_price_data"),
             json=post_message,
@@ -168,7 +167,7 @@ def test_post_price_data_invalid_unit(setup_api_test_data, client, post_message)
     """
 
     # post price data
-    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_price_data_response = client.post(
         url_for("flexmeasures_api_v1_1.post_price_data"),
         json=post_message,
@@ -194,13 +193,13 @@ def test_post_weather_forecasts(
     setup_api_test_data, add_weather_sensors, app, client, post_message
 ):
     """
-    Try to post wind speed and temperature forecasts as a logged-in test user with the Supplier role, which should succeed.
+    Try to post wind speed and temperature forecasts as a logged-in test user with the Prosumer role, which should succeed.
     As only forecasts are sent, no forecasting jobs are expected.
     """
     assert len(get_forecasting_jobs("Weather")) == 0
 
     # post weather data
-    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_weather_data_response = client.post(
         url_for("flexmeasures_api_v1_1.post_weather_data"),
         json=post_message,
@@ -218,12 +217,12 @@ def test_post_weather_forecasts(
 )
 def test_post_weather_forecasts_invalid_unit(setup_api_test_data, client, post_message):
     """
-    Try to post wind speed data as a logged-in test user with the Supplier role, but with a wrong unit for wind speed,
+    Try to post wind speed data as a logged-in test user with the Prosumer role, but with a wrong unit for wind speed,
     which should fail.
     """
 
     # post weather data
-    auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_weather_data_response = client.post(
         url_for("flexmeasures_api_v1_1.post_weather_data"),
         json=post_message,

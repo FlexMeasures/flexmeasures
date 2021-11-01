@@ -58,12 +58,18 @@ Default: ``{"flexmeasures.io": "2021-01"}``
 
 .. _plugin-config:
 
-FLEXMEASURES_PLUGIN_PATHS
+FLEXMEASURES_PLUGINS
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A list of absolute paths to Blueprint-based plugins for FlexMeasures (e.g. for custom views or CLI functions).
-Each plugin path points to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined. 
-See :ref:`plugins` on what is expected for content.
+A list of plugins you want FlexMeasures to load (e.g. for custom views or CLI functions). 
+
+Two types of entries are possible here:
+
+* File paths (absolute or relative) to plugins. Each such path needs to point to a folder, which should contain an ``__init__.py`` file where the Blueprint is defined. 
+* Names of installed Python modules. 
+
+Added functionality in plugins needs to be based on Flask Blueprints. See :ref:`plugins` for more information and examples.
+
 
 Default: ``[]``
 
@@ -89,9 +95,92 @@ UI
 FLEXMEASURES_PLATFORM_NAME
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Name being used in headings
+Name being used in headings and in the menu bar.
+
+For more fine-grained control, this can also be a list, where it's possible to set the platform name for certain account roles (as a tuple of view name and list of applicable account roles). In this case, the list is searched from left to right, and the first fitting name is used.
+
+For example, ``("MyMDCApp", ["MDC"]), "MyApp"]`` would show the name "MyMDCApp" for users connected to accounts with the account role "MDC", while all others would see the name "/MyApp".
+
+.. note:: This fine-grained control requires FlexMeasures version 0.6.0
 
 Default: ``"FlexMeasures"``
+
+
+FLEXMEASURES_MENU_LOGO_PATH
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL path to identify an image being used as logo in the upper left corner (replacing some generic text made from platform name and the page title).
+The path can be a complete URL or a relative from the app root. 
+
+Default: ""
+
+
+.. _extra-css-config:
+
+FLEXMEASURES_EXTRA_CSS_PATH
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL path to identify a CSS style-sheet to be added to the base template.
+The path can be a complete URL or a relative from the app root. 
+
+.. note:: You can also add extra styles for plugins with the usual Blueprint method. That is more elegant but only applies to the Blueprint's views.
+
+Default: ""
+
+
+FLEXMEASURES_ROOT_VIEW
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Root view (reachable at "/"). For example ``"/dashboard"``.
+
+For more fine-grained control, this can also be a list, where it's possible to set the root view for certain account roles (as a tuple of view name and list of applicable account roles). In this case, the list is searched from left to right, and the first fitting view is shown.
+
+For example, ``[("metering-dashboard", ["MDC", "Prosumer"]), "default-dashboard"]`` would route to "/metering-dashboard" for users connected to accounts with account roles "MDC" or "Prosumer", while all others would be routed to "/default-dashboard".
+
+If this setting is empty or not applicable for the current user, the "/" view will be shown (FlexMeasures' default dashboard or a plugin view which was registered at "/").
+
+Default ``[]``
+
+.. note:: This setting was introduced in FlexMeasures version 0.6.0
+
+
+.. _menu-config:
+
+FLEXMEASURES_MENU_LISTED_VIEWS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A list of the view names which are listed in the menu.
+
+.. note:: This setting only lists the names of views, rather than making sure the views exist.
+
+For more fine-grained control, the entries can also be tuples of view names and list of applicable account roles. For example, the entry ``("details": ["MDC", "Prosumer"])`` would add the "/details" link to the menu only for users who are connected to accounts with roles "MDC" or "Prosumer". For clarity: the title of the menu item would read "Details", see also the FLEXMEASURES_LISTED_VIEW_TITLES setting below.
+
+.. note:: This fine-grained control requires FlexMeasures version 0.6.0
+
+Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``
+
+
+FLEXMEASURES_MENU_LISTED_VIEW_ICONS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary containing a Font Awesome icon name for each view name listed in the menu.
+For example, ``{"freezer-view": "snowflake-o"}`` puts a snowflake icon (|snowflake-o|) next to your freezer-view menu item.
+
+Default: ``{}``
+
+.. note:: This setting was introduced in FlexMeasures version 0.6.0
+
+
+FLEXMEASURES_MENU_LISTED_VIEW_TITLES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A dictionary containing a string title for each view name listed in the menu.
+For example, ``{"freezer-view": "Your freezer"}`` lists the freezer-view in the menu as "Your freezer".
+
+Default: ``{}``
+
+.. note:: This setting was introduced in FlexMeasures version 0.6.0
+
 
 FLEXMEASURES_HIDE_NAN_IN_UI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -117,6 +206,16 @@ FLEXMEASURES_TIMEZONE
 Timezone in which the platform operates. This is useful when datetimes are being localized.
 
 Default: ``"Asia/Seoul"``
+
+
+FLEXMEASURES_JOB_TTL
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Time to live for jobs (e.g. forecasting, scheduling) in their respective queue.
+
+A job that is passed this time to live might get cleaned out by Redis' memory manager.
+
+Default: ``timedelta(days=1)``
 
 FLEXMEASURES_PLANNING_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -152,6 +251,7 @@ Token for accessing the MapBox API (for displaying maps on the dashboard and ass
 
 Default: ``None``
 
+.. _sentry_access_token:
 
 SENTRY_SDN
 ^^^^^^^^^^^^
@@ -365,6 +465,8 @@ Token which external services can use to check on the status of recurring tasks 
 Default: ``None``
 
 
+.. _monitoring_mail_recipients:
+
 FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -426,18 +528,6 @@ FLEXMEASURES_DEMO_YEAR
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When ``FLEXMEASURES_MODE=demo``\ , this setting can be used to make the FlexMeasures platform select data from a specific year (e.g. 2015),
-so that old imported data can be demoed as if it were current
+so that old imported data can be demoed as if it were current.
 
 Default: ``None``
-
-
-.. _menu-config:
-
-FLEXMEASURES_LISTED_VIEWS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A list of the views which are listed in the menu.
-
-.. note:: This setting is likely to be deprecated soon, as we might want to control it per account (once we implemented a multi-tenant data model per FlexMeasures server).
-
-Default: ``["dashboard", "analytics", "portfolio", "assets", "users"]``

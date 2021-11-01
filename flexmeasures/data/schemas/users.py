@@ -22,6 +22,7 @@ class UserSchema(ma.SQLAlchemySchema):
     id = ma.auto_field()
     email = ma.auto_field(required=True, validate=validate.Email)
     username = ma.auto_field(required=True)
+    account_id = ma.auto_field()
     active = ma.auto_field()
     timezone = ma.auto_field()
     flexmeasures_roles = ma.auto_field()

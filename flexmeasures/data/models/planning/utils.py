@@ -9,6 +9,7 @@ import timely_beliefs as tb
 
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.planning.exceptions import UnknownPricesException
+from flexmeasures.data.queries.utils import simplify_index
 
 
 def initialize_df(
@@ -60,7 +61,7 @@ def get_prices(
     query_window: Tuple[datetime, datetime],
     resolution: timedelta,
     allow_trimmed_query_window: bool = True,
-) -> Tuple[tb.BeliefsDataFrame, Tuple[datetime, datetime]]:
+) -> Tuple[pd.DataFrame, Tuple[datetime, datetime]]:
     """Check for known prices or price forecasts, trimming query window accordingly if allowed.
     todo: set a horizon to avoid collecting prices that are not known at the time of constructing the schedule
           (this may require implementing a belief time for scheduling jobs).
@@ -70,20 +71,26 @@ def get_prices(
         query_window=query_window,
         resolution=to_offset(resolution).freqstr,
     )
-    nan_prices = price_bdf.isnull().values
-    if nan_prices.all():
+    price_df = simplify_index(price_bdf)
+    nan_prices = price_df.isnull().values
+    if nan_prices.all() or price_df.empty:
         raise UnknownPricesException("Prices unknown for planning window.")
-    elif nan_prices.any():
+    elif (
+        nan_prices.any()
+        or pd.Timestamp(price_df.index[0]).tz_convert("UTC")
+        != pd.Timestamp(query_window[0]).tz_convert("UTC")
+        or pd.Timestamp(price_df.index[-1]).tz_convert("UTC")
+        != pd.Timestamp(query_window[-1]).tz_convert("UTC")
+    ):
         if allow_trimmed_query_window:
-            query_window = (
-                price_bdf.first_valid_index(),
-                price_bdf.last_valid_index() + resolution,
-            )
+            first_event_start = price_df.first_valid_index()
+            last_event_end = price_df.last_valid_index() + resolution
             current_app.logger.warning(
-                f"Prices partially unknown for planning window. Trimming planning window to {query_window[0]} until {query_window[-1]}."
+                f"Prices partially unknown for planning window. Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
             )
+            query_window = (first_event_start, last_event_end)
         else:
             raise UnknownPricesException(
                 "Prices partially unknown for planning window."
             )
-    return price_bdf, query_window
+    return price_df, query_window

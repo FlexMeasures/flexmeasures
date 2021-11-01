@@ -4,6 +4,7 @@ in the context of one database transaction. Which makes our lives easier.
 """
 import sys
 from datetime import datetime
+from typing import Optional
 
 import pytz
 import click
@@ -12,6 +13,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 from flexmeasures.data.config import db
 from flexmeasures.utils.error_utils import get_err_source_info
+from flexmeasures.utils.coding_utils import optional_arg_decorator
 from flexmeasures.data.models.task_runs import LatestTaskRun
 
 
@@ -75,7 +77,8 @@ class PartialTaskCompletionException(Exception):
     pass
 
 
-def task_with_status_report(task_function):
+@optional_arg_decorator
+def task_with_status_report(task_function, task_name: Optional[str] = None):
     """Decorator for tasks which should report their runtime and status in the db (as LatestTaskRun entries).
     Tasks decorated with this endpoint should also leave committing or rolling back the session to this
     decorator (for the reasons that it is nice to centralise that but also practically, this decorator
@@ -84,18 +87,24 @@ def task_with_status_report(task_function):
     it can raise a PartialTaskCompletionException and we recommend to use save-points (db.session.being_nested) to
     do partial rollbacks (see https://docs.sqlalchemy.org/en/latest/orm/session_transaction.html#using-savepoint)."""
 
+    task_name_to_report = (
+        task_name  # store this closure var somewhere else before we might assign to it
+    )
+    if task_name_to_report is None:
+        task_name_to_report = task_function.__name__
+
     def wrap(*args, **kwargs):
         status: bool = True
         partial: bool = False
         try:
             task_function(*args, **kwargs)
-            click.echo("[FLEXMEASURES] Task %s ran fine." % task_function.__name__)
+            click.echo("[FLEXMEASURES] Task %s ran fine." % task_name_to_report)
         except Exception as e:
             exc_info = sys.exc_info()
             last_traceback = exc_info[2]
             click.echo(
                 '[FLEXMEASURES] Task %s encountered a problem: "%s". More details: %s'
-                % (task_function.__name__, str(e), get_err_source_info(last_traceback))
+                % (task_name_to_report, str(e), get_err_source_info(last_traceback))
             )
             status = False
             if e.__class__ == PartialTaskCompletionException:
@@ -108,24 +117,23 @@ def task_with_status_report(task_function):
             # now save the status of the task
             db.session.begin_nested()  # any failure here does not invalidate any task results we might commit
             try:
-                task_name = task_function.__name__
                 task_run = LatestTaskRun.query.filter(
-                    LatestTaskRun.name == task_name
+                    LatestTaskRun.name == task_name_to_report
                 ).one_or_none()
                 if task_run is None:
-                    task_run = LatestTaskRun(name=task_name)
+                    task_run = LatestTaskRun(name=task_name_to_report)
                     db.session.add(task_run)
                 task_run.datetime = datetime.utcnow().replace(tzinfo=pytz.utc)
                 task_run.status = status
                 click.echo(
                     "[FLEXMEASURES] Reported task %s status as %s"
-                    % (task_function.__name__, status)
+                    % (task_name_to_report, status)
                 )
                 db.session.commit()
             except Exception as e:
                 click.echo(
                     "[FLEXMEASURES] Could not report the running of task %s. Encountered the following problem: [%s]."
-                    " The task might have run fine." % (task_function.__name__, str(e))
+                    " The task might have run fine." % (task_name_to_report, str(e))
                 )
                 db.session.rollback()
 

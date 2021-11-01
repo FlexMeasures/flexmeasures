@@ -102,7 +102,7 @@ A fresh "<token>" can be generated on the user's profile after logging in:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/account
+    https://company.flexmeasures.io/logged-in-user
 
 or through a POST request to the following endpoint:
 
@@ -232,7 +232,7 @@ Some deeper explanations about an entity address:
 
 
 Types of asset identifications used in FlexMeasures
-""""""""""""""""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 FlexMeasures expects the locally unique string string to contain information in
 a certain structure. We distinguish type ``fm0`` and type ``fm1`` FlexMeasures entity addresses.
@@ -431,7 +431,7 @@ These fields denote that the data should have been recorded at least 6 hours bef
 .. _prognoses:
 
 Setting the recording time
-""""""""""""""""""""""""
+""""""""""""""""""""""""""""
 
 Some POST endpoints have two optional fields to allow setting the time at which beliefs are recorded in an explicit manner.
 This is useful to keep an accurate history of what was known at what time, especially for prognoses.

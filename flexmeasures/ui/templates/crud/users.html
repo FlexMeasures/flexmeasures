@@ -30,6 +30,7 @@
                             <th>Username</th>
                             <th>Email</th>
                             <th>Roles</th>
+                            <th>Account</th>
                             <th>Timezone</th>
                             <th>Last Login</th>
                             <th>Active</th>
@@ -47,6 +48,9 @@
                                 <td>{% for role in user.flexmeasures_roles %}
                                       {{ role.name }}{{ "," if not loop.last }}
                                     {% endfor %}
+                                </td>
+                                <td>
+                                    {{ user.account.name }}
                                 </td>
                                 <td>
                                     {{ user.timezone }}

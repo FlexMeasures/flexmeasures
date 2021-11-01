@@ -8,6 +8,7 @@ import pandas as pd
 import rq_dashboard
 from humanize import naturaldelta
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
     parameterize,
@@ -15,6 +16,10 @@ from flexmeasures.utils.flexmeasures_inflection import (
 from flexmeasures.utils.time_utils import (
     localized_datetime_str,
     naturalized_datetime_str,
+)
+from flexmeasures.utils.app_utils import (
+    parse_config_entry_by_account_roles,
+    find_first_applicable_config_entry,
 )
 from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 
@@ -97,7 +102,7 @@ def register_rq_dashboard(app):
         return
 
     @login_required
-    @roles_accepted("admin")
+    @roles_accepted(ADMIN_ROLE)
     def basic_admin_auth():
         """Ensure basic admin authorization."""
         return
@@ -133,17 +138,25 @@ def add_jinja_filters(app):
     )
     app.jinja_env.filters["asset_icon"] = asset_icon_name
     app.jinja_env.filters["username"] = username
+    app.jinja_env.filters[
+        "parse_config_entry_by_account_roles"
+    ] = parse_config_entry_by_account_roles
+    app.jinja_env.filters[
+        "find_first_applicable_config_entry"
+    ] = find_first_applicable_config_entry
 
 
 def add_jinja_variables(app):
     # Set variables for Jinja template context
-    for v in (
-        "FLEXMEASURES_MODE",
-        "FLEXMEASURES_PLATFORM_NAME",
-        "FLEXMEASURES_LISTED_VIEWS",
-        "FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS",
+    for v, d in (
+        ("FLEXMEASURES_MODE", ""),
+        ("FLEXMEASURES_PLATFORM_NAME", ""),
+        ("FLEXMEASURES_MENU_LISTED_VIEWS", []),
+        ("FLEXMEASURES_MENU_LISTED_VIEW_ICONS", {}),
+        ("FLEXMEASURES_MENU_LISTED_VIEW_TITLES", {}),
+        ("FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS", ""),
     ):
-        app.jinja_env.globals[v] = app.config.get(v, "")
+        app.jinja_env.globals[v] = app.config.get(v, d)
     app.jinja_env.globals["documentation_exists"] = (
         True
         if os.path.exists(

@@ -82,7 +82,9 @@ class Config(object):
     FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: List[str] = []
 
-    FLEXMEASURES_PLATFORM_NAME: str = "FlexMeasures"
+    FLEXMEASURES_PLATFORM_NAME: Union[
+        str, List[Union[str, Tuple[str, List[str]]]]
+    ] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
@@ -92,17 +94,23 @@ class Config(object):
     # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict = {"flexmeasures.io": "2021-01"}
-    FLEXMEASURES_PLUGIN_PATHS: List[str] = []
+    FLEXMEASURES_PLUGINS: List[str] = []
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
-    FLEXMEASURES_LISTED_VIEWS: List[str] = [
+    FLEXMEASURES_MENU_LOGO_PATH: str = ""
+    FLEXMEASURES_EXTRA_CSS_PATH: str = ""
+    FLEXMEASURES_ROOT_VIEW: Union[str, List[Union[str, Tuple[str, List[str]]]]] = []
+    FLEXMEASURES_MENU_LISTED_VIEWS: List[Union[str, Tuple[str, List[str]]]] = [
         "dashboard",
         "analytics",
         "portfolio",
         "assets",
         "users",
     ]
+    FLEXMEASURES_MENU_LISTED_VIEW_ICONS: Dict[str, str] = {}
+    FLEXMEASURES_MENU_LISTED_VIEW_TITLES: Dict[str, str] = {}
     FLEXMEASURES_LP_SOLVER: str = "cbc"
+    FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)
     FLEXMEASURES_PLANNING_TTL: timedelta = timedelta(
         days=7
@@ -168,6 +176,7 @@ class TestingConfig(Config):
     LOGGING_LEVEL = logging.INFO
     WTF_CSRF_ENABLED = False  # also necessary for logging in during tests
 
+    SECRET_KEY = "dummy-key-for-testing"
     SECURITY_PASSWORD_SALT = "$2b$19$abcdefghijklmnopqrstuv"
     SQLALCHEMY_DATABASE_URI = (
         "postgresql://flexmeasures_test:flexmeasures_test@localhost/flexmeasures_test"
@@ -186,4 +195,4 @@ class TestingConfig(Config):
 
 
 class DocumentationConfig(Config):
-    pass
+    SECRET_KEY = "dummy-key-for-documentation"

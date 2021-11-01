@@ -4,7 +4,7 @@ Building custom UIs
 ========================
 
 FlexMeasures provides its own UI (see :ref:`dashboard`), but it is a back office platform first.
-Most energy service companies already have with their own user-facing system.
+Most energy service companies already have their own user-facing system.
 We therefore made it possible to incorporate information from FlexMeasures in custom UIs.
 
 This tutorial will show how the FlexMeasures API can be used from JavaScript to extract information and display it in a browser (using HTML). We'll extract information about users, assets and even whole plots!
