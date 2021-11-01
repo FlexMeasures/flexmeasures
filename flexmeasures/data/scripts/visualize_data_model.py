@@ -42,12 +42,16 @@ RELEVANT_MODULES = [
 ]
 
 RELEVANT_TABLES = [
-    "asset",
-    "asset_type",
     "role",
+    "account",
+    "account_role",
     "fm_user",
     "data_source",
     "latest_task_run",
+]
+LEGACY_TABLES = [
+    "asset",
+    "asset_type",
     "market",
     "market_type",
     "power",
@@ -63,7 +67,7 @@ RELEVANT_TABLES_DEV = [
     "timed_belief",
     "timed_value",
 ]
-IGNORED_TABLES = ["alembic_version", "roles_users"]
+IGNORED_TABLES = ["alembic_version", "roles_users", "roles_accounts"]
 
 
 def check_sqlalchemy_schemadisplay_installation():
@@ -121,6 +125,8 @@ def create_schema_pic(pg_url, pg_user, pg_pwd, store: bool = False, dev: bool = 
     relevant_tables = RELEVANT_TABLES
     if dev:
         relevant_tables += RELEVANT_TABLES_DEV
+    else:
+        relevant_tables += LEGACY_TABLES
     kwargs = dict(
         metadata=db_metadata,
         show_datatypes=False,  # The image would get nasty big if we'd show the datatypes
@@ -162,6 +168,8 @@ def create_uml_pic(store: bool = False, dev: bool = False):
     relevant_tables = RELEVANT_TABLES
     if dev:
         relevant_tables += RELEVANT_TABLES_DEV
+    else:
+        relevant_tables += LEGACY_TABLES
     if DEBUG:
         print(f"Relevant tables: {relevant_tables}")
         print(f"Relevant models: {relevant_models}")

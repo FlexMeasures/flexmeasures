@@ -16,7 +16,7 @@ from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 
 
 class SingleValueField(fields.Float):
-    """Field that both deserializes and serializes a single value to a list of floats (length 1)."""
+    """Field that both de-serializes and serializes a single value to a list of floats (length 1)."""
 
     def _deserialize(self, value, attr, obj, **kwargs) -> List[float]:
         return [self._validated(value)]
@@ -42,7 +42,7 @@ def select_schema_to_ensure_list_of_floats(
             "values": 3.7
         }
 
-    Either will be deserialized to [3.7].
+    Either will be de-serialized to [3.7].
 
     Note that serialization always results in a list of floats.
     This ensures that we are not requiring the same flexibility from users who are retrieving data.

@@ -91,7 +91,10 @@ def error_handling_router(error: HTTPException):
 
 
 def add_basic_error_handlers(app: Flask):
-    """Register classes we care about with the generic handler."""
+    """
+    Register classes we care about with the generic handler.
+    See also the auth package for auth-specific error handling (Unauthorized, Forbidden)
+    """
     app.register_error_handler(InternalServerError, error_handling_router)
     app.register_error_handler(BadRequest, error_handling_router)
     app.register_error_handler(HTTPException, error_handling_router)

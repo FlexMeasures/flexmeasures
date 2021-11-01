@@ -8,6 +8,7 @@ import pandas as pd
 import rq_dashboard
 from humanize import naturaldelta
 
+from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
     parameterize,
@@ -101,7 +102,7 @@ def register_rq_dashboard(app):
         return
 
     @login_required
-    @roles_accepted("admin")
+    @roles_accepted(ADMIN_ROLE)
     def basic_admin_auth():
         """Ensure basic admin authorization."""
         return

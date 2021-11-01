@@ -2,9 +2,9 @@ import copy
 
 from flask_security import auth_token_required
 
+from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.api.common.utils.api_utils import list_access, append_doc_of
 from flexmeasures.api.common.utils.decorators import as_response_type
-from flexmeasures.api.common.utils.validators import usef_roles_accepted
 from flexmeasures.api.v1 import implementations as v1_implementations
 from flexmeasures.api.v1_1 import implementations as v1_1_implementations
 from flexmeasures.api.v1_2 import routes as v1_2_routes
@@ -21,7 +21,7 @@ v1_3_service_listing["version"] = "1.3"
 @flexmeasures_api_v1_3.route("/getDeviceMessage", methods=["GET"])
 @as_response_type("GetDeviceMessageResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_3_service_listing, "getDeviceMessage"))
+@account_roles_accepted(*list_access(v1_3_service_listing, "getDeviceMessage"))
 def get_device_message():
     """API endpoint to get device message.
 
@@ -78,7 +78,7 @@ def get_device_message():
 @flexmeasures_api_v1_3.route("/postUdiEvent", methods=["POST"])
 @as_response_type("PostUdiEventResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_3_service_listing, "postUdiEvent"))
+@account_roles_accepted(*list_access(v1_3_service_listing, "postUdiEvent"))
 def post_udi_event():
     """API endpoint to post UDI event. (UDI is the Universal Device Interface proposed by USEF for flexible device states)
 
@@ -149,7 +149,7 @@ def post_udi_event():
 @flexmeasures_api_v1_3.route("/getConnection", methods=["GET"])
 @as_response_type("GetConnectionResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_3_service_listing, "getConnection"))
+@account_roles_accepted(*list_access(v1_3_service_listing, "getConnection"))
 @append_doc_of(v1_2_routes.get_connection)
 def get_connection():
     return v1_1_implementations.get_connection_response()
@@ -158,7 +158,7 @@ def get_connection():
 @flexmeasures_api_v1_3.route("/postPriceData", methods=["POST"])
 @as_response_type("PostPriceDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_3_service_listing, "postPriceData"))
+@account_roles_accepted(*list_access(v1_3_service_listing, "postPriceData"))
 @append_doc_of(v1_2_routes.post_price_data)
 def post_price_data():
     return v1_1_implementations.post_price_data_response()
@@ -167,7 +167,7 @@ def post_price_data():
 @flexmeasures_api_v1_3.route("/postWeatherData", methods=["POST"])
 @as_response_type("PostWeatherDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_3_service_listing, "postWeatherData"))
+@account_roles_accepted(*list_access(v1_3_service_listing, "postWeatherData"))
 @append_doc_of(v1_2_routes.post_weather_data)
 def post_weather_data():
     return v1_1_implementations.post_weather_data_response()
@@ -176,7 +176,7 @@ def post_weather_data():
 @flexmeasures_api_v1_3.route("/getPrognosis", methods=["GET"])
 @as_response_type("GetPrognosisResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_3_service_listing, "getPrognosis"))
+@account_roles_accepted(*list_access(v1_3_service_listing, "getPrognosis"))
 @append_doc_of(v1_2_routes.get_prognosis)
 def get_prognosis():
     return v1_1_implementations.get_prognosis_response()
@@ -185,7 +185,7 @@ def get_prognosis():
 @flexmeasures_api_v1_3.route("/getMeterData", methods=["GET"])
 @as_response_type("GetMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_3_service_listing, "getMeterData"))
+@account_roles_accepted(*list_access(v1_3_service_listing, "getMeterData"))
 @append_doc_of(v1_2_routes.get_meter_data)
 def get_meter_data():
     return v1_implementations.get_meter_data_response()
@@ -194,7 +194,7 @@ def get_meter_data():
 @flexmeasures_api_v1_3.route("/postMeterData", methods=["POST"])
 @as_response_type("PostMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_3_service_listing, "postMeterData"))
+@account_roles_accepted(*list_access(v1_3_service_listing, "postMeterData"))
 @append_doc_of(v1_2_routes.post_meter_data)
 def post_meter_data():
     return v1_implementations.post_meter_data_response()
@@ -203,7 +203,7 @@ def post_meter_data():
 @flexmeasures_api_v1_3.route("/postPrognosis", methods=["POST"])
 @as_response_type("PostPrognosisResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_3_service_listing, "postPrognosis"))
+@account_roles_accepted(*list_access(v1_3_service_listing, "postPrognosis"))
 @append_doc_of(v1_2_routes.post_prognosis)
 def post_prognosis():
     return v1_1_implementations.post_prognosis_response()

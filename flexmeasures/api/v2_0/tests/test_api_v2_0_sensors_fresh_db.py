@@ -28,14 +28,14 @@ def test_post_price_data_2_0(
     post_message,
 ):
     """
-    Try to post price data as a logged-in test user with the Supplier role, which should succeed.
+    Try to post price data as a logged-in test user, which should succeed.
     """
     db = fresh_db
     # call with client whose context ends, so that we can test for,
     # after-effects in the database after teardown committed.
     with app.test_client() as client:
         # post price data
-        auth_token = get_auth_token(client, "test_supplier@seita.nl", "testtest")
+        auth_token = get_auth_token(client, "test_prosumer_user_2@seita.nl", "testtest")
         post_price_data_response = client.post(
             url_for("flexmeasures_api_v2_0.post_price_data"),
             json=post_message,

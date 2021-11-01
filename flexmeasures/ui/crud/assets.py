@@ -10,7 +10,7 @@ from wtforms import StringField, DecimalField, IntegerField, SelectField
 from wtforms.validators import DataRequired
 
 from flexmeasures.data.config import db
-from flexmeasures.data.auth_setup import unauthorized_handler
+from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.services.users import get_users
 from flexmeasures.data.services.resources import get_markets, get_center_location
 from flexmeasures.data.models.assets import AssetType, Asset

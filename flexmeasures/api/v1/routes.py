@@ -1,8 +1,8 @@
 from flask_security import auth_token_required
 
+from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.api.common.utils.api_utils import list_access
 from flexmeasures.api.common.utils.decorators import as_response_type
-from flexmeasures.api.common.utils.validators import usef_roles_accepted
 from flexmeasures.api.v1 import (
     flexmeasures_api as flexmeasures_api_v1,
     implementations as v1_implementations,
@@ -30,7 +30,7 @@ v1_service_listing = {
 @flexmeasures_api_v1.route("/getMeterData", methods=["GET", "POST"])
 @as_response_type("GetMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_service_listing, "getMeterData"))
+@account_roles_accepted(*list_access(v1_service_listing, "getMeterData"))
 def get_meter_data():
     """API endpoint to get meter data.
 
@@ -95,7 +95,7 @@ def get_meter_data():
 @flexmeasures_api_v1.route("/postMeterData", methods=["POST"])
 @as_response_type("PostMeterDataResponse")
 @auth_token_required
-@usef_roles_accepted(*list_access(v1_service_listing, "postMeterData"))
+@account_roles_accepted(*list_access(v1_service_listing, "postMeterData"))
 def post_meter_data():
     """API endpoint to post meter data.
 

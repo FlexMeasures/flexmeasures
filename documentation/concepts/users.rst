@@ -3,7 +3,8 @@
 Who can use the platform?
 =========================
 
-Potential users of the platform are listed below by their role in the Universal Smart Energy Framework (USEF).
+Various parties might be beneficiaries of using the FlexMeasures platform, and services built on top of it.
+Listed below are a few types, listed by their role in the Universal Smart Energy Framework (USEF), which are supported as account roles (see :ref:`auth`).
 
 
 Prosumers
