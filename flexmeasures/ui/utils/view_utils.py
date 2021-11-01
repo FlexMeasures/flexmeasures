@@ -1,4 +1,5 @@
 """Utilities for views"""
+import json
 import os
 import subprocess
 from typing import Tuple, List, Optional
@@ -19,6 +20,7 @@ from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensorType
 from flexmeasures.data.services.resources import Resource
+from flexmeasures.ui.utils.chart_defaults import chart_options
 
 
 def render_flexmeasures_template(html_filename: str, **variables):
@@ -89,6 +91,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
         current_user.is_authenticated and current_user.username or ""
     )
     variables["js_versions"] = current_app.config.get("FLEXMEASURES_JS_VERSIONS")
+    variables["chart_options"] = json.dumps(chart_options)
 
     variables["menu_logo"] = current_app.config.get("FLEXMEASURES_MENU_LOGO_PATH")
     variables["extra_css"] = current_app.config.get("FLEXMEASURES_EXTRA_CSS_PATH")
