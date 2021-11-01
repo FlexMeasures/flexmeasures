@@ -34,7 +34,7 @@ def test_value_field_deserialization(
     exp_deserialization_output,
 ):
     """Testing straightforward cases"""
-    vf = SensorDataSchema.values
+    vf = SensorDataSchema._declared_fields["values"]
     deser = vf.deserialize(deserialization_input)
     assert deser == exp_deserialization_output
 
