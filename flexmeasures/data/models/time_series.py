@@ -97,7 +97,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         )
         if as_json:
             df = bdf.reset_index()
-            df["source"] = df["source"].apply(lambda x: x.name)
+            df["source"] = df["source"].astype(str)
             return df.to_json(orient="records")
         return bdf
 
