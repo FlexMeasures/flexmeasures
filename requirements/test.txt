@@ -25,7 +25,7 @@ click==8.0.3
     # via
     #   -c requirements/app.txt
     #   flask
-coverage[toml]==6.0.2
+coverage[toml]==6.1.1
     # via pytest-cov
 cryptography==35.0.0
     # via
@@ -59,7 +59,7 @@ markupsafe==2.0.1
     # via
     #   -c requirements/app.txt
     #   jinja2
-packaging==21.0
+packaging==21.2
     # via
     #   -c requirements/app.txt
     #   fakeredis
@@ -77,7 +77,7 @@ pyopenssl==21.0.0
     # via
     #   -c requirements/app.txt
     #   urllib3
-pyparsing==3.0.1
+pyparsing==2.4.7
     # via
     #   -c requirements/app.txt
     #   packaging
