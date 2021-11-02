@@ -9,6 +9,9 @@ Furthermore, we discuss several guidelines and best practices.
     :local:
     :depth: 1
 
+.. warning:: Are you implementing code based on FlexMeasures, please read :ref:`note_on_datamodel_transition`.
+
+
 Getting started
 ------------------
 

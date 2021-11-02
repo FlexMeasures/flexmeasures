@@ -10,6 +10,8 @@ This section walks you through getting FlexMeasures to run with the least effort
 
 .. note:: Are you not hosting FlexMeasures, but want to learn how to use it? Head over to our tutorials, starting with :ref:`tut_posting_data`.
 
+.. warning:: Are you implementing code based on FlexMeasures, please read :ref:`note_on_datamodel_transition`.
+
 
 Install FlexMeasures
 ^^^^^^^^^^^^^^^^^^^^
