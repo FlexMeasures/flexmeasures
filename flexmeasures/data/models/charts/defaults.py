@@ -9,9 +9,28 @@ WIDTH = 600
 REDUCED_HEIGHT = REDUCED_WIDTH = 60
 SELECTOR_COLOR = "darkred"
 TIME_FORMAT = "%I:%M %p on %A %b %e, %Y"
-TIME_TOOLTIP_TITLE = "Time and date"
-TIME_TITLE = None
 TIME_SELECTION_TOOLTIP = "Click and drag to select a time window"
+FIELD_DEFINITIONS = {
+    "event_start": dict(
+        field="event_start",
+        type="temporal",
+        title=None,
+    ),
+    "event_value": dict(
+        field="event_value",
+        type="quantitative",
+    ),
+    "source": dict(
+        field="source",
+        type="ordinal",
+        title="Source",
+    ),
+    "full_date": dict(
+        field="full_date",
+        type="nominal",
+        title="Time and date",
+    ),
+}
 
 
 def apply_chart_defaults(fn):

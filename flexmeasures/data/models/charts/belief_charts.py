@@ -1,27 +1,28 @@
-from flexmeasures.data.models.charts.defaults import TIME_TITLE, TIME_TOOLTIP_TITLE
+from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS
 
 
 def bar_chart(title: str, quantity: str = "unknown quantity", unit: str = "a.u."):
     if not unit:
         unit = "a.u."
+    event_value_field_definition = dict(
+        title=f"{quantity} ({unit})",
+        format=".3s",
+        stack=None,
+        **FIELD_DEFINITIONS["event_value"],
+    )
     return {
         "description": "A simple bar chart.",
         "title": title,
         "mark": "bar",
         "encoding": {
-            "x": {"field": "event_start", "type": "T", "title": TIME_TITLE},
-            "y": {
-                "field": "event_value",
-                "type": "quantitative",
-                "title": quantity + " (" + unit + ")",
-            },
+            "x": FIELD_DEFINITIONS["event_start"],
+            "y": event_value_field_definition,
+            "color": FIELD_DEFINITIONS["source"],
+            "opacity": {"value": 0.7},
             "tooltip": [
-                {"field": "full_date", "title": TIME_TOOLTIP_TITLE, "type": "nominal"},
-                {
-                    "field": "event_value",
-                    "title": quantity + " (" + unit + ")",
-                    "type": "quantitative",
-                },
+                FIELD_DEFINITIONS["full_date"],
+                event_value_field_definition,
+                FIELD_DEFINITIONS["source"],
             ],
         },
     }
