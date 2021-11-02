@@ -8,10 +8,12 @@ HEIGHT = 300
 WIDTH = 600
 REDUCED_HEIGHT = REDUCED_WIDTH = 60
 SELECTOR_COLOR = "darkred"
-SOURCE_TITLE = "Source"
 TIME_FORMAT = "%I:%M %p on %A %b %e, %Y"
-TIME_TOOLTIP_TITLE = "Time and date"
-TIME_TITLE = None
+ENCODING_TITLES = {
+    "source": "Source",
+    "event_start": None,
+    "full_date": "Time and date",
+}
 TIME_SELECTION_TOOLTIP = "Click and drag to select a time window"
 
 

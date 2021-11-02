@@ -1,8 +1,4 @@
-from flexmeasures.data.models.charts.defaults import (
-    SOURCE_TITLE,
-    TIME_TITLE,
-    TIME_TOOLTIP_TITLE,
-)
+from flexmeasures.data.models.charts.defaults import ENCODING_TITLES
 
 
 def bar_chart(title: str, quantity: str = "unknown quantity", unit: str = "a.u."):
@@ -13,7 +9,11 @@ def bar_chart(title: str, quantity: str = "unknown quantity", unit: str = "a.u."
         "title": title,
         "mark": "bar",
         "encoding": {
-            "x": {"field": "event_start", "type": "T", "title": TIME_TITLE},
+            "x": {
+                "field": "event_start",
+                "type": "T",
+                "title": ENCODING_TITLES["event_start"],
+            },
             "y": {
                 "field": "event_value",
                 "type": "quantitative",
@@ -23,7 +23,7 @@ def bar_chart(title: str, quantity: str = "unknown quantity", unit: str = "a.u."
             "color": {
                 "field": "source",
                 "type": "ordinal",
-                "title": SOURCE_TITLE,
+                "title": ENCODING_TITLES["source"],
             },
             "opacity": {"value": 0.7},
             "tooltip": [
@@ -32,8 +32,16 @@ def bar_chart(title: str, quantity: str = "unknown quantity", unit: str = "a.u."
                     "title": quantity + " (" + unit + ")",
                     "type": "quantitative",
                 },
-                {"field": "full_date", "title": TIME_TOOLTIP_TITLE, "type": "nominal"},
-                {"field": "source", "title": SOURCE_TITLE, "type": "ordinal"},
+                {
+                    "field": "full_date",
+                    "title": ENCODING_TITLES["full_date"],
+                    "type": "nominal",
+                },
+                {
+                    "field": "source",
+                    "title": ENCODING_TITLES["source"],
+                    "type": "ordinal",
+                },
             ],
         },
     }
