@@ -169,7 +169,7 @@ def parse_config_entry_by_account_roles(
             ]:
                 return entry
     else:
-        app.logger.warn(
+        app.logger.warning(
             f"Setting '{config}' in {setting_name} is neither a string nor two-part tuple. Ignoring ..."
         )
     return None
