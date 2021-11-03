@@ -150,12 +150,12 @@ This will find `css/styles.css` if you add that folder and file to your Blueprin
 .. note:: This styling will only apply to the pages defined in your plugin (to pages based on your own base template). To apply a styling to all other pages which are served by FlexMeasures, consider using the config setting :ref:`extra-css-config`. 
 
 
-Adding config options
+Adding config settings
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-You might want to override some FlexMEasures configuration settings from within your plugin. Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below). There is a `record_once` function on Blueprints which can help with this. Example:
+You might want to override some FlexMeasures configuration settings from within your plugin. Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below). There is a `record_once` function on Blueprints which can help with this. Example:
 
-.. code-block: python
+.. code-block:: python
 
     @our_client_bp.record_once
     def record_logo_path(setup_state):
