@@ -2,6 +2,7 @@ from typing import Union, Tuple, List, Optional
 import os
 import sys
 import importlib.util
+import warnings
 from importlib.abc import Loader
 
 import click
@@ -14,6 +15,14 @@ from sentry_sdk.integrations.rq import RqIntegration
 from pkg_resources import get_distribution
 
 from flexmeasures.app import create as create_app
+
+
+class ConfigurationWarning(Warning):
+    pass
+
+
+class ConfigurationError(ValueError):
+    pass
 
 
 @click.group(cls=FlaskGroup, create_app=create_app)
@@ -246,6 +255,8 @@ def register_plugins(app: Flask):
             continue
 
         plugin_version = getattr(module, "__version__", "0.1")
+        plugin_settings = getattr(module, "__settings__", {})
+        check_config_settings(app, plugin_settings)
 
         # Look for blueprints in the plugin's main __init__ module and register them
         plugin_blueprints = [
@@ -265,3 +276,26 @@ def register_plugins(app: Flask):
         app.config["LOADED_PLUGINS"][plugin_name] = plugin_version
     app.logger.info(f"Loaded plugins: {app.config['LOADED_PLUGINS']}")
     sentry_sdk.set_context("plugins", app.config.get("LOADED_PLUGINS", {}))
+
+
+def check_config_settings(app, settings: dict):
+    """Make sure expected config settings exist."""
+    missing_optional_config_settings = []
+    if "optional" in settings:
+        for setting in settings["optional"]:
+            if app.config.get(setting) is None:
+                missing_optional_config_settings.append(setting)
+        if missing_optional_config_settings:
+            warnings.warn(
+                f"Missing optional config setting(s): {missing_optional_config_settings}",
+                category=ConfigurationWarning,
+            )
+    if "required" in settings:
+        missing_required_config_settings = []
+        for setting in settings["required"]:
+            if app.config.get(setting) is None:
+                missing_required_config_settings.append(setting)
+        if missing_required_config_settings:
+            raise ConfigurationError(
+                f"Missing required config setting(s): {missing_required_config_settings}"
+            )

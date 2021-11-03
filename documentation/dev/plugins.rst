@@ -153,6 +153,22 @@ This will find `css/styles.css` if you add that folder and file to your Blueprin
 Adding config settings
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
+FlexMeasures can be made to check for any custom config settings your plugin is using.
+Required and optional config options can be registered by setting the ``__settings__`` attribute on your plugin module:
+
+.. code-block:: python
+
+    __settings__ = {
+        "required": (
+            "MY_PLUGIN_SETTING_A",
+            "MY_PLUGIN_SETTING_B",
+        ),
+        "optional": (
+            "MY_PLUGIN_SETTING_C",
+            "MY_PLUGIN_SETTING_D",
+        ),
+    }
+
 You might want to override some FlexMeasures configuration settings from within your plugin. Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below). There is a `record_once` function on Blueprints which can help with this. Example:
 
 .. code-block:: python
