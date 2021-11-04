@@ -8,6 +8,7 @@ from flask import request, current_app
 import numpy as np
 import pandas as pd
 from rq.job import Job, NoSuchJobError
+from sqlalchemy import and_
 
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
@@ -149,6 +150,25 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 .filter(Power.datetime >= schedule_start)
                 .filter(Power.datetime < schedule_start + planning_horizon)
                 .order_by(Power.datetime.asc())
+                .join(
+                    (
+                        db.session.query(
+                            Power.datetime,
+                            Power.data_source_id,
+                            Power.min(Power.horizon).label(
+                                "most_recent_belief_horizon"
+                            ),
+                        )
+                        .filter(Power.asset_id == asset.id)
+                        .group_by(Power.datetime, Power.data_source_id)
+                        .subquery()
+                    ),
+                    and_(
+                        Power.datetime == Power.c.datetime,
+                        Power.data_source_id == Power.c.data_source_id,
+                        Power.horizon == Power.c.most_recent_belief_horizon,
+                    ),
+                )
                 .all()
             )
             consumption_schedule = pd.Series(
