@@ -8,7 +8,7 @@ from flask import request, current_app
 import numpy as np
 import pandas as pd
 from rq.job import Job, NoSuchJobError
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
@@ -155,9 +155,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                         db.session.query(
                             Power.datetime,
                             Power.data_source_id,
-                            Power.min(Power.horizon).label(
-                                "most_recent_belief_horizon"
-                            ),
+                            func.min(Power.horizon).label("most_recent_belief_horizon"),
                         )
                         .filter(Power.asset_id == asset.id)
                         .group_by(Power.datetime, Power.data_source_id)
