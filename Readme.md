@@ -1,5 +1,6 @@
 # The FlexMeasures Platform
 
+[![License](https://img.shields.io/github/license/seitabv/flexmeasures?color=blue)](https://github.com/SeitaBV/flexmeasures/blob/main/LICENSE)
 ![lint-and-test](https://github.com/SeitaBV/flexmeasures/workflows/lint-and-test/badge.svg)
 [![Pypi Version](https://img.shields.io/pypi/v/flexmeasures.svg)](https://pypi.python.org/pypi/flexmeasures)
 [![](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
