@@ -144,6 +144,16 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 return unknown_schedule(
                     message + f'no data is known from "{schedule_data_source_name}".'
                 )
+
+            # todo: after moving the Asset's Power data to the corresponding Sensor's TimedBeliefs,
+            #       the query below should be replaced by:
+            #       sensor.search_beliefs(
+            #           event_starts_after=schedule_start,
+            #           event_ends_before=schedule_start + planning_horizon,
+            #           source=scheduler_source,
+            #           most_recent_only=True,
+            #       )
+
             # Subquery to get the most recent schedule only
             subq = (
                 db.session.query(
