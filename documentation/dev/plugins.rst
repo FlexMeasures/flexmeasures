@@ -153,8 +153,9 @@ This will find `css/styles.css` if you add that folder and file to your Blueprin
 Adding config settings
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-FlexMeasures can be made to check for any custom config settings your plugin is using.
-Required and optional config options can be registered by setting the ``__settings__`` attribute on your plugin module:
+FlexMeasures can automatically check for you if any custom config settings, which your plugin is using, are present.
+This can be very useful in maintaining installations of FlexMeasures with plugins.
+Required and optional config options can be registered by setting the (optional) ``__settings__`` attribute on your plugin module:
 
 .. code-block:: python
 
