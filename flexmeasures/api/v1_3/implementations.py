@@ -144,6 +144,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 return unknown_schedule(
                     message + f'no data is known from "{schedule_data_source_name}".'
                 )
+            # Subquery to get the most recent schedule only
             subq = (
                 db.session.query(
                     Power.datetime,
