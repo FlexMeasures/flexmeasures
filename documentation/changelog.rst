@@ -18,7 +18,7 @@ Infrastructure / Support
 * Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <http://www.github.com/SeitaBV/flexmeasures/pull/154>`_]
 
 
-v0.7.1 | November XX, 2021
+v0.7.1 | November 08, 2021
 ===========================
 
 Bugfixes
