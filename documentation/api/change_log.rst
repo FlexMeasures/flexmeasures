@@ -39,7 +39,14 @@ v2.0-0 | 2020-11-14
 - REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
 
 
-v1.3.9 | 2021-04-21
+v1.3-10 | 2021-11-08
+""""""""""""""""""""
+
+*Affects all versions since v1.3*.
+
+- Fixed the *getDeviceMessage* endpoint for cases in which there are multiple schedules available, by returning only the most recent one.
+
+v1.3-9 | 2021-04-21
 """""""""""""""""""
 
 *Affects all versions since v1.0*.

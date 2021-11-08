@@ -8,6 +8,7 @@ from flask import request, current_app
 import numpy as np
 import pandas as pd
 from rq.job import Job, NoSuchJobError
+from sqlalchemy import and_, func
 
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
@@ -144,12 +145,41 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 return unknown_schedule(
                     message + f'no data is known from "{schedule_data_source_name}".'
                 )
+
+            # todo: after moving the Asset's Power data to the corresponding Sensor's TimedBeliefs,
+            #       the query below should be replaced by:
+            #       sensor.search_beliefs(
+            #           event_starts_after=schedule_start,
+            #           event_ends_before=schedule_start + planning_horizon,
+            #           source=scheduler_source,
+            #           most_recent_only=True,
+            #       )
+
+            # Subquery to get the most recent schedule only
+            subq = (
+                db.session.query(
+                    Power.datetime,
+                    Power.data_source_id,
+                    func.min(Power.horizon).label("most_recent_belief_horizon"),
+                )
+                .filter(Power.asset_id == asset.id)
+                .group_by(Power.datetime, Power.data_source_id)
+                .subquery()
+            )
             power_values = (
                 Power.query.filter(Power.asset_id == asset.id)
                 .filter(Power.data_source_id == scheduler_source.id)
                 .filter(Power.datetime >= schedule_start)
                 .filter(Power.datetime < schedule_start + planning_horizon)
                 .order_by(Power.datetime.asc())
+                .join(
+                    subq,
+                    and_(
+                        Power.datetime == subq.c.datetime,
+                        Power.data_source_id == subq.c.data_source_id,
+                        Power.horizon == subq.c.most_recent_belief_horizon,
+                    ),
+                )
                 .all()
             )
             consumption_schedule = pd.Series(

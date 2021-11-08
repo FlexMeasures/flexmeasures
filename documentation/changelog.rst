@@ -2,6 +2,15 @@
 FlexMeasures Changelog
 **********************
 
+
+v0.7.1 | November XX, 2021
+===========================
+
+Bugfixes
+-----------
+* Fix device messages, which were mixing up older and more recent schedules [see `PR #231 <http://www.github.com/SeitaBV/flexmeasures/pull/231>`_]
+
+
 v0.7.0 | October 26, 2021
 ===========================
 
