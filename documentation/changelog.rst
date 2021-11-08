@@ -3,7 +3,7 @@ FlexMeasures Changelog
 **********************
 
 
-v0.7.1 | November XX, 2021
+v0.7.1 | November 08, 2021
 ===========================
 
 Bugfixes
