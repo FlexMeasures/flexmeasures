@@ -15,7 +15,12 @@ The *FlexMeasures Platform* is a tool for building real-time energy flexibility 
 ![Separation of concerns ― FlexMeasures enhancing Energy Service Company services](https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/SeparationOfConcerns.png)
 
 
-The role of FlexMeasures is to enhance the services of energy service companies (ESCOs) towards energy flexibility. For instance, forecasts and schedules are made available via API (designed with [the USEF framework](https://usef.energy) in mind). Uncertainty about ongoing events is modelled accurately and for a decentralised eco-system with the [timely-beliefs framework](https://github.com/SeitaBV/timely-beliefs).
+The role of FlexMeasures is to support energy service companies (ESCOs) to offer real-time services around energy flexibility. There are three core values:
+
+1. Real-time data integration support, with advice for the rest of the day. For example, forecasts and schedules are made available via API (designed with [the USEF framework](https://usef.energy) in mind).
+2. Energy sensor and environment data have multiple sources and their forecasts are uncertain. FlexMeasures uses the [timely-beliefs model](https://github.com/SeitaBV/timely-beliefs) to model this well.
+3. Developer support ― building customer-facing services is where energy flexibility hits the road. FlexMeasures reduces developer workload with a well-documented API, plugin support, plotting support and multi-tenancy.
+
 
 ![Integration view of the FlexMeasures platform architecture](https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/FlexMeasures-HighLevel.png)
 
