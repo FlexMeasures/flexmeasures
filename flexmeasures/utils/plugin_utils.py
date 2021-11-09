@@ -2,7 +2,7 @@ import importlib.util
 import os
 import sys
 from importlib.abc import Loader
-from typing import Dict
+from typing import Any, Dict
 
 import sentry_sdk
 from flask import Flask, Blueprint
@@ -128,11 +128,30 @@ def check_config_settings(app, settings: Dict[str, dict]):
         assert isinstance(setting_fields, dict), f"{setting_name} should be a dict"
 
     missing_config_settings = []
+    config_settings_with_wrong_type = []
     for setting_name, setting_fields in settings.items():
-        if app.config.get(setting_name) is None:
+        setting = app.config.get(setting_name)
+        if setting is None:
             missing_config_settings.append(setting_name)
+        elif "parse_as" in setting_fields and not isinstance(
+            setting, setting_fields["parse_as"]
+        ):
+            config_settings_with_wrong_type.append((setting_name, setting))
+    for setting_name, setting in config_settings_with_wrong_type:
+        log_wrong_type_for_config_setting(
+            app, setting_name, settings[setting_name], setting
+        )
     for setting_name in missing_config_settings:
         log_missing_config_setting(app, setting_name, settings[setting_name])
+
+
+def log_wrong_type_for_config_setting(
+    app, setting_name: str, setting_fields: dict, setting: Any
+):
+    """Log a message for this config setting that has the wrong type."""
+    app.logger.warning(
+        f"Config setting '{setting_name}' is a {type(setting)} whereas a {setting_fields['parse_as']} was expected."
+    )
 
 
 def log_missing_config_setting(app, setting_name: str, setting_fields: dict):
