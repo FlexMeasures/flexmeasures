@@ -25,6 +25,7 @@ import timely_beliefs as tb
 
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.services.time_series import convert_query_window_for_demo
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 from flexmeasures.utils.time_utils import (
     server_now,
@@ -563,16 +564,11 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
     """Create a plot of an asset's latest power measurement as an embeddable html string (incl. javascript).
     First returned string is the measurement time, second string is the html string."""
 
-    if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
-        demo_year = current_app.config.get("FLEXMEASURES_DEMO_YEAR", None)
-        if demo_year is None:
-            before = server_now()
-        else:
-            before = server_now().replace(year=demo_year)
-    elif current_app.config.get("FLEXMEASURES_MODE", "") == "play":
+    if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
         before = None  # type:ignore
     else:
         before = server_now()
+        _, before = convert_query_window_for_demo((before, before))
 
     latest_power = asset.latest_state(event_ends_before=before)
     if latest_power is not None:
