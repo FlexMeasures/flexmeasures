@@ -19,7 +19,7 @@ def test_get_users_bad_auth(client, use_auth):
         headers["Authorization"] = get_auth_token(
             client, "test_prosumer_user_2@seita.nl", "testtest"
         )
-        query = {"account_name": "Test Supplier Account"}
+        query = {"account_id": 2}
 
     get_users_response = client.get(
         url_for("flexmeasures_api_v2_0.get_users"), headers=headers, query_string=query

@@ -348,7 +348,6 @@ def delete_asset(id: int):
 
 
 @flexmeasures_api_v2_0.route("/users", methods=["GET"])
-@auth_token_required
 def get_users():
     """API endpoint to get users.
 
@@ -359,8 +358,7 @@ def get_users():
     The `include_inactive` query parameter can be used to also fetch
     inactive users.
     Accessible users are users in the same account as the current user.
-    Only admins can use this endpoint to fetch users from a different account (by using the `account_name` query parameter).
-    If admins leave out the `account_name` parameter, they'll receive all users.
+    Only admins can use this endpoint to fetch users from a different account (by using the `account_id` query parameter).
 
     **Example response**
 
@@ -426,8 +424,6 @@ def get_user(id: int):
 
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["PATCH"])
-@auth_token_required
-# @account_roles_accepted(*list_access(v2_0_service_listing, "PATCH /user/<id>"))
 def patch_user(id: int):
     """API endpoint to patch user data.
 
@@ -477,8 +473,6 @@ def patch_user(id: int):
 
 
 @flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["PATCH"])
-@auth_token_required
-# @account_roles_accepted(*check_access(v2_0_service_listing, "PATCH /user/<id>password-reset"))
 def reset_user_password(id: int):
     """API endpoint to reset the user password. They'll get an email to choose a new password.
 
