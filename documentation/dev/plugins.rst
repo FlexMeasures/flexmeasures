@@ -155,20 +155,26 @@ Adding config settings
 
 FlexMeasures can automatically check for you if any custom config settings, which your plugin is using, are present.
 This can be very useful in maintaining installations of FlexMeasures with plugins.
-Required and optional config options can be registered by setting the (optional) ``__settings__`` attribute on your plugin module:
+Config settings can be registered by setting the (optional) ``__settings__`` attribute on your plugin module:
 
 .. code-block:: python
 
-    __settings__ = {
-        "required": (
-            "MY_PLUGIN_SETTING_A",
-            "MY_PLUGIN_SETTING_B",
-        ),
-        "optional": (
-            "MY_PLUGIN_SETTING_C",
-            "MY_PLUGIN_SETTING_D",
-        ),
-    }
+    __settings__ = [
+        "MY_PLUGIN_URL": {
+            "description": "URL used by my plugin for x.",
+            "level": "error",
+        },
+        "MY_PLUGIN_TOKEN": {
+            "description": "Token used by my plugin for y.",
+            "level": "warning",
+            "message_if_missing": "Without this token, my plugin will not do y.",
+            "parse_as": str,
+        },
+        "MY_PLUGIN_COLOR": {
+            "description": "Color used to override the default plugin color.",
+            "level": "info",
+        },
+    ]
 
 You might want to override some FlexMeasures configuration settings from within your plugin. Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below). There is a `record_once` function on Blueprints which can help with this. Example:
 

@@ -1,19 +1,11 @@
 import importlib.util
 import os
 import sys
-import warnings
 from importlib.abc import Loader
+from typing import Dict
 
 import sentry_sdk
 from flask import Flask, Blueprint
-
-
-class ConfigurationWarning(Warning):
-    pass
-
-
-class ConfigurationError(ValueError):
-    pass
 
 
 def register_plugins(app: Flask):
@@ -108,24 +100,56 @@ def register_plugins(app: Flask):
     sentry_sdk.set_context("plugins", app.config.get("LOADED_PLUGINS", {}))
 
 
-def check_config_settings(app, settings: dict):
-    """Make sure expected config settings exist."""
-    missing_optional_config_settings = []
-    if "optional" in settings:
-        for setting in settings["optional"]:
-            if app.config.get(setting) is None:
-                missing_optional_config_settings.append(setting)
-        if missing_optional_config_settings:
-            warnings.warn(
-                f"Missing optional config setting(s): {missing_optional_config_settings}",
-                category=ConfigurationWarning,
-            )
-    if "required" in settings:
-        missing_required_config_settings = []
-        for setting in settings["required"]:
-            if app.config.get(setting) is None:
-                missing_required_config_settings.append(setting)
-        if missing_required_config_settings:
-            raise ConfigurationError(
-                f"Missing required config setting(s): {missing_required_config_settings}"
-            )
+def check_config_settings(app, settings: Dict[str, dict]):
+    """Make sure expected config settings exist.
+
+    For example:
+
+        settings = {
+            "MY_PLUGIN_URL": {
+                "description": "URL used by my plugin for x.",
+                "level": "error",
+            },
+            "MY_PLUGIN_TOKEN": {
+                "description": "Token used by my plugin for y.",
+                "level": "warning",
+                "message": "Without this token, my plugin will not do y.",
+                "parse_as": str,
+            },
+            "MY_PLUGIN_COLOR": {
+                "description": "Color used to override the default plugin color.",
+                "level": "info",
+            },
+        }
+
+    """
+    assert isinstance(settings, dict), f"{settings} should be a dict"
+    for setting_name, setting_fields in settings.items():
+        assert isinstance(setting_fields, dict), f"{setting_name} should be a dict"
+
+    missing_config_settings = []
+    for setting_name, setting_fields in settings.items():
+        if app.config.get(setting_name) is None:
+            missing_config_settings.append(setting_name)
+    for setting_name in missing_config_settings:
+        log_missing_config_setting(app, setting_name, settings[setting_name])
+
+
+def log_missing_config_setting(app, setting_name: str, setting_fields: dict):
+    """Log a message for this missing config setting.
+
+    The logging level is taken from the 'level' key. If missing, we default to error.
+    If present, we also log the 'description' and the 'message_if_missing' keys.
+    """
+    message_if_missing = (
+        f" {setting_fields['message_if_missing']}"
+        if "message_if_missing" in setting_fields
+        else ""
+    )
+    description = (
+        f" ({setting_fields['description']})" if "description" in setting_fields else ""
+    )
+    level = setting_fields["level"] if "level" in setting_fields else "error"
+    getattr(app.logger, level)(
+        f"Missing config setting '{setting_name}'{description}.{message_if_missing}",
+    )
