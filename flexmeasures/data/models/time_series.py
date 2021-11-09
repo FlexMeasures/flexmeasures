@@ -63,16 +63,29 @@ class Sensor(db.Model, tb.SensorDBMixin):
     def entity_address(self) -> str:
         return build_entity_address(dict(sensor_id=self.id), "sensor")
 
+    def latest_state(
+        self,
+    ) -> tb.BeliefsDataFrame:
+        """Search the most recent event for this sensor, and return the most recent ex-post belief."""
+        return self.search_beliefs(
+            horizons_at_most=timedelta(0),
+            most_recent_only=True,
+            most_recent_events_only=True,
+        )
+
     def search_beliefs(
         self,
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
         beliefs_before: Optional[datetime_type] = None,
+        horizons_at_least: Optional[timedelta] = None,
+        horizons_at_most: Optional[timedelta] = None,
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
         most_recent_only: bool = False,
+        most_recent_events_only: bool = False,
         as_json: bool = False,
     ) -> Union[tb.BeliefsDataFrame, str]:
         """Search all beliefs about events for this sensor.
@@ -81,8 +94,11 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
+        :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
@@ -94,6 +110,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
             beliefs_before=beliefs_before,
             source=source,
             most_recent_only=most_recent_only,
+            most_recent_events_only=most_recent_events_only,
         )
         if as_json:
             df = bdf.reset_index()
@@ -219,10 +236,13 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
         beliefs_before: Optional[datetime_type] = None,
+        horizons_at_least: Optional[timedelta] = None,
+        horizons_at_most: Optional[timedelta] = None,
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
         most_recent_only: bool = False,
+        most_recent_events_only: bool = False,
     ) -> tb.BeliefsDataFrame:
         """Search all beliefs about events for a given sensor.
 
@@ -231,8 +251,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
+        :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         """
         parsed_sources = parse_source_arg(source)
         return cls.search_session(
@@ -242,8 +265,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             event_ends_before=event_ends_before,
             beliefs_after=beliefs_after,
             beliefs_before=beliefs_before,
+            horizons_at_least=horizons_at_least,
+            horizons_at_most=horizons_at_most,
             source=parsed_sources,
             most_recent_only=most_recent_only,
+            most_recent_events_only=most_recent_events_only,
         )
 
     @classmethod
