@@ -70,6 +70,9 @@ def match_principals(principals: Union[str, Tuple[str]]):
             return True
         if check_account_role(principal):
             return True
+    current_app.logger.error(
+        f"Authorization failure ― Cannot match {current_user} against {principals}!"
+    )
     return False
 
 
