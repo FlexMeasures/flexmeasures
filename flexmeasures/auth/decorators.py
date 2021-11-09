@@ -5,10 +5,12 @@ from flask_security import (
     current_user,
     roles_accepted as roles_accepted_fs,
     roles_required as roles_required_fs,
+    permissions_required as permissions_required_fs,
 )
+from werkzeug.exceptions import Forbidden
 from werkzeug.local import LocalProxy
 
-from flexmeasures.auth.policy import ADMIN_ROLE
+from flexmeasures.auth.policy import ADMIN_ROLE, AuthModelMixin, match_principals
 
 
 """
@@ -61,9 +63,8 @@ def account_roles_accepted(*account_roles):
         @as_json
         def decorated_service(*args, **kwargs):
             for role in account_roles:
-                if (
-                    current_user
-                    and current_user.account.has_role(role)
+                if current_user and (
+                    current_user.account.has_role(role)
                     or current_user.has_role(ADMIN_ROLE)
                 ):
                     return fn(*args, **kwargs)
@@ -93,10 +94,62 @@ def account_roles_required(*account_roles):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
             for role in account_roles:
-                if not current_user or not current_user.account.has_role(role):
+                if not current_user or (
+                    not current_user.account.has_role(role)
+                    and not current_user.has_role(ADMIN_ROLE)
+                ):
                     return _security._unauthz_handler(
                         account_roles_required, account_roles
                     )
+            return fn(*args, **kwargs)
+
+        return decorated_view
+
+    return wrapper
+
+
+def permission_required_for_context(permission: str):
+    """
+    This decorator can be used to make sure that the current user has the necessary permission
+    to access the context.
+    The context needs to be an AuthModelMixin and should be the first non-keyword argument.
+    Usually, you'd place a factory decorator further up in the decorator chain, e.g.:
+
+        @app.route("/resource/<id>", methods=["GET"])
+        @load_resource()
+        @permission_required_for_context("read")
+        @as_json
+        def view(resource):
+            return dict(id=resource.id)
+
+    Where `load_resource` turns the id parameter into a resource context (if possible),
+    still as the first parameter.
+
+    This decorator raises a 403 response if there is no principal for the required permission.
+    It raises a 401 response if the user is not authenticated at all.
+    """
+
+    def wrapper(fn):
+        @wraps(fn)
+        def decorated_view(*args, **kwargs):
+            # allow admins (admin-reader if "read")
+            if current_user.is_anonymous:
+                return _security._unauthn_handler()
+            if current_user.has_role(ADMIN_ROLE):
+                return fn(*args, *kwargs)
+            context: AuthModelMixin = args[0]
+            if not isinstance(context, AuthModelMixin):
+                raise Forbidden(
+                    f"Context {context} needs {permission}-permission, but is no AuthModelMixin."
+                )
+            if context is None:
+                return permissions_required_fs(permission)
+            acl = context.__acl__()
+            # (TODO: if context is a class, call as class function with None)
+            if not match_principals(acl.get(permission, [])):
+                return _security._unauthz_handler(
+                    permission_required_for_context, (permission,)
+                )
             return fn(*args, **kwargs)
 
         return decorated_view

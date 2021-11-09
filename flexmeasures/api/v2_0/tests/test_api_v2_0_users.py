@@ -54,20 +54,30 @@ def test_get_users_inactive(client, setup_inactive_user, include_inactive):
         assert len(get_users_response.json) == 3
 
 
-def test_get_one_user(client):
+@pytest.mark.parametrize(
+    "requesting_user,status_code",
+    [
+        (None, 401),  # no auth is not allowed
+        ("test_prosumer_user_2@seita.nl", 200),  # gets themselves
+        ("test_prosumer_user@seita.nl", 200),  # gets from same account
+        ("test_dummy_user_3@seita.nl", 403),  # gets from other account
+        ("test_admin_user@seita.nl", 200),  # admin can do this from another account
+    ],
+)
+def test_get_one_user(client, requesting_user, status_code):
     test_user2_id = find_user_by_email("test_prosumer_user_2@seita.nl").id
-    headers = {
-        "content-type": "application/json",
-        "Authorization": get_auth_token(client, "test_admin_user@seita.nl", "testtest"),
-    }
+    headers = {"content-type": "application/json"}
+    if requesting_user:
+        headers["Authorization"] = get_auth_token(client, requesting_user, "testtest")
 
     get_user_response = client.get(
         url_for("flexmeasures_api_v2_0.get_user", id=test_user2_id),
         headers=headers,
     )
     print("Server responded with:\n%s" % get_user_response.data)
-    assert get_user_response.status_code == 200
-    assert get_user_response.json["username"] == "Test Prosumer User 2"
+    assert get_user_response.status_code == status_code
+    if status_code == 200:
+        assert get_user_response.json["username"] == "Test Prosumer User 2"
 
 
 def test_edit_user(client):

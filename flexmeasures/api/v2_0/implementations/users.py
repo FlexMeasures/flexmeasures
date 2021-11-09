@@ -17,6 +17,7 @@ from flexmeasures.data.services.users import (
     remove_cookie_and_token_access,
 )
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
+from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.api.common.responses import required_info_missing
 from flexmeasures.data.config import db
 
@@ -108,12 +109,7 @@ def load_user(admins_only: bool = False):
             if user is None:
                 raise abort(404, f"User {id} not found")
 
-            if not current_user.has_role("admin"):
-                if admins_only or user != current_user:
-                    raise Forbidden("Needs to be admin or the current user.")
-
-            args = (user,)
-            return fn(*args, **kwargs)
+            return fn(user, **kwargs)
 
         return decorated_endpoint
 
@@ -121,6 +117,7 @@ def load_user(admins_only: bool = False):
 
 
 @load_user()
+@permission_required_for_context("read")
 @as_json
 def fetch_one(user: UserModel):
     """Fetch a given user"""
@@ -135,7 +132,9 @@ def patch(db_user: UserModel, user_data: dict):
     allowed_fields = ["email", "username", "active", "timezone", "flexmeasures_roles"]
     for k, v in [(k, v) for k, v in user_data.items() if k in allowed_fields]:
         if current_user.id == db_user.id and k in ("active", "flexmeasures_roles"):
-            raise Forbidden("Users who edit themselves cannot edit sensitive fields.")
+            raise Forbidden(
+                "Users who edit themselves cannot edit security-sensitive fields."
+            )
         setattr(db_user, k, v)
         if k == "active" and v is False:
             remove_cookie_and_token_access(db_user)

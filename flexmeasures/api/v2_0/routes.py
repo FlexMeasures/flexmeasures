@@ -102,7 +102,7 @@ def get_assets():
     This endpoint returns all accessible assets for a given owner.
     The `owner_id` query parameter can be used to set an owner.
     If no owner is set, all accessible assets are returned.
-    A non-admin user can only access its own assets.
+    A non-admin user can only access their own assets.
 
     **Example response**
 
@@ -358,7 +358,9 @@ def get_users():
     By default, only active users are returned.
     The `include_inactive` query parameter can be used to also fetch
     inactive users.
-    Only admins can use this endpoint.
+    Accessible users are users in the same account as the current user.
+    Only admins can use this endpoint to fetch users from a different account (by using the `account_name` query parameter).
+    If admins leave out the `account_name` parameter, they'll receive all users.
 
     **Example response**
 
@@ -370,6 +372,7 @@ def get_users():
             {
                 'active': True,
                 'email': 'test_prosumer@seita.nl',
+                'account_id': 13,
                 'flexmeasures_roles': [1, 3],
                 'id': 1,
                 'timezone': 'Europe/Amsterdam',
@@ -389,8 +392,6 @@ def get_users():
 
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["GET"])
-@auth_token_required
-# @account_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
 def get_user(id: int):
     """API endpoint to get a user.
 

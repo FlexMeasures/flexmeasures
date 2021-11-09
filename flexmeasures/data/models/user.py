@@ -7,6 +7,7 @@ from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from flexmeasures.data.config import db
+from flexmeasures.auth.policy import AuthModelMixin
 
 
 class RolesAccounts(db.Model):
@@ -26,7 +27,7 @@ class AccountRole(db.Model):
         return "<AccountRole:%s (ID:%d)>" % (self.name, self.id)
 
 
-class Account(db.Model):
+class Account(db.Model, AuthModelMixin):
     """
     Account of a tenant on the server.
     Bundles Users as well as GenericAssets.
@@ -43,6 +44,13 @@ class Account(db.Model):
 
     def __repr__(self):
         return "<Account %s (ID:%d)" % (self.name, self.id)
+
+    def __acl__(self):
+        """
+        Within same account, everyone can read and write.
+        Creation and deletion are left to site admins in CLI.
+        """
+        return {"read": f"account:{self.id}", "write": f"account:{self.id}"}
 
     def has_role(self, role: Union[str, AccountRole]) -> bool:
         """Returns `True` if the account has the specified role.
@@ -71,7 +79,7 @@ class Role(db.Model, RoleMixin):
         return "<Role:%s (ID:%d)>" % (self.name, self.id)
 
 
-class User(db.Model, UserMixin):
+class User(db.Model, UserMixin, AuthModelMixin):
     """
     We use the flask security UserMixin, which does include functionality,
     but not the fields (those are in flask_security/models::FsUserMixin).
@@ -82,6 +90,7 @@ class User(db.Model, UserMixin):
     """
 
     __tablename__ = "fm_user"
+
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True)
     username = Column(String(255), unique=True)
@@ -103,6 +112,13 @@ class User(db.Model, UserMixin):
 
     def __repr__(self):
         return "<User %s (ID:%d)>" % (self.username, self.id)
+
+    def __acl__(self):
+        """
+        Within same account, everyone can read. User can only edit themselves.
+        Creation and deletion are left to site admins in CLI.
+        """
+        return {"read": f"account:{self.account_id}", "write": f"user:{self.id}"}
 
     @property
     def is_authenticated(self) -> bool:
