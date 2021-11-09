@@ -1,4 +1,5 @@
-from typing import Dict, List, Tuple, Union
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple, Union
 
 import isodate
 import timely_beliefs as tb
@@ -143,6 +144,20 @@ class Asset(db.Model, tb.SensorDBMixin):
         ),
     )
     market = db.relationship("Market", backref=db.backref("assets", lazy=True))
+
+    def latest_state(self, event_ends_before: Optional[datetime] = None) -> "Power":
+        """Search the most recent event for this sensor, optionally before some datetime."""
+        # todo: replace with Sensor.latest_state
+        power_query = (
+            Power.query.filter(Power.asset == self)
+            .filter(Power.horizon <= timedelta(hours=0))
+            .order_by(Power.datetime.desc())
+        )
+        if event_ends_before is not None:
+            power_query = power_query.filter(
+                Power.datetime + self.event_resolution <= event_ends_before
+            )
+        return power_query.first()
 
     @property
     def power_unit(self) -> float:

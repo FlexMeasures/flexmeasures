@@ -23,7 +23,7 @@ import pandas_bokeh
 import numpy as np
 import timely_beliefs as tb
 
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 from flexmeasures.utils.time_utils import (
@@ -574,16 +574,7 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
     else:
         before = server_now()
 
-    power_query = (
-        Power.query.filter(Power.asset == asset)
-        .filter(Power.horizon <= timedelta(hours=0))
-        .order_by(Power.datetime.desc())
-    )
-    if before is not None:
-        power_query = power_query.filter(
-            Power.datetime + asset.event_resolution <= before
-        )
-    latest_power = power_query.first()
+    latest_power = asset.latest_state(event_ends_before=before)
     if latest_power is not None:
         latest_power_value = latest_power.value
         if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
