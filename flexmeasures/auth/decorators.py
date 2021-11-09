@@ -7,10 +7,15 @@ from flask_security import (
     roles_required as roles_required_fs,
     permissions_required as permissions_required_fs,
 )
-from werkzeug.exceptions import Forbidden
 from werkzeug.local import LocalProxy
 
-from flexmeasures.auth.policy import ADMIN_ROLE, AuthModelMixin, match_principals
+from flexmeasures.auth.policy import (
+    ADMIN_READER_ROLE,
+    ADMIN_ROLE,
+    PERMISSIONS,
+    AuthModelMixin,
+    match_principals,
+)
 
 
 """
@@ -110,9 +115,10 @@ def account_roles_required(*account_roles):
 
 def permission_required_for_context(permission: str):
     """
-    This decorator can be used to make sure that the current user has the necessary permission
-    to access the context.
+    This decorator can be used to make sure that the current user has the necessary permission to access the context.
     The context needs to be an AuthModelMixin and should be the first non-keyword argument.
+    The permission needs to be a known permission and is checked with principal descriptions from the context's access control list (see AuthModelMixin.__acl__).
+
     Usually, you'd place a factory decorator further up in the decorator chain, e.g.:
 
         @app.route("/resource/<id>", methods=["GET"])
@@ -132,20 +138,30 @@ def permission_required_for_context(permission: str):
     def wrapper(fn):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
-            # allow admins (admin-reader if "read")
+            if permission not in PERMISSIONS:
+                current_app.logger.error(
+                    f"Permission '{permission}' cannot be handled."
+                )
+                return _security._unauthz_handler(
+                    permission_required_for_context, (permission,)
+                )
             if current_user.is_anonymous:
                 return _security._unauthn_handler()
-            if current_user.has_role(ADMIN_ROLE):
+            if current_user.has_role(ADMIN_ROLE) or (
+                current_user.has_role(ADMIN_READER_ROLE) and permission == "read"
+            ):
                 return fn(*args, *kwargs)
             context: AuthModelMixin = args[0]
             if not isinstance(context, AuthModelMixin):
-                raise Forbidden(
+                current_app.logger.error(
                     f"Context {context} needs {permission}-permission, but is no AuthModelMixin."
+                )
+                return _security._unauthz_handler(
+                    permission_required_for_context, (permission,)
                 )
             if context is None:
                 return permissions_required_fs(permission)
             acl = context.__acl__()
-            # (TODO: if context is a class, call as class function with None)
             if not match_principals(acl.get(permission, [])):
                 return _security._unauthz_handler(
                     permission_required_for_context, (permission,)

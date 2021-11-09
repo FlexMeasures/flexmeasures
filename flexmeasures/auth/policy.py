@@ -23,8 +23,7 @@ class AuthModelMixin(object):
         In computer security, a principal is the security context of the authenticated user [1].
         In the access control list, we list which principal aspects allow certain kinds of actions.
 
-        Principals describe who can access a resource class or instance.
-        It's possible to codify user and account roles, as well as user and account IDs.
+        In these access control lists, we allow to codify user and account roles, as well as user and account IDs.
 
         Here are some (fictional) examples:
 
