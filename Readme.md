@@ -12,12 +12,19 @@ The *FlexMeasures Platform* is a tool for building real-time energy flexibility 
 - Developing energy flexibility services (e.g. to enable demand response) is crucial, but expensive.
 - FlexMeasures reduces development costs with real-time data integrations, uncertainty models and API/UI support.
 
-![Separation of concerns ― FlexMeasures enhancing Energy Service Company services](https://seita.nl/wp-content/uploads/2021/02/SeparationOfConcerns.png)
+![Separation of concerns ― FlexMeasures enhancing Energy Service Company services](https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/SeparationOfConcerns.png)
 
 
-The role of FlexMeasures is to enhance the services of energy service companies (ESCOs) towards energy flexibility. For instance, forecasts and schedules are made available via API (designed with [the USEF framework](https://usef.energy) in mind). Uncertainty about ongoing events is modelled accurately and for a decentralised eco-system with the [timely-beliefs framework](https://github.com/SeitaBV/timely-beliefs).
+With services and data integrations built on top of FlexMeasures, energy service companies (ESCOs) can offer real-time services around energy flexibility.
 
-![Integration view of the FlexMeasures platform architecture](https://seita.nl/wp-content/uploads/2021/02/FlexMeasures-HighLevel.png)
+FlexMeasures provides three core values:
+
+1. Real-time data integration support, with advice for the rest of the day. For example, forecasts and schedules are made available via API (designed with [the USEF framework](https://usef.energy) in mind).
+2. Energy sensor and environment data have multiple sources and their forecasts are uncertain. FlexMeasures uses the [timely-beliefs library](https://github.com/SeitaBV/timely-beliefs) to model this well.
+3. Developer support ― building customer-facing services is where energy flexibility hits the road. FlexMeasures reduces developer workload with a well-documented API, data visualisation and multi-tenancy, and supports plugins to customise and extend the platform to your needs.
+
+
+![Integration view of the FlexMeasures platform architecture](https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/FlexMeasures-HighLevel.png)
 
 FlexMeasures is developed by [Seita BV](https://www.seita.nl) in The Netherlands.
 
