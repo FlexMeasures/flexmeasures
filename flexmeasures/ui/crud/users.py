@@ -80,15 +80,19 @@ class UserCrudUI(FlaskView):
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
-        get_users_response = InternalApi().get(
-            url_for(
-                "flexmeasures_api_v2_0.get_users", include_inactive=include_inactive
+        users = []
+        for account in Account.query.all():
+            get_users_response = InternalApi().get(
+                url_for(
+                    "flexmeasures_api_v2_0.get_users",
+                    account_id=account.id,
+                    include_inactive=include_inactive,
+                )
             )
-        )
-        users = [
-            process_internal_api_response(user, make_obj=True)
-            for user in get_users_response.json()
-        ]
+            users += [
+                process_internal_api_response(user, make_obj=True)
+                for user in get_users_response.json()
+            ]
         return render_flexmeasures_template(
             "crud/users.html", users=users, include_inactive=include_inactive
         )
