@@ -117,6 +117,8 @@ class Sensor(db.Model, tb.SensorDBMixin):
             event_ends_before=event_ends_before,
             beliefs_after=beliefs_after,
             beliefs_before=beliefs_before,
+            horizons_at_least=horizons_at_least,
+            horizons_at_most=horizons_at_most,
             source=source,
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
