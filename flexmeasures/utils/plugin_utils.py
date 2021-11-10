@@ -2,7 +2,7 @@ import importlib.util
 import os
 import sys
 from importlib.abc import Loader
-from typing import Any, Dict
+from typing import Dict
 
 import sentry_sdk
 from flask import Flask, Blueprint
@@ -123,7 +123,7 @@ def check_config_settings(app, settings: Dict[str, dict]):
         }
 
     """
-    assert isinstance(settings, dict), f"{settings} should be a dict"
+    assert isinstance(settings, dict), f"{type(settings)} should be a dict"
     for setting_name, setting_fields in settings.items():
         assert isinstance(setting_fields, dict), f"{setting_name} should be a dict"
 
@@ -139,18 +139,18 @@ def check_config_settings(app, settings: Dict[str, dict]):
             config_settings_with_wrong_type.append((setting_name, setting))
     for setting_name, setting in config_settings_with_wrong_type:
         log_wrong_type_for_config_setting(
-            app, setting_name, settings[setting_name], setting
+            app, setting_name, settings[setting_name], type(setting)
         )
     for setting_name in missing_config_settings:
         log_missing_config_setting(app, setting_name, settings[setting_name])
 
 
 def log_wrong_type_for_config_setting(
-    app, setting_name: str, setting_fields: dict, setting: Any
+    app, setting_name: str, setting_fields: dict, setting_type: type
 ):
     """Log a message for this config setting that has the wrong type."""
     app.logger.warning(
-        f"Config setting '{setting_name}' is a {type(setting)} whereas a {setting_fields['parse_as']} was expected."
+        f"Config setting '{setting_name}' is a {setting_type} whereas a {setting_fields['parse_as']} was expected."
     )
 
 
@@ -169,6 +169,11 @@ def log_missing_config_setting(app, setting_name: str, setting_fields: dict):
         f" ({setting_fields['description']})" if "description" in setting_fields else ""
     )
     level = setting_fields["level"] if "level" in setting_fields else "error"
+    if not hasattr(app.logger, level):
+        app.logger.warning(
+            f"Unrecognized logger level '{level}' for config setting '{setting_name}'."
+        )
+        level = "error"
     getattr(app.logger, level)(
         f"Missing config setting '{setting_name}'{description}.{message_if_missing}",
     )
