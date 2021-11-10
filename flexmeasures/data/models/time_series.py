@@ -84,8 +84,9 @@ class Sensor(db.Model, tb.SensorDBMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
-        most_recent_only: bool = False,
+        most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
+        most_recent_only: bool = False,  # deprecated
         as_json: bool = False,
     ) -> Union[tb.BeliefsDataFrame, str]:
         """Search all beliefs about events for this sensor.
@@ -97,11 +98,19 @@ class Sensor(db.Model, tb.SensorDBMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
-        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
+        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
+        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
+            "most_recent_only",
+            most_recent_only,
+            "most_recent_beliefs_only",
+            most_recent_beliefs_only,
+            required_argument=False,
+        )
         bdf = TimedBelief.search(
             sensor=self,
             event_starts_after=event_starts_after,
@@ -109,7 +118,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
             beliefs_after=beliefs_after,
             beliefs_before=beliefs_before,
             source=source,
-            most_recent_only=most_recent_only,
+            most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
         )
         if as_json:
@@ -241,8 +250,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
-        most_recent_only: bool = False,
+        most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
+        most_recent_only: bool = False,  # deprecated
     ) -> tb.BeliefsDataFrame:
         """Search all beliefs about events for a given sensor.
 
@@ -254,9 +264,17 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
-        :param most_recent_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         """
+        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
+        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
+            "most_recent_only",
+            most_recent_only,
+            "most_recent_beliefs_only",
+            most_recent_beliefs_only,
+            required_argument=False,
+        )
         parsed_sources = parse_source_arg(source)
         return cls.search_session(
             session=db.session,
@@ -268,7 +286,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             horizons_at_least=horizons_at_least,
             horizons_at_most=horizons_at_most,
             source=parsed_sources,
-            most_recent_only=most_recent_only,
+            most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
         )
 
