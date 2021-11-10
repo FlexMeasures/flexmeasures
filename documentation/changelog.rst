@@ -16,6 +16,7 @@ Infrastructure / Support
 ----------------------
 * Account-based authorization, incl. new decorators for endpoints [see `PR #210 <http://www.github.com/SeitaBV/flexmeasures/pull/210>`_]
 * Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <http://www.github.com/SeitaBV/flexmeasures/pull/154>`_]
+* Allow plugins to register their custom config settings, so that FlexMeasures can check whether they are set up correctly [see `PR #230 <http://www.github.com/SeitaBV/flexmeasures/pull/230>`_]
 
 
 v0.7.0 | October 26, 2021
