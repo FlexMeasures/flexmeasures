@@ -151,7 +151,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
             #           event_starts_after=schedule_start,
             #           event_ends_before=schedule_start + planning_horizon,
             #           source=scheduler_source,
-            #           most_recent_only=True,
+            #           most_recent_beliefs_only=True,
             #       )
 
             # Subquery to get the most recent schedule only

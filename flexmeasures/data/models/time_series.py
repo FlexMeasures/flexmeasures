@@ -69,7 +69,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         """Search the most recent event for this sensor, and return the most recent ex-post belief."""
         return self.search_beliefs(
             horizons_at_most=timedelta(0),
-            most_recent_only=True,
+            most_recent_beliefs_only=True,
             most_recent_events_only=True,
         )
 
