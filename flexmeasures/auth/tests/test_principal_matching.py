@@ -58,8 +58,8 @@ def make_mock_user(user_id, user_role, account_id, account_role) -> MockUser:
         (make_mock_user(19, "", 113, ""), "account:114", False),
         (make_mock_user(19, "", 113, ""), "account:113", True),
         (
-            make_mock_user(19, "waitress", 113, "hotel"),
-            ("user:13", "account:113", "role:waitress", "account-role:restaurant"),
+            make_mock_user(19, "waitress", 113, "restaurant"),
+            ("user:19", "account:113", "role:waitress", "account-role:restaurant"),
             True,
         ),
         (
