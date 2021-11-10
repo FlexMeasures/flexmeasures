@@ -5,31 +5,33 @@ from flask_security import (
     current_user,
     roles_accepted as roles_accepted_fs,
     roles_required as roles_required_fs,
-    permissions_required as permissions_required_fs,
 )
 from werkzeug.local import LocalProxy
 
 from flexmeasures.auth.policy import (
-    ADMIN_READER_ROLE,
     ADMIN_ROLE,
     PERMISSIONS,
     AuthModelMixin,
-    match_principals,
+    user_has_admin_access,
+    user_matches_principals,
 )
 
 
 """
-For docs:
-in FlexMeasures, we recommend to make use of the following decorators:
+TODO - For developer docs:
+
+FlexMeasures supports the the following role-based decorators:
 
 - roles_accepted
 - roles_required
 - account_roles_accepted
 - account_roles_required
 
-However, these do not work on admin-reader.
+However, these do not qualify on the permission.
+A finer auth model is available to distinguish between create, read, write and delete access.
+One direct drawback is that the admin-reader role cannot be checked in role-based decorators.
 
-Better to use the decorators we will create in a PR soon.
+Therefore, we recommend to use the permission_required_for_context decorator.
 """
 _security = LocalProxy(lambda: current_app.extensions["security"])
 
@@ -147,10 +149,6 @@ def permission_required_for_context(permission: str):
                 )
             if current_user.is_anonymous:
                 return _security._unauthn_handler()
-            if current_user.has_role(ADMIN_ROLE) or (
-                current_user.has_role(ADMIN_READER_ROLE) and permission == "read"
-            ):
-                return fn(*args, *kwargs)
             context: AuthModelMixin = args[0]
             if not isinstance(context, AuthModelMixin):
                 current_app.logger.error(
@@ -160,9 +158,18 @@ def permission_required_for_context(permission: str):
                     permission_required_for_context, (permission,)
                 )
             if context is None:
-                return permissions_required_fs(permission)
+                current_app.logger.error(
+                    f"Context needs {permission}-permission, but no context was passed."
+                )
+                return _security._unauthz_handler(
+                    permission_required_for_context, (permission,)
+                )
             acl = context.__acl__()
-            if not match_principals(acl.get(permission, [])):
+            if not user_has_admin_access(
+                current_user, permission
+            ) and not user_matches_principals(
+                current_user, acl.get(permission, tuple())
+            ):
                 return _security._unauthz_handler(
                     permission_required_for_context, (permission,)
                 )

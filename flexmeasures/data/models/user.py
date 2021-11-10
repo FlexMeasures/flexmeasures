@@ -115,7 +115,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
 
     def __acl__(self):
         """
-        Within same account, everyone can read. User can only edit themselves.
+        Within same account, everyone can read. Only the user themselves can edit their user record.
         Creation and deletion are left to site admins in CLI.
         """
         return {"read": f"account:{self.account_id}", "write": f"user:{self.id}"}
