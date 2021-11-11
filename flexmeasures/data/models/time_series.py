@@ -65,10 +65,17 @@ class Sensor(db.Model, tb.SensorDBMixin):
 
     def latest_state(
         self,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
     ) -> tb.BeliefsDataFrame:
-        """Search the most recent event for this sensor, and return the most recent ex-post belief."""
+        """Search the most recent event for this sensor, and return the most recent ex-post belief.
+
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        """
         return self.search_beliefs(
             horizons_at_most=timedelta(0),
+            source=source,
             most_recent_beliefs_only=True,
             most_recent_events_only=True,
         )
