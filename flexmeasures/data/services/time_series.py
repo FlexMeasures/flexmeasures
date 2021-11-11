@@ -266,7 +266,7 @@ def convert_query_window_for_demo(
         else:
             end = query_window[-1]
 
-    if start >= end:
+    if start > end:
         start, end = (end, start)
     return start, end
 
