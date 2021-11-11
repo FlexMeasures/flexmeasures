@@ -124,7 +124,8 @@ def create(
     # If plugins register routes, they'll have precedence over standard UI
     # routes (first registration wins). However, we want to control "/" separately.
 
-    from flexmeasures.utils.app_utils import root_dispatcher, register_plugins
+    from flexmeasures.utils.app_utils import root_dispatcher
+    from flexmeasures.utils.plugin_utils import register_plugins
 
     app.add_url_rule("/", view_func=root_dispatcher)
     register_plugins(app)
