@@ -22,6 +22,7 @@ import pandas as pd
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.models.utils import (
     determine_old_time_series_class_by_old_sensor,
@@ -140,9 +141,10 @@ def create_initial_model_specs(  # noqa: C901
 
     old_time_series_class = determine_old_time_series_class_by_old_sensor(old_sensor)
     generic_asset = old_sensor.corresponding_generic_asset
+    sensor = old_sensor.corresponding_sensor
 
     params = _parameterise_forecasting_by_asset_and_asset_type(
-        old_sensor, generic_asset, transform_to_normal
+        sensor, generic_asset, transform_to_normal
     )
     params.update(custom_model_params if custom_model_params is not None else {})
 
@@ -182,7 +184,7 @@ def create_initial_model_specs(  # noqa: C901
         name=generic_asset.generic_asset_type.name,
         old_time_series_class=old_time_series_class,
         collect_params=dict(
-            old_sensor_names=[old_sensor.name],
+            old_sensor_names=[sensor.name],
             query_window=query_window,
             belief_horizon_window=(None, ex_post_horizon),
         ),
@@ -191,7 +193,7 @@ def create_initial_model_specs(  # noqa: C901
     )
     # Set defaults if needed
     if params.get("event_resolution", None) is None:
-        params["event_resolution"] = old_sensor.event_resolution
+        params["event_resolution"] = sensor.event_resolution
     if params.get("remodel_frequency", None) is None:
         params["remodel_frequency"] = timedelta(days=7)
     specs = ModelSpecs(
@@ -213,7 +215,7 @@ def create_initial_model_specs(  # noqa: C901
 
 
 def _parameterise_forecasting_by_asset_and_asset_type(
-    old_sensor: Union[Asset, Market, WeatherSensor],
+    sensor: Sensor,
     generic_asset: GenericAsset,
     transform_to_normal: bool,
 ) -> dict:
@@ -223,7 +225,7 @@ def _parameterise_forecasting_by_asset_and_asset_type(
     params["training_and_testing_period"] = timedelta(days=30)
     params["ratio_training_testing_data"] = 14 / 15
     params["n_lags"] = 7
-    params["resolution"] = old_sensor.event_resolution
+    params["resolution"] = sensor.event_resolution
 
     if transform_to_normal:
         params[
