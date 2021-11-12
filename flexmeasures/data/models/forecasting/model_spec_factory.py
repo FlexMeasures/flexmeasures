@@ -24,7 +24,6 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.models.utils import (
-    determine_asset_type_by_asset,
     determine_asset_value_class_by_asset,
 )
 from flexmeasures.data.models.forecasting.utils import (
@@ -139,7 +138,6 @@ def create_initial_model_specs(  # noqa: C901
           calendar day.
     """
 
-    old_sensor_model_type = determine_asset_type_by_asset(old_sensor_model)
     old_time_series_data_model = determine_asset_value_class_by_asset(old_sensor_model)
     generic_asset = old_sensor_model.corresponding_generic_asset
 
@@ -150,7 +148,7 @@ def create_initial_model_specs(  # noqa: C901
 
     lags = create_lags(
         params["n_lags"],
-        old_sensor_model_type,
+        generic_asset,
         forecast_horizon,
         params["resolution"],
         use_periodicity,
@@ -181,7 +179,7 @@ def create_initial_model_specs(  # noqa: C901
         ex_post_horizon = timedelta(hours=0)
 
     outcome_var_spec = TBSeriesSpecs(
-        name=old_sensor_model_type.name,
+        name=generic_asset.generic_asset_type.name,
         old_time_series_data_model=old_time_series_data_model,
         collect_params=dict(
             generic_asset_names=[old_sensor_model.name],
