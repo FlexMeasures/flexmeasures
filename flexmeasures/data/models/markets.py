@@ -7,6 +7,7 @@ from sqlalchemy.orm import Query
 from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
+    GenericAsset,
     GenericAssetType,
 )
 from flexmeasures.data.models.time_series import Sensor, TimedValue
@@ -99,6 +100,14 @@ class Market(db.Model, tb.SensorDBMixin):
     def entity_address(self) -> str:
         """Entity address under the latest fm scheme for entity addresses."""
         return build_entity_address(dict(sensor_id=self.id), "sensor")
+
+    @property
+    def corresponding_sensor(self) -> Sensor:
+        return db.session.query(Sensor).get(self.id)
+
+    @property
+    def corresponding_generic_asset(self) -> GenericAsset:
+        return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
 
     @property
     def price_unit(self) -> str:

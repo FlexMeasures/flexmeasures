@@ -19,9 +19,10 @@ from timetomodel.transforming import (
 )
 import pandas as pd
 
-from flexmeasures.data.models.assets import AssetType, Asset
-from flexmeasures.data.models.markets import MarketType, Market
-from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
+from flexmeasures.data.models.assets import Asset
+from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.models.utils import (
     determine_asset_type_by_asset,
     determine_asset_value_class_by_asset,
@@ -51,12 +52,12 @@ class TBSeriesSpecs(SeriesSpecs):
     The collect function is expected to return a BeliefsDataFrame.
     """
 
-    generic_asset_value_class: Any  # with collect method
+    old_time_series_data_model: Any  # with collect method
     collect_params: dict
 
     def __init__(
         self,
-        generic_asset_value_class,
+        old_time_series_data_model,
         collect_params: dict,
         name: str,
         original_tz: Optional[tzinfo] = pytz.utc,  # postgres stores naive datetimes
@@ -73,15 +74,15 @@ class TBSeriesSpecs(SeriesSpecs):
             resampling_config,
             interpolation_config,
         )
-        self.generic_asset_value_class = generic_asset_value_class
+        self.old_time_series_data_model = old_time_series_data_model
         self.collect_params = collect_params
 
     def _load_series(self) -> pd.Series:
         logger.info(
-            "Reading %s data from database" % self.generic_asset_value_class.__name__
+            "Reading %s data from database" % self.old_time_series_data_model.__name__
         )
 
-        bdf: BeliefsDataFrame = self.generic_asset_value_class.collect(
+        bdf: BeliefsDataFrame = self.old_time_series_data_model.collect(
             **self.collect_params
         )
         assert isinstance(bdf, BeliefsDataFrame)
@@ -101,7 +102,7 @@ class TBSeriesSpecs(SeriesSpecs):
                 "No values found in database for the requested %s data. It's no use to continue I'm afraid."
                 " Here's a print-out of what I tried to collect:\n\n%s\n\n"
                 % (
-                    self.generic_asset_value_class.__name__,
+                    self.old_time_series_data_model.__name__,
                     pformat(self.collect_params, sort_dicts=False),
                 )
             )
@@ -110,14 +111,14 @@ class TBSeriesSpecs(SeriesSpecs):
                 "Nan values found in database for the requested %s data. It's no use to continue I'm afraid."
                 " Here's a print-out of what I tried to collect:\n\n%s\n\n"
                 % (
-                    self.generic_asset_value_class.__name__,
+                    self.old_time_series_data_model.__name__,
                     pformat(self.collect_params, sort_dicts=False),
                 )
             )
 
 
 def create_initial_model_specs(  # noqa: C901
-    generic_asset: Union[Asset, Market, WeatherSensor],
+    old_sensor_model: Union[Asset, Market, WeatherSensor],
     forecast_start: datetime,  # Start of forecast period
     forecast_end: datetime,  # End of forecast period
     forecast_horizon: timedelta,  # Duration between time of forecasting and end time of the event that is forecast
@@ -138,17 +139,18 @@ def create_initial_model_specs(  # noqa: C901
           calendar day.
     """
 
-    generic_asset_type = determine_asset_type_by_asset(generic_asset)
-    generic_asset_value_class = determine_asset_value_class_by_asset(generic_asset)
+    old_sensor_model_type = determine_asset_type_by_asset(old_sensor_model)
+    old_time_series_data_model = determine_asset_value_class_by_asset(old_sensor_model)
+    generic_asset = old_sensor_model.corresponding_generic_asset
 
     params = _parameterise_forecasting_by_asset_and_asset_type(
-        generic_asset, generic_asset_type, transform_to_normal
+        old_sensor_model, generic_asset, transform_to_normal
     )
     params.update(custom_model_params if custom_model_params is not None else {})
 
     lags = create_lags(
         params["n_lags"],
-        generic_asset_type,
+        old_sensor_model_type,
         forecast_horizon,
         params["resolution"],
         use_periodicity,
@@ -169,7 +171,6 @@ def create_initial_model_specs(  # noqa: C901
                 )
         regressor_specs = configure_regressors_for_nearest_weather_sensor(
             generic_asset,
-            generic_asset_type,
             query_window,
             forecast_horizon,
             regressor_transformation,
@@ -180,10 +181,10 @@ def create_initial_model_specs(  # noqa: C901
         ex_post_horizon = timedelta(hours=0)
 
     outcome_var_spec = TBSeriesSpecs(
-        name=generic_asset_type.name,
-        generic_asset_value_class=generic_asset_value_class,
+        name=old_sensor_model_type.name,
+        old_time_series_data_model=old_time_series_data_model,
         collect_params=dict(
-            generic_asset_names=[generic_asset.name],
+            generic_asset_names=[old_sensor_model.name],
             query_window=query_window,
             belief_horizon_window=(None, ex_post_horizon),
         ),
@@ -192,7 +193,7 @@ def create_initial_model_specs(  # noqa: C901
     )
     # Set defaults if needed
     if params.get("event_resolution", None) is None:
-        params["event_resolution"] = generic_asset.event_resolution
+        params["event_resolution"] = old_sensor_model.event_resolution
     if params.get("remodel_frequency", None) is None:
         params["remodel_frequency"] = timedelta(days=7)
     specs = ModelSpecs(
@@ -214,8 +215,8 @@ def create_initial_model_specs(  # noqa: C901
 
 
 def _parameterise_forecasting_by_asset_and_asset_type(
-    generic_asset: Union[Asset, Market, WeatherSensor],
-    generic_asset_type: Union[AssetType, MarketType, WeatherSensorType],
+    old_sensor_model: Union[Asset, Market, WeatherSensor],
+    generic_asset: GenericAsset,
     transform_to_normal: bool,
 ) -> dict:
     """Fill in the best parameters we know (generic or by asset (type))"""
@@ -224,48 +225,45 @@ def _parameterise_forecasting_by_asset_and_asset_type(
     params["training_and_testing_period"] = timedelta(days=30)
     params["ratio_training_testing_data"] = 14 / 15
     params["n_lags"] = 7
-    params["resolution"] = generic_asset.event_resolution
+    params["resolution"] = old_sensor_model.event_resolution
 
     if transform_to_normal:
         params[
             "outcome_var_transformation"
-        ] = get_normalization_transformation_by_asset_type(generic_asset_type)
+        ] = get_normalization_transformation_from_generic_asset_attributes(
+            generic_asset
+        )
 
     return params
 
 
-def get_normalization_transformation_by_asset_type(
-    generic_asset_type: Union[AssetType, MarketType, WeatherSensorType]
+def get_normalization_transformation_from_generic_asset_attributes(
+    generic_asset: GenericAsset,
 ) -> Optional[Transformation]:
     """
     Transform data to be normal, using the BoxCox transformation. Lambda parameter is chosen
-    according ot the asset type.
+    according to the asset type.
     """
-    if isinstance(generic_asset_type, AssetType):
-        if (generic_asset_type.is_consumer and not generic_asset_type.is_producer) or (
-            generic_asset_type.is_producer and not generic_asset_type.is_consumer
-        ):
-            return BoxCoxTransformation(lambda2=0.1)
-        else:
-            return None
-    elif isinstance(generic_asset_type, MarketType):
-        return None
-    elif isinstance(generic_asset_type, WeatherSensorType):
-        if generic_asset_type.name in ["wind_speed", "radiation"]:
-            # Values cannot be negative and are often zero
-            return BoxCoxTransformation(lambda2=0.1)
-        elif generic_asset_type.name == "temperature":
-            # Values can be positive or negative when given in degrees Celsius, but non-negative only in Kelvin
-            return BoxCoxTransformation(lambda2=273.16)
-        else:
-            return None
+    if (
+        generic_asset.get_attribute("is_consumer")
+        and not generic_asset.get_attribute("is_producer")
+    ) or (
+        generic_asset.get_attribute("is_producer")
+        and not generic_asset.get_attribute("is_consumer")
+    ):
+        return BoxCoxTransformation(lambda2=0.1)
+    elif generic_asset.generic_asset_type.name in ["wind_speed", "radiation"]:
+        # Values cannot be negative and are often zero
+        return BoxCoxTransformation(lambda2=0.1)
+    elif generic_asset.generic_asset_type.name == "temperature":
+        # Values can be positive or negative when given in degrees Celsius, but non-negative only in Kelvin
+        return BoxCoxTransformation(lambda2=273.16)
     else:
-        raise TypeError("Unknown generic asset type.")
+        return None
 
 
 def configure_regressors_for_nearest_weather_sensor(
-    generic_asset,
-    generic_asset_type,
+    generic_asset: GenericAsset,
     query_window,
     horizon,
     regressor_transformation,  # the regressor transformation can be passed in
@@ -273,10 +271,10 @@ def configure_regressors_for_nearest_weather_sensor(
 ) -> List[TBSeriesSpecs]:
     """For Assets, we use weather data as regressors. Here, we configure them."""
     regressor_specs = []
-    if isinstance(generic_asset, Asset):
-        sensor_types = generic_asset_type.weather_correlations
+    sensor_types = generic_asset.get_attribute("weather_correlations")
+    if sensor_types:
         current_app.logger.info(
-            "For %s, I need sensors: %s" % (generic_asset, sensor_types)
+            "For %s, I need sensors: %s" % (generic_asset.name, sensor_types)
         )
         for sensor_type in sensor_types:
 
@@ -287,25 +285,25 @@ def configure_regressors_for_nearest_weather_sensor(
             if closest_sensor is None:
                 current_app.logger.warning(
                     "No sensor found of sensor type %s to use as regressor for %s."
-                    % (sensor_type, generic_asset)
+                    % (sensor_type, generic_asset.name)
                 )
             else:
                 current_app.logger.info(
                     "Using sensor %s as regressor for %s."
-                    % (sensor_type, generic_asset)
+                    % (sensor_type, generic_asset.name)
                 )
                 # Collect the weather data for the requested time window
                 regressor_specs_name = "%s_l0" % sensor_type
                 if len(regressor_transformation.keys()) == 0 and transform_to_normal:
                     regressor_transformation = (
-                        get_normalization_transformation_by_asset_type(
-                            WeatherSensorType(name=sensor_type)
+                        get_normalization_transformation_from_generic_asset_attributes(
+                            closest_sensor.corresponding_generic_asset,
                         )
                     )
                 regressor_specs.append(
                     TBSeriesSpecs(
                         name=regressor_specs_name,
-                        generic_asset_value_class=Weather,
+                        old_time_series_data_model=Weather,
                         collect_params=dict(
                             generic_asset_names=[closest_sensor.name],
                             query_window=query_window,

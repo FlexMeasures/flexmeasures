@@ -10,6 +10,7 @@ from flexmeasures.data.models.user import User
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
+    GenericAsset,
     GenericAssetType,
 )
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -114,6 +115,28 @@ class Asset(db.Model, tb.SensorDBMixin):
         # Also keep track of ownership.
         if "id" not in kwargs:
             generic_assets_arg = kwargs.copy()
+            if "asset_type_name" in generic_assets_arg:
+                asset_type = db.session.query(AssetType).get(
+                    generic_assets_arg["asset_type_name"]
+                )
+            else:
+                asset_type = generic_assets_arg["asset_type"]
+            attributes = [
+                "is_consumer",
+                "is_producer",
+                "can_curtail",
+                "can_shift",
+                "daily_seasonality",
+                "weekly_seasonality",
+                "yearly_seasonality",
+                "weather_correlations",
+            ]
+            generic_asset_attributes = {a: getattr(asset_type, a) for a in attributes}
+            generic_assets_arg = {
+                **generic_assets_arg,
+                **{"attributes": generic_asset_attributes},
+            }
+
             if "owner_id" in kwargs:
                 owner = User.query.get(kwargs["owner_id"])
                 if owner:
@@ -158,6 +181,14 @@ class Asset(db.Model, tb.SensorDBMixin):
                 Power.datetime + self.event_resolution <= event_ends_before
             )
         return power_query.first()
+
+    @property
+    def corresponding_sensor(self) -> Sensor:
+        return db.session.query(Sensor).get(self.id)
+
+    @property
+    def corresponding_generic_asset(self) -> GenericAsset:
+        return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
 
     @property
     def power_unit(self) -> float:

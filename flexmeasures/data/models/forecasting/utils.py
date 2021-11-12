@@ -7,8 +7,8 @@ from flexmeasures.utils.time_utils import as_server_time
 
 
 def check_data_availability(
-    generic_asset,
-    generic_asset_value_class,
+    old_sensor_model,
+    old_time_series_data_model,
     forecast_start: datetime,
     forecast_end: datetime,
     query_window: Tuple[datetime, datetime],
@@ -18,11 +18,11 @@ def check_data_availability(
     for training window and lagged variables. Otherwise, suggest new forecast period.
     TODO: we could also check regressor data, if we get regressor specs passed in here.
     """
-    q = generic_asset_value_class.query.join(generic_asset.__class__).filter(
-        generic_asset.__class__.name == generic_asset.name
+    q = old_time_series_data_model.query.join(old_sensor_model.__class__).filter(
+        old_sensor_model.__class__.name == old_sensor_model.name
     )
-    first_value = q.order_by(generic_asset_value_class.datetime.asc()).first()
-    last_value = q.order_by(generic_asset_value_class.datetime.desc()).first()
+    first_value = q.order_by(old_time_series_data_model.datetime.asc()).first()
+    last_value = q.order_by(old_time_series_data_model.datetime.desc()).first()
     if first_value is None:
         raise NotEnoughDataException(
             "No data available at all. Forecasting impossible."
@@ -32,26 +32,26 @@ def check_data_availability(
     if query_window[0] < first:
         suggested_start = forecast_start + (first - query_window[0])
         raise NotEnoughDataException(
-            f"Not enough data to forecast {generic_asset.name} "
+            f"Not enough data to forecast {old_sensor_model.name} "
             f"for the forecast window {as_server_time(forecast_start)} to {as_server_time(forecast_end)}. "
             f"I needed to query from {as_server_time(query_window[0])}, "
-            f"but the first value available is from {first} to {first + generic_asset.event_resolution}. "
+            f"but the first value available is from {first} to {first + old_sensor_model.event_resolution}. "
             f"Consider setting the start date to {as_server_time(suggested_start)}."
         )
-    if query_window[1] - horizon > last + generic_asset.event_resolution:
+    if query_window[1] - horizon > last + old_sensor_model.event_resolution:
         suggested_end = forecast_end + (last - (query_window[1] - horizon))
         raise NotEnoughDataException(
-            f"Not enough data to forecast {generic_asset.name} "
+            f"Not enough data to forecast {old_sensor_model.name} "
             f"for the forecast window {as_server_time(forecast_start)} to {as_server_time(forecast_end)}. "
             f"I needed to query until {as_server_time(query_window[1] - horizon)}, "
-            f"but the last value available is from {last} to {last + generic_asset.event_resolution}. "
+            f"but the last value available is from {last} to {last + old_sensor_model.event_resolution}. "
             f"Consider setting the end date to {as_server_time(suggested_end)}."
         )
 
 
 def create_lags(
     n_lags: int,
-    generic_asset_type: db.Model,
+    old_sensor_model_type: db.Model,
     horizon: timedelta,
     resolution: timedelta,
     use_periodicity: bool,
@@ -71,8 +71,8 @@ def create_lags(
         lags.append((L + number_of_nan_lags) * lag_period)
 
     # Include relevant measurements given the asset's periodicity
-    if use_periodicity and hasattr(generic_asset_type, "daily_seasonality"):
-        if generic_asset_type.daily_seasonality:
+    if use_periodicity and hasattr(old_sensor_model_type, "daily_seasonality"):
+        if old_sensor_model_type.daily_seasonality:
             lag_period = timedelta(days=1)
             number_of_nan_lags = 1 + (horizon - resolution) // lag_period
             for L in range(n_lags):

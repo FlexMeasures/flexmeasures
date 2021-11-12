@@ -57,6 +57,10 @@ class GenericAsset(db.Model):
             return self.latitude, self.longitude
         return None
 
+    def get_attribute(self, attribute: str):
+        if attribute in self.attributes:
+            return self.attributes[attribute]
+
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     """Create a GenericAsset and assigns it an id.
@@ -81,7 +85,9 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     if generic_asset_type is None:
         raise ValueError(f"Cannot find GenericAssetType {asset_type_name} in database.")
     new_generic_asset = GenericAsset(
-        name=kwargs["name"], generic_asset_type_id=generic_asset_type.id
+        name=kwargs["name"],
+        generic_asset_type_id=generic_asset_type.id,
+        attributes=kwargs["attributes"] if "attributes" in kwargs else {},
     )
     for arg in ("latitude", "longitude", "account_id"):
         if arg in kwargs:

@@ -204,8 +204,8 @@ def populate_time_series_forecasts(  # noqa: C901
     forecast_start: datetime,
     forecast_end: datetime,
     event_resolution: Optional[timedelta] = None,
-    generic_asset_type: Optional[str] = None,
-    generic_asset_id: Optional[int] = None,
+    old_sensor_model_type_name: Optional[str] = None,
+    old_sensor_model_id: Optional[int] = None,
 ):
     training_and_testing_period = timedelta(days=30)
 
@@ -219,51 +219,56 @@ def populate_time_series_forecasts(  # noqa: C901
         name="Seita", type="demo script"
     ).one_or_none()
 
-    # List all generic assets for which to forecast.
+    # List all old sensor models for which to forecast.
     # Look into asset type if no asset name is given. If an asset name is given,
-    generic_assets = []
-    if generic_asset_id is None:
-        if generic_asset_type is None or generic_asset_type == "WeatherSensor":
+    old_sensor_data_models = []
+    if old_sensor_model_id is None:
+        if (
+            old_sensor_model_type_name is None
+            or old_sensor_model_type_name == "WeatherSensor"
+        ):
             sensors = WeatherSensor.query.all()
-            generic_assets.extend(sensors)
-        if generic_asset_type is None or generic_asset_type == "Asset":
+            old_sensor_data_models.extend(sensors)
+        if old_sensor_model_type_name is None or old_sensor_model_type_name == "Asset":
             assets = Asset.query.all()
-            generic_assets.extend(assets)
-        if generic_asset_type is None or generic_asset_type == "Market":
+            old_sensor_data_models.extend(assets)
+        if old_sensor_model_type_name is None or old_sensor_model_type_name == "Market":
             markets = Market.query.all()
-            generic_assets.extend(markets)
+            old_sensor_data_models.extend(markets)
     else:
-        if generic_asset_type is None:
+        if old_sensor_model_type_name is None:
             click.echo(
                 "If you specify --asset-name, please also specify --asset-type, so we can look it up."
             )
             return
-        if generic_asset_type == "WeatherSensor":
+        if old_sensor_model_type_name == "WeatherSensor":
             sensors = WeatherSensor.query.filter(
-                WeatherSensor.id == generic_asset_id
+                WeatherSensor.id == old_sensor_model_id
             ).one_or_none()
             if sensors is not None:
-                generic_assets.append(sensors)
-        if generic_asset_type == "Asset":
-            assets = Asset.query.filter(Asset.id == generic_asset_id).one_or_none()
+                old_sensor_data_models.append(sensors)
+        if old_sensor_model_type_name == "Asset":
+            assets = Asset.query.filter(Asset.id == old_sensor_model_id).one_or_none()
             if assets is not None:
-                generic_assets.append(assets)
-        if generic_asset_type == "Market":
-            markets = Market.query.filter(Market.id == generic_asset_id).one_or_none()
+                old_sensor_data_models.append(assets)
+        if old_sensor_model_type_name == "Market":
+            markets = Market.query.filter(
+                Market.id == old_sensor_model_id
+            ).one_or_none()
             if markets is not None:
-                generic_assets.append(markets)
-    if not generic_assets:
+                old_sensor_data_models.append(markets)
+    if not old_sensor_data_models:
         click.echo("No such assets in db, so I will not add any forecasts.")
         return
 
     # Make a model for each asset and horizon, make rolling forecasts and save to database.
     # We cannot use (faster) bulk save, as forecasts might become regressors in other forecasts.
-    for generic_asset in generic_assets:
+    for old_sensor_data_model in old_sensor_data_models:
         for horizon in horizons:
             try:
                 default_model = lookup_model_specs_configurator()
                 model_specs, model_identifier, model_fallback = default_model(
-                    generic_asset=generic_asset,
+                    old_sensor_data_model=old_sensor_data_model,
                     forecast_start=forecast_start,
                     forecast_end=forecast_end,
                     forecast_horizon=horizon,
@@ -277,7 +282,7 @@ def populate_time_series_forecasts(  # noqa: C901
                     "from %s to %s with a training and testing period of %s, using %s ..."
                     % (
                         naturaldelta(horizon),
-                        generic_asset.name,
+                        old_sensor_data_model.name,
                         forecast_start,
                         forecast_end,
                         naturaldelta(training_and_testing_period),
@@ -289,15 +294,18 @@ def populate_time_series_forecasts(  # noqa: C901
                     start=forecast_start, end=forecast_end, model_specs=model_specs
                 )
                 # Upsample to sensor resolution if needed
-                if forecasts.index.freq > pd.Timedelta(generic_asset.event_resolution):
+                if forecasts.index.freq > pd.Timedelta(
+                    old_sensor_data_model.event_resolution
+                ):
                     forecasts = model_specs.outcome_var.resample_data(
                         forecasts,
                         time_window=(forecasts.index.min(), forecasts.index.max()),
-                        expected_frequency=generic_asset.event_resolution,
+                        expected_frequency=old_sensor_data_model.event_resolution,
                     )
             except (NotEnoughDataException, MissingData, NaNData) as e:
                 click.echo(
-                    "Skipping forecasts for asset %s: %s" % (generic_asset, str(e))
+                    "Skipping forecasts for asset %s: %s"
+                    % (old_sensor_data_model, str(e))
                 )
                 continue
             """
@@ -314,35 +322,35 @@ def populate_time_series_forecasts(  # noqa: C901
             """
 
             beliefs = []
-            if isinstance(generic_asset, Asset):
+            if isinstance(old_sensor_data_model, Asset):
                 beliefs = [
                     Power(
                         datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         horizon=horizon,
                         value=value,
-                        asset_id=generic_asset.id,
+                        asset_id=old_sensor_data_model.id,
                         data_source_id=data_source.id,
                     )
                     for dt, value in forecasts.items()
                 ]
-            elif isinstance(generic_asset, Market):
+            elif isinstance(old_sensor_data_model, Market):
                 beliefs = [
                     Price(
                         datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         horizon=horizon,
                         value=value,
-                        market_id=generic_asset.id,
+                        market_id=old_sensor_data_model.id,
                         data_source_id=data_source.id,
                     )
                     for dt, value in forecasts.items()
                 ]
-            elif isinstance(generic_asset, WeatherSensor):
+            elif isinstance(old_sensor_data_model, WeatherSensor):
                 beliefs = [
                     Weather(
                         datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         horizon=horizon,
                         value=value,
-                        sensor_id=generic_asset.id,
+                        sensor_id=old_sensor_data_model.id,
                         data_source_id=data_source.id,
                     )
                     for dt, value in forecasts.items()
@@ -350,7 +358,7 @@ def populate_time_series_forecasts(  # noqa: C901
 
             print(
                 "Saving %s %s-forecasts for %s..."
-                % (len(beliefs), naturaldelta(horizon), generic_asset.name)
+                % (len(beliefs), naturaldelta(horizon), old_sensor_data_model.name)
             )
             for belief in beliefs:
                 db.session.add(belief)
@@ -403,8 +411,8 @@ def depopulate_structure(db: SQLAlchemy):
 @as_transaction
 def depopulate_measurements(
     db: SQLAlchemy,
-    generic_asset_type: Optional[str] = None,
-    generic_asset_id: Optional[id] = None,
+    old_sensor_model_type_name: Optional[str] = None,
+    old_sensor_model_id: Optional[id] = None,
 ):
     click.echo("Depopulating (time series) data from the database %s ..." % db.engine)
     num_prices_deleted = 0
@@ -413,35 +421,38 @@ def depopulate_measurements(
 
     # TODO: simplify this when sensors moved to one unified table
 
-    if generic_asset_id is None:
-        if generic_asset_type is None or generic_asset_type == "Market":
+    if old_sensor_model_id is None:
+        if old_sensor_model_type_name is None or old_sensor_model_type_name == "Market":
             num_prices_deleted = (
                 db.session.query(Price)
                 .filter(Price.horizon <= timedelta(hours=0))
                 .delete()
             )
-        if generic_asset_type is None or generic_asset_type == "Asset":
+        if old_sensor_model_type_name is None or old_sensor_model_type_name == "Asset":
             num_power_measurements_deleted = (
                 db.session.query(Power)
                 .filter(Power.horizon <= timedelta(hours=0))
                 .delete()
             )
-        if generic_asset_type is None or generic_asset_type == "WeatherSensor":
+        if (
+            old_sensor_model_type_name is None
+            or old_sensor_model_type_name == "WeatherSensor"
+        ):
             num_weather_measurements_deleted = (
                 db.session.query(Weather)
                 .filter(Weather.horizon <= timedelta(hours=0))
                 .delete()
             )
     else:
-        if generic_asset_type is None:
+        if old_sensor_model_type_name is None:
             click.echo(
                 "If you specify --asset-name, please also specify --asset-type, so we can look it up."
             )
             return
-        if generic_asset_type == "Market":
+        if old_sensor_model_type_name == "Market":
             market = (
                 db.session.query(Market)
-                .filter(Market.id == generic_asset_id)
+                .filter(Market.id == old_sensor_model_id)
                 .one_or_none()
             )
             if market is not None:
@@ -454,10 +465,10 @@ def depopulate_measurements(
             else:
                 num_prices_deleted = 0
 
-        elif generic_asset_type == "Asset":
+        elif old_sensor_model_type_name == "Asset":
             asset = (
                 db.session.query(Asset)
-                .filter(Asset.id == generic_asset_id)
+                .filter(Asset.id == old_sensor_model_id)
                 .one_or_none()
             )
             if asset is not None:
@@ -470,10 +481,10 @@ def depopulate_measurements(
             else:
                 num_power_measurements_deleted = 0
 
-        elif generic_asset_type == "WeatherSensor":
+        elif old_sensor_model_type_name == "WeatherSensor":
             sensor = (
                 db.session.query(WeatherSensor)
-                .filter(WeatherSensor.id == generic_asset_id)
+                .filter(WeatherSensor.id == old_sensor_model_id)
                 .one_or_none()
             )
             if sensor is not None:
@@ -494,8 +505,8 @@ def depopulate_measurements(
 @as_transaction
 def depopulate_prognoses(
     db: SQLAlchemy,
-    generic_asset_type: Optional[str] = None,
-    generic_asset_id: Optional[id] = None,
+    old_sensor_model_type_name: Optional[str] = None,
+    old_sensor_model_id: Optional[id] = None,
 ):
     click.echo(
         "Depopulating (time series) forecasts and schedules data from the database %s ..."
@@ -510,20 +521,23 @@ def depopulate_prognoses(
     num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
 
     # Clear all forecasts (data with positive horizon)
-    if generic_asset_id is None:
-        if generic_asset_type is None or generic_asset_type == "Market":
+    if old_sensor_model_id is None:
+        if old_sensor_model_type_name is None or old_sensor_model_type_name == "Market":
             num_prices_deleted = (
                 db.session.query(Price)
                 .filter(Price.horizon > timedelta(hours=0))
                 .delete()
             )
-        if generic_asset_type is None or generic_asset_type == "Asset":
+        if old_sensor_model_type_name is None or old_sensor_model_type_name == "Asset":
             num_power_measurements_deleted = (
                 db.session.query(Power)
                 .filter(Power.horizon > timedelta(hours=0))
                 .delete()
             )
-        if generic_asset_type is None or generic_asset_type == "WeatherSensor":
+        if (
+            old_sensor_model_type_name is None
+            or old_sensor_model_type_name == "WeatherSensor"
+        ):
             num_weather_measurements_deleted = (
                 db.session.query(Weather)
                 .filter(Weather.horizon > timedelta(hours=0))
@@ -532,13 +546,13 @@ def depopulate_prognoses(
     else:
         click.echo(
             "Depopulating (time series) forecasts and schedules for %s from the database %s ..."
-            % (generic_asset_id, db.engine)
+            % (old_sensor_model_id, db.engine)
         )
 
-        if generic_asset_type == "Market":
+        if old_sensor_model_type_name == "Market":
             market = (
                 db.session.query(Market)
-                .filter(Market.id == generic_asset_id)
+                .filter(Market.id == old_sensor_model_id)
                 .one_or_none()
             )
             if market is not None:
@@ -551,10 +565,10 @@ def depopulate_prognoses(
             else:
                 num_prices_deleted = 0
 
-        if generic_asset_type == "Asset":
+        if old_sensor_model_type_name == "Asset":
             asset = (
                 db.session.query(Asset)
-                .filter(Asset.id == generic_asset_id)
+                .filter(Asset.id == old_sensor_model_id)
                 .one_or_none()
             )
             if asset is not None:
@@ -567,10 +581,10 @@ def depopulate_prognoses(
             else:
                 num_power_measurements_deleted = 0
 
-        if generic_asset_type == "WeatherSensor":
+        if old_sensor_model_type_name == "WeatherSensor":
             sensor = (
                 db.session.query(WeatherSensor)
-                .filter(WeatherSensor.id == generic_asset_id)
+                .filter(WeatherSensor.id == old_sensor_model_id)
                 .one_or_none()
             )
             if sensor is not None:
