@@ -288,7 +288,7 @@ class Power(TimedValue, db.Model):
         **kwargs,
     ) -> Query:
         """Construct the database query."""
-        return super().make_query(asset_class=Asset, **kwargs)
+        return super().make_query(old_sensor_class=Asset, **kwargs)
 
     def to_dict(self):
         return {

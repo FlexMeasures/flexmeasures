@@ -222,7 +222,7 @@ class Weather(TimedValue, db.Model):
     @classmethod
     def make_query(cls, **kwargs) -> Query:
         """Construct the database query."""
-        return super().make_query(asset_class=WeatherSensor, **kwargs)
+        return super().make_query(old_sensor_class=WeatherSensor, **kwargs)
 
     def __init__(self, **kwargs):
         super(Weather, self).__init__(**kwargs)

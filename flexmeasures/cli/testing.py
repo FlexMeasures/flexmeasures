@@ -52,7 +52,7 @@ def test_making_forecasts():
     click.echo("Forecasts found before : %d" % forecast_filter.count())
 
     create_forecasting_jobs(
-        asset_id=asset_id,
+        old_sensor_id=asset_id,
         timed_value_type="Power",
         horizons=[timedelta(hours=6)],
         start_of_roll=as_server_time(datetime(2015, 4, 1)),

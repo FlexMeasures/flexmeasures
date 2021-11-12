@@ -450,7 +450,7 @@ class Resource:
 
             # Query the sensors
             resource_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.collect(
-                generic_asset_names=list(names_of_resource_sensors),
+                old_sensor_names=list(names_of_resource_sensors),
                 query_window=(start, end),
                 belief_horizon_window=belief_horizon_window,
                 belief_time_window=belief_time_window,

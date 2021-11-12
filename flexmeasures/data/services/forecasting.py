@@ -13,7 +13,7 @@ from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import InvalidHorizonException
 from flexmeasures.data.models.markets import Market, Price
-from flexmeasures.data.models.utils import determine_asset_value_class_by_asset
+from flexmeasures.data.models.utils import determine_old_time_series_class_by_old_sensor
 from flexmeasures.data.models.forecasting.utils import (
     get_query_window,
     check_data_availability,
@@ -47,7 +47,7 @@ class MisconfiguredForecastingJobException(Exception):
 
 def create_forecasting_jobs(
     timed_value_type: str,
-    asset_id: int,
+    old_sensor_id: int,
     start_of_roll: datetime,
     end_of_roll: datetime,
     resolution: timedelta = None,
@@ -100,7 +100,7 @@ def create_forecasting_jobs(
         job = Job.create(
             make_rolling_viewpoint_forecasts,
             kwargs=dict(
-                asset_id=asset_id,
+                old_sensor_id=old_sensor_id,
                 timed_value_type=timed_value_type,
                 horizon=horizon,
                 start=start_of_roll + horizon,
@@ -123,7 +123,7 @@ def create_forecasting_jobs(
 
 
 def make_fixed_viewpoint_forecasts(
-    asset_id: int,
+    old_sensor_id: int,
     timed_value_type: str,
     horizon: timedelta,
     start: datetime,
@@ -141,7 +141,7 @@ def make_fixed_viewpoint_forecasts(
 
 
 def make_rolling_viewpoint_forecasts(
-    asset_id: int,
+    old_sensor_id: int,
     timed_value_type: str,
     horizon: timedelta,
     start: datetime,
@@ -157,8 +157,8 @@ def make_rolling_viewpoint_forecasts(
 
     Parameters
     ----------
-    :param asset_id: int
-        To identify which asset to forecast
+    :param old_sensor_id: int
+        To identify which old sensor to forecast (note: old_sensor_id == sensor_id)
     :param timed_value_type: str
         This should go away after a refactoring - we now use it to create the DB entry for the forecasts
     :param horizon: timedelta
@@ -181,15 +181,15 @@ def make_rolling_viewpoint_forecasts(
     # find out which model to run, fall back to latest recommended
     model_search_term = rq_job.meta.get("model_search_term", "linear-OLS")
 
-    # find asset
-    asset = get_asset(asset_id, timed_value_type)
+    # find old sensor
+    old_sensor = get_old_sensor(old_sensor_id, timed_value_type)
 
     click.echo(
         "Running Forecasting Job %s: %s for %s on model '%s', from %s to %s"
-        % (rq_job.id, asset, horizon, model_search_term, start, end)
+        % (rq_job.id, old_sensor, horizon, model_search_term, start, end)
     )
 
-    if hasattr(asset, "market_type"):
+    if hasattr(old_sensor, "market_type"):
         ex_post_horizon = None  # Todo: until we sorted out the ex_post_horizon, use all available price data
     else:
         ex_post_horizon = timedelta(hours=0)
@@ -197,7 +197,7 @@ def make_rolling_viewpoint_forecasts(
     # Make model specs
     model_configurator = lookup_model_specs_configurator(model_search_term)
     model_specs, model_identifier, fallback_model_search_term = model_configurator(
-        old_sensor_model=asset,
+        old_sensor=old_sensor,
         forecast_start=as_server_time(start),
         forecast_end=as_server_time(end),
         forecast_horizon=horizon,
@@ -222,8 +222,8 @@ def make_rolling_viewpoint_forecasts(
         [lag * model_specs.frequency for lag in model_specs.lags],
     )
     check_data_availability(
-        asset,
-        determine_asset_value_class_by_asset(asset),
+        old_sensor,
+        determine_old_time_series_class_by_old_sensor(old_sensor),
         start,
         end,
         query_window,
@@ -244,7 +244,9 @@ def make_rolling_viewpoint_forecasts(
     click.echo("Job %s made %d forecasts." % (rq_job.id, len(forecasts)))
 
     ts_value_forecasts = [
-        make_timed_value(timed_value_type, asset_id, dt, value, horizon, data_source.id)
+        make_timed_value(
+            timed_value_type, old_sensor_id, dt, value, horizon, data_source.id
+        )
         for dt, value in forecasts.items()
     ]
 
@@ -308,44 +310,48 @@ def num_forecasts(start: datetime, end: datetime, resolution: timedelta) -> int:
 #       and store everything in one time series database.
 
 
-def get_asset(
-    asset_id: int, timed_value_type: str
+def get_old_sensor(
+    old_sensor_id: int, timed_value_type: str
 ) -> Union[Asset, Market, WeatherSensor]:
-    """Get asset for this job. Maybe simpler once we redesign timed value classes (make a generic one)"""
+    """Get old sensor for this job. Maybe simpler once we redesign timed value classes (make a generic one)"""
     if timed_value_type not in ("Power", "Price", "Weather"):
-        raise Exception("Cannot get asset for asset_type '%s'" % timed_value_type)
-    asset = None
-    if timed_value_type == "Power":
-        asset = Asset.query.filter_by(id=asset_id).one_or_none()
-    elif timed_value_type == "Price":
-        asset = Market.query.filter_by(id=asset_id).one_or_none()
-    elif timed_value_type == "Weather":
-        asset = WeatherSensor.query.filter_by(id=asset_id).one_or_none()
-    if asset is None:
         raise Exception(
-            "Cannot find asset for value type %s with id %d"
-            % (timed_value_type, asset_id)
+            "Cannot get old sensor for timed_value_type '%s'" % timed_value_type
         )
-    return asset
+    old_sensor = None
+    if timed_value_type == "Power":
+        old_sensor = Asset.query.filter_by(id=old_sensor_id).one_or_none()
+    elif timed_value_type == "Price":
+        old_sensor = Market.query.filter_by(id=old_sensor_id).one_or_none()
+    elif timed_value_type == "Weather":
+        old_sensor = WeatherSensor.query.filter_by(id=old_sensor_id).one_or_none()
+    if old_sensor is None:
+        raise Exception(
+            "Cannot find old sensor for value type %s with id %d"
+            % (timed_value_type, old_sensor_id)
+        )
+    return old_sensor
 
 
 def make_timed_value(
     timed_value_type: str,
-    asset_id: int,
+    old_sensor_id: int,
     dt: datetime,
     value: float,
     horizon: timedelta,
     data_source_id: int,
 ) -> Union[Power, Price, Weather]:
     if timed_value_type not in ("Power", "Price", "Weather"):
-        raise Exception("Cannot get asset for asset_type '%s'" % timed_value_type)
+        raise Exception(
+            "Cannot get old sensor for timed_value_type '%s'" % timed_value_type
+        )
     ts_value = None
     if timed_value_type == "Power":
         ts_value = Power(
             datetime=dt,
             horizon=horizon,
             value=value,
-            asset_id=asset_id,
+            asset_id=old_sensor_id,
             data_source_id=data_source_id,
         )
     elif timed_value_type == "Price":
@@ -353,7 +359,7 @@ def make_timed_value(
             datetime=dt,
             horizon=horizon,
             value=value,
-            market_id=asset_id,
+            market_id=old_sensor_id,
             data_source_id=data_source_id,
         )
     elif timed_value_type == "Weather":
@@ -361,11 +367,12 @@ def make_timed_value(
             datetime=dt,
             horizon=horizon,
             value=value,
-            sensor_id=asset_id,
+            sensor_id=old_sensor_id,
             data_source_id=data_source_id,
         )
     if ts_value is None:
         raise Exception(
-            "Cannot create asset of type %s with id %d" % (timed_value_type, asset_id)
+            "Cannot create timed value of type %s with id %d"
+            % (timed_value_type, old_sensor_id)
         )
     return ts_value

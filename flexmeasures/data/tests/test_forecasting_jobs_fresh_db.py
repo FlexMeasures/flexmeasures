@@ -28,7 +28,7 @@ def test_forecasting_three_hours_of_wind(app, setup_fresh_test_data, clean_redis
         start_of_roll=as_server_time(datetime(2015, 1, 1, 10)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 13)),
         horizons=[horizon],
-        asset_id=wind_device2.id,
+        old_sensor_id=wind_device2.id,
         custom_model_params=custom_model_params(),
     )
     print("Job: %s" % job[0].id)
@@ -61,7 +61,7 @@ def test_forecasting_two_hours_of_solar(app, setup_fresh_test_data, clean_redis)
         start_of_roll=as_server_time(datetime(2015, 1, 1, 12)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 14)),
         horizons=[horizon],
-        asset_id=solar_device1.id,
+        old_sensor_id=solar_device1.id,
         custom_model_params=custom_model_params(),
     )
     print("Job: %s" % job[0].id)
@@ -109,7 +109,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
         start_of_roll=as_server_time(datetime(2015, 1, 1, hour_start)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, hour_start + 2)),
         horizons=[horizon],
-        asset_id=solar_device1.id,
+        old_sensor_id=solar_device1.id,
         model_search_term=model_to_start_with,
         custom_model_params=cmp,
     )

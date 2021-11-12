@@ -24,7 +24,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.models.utils import (
-    determine_asset_value_class_by_asset,
+    determine_old_time_series_class_by_old_sensor,
 )
 from flexmeasures.data.models.forecasting.utils import (
     create_lags,
@@ -56,7 +56,7 @@ class TBSeriesSpecs(SeriesSpecs):
 
     def __init__(
         self,
-        old_time_series_data_model,
+        old_time_series_class,
         collect_params: dict,
         name: str,
         original_tz: Optional[tzinfo] = pytz.utc,  # postgres stores naive datetimes
@@ -73,7 +73,7 @@ class TBSeriesSpecs(SeriesSpecs):
             resampling_config,
             interpolation_config,
         )
-        self.old_time_series_data_model = old_time_series_data_model
+        self.old_time_series_data_model = old_time_series_class
         self.collect_params = collect_params
 
     def _load_series(self) -> pd.Series:
@@ -117,7 +117,7 @@ class TBSeriesSpecs(SeriesSpecs):
 
 
 def create_initial_model_specs(  # noqa: C901
-    old_sensor_model: Union[Asset, Market, WeatherSensor],
+    old_sensor: Union[Asset, Market, WeatherSensor],
     forecast_start: datetime,  # Start of forecast period
     forecast_end: datetime,  # End of forecast period
     forecast_horizon: timedelta,  # Duration between time of forecasting and end time of the event that is forecast
@@ -138,11 +138,11 @@ def create_initial_model_specs(  # noqa: C901
           calendar day.
     """
 
-    old_time_series_data_model = determine_asset_value_class_by_asset(old_sensor_model)
-    generic_asset = old_sensor_model.corresponding_generic_asset
+    old_time_series_class = determine_old_time_series_class_by_old_sensor(old_sensor)
+    generic_asset = old_sensor.corresponding_generic_asset
 
     params = _parameterise_forecasting_by_asset_and_asset_type(
-        old_sensor_model, generic_asset, transform_to_normal
+        old_sensor, generic_asset, transform_to_normal
     )
     params.update(custom_model_params if custom_model_params is not None else {})
 
@@ -180,9 +180,9 @@ def create_initial_model_specs(  # noqa: C901
 
     outcome_var_spec = TBSeriesSpecs(
         name=generic_asset.generic_asset_type.name,
-        old_time_series_data_model=old_time_series_data_model,
+        old_time_series_class=old_time_series_class,
         collect_params=dict(
-            generic_asset_names=[old_sensor_model.name],
+            old_sensor_names=[old_sensor.name],
             query_window=query_window,
             belief_horizon_window=(None, ex_post_horizon),
         ),
@@ -191,7 +191,7 @@ def create_initial_model_specs(  # noqa: C901
     )
     # Set defaults if needed
     if params.get("event_resolution", None) is None:
-        params["event_resolution"] = old_sensor_model.event_resolution
+        params["event_resolution"] = old_sensor.event_resolution
     if params.get("remodel_frequency", None) is None:
         params["remodel_frequency"] = timedelta(days=7)
     specs = ModelSpecs(
@@ -213,7 +213,7 @@ def create_initial_model_specs(  # noqa: C901
 
 
 def _parameterise_forecasting_by_asset_and_asset_type(
-    old_sensor_model: Union[Asset, Market, WeatherSensor],
+    old_sensor: Union[Asset, Market, WeatherSensor],
     generic_asset: GenericAsset,
     transform_to_normal: bool,
 ) -> dict:
@@ -223,7 +223,7 @@ def _parameterise_forecasting_by_asset_and_asset_type(
     params["training_and_testing_period"] = timedelta(days=30)
     params["ratio_training_testing_data"] = 14 / 15
     params["n_lags"] = 7
-    params["resolution"] = old_sensor_model.event_resolution
+    params["resolution"] = old_sensor.event_resolution
 
     if transform_to_normal:
         params[
@@ -301,9 +301,9 @@ def configure_regressors_for_nearest_weather_sensor(
                 regressor_specs.append(
                     TBSeriesSpecs(
                         name=regressor_specs_name,
-                        old_time_series_data_model=Weather,
+                        old_time_series_class=Weather,
                         collect_params=dict(
-                            generic_asset_names=[closest_sensor.name],
+                            old_sensor_names=[closest_sensor.name],
                             query_window=query_window,
                             belief_horizon_window=(horizon, None),
                         ),
