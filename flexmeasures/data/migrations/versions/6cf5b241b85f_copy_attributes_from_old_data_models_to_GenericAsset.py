@@ -1,0 +1,249 @@
+"""Copy attributes from old data models to GenericAsset
+
+Revision ID: 6cf5b241b85f
+Revises: 1ae32ffc8c3f
+Create Date: 2021-11-11 17:18:15.395915
+
+"""
+import json
+from datetime import datetime
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision = "6cf5b241b85f"
+down_revision = "1ae32ffc8c3f"
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    op.add_column(
+        "generic_asset", sa.Column("attributes", sa.JSON(), nullable=True, default="{}")
+    )
+
+    """
+    - For each OldModel (Market/WeatherSensor/Asset), get the Sensor with the same id as the OldModel,
+      and then get the GenericAsset of that Sensor.
+    - Add the OldModel's display name to the corresponding GenericAsset's attributes,
+      and other attributes we want to copy.
+    - Find the OldModelType (MarketType/WeatherSensorType/AssetType) of the OldModel,
+      and copy its seasonalities to the GenericAsset's attributes.
+    """
+    # todo: find places where we look for seasonality and get it from the corresponding GenericAsset instead
+    # todo: find places where we look for old_model_type and get it from the corresponding GenericAsset instead
+
+    # Declare ORM table views
+    t_generic_asset = sa.Table(
+        "generic_asset",
+        sa.MetaData(),
+        sa.Column("id"),
+        sa.Column("attributes"),
+    )
+    t_sensor = sa.Table(
+        "sensor", sa.MetaData(), sa.Column("id"), sa.Column("generic_asset_id")
+    )
+    t_market = sa.Table(
+        "market",
+        sa.MetaData(),
+        sa.Column("id", sa.Integer),
+        sa.Column("display_name", sa.String(80)),
+        sa.Column("market_type_name", sa.String(80)),
+    )
+    t_market_type = sa.Table(
+        "market_type",
+        sa.MetaData(),
+        sa.Column("name", sa.String(80)),
+        sa.Column("daily_seasonality", sa.Boolean),
+        sa.Column("weekly_seasonality", sa.Boolean),
+        sa.Column("yearly_seasonality", sa.Boolean),
+    )
+    t_asset = sa.Table(
+        "asset",
+        sa.MetaData(),
+        sa.Column("id"),
+        sa.Column("display_name"),
+        sa.Column("asset_type_name"),
+        sa.Column("capacity_in_mw"),
+        sa.Column("min_soc_in_mwh"),
+        sa.Column("max_soc_in_mwh"),
+        sa.Column("soc_in_mwh"),
+        sa.Column("soc_datetime"),
+        sa.Column("soc_udi_event_id"),
+        sa.Column("market_id"),
+    )
+    t_asset_type = sa.Table(
+        "asset_type",
+        sa.MetaData(),
+        sa.Column("name", sa.String(80)),
+        sa.Column("is_consumer"),
+        sa.Column("is_producer"),
+        sa.Column("can_curtail"),
+        sa.Column("can_shift"),
+        sa.Column("daily_seasonality", sa.Boolean),
+        sa.Column("weekly_seasonality", sa.Boolean),
+        sa.Column("yearly_seasonality", sa.Boolean),
+    )
+    t_weather_sensor = sa.Table(
+        "weather_sensor",
+        sa.MetaData(),
+        sa.Column("id"),
+        sa.Column("display_name"),
+        sa.Column("weather_sensor_type_name"),
+    )
+    t_weather_sensor_type = sa.Table(
+        "weather_sensor_type",
+        sa.MetaData(),
+        sa.Column("name", sa.String(80)),
+    )
+
+    # Use SQLAlchemy's connection and transaction to go through the data
+    connection = op.get_bind()
+
+    copy_attributes(
+        connection,
+        t_market,
+        t_sensor,
+        t_generic_asset,
+        t_market_type,
+        old_model_attributes=["id", "market_type_name", "display_name"],
+        old_model_type_attributes=[
+            "daily_seasonality",
+            "weekly_seasonality",
+            "yearly_seasonality",
+        ],
+    )
+    copy_attributes(
+        connection,
+        t_weather_sensor,
+        t_sensor,
+        t_generic_asset,
+        t_weather_sensor_type,
+        old_model_attributes=["id", "weather_sensor_type_name", "display_name"],
+        extra_attributes={
+            "daily_seasonality": True,
+            "weekly_seasonality": False,
+            "yearly_seasonality": True,
+        },  # The WeatherSensor table had these hardcoded (d, w, y) seasonalities
+    )
+    copy_attributes(
+        connection,
+        t_asset,
+        t_sensor,
+        t_generic_asset,
+        t_asset_type,
+        old_model_attributes=[
+            "id",
+            "asset_type_name",
+            "display_name",
+            "capacity_in_mw",
+            "min_soc_in_mwh",
+            "max_soc_in_mwh",
+            "soc_in_mwh",
+            "soc_datetime",
+            "soc_udi_event_id",
+            "market_id",
+        ],
+        old_model_type_attributes=[
+            "is_consumer",
+            "is_producer",
+            "can_curtail",
+            "can_shift",
+            "daily_seasonality",
+            "weekly_seasonality",
+            "yearly_seasonality",
+        ],
+    )
+    op.alter_column(
+        "generic_asset",
+        "attributes",
+        nullable=False,
+    )
+
+
+def downgrade():
+    op.drop_column("generic_asset", "attributes")
+
+
+def copy_attributes(
+    connection,
+    t_old_model,
+    t_sensor,
+    t_generic_asset,
+    t_old_model_type,
+    old_model_attributes,
+    old_model_type_attributes=[],
+    extra_attributes={},
+):
+    """
+
+    :param old_model_attributes: first two attributes should be id and old_model_type_name, then any other columns we want to copy over from the old model
+    :param old_model_type_attributes: columns we want to copy over from the old model type
+    :param extra_attributes: any additional attributes we want to set
+    """
+    # Get attributes from old model
+    results = connection.execute(
+        sa.select([getattr(t_old_model.c, a) for a in old_model_attributes])
+    ).fetchall()
+
+    for id, type_name, *args in results:
+
+        # Obtain attributes we want to copy over, from the old model
+        old_model_attributes_to_copy = {
+            k: v if not isinstance(v, datetime) else v.isoformat()
+            for k, v in zip(old_model_attributes[-len(args) :], args)
+        }
+
+        # Obtain seasonality attributes we want to copy over, from the old model type
+        old_model_type_attributes_to_copy = get_old_model_type_attributes(
+            connection,
+            type_name,
+            t_old_model_type,
+            old_model_type_attributes=old_model_type_attributes,
+        )
+
+        # Find out where to copy over the attributes
+        generic_asset_id = get_generic_asset_id(connection, id, t_sensor)
+
+        # Fill in the GenericAsset's attributes
+        connection.execute(
+            t_generic_asset.update()
+            .where(t_generic_asset.c.id == generic_asset_id)
+            .values(
+                attributes=json.dumps(
+                    {
+                        **old_model_attributes_to_copy,
+                        **old_model_type_attributes_to_copy,
+                        **extra_attributes,
+                    }
+                )
+            )
+        )
+
+
+def get_generic_asset_id(connection, old_model_id: int, t_sensors) -> int:
+    """Get the Sensor with the same id as the OldModel, and then get the id of the GenericAsset of that Sensor."""
+    (generic_asset_id,) = connection.execute(
+        sa.select(
+            [
+                t_sensors.c.generic_asset_id,
+            ]
+        ).filter(t_sensors.c.id == old_model_id)
+    ).one_or_none()
+    assert generic_asset_id is not None
+    return generic_asset_id
+
+
+def get_old_model_type_attributes(
+    connection, old_model_type_name, t_old_model_types, old_model_type_attributes
+) -> dict:
+    """Get the attributes from the OldModelType."""
+    values = connection.execute(
+        sa.select(
+            [getattr(t_old_model_types.c, a) for a in old_model_type_attributes]
+        ).filter(t_old_model_types.c.name == old_model_type_name)
+    ).one_or_none()
+    assert values is not None
+    return {k: v for k, v in zip(old_model_type_attributes, values)}
