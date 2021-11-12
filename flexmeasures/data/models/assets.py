@@ -111,6 +111,10 @@ class Asset(db.Model, tb.SensorDBMixin):
 
     def __init__(self, **kwargs):
 
+        if "unit" not in kwargs:
+            kwargs["unit"] = "MW"  # current default
+        super(Asset, self).__init__(**kwargs)
+
         # Create a new Sensor with unique id across assets, markets and weather sensors
         # Also keep track of ownership.
         if "id" not in kwargs:
@@ -142,22 +146,30 @@ class Asset(db.Model, tb.SensorDBMixin):
                 if owner:
                     generic_assets_arg.update(account_id=owner.account_id)
             new_generic_asset = create_generic_asset("asset", **generic_assets_arg)
-            new_sensor = Sensor(name=kwargs["name"], generic_asset=new_generic_asset)
+            new_sensor = Sensor(
+                name=kwargs["name"],
+                generic_asset=new_generic_asset,
+            )
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
             sensor_id = new_sensor.id
         else:
             # The UI may initialize Asset objects from API form data with a known id
             sensor_id = kwargs["id"]
-        if "unit" not in kwargs:
-            kwargs["unit"] = "MW"  # current default
-        super(Asset, self).__init__(**kwargs)
         self.id = sensor_id
         if self.unit != "MW":
             raise Exception("FlexMeasures only supports MW as unit for now.")
         self.name = self.name.replace(" (MW)", "")
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
+
+        # Copy over additional columns
+        db.session.add(self)
+        db.session.flush()  # make sure to generate each column for the old sensor
+        new_sensor.unit = self.unit
+        new_sensor.event_resolution = self.event_resolution
+        new_sensor.knowledge_horizon_fnc = self.knowledge_horizon_fnc
+        new_sensor.knowledge_horizon_par = self.knowledge_horizon_par
 
     asset_type = db.relationship("AssetType", backref=db.backref("assets", lazy=True))
     owner = db.relationship(
