@@ -634,8 +634,8 @@ def create_forecasts(
             forecast_start=forecast_start,
             forecast_end=forecast_end,
             event_resolution=event_resolution,
-            old_sensor_model_type_name=asset_type,
-            old_sensor_model_id=asset_id,
+            old_sensor_class_name=asset_type,
+            old_sensor_id=asset_id,
         )
 
 

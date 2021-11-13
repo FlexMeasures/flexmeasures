@@ -127,11 +127,11 @@ def test_generic_model(
             .first()
         )
         if asset:
-            old_sensor_model = asset
+            old_sensor = asset
         elif market:
-            old_sensor_model = market
+            old_sensor = market
         elif sensor:
-            old_sensor_model = sensor
+            old_sensor = sensor
         else:
             click.echo("No such assets in db, so I will not add any forecasts.")
             return
@@ -142,7 +142,7 @@ def test_generic_model(
             model_identifier,
             fallback_model_identifier,
         ) = linear_model_configurator(
-            old_sensor_data_model=old_sensor_model,
+            old_sensor=old_sensor,
             forecast_start=start,
             forecast_end=end,
             forecast_horizon=horizon,
