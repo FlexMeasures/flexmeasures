@@ -49,7 +49,7 @@ class TBSeriesSpecs(SeriesSpecs):
     The collect function is expected to return a BeliefsDataFrame.
     """
 
-    time_series_class: Any  # with collect method
+    time_series_class: Any  # with <collect_fnc> method (named "collect" by default)
     collect_params: dict
 
     def __init__(
@@ -57,6 +57,7 @@ class TBSeriesSpecs(SeriesSpecs):
         time_series_class,
         collect_params: dict,
         name: str,
+        collect_fnc: str = "collect",
         original_tz: Optional[tzinfo] = pytz.utc,  # postgres stores naive datetimes
         feature_transformation: Optional[ReversibleTransformation] = None,
         post_load_processing: Optional[Transformation] = None,
@@ -73,11 +74,14 @@ class TBSeriesSpecs(SeriesSpecs):
         )
         self.time_series_class = time_series_class
         self.collect_params = collect_params
+        self.collect_fnc = collect_fnc
 
     def _load_series(self) -> pd.Series:
         logger.info("Reading %s data from database" % self.time_series_class.__name__)
 
-        bdf: BeliefsDataFrame = self.time_series_class.collect(**self.collect_params)
+        bdf: BeliefsDataFrame = getattr(self.time_series_class, self.collect_fnc)(
+            **self.collect_params
+        )
         assert isinstance(bdf, BeliefsDataFrame)
         df = simplify_index(bdf)
         self.check_data(df)
