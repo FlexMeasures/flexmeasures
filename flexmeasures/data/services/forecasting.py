@@ -197,7 +197,7 @@ def make_rolling_viewpoint_forecasts(
     # Make model specs
     model_configurator = lookup_model_specs_configurator(model_search_term)
     model_specs, model_identifier, fallback_model_search_term = model_configurator(
-        old_sensor=old_sensor,
+        sensor=old_sensor.corresponding_sensor,
         time_series_class=determine_old_time_series_class_by_old_sensor(old_sensor),
         forecast_start=as_server_time(start),
         forecast_end=as_server_time(end),

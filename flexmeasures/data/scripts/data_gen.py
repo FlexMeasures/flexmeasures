@@ -264,7 +264,7 @@ def populate_time_series_forecasts(  # noqa: C901
             try:
                 default_model = lookup_model_specs_configurator()
                 model_specs, model_identifier, model_fallback = default_model(
-                    old_sensor=old_sensor,
+                    sensor=old_sensor.corresponding_sensor,
                     time_series_class=determine_old_time_series_class_by_old_sensor(
                         old_sensor
                     ),

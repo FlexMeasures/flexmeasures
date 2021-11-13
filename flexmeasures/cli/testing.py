@@ -80,7 +80,7 @@ def test_making_forecasts():
 # un-comment to use as CLI function
 # @app.cli.command()
 @click.option("--asset-type", help="Asset type name.")
-@click.option("--asset", help="Asset name.")
+@click.option("--asset", "asset_name", help="Asset name.")
 @click.option(
     "--from_date",
     default="2015-03-10",
@@ -93,7 +93,7 @@ def test_making_forecasts():
 )
 def test_generic_model(
     asset_type: str,
-    asset: Optional[str] = None,
+    asset_name: Optional[str] = None,
     from_date: str = "2015-03-10",
     period: int = 3,
     horizon_hours: int = 1,
@@ -102,10 +102,8 @@ def test_generic_model(
     """Manually test integration of timetomodel for our generic model."""
 
     asset_type_name = asset_type
-    if asset is None:
+    if asset_name is None:
         asset_name = Asset.query.filter_by(asset_type_name=asset_type_name).first().name
-    else:
-        asset_name = asset
     start = as_server_time(datetime.strptime(from_date, "%Y-%m-%d"))
     end = start + timedelta(days=period)
     training_and_testing_period = timedelta(days=training)
@@ -143,7 +141,7 @@ def test_generic_model(
             model_identifier,
             fallback_model_identifier,
         ) = linear_model_configurator(
-            old_sensor=old_sensor,
+            sensor=old_sensor.corresponding_sensor,
             time_series_class=determine_old_time_series_class_by_old_sensor(old_sensor),
             forecast_start=start,
             forecast_end=end,

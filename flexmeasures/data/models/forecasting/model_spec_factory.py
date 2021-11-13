@@ -19,11 +19,11 @@ from timetomodel.transforming import (
 )
 import pandas as pd
 
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import WeatherSensor, Weather
+from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.models.forecasting.utils import (
     create_lags,
     set_training_and_testing_dates,
@@ -111,7 +111,7 @@ class TBSeriesSpecs(SeriesSpecs):
 
 
 def create_initial_model_specs(  # noqa: C901
-    old_sensor: Union[Asset, Market, WeatherSensor],
+    sensor: Sensor,
     time_series_class: Type[Union[Power, Price, Weather]],
     forecast_start: datetime,  # Start of forecast period
     forecast_end: datetime,  # End of forecast period
@@ -132,7 +132,6 @@ def create_initial_model_specs(  # noqa: C901
           insensitive to daylight savings. Therefore: solar periodicity is 24 hours, while building periodicity is 1
           calendar day.
     """
-    sensor = old_sensor.corresponding_sensor
 
     params = _parameterise_forecasting_by_asset_and_asset_type(
         sensor, transform_to_normal
