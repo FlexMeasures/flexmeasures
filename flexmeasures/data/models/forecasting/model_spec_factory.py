@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Type, Union
 from datetime import datetime, timedelta, tzinfo
 from pprint import pformat
 import logging
@@ -19,14 +19,11 @@ from timetomodel.transforming import (
 )
 import pandas as pd
 
-from flexmeasures.data.models.assets import Asset
+from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.weather import WeatherSensor, Weather
-from flexmeasures.data.models.utils import (
-    determine_old_time_series_class_by_old_sensor,
-)
 from flexmeasures.data.models.forecasting.utils import (
     create_lags,
     set_training_and_testing_dates,
@@ -47,17 +44,17 @@ logger = logging.getLogger(__name__)
 class TBSeriesSpecs(SeriesSpecs):
     """Compatibility for using timetomodel.SeriesSpecs with timely_beliefs.BeliefsDataFrames.
 
-    This implements _load_series such that TimedValue.collect is called on the generic asset class,
+    This implements _load_series such that <time_series_class>.collect is called,
     with the parameters in collect_params.
     The collect function is expected to return a BeliefsDataFrame.
     """
 
-    old_time_series_data_model: Any  # with collect method
+    time_series_class: Any  # with collect method
     collect_params: dict
 
     def __init__(
         self,
-        old_time_series_class,
+        time_series_class,
         collect_params: dict,
         name: str,
         original_tz: Optional[tzinfo] = pytz.utc,  # postgres stores naive datetimes
@@ -74,17 +71,13 @@ class TBSeriesSpecs(SeriesSpecs):
             resampling_config,
             interpolation_config,
         )
-        self.old_time_series_data_model = old_time_series_class
+        self.time_series_class = time_series_class
         self.collect_params = collect_params
 
     def _load_series(self) -> pd.Series:
-        logger.info(
-            "Reading %s data from database" % self.old_time_series_data_model.__name__
-        )
+        logger.info("Reading %s data from database" % self.time_series_class.__name__)
 
-        bdf: BeliefsDataFrame = self.old_time_series_data_model.collect(
-            **self.collect_params
-        )
+        bdf: BeliefsDataFrame = self.time_series_class.collect(**self.collect_params)
         assert isinstance(bdf, BeliefsDataFrame)
         df = simplify_index(bdf)
         self.check_data(df)
@@ -102,7 +95,7 @@ class TBSeriesSpecs(SeriesSpecs):
                 "No values found in database for the requested %s data. It's no use to continue I'm afraid."
                 " Here's a print-out of what I tried to collect:\n\n%s\n\n"
                 % (
-                    self.old_time_series_data_model.__name__,
+                    self.time_series_class.__name__,
                     pformat(self.collect_params, sort_dicts=False),
                 )
             )
@@ -111,7 +104,7 @@ class TBSeriesSpecs(SeriesSpecs):
                 "Nan values found in database for the requested %s data. It's no use to continue I'm afraid."
                 " Here's a print-out of what I tried to collect:\n\n%s\n\n"
                 % (
-                    self.old_time_series_data_model.__name__,
+                    self.time_series_class.__name__,
                     pformat(self.collect_params, sort_dicts=False),
                 )
             )
@@ -119,6 +112,7 @@ class TBSeriesSpecs(SeriesSpecs):
 
 def create_initial_model_specs(  # noqa: C901
     old_sensor: Union[Asset, Market, WeatherSensor],
+    time_series_class: Type[Union[Power, Price, Weather]],
     forecast_start: datetime,  # Start of forecast period
     forecast_end: datetime,  # End of forecast period
     forecast_horizon: timedelta,  # Duration between time of forecasting and end time of the event that is forecast
@@ -138,8 +132,6 @@ def create_initial_model_specs(  # noqa: C901
           insensitive to daylight savings. Therefore: solar periodicity is 24 hours, while building periodicity is 1
           calendar day.
     """
-
-    old_time_series_class = determine_old_time_series_class_by_old_sensor(old_sensor)
     sensor = old_sensor.corresponding_sensor
 
     params = _parameterise_forecasting_by_asset_and_asset_type(
@@ -181,7 +173,7 @@ def create_initial_model_specs(  # noqa: C901
 
     outcome_var_spec = TBSeriesSpecs(
         name=sensor.generic_asset.generic_asset_type.name,
-        old_time_series_class=old_time_series_class,
+        time_series_class=time_series_class,
         collect_params=dict(
             old_sensor_names=[sensor.name],
             query_window=query_window,
@@ -301,7 +293,7 @@ def configure_regressors_for_nearest_weather_sensor(
                 regressor_specs.append(
                     TBSeriesSpecs(
                         name=regressor_specs_name,
-                        old_time_series_class=Weather,
+                        time_series_class=Weather,
                         collect_params=dict(
                             old_sensor_names=[closest_sensor.name],
                             query_window=query_window,

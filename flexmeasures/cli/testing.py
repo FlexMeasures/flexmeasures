@@ -16,6 +16,7 @@ from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
+from flexmeasures.data.models.utils import determine_old_time_series_class_by_old_sensor
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.forecasting import (
     create_forecasting_jobs,
@@ -143,6 +144,7 @@ def test_generic_model(
             fallback_model_identifier,
         ) = linear_model_configurator(
             old_sensor=old_sensor,
+            time_series_class=determine_old_time_series_class_by_old_sensor(old_sensor),
             forecast_start=start,
             forecast_end=end,
             forecast_horizon=horizon,
