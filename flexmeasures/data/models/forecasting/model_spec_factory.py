@@ -140,17 +140,16 @@ def create_initial_model_specs(  # noqa: C901
     """
 
     old_time_series_class = determine_old_time_series_class_by_old_sensor(old_sensor)
-    generic_asset = old_sensor.corresponding_generic_asset
     sensor = old_sensor.corresponding_sensor
 
     params = _parameterise_forecasting_by_asset_and_asset_type(
-        sensor, generic_asset, transform_to_normal
+        sensor, transform_to_normal
     )
     params.update(custom_model_params if custom_model_params is not None else {})
 
     lags = create_lags(
         params["n_lags"],
-        generic_asset,
+        sensor.generic_asset,
         forecast_horizon,
         params["resolution"],
         use_periodicity,
@@ -170,7 +169,7 @@ def create_initial_model_specs(  # noqa: C901
                     "regressor_transformation", {}
                 )
         regressor_specs = configure_regressors_for_nearest_weather_sensor(
-            generic_asset,
+            sensor.generic_asset,
             query_window,
             forecast_horizon,
             regressor_transformation,
@@ -181,7 +180,7 @@ def create_initial_model_specs(  # noqa: C901
         ex_post_horizon = timedelta(hours=0)
 
     outcome_var_spec = TBSeriesSpecs(
-        name=generic_asset.generic_asset_type.name,
+        name=sensor.generic_asset.generic_asset_type.name,
         old_time_series_class=old_time_series_class,
         collect_params=dict(
             old_sensor_names=[sensor.name],
@@ -216,7 +215,6 @@ def create_initial_model_specs(  # noqa: C901
 
 def _parameterise_forecasting_by_asset_and_asset_type(
     sensor: Sensor,
-    generic_asset: GenericAsset,
     transform_to_normal: bool,
 ) -> dict:
     """Fill in the best parameters we know (generic or by asset (type))"""
@@ -231,7 +229,7 @@ def _parameterise_forecasting_by_asset_and_asset_type(
         params[
             "outcome_var_transformation"
         ] = get_normalization_transformation_from_generic_asset_attributes(
-            generic_asset
+            sensor.generic_asset
         )
 
     return params
