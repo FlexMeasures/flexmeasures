@@ -163,13 +163,14 @@ class Asset(db.Model, tb.SensorDBMixin):
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
 
-        # Copy over additional columns
-        db.session.add(self)
-        db.session.flush()  # make sure to generate each column for the old sensor
-        new_sensor.unit = self.unit
-        new_sensor.event_resolution = self.event_resolution
-        new_sensor.knowledge_horizon_fnc = self.knowledge_horizon_fnc
-        new_sensor.knowledge_horizon_par = self.knowledge_horizon_par
+        # Copy over additional columns from (newly created) Asset to (newly created) Sensor
+        if "id" not in kwargs:
+            db.session.add(self)
+            db.session.flush()  # make sure to generate each column for the old sensor
+            new_sensor.unit = self.unit
+            new_sensor.event_resolution = self.event_resolution
+            new_sensor.knowledge_horizon_fnc = self.knowledge_horizon_fnc
+            new_sensor.knowledge_horizon_par = self.knowledge_horizon_par
 
     asset_type = db.relationship("AssetType", backref=db.backref("assets", lazy=True))
     owner = db.relationship(
