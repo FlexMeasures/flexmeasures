@@ -15,11 +15,12 @@ from flexmeasures.utils.time_utils import as_server_time
 def test_battery_solver_day_1(add_battery_assets):
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    assert Market.query.get(battery.generic_asset.get_attribute("market_id")) == epex_da
     start = as_server_time(datetime(2015, 1, 1))
     end = as_server_time(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
     soc_at_start = battery.generic_asset.get_attribute("soc_in_mwh")
-    schedule = schedule_battery(battery, epex_da, start, end, resolution, soc_at_start)
+    schedule = schedule_battery(battery, start, end, resolution, soc_at_start)
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
@@ -39,11 +40,12 @@ def test_battery_solver_day_1(add_battery_assets):
 def test_battery_solver_day_2(add_battery_assets):
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    assert Market.query.get(battery.generic_asset.get_attribute("market_id")) == epex_da
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     soc_at_start = battery.generic_asset.get_attribute("soc_in_mwh")
-    schedule = schedule_battery(battery, epex_da, start, end, resolution, soc_at_start)
+    schedule = schedule_battery(battery, start, end, resolution, soc_at_start)
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
@@ -95,6 +97,10 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     charging_station = Sensor.query.filter(
         Sensor.name == charging_station_name
     ).one_or_none()
+    assert (
+        Market.query.get(charging_station.generic_asset.get_attribute("market_id"))
+        == epex_da
+    )
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
@@ -104,7 +110,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     )
     soc_targets.loc[target_soc_datetime] = target_soc
     consumption_schedule = schedule_charging_station(
-        charging_station, epex_da, start, end, resolution, soc_at_start, soc_targets
+        charging_station, start, end, resolution, soc_at_start, soc_targets
     )
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6

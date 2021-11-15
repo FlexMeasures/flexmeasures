@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.planning.solver import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     initialize_df,
@@ -16,7 +15,6 @@ from flexmeasures.data.models.planning.utils import (
 
 def schedule_battery(
     sensor: Sensor,
-    market: Market,
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -31,7 +29,7 @@ def schedule_battery(
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
-        market, (start, end), resolution, allow_trimmed_query_window=True
+        sensor, (start, end), resolution, allow_trimmed_query_window=True
     )
     if soc_targets is not None:
         # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot

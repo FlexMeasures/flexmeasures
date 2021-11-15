@@ -12,7 +12,6 @@ from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.assets import Power
-from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
 from flexmeasures.data.models.time_series import Sensor
@@ -122,17 +121,16 @@ def make_schedule(
             np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
         )
 
-    market = Market.query.get(sensor.generic_asset.get_attribute("market_id"))
     if sensor.generic_asset.generic_asset_type.name == "battery":
         consumption_schedule = schedule_battery(
-            sensor, market, start, end, resolution, soc_at_start, soc_targets
+            sensor, start, end, resolution, soc_at_start, soc_targets
         )
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
         "two-way_evse",
     ):
         consumption_schedule = schedule_charging_station(
-            sensor, market, start, end, resolution, soc_at_start, soc_targets
+            sensor, start, end, resolution, soc_at_start, soc_targets
         )
     else:
         raise ValueError(
