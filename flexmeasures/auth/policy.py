@@ -32,7 +32,7 @@ class AuthModelMixin(object):
             "write": "user:14",                  # This user can write, ...
             "write": "user:15",                  # and also this user, ...
             "write": "account-role:MDC",         # also people in such accounts can write
-            "delete": ("account:3", "role:CEO"), # Only CEOs of Account 3 can create
+            "delete": ("account:3", "role:CEO"), # Only CEOs of Account 3 can delete
         }
 
         Such a list of principals can be checked with match_principals, see below.

@@ -15,7 +15,7 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * Account-based authorization, incl. new decorators for endpoints [see `PR #210 <http://www.github.com/SeitaBV/flexmeasures/pull/210>`_]
-* Central authorization policy which lets models codify who can do what (permission-based) and relieve API endpoints from this [see `PR #234 <http://www.github.com/SeitaBV/flexmeasures/pull/234>`_]
+* Central authorization policy which lets database models codify who can do what (permission-based) and relieve API endpoints from this [see `PR #234 <http://www.github.com/SeitaBV/flexmeasures/pull/234>`_]
 * Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <http://www.github.com/SeitaBV/flexmeasures/pull/154>`_]
 
 

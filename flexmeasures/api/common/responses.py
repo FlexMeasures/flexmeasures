@@ -150,7 +150,7 @@ def invalid_sender(
     We use this as a stand-in for flask-security auth handlers,
     thus the arguments fit it.
     - calling_function is usually an auth decorator like roles_required.
-    - allowed_role_names can be used if the security check involved roles.
+    - required_permissions can be used if the security check involved permissions.
     """
     message = FORBIDDEN_MSG
     if required_permissions:

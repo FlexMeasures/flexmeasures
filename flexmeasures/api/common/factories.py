@@ -13,7 +13,7 @@ Decorator factories to load objects from ID parameters.
 
 
 def load_account(param_location="path"):
-    """Decorator which loads an account by the Id expected in the path.
+    """Decorator which loads an account by the account id expected in the path.
     Raises 400 if that is not possible due to wrong parameters.
     Raises 404 if account is not found.
     Example:
@@ -23,7 +23,7 @@ def load_account(param_location="path"):
         def get_account(account):
             return account_schema.dump(account), 200
 
-    The route must specify one parameter ― id.
+    The route must specify one parameter ― account_id.
     """
 
     def wrapper(fn):
@@ -39,7 +39,7 @@ def load_account(param_location="path"):
             account_id = None
             if param_location == "path":
                 try:
-                    id = int(args[0])
+                    account_id = int(args[0])
                     args = args[1:]
                 except ValueError:
                     current_app.logger.warning(
@@ -74,7 +74,7 @@ def load_account(param_location="path"):
 
 
 def load_user():
-    """Decorator which loads a user by the Id expected in the path.
+    """Decorator which loads a user by the id expected in the path.
     Raises 400 if that is not possible due to wrong parameters.
     Raises 404 if user is not found.
     Example:
