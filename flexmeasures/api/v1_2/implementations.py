@@ -32,7 +32,6 @@ from flexmeasures.api.common.utils.validators import (
     parse_isodate_str,
 )
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.exceptions import (
     UnknownMarketException,
@@ -207,17 +206,10 @@ def post_udi_event_response(unit):  # noqa: C901
     if unit == "kWh":
         value = value / 1000.0
 
-    # store new soc info as GenericAsset attributes
+    # Store new soc info as GenericAsset attributes
     sensor.generic_asset.set_attribute("soc_datetime", datetime.isoformat())
     sensor.generic_asset.set_attribute("soc_udi_event_id", event_id)
     sensor.generic_asset.set_attribute("soc_in_mwh", value)
-
-    # todo: remove when no longer needed
-    # store new soc in asset
-    asset = Asset.query.filter_by(id=sensor_id).one_or_none()
-    asset.soc_datetime = datetime
-    asset.soc_udi_event_id = event_id
-    asset.soc_in_mwh = value
 
     db.session.commit()
     return request_processed("Request has been processed.")
