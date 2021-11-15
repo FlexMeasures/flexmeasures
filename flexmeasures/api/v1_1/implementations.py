@@ -41,22 +41,22 @@ from flexmeasures.api.common.utils.api_utils import get_weather_sensor_by
 from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.weather import Weather
-from flexmeasures.data.services.resources import get_assets
+from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 
 
 @as_json
 def get_connection_response():
 
-    # Look up Asset objects
-    user_assets = get_assets()
+    # Look up Sensor objects
+    user_sensors = get_sensors()
 
     # Return entity addresses of assets
-    message = dict(connections=[asset.entity_address for asset in user_assets])
+    message = dict(connections=[sensor.entity_address for sensor in user_sensors])
     if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-        message["names"] = [asset.name for asset in user_assets]
+        message["names"] = [sensor.name for sensor in user_sensors]
     else:
-        message["names"] = [asset.display_name for asset in user_assets]
+        message["names"] = [sensor.display_name for sensor in user_sensors]
 
     return message
 

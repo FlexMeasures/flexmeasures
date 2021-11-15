@@ -14,7 +14,7 @@ from flexmeasures.utils.entity_address_utils import (
 from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.services.resources import get_assets
+from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.api.common.responses import (
     invalid_domain,
@@ -166,10 +166,10 @@ def collect_connection_and_value_groups(
     from flask import current_app
 
     current_app.logger.info("GETTING")
-    user_assets = get_assets()
-    if not user_assets:
+    user_sensors = get_sensors()
+    if not user_sensors:
         current_app.logger.info("User doesn't seem to have any assets")
-    user_asset_ids = [asset.id for asset in user_assets]
+    user_sensor_ids = [sensor.id for sensor in user_sensors]
 
     end = start + duration
     value_groups = []
@@ -192,7 +192,7 @@ def collect_connection_and_value_groups(
             sensor_id = connection_details["asset_id"]
 
             # Look for the Sensor object
-            if sensor_id in user_asset_ids:
+            if sensor_id in user_sensor_ids:
                 sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
             else:
                 current_app.logger.warning("Cannot identify connection %s" % connection)
@@ -246,10 +246,10 @@ def create_connection_and_value_groups(  # noqa: C901
     current_app.logger.info("POSTING POWER DATA")
 
     data_source = get_or_create_source(current_user)
-    user_assets = get_assets()
-    if not user_assets:
+    user_sensors = get_sensors()
+    if not user_sensors:
         current_app.logger.info("User doesn't seem to have any assets")
-    user_asset_ids = [asset.id for asset in user_assets]
+    user_sensor_ids = [sensor.id for sensor in user_sensors]
     power_measurements = []
     forecasting_jobs = []
     for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
@@ -266,7 +266,7 @@ def create_connection_and_value_groups(  # noqa: C901
             sensor_id = connection["asset_id"]
 
             # Look for the Sensor object
-            if sensor_id in user_asset_ids:
+            if sensor_id in user_sensor_ids:
                 sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
             else:
                 current_app.logger.warning("Cannot identify connection %s" % connection)

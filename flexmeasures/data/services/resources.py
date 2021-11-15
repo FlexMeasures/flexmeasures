@@ -54,6 +54,21 @@ def get_assets(
     return _build_asset_query(owner_id, order_by_asset_attribute, order_direction).all()
 
 
+def get_sensors(
+    owner_id: Optional[int] = None,
+    order_by_asset_attribute: str = "id",
+    order_direction: str = "desc",
+) -> List[Asset]:
+    """Return a list of all Sensor objects owned by current_user's organisation account
+    (or all users or a specific user - for this, admins can set an owner_id).
+    """
+    # todo: switch to using authz from https://github.com/SeitaBV/flexmeasures/pull/234
+    return [
+        asset.corresponding_sensor
+        for asset in get_assets(owner_id, order_by_asset_attribute, order_direction)
+    ]
+
+
 def has_assets(owner_id: Optional[int] = None) -> bool:
     """Return True if the current user owns any assets.
     (or all users or a specific user - for this, admins can set an owner_id).
@@ -329,7 +344,7 @@ class Resource:
     asset_name_to_market_name_map: Dict[str, str]
 
     def __init__(self, name: str):
-        """ The resource name is either the name of an asset group or an individual asset. """
+        """The resource name is either the name of an asset group or an individual asset."""
         if name is None or name == "":
             raise Exception("Empty resource name passed (%s)" % name)
         self.name = name
@@ -487,12 +502,12 @@ class Resource:
 
     @cached_property
     def demand(self) -> Dict[str, tb.BeliefsDataFrame]:
-        """ Returns each asset's demand as positive values. """
+        """Returns each asset's demand as positive values."""
         return {k: get_demand_from_bdf(v) for k, v in self.power_data.items()}
 
     @cached_property
     def supply(self) -> Dict[str, tb.BeliefsDataFrame]:
-        """ Returns each asset's supply as positive values. """
+        """Returns each asset's supply as positive values."""
         return {k: get_supply_from_bdf(v) for k, v in self.power_data.items()}
 
     @cached_property
@@ -501,17 +516,17 @@ class Resource:
 
     @cached_property
     def aggregate_demand(self) -> tb.BeliefsDataFrame:
-        """ Returns aggregate demand as positive values. """
+        """Returns aggregate demand as positive values."""
         return get_demand_from_bdf(self.aggregate_power_data)
 
     @cached_property
     def aggregate_supply(self) -> tb.BeliefsDataFrame:
-        """ Returns aggregate supply (as positive values). """
+        """Returns aggregate supply (as positive values)."""
         return get_supply_from_bdf(self.aggregate_power_data)
 
     @cached_property
     def total_demand(self) -> Dict[str, float]:
-        """ Returns each asset's total demand as a positive value. """
+        """Returns each asset's total demand as a positive value."""
         return {
             k: v.sum().values[0]
             * time_utils.resolution_to_hour_factor(v.event_resolution)
@@ -520,7 +535,7 @@ class Resource:
 
     @cached_property
     def total_supply(self) -> Dict[str, float]:
-        """ Returns each asset's total supply as a positive value. """
+        """Returns each asset's total supply as a positive value."""
         return {
             k: v.sum().values[0]
             * time_utils.resolution_to_hour_factor(v.event_resolution)
@@ -529,21 +544,21 @@ class Resource:
 
     @cached_property
     def total_aggregate_demand(self) -> float:
-        """ Returns total aggregate demand as a positive value. """
+        """Returns total aggregate demand as a positive value."""
         return self.aggregate_demand.sum().values[
             0
         ] * time_utils.resolution_to_hour_factor(self.aggregate_demand.event_resolution)
 
     @cached_property
     def total_aggregate_supply(self) -> float:
-        """ Returns total aggregate supply as a positive value. """
+        """Returns total aggregate supply as a positive value."""
         return self.aggregate_supply.sum().values[
             0
         ] * time_utils.resolution_to_hour_factor(self.aggregate_supply.event_resolution)
 
     @cached_property
     def revenue(self) -> Dict[str, float]:
-        """ Returns each asset's total revenue from supply. """
+        """Returns each asset's total revenue from supply."""
         revenue_dict = {}
         for k, v in self.supply.items():
             market_name = self.asset_name_to_market_name_map[k]
@@ -559,12 +574,12 @@ class Resource:
 
     @cached_property
     def aggregate_revenue(self) -> float:
-        """ Returns total aggregate revenue from supply. """
+        """Returns total aggregate revenue from supply."""
         return sum(self.revenue.values())
 
     @cached_property
     def cost(self) -> Dict[str, float]:
-        """ Returns each asset's total cost from demand. """
+        """Returns each asset's total cost from demand."""
         cost_dict = {}
         for k, v in self.demand.items():
             market_name = self.asset_name_to_market_name_map[k]
@@ -580,12 +595,12 @@ class Resource:
 
     @cached_property
     def aggregate_cost(self) -> float:
-        """ Returns total aggregate cost from demand. """
+        """Returns total aggregate cost from demand."""
         return sum(self.cost.values())
 
     @cached_property
     def aggregate_profit_or_loss(self) -> float:
-        """ Returns total aggregate profit (loss is negative). """
+        """Returns total aggregate profit (loss is negative)."""
         return self.aggregate_revenue - self.aggregate_cost
 
     def clear_cache(self):
@@ -602,14 +617,14 @@ class Resource:
 def get_demand_from_bdf(
     bdf: Union[pd.DataFrame, tb.BeliefsDataFrame]
 ) -> Union[pd.DataFrame, tb.BeliefsDataFrame]:
-    """ Positive values become 0 and negative values become positive values. """
+    """Positive values become 0 and negative values become positive values."""
     return bdf.clip(upper=0).abs()
 
 
 def get_supply_from_bdf(
     bdf: Union[pd.DataFrame, tb.BeliefsDataFrame]
 ) -> Union[pd.DataFrame, tb.BeliefsDataFrame]:
-    """ Negative values become 0. """
+    """Negative values become 0."""
     return bdf.clip(lower=0)
 
 
