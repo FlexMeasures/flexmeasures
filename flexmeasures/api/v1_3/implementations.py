@@ -84,7 +84,11 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     "Cannot identify sensor given the event %s." % event
                 )
                 return unrecognized_connection_group()
-            if sensor.generic_asset.generic_asset_type.name not in ("battery", "one-way_evse", "two-way_evse"):
+            if sensor.generic_asset.generic_asset_type.name not in (
+                "battery",
+                "one-way_evse",
+                "two-way_evse",
+            ):
                 return invalid_domain(
                     f"API version 1.3 only supports device messages for batteries and Electric Vehicle Supply Equipment (EVSE). "
                     f"Sensor ID:{sensor_id} does not belong to a battery or EVSE, but {p.a(sensor.generic_asset.generic_asset_type.description)}."
@@ -98,7 +102,9 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 job = Job.fetch(event, connection=connection)
             except NoSuchJobError:  # Then try the most recent event_id (stored as a generic asset attribute)
                 if event_id == sensor.generic_asset.get_attribute("soc_udi_event_id"):
-                    schedule_start = datetime.fromisoformat(sensor.generic_asset.get_attribute("soc_datetime"))
+                    schedule_start = datetime.fromisoformat(
+                        sensor.generic_asset.get_attribute("soc_datetime")
+                    )
                     message = (
                         "Your UDI event is the most recent event for this device, but "
                     )
@@ -260,7 +266,11 @@ def post_udi_event_response(unit):
     if sensor is None or not can_access_asset(sensor):
         current_app.logger.warning("Cannot identify sensor via %s." % ea)
         return unrecognized_connection_group()
-    if sensor.generic_asset.generic_asset_type.name not in ("battery", "one-way_evse", "two-way_evse"):
+    if sensor.generic_asset.generic_asset_type.name not in (
+        "battery",
+        "one-way_evse",
+        "two-way_evse",
+    ):
         return invalid_domain(
             f"API version 1.3 only supports UDI events for batteries and Electric Vehicle Supply Equipment (EVSE). "
             f"Sensor ID:{sensor_id} does not belong to a battery or EVSE, but {p.a(sensor.generic_asset.generic_asset_type.description)}."
@@ -269,13 +279,16 @@ def post_udi_event_response(unit):
     # unless on play, keep events ordered by entry date and ID
     if current_app.config.get("FLEXMEASURES_MODE") != "play":
         # do not allow new date to precede previous date
-        if (
-            isinstance(sensor.generic_asset.get_attribute("soc_datetime"), str)
-            and datetime < datetime.fromisoformat(sensor.generic_asset.get_attribute("soc_datetime"))
+        if isinstance(
+            sensor.generic_asset.get_attribute("soc_datetime"), str
+        ) and datetime < datetime.fromisoformat(
+            sensor.generic_asset.get_attribute("soc_datetime")
         ):
-            msg = (
-                "The date of the requested UDI event (%s) is earlier than the latest known date (%s)."
-                % (datetime, datetime.fromisoformat(sensor.generic_asset.get_attribute("soc_datetime")))
+            msg = "The date of the requested UDI event (%s) is earlier than the latest known date (%s)." % (
+                datetime,
+                datetime.fromisoformat(
+                    sensor.generic_asset.get_attribute("soc_datetime")
+                ),
             )
             current_app.logger.warning(msg)
             return invalid_datetime(msg)
@@ -283,7 +296,9 @@ def post_udi_event_response(unit):
         # check if udi event id is higher than existing
         if sensor.generic_asset.get_attribute("soc_udi_event_id") is not None:
             if sensor.generic_asset.get_attribute("soc_udi_event_id") >= event_id:
-                return outdated_event_id(event_id, sensor.generic_asset.get_attribute("soc_udi_event_id"))
+                return outdated_event_id(
+                    event_id, sensor.generic_asset.get_attribute("soc_udi_event_id")
+                )
 
     # get value
     if "value" not in form:

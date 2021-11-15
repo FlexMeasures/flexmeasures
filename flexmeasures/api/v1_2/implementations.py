@@ -83,12 +83,15 @@ def get_device_message_response(generic_asset_name_groups, duration):
             if sensor.generic_asset.generic_asset_type.name != "battery":
                 return invalid_domain(
                     "API version 1.2 only supports device messages for batteries. "
-                    "Sensor ID:%s does not belong to a battery."
-                    % sensor_id
+                    "Sensor ID:%s does not belong to a battery." % sensor_id
                 )
-            if event_type != "soc" or event_id != sensor.generic_asset.get_attribute("soc_udi_event_id"):
+            if event_type != "soc" or event_id != sensor.generic_asset.get_attribute(
+                "soc_udi_event_id"
+            ):
                 return unrecognized_event(event_id, event_type)
-            start = datetime.fromisoformat(sensor.generic_asset.get_attribute("soc_datetime"))
+            start = datetime.fromisoformat(
+                sensor.generic_asset.get_attribute("soc_datetime")
+            )
             resolution = sensor.event_resolution
 
             # Schedule the asset
@@ -174,8 +177,7 @@ def post_udi_event_response(unit):  # noqa: C901
     if sensor.generic_asset.generic_asset_type.name != "battery":
         return invalid_domain(
             "API version 1.2 only supports UDI events for batteries. "
-            "Sensor ID:%s does not belong to a battery."
-            % sensor_id
+            "Sensor ID:%s does not belong to a battery." % sensor_id
         )
 
     # unless on play, keep events ordered by entry date and ID
@@ -183,11 +185,19 @@ def post_udi_event_response(unit):  # noqa: C901
         # do not allow new date to be after last date
         if (
             isinstance(sensor.generic_asset.get_attribute("soc_datetime"), str)
-            and datetime.fromisoformat(sensor.generic_asset.get_attribute("soc_datetime")) >= datetime
+            and datetime.fromisoformat(
+                sensor.generic_asset.get_attribute("soc_datetime")
+            )
+            >= datetime
         ):
             msg = (
                 "The date of the requested UDI event (%s) is earlier than the latest known date (%s)."
-                % (datetime, datetime.fromisoformat(sensor.generic_asset.get_attribute("soc_datetime")))
+                % (
+                    datetime,
+                    datetime.fromisoformat(
+                        sensor.generic_asset.get_attribute("soc_datetime")
+                    ),
+                )
             )
             current_app.logger.warning(msg)
             return invalid_datetime(msg)
@@ -197,7 +207,9 @@ def post_udi_event_response(unit):  # noqa: C901
             sensor.generic_asset.get_attribute("soc_udi_event_id") is not None
             and sensor.generic_asset.get_attribute("soc_udi_event_id") >= event_id
         ):
-            return outdated_event_id(event_id, sensor.generic_asset.get_attribute("soc_udi_event_id"))
+            return outdated_event_id(
+                event_id, sensor.generic_asset.get_attribute("soc_udi_event_id")
+            )
 
     # get value
     if "value" not in form:
