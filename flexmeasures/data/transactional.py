@@ -3,10 +3,8 @@ These, and only these, functions should help you with treating your own code
 in the context of one database transaction. Which makes our lives easier.
 """
 import sys
-from datetime import datetime
 from typing import Optional
 
-import pytz
 import click
 from flask import current_app
 from flask_sqlalchemy import SQLAlchemy
@@ -117,14 +115,7 @@ def task_with_status_report(task_function, task_name: Optional[str] = None):
             # now save the status of the task
             db.session.begin_nested()  # any failure here does not invalidate any task results we might commit
             try:
-                task_run = LatestTaskRun.query.filter(
-                    LatestTaskRun.name == task_name_to_report
-                ).one_or_none()
-                if task_run is None:
-                    task_run = LatestTaskRun(name=task_name_to_report)
-                    db.session.add(task_run)
-                task_run.datetime = datetime.utcnow().replace(tzinfo=pytz.utc)
-                task_run.status = status
+                LatestTaskRun.record_run(task_name_to_report, status)
                 click.echo(
                     "[FLEXMEASURES] Reported task %s status as %s"
                     % (task_name_to_report, status)
