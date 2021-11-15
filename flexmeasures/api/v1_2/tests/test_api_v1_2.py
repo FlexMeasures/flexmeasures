@@ -10,6 +10,7 @@ from flexmeasures.api.v1_2.tests.utils import (
     message_for_post_udi_event,
 )
 from flexmeasures.data.models.assets import Asset
+from flexmeasures.data.models.time_series import Sensor
 
 
 @pytest.mark.parametrize("message", [message_for_get_device_message()])
@@ -128,17 +129,17 @@ def test_post_udi_event(app, message):
         assert post_udi_event_response.status_code == 200
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
 
-    msg_dt = parse_datetime(message["datetime"])
+    msg_dt = message["datetime"]
 
     # test database state
-    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-    assert asset.soc_datetime == msg_dt
-    assert asset.soc_in_mwh == message["value"] / 1000
-    assert asset.soc_udi_event_id == 204
+    sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    assert sensor.generic_asset.get_attribute("soc_datetime") == msg_dt
+    assert sensor.generic_asset.get_attribute("soc_in_mwh") == message["value"] / 1000
+    assert sensor.generic_asset.get_attribute("soc_udi_event_id") == 204
 
     # sending again results in an error, unless we increase the event ID
     with app.test_client() as client:
-        next_msg_dt = msg_dt + timedelta(minutes=5)
+        next_msg_dt = parse_datetime(msg_dt) + timedelta(minutes=5)
         message["datetime"] = next_msg_dt.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
         post_udi_event_response = client.post(
             url_for("flexmeasures_api_v1_2.post_udi_event"),
@@ -161,7 +162,9 @@ def test_post_udi_event(app, message):
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
 
     # test database state
-    asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-    assert asset.soc_datetime == next_msg_dt
-    assert asset.soc_in_mwh == message["value"] / 1000
-    assert asset.soc_udi_event_id == 205
+    sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    assert parse_datetime(
+        sensor.generic_asset.get_attribute("soc_datetime")
+    ) == parse_datetime(message["datetime"])
+    assert sensor.generic_asset.get_attribute("soc_in_mwh") == message["value"] / 1000
+    assert sensor.generic_asset.get_attribute("soc_udi_event_id") == 205

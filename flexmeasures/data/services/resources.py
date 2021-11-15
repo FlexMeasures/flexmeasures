@@ -24,6 +24,7 @@ from flexmeasures.data.models.assets import (
     assets_share_location,
 )
 from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.weather import Weather, WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.utils import simplify_index
@@ -60,12 +61,20 @@ def has_assets(owner_id: Optional[int] = None) -> bool:
     return _build_asset_query(owner_id).count() > 0
 
 
-def can_access_asset(asset: Asset) -> bool:
-    """Return True if the current user is an admin or the owner of the asset:"""
+def can_access_asset(asset_or_sensor: Union[Asset, Sensor]) -> bool:
+    """Return True if:
+    - the current user is an admin, or
+    - the current user is the owner of the asset, or
+    - the current user's organisation account owns the corresponding generic asset, or
+    - the corresponding generic asset is public
+    """
     if current_user.is_authenticated:
         if current_user.has_role(ADMIN_ROLE):
             return True
-        if asset.owner == current_user:
+        if isinstance(asset_or_sensor, Sensor):
+            if asset_or_sensor.generic_asset.owner in (None, current_user.account):
+                return True
+        elif asset_or_sensor.owner == current_user:
             return True
     return False
 
