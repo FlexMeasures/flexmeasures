@@ -23,3 +23,19 @@ class LatestTaskRun(db.Model):
             self.datetime,
             {True: "ok", False: "err"}[self.status],
         )
+
+    @staticmethod
+    def record_run(task_name: str, status: bool):
+        """
+        Record the latest task run (overwriting previous ones).
+        If the row is not yet in the table, create it first.
+        Does not commit.
+        """
+        task_run = LatestTaskRun.query.filter(
+            LatestTaskRun.name == task_name
+        ).one_or_none()
+        if task_run is None:
+            task_run = LatestTaskRun(name=task_name)
+            db.session.add(task_run)
+        task_run.datetime = datetime.utcnow().replace(tzinfo=pytz.utc)
+        task_run.status = status
