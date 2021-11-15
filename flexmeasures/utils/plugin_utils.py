@@ -2,7 +2,6 @@ import importlib.util
 import os
 import sys
 from importlib.abc import Loader
-from types import ModuleType
 from typing import Dict
 
 import sentry_sdk
@@ -124,14 +123,6 @@ def check_config_settings(app, settings: Dict[str, dict]):
         }
 
     """
-
-    # Check config settings are in dict form, after possibly converting them from module variables
-    if isinstance(settings, ModuleType):
-        settings = {
-            setting: settings.__dict__[setting]
-            for setting in dir(settings)
-            if not setting.startswith("__")
-        }
     assert isinstance(settings, dict), f"{type(settings)} should be a dict"
     for setting_name, setting_fields in settings.items():
         assert isinstance(setting_fields, dict), f"{setting_name} should be a dict"
