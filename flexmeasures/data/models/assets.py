@@ -124,7 +124,7 @@ class Asset(db.Model, tb.SensorDBMixin):
                 )
             else:
                 asset_type = generic_assets_arg["asset_type"]
-            attributes = [
+            asset_type_attributes = [
                 "is_consumer",
                 "is_producer",
                 "can_curtail",
@@ -134,10 +134,33 @@ class Asset(db.Model, tb.SensorDBMixin):
                 "yearly_seasonality",
                 "weather_correlations",
             ]
-            generic_asset_attributes = {a: getattr(asset_type, a) for a in attributes}
+            asset_attributes = [
+                "display_name",
+                "capacity_in_mw",
+                "min_soc_in_mwh",
+                "max_soc_in_mwh",
+                "soc_in_mwh",
+                "soc_datetime",
+                "soc_udi_event_id",
+                "market_id",
+            ]
+            generic_asset_attributes_from_asset_type = {
+                a: getattr(asset_type, a) for a in asset_type_attributes
+            }
+            generic_asset_attributes_from_asset = {
+                a: getattr(self, a)
+                if not isinstance(getattr(self, a), datetime)
+                else getattr(self, a).isoformat()
+                for a in asset_attributes
+            }
             generic_assets_arg = {
                 **generic_assets_arg,
-                **{"attributes": generic_asset_attributes},
+                **{
+                    "attributes": {
+                        **generic_asset_attributes_from_asset_type,
+                        **generic_asset_attributes_from_asset,
+                    },
+                },
             }
 
             if "owner_id" in kwargs:
