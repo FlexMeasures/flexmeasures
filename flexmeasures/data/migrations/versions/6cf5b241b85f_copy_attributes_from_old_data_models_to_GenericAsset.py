@@ -10,6 +10,8 @@ from datetime import datetime
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.ext.mutable import MutableDict
 
 
 # revision identifiers, used by Alembic.
@@ -21,7 +23,13 @@ depends_on = None
 
 def upgrade():
     op.add_column(
-        "generic_asset", sa.Column("attributes", sa.JSON(), nullable=True, default="{}")
+        "generic_asset",
+        sa.Column(
+            "attributes",
+            MutableDict.as_mutable(postgresql.JSONB(astext_type=sa.Text())),
+            nullable=True,
+            default={},
+        ),
     )
 
     """
