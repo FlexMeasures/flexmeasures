@@ -95,7 +95,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
             # Schedule the asset
             try:
                 schedule = schedule_battery(
-                    asset,
+                    asset.corresponding_sensor,
                     market,
                     start,
                     start + planning_horizon,

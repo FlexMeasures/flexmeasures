@@ -11,9 +11,11 @@ from rq.job import Job
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
+from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.utils import save_to_session, get_data_source
 
 """
@@ -99,16 +101,19 @@ def make_schedule(
 
     rq_job = get_current_job()
 
-    # find asset
-    asset = Asset.query.filter_by(id=asset_id).one_or_none()
+    # find sensor
+    sensor = Sensor.query.filter_by(id=asset_id).one_or_none()
 
     click.echo(
-        "Running Scheduling Job %s: %s, from %s to %s" % (rq_job.id, asset, start, end)
+        "Running Scheduling Job %s: %s, from %s to %s" % (rq_job.id, sensor, start, end)
     )
 
     if soc_at_start is None:
-        if start == asset.soc_datetime and asset.soc_in_mwh is not None:
-            soc_at_start = asset.soc_in_mwh
+        if (
+            start == sensor.generic_asset.get_attribute("soc_datetime")
+            and sensor.generic_asset.get_attribute("soc_in_mwh") is not None
+        ):
+            soc_at_start = sensor.generic_asset.get_attribute("soc_in_mwh")
         else:
             soc_at_start = 0
 
@@ -117,20 +122,22 @@ def make_schedule(
             np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
         )
 
-    if asset.asset_type_name == "battery":
+    market = Market.query.get(sensor.generic_asset.get_attribute("market_id"))
+    if sensor.generic_asset.generic_asset_type.name == "battery":
         consumption_schedule = schedule_battery(
-            asset, asset.market, start, end, resolution, soc_at_start, soc_targets
+            sensor, market, start, end, resolution, soc_at_start, soc_targets
         )
-    elif asset.asset_type_name in (
+    elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
         "two-way_evse",
     ):
         consumption_schedule = schedule_charging_station(
-            asset, asset.market, start, end, resolution, soc_at_start, soc_targets
+            sensor, market, start, end, resolution, soc_at_start, soc_targets
         )
     else:
         raise ValueError(
-            "Scheduling is not (yet) supported for asset type %s." % asset.asset_type
+            "Scheduling is not (yet) supported for asset type %s."
+            % sensor.generic_asset.generic_asset_type
         )
 
     data_source = get_data_source(
