@@ -564,8 +564,6 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
     """Create a plot of an asset's latest power measurement as an embeddable html string (incl. javascript).
     First returned string is the measurement time, second string is the html string."""
 
-    sensor = asset.corresponding_sensor
-
     if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
         before = None  # type:ignore
     else:
@@ -582,7 +580,7 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
         else:
             latest_power_datetime = latest_power.datetime
         latest_measurement_time_str = localized_datetime_str(
-            latest_power_datetime + sensor.event_resolution
+            latest_power_datetime + asset.event_resolution
         )
     else:
         latest_power_value = 0
@@ -596,13 +594,9 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
     data = {
         latest_measurement_time_str if not small else "": [0],
         "Capacity in use": [latest_power_value],
-        "Remaining capacity": [
-            sensor.generic_asset.get_attribute("capacity_in_mw") - latest_power_value
-        ],
+        "Remaining capacity": [asset.capacity_in_mw - latest_power_value],
     }
-    percentage_capacity = latest_power_value / sensor.generic_asset.get_attribute(
-        "capacity_in_mw"
-    )
+    percentage_capacity = latest_power_value / asset.capacity_in_mw
     df = pd.DataFrame(data)
     p = df.plot_bokeh(
         kind="bar",
@@ -621,14 +615,14 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
         alpha=0.7,
         title=None,
         xlabel=None,
-        ylabel="Power (%s)" % sensor.unit,
+        ylabel="Power (%s)" % asset.unit,
         zooming=False,
         show_figure=False,
         hovertool=None,
         legend=None,
         toolbar_location=None,
         figsize=(200, 400) if not small else (100, 100),
-        ylim=(0, sensor.generic_asset.get_attribute("capacity_in_mw")),
+        ylim=(0, asset.capacity_in_mw),
         xlim=(-0.5, 0.5),
     )
     p.xgrid.visible = False
@@ -639,11 +633,7 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
             pass
     p.xaxis.ticker = []
     p.add_layout(
-        BoxAnnotation(
-            bottom=0,
-            top=sensor.generic_asset.get_attribute("capacity_in_mw"),
-            fill_color="#f7ebe7",
-        )
+        BoxAnnotation(bottom=0, top=asset.capacity_in_mw, fill_color="#f7ebe7")
     )
     plot_html_str = pandas_bokeh.embedded_html(p)
     hover_tool_str = "%s at %s %s (%s%% capacity).\nLatest state at %s." % (
@@ -653,7 +643,7 @@ def get_latest_power_as_plot(asset: Asset, small: bool = False) -> Tuple[str, st
         if latest_power_value == 0
         else "Producing",
         round(latest_power_value, 3),
-        sensor.unit,
+        asset.unit,
         round(100 * percentage_capacity),
         latest_measurement_time_str,
     )
