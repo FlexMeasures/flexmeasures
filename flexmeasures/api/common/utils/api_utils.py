@@ -295,17 +295,16 @@ def get_sensor_by_generic_asset_type_and_location(
     and then inform the requesting user which one to use.
     """
     # Look for the Sensor object
-    generic_assets = (
-        GenericAsset.query.join(GenericAssetType)
+    sensor = (
+        Sensor.query.join(GenericAsset)
+        .join(GenericAssetType)
         .filter(GenericAssetType.name == generic_asset_type_name)
         .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
         .filter(GenericAsset.latitude == latitude)
         .filter(GenericAsset.longitude == longitude)
-        .all()
+        .filter(Sensor.generic_asset_id == GenericAsset.id)
+        .one_or_none()
     )
-    sensor = Sensor.query.filter(
-        Sensor.generic_asset_id.in_([ga.id for ga in generic_assets])
-    ).one_or_none()
     if sensor is None:
         create_sensor_if_unknown = False
         if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
