@@ -38,6 +38,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     for asset_name in asset_names:
         asset = Asset(
             name=asset_name,
+            owner_id=test_anonymous_user.id,
             asset_type_name="test-type",
             event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
@@ -45,7 +46,6 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_anonymous_user
         assets.append(asset)
         db.session.add(asset)
 
@@ -66,6 +66,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     for asset_name in asset_names:
         asset = Asset(
             name=asset_name,
+            owner_id=test_user.id,
             asset_type_name="test-type",
             event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
@@ -73,7 +74,6 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_user
         if asset_name == "CS 4":
             asset.event_resolution = timedelta(hours=1)
             asset.corresponding_sensor.event_resolution = timedelta(hours=1)
@@ -129,6 +129,7 @@ def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
     for asset_name in asset_names:
         asset = Asset(
             name=asset_name,
+            owner_id=test_user.id,
             asset_type_name="test-type",
             event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
@@ -136,7 +137,6 @@ def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_user
         if asset_name == "CS 4":
             asset.event_resolution = timedelta(hours=1)
             asset.corresponding_sensor.event_resolution = timedelta(hours=1)

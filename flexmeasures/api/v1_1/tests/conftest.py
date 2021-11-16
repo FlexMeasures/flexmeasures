@@ -39,6 +39,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     for asset_name in asset_names:
         asset = Asset(
             name=asset_name,
+            owner_id=test_user.id,
             asset_type_name="test-type",
             event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
@@ -46,7 +47,6 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_user
         assets.append(asset)
         db.session.add(asset)
 
