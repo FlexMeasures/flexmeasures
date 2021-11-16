@@ -79,7 +79,7 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs):
         )
         & (
             bdf.index.get_level_values("belief_time")
-            == pd.Timestamp("2021-03-28 14:00:00+00:00")
+            == pd.Timestamp("2021-03-27 9:00:00+00:00")
         )
     ]
     new_belief = tb_utils.replace_multi_index_level(
