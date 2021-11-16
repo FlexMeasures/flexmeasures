@@ -295,11 +295,10 @@ def get_sensor_by_generic_asset_type_and_location(
     and then inform the requesting user which one to use.
     """
     # Look for the Sensor object
-    generic_asset_type = GenericAssetType.query.filter(
-        GenericAssetType.name == weather_sensor_type_name
-    ).one_or_none()
     generic_assets = (
-        GenericAsset.query.filter(GenericAsset.generic_asset_type == generic_asset_type)
+        GenericAsset.query.join(GenericAssetType)
+        .filter(GenericAssetType.name == weather_sensor_type_name)
+        .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
         .filter(GenericAsset.latitude == latitude)
         .filter(GenericAsset.longitude == longitude)
         .all()
