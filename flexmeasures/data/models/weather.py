@@ -8,6 +8,7 @@ from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data.config import db
+from flexmeasures.data.models.migration_utils import copy_old_sensor_attributes
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
@@ -76,7 +77,24 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
         if "id" not in kwargs:
-            new_generic_asset = create_generic_asset("weather_sensor", **kwargs)
+            generic_asset_kwargs = copy_old_sensor_attributes(
+                self,
+                kwargs,
+                WeatherSensorType,
+                "weather_sensor_type_name",
+                "sensor_type",  # NB not "weather_sensor_type" (slight inconsistency in this old sensor class)
+                old_sensor_type_attributes=[
+                    "daily_seasonality",
+                    "weekly_seasonality",
+                    "yearly_seasonality",
+                ],
+                old_sensor_attributes=[
+                    "display_name",
+                ],
+            )
+            new_generic_asset = create_generic_asset(
+                "weather_sensor", **generic_asset_kwargs
+            )
             new_sensor = Sensor(name=kwargs["name"], generic_asset=new_generic_asset)
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
@@ -88,6 +106,15 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
         super(WeatherSensor, self).__init__(**kwargs)
         self.id = new_sensor_id
         self.name = self.name.replace(" ", "_").lower()
+
+        # Copy over additional columns from (newly created) WeatherSensor to (newly created) Sensor
+        if "id" not in kwargs:
+            db.session.add(self)
+            db.session.flush()  # make sure to generate each column for the old sensor
+            new_sensor.unit = self.unit
+            new_sensor.event_resolution = self.event_resolution
+            new_sensor.knowledge_horizon_fnc = self.knowledge_horizon_fnc
+            new_sensor.knowledge_horizon_par = self.knowledge_horizon_par
 
     @property
     def entity_address_fm0(self) -> str:
