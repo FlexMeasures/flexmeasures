@@ -56,61 +56,65 @@ def upgrade():
         "market",
         sa.MetaData(),
         sa.Column("id", sa.Integer),
-        sa.Column("display_name", sa.String(80)),
+        sa.Column("display_name", sa.String(80)),  # Copy to GenericAsset [check this!]
         sa.Column("market_type_name", sa.String(80)),
-        sa.Column("unit"),
-        sa.Column("event_resolution"),
-        sa.Column("knowledge_horizon_fnc"),
-        sa.Column("knowledge_horizon_par"),
+        sa.Column("unit"),  # Copy to Sensor [done]
+        sa.Column("event_resolution"),  # Copy to Sensor [done]
+        sa.Column("knowledge_horizon_fnc"),  # Copy to Sensor [done]
+        sa.Column("knowledge_horizon_par"),  # Copy to Sensor [done]
     )
     t_market_type = sa.Table(
         "market_type",
         sa.MetaData(),
         sa.Column("name", sa.String(80)),
-        sa.Column("daily_seasonality", sa.Boolean),
-        sa.Column("weekly_seasonality", sa.Boolean),
-        sa.Column("yearly_seasonality", sa.Boolean),
+        sa.Column("daily_seasonality", sa.Boolean),  # Copy to Sensor
+        sa.Column("weekly_seasonality", sa.Boolean),  # Copy to Sensor
+        sa.Column("yearly_seasonality", sa.Boolean),  # Copy to Sensor
     )
     t_asset = sa.Table(
         "asset",
         sa.MetaData(),
         sa.Column("id"),
-        sa.Column("display_name"),
-        sa.Column("asset_type_name"),
-        sa.Column("capacity_in_mw"),
-        sa.Column("min_soc_in_mwh"),
-        sa.Column("max_soc_in_mwh"),
-        sa.Column("soc_in_mwh"),
-        sa.Column("soc_datetime"),
-        sa.Column("soc_udi_event_id"),
-        sa.Column("market_id"),
-        sa.Column("unit"),
-        sa.Column("event_resolution"),
-        sa.Column("knowledge_horizon_fnc"),
-        sa.Column("knowledge_horizon_par"),
+        sa.Column("display_name"),  # Copy to GenericAsset
+        sa.Column("asset_type_name"),  # Copy to GenericAsset [done]
+        sa.Column("capacity_in_mw"),  # Copy to Sensor
+        sa.Column("min_soc_in_mwh"),  # Copy to GenericAsset [1]
+        sa.Column("max_soc_in_mwh"),  # Copy to GenericAsset [1]
+        sa.Column("soc_in_mwh"),  # Copy to GenericAsset [1]
+        sa.Column("soc_datetime"),  # Copy to GenericAsset [1]
+        sa.Column("soc_udi_event_id"),  # Copy to GenericAsset [2]
+        sa.Column("market_id"),  # Copy to Sensor [3]
+        sa.Column("unit"),  # Copy to Sensor [done]
+        sa.Column("event_resolution"),  # Copy to Sensor [done]
+        sa.Column("knowledge_horizon_fnc"),  # Copy to Sensor [done]
+        sa.Column("knowledge_horizon_par"),  # Copy to Sensor [done]
     )
+    # [1] will be moved to a separate sensor later
+    # [2] deprecated in favour of Redis job id since api v1.3
+    # [3] will be deprecated in favour of something like a weighed by relationship (could be multiple)
     t_asset_type = sa.Table(
         "asset_type",
         sa.MetaData(),
         sa.Column("name", sa.String(80)),
-        sa.Column("is_consumer"),
-        sa.Column("is_producer"),
-        sa.Column("can_curtail"),
-        sa.Column("can_shift"),
-        sa.Column("daily_seasonality", sa.Boolean),
-        sa.Column("weekly_seasonality", sa.Boolean),
-        sa.Column("yearly_seasonality", sa.Boolean),
+        sa.Column("is_consumer"),  # Copy to Sensor
+        sa.Column("is_producer"),  # Copy to Sensor
+        sa.Column("can_curtail"),  # Copy to GenericAsset [4]
+        sa.Column("can_shift"),  # Copy to GenericAsset [4]
+        sa.Column("daily_seasonality", sa.Boolean),  # Copy to Sensor
+        sa.Column("weekly_seasonality", sa.Boolean),  # Copy to Sensor
+        sa.Column("yearly_seasonality", sa.Boolean),  # Copy to Sensor
     )
+    # [4] will be deprecated in favour of actuator functionality
     t_weather_sensor = sa.Table(
         "weather_sensor",
         sa.MetaData(),
         sa.Column("id"),
-        sa.Column("display_name"),
+        sa.Column("display_name"),  # Copy to GenericAsset [check this!]
         sa.Column("weather_sensor_type_name"),
-        sa.Column("unit"),
-        sa.Column("event_resolution"),
-        sa.Column("knowledge_horizon_fnc"),
-        sa.Column("knowledge_horizon_par"),
+        sa.Column("unit"),  # Copy to Sensor [done]
+        sa.Column("event_resolution"),  # Copy to Sensor [done]
+        sa.Column("knowledge_horizon_fnc"),  # Copy to Sensor [done]
+        sa.Column("knowledge_horizon_par"),  # Copy to Sensor [done]
     )
     t_weather_sensor_type = sa.Table(
         "weather_sensor_type",
