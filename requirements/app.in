@@ -49,6 +49,7 @@ Flask-Classful
 Flask-Marshmallow
 Flask-Cors
 sentry-sdk[flask]
+marshmallow>=3
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
 webargs
