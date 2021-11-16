@@ -117,14 +117,14 @@ class Asset(db.Model, tb.SensorDBMixin):
         # Create a new Sensor with unique id across assets, markets and weather sensors
         # Also keep track of ownership.
         if "id" not in kwargs:
-            generic_assets_arg = kwargs.copy()
-            if "asset_type_name" in generic_assets_arg:
-                asset_type = db.session.query(AssetType).get(
-                    generic_assets_arg["asset_type_name"]
+            generic_asset_kwargs = kwargs.copy()
+            if "asset_type_name" in generic_asset_kwargs:
+                old_sensor_type = db.session.query(AssetType).get(
+                    generic_asset_kwargs["asset_type_name"]
                 )
             else:
-                asset_type = generic_assets_arg["asset_type"]
-            asset_type_attributes = [
+                old_sensor_type = generic_asset_kwargs["asset_type"]
+            old_sensor_type_attributes = [
                 "is_consumer",
                 "is_producer",
                 "can_curtail",
@@ -134,7 +134,7 @@ class Asset(db.Model, tb.SensorDBMixin):
                 "yearly_seasonality",
                 "weather_correlations",
             ]
-            asset_attributes = [
+            old_sensor_attributes = [
                 "display_name",
                 "capacity_in_mw",
                 "min_soc_in_mwh",
@@ -144,21 +144,21 @@ class Asset(db.Model, tb.SensorDBMixin):
                 "soc_udi_event_id",
                 "market_id",
             ]
-            generic_asset_attributes_from_asset_type = {
-                a: getattr(asset_type, a) for a in asset_type_attributes
+            generic_asset_attributes_from_old_sensor_type = {
+                a: getattr(old_sensor_type, a) for a in old_sensor_type_attributes
             }
-            generic_asset_attributes_from_asset = {
+            generic_asset_attributes_from_old_sensor = {
                 a: getattr(self, a)
                 if not isinstance(getattr(self, a), datetime)
                 else getattr(self, a).isoformat()
-                for a in asset_attributes
+                for a in old_sensor_attributes
             }
-            generic_assets_arg = {
-                **generic_assets_arg,
+            generic_asset_kwargs = {
+                **generic_asset_kwargs,
                 **{
                     "attributes": {
-                        **generic_asset_attributes_from_asset_type,
-                        **generic_asset_attributes_from_asset,
+                        **generic_asset_attributes_from_old_sensor_type,
+                        **generic_asset_attributes_from_old_sensor,
                     },
                 },
             }
@@ -166,8 +166,8 @@ class Asset(db.Model, tb.SensorDBMixin):
             if "owner_id" in kwargs:
                 owner = User.query.get(kwargs["owner_id"])
                 if owner:
-                    generic_assets_arg.update(account_id=owner.account_id)
-            new_generic_asset = create_generic_asset("asset", **generic_assets_arg)
+                    generic_asset_kwargs.update(account_id=owner.account_id)
+            new_generic_asset = create_generic_asset("asset", **generic_asset_kwargs)
             new_sensor = Sensor(
                 name=kwargs["name"],
                 generic_asset=new_generic_asset,
