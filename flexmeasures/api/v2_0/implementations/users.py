@@ -1,12 +1,13 @@
 from marshmallow import fields
 from sqlalchemy.exc import IntegrityError
-from webargs.flaskparser import use_args
+from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
 
-from flexmeasures.data.models.user import User as UserModel
+from flexmeasures.data.models.user import User as UserModel, Account
+from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     get_users,
@@ -16,7 +17,7 @@ from flexmeasures.data.services.users import (
 from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.config import db
-from flexmeasures.api.common.factories import load_user, load_account
+from flexmeasures.api.common.factories import load_user
 
 """
 API endpoints to manage users.
@@ -28,22 +29,19 @@ user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 
 
-@use_args(
+@use_kwargs(
     {
-        "account_id": fields.Int(),
-        "include_inactive": fields.Bool(missing=False),
+        "account": AccountIdField(data_key="account_id"),
+        "include_inactive": fields.Bool(load_default=False),
     },
     location="query",
 )
-@load_account(param_location="query")
-@permission_required_for_context("read")
+@permission_required_for_context("read", kw_arg="account")
 @as_json
-def get(account, args):
+def get(account: Account, include_inactive: bool = False):
     """List users of an account."""
 
-    users = get_users(
-        account_name=account.name, only_active=not args["include_inactive"]
-    )
+    users = get_users(account_name=account.name, only_active=not include_inactive)
     return users_schema.dump(users), 200
 
 

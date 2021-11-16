@@ -1,3 +1,4 @@
+from typing import Optional
 from functools import wraps
 from flask import current_app
 from flask_json import as_json
@@ -115,23 +116,25 @@ def account_roles_required(*account_roles):
     return wrapper
 
 
-def permission_required_for_context(permission: str):
+def permission_required_for_context(permission: str, kw_arg: Optional[str] = None):
     """
     This decorator can be used to make sure that the current user has the necessary permission to access the context.
-    The context needs to be an AuthModelMixin and should be the first non-keyword argument.
+    The context needs to be an AuthModelMixin and is found in kwargs by name or should be the first non-keyword argument.
     The permission needs to be a known permission and is checked with principal descriptions from the context's access control list (see AuthModelMixin.__acl__).
 
-    Usually, you'd place a factory decorator further up in the decorator chain, e.g.:
+    Usually, you'd place a marshmallow field further up in the decorator chain, e.g.:
 
-        @app.route("/resource/<id>", methods=["GET"])
-        @load_resource()
-        @permission_required_for_context("read")
+        @app.route("/resource/<resource_id>", methods=["GET"])
+        @use_kwargs(
+            {"the_resource": ResourceIdField(data_key="resource_id")},
+            location="path",
+        )
+        @permission_required_for_context("read", kw_arg="the_resource")
         @as_json
         def view(resource):
-            return dict(id=resource.id)
+            return dict(name=resource.name)
 
-    Where `load_resource` turns the id parameter into a resource context (if possible),
-    still as the first parameter.
+    Where `ResourceIdField._deserialize()` turns the id parameter into a resource context (if possible).
 
     This decorator raises a 403 response if there is no principal for the required permission.
     It raises a 401 response if the user is not authenticated at all.
@@ -149,7 +152,10 @@ def permission_required_for_context(permission: str):
                 )
             if current_user.is_anonymous:
                 return _security._unauthn_handler()
-            context: AuthModelMixin = args[0]
+            if kw_arg:
+                context = kwargs[kw_arg]
+            else:  # assume first non-keyword arg
+                context: AuthModelMixin = args[0]
             if not isinstance(context, AuthModelMixin):
                 current_app.logger.error(
                     f"Context {context} needs {permission}-permission, but is no AuthModelMixin."
