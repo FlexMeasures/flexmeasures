@@ -210,7 +210,7 @@ def post_weather_data_response(  # noqa: C901
                 "FLEXMEASURES_MODE", ""
             ) != "play" and horizon <= timedelta(
                 hours=0
-            ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
+            ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this sensor
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
                         "Weather",

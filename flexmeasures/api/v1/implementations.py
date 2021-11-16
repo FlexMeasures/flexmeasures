@@ -312,7 +312,7 @@ def create_connection_and_value_groups(  # noqa: C901
             # make forecasts, but only if the sent-in values are not forecasts themselves
             if horizon <= timedelta(
                 hours=0
-            ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
+            ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this sensor
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
                         "Power",
