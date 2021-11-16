@@ -19,7 +19,7 @@ class EntityAddressValidationError(FMValidationError):
 
 
 class SensorField(fields.Str):
-    """Field that de-serializes to a Sensor or WeatherSensor
+    """Field that de-serializes to a Sensor, or WeatherSensor (fm0 only)
     and serializes a Sensor, Asset, Market or WeatherSensor into an entity address (string)."""
 
     # todo: when Actuators also get an entity address, refactor this class to EntityField,
@@ -43,7 +43,7 @@ class SensorField(fields.Str):
     def _deserialize(  # noqa: C901 todo: the noqa can probably be removed after refactoring Asset/Market/WeatherSensor to Sensor
         self, value, attr, obj, **kwargs
     ) -> Union[Sensor, WeatherSensor]:
-        """De-serialize to a Sensor or WeatherSensor."""
+        """De-serialize to a Sensor, or WeatherSensor (fm0 only)."""
         # TODO: After refactoring, unify 3 generic_asset cases -> 1 sensor case
         try:
             ea = parse_entity_address(value, self.entity_type, self.fm_scheme)
@@ -112,13 +112,11 @@ class SensorField(fields.Str):
                             f"Market with entity address {value} doesn't exist."
                         )
                 elif self.entity_type == "weather_sensor":
-                    weather_sensor = WeatherSensor.query.filter(
+                    sensor = Sensor.query.filter(
                         WeatherSensor.id == ea["sensor_id"]
                     ).one_or_none()
-                    if weather_sensor is not None and isinstance(
-                        weather_sensor, WeatherSensor
-                    ):
-                        return weather_sensor
+                    if sensor is not None:
+                        return sensor
                     else:
                         raise EntityAddressValidationError(
                             f"Weather sensor with entity address {value} doesn't exist."
