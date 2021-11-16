@@ -37,7 +37,9 @@ from flexmeasures.api.v1.implementations import (
     collect_connection_and_value_groups,
     create_connection_and_value_groups,
 )
-from flexmeasures.api.common.utils.api_utils import get_weather_sensor_by
+from flexmeasures.api.common.utils.api_utils import (
+    get_sensor_by_generic_asset_type_and_location,
+)
 from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.weather import Weather
@@ -178,12 +180,12 @@ def post_weather_data_response(  # noqa: C901
             if unit not in accepted_units:
                 return invalid_unit(weather_sensor_type_name, accepted_units)
 
-            weather_sensor = get_weather_sensor_by(
+            sensor = get_sensor_by_generic_asset_type_and_location(
                 weather_sensor_type_name, latitude, longitude
             )
-            if type(weather_sensor) == ResponseTuple:
+            if type(sensor) == ResponseTuple:
                 # Error message telling the user about the nearest weather sensor they can post to
-                return weather_sensor
+                return sensor
 
             # Create new Weather objects
             for j, value in enumerate(value_group):
@@ -198,7 +200,7 @@ def post_weather_data_response(  # noqa: C901
                     datetime=dt,
                     value=value,
                     horizon=h,
-                    sensor_id=weather_sensor.id,
+                    sensor_id=sensor.id,
                     data_source_id=data_source.id,
                 )
                 weather_measurements.append(w)
@@ -212,7 +214,7 @@ def post_weather_data_response(  # noqa: C901
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
                         "Weather",
-                        weather_sensor.id,
+                        sensor.id,
                         start,
                         start + duration,
                         resolution=duration / len(value_group),

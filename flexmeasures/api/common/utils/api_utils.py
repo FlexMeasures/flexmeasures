@@ -14,7 +14,9 @@ import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
 from flexmeasures.data.utils import save_to_session
@@ -284,24 +286,28 @@ def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
     return connections_as_ea
 
 
-def get_weather_sensor_by(
+def get_sensor_by_generic_asset_type_and_location(
     weather_sensor_type_name: str, latitude: float = 0, longitude: float = 0
-) -> Union[WeatherSensor, ResponseTuple]:
+) -> Union[Sensor, ResponseTuple]:
     """
-    Search a weather sensor by type and location.
-    Can create a weather sensor if needed (depends on API mode)
+    Search a sensor by generic asset type and location.
+    Can create a sensor if needed (depends on API mode)
     and then inform the requesting user which one to use.
     """
-    # Look for the WeatherSensor object
-    weather_sensor = (
-        WeatherSensor.query.filter(
-            WeatherSensor.weather_sensor_type_name == weather_sensor_type_name
-        )
-        .filter(WeatherSensor.latitude == latitude)
-        .filter(WeatherSensor.longitude == longitude)
-        .one_or_none()
+    # Look for the Sensor object
+    generic_asset_type = GenericAssetType.query.filter(
+        GenericAssetType.name == weather_sensor_type_name
+    ).one_or_none()
+    generic_assets = (
+        GenericAsset.query.filter(GenericAsset.generic_asset_type == generic_asset_type)
+        .filter(GenericAsset.latitude == latitude)
+        .filter(GenericAsset.longitude == longitude)
+        .all()
     )
-    if weather_sensor is None:
+    sensor = Sensor.query.filter(
+        Sensor.generic_asset_id.in_([ga.id for ga in generic_assets])
+    ).one_or_none()
+    if sensor is None:
         create_sensor_if_unknown = False
         if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
             create_sensor_if_unknown = True
@@ -318,6 +324,7 @@ def get_weather_sensor_by(
             )
             db.session.add(weather_sensor)
             db.session.flush()  # flush so that we can reference the new object in the current db session
+            sensor = weather_sensor.corresponding_sensor
 
         # or query and return the nearest sensor and let the requesting user post to that one
         else:
@@ -333,7 +340,7 @@ def get_weather_sensor_by(
                 )
             else:
                 return unrecognized_sensor()
-    return weather_sensor
+    return sensor
 
 
 def save_to_db(

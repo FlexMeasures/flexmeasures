@@ -15,7 +15,7 @@ from flexmeasures.api.common.responses import (
     ResponseTuple,
 )
 from flexmeasures.api.common.utils.api_utils import (
-    get_weather_sensor_by,
+    get_sensor_by_generic_asset_type_and_location,
     save_to_db,
     determine_belief_timing,
 )
@@ -173,13 +173,13 @@ def post_weather_data_response(  # noqa: C901
             if unit not in accepted_units:
                 return invalid_unit(weather_sensor_type_name, accepted_units)
 
-            weather_sensor = get_weather_sensor_by(
+            sensor = get_sensor_by_generic_asset_type_and_location(
                 weather_sensor_type_name, latitude, longitude
             )
 
             # Convert to timely-beliefs terminology
             event_starts, belief_horizons = determine_belief_timing(
-                event_values, start, resolution, horizon, prior, weather_sensor
+                event_values, start, resolution, horizon, prior, sensor
             )
 
             # Create new Weather objects
@@ -189,7 +189,7 @@ def post_weather_data_response(  # noqa: C901
                         datetime=event_start,
                         value=event_value,
                         horizon=belief_horizon,
-                        sensor_id=weather_sensor.id,
+                        sensor_id=sensor.id,
                         data_source_id=data_source.id,
                     )
                     for event_start, event_value, belief_horizon in zip(
@@ -207,7 +207,7 @@ def post_weather_data_response(  # noqa: C901
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
                         "Weather",
-                        weather_sensor.id,
+                        sensor.id,
                         start,
                         start + duration,
                         resolution=duration / len(event_values),
