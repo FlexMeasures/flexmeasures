@@ -6,6 +6,7 @@ import timely_beliefs as tb
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
+from flexmeasures.data.models.migration_utils import copy_old_sensor_attributes
 from flexmeasures.data.models.user import User
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.data.models.generic_assets import (
@@ -117,51 +118,33 @@ class Asset(db.Model, tb.SensorDBMixin):
         # Create a new Sensor with unique id across assets, markets and weather sensors
         # Also keep track of ownership.
         if "id" not in kwargs:
-            generic_asset_kwargs = kwargs.copy()
-            if "asset_type_name" in generic_asset_kwargs:
-                old_sensor_type = db.session.query(AssetType).get(
-                    generic_asset_kwargs["asset_type_name"]
-                )
-            else:
-                old_sensor_type = generic_asset_kwargs["asset_type"]
-            old_sensor_type_attributes = [
-                "is_consumer",
-                "is_producer",
-                "can_curtail",
-                "can_shift",
-                "daily_seasonality",
-                "weekly_seasonality",
-                "yearly_seasonality",
-                "weather_correlations",
-            ]
-            old_sensor_attributes = [
-                "display_name",
-                "capacity_in_mw",
-                "min_soc_in_mwh",
-                "max_soc_in_mwh",
-                "soc_in_mwh",
-                "soc_datetime",
-                "soc_udi_event_id",
-                "market_id",
-            ]
-            generic_asset_attributes_from_old_sensor_type = {
-                a: getattr(old_sensor_type, a) for a in old_sensor_type_attributes
-            }
-            generic_asset_attributes_from_old_sensor = {
-                a: getattr(self, a)
-                if not isinstance(getattr(self, a), datetime)
-                else getattr(self, a).isoformat()
-                for a in old_sensor_attributes
-            }
-            generic_asset_kwargs = {
-                **generic_asset_kwargs,
-                **{
-                    "attributes": {
-                        **generic_asset_attributes_from_old_sensor_type,
-                        **generic_asset_attributes_from_old_sensor,
-                    },
-                },
-            }
+            generic_asset_kwargs = copy_old_sensor_attributes(
+                self,
+                kwargs,
+                AssetType,
+                "asset_type_name",
+                "asset_type",
+                old_sensor_type_attributes=[
+                    "is_consumer",
+                    "is_producer",
+                    "can_curtail",
+                    "can_shift",
+                    "daily_seasonality",
+                    "weekly_seasonality",
+                    "yearly_seasonality",
+                    "weather_correlations",
+                ],
+                old_sensor_attributes=[
+                    "display_name",
+                    "capacity_in_mw",
+                    "min_soc_in_mwh",
+                    "max_soc_in_mwh",
+                    "soc_in_mwh",
+                    "soc_datetime",
+                    "soc_udi_event_id",
+                    "market_id",
+                ],
+            )
 
             if "owner_id" in kwargs:
                 owner = User.query.get(kwargs["owner_id"])
