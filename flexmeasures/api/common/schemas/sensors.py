@@ -81,46 +81,13 @@ class SensorField(fields.Str):
                             f"Weather sensor with entity address {value} doesn't exist."
                         )
             else:
-                if self.entity_type == "sensor":
-                    sensor = Sensor.query.filter(
-                        Sensor.id == ea["sensor_id"]
-                    ).one_or_none()
-                    if sensor is not None:
-                        return sensor
-                    else:
-                        raise EntityAddressValidationError(
-                            f"Sensor with entity address {value} doesn't exist."
-                        )
-                elif self.entity_type == "connection":
-                    sensor = Sensor.query.filter(
-                        Sensor.id == ea["sensor_id"]
-                    ).one_or_none()
-                    if sensor is not None:
-                        return sensor
-                    else:
-                        raise EntityAddressValidationError(
-                            f"Asset with entity address {value} doesn't exist."
-                        )
-                elif self.entity_type == "market":
-                    sensor = Sensor.query.filter(
-                        Sensor.id == ea["sensor_id"]
-                    ).one_or_none()
-                    if sensor is not None:
-                        return sensor
-                    else:
-                        raise EntityAddressValidationError(
-                            f"Market with entity address {value} doesn't exist."
-                        )
-                elif self.entity_type == "weather_sensor":
-                    sensor = Sensor.query.filter(
-                        WeatherSensor.id == ea["sensor_id"]
-                    ).one_or_none()
-                    if sensor is not None:
-                        return sensor
-                    else:
-                        raise EntityAddressValidationError(
-                            f"Weather sensor with entity address {value} doesn't exist."
-                        )
+                sensor = Sensor.query.filter(Sensor.id == ea["sensor_id"]).one_or_none()
+                if sensor is not None:
+                    return sensor
+                else:
+                    raise EntityAddressValidationError(
+                        f"{self.entity_type} with entity address {value} doesn't exist."
+                    )
         except EntityAddressException as eae:
             raise EntityAddressValidationError(str(eae))
         return NotImplemented
