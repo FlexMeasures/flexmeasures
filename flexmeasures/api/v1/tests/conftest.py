@@ -68,15 +68,14 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             name=asset_name,
             owner_id=test_user.id,
             asset_type_name="test-type",
-            event_resolution=timedelta(minutes=15),
+            event_resolution=timedelta(minutes=15)
+            if not asset_name == "CS 4"
+            else timedelta(hours=1),
             capacity_in_mw=1,
             latitude=100,
             longitude=100,
             unit="MW",
         )
-        if asset_name == "CS 4":
-            asset.event_resolution = timedelta(hours=1)
-            asset.corresponding_sensor.event_resolution = timedelta(hours=1)
         assets.append(asset)
         db.session.add(asset)
 
@@ -131,14 +130,13 @@ def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
             name=asset_name,
             owner_id=test_user.id,
             asset_type_name="test-type",
-            event_resolution=timedelta(minutes=15),
+            event_resolution=timedelta(minutes=15)
+            if not asset_name == "CS 4"
+            else timedelta(hours=1),
             capacity_in_mw=1,
             latitude=100,
             longitude=100,
             unit="MW",
         )
-        if asset_name == "CS 4":
-            asset.event_resolution = timedelta(hours=1)
-            asset.corresponding_sensor.event_resolution = timedelta(hours=1)
         assets.append(asset)
         db.session.add(asset)
