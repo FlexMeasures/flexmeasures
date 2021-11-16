@@ -287,7 +287,7 @@ def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
 
 
 def get_sensor_by_generic_asset_type_and_location(
-    weather_sensor_type_name: str, latitude: float = 0, longitude: float = 0
+    generic_asset_type_name: str, latitude: float = 0, longitude: float = 0
 ) -> Union[Sensor, ResponseTuple]:
     """
     Search a sensor by generic asset type and location.
@@ -297,7 +297,7 @@ def get_sensor_by_generic_asset_type_and_location(
     # Look for the Sensor object
     generic_assets = (
         GenericAsset.query.join(GenericAssetType)
-        .filter(GenericAssetType.name == weather_sensor_type_name)
+        .filter(GenericAssetType.name == generic_asset_type_name)
         .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
         .filter(GenericAsset.latitude == latitude)
         .filter(GenericAsset.longitude == longitude)
@@ -316,8 +316,8 @@ def get_sensor_by_generic_asset_type_and_location(
             current_app.logger.info("CREATING NEW WEATHER SENSOR...")
             weather_sensor = WeatherSensor(
                 name="Weather sensor for %s at latitude %s and longitude %s"
-                % (weather_sensor_type_name, latitude, longitude),
-                weather_sensor_type_name=weather_sensor_type_name,
+                % (generic_asset_type_name, latitude, longitude),
+                weather_sensor_type_name=generic_asset_type_name,
                 latitude=latitude,
                 longitude=longitude,
             )
