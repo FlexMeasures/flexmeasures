@@ -76,6 +76,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
         asset.owner = test_user
         if asset_name == "CS 4":
             asset.event_resolution = timedelta(hours=1)
+            asset.corresponding_sensor.event_resolution = timedelta(hours=1)
         assets.append(asset)
         db.session.add(asset)
 
@@ -138,5 +139,6 @@ def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
         asset.owner = test_user
         if asset_name == "CS 4":
             asset.event_resolution = timedelta(hours=1)
+            asset.corresponding_sensor.event_resolution = timedelta(hours=1)
         assets.append(asset)
         db.session.add(asset)
