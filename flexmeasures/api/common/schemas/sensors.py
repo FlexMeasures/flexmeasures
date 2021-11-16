@@ -19,7 +19,7 @@ class EntityAddressValidationError(FMValidationError):
 
 
 class SensorField(fields.Str):
-    """Field that de-serializes to a Sensor, Market or WeatherSensor
+    """Field that de-serializes to a Sensor or WeatherSensor
     and serializes a Sensor, Asset, Market or WeatherSensor into an entity address (string)."""
 
     # todo: when Actuators also get an entity address, refactor this class to EntityField,
@@ -42,8 +42,8 @@ class SensorField(fields.Str):
 
     def _deserialize(  # noqa: C901 todo: the noqa can probably be removed after refactoring Asset/Market/WeatherSensor to Sensor
         self, value, attr, obj, **kwargs
-    ) -> Union[Sensor, Market, WeatherSensor]:
-        """De-serialize to a Sensor, Market or WeatherSensor."""
+    ) -> Union[Sensor, WeatherSensor]:
+        """De-serialize to a Sensor or WeatherSensor."""
         # TODO: After refactoring, unify 3 generic_asset cases -> 1 sensor case
         try:
             ea = parse_entity_address(value, self.entity_type, self.fm_scheme)
@@ -59,11 +59,11 @@ class SensorField(fields.Str):
                             f"Asset with entity address {value} doesn't exist."
                         )
                 elif self.entity_type == "market":
-                    market = Market.query.filter(
-                        Market.name == ea["market_name"]
+                    sensor = Sensor.query.filter(
+                        Sensor.name == ea["market_name"]
                     ).one_or_none()
-                    if market is not None:
-                        return market
+                    if sensor is not None:
+                        return sensor
                     else:
                         raise EntityAddressValidationError(
                             f"Market with entity address {value} doesn't exist."
@@ -102,11 +102,11 @@ class SensorField(fields.Str):
                             f"Asset with entity address {value} doesn't exist."
                         )
                 elif self.entity_type == "market":
-                    market = Market.query.filter(
-                        Market.id == ea["sensor_id"]
+                    sensor = Sensor.query.filter(
+                        Sensor.id == ea["sensor_id"]
                     ).one_or_none()
-                    if market is not None:
-                        return market
+                    if sensor is not None:
+                        return sensor
                     else:
                         raise EntityAddressValidationError(
                             f"Market with entity address {value} doesn't exist."
