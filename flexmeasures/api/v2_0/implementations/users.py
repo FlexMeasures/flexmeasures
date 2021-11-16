@@ -7,17 +7,15 @@ from flask_json import as_json
 from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data.models.user import User as UserModel, Account
-from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.api.common.schemas.users import AccountIdField, UserIdField
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     get_users,
     set_random_password,
     remove_cookie_and_token_access,
 )
-from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.config import db
-from flexmeasures.api.common.factories import load_user
 
 """
 API endpoints to manage users.
@@ -36,28 +34,27 @@ users_schema = UserSchema(many=True)
     },
     location="query",
 )
-@permission_required_for_context("read", kw_arg="account")
+@permission_required_for_context("read", arg_name="account")
 @as_json
 def get(account: Account, include_inactive: bool = False):
     """List users of an account."""
-
     users = get_users(account_name=account.name, only_active=not include_inactive)
     return users_schema.dump(users), 200
 
 
-@load_user()
-@permission_required_for_context("read")
+@use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+@permission_required_for_context("read", arg_name="user")
 @as_json
-def fetch_one(user: UserModel):
+def fetch_one(user_id: int, user: UserModel):
     """Fetch a given user"""
     return user_schema.dump(user), 200
 
 
-@load_user()
-@permission_required_for_context("write")
 @use_args(UserSchema(partial=True))
+@use_kwargs({"db_user": UserIdField(data_key="id")}, location="path")
+@permission_required_for_context("write", arg_name="db_user")
 @as_json
-def patch(db_user: UserModel, user_data: dict):
+def patch(id: int, user_data: dict, db_user: UserModel):
     """Update a user given its identifier"""
     allowed_fields = ["email", "username", "active", "timezone", "flexmeasures_roles"]
     for k, v in [(k, v) for k, v in user_data.items() if k in allowed_fields]:
@@ -76,16 +73,14 @@ def patch(db_user: UserModel, user_data: dict):
     return user_schema.dump(db_user), 200
 
 
-@load_user()
-@permission_required_for_context("write")
+@use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+@permission_required_for_context("write", arg_name="user")
 @as_json
-def reset_password(user):
+def reset_password(user_id: int, user: UserModel):
     """
     Reset the user's current password, cookies and auth tokens.
     Send a password reset link to the user.
     """
-    if current_user.id != user.id and not current_user.has_role(ADMIN_ROLE):
-        raise Forbidden("Non-admins cannot reset passwords of other users.")
     set_random_password(user)
     remove_cookie_and_token_access(user)
     send_reset_password_instructions(user)

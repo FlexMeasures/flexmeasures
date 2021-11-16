@@ -116,10 +116,13 @@ def account_roles_required(*account_roles):
     return wrapper
 
 
-def permission_required_for_context(permission: str, kw_arg: Optional[str] = None):
+def permission_required_for_context(
+    permission: str, arg_pos: Optional[int] = None, arg_name: Optional[str] = None
+):
     """
     This decorator can be used to make sure that the current user has the necessary permission to access the context.
-    The context needs to be an AuthModelMixin and is found in kwargs by name or should be the first non-keyword argument.
+    The context needs to be an AuthModelMixin and is found in the keyword arguments by name and/or by a position in the non-keyword arguments (defaults to 0).
+    Using both arguments is useful when Marshmallow places a dict of de-serialized fields and you are using use_args.
     The permission needs to be a known permission and is checked with principal descriptions from the context's access control list (see AuthModelMixin.__acl__).
 
     Usually, you'd place a marshmallow field further up in the decorator chain, e.g.:
@@ -129,9 +132,9 @@ def permission_required_for_context(permission: str, kw_arg: Optional[str] = Non
             {"the_resource": ResourceIdField(data_key="resource_id")},
             location="path",
         )
-        @permission_required_for_context("read", kw_arg="the_resource")
+        @permission_required_for_context("read", arg_name="the_resource")
         @as_json
-        def view(resource):
+        def view(resource_id: int, resource: Resource):
             return dict(name=resource.name)
 
     Where `ResourceIdField._deserialize()` turns the id parameter into a resource context (if possible).
@@ -152,10 +155,14 @@ def permission_required_for_context(permission: str, kw_arg: Optional[str] = Non
                 )
             if current_user.is_anonymous:
                 return _security._unauthn_handler()
-            if kw_arg:
-                context = kwargs[kw_arg]
-            else:  # assume first non-keyword arg
-                context: AuthModelMixin = args[0]
+            if arg_pos is not None and arg_name is not None:
+                context: AuthModelMixin = args[arg_pos][arg_name]
+            elif arg_pos is not None:
+                context = args[arg_pos]
+            elif arg_name is not None:
+                context = kwargs[arg_name]
+            else:
+                context = args[0]
             if not isinstance(context, AuthModelMixin):
                 current_app.logger.error(
                     f"Context {context} needs {permission}-permission, but is no AuthModelMixin."
