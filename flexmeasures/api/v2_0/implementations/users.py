@@ -52,7 +52,7 @@ def fetch_one(user_id: int, user: UserModel):
 
 @use_args(UserSchema(partial=True))
 @use_kwargs({"db_user": UserIdField(data_key="id")}, location="path")
-@permission_required_for_context("write", arg_name="db_user")
+@permission_required_for_context("update", arg_name="db_user")
 @as_json
 def patch(id: int, user_data: dict, db_user: UserModel):
     """Update a user given its identifier"""
@@ -74,7 +74,7 @@ def patch(id: int, user_data: dict, db_user: UserModel):
 
 
 @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
-@permission_required_for_context("write", arg_name="user")
+@permission_required_for_context("update", arg_name="user")
 @as_json
 def reset_password(user_id: int, user: UserModel):
     """

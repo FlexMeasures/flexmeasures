@@ -3,7 +3,7 @@ from typing import Dict, Union, Tuple
 from flask import current_app
 
 
-PERMISSIONS = ["create", "read", "write", "delete"]
+PERMISSIONS = ["create", "read", "update", "delete"]
 
 ADMIN_ROLE = "admin"
 ADMIN_READER_ROLE = "admin-reader"
@@ -29,9 +29,9 @@ class AuthModelMixin(object):
         {
             "create": "account:3",               # Everyone in Account 3 can create
             "read": EVERYONE,                    # Reading is available to every logged-in user
-            "write": "user:14",                  # This user can write, ...
-            "write": "user:15",                  # and also this user, ...
-            "write": "account-role:MDC",         # also people in such accounts can write
+            "update": "user:14",                  # This user can update, ...
+            "update": "user:15",                  # and also this user, ...
+            "update": "account-role:MDC",         # also people in such accounts can update
             "delete": ("account:3", "role:CEO"), # Only CEOs of Account 3 can delete
         }
 
