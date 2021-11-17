@@ -1,5 +1,5 @@
 from flask import request
-from flask_security import login_required
+from flask_security import auth_required
 
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.services.resources import can_access_asset
@@ -8,7 +8,7 @@ from flexmeasures.ui.views import flexmeasures_ui
 
 
 @flexmeasures_ui.route("/state")
-@login_required
+@auth_required()
 def state_view():
     """State view.
     This returns a little html snippet with a plot of the most recent state of the asset.

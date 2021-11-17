@@ -1,8 +1,7 @@
 import json
 
 from flask_classful import FlaskView, route
-from flask_login import login_required
-from flask_security import current_user
+from flask_security import current_user, auth_required
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
@@ -20,7 +19,7 @@ class SensorAPI(FlaskView):
 
     route_base = "/sensor"
 
-    @login_required
+    @auth_required()
     @route("/<id>/chart/")
     @use_kwargs(
         {
@@ -38,7 +37,7 @@ class SensorAPI(FlaskView):
         sensor = get_sensor_or_abort(id)
         return json.dumps(sensor.chart(**kwargs))
 
-    @login_required
+    @auth_required()
     @route("/<id>/chart_data/")
     @use_kwargs(
         {
@@ -57,7 +56,7 @@ class SensorAPI(FlaskView):
         sensor = get_sensor_or_abort(id)
         return sensor.search_beliefs(as_json=True, **kwargs)
 
-    @login_required
+    @auth_required()
     def get(self, id: int):
         """GET from /sensor/<id>"""
         sensor = get_sensor_or_abort(id)
