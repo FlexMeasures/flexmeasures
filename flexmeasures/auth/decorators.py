@@ -18,22 +18,6 @@ from flexmeasures.auth.policy import (
 )
 
 
-"""
-TODO - For developer docs:
-
-FlexMeasures supports the the following role-based decorators:
-
-- roles_accepted
-- roles_required
-- account_roles_accepted
-- account_roles_required
-
-However, these do not qualify on the permission.
-A finer auth model is available to distinguish between create, read, write and delete access.
-One direct drawback is that the admin-reader role cannot be checked in role-based decorators.
-
-Therefore, we recommend to use the permission_required_for_context decorator.
-"""
 _security = LocalProxy(lambda: current_app.extensions["security"])
 
 
@@ -155,6 +139,7 @@ def permission_required_for_context(
                 )
             if current_user.is_anonymous:
                 return _security._unauthn_handler()
+            # load & check context
             if arg_pos is not None and arg_name is not None:
                 context: AuthModelMixin = args[arg_pos][arg_name]
             elif arg_pos is not None:
@@ -163,13 +148,6 @@ def permission_required_for_context(
                 context = kwargs[arg_name]
             else:
                 context = args[0]
-            if not isinstance(context, AuthModelMixin):
-                current_app.logger.error(
-                    f"Context {context} needs {permission}-permission, but is no AuthModelMixin."
-                )
-                return _security._unauthz_handler(
-                    permission_required_for_context, (permission,)
-                )
             if context is None:
                 current_app.logger.error(
                     f"Context needs {permission}-permission, but no context was passed."
@@ -177,6 +155,14 @@ def permission_required_for_context(
                 return _security._unauthz_handler(
                     permission_required_for_context, (permission,)
                 )
+            if not isinstance(context, AuthModelMixin):
+                current_app.logger.error(
+                    f"Context {context} needs {permission}-permission, but is no AuthModelMixin."
+                )
+                return _security._unauthz_handler(
+                    permission_required_for_context, (permission,)
+                )
+            # now check access, either with admin rights or principal(s)
             acl = context.__acl__()
             if not user_has_admin_access(
                 current_user, permission

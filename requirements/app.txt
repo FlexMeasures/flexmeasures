@@ -178,6 +178,7 @@ markupsafe==2.0.1
     #   wtforms
 marshmallow==3.14.0
     # via
+    #   -r requirements/app.in
     #   flask-marshmallow
     #   marshmallow-polyfield
     #   marshmallow-sqlalchemy
