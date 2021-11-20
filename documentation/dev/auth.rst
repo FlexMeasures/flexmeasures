@@ -5,12 +5,12 @@ Custom authorization
 
 Our :ref:`authorization` section describes general authorization handling in FlexMeasures.
 
-If you are creating your own API endpoints for a custom energy flexibility services (on top of FlexMeasures), you should also get your authorization right. 
+If you are creating your own API endpoints for a custom energy flexibility service (on top of FlexMeasures), you should also get your authorization right. 
 It's recommended to get familiar with the decorators we provide. Here are some pointers, but feel free to read more in the ``flexmeasures.auth`` package. 
 
 In short, we recommend to use the ``@permission_required_for_context`` decorator (more explanation below).
 
-FlexMeasures also supports role-based decorators, e.g. ``@account_roles_required``. These authorization decorators are straightforward. However, they are a bit crude as they do not qualify on the permission (e.g. read versus write). A consequence of this is that the ``admin-reader`` role cannot be checked in role-based decorators.
+FlexMeasures also supports role-based decorators, e.g. ``@account_roles_required``. These authorization decorators are more straightforward to use than the  ``@permission_required_for_context`` decorator. However, they are a bit crude as they do not distinguish on what the context is, nor do they qualify on the required permission(e.g. read versus write). [#f1]_
 
 Finally, all decorators available through `Flask-Security-Too <https://flask-security-too.readthedocs.io/en/stable/patterns.html#authentication-and-authorization>`_ can be used, e.g. ``@auth_required`` (that's technically only checking authentication) or ``@permissions_required``.
 
@@ -41,7 +41,7 @@ As you see, there is some sorcery with ``@use_kwargs`` going on before we check 
 Account roles
 ---------------
 
-One means for this is to define custom account roles. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role. 
+Another way to implement custom authorization is to define custom account roles. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role. 
 
 To make sure that only users of such accounts can use the endpoints:
 
@@ -68,3 +68,8 @@ There are also decorators to check user roles. Here is an example:
         pass
 
 .. note:: You can also use the ``@roles_accepted`` decorator.
+
+
+.. rubric:: Footnotes
+
+.. [#f1] Some authorization features are not possible for endpoints decorated in this way. For instance, we have an ``admin-reader`` role who should be able to read bit not write everything ― with only role-based decorators we can not allow this user to read (as we don't know what permission the endpoint requires).
