@@ -54,12 +54,11 @@ def account_roles_accepted(*account_roles):
         @wraps(fn)
         @as_json
         def decorated_service(*args, **kwargs):
-            for role in account_roles:
-                if current_user and (
-                    current_user.account.has_role(role)
-                    or current_user.has_role(ADMIN_ROLE)
-                ):
-                    return fn(*args, **kwargs)
+            if current_user and (
+                current_user.has_role(ADMIN_ROLE)
+                or any([current_user.account.has_role(role) for role in account_roles])
+            ):
+                return fn(*args, **kwargs)
             return _security._unauthz_handler(account_roles_accepted, account_roles)
 
         return decorated_service
@@ -85,14 +84,13 @@ def account_roles_required(*account_roles):
     def wrapper(fn):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
-            for role in account_roles:
-                if not current_user or (
-                    not current_user.account.has_role(role)
-                    and not current_user.has_role(ADMIN_ROLE)
-                ):
-                    return _security._unauthz_handler(
-                        account_roles_required, account_roles
-                    )
+            if not current_user or (
+                not current_user.has_role(ADMIN_ROLE)
+                and not all(
+                    [current_user.account.has_role(role) for role in account_roles]
+                )
+            ):
+                return _security._unauthz_handler(account_roles_required, account_roles)
             return fn(*args, **kwargs)
 
         return decorated_view
