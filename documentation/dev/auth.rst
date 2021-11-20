@@ -72,4 +72,4 @@ There are also decorators to check user roles. Here is an example:
 
 .. rubric:: Footnotes
 
-.. [#f1] Some authorization features are not possible for endpoints decorated in this way. For instance, we have an ``admin-reader`` role who should be able to read bit not write everything ― with only role-based decorators we can not allow this user to read (as we don't know what permission the endpoint requires).
+.. [#f1] Some authorization features are not possible for endpoints decorated in this way. For instance, we have an ``admin-reader`` role who should be able to read but not write everything ― with only role-based decorators we can not allow this user to read (as we don't know what permission the endpoint requires).
