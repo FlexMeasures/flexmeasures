@@ -28,6 +28,8 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
+    attributes = db.Column(db.JSON, nullable=False, default="{}")
+
     generic_asset_id = db.Column(
         db.Integer,
         db.ForeignKey("generic_asset.id", ondelete="CASCADE"),
