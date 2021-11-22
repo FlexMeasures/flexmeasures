@@ -79,9 +79,6 @@ def user_matches_principals(user, principals: Union[str, Tuple[str]]):
         ]
     ):
         return True
-    current_app.logger.error(
-        f"Authorization failure ― cannot match {user} against {principals}!"
-    )
     return False
 
 

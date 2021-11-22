@@ -8,6 +8,7 @@ from flask_security import (
     roles_required as roles_required_fs,
 )
 from werkzeug.local import LocalProxy
+from werkzeug.exceptions import Forbidden, Unauthorized
 
 from flexmeasures.auth.policy import (
     ADMIN_ROLE,
@@ -59,7 +60,9 @@ def account_roles_accepted(*account_roles):
                 or any([current_user.account.has_role(role) for role in account_roles])
             ):
                 return fn(*args, **kwargs)
-            return _security._unauthz_handler(account_roles_accepted, account_roles)
+            raise Forbidden(
+                f"User {current_user}'s account does have no roles from {','.join(account_roles)}."
+            )
 
         return decorated_service
 
@@ -90,7 +93,9 @@ def account_roles_required(*account_roles):
                     [current_user.account.has_role(role) for role in account_roles]
                 )
             ):
-                return _security._unauthz_handler(account_roles_required, account_roles)
+                raise Forbidden(
+                    f"User {current_user}'s account does not have roles {','.join(account_roles)}."
+                )
             return fn(*args, **kwargs)
 
         return decorated_view
@@ -129,14 +134,9 @@ def permission_required_for_context(
         @wraps(fn)
         def decorated_view(*args, **kwargs):
             if permission not in PERMISSIONS:
-                current_app.logger.error(
-                    f"Permission '{permission}' cannot be handled."
-                )
-                return _security._unauthz_handler(
-                    permission_required_for_context, (permission,)
-                )
+                raise Forbidden(f"Permission '{permission}' cannot be handled.")
             if current_user.is_anonymous:
-                return _security._unauthn_handler()
+                raise Unauthorized()
             # load & check context
             if arg_pos is not None and arg_name is not None:
                 context: AuthModelMixin = args[arg_pos][arg_name]
@@ -147,28 +147,21 @@ def permission_required_for_context(
             else:
                 context = args[0]
             if context is None:
-                current_app.logger.error(
+                raise Forbidden(
                     f"Context needs {permission}-permission, but no context was passed."
                 )
-                return _security._unauthz_handler(
-                    permission_required_for_context, (permission,)
-                )
             if not isinstance(context, AuthModelMixin):
-                current_app.logger.error(
+                raise Forbidden(
                     f"Context {context} needs {permission}-permission, but is no AuthModelMixin."
-                )
-                return _security._unauthz_handler(
-                    permission_required_for_context, (permission,)
                 )
             # now check access, either with admin rights or principal(s)
             acl = context.__acl__()
+            principals = acl.get(permission, tuple())
             if not user_has_admin_access(
                 current_user, permission
-            ) and not user_matches_principals(
-                current_user, acl.get(permission, tuple())
-            ):
-                return _security._unauthz_handler(
-                    permission_required_for_context, (permission,)
+            ) and not user_matches_principals(current_user, principals):
+                raise Forbidden(
+                    f"Authorization failure (accessing {context} to {permission}) ― cannot match {current_user} against {principals}!"
                 )
             return fn(*args, **kwargs)
 

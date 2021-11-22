@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple, Union, Sequence
+from typing import List, Optional, Tuple, Union, Sequence
 import inflect
 from functools import wraps
 
@@ -142,15 +142,11 @@ def invalid_role(requested_access_role: str) -> ResponseTuple:
 
 
 def invalid_sender(
-    calling_function: Optional[Callable] = None,
     required_permissions: Optional[List[str]] = None,
 ) -> ResponseTuple:
     """
     Signify that a sender is invalid.
-    We use this as a stand-in for flask-security auth handlers,
-    thus the arguments fit it.
-    - calling_function is usually an auth decorator like roles_required.
-    - required_permissions can be used if the security check involved permissions.
+    Optionally tell the user which permissions they should have.
     """
     message = FORBIDDEN_MSG
     if required_permissions:

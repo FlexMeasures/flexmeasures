@@ -149,8 +149,7 @@ def test_invalid_sender_and_logout(client, user_email, get_message):
     )
     print("Server responded with:\n%s" % get_meter_data_response.json)
     assert get_meter_data_response.status_code == 403
-    assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
-    assert get_meter_data_response.json["status"] == invalid_sender("MDC")[0]["status"]
+    assert get_meter_data_response.json["status"] == invalid_sender()[0]["status"]
 
     # log out
     logout_response = client.get(
