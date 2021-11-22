@@ -56,8 +56,10 @@ def upgrade():
         "market",
         sa.MetaData(),
         sa.Column("id", sa.Integer),
-        sa.Column("display_name", sa.String(80)),  # Copy to GenericAsset [check this!]
         sa.Column("market_type_name", sa.String(80)),
+        sa.Column(
+            "display_name", sa.String(80)
+        ),  # Copy to both Sensor and to GenericAsset
         sa.Column("unit"),  # Copy to Sensor [done]
         sa.Column("event_resolution"),  # Copy to Sensor [done]
         sa.Column("knowledge_horizon_fnc"),  # Copy to Sensor [done]
@@ -75,8 +77,8 @@ def upgrade():
         "asset",
         sa.MetaData(),
         sa.Column("id"),
-        sa.Column("display_name"),  # Copy to GenericAsset
-        sa.Column("asset_type_name"),  # Copy to GenericAsset [done]
+        sa.Column("asset_type_name"),
+        sa.Column("display_name"),  # Copy to both Sensor and to GenericAsset
         sa.Column("capacity_in_mw"),  # Copy to Sensor
         sa.Column("min_soc_in_mwh"),  # Copy to GenericAsset [1]
         sa.Column("max_soc_in_mwh"),  # Copy to GenericAsset [1]
@@ -109,8 +111,8 @@ def upgrade():
         "weather_sensor",
         sa.MetaData(),
         sa.Column("id"),
-        sa.Column("display_name"),  # Copy to GenericAsset [check this!]
         sa.Column("weather_sensor_type_name"),
+        sa.Column("display_name"),  # Copy to both Sensor and to GenericAsset
         sa.Column("unit"),  # Copy to Sensor [done]
         sa.Column("event_resolution"),  # Copy to Sensor [done]
         sa.Column("knowledge_horizon_fnc"),  # Copy to Sensor [done]
