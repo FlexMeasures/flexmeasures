@@ -68,6 +68,15 @@ class Sensor(db.Model, tb.SensorDBMixin):
     def entity_address(self) -> str:
         return build_entity_address(dict(sensor_id=self.id), "sensor")
 
+    def get_attribute(self, attribute: str):
+        """Looks for the attribute on the Sensor.
+        If not found, looks for the attribute on the Sensor's GenericAsset.
+        """
+        if attribute in self.attributes:
+            return self.attributes[attribute]
+        elif attribute in self.generic_asset.attributes:
+            return self.generic_asset.attributes[attribute]
+
     def latest_state(
         self,
         source: Optional[
