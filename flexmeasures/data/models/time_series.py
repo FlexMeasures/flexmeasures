@@ -48,6 +48,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         name: str,
         generic_asset: Optional[GenericAsset] = None,
         generic_asset_id: Optional[int] = None,
+        attributes: Optional[dict] = None,
         **kwargs,
     ):
         assert (generic_asset is None) ^ (
@@ -59,6 +60,8 @@ class Sensor(db.Model, tb.SensorDBMixin):
             kwargs["generic_asset"] = generic_asset
         else:
             kwargs["generic_asset_id"] = generic_asset_id
+        if attributes is not None:
+            kwargs["attributes"] = attributes
         db.Model.__init__(self, **kwargs)
 
     @property

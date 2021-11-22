@@ -115,8 +115,10 @@ class Asset(db.Model, tb.SensorDBMixin):
         super(Asset, self).__init__(**kwargs)
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
-        # Also keep track of ownership.
+        # Also keep track of ownership by creating a GenericAsset and assigning the new Sensor to it.
         if "id" not in kwargs:
+
+            # Set up generic asset
             generic_assets_arg = kwargs.copy()
             if "asset_type_name" in generic_assets_arg:
                 asset_type = db.session.query(AssetType).get(
@@ -124,34 +126,27 @@ class Asset(db.Model, tb.SensorDBMixin):
                 )
             else:
                 asset_type = generic_assets_arg["asset_type"]
-            asset_type_attributes = [
-                "is_consumer",
-                "is_producer",
+            asset_type_attributes_for_generic_asset = [
                 "can_curtail",
                 "can_shift",
-                "daily_seasonality",
-                "weekly_seasonality",
-                "yearly_seasonality",
-                "weather_correlations",
             ]
-            asset_attributes = [
+            asset_attributes_for_generic_asset = [
                 "display_name",
-                "capacity_in_mw",
                 "min_soc_in_mwh",
                 "max_soc_in_mwh",
                 "soc_in_mwh",
                 "soc_datetime",
                 "soc_udi_event_id",
-                "market_id",
             ]
             generic_asset_attributes_from_asset_type = {
-                a: getattr(asset_type, a) for a in asset_type_attributes
+                a: getattr(asset_type, a)
+                for a in asset_type_attributes_for_generic_asset
             }
             generic_asset_attributes_from_asset = {
                 a: getattr(self, a)
                 if not isinstance(getattr(self, a), datetime)
                 else getattr(self, a).isoformat()
-                for a in asset_attributes
+                for a in asset_attributes_for_generic_asset
             }
             generic_assets_arg = {
                 **generic_assets_arg,
@@ -168,9 +163,45 @@ class Asset(db.Model, tb.SensorDBMixin):
                 if owner:
                     generic_assets_arg.update(account_id=owner.account_id)
             new_generic_asset = create_generic_asset("asset", **generic_assets_arg)
-            new_sensor = Sensor(
+
+            # Set up sensor
+            sensor_kwargs = dict(
                 name=kwargs["name"],
                 generic_asset=new_generic_asset,
+            )
+            asset_type_attributes_for_sensor = [
+                "is_consumer",
+                "is_producer",
+                "daily_seasonality",
+                "weekly_seasonality",
+                "yearly_seasonality",
+                "weather_correlations",
+            ]
+            asset_attributes_for_sensor = [
+                "display_name",
+                "capacity_in_mw",
+                "market_id",
+            ]
+            sensor_attributes_from_asset_type = {
+                a: getattr(asset_type, a) for a in asset_type_attributes_for_sensor
+            }
+            sensor_attributes_from_asset = {
+                a: getattr(self, a)
+                if not isinstance(getattr(self, a), datetime)
+                else getattr(self, a).isoformat()
+                for a in asset_attributes_for_sensor
+            }
+            sensor_kwargs = {
+                **sensor_kwargs,
+                **{
+                    "attributes": {
+                        **sensor_attributes_from_asset_type,
+                        **sensor_attributes_from_asset,
+                    },
+                },
+            }
+            new_sensor = Sensor(
+                **sensor_kwargs,
             )
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
