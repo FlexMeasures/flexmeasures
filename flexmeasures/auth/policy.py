@@ -56,7 +56,7 @@ def user_has_admin_access(user, permission: str) -> bool:
     return False
 
 
-def user_matches_principals(user, principals: Union[str, Tuple[str]]):
+def user_matches_principals(user, principals: Union[str, Tuple[str]]) -> bool:
     """
     Tests if the user matches all passed principals.
     Returns False if no principals are passed.
