@@ -68,6 +68,20 @@ class Sensor(db.Model, tb.SensorDBMixin):
     def entity_address(self) -> str:
         return build_entity_address(dict(sensor_id=self.id), "sensor")
 
+    @property
+    def latitude(self) -> float:
+        return self.generic_asset.latitude
+
+    @property
+    def longitude(self) -> float:
+        return self.generic_asset.longitude
+
+    @property
+    def location(self) -> Optional[Tuple[float, float]]:
+        if None not in (self.latitude, self.longitude):
+            return self.latitude, self.longitude
+        return None
+
     def get_attribute(self, attribute: str):
         """Looks for the attribute on the Sensor.
         If not found, looks for the attribute on the Sensor's GenericAsset.
