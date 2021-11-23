@@ -145,7 +145,7 @@ def invalid_sender(
     required_permissions: Optional[List[str]] = None,
 ) -> ResponseTuple:
     """
-    Signify that a sender is invalid.
+    Signify that the sender is invalid to perform the request. Fits well with 403 errors.
     Optionally tell the user which permissions they should have.
     """
     message = FORBIDDEN_MSG
