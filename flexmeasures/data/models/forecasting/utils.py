@@ -2,7 +2,7 @@ from typing import Tuple, List, Union
 from datetime import datetime, timedelta
 
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.time_utils import as_server_time
 
 
@@ -51,7 +51,7 @@ def check_data_availability(
 
 def create_lags(
     n_lags: int,
-    generic_asset: GenericAsset,
+    sensor: Sensor,
     horizon: timedelta,
     resolution: timedelta,
     use_periodicity: bool,
@@ -71,7 +71,7 @@ def create_lags(
         lags.append((L + number_of_nan_lags) * lag_period)
 
     # Include relevant measurements given the asset's periodicity
-    if use_periodicity and generic_asset.get_attribute("daily_seasonality"):
+    if use_periodicity and sensor.get_attribute("daily_seasonality"):
         lag_period = timedelta(days=1)
         number_of_nan_lags = 1 + (horizon - resolution) // lag_period
         for L in range(n_lags):

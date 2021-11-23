@@ -15,11 +15,11 @@ from flexmeasures.utils.time_utils import as_server_time
 def test_battery_solver_day_1(add_battery_assets):
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert Market.query.get(battery.generic_asset.get_attribute("market_id")) == epex_da
+    assert Market.query.get(battery.get_attribute("market_id")) == epex_da
     start = as_server_time(datetime(2015, 1, 1))
     end = as_server_time(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
-    soc_at_start = battery.generic_asset.get_attribute("soc_in_mwh")
+    soc_at_start = battery.get_attribute("soc_in_mwh")
     schedule = schedule_battery(battery, start, end, resolution, soc_at_start)
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
@@ -27,24 +27,21 @@ def test_battery_solver_day_1(add_battery_assets):
         print(soc_schedule)
 
     # Check if constraints were met
-    assert (
-        min(schedule.values)
-        >= battery.generic_asset.get_attribute("capacity_in_mw") * -1
-    )
-    assert max(schedule.values) <= battery.generic_asset.get_attribute("capacity_in_mw")
+    assert min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1
+    assert max(schedule.values) <= battery.get_attribute("capacity_in_mw")
     for soc in soc_schedule.values:
-        assert soc >= battery.generic_asset.get_attribute("min_soc_in_mwh")
-        assert soc <= battery.generic_asset.get_attribute("max_soc_in_mwh")
+        assert soc >= battery.get_attribute("min_soc_in_mwh")
+        assert soc <= battery.get_attribute("max_soc_in_mwh")
 
 
 def test_battery_solver_day_2(add_battery_assets):
     epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert Market.query.get(battery.generic_asset.get_attribute("market_id")) == epex_da
+    assert Market.query.get(battery.get_attribute("market_id")) == epex_da
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
-    soc_at_start = battery.generic_asset.get_attribute("soc_in_mwh")
+    soc_at_start = battery.get_attribute("soc_in_mwh")
     schedule = schedule_battery(battery, start, end, resolution, soc_at_start)
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
@@ -52,27 +49,20 @@ def test_battery_solver_day_2(add_battery_assets):
         print(soc_schedule)
 
     # Check if constraints were met
-    assert (
-        min(schedule.values)
-        >= battery.generic_asset.get_attribute("capacity_in_mw") * -1
-    )
-    assert max(schedule.values) <= battery.generic_asset.get_attribute("capacity_in_mw")
+    assert min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1
+    assert max(schedule.values) <= battery.get_attribute("capacity_in_mw")
     for soc in soc_schedule.values:
-        assert soc >= battery.generic_asset.get_attribute("min_soc_in_mwh")
-        assert soc <= battery.generic_asset.get_attribute("max_soc_in_mwh")
+        assert soc >= battery.get_attribute("min_soc_in_mwh")
+        assert soc <= battery.get_attribute("max_soc_in_mwh")
 
     # Check whether the resulting soc schedule follows our expectations for 8 expensive, 8 cheap and 8 expensive hours
-    assert soc_schedule.iloc[-1] == battery.generic_asset.get_attribute(
+    assert soc_schedule.iloc[-1] == battery.get_attribute(
         "min_soc_in_mwh"
     )  # Battery sold out at the end of its planning horizon
-    assert soc_schedule.loc[
-        start + timedelta(hours=8)
-    ] == battery.generic_asset.get_attribute(
+    assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
         "min_soc_in_mwh"
     )  # Sell what you begin with
-    assert soc_schedule.loc[
-        start + timedelta(hours=16)
-    ] == battery.generic_asset.get_attribute(
+    assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
         "max_soc_in_mwh"
     )  # Buy what you can to sell later
 
@@ -97,10 +87,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     charging_station = Sensor.query.filter(
         Sensor.name == charging_station_name
     ).one_or_none()
-    assert (
-        Market.query.get(charging_station.generic_asset.get_attribute("market_id"))
-        == epex_da
-    )
+    assert Market.query.get(charging_station.get_attribute("market_id")) == epex_da
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
@@ -119,11 +106,11 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     # Check if constraints were met
     assert (
         min(consumption_schedule.values)
-        >= charging_station.generic_asset.get_attribute("capacity_in_mw") * -1
+        >= charging_station.get_attribute("capacity_in_mw") * -1
     )
-    assert max(
-        consumption_schedule.values
-    ) <= charging_station.generic_asset.get_attribute("capacity_in_mw")
+    assert max(consumption_schedule.values) <= charging_station.get_attribute(
+        "capacity_in_mw"
+    )
     print(consumption_schedule.head(12))
     print(soc_schedule.head(12))
     assert abs(soc_schedule.loc[target_soc_datetime] - target_soc) < 0.00001

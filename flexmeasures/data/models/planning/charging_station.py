@@ -79,18 +79,16 @@ def schedule_charging_station(
     ) - soc_at_start * (
         timedelta(hours=1) / resolution
     )  # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-    if sensor.generic_asset.get_attribute("is_pure_consumer"):
+    if sensor.get_attribute("is_pure_consumer"):
         device_constraints[0]["derivative min"] = 0
     else:
         device_constraints[0]["derivative min"] = (
-            sensor.generic_asset.get_attribute("capacity_in_mw") * -1
+            sensor.get_attribute("capacity_in_mw") * -1
         )
-    if sensor.generic_asset.get_attribute("is_pure_producer"):
+    if sensor.get_attribute("is_pure_producer"):
         device_constraints[0]["derivative max"] = 0
     else:
-        device_constraints[0]["derivative max"] = sensor.generic_asset.get_attribute(
-            "capacity_in_mw"
-        )
+        device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
 
     # Set up EMS constraints (no additional constraints)
     columns = ["derivative max", "derivative min"]
