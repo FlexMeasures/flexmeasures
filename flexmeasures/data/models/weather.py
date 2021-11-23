@@ -118,6 +118,10 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
     def generic_asset(self) -> GenericAsset:
         return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
 
+    def get_attribute(self, attribute: str):
+        """Looks for the attribute on the corresponding Sensor."""
+        return self.corresponding_sensor.get_attribute(attribute)
+
     @property
     def weather_unit(self) -> float:
         """Return the 'unit' property of the generic asset, just with a more insightful name."""
