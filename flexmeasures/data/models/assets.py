@@ -10,6 +10,7 @@ from flexmeasures.data.models.user import User
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
+    GenericAsset,
     GenericAssetType,
 )
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -251,6 +252,10 @@ class Asset(db.Model, tb.SensorDBMixin):
     @property
     def corresponding_sensor(self) -> Sensor:
         return db.session.query(Sensor).get(self.id)
+
+    @property
+    def generic_asset(self) -> GenericAsset:
+        return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
 
     @property
     def power_unit(self) -> float:

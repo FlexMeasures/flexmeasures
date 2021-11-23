@@ -106,7 +106,7 @@ class Market(db.Model, tb.SensorDBMixin):
         return db.session.query(Sensor).get(self.id)
 
     @property
-    def corresponding_generic_asset(self) -> GenericAsset:
+    def generic_asset(self) -> GenericAsset:
         return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
 
     @property
