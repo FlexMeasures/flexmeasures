@@ -109,10 +109,10 @@ def make_schedule(
 
     if soc_at_start is None:
         if (
-            start == sensor.generic_asset.get_attribute("soc_datetime")
-            and sensor.generic_asset.get_attribute("soc_in_mwh") is not None
+            start == sensor.get_attribute("soc_datetime")
+            and sensor.get_attribute("soc_in_mwh") is not None
         ):
-            soc_at_start = sensor.generic_asset.get_attribute("soc_in_mwh")
+            soc_at_start = sensor.get_attribute("soc_in_mwh")
         else:
             soc_at_start = 0
 

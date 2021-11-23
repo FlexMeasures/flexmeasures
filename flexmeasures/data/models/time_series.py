@@ -28,6 +28,8 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
+    attributes = db.Column(db.JSON, nullable=False, default="{}")
+
     generic_asset_id = db.Column(
         db.Integer,
         db.ForeignKey("generic_asset.id", ondelete="CASCADE"),
@@ -46,6 +48,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         name: str,
         generic_asset: Optional[GenericAsset] = None,
         generic_asset_id: Optional[int] = None,
+        attributes: Optional[dict] = None,
         **kwargs,
     ):
         assert (generic_asset is None) ^ (
@@ -57,11 +60,36 @@ class Sensor(db.Model, tb.SensorDBMixin):
             kwargs["generic_asset"] = generic_asset
         else:
             kwargs["generic_asset_id"] = generic_asset_id
+        if attributes is not None:
+            kwargs["attributes"] = attributes
         db.Model.__init__(self, **kwargs)
 
     @property
     def entity_address(self) -> str:
         return build_entity_address(dict(sensor_id=self.id), "sensor")
+
+    @property
+    def latitude(self) -> float:
+        return self.generic_asset.latitude
+
+    @property
+    def longitude(self) -> float:
+        return self.generic_asset.longitude
+
+    @property
+    def location(self) -> Optional[Tuple[float, float]]:
+        if None not in (self.latitude, self.longitude):
+            return self.latitude, self.longitude
+        return None
+
+    def get_attribute(self, attribute: str):
+        """Looks for the attribute on the Sensor.
+        If not found, looks for the attribute on the Sensor's GenericAsset.
+        """
+        if attribute in self.attributes:
+            return self.attributes[attribute]
+        elif attribute in self.generic_asset.attributes:
+            return self.generic_asset.attributes[attribute]
 
     def latest_state(
         self,

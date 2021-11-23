@@ -11,6 +11,7 @@ from flexmeasures.data.models.user import User
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
+    GenericAsset,
     GenericAssetType,
 )
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -116,8 +117,10 @@ class Asset(db.Model, tb.SensorDBMixin):
         super(Asset, self).__init__(**kwargs)
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
-        # Also keep track of ownership.
+        # Also keep track of ownership by creating a GenericAsset and assigning the new Sensor to it.
         if "id" not in kwargs:
+
+            # Set up generic asset
             generic_asset_kwargs = copy_old_sensor_attributes(
                 self,
                 kwargs,
@@ -125,24 +128,16 @@ class Asset(db.Model, tb.SensorDBMixin):
                 "asset_type_name",
                 "asset_type",
                 old_sensor_type_attributes=[
-                    "is_consumer",
-                    "is_producer",
                     "can_curtail",
                     "can_shift",
-                    "daily_seasonality",
-                    "weekly_seasonality",
-                    "yearly_seasonality",
-                    "weather_correlations",
                 ],
                 old_sensor_attributes=[
                     "display_name",
-                    "capacity_in_mw",
                     "min_soc_in_mwh",
                     "max_soc_in_mwh",
                     "soc_in_mwh",
                     "soc_datetime",
                     "soc_udi_event_id",
-                    "market_id",
                 ],
             )
 
@@ -151,9 +146,45 @@ class Asset(db.Model, tb.SensorDBMixin):
                 if owner:
                     generic_asset_kwargs.update(account_id=owner.account_id)
             new_generic_asset = create_generic_asset("asset", **generic_asset_kwargs)
-            new_sensor = Sensor(
+
+            # Set up sensor
+            sensor_kwargs = dict(
                 name=kwargs["name"],
                 generic_asset=new_generic_asset,
+            )
+            asset_type_attributes_for_sensor = [
+                "is_consumer",
+                "is_producer",
+                "daily_seasonality",
+                "weekly_seasonality",
+                "yearly_seasonality",
+                "weather_correlations",
+            ]
+            asset_attributes_for_sensor = [
+                "display_name",
+                "capacity_in_mw",
+                "market_id",
+            ]
+            sensor_attributes_from_asset_type = {
+                a: getattr(asset_type, a) for a in asset_type_attributes_for_sensor
+            }
+            sensor_attributes_from_asset = {
+                a: getattr(self, a)
+                if not isinstance(getattr(self, a), datetime)
+                else getattr(self, a).isoformat()
+                for a in asset_attributes_for_sensor
+            }
+            sensor_kwargs = {
+                **sensor_kwargs,
+                **{
+                    "attributes": {
+                        **sensor_attributes_from_asset_type,
+                        **sensor_attributes_from_asset,
+                    },
+                },
+            }
+            new_sensor = Sensor(
+                **sensor_kwargs,
             )
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
@@ -203,6 +234,14 @@ class Asset(db.Model, tb.SensorDBMixin):
     @property
     def corresponding_sensor(self) -> Sensor:
         return db.session.query(Sensor).get(self.id)
+
+    @property
+    def generic_asset(self) -> GenericAsset:
+        return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
+
+    def get_attribute(self, attribute: str):
+        """Looks for the attribute on the corresponding Sensor."""
+        return self.corresponding_sensor.get_attribute(attribute)
 
     @property
     def power_unit(self) -> float:

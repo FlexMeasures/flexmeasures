@@ -70,17 +70,15 @@ def schedule_battery(
         # while the "equals" constraint defines what the total stock should be at the end of a time slot,
         # where the time slot is indexed by its starting time)
     device_constraints[0]["min"] = (
-        sensor.generic_asset.get_attribute("min_soc_in_mwh") - soc_at_start
+        sensor.get_attribute("min_soc_in_mwh") - soc_at_start
     ) * (timedelta(hours=1) / resolution)
     device_constraints[0]["max"] = (
-        sensor.generic_asset.get_attribute("max_soc_in_mwh") - soc_at_start
+        sensor.get_attribute("max_soc_in_mwh") - soc_at_start
     ) * (timedelta(hours=1) / resolution)
     device_constraints[0]["derivative min"] = (
-        sensor.generic_asset.get_attribute("capacity_in_mw") * -1
+        sensor.get_attribute("capacity_in_mw") * -1
     )
-    device_constraints[0]["derivative max"] = sensor.generic_asset.get_attribute(
-        "capacity_in_mw"
-    )
+    device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
 
     # Set up EMS constraints (no additional constraints)
     columns = ["derivative max", "derivative min"]

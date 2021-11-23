@@ -61,7 +61,7 @@ def add_tiny_price_slope(
 
 
 def get_market(sensor: Sensor) -> Market:
-    market = Market.query.get(sensor.generic_asset.get_attribute("market_id"))
+    market = Market.query.get(sensor.get_attribute("market_id"))
     if market is None:
         raise UnknownMarketException
     return market

@@ -20,10 +20,9 @@ from timetomodel.transforming import (
 import pandas as pd
 
 from flexmeasures.data.models.assets import Power
-from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import Weather
+from flexmeasures.data.models.weather import Weather, WeatherSensor
 from flexmeasures.data.models.forecasting.utils import (
     create_lags,
     set_training_and_testing_dates,
@@ -144,7 +143,7 @@ def create_initial_model_specs(  # noqa: C901
 
     lags = create_lags(
         params["n_lags"],
-        sensor.generic_asset,
+        sensor,
         forecast_horizon,
         params["resolution"],
         use_periodicity,
@@ -164,7 +163,7 @@ def create_initial_model_specs(  # noqa: C901
                     "regressor_transformation", {}
                 )
         regressor_specs = configure_regressors_for_nearest_weather_sensor(
-            sensor.generic_asset,
+            sensor,
             query_window,
             forecast_horizon,
             regressor_transformation,
@@ -223,32 +222,31 @@ def _parameterise_forecasting_by_asset_and_asset_type(
     if transform_to_normal:
         params[
             "outcome_var_transformation"
-        ] = get_normalization_transformation_from_generic_asset_attributes(
-            sensor.generic_asset
-        )
+        ] = get_normalization_transformation_from_sensor_attributes(sensor)
 
     return params
 
 
-def get_normalization_transformation_from_generic_asset_attributes(
-    generic_asset: GenericAsset,
+def get_normalization_transformation_from_sensor_attributes(
+    sensor: Union[Sensor, WeatherSensor],
 ) -> Optional[Transformation]:
     """
     Transform data to be normal, using the BoxCox transformation. Lambda parameter is chosen
     according to the asset type.
     """
     if (
-        generic_asset.get_attribute("is_consumer")
-        and not generic_asset.get_attribute("is_producer")
+        sensor.get_attribute("is_consumer") and not sensor.get_attribute("is_producer")
     ) or (
-        generic_asset.get_attribute("is_producer")
-        and not generic_asset.get_attribute("is_consumer")
+        sensor.get_attribute("is_producer") and not sensor.get_attribute("is_consumer")
     ):
         return BoxCoxTransformation(lambda2=0.1)
-    elif generic_asset.generic_asset_type.name in ["wind_speed", "radiation"]:
+    elif sensor.generic_asset.generic_asset_type.name in [
+        "wind_speed",
+        "radiation",
+    ]:
         # Values cannot be negative and are often zero
         return BoxCoxTransformation(lambda2=0.1)
-    elif generic_asset.generic_asset_type.name == "temperature":
+    elif sensor.generic_asset.generic_asset_type.name == "temperature":
         # Values can be positive or negative when given in degrees Celsius, but non-negative only in Kelvin
         return BoxCoxTransformation(lambda2=273.16)
     else:
@@ -256,7 +254,7 @@ def get_normalization_transformation_from_generic_asset_attributes(
 
 
 def configure_regressors_for_nearest_weather_sensor(
-    generic_asset: GenericAsset,
+    sensor: Sensor,
     query_window,
     horizon,
     regressor_transformation,  # the regressor transformation can be passed in
@@ -264,33 +262,30 @@ def configure_regressors_for_nearest_weather_sensor(
 ) -> List[TBSeriesSpecs]:
     """For Assets, we use weather data as regressors. Here, we configure them."""
     regressor_specs = []
-    sensor_types = generic_asset.get_attribute("weather_correlations")
+    sensor_types = sensor.get_attribute("weather_correlations")
     if sensor_types:
         current_app.logger.info(
-            "For %s, I need sensors: %s" % (generic_asset.name, sensor_types)
+            "For %s, I need sensors: %s" % (sensor.name, sensor_types)
         )
         for sensor_type in sensor_types:
 
             # Find nearest weather sensor
-            closest_sensor = find_closest_weather_sensor(
-                sensor_type, object=generic_asset
-            )
+            closest_sensor = find_closest_weather_sensor(sensor_type, object=sensor)
             if closest_sensor is None:
                 current_app.logger.warning(
                     "No sensor found of sensor type %s to use as regressor for %s."
-                    % (sensor_type, generic_asset.name)
+                    % (sensor_type, sensor.name)
                 )
             else:
                 current_app.logger.info(
-                    "Using sensor %s as regressor for %s."
-                    % (sensor_type, generic_asset.name)
+                    "Using sensor %s as regressor for %s." % (sensor_type, sensor.name)
                 )
                 # Collect the weather data for the requested time window
                 regressor_specs_name = "%s_l0" % sensor_type
                 if len(regressor_transformation.keys()) == 0 and transform_to_normal:
                     regressor_transformation = (
-                        get_normalization_transformation_from_generic_asset_attributes(
-                            closest_sensor.corresponding_generic_asset,
+                        get_normalization_transformation_from_sensor_attributes(
+                            closest_sensor,
                         )
                     )
                 regressor_specs.append(
