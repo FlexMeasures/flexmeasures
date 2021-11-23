@@ -8,7 +8,10 @@ from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.migration_utils import copy_old_sensor_attributes
+from flexmeasures.data.models.migration_utils import (
+    copy_old_sensor_attributes,
+    get_old_model_type,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
@@ -77,21 +80,29 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
         if "id" not in kwargs:
-            generic_asset_kwargs = copy_old_sensor_attributes(
-                self,
+
+            weather_sensor_type = get_old_model_type(
                 kwargs,
                 WeatherSensorType,
                 "weather_sensor_type_name",
                 "sensor_type",  # NB not "weather_sensor_type" (slight inconsistency in this old sensor class)
-                old_sensor_type_attributes=[
-                    "daily_seasonality",
-                    "weekly_seasonality",
-                    "yearly_seasonality",
-                ],
-                old_sensor_attributes=[
-                    "display_name",
-                ],
             )
+
+            generic_asset_kwargs = {
+                **kwargs,
+                **copy_old_sensor_attributes(
+                    self,
+                    old_sensor_type_attributes=[
+                        "daily_seasonality",
+                        "weekly_seasonality",
+                        "yearly_seasonality",
+                    ],
+                    old_sensor_attributes=[
+                        "display_name",
+                    ],
+                    old_sensor_type=weather_sensor_type,
+                ),
+            }
             new_generic_asset = create_generic_asset(
                 "weather_sensor", **generic_asset_kwargs
             )

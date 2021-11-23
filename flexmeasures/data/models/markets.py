@@ -10,7 +10,10 @@ from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     GenericAssetType,
 )
-from flexmeasures.data.models.migration_utils import copy_old_sensor_attributes
+from flexmeasures.data.models.migration_utils import (
+    copy_old_sensor_attributes,
+    get_old_model_type,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
@@ -75,21 +78,26 @@ class Market(db.Model, tb.SensorDBMixin):
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
         if "id" not in kwargs:
-            generic_asset_kwargs = copy_old_sensor_attributes(
-                self,
-                kwargs,
-                MarketType,
-                "market_type_name",
-                "market_type",
-                old_sensor_type_attributes=[
-                    "daily_seasonality",
-                    "weekly_seasonality",
-                    "yearly_seasonality",
-                ],
-                old_sensor_attributes=[
-                    "display_name",
-                ],
+
+            market_type = get_old_model_type(
+                kwargs, MarketType, "market_type_name", "market_type"
             )
+
+            generic_asset_kwargs = {
+                **kwargs,
+                **copy_old_sensor_attributes(
+                    self,
+                    old_sensor_type_attributes=[
+                        "daily_seasonality",
+                        "weekly_seasonality",
+                        "yearly_seasonality",
+                    ],
+                    old_sensor_attributes=[
+                        "display_name",
+                    ],
+                    old_sensor_type=market_type,
+                ),
+            }
             new_generic_asset = create_generic_asset("market", **generic_asset_kwargs)
             new_sensor = Sensor(name=kwargs["name"], generic_asset=new_generic_asset)
             db.session.add(new_sensor)
