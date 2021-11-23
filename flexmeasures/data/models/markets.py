@@ -87,6 +87,19 @@ class Market(db.Model, tb.SensorDBMixin):
                 **kwargs,
                 **copy_old_sensor_attributes(
                     self,
+                    old_sensor_type_attributes=[],
+                    old_sensor_attributes=[
+                        "display_name",
+                    ],
+                    old_sensor_type=market_type,
+                ),
+            }
+            new_generic_asset = create_generic_asset("market", **generic_asset_kwargs)
+            new_sensor = Sensor(
+                name=kwargs["name"],
+                generic_asset=new_generic_asset,
+                **copy_old_sensor_attributes(
+                    self,
                     old_sensor_type_attributes=[
                         "daily_seasonality",
                         "weekly_seasonality",
@@ -97,9 +110,7 @@ class Market(db.Model, tb.SensorDBMixin):
                     ],
                     old_sensor_type=market_type,
                 ),
-            }
-            new_generic_asset = create_generic_asset("market", **generic_asset_kwargs)
-            new_sensor = Sensor(name=kwargs["name"], generic_asset=new_generic_asset)
+            )
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
             new_sensor_id = new_sensor.id
