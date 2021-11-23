@@ -6,36 +6,36 @@ from flexmeasures.data import db
 
 def copy_old_sensor_attributes(
     old_sensor,
-    kwargs,
+    new_model_kwargs,
     old_sensor_type_class: "Type[Union[AssetType, MarketType, WeatherSensorType]]",  # noqa F821
     old_sensor_type_name_key: str,
     old_sensor_type_key: str,
     old_sensor_type_attributes: List[str],
     old_sensor_attributes: List[str],
+    old_sensor_type: "Union[AssetType, MarketType, WeatherSensorType]" = None,  # noqa F821
 ) -> dict:
-    generic_asset_kwargs = kwargs.copy()
-    if old_sensor_type_name_key in generic_asset_kwargs:
+    if old_sensor_type is None and old_sensor_type_name_key in new_model_kwargs:
         old_sensor_type = db.session.query(old_sensor_type_class).get(
-            generic_asset_kwargs[old_sensor_type_name_key]
+            new_model_kwargs[old_sensor_type_name_key]
         )
-    else:
-        old_sensor_type = generic_asset_kwargs[old_sensor_type_key]
-    generic_asset_attributes_from_old_sensor_type = {
+    elif old_sensor_type is None:
+        old_sensor_type = new_model_kwargs[old_sensor_type_key]
+    new_model_attributes_from_old_sensor_type = {
         a: getattr(old_sensor_type, a) for a in old_sensor_type_attributes
     }
-    generic_asset_attributes_from_old_sensor = {
+    new_model_attributes_from_old_sensor = {
         a: getattr(old_sensor, a)
         if not isinstance(getattr(old_sensor, a), datetime)
         else getattr(old_sensor, a).isoformat()
         for a in old_sensor_attributes
     }
-    generic_asset_kwargs = {
-        **generic_asset_kwargs,
+    new_model_kwargs = {
+        **new_model_kwargs,
         **{
             "attributes": {
-                **generic_asset_attributes_from_old_sensor_type,
-                **generic_asset_attributes_from_old_sensor,
+                **new_model_attributes_from_old_sensor_type,
+                **new_model_attributes_from_old_sensor,
             },
         },
     }
-    return generic_asset_kwargs
+    return new_model_kwargs
