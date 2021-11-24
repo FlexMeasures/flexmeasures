@@ -139,9 +139,14 @@ def upgrade():
     # Use SQLAlchemy's connection and transaction to go through the data
     connection = op.get_bind()
 
-    # Set default sensor attributes
+    # Set default attributes
     connection.execute(
         t_sensor.update().values(
+            attributes=json.dumps({}),
+        )
+    )
+    connection.execute(
+        t_generic_asset.update().values(
             attributes=json.dumps({}),
         )
     )
