@@ -4,7 +4,6 @@ from flask_login import user_logged_in
 from werkzeug.exceptions import Forbidden, Unauthorized
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.user import User, Role, remember_login
 
 
 """
@@ -22,6 +21,7 @@ def register_at(app: Flask):
         unauthorized_handler,
         unauthorized_handler_e,
     )  # noqa: F401
+    from flexmeasures.data.models.user import User, Role, remember_login  # noqa: F401
 
     # Setup Flask-Security-Too for user authentication & authorization
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)

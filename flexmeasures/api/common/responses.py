@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple, Union, Sequence
+from typing import List, Optional, Tuple, Union, Sequence
 import inflect
 from functools import wraps
 
@@ -142,20 +142,15 @@ def invalid_role(requested_access_role: str) -> ResponseTuple:
 
 
 def invalid_sender(
-    calling_function: Optional[Callable] = None,
-    allowed_role_names: Optional[List[str]] = None,
+    required_permissions: Optional[List[str]] = None,
 ) -> ResponseTuple:
     """
-    Signify that a sender is invalid.
-    We use this as a stand-in for flask-security auth handlers,
-    thus the arguments fit it.
-    - calling_function is usually an auth decorator like roles_required.
-    - allowed_role_names can be used if the security check involved roles.
+    Signify that the sender is invalid to perform the request. Fits well with 403 errors.
+    Optionally tell the user which permissions they should have.
     """
     message = FORBIDDEN_MSG
-    if allowed_role_names:
-        allowed_role_names = [pluralize(role_name) for role_name in allowed_role_names]
-        message += f" It is reserved for {p.join(allowed_role_names)}."
+    if required_permissions:
+        message += f" It requires {p.join(required_permissions)} permission(s)."
     return (
         dict(result="Rejected", status="INVALID_SENDER", message=message),
         FORBIDDEN_STATUS_CODE,
