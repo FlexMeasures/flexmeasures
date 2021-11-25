@@ -66,7 +66,7 @@ class SensorDataDescriptionSchema(ma.Schema):
     start = AwareDateTimeField(required=True, format="iso")
     duration = DurationField(required=True)
     horizon = DurationField(
-        required=False, missing=timedelta(hours=0), default=timedelta(hours=0)
+        required=False, load_default=timedelta(hours=0), dump_default=timedelta(hours=0)
     )
     unit = fields.Str(required=True)
 

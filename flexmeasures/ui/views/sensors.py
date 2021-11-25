@@ -3,7 +3,7 @@ import json
 from altair.utils.html import spec_to_html
 from flask import current_app
 from flask_classful import FlaskView, route
-from flask_security import login_required
+from flask_security import auth_required, login_required
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 
@@ -22,7 +22,7 @@ class SensorUI(FlaskView):
 
     route_base = "/sensors"
 
-    @login_required
+    @auth_required()
     @route("/<id>/chart/")
     @use_kwargs(
         {

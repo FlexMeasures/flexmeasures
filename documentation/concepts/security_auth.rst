@@ -15,7 +15,7 @@ There are two types of data on FlexMeasures servers - files (e.g. source code, i
 * Finally, The application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security. This is used even if the application is accessed via ``http://``.
 
 
-.. _auth:
+.. _authentication:
 
 Authentication 
 ----------------
@@ -30,19 +30,24 @@ This involves a username/password combination ("credentials") or an access token
 .. note:: Authentication (and authorization, see below) affects the FlexMeasures API and UI. The CLI (command line interface) can only be used if the user is already on the server and can execute ``flexmeasures`` commands, thus we can safely assume they are admins.
 
 
+.. _authorization:
+
 Authorization
 --------------
 
-*Authorization* is the system by which the FlexMeasures platform decides whether an authenticated user can access a feature. For instance, many features are reserved for administrators, others for users belonging to certain accounts. An example for the latter is that a user might need to belong to an account with the "Prosumer" account role (usually the owner of assets).
+*Authorization* is the system by which the FlexMeasures platform decides whether an authenticated user can access data. Data about users and assets. Or metering data, forecasts and schedules.
+
+For instance, a user is authorized to update his or her personal data, like the surname. Other users should not be authorized to do that. We can also authorize users to do something because they belong to a certain account. An example for this is to read the meter data of the account's assets. Any regular user should *only* be able to read data that their account should be able to see.
 
 .. note:: Each user belongs to exactly one account.
 
-.. todo:: Data which belongs to a specific account should only be viewable by users within that account (and platform admins). We want to anchor this crucial security measure on a deep level, `see this ticket <https://github.com/SeitaBV/flexmeasures/issues/201>`_.
+In a nutshell, the way FlexMeasures implements authorization works as follows: The data models codify under which conditions a user can have certain permissions to work with their data. Permissions allow distinct ways of access like reading, writing or deleting. The API endpoints are where we know what needs to happen to what data, so there we make sure that the user has the necessary permissions.
 
-All other authorization is achieved via *roles*. 
+We already discussed certain conditions under which a user has access to data ― being a certain user or belonging to a specific account. Furthermore, authorization conditions can also be implemented via *roles*: 
 
-* Account roles are most commonly used for deciding who can access a resource (usually guarded by an API endpoint). We support several roles which are mentioned in the USEF framework but more roles are possible (e.g. defined by customer services, see below). 
-* User roles give a user personal authorizations. For instance, we have a few `admin`\ s who can perform all actions, and `admin-reader`\ s who can read everything. Other roles have only an effect within the user's account.
+* ``Account roles`` are often used for authorization. We support several roles which are mentioned in the USEF framework but more roles are possible (e.g. defined by custom-made services, see below). For example, a user might be authorized to write sensor data if they belong to an account with the "MDC" account role ("MDC" being short for meter data company).
+* ``User roles`` give a user personal authorizations. For instance, we have a few `admin`\ s who can perform all actions, and `admin-reader`\ s who can read everything. Other roles have only an effect within the user's account, e.g. there could be an "HR" role which allows to edit user data like surnames within the account.
 * Roles cannot be edited via the UI at the moment. They are decided when a user or account is created in the CLI (for adding roles later, we use the database for now). Editing roles in UI and CLI is future work.
 
-.. note:: Custom energy flexibility services developed on top of FlexMeasures can use account roles to achieve their custom authorization. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role, to make sure that only users of such accounts can use the endpoints. More on this in :ref:`auth-dev`.
+
+.. note:: Custom energy flexibility services developed on top of FlexMeasures also need to implement authorization. More on this in :ref:`auth-dev`. Here is an example for a custom authorization concept: services can use account roles to achieve their custom authorization. E.g. if several services run on one FlexMeasures server, each service could define a "MyService-subscriber" account role, to make sure that only users of such accounts can use the endpoints.

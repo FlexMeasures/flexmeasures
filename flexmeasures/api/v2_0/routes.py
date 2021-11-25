@@ -102,7 +102,7 @@ def get_assets():
     This endpoint returns all accessible assets for a given owner.
     The `owner_id` query parameter can be used to set an owner.
     If no owner is set, all accessible assets are returned.
-    A non-admin user can only access its own assets.
+    A non-admin user can only access their own assets.
 
     **Example response**
 
@@ -348,7 +348,6 @@ def delete_asset(id: int):
 
 
 @flexmeasures_api_v2_0.route("/users", methods=["GET"])
-@auth_token_required
 def get_users():
     """API endpoint to get users.
 
@@ -358,7 +357,8 @@ def get_users():
     By default, only active users are returned.
     The `include_inactive` query parameter can be used to also fetch
     inactive users.
-    Only admins can use this endpoint.
+    Accessible users are users in the same account as the current user.
+    Only admins can use this endpoint to fetch users from a different account (by using the `account_id` query parameter).
 
     **Example response**
 
@@ -370,6 +370,7 @@ def get_users():
             {
                 'active': True,
                 'email': 'test_prosumer@seita.nl',
+                'account_id': 13,
                 'flexmeasures_roles': [1, 3],
                 'id': 1,
                 'timezone': 'Europe/Amsterdam',
@@ -389,8 +390,6 @@ def get_users():
 
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["GET"])
-@auth_token_required
-# @account_roles_accepted(*check_access(v2_0_service_listing, "GET /user/<id>"))
 def get_user(id: int):
     """API endpoint to get a user.
 
@@ -425,8 +424,6 @@ def get_user(id: int):
 
 
 @flexmeasures_api_v2_0.route("/user/<id>", methods=["PATCH"])
-@auth_token_required
-# @account_roles_accepted(*list_access(v2_0_service_listing, "PATCH /user/<id>"))
 def patch_user(id: int):
     """API endpoint to patch user data.
 
@@ -476,8 +473,6 @@ def patch_user(id: int):
 
 
 @flexmeasures_api_v2_0.route("/user/<id>/password-reset", methods=["PATCH"])
-@auth_token_required
-# @account_roles_accepted(*check_access(v2_0_service_listing, "PATCH /user/<id>password-reset"))
 def reset_user_password(id: int):
     """API endpoint to reset the user password. They'll get an email to choose a new password.
 

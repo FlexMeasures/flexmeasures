@@ -59,7 +59,7 @@ def unauthorized_handler(
     """
     if request.is_json or request.content_type is None:
         if hasattr(current_app, "unauthorized_handler_api"):
-            return current_app.unauthorized_handler_api(func, params)
+            return current_app.unauthorized_handler_api(params)
         response = jsonify(dict(message=FORBIDDEN_MSG, status=FORBIDDEN_ERROR_STATUS))
         response.status_code = FORBIDDEN_STATUS_CODE
         return response
