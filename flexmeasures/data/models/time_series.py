@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Union, Tuple
+from typing import Any, List, Dict, Optional, Union, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
 
@@ -82,14 +82,16 @@ class Sensor(db.Model, tb.SensorDBMixin):
             return self.latitude, self.longitude
         return None
 
-    def get_attribute(self, attribute: str):
+    def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute on the Sensor.
         If not found, looks for the attribute on the Sensor's GenericAsset.
+        If not found, returns the default.
         """
         if attribute in self.attributes:
             return self.attributes[attribute]
         elif attribute in self.generic_asset.attributes:
             return self.generic_asset.attributes[attribute]
+        return default
 
     def has_attribute(self, attribute: str) -> bool:
         return attribute in self.attributes
