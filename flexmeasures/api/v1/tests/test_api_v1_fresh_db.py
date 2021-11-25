@@ -73,7 +73,7 @@ def test_post_and_get_meter_data(
     for asset_name in ("CS 1", "CS 2", "CS 3"):
         if asset_name in str(post_message):
             asset = Asset.query.filter_by(name=asset_name).one_or_none()
-            assert asset.id in [job.kwargs["asset_id"] for job in jobs]
+            assert asset.id in [job.kwargs["old_sensor_id"] for job in jobs]
 
     # get meter data
     get_meter_data_response = client.get(

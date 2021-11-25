@@ -34,7 +34,10 @@ from flexmeasures.api.common.utils.validators import (
 from flexmeasures.data.config import db
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.planning.battery import schedule_battery
-from flexmeasures.data.models.planning.exceptions import UnknownPricesException
+from flexmeasures.data.models.planning.exceptions import (
+    UnknownMarketException,
+    UnknownPricesException,
+)
 from flexmeasures.data.services.resources import has_assets, can_access_asset
 
 
@@ -87,16 +90,10 @@ def get_device_message_response(generic_asset_name_groups, duration):
             start = asset.soc_datetime
             resolution = asset.event_resolution
 
-            # Look for the Market object
-            market = asset.market
-            if market is None:
-                return invalid_market()
-
             # Schedule the asset
             try:
                 schedule = schedule_battery(
-                    asset,
-                    market,
+                    asset.corresponding_sensor,
                     start,
                     start + planning_horizon,
                     resolution,
@@ -105,6 +102,8 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 )
             except UnknownPricesException:
                 return unknown_prices()
+            except UnknownMarketException:
+                return invalid_market()
             else:
                 # Update the planning window
                 start = schedule.index[0]

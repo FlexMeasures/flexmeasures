@@ -3,8 +3,9 @@ from datetime import timedelta, datetime
 import numpy as np
 import pandas as pd
 
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.utils.time_utils import as_server_time
@@ -23,8 +24,8 @@ def test_scheduling_a_charging_station(
     target_soc = 5
     duration_until_target = timedelta(hours=2)
 
-    charging_station = Asset.query.filter(
-        Asset.name == "Test charging station"
+    charging_station = Sensor.query.filter(
+        Sensor.name == "Test charging station"
     ).one_or_none()
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))

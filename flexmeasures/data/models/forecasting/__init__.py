@@ -42,7 +42,7 @@ def lookup_model_specs_configurator(
 
     Model meta data in this context means a tuple of:
         * timetomodel.ModelSpecs. To fill in those specs, a configurator should accept:
-          - generic_asset: Union[Asset, Market, WeatherSensor],
+          - old_sensor: Union[Asset, Market, WeatherSensor],
           - start: datetime,  # Start of forecast period
           - end: datetime,  # End of forecast period
           - horizon: timedelta,  # Duration between time of forecasting and time which is forecast

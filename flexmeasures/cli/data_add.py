@@ -619,7 +619,7 @@ def create_forecasts(
             # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
             # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
             create_forecasting_jobs(
-                asset_id=asset_id,
+                old_sensor_id=asset_id,
                 timed_value_type=value_type,
                 horizons=[horizon],
                 start_of_roll=forecast_start - horizon,
@@ -634,8 +634,8 @@ def create_forecasts(
             forecast_start=forecast_start,
             forecast_end=forecast_end,
             event_resolution=event_resolution,
-            generic_asset_type=asset_type,
-            generic_asset_id=asset_id,
+            old_sensor_class_name=asset_type,
+            old_sensor_id=asset_id,
         )
 
 
