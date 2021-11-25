@@ -11,6 +11,7 @@ from flexmeasures.data.config import db
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
+    GenericAsset,
     GenericAssetType,
 )
 from flexmeasures.utils.geo_utils import parse_lat_lng
@@ -108,6 +109,23 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
             dict(sensor_id=self.id),
             "sensor",
         )
+
+    @property
+    def corresponding_sensor(self) -> Sensor:
+        return db.session.query(Sensor).get(self.id)
+
+    @property
+    def generic_asset(self) -> GenericAsset:
+        return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
+
+    def get_attribute(self, attribute: str):
+        """Looks for the attribute on the corresponding Sensor.
+
+        This should be used by all code to read these attributes,
+        over accessing them directly on this class,
+        as this table is in the process to be replaced by the Sensor table.
+        """
+        return self.corresponding_sensor.get_attribute(attribute)
 
     @property
     def weather_unit(self) -> float:
@@ -213,7 +231,7 @@ class Weather(TimedValue, db.Model):
     @classmethod
     def make_query(cls, **kwargs) -> Query:
         """Construct the database query."""
-        return super().make_query(asset_class=WeatherSensor, **kwargs)
+        return super().make_query(old_sensor_class=WeatherSensor, **kwargs)
 
     def __init__(self, **kwargs):
         super(Weather, self).__init__(**kwargs)

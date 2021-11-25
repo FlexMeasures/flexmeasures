@@ -28,6 +28,8 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
+    attributes = db.Column(db.JSON, nullable=False, default="{}")
+
     generic_asset_id = db.Column(
         db.Integer,
         db.ForeignKey("generic_asset.id", ondelete="CASCADE"),
@@ -46,6 +48,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
         name: str,
         generic_asset: Optional[GenericAsset] = None,
         generic_asset_id: Optional[int] = None,
+        attributes: Optional[dict] = None,
         **kwargs,
     ):
         assert (generic_asset is None) ^ (
@@ -57,11 +60,36 @@ class Sensor(db.Model, tb.SensorDBMixin):
             kwargs["generic_asset"] = generic_asset
         else:
             kwargs["generic_asset_id"] = generic_asset_id
+        if attributes is not None:
+            kwargs["attributes"] = attributes
         db.Model.__init__(self, **kwargs)
 
     @property
     def entity_address(self) -> str:
         return build_entity_address(dict(sensor_id=self.id), "sensor")
+
+    @property
+    def latitude(self) -> float:
+        return self.generic_asset.latitude
+
+    @property
+    def longitude(self) -> float:
+        return self.generic_asset.longitude
+
+    @property
+    def location(self) -> Optional[Tuple[float, float]]:
+        if None not in (self.latitude, self.longitude):
+            return self.latitude, self.longitude
+        return None
+
+    def get_attribute(self, attribute: str):
+        """Looks for the attribute on the Sensor.
+        If not found, looks for the attribute on the Sensor's GenericAsset.
+        """
+        if attribute in self.attributes:
+            return self.attributes[attribute]
+        elif attribute in self.generic_asset.attributes:
+            return self.generic_asset.attributes[attribute]
 
     def latest_state(
         self,
@@ -383,8 +411,8 @@ class TimedValue(object):
     @classmethod
     def make_query(
         cls,
-        asset_class: db.Model,
-        asset_names: Tuple[str],
+        old_sensor_class: db.Model,
+        old_sensor_names: Tuple[str],
         query_window: Tuple[Optional[datetime_type], Optional[datetime_type]],
         belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
             None,
@@ -421,9 +449,11 @@ class TimedValue(object):
         if session is None:
             session = db.session
         start, end = query_window
-        query = create_beliefs_query(cls, session, asset_class, asset_names, start, end)
+        query = create_beliefs_query(
+            cls, session, old_sensor_class, old_sensor_names, start, end
+        )
         query = add_belief_timing_filter(
-            cls, query, asset_class, belief_horizon_window, belief_time_window
+            cls, query, old_sensor_class, belief_horizon_window, belief_time_window
         )
         if user_source_ids:
             query = add_user_source_filter(cls, query, user_source_ids)
@@ -440,7 +470,7 @@ class TimedValue(object):
     @classmethod
     def collect(
         cls,
-        generic_asset_names: Union[str, List[str]],
+        old_sensor_names: Union[str, List[str]],
         query_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
             None,
             None,
@@ -465,7 +495,7 @@ class TimedValue(object):
         where time series data collection is implemented.
         """
         return collect_time_series_data(
-            generic_asset_names=generic_asset_names,
+            old_sensor_names=old_sensor_names,
             make_query=cls.make_query,
             query_window=query_window,
             belief_horizon_window=belief_horizon_window,

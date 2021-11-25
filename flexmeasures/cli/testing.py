@@ -16,6 +16,7 @@ from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
+from flexmeasures.data.models.utils import determine_old_time_series_class_by_old_sensor
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.forecasting import (
     create_forecasting_jobs,
@@ -52,7 +53,7 @@ def test_making_forecasts():
     click.echo("Forecasts found before : %d" % forecast_filter.count())
 
     create_forecasting_jobs(
-        asset_id=asset_id,
+        old_sensor_id=asset_id,
         timed_value_type="Power",
         horizons=[timedelta(hours=6)],
         start_of_roll=as_server_time(datetime(2015, 4, 1)),
@@ -79,7 +80,7 @@ def test_making_forecasts():
 # un-comment to use as CLI function
 # @app.cli.command()
 @click.option("--asset-type", help="Asset type name.")
-@click.option("--asset", help="Asset name.")
+@click.option("--asset", "asset_name", help="Asset name.")
 @click.option(
     "--from_date",
     default="2015-03-10",
@@ -92,7 +93,7 @@ def test_making_forecasts():
 )
 def test_generic_model(
     asset_type: str,
-    asset: Optional[str] = None,
+    asset_name: Optional[str] = None,
     from_date: str = "2015-03-10",
     period: int = 3,
     horizon_hours: int = 1,
@@ -101,10 +102,8 @@ def test_generic_model(
     """Manually test integration of timetomodel for our generic model."""
 
     asset_type_name = asset_type
-    if asset is None:
+    if asset_name is None:
         asset_name = Asset.query.filter_by(asset_type_name=asset_type_name).first().name
-    else:
-        asset_name = asset
     start = as_server_time(datetime.strptime(from_date, "%Y-%m-%d"))
     end = start + timedelta(days=period)
     training_and_testing_period = timedelta(days=training)
@@ -127,11 +126,11 @@ def test_generic_model(
             .first()
         )
         if asset:
-            generic_asset = asset
+            old_sensor = asset
         elif market:
-            generic_asset = market
+            old_sensor = market
         elif sensor:
-            generic_asset = sensor
+            old_sensor = sensor
         else:
             click.echo("No such assets in db, so I will not add any forecasts.")
             return
@@ -142,7 +141,8 @@ def test_generic_model(
             model_identifier,
             fallback_model_identifier,
         ) = linear_model_configurator(
-            generic_asset=generic_asset,
+            sensor=old_sensor.corresponding_sensor,
+            time_series_class=determine_old_time_series_class_by_old_sensor(old_sensor),
             forecast_start=start,
             forecast_end=end,
             forecast_horizon=horizon,

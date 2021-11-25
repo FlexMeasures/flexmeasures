@@ -33,7 +33,7 @@ QueryCallType = Callable[
 
 
 def collect_time_series_data(
-    generic_asset_names: Union[str, List[str]],
+    old_sensor_names: Union[str, List[str]],
     make_query: QueryCallType,
     query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
     belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
@@ -48,12 +48,12 @@ def collect_time_series_data(
     resolution: Union[str, timedelta] = None,
     sum_multiple: bool = True,
 ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
-    """Get time series data from one or more generic assets and rescale and re-package it to order.
+    """Get time series data from one or more old sensor models and rescale and re-package it to order.
 
     We can (lazily) look up by pickle, or load from the database.
     In the latter case, we are relying on time series data (power measurements and prices at this point) to
     have the same relevant column names (datetime, value).
-    We require a list of assets or market names to find the generic asset.
+    We require an old sensor model name of list thereof.
     If the time range parameters are None, they will be gotten from the session.
     Response is a 2D BeliefsDataFrame with the column event_value.
     If data from multiple assets is retrieved, the results are being summed.
@@ -64,13 +64,13 @@ def collect_time_series_data(
     """
 
     # convert to tuple to support caching the query
-    if isinstance(generic_asset_names, str):
-        generic_asset_names = (generic_asset_names,)
-    elif isinstance(generic_asset_names, list):
-        generic_asset_names = tuple(generic_asset_names)
+    if isinstance(old_sensor_names, str):
+        old_sensor_names = (old_sensor_names,)
+    elif isinstance(old_sensor_names, list):
+        old_sensor_names = tuple(old_sensor_names)
 
     bdf_dict = query_time_series_data(
-        generic_asset_names,
+        old_sensor_names,
         make_query,
         query_window,
         belief_horizon_window,
@@ -89,7 +89,7 @@ def collect_time_series_data(
 
 
 def query_time_series_data(
-    generic_asset_names: Tuple[str],
+    old_sensor_names: Tuple[str],
     make_query: QueryCallType,
     query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
     belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
@@ -121,7 +121,7 @@ def query_time_series_data(
         query_window = convert_query_window_for_demo(query_window)
 
     query = make_query(
-        asset_names=generic_asset_names,
+        old_sensor_names=old_sensor_names,
         query_window=query_window,
         belief_horizon_window=belief_horizon_window,
         belief_time_window=belief_time_window,
@@ -135,10 +135,10 @@ def query_time_series_data(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
     )
     bdf_dict: Dict[str, tb.BeliefsDataFrame] = {}
-    for generic_asset_name in generic_asset_names:
+    for old_sensor_model_name in old_sensor_names:
 
         # Select data for the given asset
-        df = df_all_assets[df_all_assets["name"] == generic_asset_name].loc[
+        df = df_all_assets[df_all_assets["name"] == old_sensor_model_name].loc[
             :, df_all_assets.columns != "name"
         ]
 
@@ -182,7 +182,7 @@ def query_time_series_data(
         if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
             df.index = df.index.map(lambda t: t.replace(year=datetime.now().year))
 
-        sensor = find_sensor_by_name(name=generic_asset_name)
+        sensor = find_sensor_by_name(name=old_sensor_model_name)
         bdf = tb.BeliefsDataFrame(df.reset_index(), sensor=sensor)
 
         # re-sample data to the resolution we need to serve
@@ -205,7 +205,7 @@ def query_time_series_data(
         if query_window[1] is not None:
             bdf = bdf[bdf.index.get_level_values("event_start") < query_window[1]]
 
-        bdf_dict[generic_asset_name] = bdf
+        bdf_dict[old_sensor_model_name] = bdf
 
     return bdf_dict
 
