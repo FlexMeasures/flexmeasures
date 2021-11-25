@@ -10,6 +10,7 @@ import timely_beliefs as tb
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.exceptions import (
+    MissingAttributeException,
     UnknownMarketException,
     UnknownPricesException,
 )
@@ -109,3 +110,15 @@ def get_prices(
                 "Prices partially unknown for planning window."
             )
     return price_df, query_window
+
+
+def check_required_attributes(sensor: Sensor, attributes: List[str]):
+    """Raises if any attribute in the list attributes is missing on the Sensor."""
+    missing_attributes = []
+    for attribute in attributes:
+        if not sensor.has_attribute(attribute):
+            missing_attributes.append(attribute)
+    if missing_attributes:
+        raise MissingAttributeException(
+            f"Sensor is missing required attributes: {', '.join(missing_attributes)}"
+        )

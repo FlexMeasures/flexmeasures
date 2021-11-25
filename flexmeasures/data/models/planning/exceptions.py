@@ -1,3 +1,7 @@
+class MissingAttributeException(Exception):
+    pass
+
+
 class UnknownMarketException(Exception):
     pass
 
