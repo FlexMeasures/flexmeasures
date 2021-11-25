@@ -79,13 +79,13 @@ def schedule_charging_station(
     ) - soc_at_start * (
         timedelta(hours=1) / resolution
     )  # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-    if sensor.get_attribute("is_pure_consumer"):
+    if sensor.get_attribute("is_pure_consumer", False):
         device_constraints[0]["derivative min"] = 0
     else:
         device_constraints[0]["derivative min"] = (
             sensor.get_attribute("capacity_in_mw") * -1
         )
-    if sensor.get_attribute("is_pure_producer"):
+    if sensor.get_attribute("is_pure_producer", False):
         device_constraints[0]["derivative max"] = 0
     else:
         device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
