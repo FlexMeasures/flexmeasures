@@ -91,6 +91,13 @@ class Sensor(db.Model, tb.SensorDBMixin):
         elif attribute in self.generic_asset.attributes:
             return self.generic_asset.attributes[attribute]
 
+    def has_attribute(self, attribute: str) -> bool:
+        return attribute in self.attributes
+
+    def set_attribute(self, attribute: str, value):
+        if self.has_attribute(attribute):
+            self.attributes[attribute] = value
+
     def latest_state(
         self,
         source: Optional[
