@@ -8,9 +8,14 @@ from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data.config import db
+from flexmeasures.data.models.migration_utils import (
+    copy_old_sensor_attributes,
+    get_old_model_type,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
+    GenericAsset,
     GenericAssetType,
 )
 from flexmeasures.utils.geo_utils import parse_lat_lng
@@ -75,8 +80,44 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
         if "id" not in kwargs:
-            new_generic_asset = create_generic_asset("weather_sensor", **kwargs)
-            new_sensor = Sensor(name=kwargs["name"], generic_asset=new_generic_asset)
+
+            weather_sensor_type = get_old_model_type(
+                kwargs,
+                WeatherSensorType,
+                "weather_sensor_type_name",
+                "sensor_type",  # NB not "weather_sensor_type" (slight inconsistency in this old sensor class)
+            )
+
+            generic_asset_kwargs = {
+                **kwargs,
+                **copy_old_sensor_attributes(
+                    self,
+                    old_sensor_type_attributes=[],
+                    old_sensor_attributes=[
+                        "display_name",
+                    ],
+                    old_sensor_type=weather_sensor_type,
+                ),
+            }
+            new_generic_asset = create_generic_asset(
+                "weather_sensor", **generic_asset_kwargs
+            )
+            new_sensor = Sensor(
+                name=kwargs["name"],
+                generic_asset=new_generic_asset,
+                **copy_old_sensor_attributes(
+                    self,
+                    old_sensor_type_attributes=[
+                        "daily_seasonality",
+                        "weekly_seasonality",
+                        "yearly_seasonality",
+                    ],
+                    old_sensor_attributes=[
+                        "display_name",
+                    ],
+                    old_sensor_type=weather_sensor_type,
+                ),
+            )
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
             new_sensor_id = new_sensor.id
@@ -87,6 +128,15 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
         super(WeatherSensor, self).__init__(**kwargs)
         self.id = new_sensor_id
         self.name = self.name.replace(" ", "_").lower()
+
+        # Copy over additional columns from (newly created) WeatherSensor to (newly created) Sensor
+        if "id" not in kwargs:
+            db.session.add(self)
+            db.session.flush()  # make sure to generate each column for the old sensor
+            new_sensor.unit = self.unit
+            new_sensor.event_resolution = self.event_resolution
+            new_sensor.knowledge_horizon_fnc = self.knowledge_horizon_fnc
+            new_sensor.knowledge_horizon_par = self.knowledge_horizon_par
 
     @property
     def entity_address_fm0(self) -> str:
@@ -108,6 +158,23 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
             dict(sensor_id=self.id),
             "sensor",
         )
+
+    @property
+    def corresponding_sensor(self) -> Sensor:
+        return db.session.query(Sensor).get(self.id)
+
+    @property
+    def generic_asset(self) -> GenericAsset:
+        return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
+
+    def get_attribute(self, attribute: str):
+        """Looks for the attribute on the corresponding Sensor.
+
+        This should be used by all code to read these attributes,
+        over accessing them directly on this class,
+        as this table is in the process to be replaced by the Sensor table.
+        """
+        return self.corresponding_sensor.get_attribute(attribute)
 
     @property
     def weather_unit(self) -> float:
@@ -213,7 +280,7 @@ class Weather(TimedValue, db.Model):
     @classmethod
     def make_query(cls, **kwargs) -> Query:
         """Construct the database query."""
-        return super().make_query(asset_class=WeatherSensor, **kwargs)
+        return super().make_query(old_sensor_class=WeatherSensor, **kwargs)
 
     def __init__(self, **kwargs):
         super(Weather, self).__init__(**kwargs)

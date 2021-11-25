@@ -105,7 +105,7 @@ def parse_entity_address(  # noqa: C901
     fm_scheme: str = FM1_ADDR_SCHEME,
 ) -> dict:
     """
-    Parses a generic asset name into an info dict.
+    Parses an entity address into an info dict.
 
     Returns a dictionary with scheme, naming_authority and various other fields,
     depending on the entity type and FlexMeasures scheme (see examples above).

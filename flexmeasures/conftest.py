@@ -310,6 +310,7 @@ def setup_assets(
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
         asset = Asset(
             name=asset_name,
+            owner_id=setup_roles_users["Test Prosumer User"].id,
             asset_type_name="wind" if "wind" in asset_name else "solar",
             event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
@@ -321,7 +322,6 @@ def setup_assets(
             unit="MW",
             market_id=setup_markets["epex_da"].id,
         )
-        asset.owner = setup_roles_users["Test Prosumer User"]
         db.session.add(asset)
         assets.append(asset)
 
@@ -454,6 +454,7 @@ def create_test_battery_assets(
 
     test_battery = Asset(
         name="Test battery",
+        owner_id=setup_roles_users["Test Prosumer User"].id,
         asset_type_name="battery",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
@@ -467,11 +468,11 @@ def create_test_battery_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    test_battery.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(test_battery)
 
     test_battery_no_prices = Asset(
         name="Test battery with no known prices",
+        owner_id=setup_roles_users["Test Prosumer User"].id,
         asset_type_name="battery",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
@@ -485,7 +486,6 @@ def create_test_battery_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    test_battery_no_prices.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(test_battery_no_prices)
     return {
         "Test battery": test_battery,
@@ -525,6 +525,7 @@ def add_charging_station_assets(
 
     charging_station = Asset(
         name="Test charging station",
+        owner_id=setup_roles_users["Test Prosumer User"].id,
         asset_type_name="one-way_evse",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
@@ -538,11 +539,11 @@ def add_charging_station_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    charging_station.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(charging_station)
 
     bidirectional_charging_station = Asset(
         name="Test charging station (bidirectional)",
+        owner_id=setup_roles_users["Test Prosumer User"].id,
         asset_type_name="two-way_evse",
         event_resolution=timedelta(minutes=15),
         capacity_in_mw=2,
@@ -556,7 +557,6 @@ def add_charging_station_assets(
         market_id=setup_markets["epex_da"].id,
         unit="MW",
     )
-    bidirectional_charging_station.owner = setup_roles_users["Test Prosumer User"]
     db.session.add(bidirectional_charging_station)
     return {
         "Test charging station": charging_station,

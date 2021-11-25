@@ -159,7 +159,7 @@ Config settings can be registered by setting the (optional) ``__settings__`` att
 
 .. code-block:: python
 
-    __settings__ = {
+    __settings__ = [
         "MY_PLUGIN_URL": {
             "description": "URL used by my plugin for x.",
             "level": "error",
@@ -174,30 +174,9 @@ Config settings can be registered by setting the (optional) ``__settings__`` att
             "description": "Color used to override the default plugin color.",
             "level": "info",
         },
-    }
+    ]
 
-Alternatively, use ``from my_plugin import __settings__`` in your plugin module, and create ``__settings__.py`` with:
-
-.. code-block:: python
-
-    MY_PLUGIN_URL = {
-        "description": "URL used by my plugin for x.",
-        "level": "error",
-    }
-    MY_PLUGIN_TOKEN = {
-        "description": "Token used by my plugin for y.",
-        "level": "warning",
-        "message_if_missing": "Without this token, my plugin will not do y.",
-        "parse_as": str,
-    }
-    MY_PLUGIN_COLOR = {
-        "description": "Color used to override the default plugin color.",
-        "level": "info",
-    }
-
-Finally, you might want to override some FlexMeasures configuration settings from within your plugin.
-Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below).
-There is a `record_once` function on Blueprints which can help with this. An example:
+You might want to override some FlexMeasures configuration settings from within your plugin. Some examples for possible settings are named on this page, e.g. the custom style (see above) or custom logo (see below). There is a `record_once` function on Blueprints which can help with this. Example:
 
 .. code-block:: python
 

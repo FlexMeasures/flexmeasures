@@ -14,6 +14,7 @@ from flexmeasures.api.v1_3.tests.utils import (
 )
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.utils.calculations import integrate_time_series
@@ -64,12 +65,12 @@ def test_post_udi_event_and_get_device_message(
         assert post_udi_event_response.status_code == 200
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
 
-    # test asset state in database
-    msg_dt = parse_datetime(message["datetime"])
-    asset = Asset.query.filter(Asset.name == asset_name).one_or_none()
-    assert asset.soc_datetime == msg_dt
-    assert asset.soc_in_mwh == message["value"] / 1000
-    assert asset.soc_udi_event_id == 204
+    # test database state
+    msg_dt = message["datetime"]
+    sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
+    assert sensor.generic_asset.get_attribute("soc_datetime") == msg_dt
+    assert sensor.generic_asset.get_attribute("soc_in_mwh") == message["value"] / 1000
+    assert sensor.generic_asset.get_attribute("soc_udi_event_id") == 204
 
     # look for scheduling jobs in queue
     assert (
@@ -163,7 +164,7 @@ def test_post_udi_event_and_get_device_message(
 
     # sending again results in an error, unless we increase the event ID
     with app.test_client() as client:
-        next_msg_dt = msg_dt + timedelta(minutes=5)
+        next_msg_dt = parse_datetime(msg_dt) + timedelta(minutes=5)
         message["datetime"] = next_msg_dt.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
         post_udi_event_response = client.post(
             url_for("flexmeasures_api_v1_3.post_udi_event"),
@@ -186,10 +187,12 @@ def test_post_udi_event_and_get_device_message(
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
 
     # test database state
-    asset = Asset.query.filter(Asset.name == asset_name).one_or_none()
-    assert asset.soc_datetime == next_msg_dt
-    assert asset.soc_in_mwh == message["value"] / 1000
-    assert asset.soc_udi_event_id == 205
+    sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
+    assert parse_datetime(
+        sensor.generic_asset.get_attribute("soc_datetime")
+    ) == parse_datetime(message["datetime"])
+    assert sensor.generic_asset.get_attribute("soc_in_mwh") == message["value"] / 1000
+    assert sensor.generic_asset.get_attribute("soc_udi_event_id") == 205
 
     # process the scheduling queue
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)

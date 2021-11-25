@@ -3,8 +3,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.solver import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     initialize_df,
@@ -15,8 +14,7 @@ from flexmeasures.data.models.planning.utils import (
 
 
 def schedule_battery(
-    asset: Asset,
-    market: Market,
+    sensor: Sensor,
     start: datetime,
     end: datetime,
     resolution: timedelta,
@@ -31,7 +29,7 @@ def schedule_battery(
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
-        market, (start, end), resolution, allow_trimmed_query_window=True
+        sensor, (start, end), resolution, allow_trimmed_query_window=True
     )
     if soc_targets is not None:
         # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
@@ -71,14 +69,16 @@ def schedule_battery(
         )  # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
         # while the "equals" constraint defines what the total stock should be at the end of a time slot,
         # where the time slot is indexed by its starting time)
-    device_constraints[0]["min"] = (asset.min_soc_in_mwh - soc_at_start) * (
-        timedelta(hours=1) / resolution
+    device_constraints[0]["min"] = (
+        sensor.get_attribute("min_soc_in_mwh") - soc_at_start
+    ) * (timedelta(hours=1) / resolution)
+    device_constraints[0]["max"] = (
+        sensor.get_attribute("max_soc_in_mwh") - soc_at_start
+    ) * (timedelta(hours=1) / resolution)
+    device_constraints[0]["derivative min"] = (
+        sensor.get_attribute("capacity_in_mw") * -1
     )
-    device_constraints[0]["max"] = (asset.max_soc_in_mwh - soc_at_start) * (
-        timedelta(hours=1) / resolution
-    )
-    device_constraints[0]["derivative min"] = asset.capacity_in_mw * -1
-    device_constraints[0]["derivative max"] = asset.capacity_in_mw
+    device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
 
     # Set up EMS constraints (no additional constraints)
     columns = ["derivative max", "derivative min"]

@@ -8,7 +8,11 @@ import numpy as np
 import timely_beliefs as tb
 
 from flexmeasures.data.models.markets import Market, Price
-from flexmeasures.data.models.planning.exceptions import UnknownPricesException
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.planning.exceptions import (
+    UnknownMarketException,
+    UnknownPricesException,
+)
 from flexmeasures.data.queries.utils import simplify_index
 
 
@@ -56,8 +60,15 @@ def add_tiny_price_slope(
     return prices
 
 
+def get_market(sensor: Sensor) -> Market:
+    market = Market.query.get(sensor.get_attribute("market_id"))
+    if market is None:
+        raise UnknownMarketException
+    return market
+
+
 def get_prices(
-    market: Market,
+    sensor: Sensor,
     query_window: Tuple[datetime, datetime],
     resolution: timedelta,
     allow_trimmed_query_window: bool = True,
@@ -66,6 +77,10 @@ def get_prices(
     todo: set a horizon to avoid collecting prices that are not known at the time of constructing the schedule
           (this may require implementing a belief time for scheduling jobs).
     """
+
+    # Look for the applicable market
+    market = get_market(sensor)
+
     price_bdf: tb.BeliefsDataFrame = Price.collect(
         market.name,
         query_window=query_window,

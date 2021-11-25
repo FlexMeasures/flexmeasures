@@ -1,5 +1,8 @@
 from typing import Optional, Tuple
 
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.mutable import MutableDict
+
 from flexmeasures.data import db
 
 
@@ -25,6 +28,7 @@ class GenericAsset(db.Model):
     name = db.Column(db.String(80), default="")
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     generic_asset_type_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset_type.id"), nullable=False
@@ -56,6 +60,17 @@ class GenericAsset(db.Model):
             return self.latitude, self.longitude
         return None
 
+    def get_attribute(self, attribute: str):
+        if attribute in self.attributes:
+            return self.attributes[attribute]
+
+    def has_attribute(self, attribute: str) -> bool:
+        return attribute in self.attributes
+
+    def set_attribute(self, attribute: str, value):
+        if self.has_attribute(attribute):
+            self.attributes[attribute] = value
+
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     """Create a GenericAsset and assigns it an id.
@@ -80,7 +95,9 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     if generic_asset_type is None:
         raise ValueError(f"Cannot find GenericAssetType {asset_type_name} in database.")
     new_generic_asset = GenericAsset(
-        name=kwargs["name"], generic_asset_type_id=generic_asset_type.id
+        name=kwargs["name"],
+        generic_asset_type_id=generic_asset_type.id,
+        attributes=kwargs["attributes"] if "attributes" in kwargs else {},
     )
     for arg in ("latitude", "longitude", "account_id"):
         if arg in kwargs:
