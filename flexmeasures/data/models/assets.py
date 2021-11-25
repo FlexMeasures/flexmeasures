@@ -258,7 +258,12 @@ class Asset(db.Model, tb.SensorDBMixin):
         return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
 
     def get_attribute(self, attribute: str):
-        """Looks for the attribute on the corresponding Sensor."""
+        """Looks for the attribute on the corresponding Sensor.
+
+        This should be used by all code to read these attributes,
+        over accessing them directly on this class,
+        as this table is in the process to be replaced by the Sensor table.
+        """
         return self.corresponding_sensor.get_attribute(attribute)
 
     @property
