@@ -10,6 +10,7 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     add_tiny_price_slope,
     get_prices,
+    check_required_attributes,
 )
 
 
@@ -26,6 +27,16 @@ def schedule_battery(
     window.
     For the resulting consumption schedule, consumption is defined as positive values.
     """
+
+    # Check for required Sensor attributes
+    check_required_attributes(
+        sensor,
+        [
+            "capacity_in_mw",
+            "max_soc_in_mwh",
+            "min_soc_in_mwh",
+        ],
+    )
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(

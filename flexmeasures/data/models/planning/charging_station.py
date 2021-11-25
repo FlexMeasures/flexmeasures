@@ -10,6 +10,7 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     add_tiny_price_slope,
     get_prices,
+    check_required_attributes,
 )
 
 
@@ -27,6 +28,9 @@ def schedule_charging_station(
     For the resulting consumption schedule, consumption is defined as positive values.
     Todo: handle uni-directional charging by setting the "min" or "derivative min" constraint to 0
     """
+
+    # Check for required Sensor attributes
+    check_required_attributes(sensor, ["capacity_in_mw"])
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
