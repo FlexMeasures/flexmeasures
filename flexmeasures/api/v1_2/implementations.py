@@ -200,13 +200,9 @@ def post_udi_event_response(unit):  # noqa: C901
             return invalid_datetime(msg)
 
         # check if udi event id is higher than existing
-        if (
-            sensor.generic_asset.get_attribute("soc_udi_event_id") is not None
-            and sensor.generic_asset.get_attribute("soc_udi_event_id") >= event_id
-        ):
-            return outdated_event_id(
-                event_id, sensor.generic_asset.get_attribute("soc_udi_event_id")
-            )
+        soc_udi_event_id = sensor.generic_asset.get_attribute("soc_udi_event_id")
+        if soc_udi_event_id is not None and soc_udi_event_id >= event_id:
+            return outdated_event_id(event_id, soc_udi_event_id)
 
     # get value
     if "value" not in form:
