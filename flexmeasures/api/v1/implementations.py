@@ -163,8 +163,6 @@ def collect_connection_and_value_groups(
     Returns value sign in accordance with USEF specs
     (with negative production and positive consumption).
     """
-    from flask import current_app
-
     current_app.logger.info("GETTING")
     user_sensors = get_sensors()
     if not user_sensors:
