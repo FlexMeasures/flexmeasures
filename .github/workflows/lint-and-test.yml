@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ '3.8', '3.7', '3.6' ]
+        py_version: [ '3.10', '3.9', '3.8' ]
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
       - uses: actions/setup-python@v2
