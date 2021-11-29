@@ -24,8 +24,7 @@ setup(
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
     python_requires=">=3.7.1",  # not enforced, just info
     install_requires=load_requirements("app"),
-    tests_require=load_requirements("test"),
-    setup_requires=["pytest-runner", "setuptools_scm"],
+    setup_requires=["setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
     packages=find_packages(),  # will include *.py files and some other types
     include_package_data=True,  # now setuptools_scm adds all files under source control
