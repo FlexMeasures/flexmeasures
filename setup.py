@@ -22,7 +22,7 @@ setup(
     author_email="nicolas@seita.nl",
     url="https://github.com/seitabv/flexmeasures",
     keywords=["smart grid", "renewables", "balancing", "forecasting", "scheduling"],
-    python_requires=">=3.7.1",  # not enforced, just info
+    python_requires=">=3.8",  # not enforced, just info
     install_requires=load_requirements("app"),
     setup_requires=["setuptools_scm"],
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
