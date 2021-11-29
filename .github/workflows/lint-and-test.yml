@@ -18,6 +18,7 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         py_version: [ '3.8', '3.7', '3.6' ]
     name: "Test (on Python ${{ matrix.py_version }})"
