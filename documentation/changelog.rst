@@ -17,7 +17,7 @@ Infrastructure / Support
 * Account-based authorization, incl. new decorators for endpoints [see `PR #210 <http://www.github.com/SeitaBV/flexmeasures/pull/210>`_]
 * Central authorization policy which lets database models codify who can do what (permission-based) and relieve API endpoints from this [see `PR #234 <http://www.github.com/SeitaBV/flexmeasures/pull/234>`_]
 * Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <http://www.github.com/SeitaBV/flexmeasures/pull/154>`_]
-* Allow plugins to register their custom config settings, so that FlexMeasures can check whether they are set up correctly [see `PR #230 <http://www.github.com/SeitaBV/flexmeasures/pull/230>`_]
+* Allow plugins to register their custom config settings, so that FlexMeasures can check whether they are set up correctly [see `PR #230 <http://www.github.com/SeitaBV/flexmeasures/pull/230>`_ and `PR #237 <http://www.github.com/SeitaBV/flexmeasures/pull/237>`_]
 * Added sensor method to obtain just its latest state (excl. forecasts) [see `PR #235 <http://www.github.com/SeitaBV/flexmeasures/pull/235>`_]
 
 
