@@ -79,8 +79,8 @@ def setup_fresh_test_data(
                 horizon=parse_duration("PT0M"),
                 value=val,
                 data_source_id=data_source.id,
+                asset_id=asset.id,
             )
-            p.asset = asset
             db.session.add(p)
     add_test_weather_sensor_and_forecasts(fresh_db)
 

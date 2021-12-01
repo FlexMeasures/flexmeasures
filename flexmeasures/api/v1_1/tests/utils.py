@@ -9,7 +9,7 @@ from rq.job import Job
 from flask import current_app
 
 from flexmeasures.api.common.schemas.sensors import SensorField
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -160,10 +160,8 @@ def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
         db.session.query(Price.value, Price.horizon)
         .filter((Price.datetime > start - resolution) & (Price.datetime < end))
         .filter(Price.horizon == horizon - (end - (Price.datetime + resolution)))
-        .join(
-            Market, Sensor
-        )  # we still need to join Market, because Price.market_id is still coupled to Market rather than Sensor; see https://github.com/SeitaBV/flexmeasures/issues/252
-        .filter(Price.market_id == Sensor.id)
+        .join(Sensor)
+        .filter(Price.sensor_id == Sensor.id)
         .filter(Sensor.name == sensor.name)
     )
     df = pd.DataFrame(

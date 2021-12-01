@@ -7,7 +7,7 @@ from numpy import tile
 import pandas as pd
 
 from flexmeasures.api.common.utils.validators import validate_user_sources
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -122,10 +122,8 @@ def verify_power_in_db(
         db.session.query(Power.datetime, Power.value, Power.data_source_id)
         .filter((Power.datetime > start - resolution) & (Power.datetime < end))
         .filter(Power.horizon == horizon)
-        .join(
-            Asset, Sensor
-        )  # we still need to join Asset, because Power.asset_id is still coupled to Asset rather than Sensor; see https://github.com/SeitaBV/flexmeasures/issues/252
-        .filter(Power.asset_id == Sensor.id)
+        .join(Sensor)
+        .filter(Power.sensor_id == Sensor.id)
         .filter(Sensor.name == sensor.name)
     )
     if "source" in message:

@@ -336,8 +336,8 @@ def setup_assets(
                 horizon=parse_duration("PT0M"),
                 value=val,
                 data_source_id=setup_sources["Seita"].id,
+                asset_id=asset.id,
             )
-            p.asset = asset
             db.session.add(p)
     return {asset.name: asset for asset in assets}
 
