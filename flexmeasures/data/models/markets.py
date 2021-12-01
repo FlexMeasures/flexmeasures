@@ -196,6 +196,10 @@ class Price(TimedValue, db.Model):
         db.Integer(), db.ForeignKey("market.id"), primary_key=True, index=True
     )
     market = db.relationship("Market", backref=db.backref("prices", lazy=True))
+    sensor_id = db.Column(
+        db.Integer(), db.ForeignKey("sensor.id"), primary_key=True, index=True
+    )
+    sensor = db.relationship("Sensor", backref=db.backref("prices", lazy=True))
 
     @classmethod
     def make_query(cls, **kwargs) -> Query:
@@ -204,3 +208,4 @@ class Price(TimedValue, db.Model):
 
     def __init__(self, **kwargs):
         super(Price, self).__init__(**kwargs)
+        self.sensor_id = self.market_id
