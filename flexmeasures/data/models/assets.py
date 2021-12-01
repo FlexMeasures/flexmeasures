@@ -129,7 +129,7 @@ class Asset(db.Model, tb.SensorDBMixin):
 
             # Set up generic asset
             generic_asset_kwargs = {
-                **kwargs.copy(),
+                **kwargs,
                 **copy_old_sensor_attributes(
                     self,
                     old_sensor_type_attributes=[
