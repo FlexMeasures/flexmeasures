@@ -23,7 +23,7 @@ from flexmeasures.utils.calculations import integrate_time_series
 @pytest.mark.parametrize("message", [message_for_get_device_message(wrong_id=True)])
 def test_get_device_message_wrong_event_id(client, message):
     asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-    message["event"] = message["event"] % (asset.owner_id, asset.id)
+    message["event"] = message["event"] % asset.id
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_device_message_response = client.get(
         url_for("flexmeasures_api_v1_3.get_device_message"),
@@ -53,8 +53,7 @@ def test_post_udi_event_and_get_device_message(
     with app.test_client() as client:
         asset = Asset.query.filter(Asset.name == asset_name).one_or_none()
         asset_id = asset.id
-        asset_owner_id = asset.owner_id
-        message["event"] = message["event"] % (asset.owner_id, asset.id)
+        message["event"] = message["event"] % asset.id
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         post_udi_event_response = client.post(
             url_for("flexmeasures_api_v1_3.post_udi_event"),
@@ -123,10 +122,7 @@ def test_post_udi_event_and_get_device_message(
 
     # try to retrieve the schedule through the getDeviceMessage api endpoint
     get_device_message = message_for_get_device_message()
-    get_device_message["event"] = get_device_message["event"] % (
-        asset_owner_id,
-        asset_id,
-    )
+    get_device_message["event"] = get_device_message["event"] % asset_id
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_device_message_response = client.get(
         url_for("flexmeasures_api_v1_3.get_device_message"),

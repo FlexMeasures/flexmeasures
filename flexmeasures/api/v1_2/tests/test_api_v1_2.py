@@ -16,7 +16,7 @@ from flexmeasures.data.models.time_series import Sensor
 @pytest.mark.parametrize("message", [message_for_get_device_message()])
 def test_get_device_message(client, message):
     asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-    message["event"] = message["event"] % (asset.id,)
+    message["event"] = message["event"] % asset.id
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_device_message_response = client.get(
         url_for("flexmeasures_api_v1_2.get_device_message"),
@@ -59,7 +59,7 @@ def test_get_device_message_mistyped_duration(client):
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     message = message_for_get_device_message()
     asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-    message["event"] = message["event"] % (asset.id,)
+    message["event"] = message["event"] % asset.id
     message["duration"] = "PTT6H"
     get_device_message_response = client.get(
         url_for("flexmeasures_api_v1_2.get_device_message"),
@@ -77,7 +77,7 @@ def test_get_device_message_mistyped_duration(client):
 @pytest.mark.parametrize("message", [message_for_get_device_message(wrong_id=True)])
 def test_get_device_message_wrong_event_id(client, message):
     asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-    message["event"] = message["event"] % (asset.id,)
+    message["event"] = message["event"] % asset.id
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_device_message_response = client.get(
         url_for("flexmeasures_api_v1_2.get_device_message"),
@@ -100,7 +100,7 @@ def test_get_device_message_unknown_prices(client, message):
     asset = Asset.query.filter(
         Asset.name == "Test battery with no known prices"
     ).one_or_none()
-    message["event"] = message["event"] % (asset.id,)
+    message["event"] = message["event"] % asset.id
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_device_message_response = client.get(
         url_for("flexmeasures_api_v1_2.get_device_message"),
@@ -118,7 +118,7 @@ def test_post_udi_event(app, message):
     auth_token = None
     with app.test_client() as client:
         asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-        message["event"] = message["event"] % (asset.owner_id, asset.id)
+        message["event"] = message["event"] % asset.id
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         post_udi_event_response = client.post(
             url_for("flexmeasures_api_v1_2.post_udi_event"),
