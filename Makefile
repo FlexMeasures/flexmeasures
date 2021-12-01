@@ -9,7 +9,7 @@ run-local:
 	python run-local.py
 
 test:
-	make install-for-dev
+	make install-for-test
 	pytest
 
 # ---- Documentation ---
@@ -31,6 +31,10 @@ install: install-deps install-flexmeasures
 
 install-for-dev:
 	make freeze-deps
+	pip-sync requirements/app.txt requirements/dev.txt requirements/test.txt
+	make install-flexmeasures
+
+install-for-test:
 	pip-sync requirements/app.txt requirements/dev.txt requirements/test.txt
 	make install-flexmeasures
 

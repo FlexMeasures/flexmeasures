@@ -17,14 +17,15 @@ jobs:
   test:
     needs: check
     runs-on: ubuntu-latest
-    #strategy:  # TODO: make work with pre-commit
-    #  matrix:
-    #    python-version: [ '3.8', '3.6' ]
-    name: "Test (on Python3.8)"
+    strategy:
+      fail-fast: false
+      matrix:
+        py_version: [ '3.8', '3.9' ]
+    name: "Test (on Python ${{ matrix.py_version }})"
     steps:
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: ${{ matrix.py_version }}
       - uses: actions/checkout@v2
       - run: ci/SETUP.sh
       - run: make test
