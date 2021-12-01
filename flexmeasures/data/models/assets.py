@@ -329,6 +329,21 @@ class Power(TimedValue, db.Model):
             passive_deletes=True,
         ),
     )
+    sensor_id = db.Column(
+        db.Integer(),
+        db.ForeignKey("sensor.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+    sensor = db.relationship(
+        "Sensor",
+        backref=db.backref(
+            "measurements",
+            lazy=True,
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        ),
+    )
 
     @classmethod
     def make_query(
@@ -348,6 +363,7 @@ class Power(TimedValue, db.Model):
 
     def __init__(self, **kwargs):
         super(Power, self).__init__(**kwargs)
+        self.sensor_id = self.asset_id
 
     def __repr__(self):
         return "<Power %.5f on Asset %s at %s by DataSource %s, horizon %s>" % (
