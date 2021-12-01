@@ -201,7 +201,7 @@ def collect_connection_and_value_groups(
         # Get the power values
         # TODO: fill NaN for non-existing values
         power_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Power.collect(
-            generic_asset_names=asset_names,
+            old_sensor_names=asset_names,
             query_window=(start, end),
             resolution=resolution,
             belief_horizon_window=belief_horizon_window,

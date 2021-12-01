@@ -10,6 +10,7 @@ from flexmeasures.data.models.user import User
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
+    GenericAsset,
     GenericAssetType,
 )
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -110,31 +111,120 @@ class Asset(db.Model, tb.SensorDBMixin):
 
     def __init__(self, **kwargs):
 
+        if "unit" not in kwargs:
+            kwargs["unit"] = "MW"  # current default
+        super(Asset, self).__init__(**kwargs)
+
         # Create a new Sensor with unique id across assets, markets and weather sensors
-        # Also keep track of ownership.
+        # Also keep track of ownership by creating a GenericAsset and assigning the new Sensor to it.
         if "id" not in kwargs:
+
+            # Set up generic asset
             generic_assets_arg = kwargs.copy()
+            if "asset_type_name" in generic_assets_arg:
+                asset_type = db.session.query(AssetType).get(
+                    generic_assets_arg["asset_type_name"]
+                )
+            else:
+                asset_type = generic_assets_arg["asset_type"]
+            asset_type_attributes_for_generic_asset = [
+                "can_curtail",
+                "can_shift",
+            ]
+            asset_attributes_for_generic_asset = [
+                "display_name",
+                "min_soc_in_mwh",
+                "max_soc_in_mwh",
+                "soc_in_mwh",
+                "soc_datetime",
+                "soc_udi_event_id",
+            ]
+            generic_asset_attributes_from_asset_type = {
+                a: getattr(asset_type, a)
+                for a in asset_type_attributes_for_generic_asset
+            }
+            generic_asset_attributes_from_asset = {
+                a: getattr(self, a)
+                if not isinstance(getattr(self, a), datetime)
+                else getattr(self, a).isoformat()
+                for a in asset_attributes_for_generic_asset
+            }
+            generic_assets_arg = {
+                **generic_assets_arg,
+                **{
+                    "attributes": {
+                        **generic_asset_attributes_from_asset_type,
+                        **generic_asset_attributes_from_asset,
+                    },
+                },
+            }
+
             if "owner_id" in kwargs:
                 owner = User.query.get(kwargs["owner_id"])
                 if owner:
                     generic_assets_arg.update(account_id=owner.account_id)
             new_generic_asset = create_generic_asset("asset", **generic_assets_arg)
-            new_sensor = Sensor(name=kwargs["name"], generic_asset=new_generic_asset)
+
+            # Set up sensor
+            sensor_kwargs = dict(
+                name=kwargs["name"],
+                generic_asset=new_generic_asset,
+            )
+            asset_type_attributes_for_sensor = [
+                "is_consumer",
+                "is_producer",
+                "daily_seasonality",
+                "weekly_seasonality",
+                "yearly_seasonality",
+                "weather_correlations",
+            ]
+            asset_attributes_for_sensor = [
+                "display_name",
+                "capacity_in_mw",
+                "market_id",
+            ]
+            sensor_attributes_from_asset_type = {
+                a: getattr(asset_type, a) for a in asset_type_attributes_for_sensor
+            }
+            sensor_attributes_from_asset = {
+                a: getattr(self, a)
+                if not isinstance(getattr(self, a), datetime)
+                else getattr(self, a).isoformat()
+                for a in asset_attributes_for_sensor
+            }
+            sensor_kwargs = {
+                **sensor_kwargs,
+                **{
+                    "attributes": {
+                        **sensor_attributes_from_asset_type,
+                        **sensor_attributes_from_asset,
+                    },
+                },
+            }
+            new_sensor = Sensor(
+                **sensor_kwargs,
+            )
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
             sensor_id = new_sensor.id
         else:
             # The UI may initialize Asset objects from API form data with a known id
             sensor_id = kwargs["id"]
-        if "unit" not in kwargs:
-            kwargs["unit"] = "MW"  # current default
-        super(Asset, self).__init__(**kwargs)
         self.id = sensor_id
         if self.unit != "MW":
             raise Exception("FlexMeasures only supports MW as unit for now.")
         self.name = self.name.replace(" (MW)", "")
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
+
+        # Copy over additional columns from (newly created) Asset to (newly created) Sensor
+        if "id" not in kwargs:
+            db.session.add(self)
+            db.session.flush()  # make sure to generate each column for the old sensor
+            new_sensor.unit = self.unit
+            new_sensor.event_resolution = self.event_resolution
+            new_sensor.knowledge_horizon_fnc = self.knowledge_horizon_fnc
+            new_sensor.knowledge_horizon_par = self.knowledge_horizon_par
 
     asset_type = db.relationship("AssetType", backref=db.backref("assets", lazy=True))
     owner = db.relationship(
@@ -158,6 +248,23 @@ class Asset(db.Model, tb.SensorDBMixin):
                 Power.datetime + self.event_resolution <= event_ends_before
             )
         return power_query.first()
+
+    @property
+    def corresponding_sensor(self) -> Sensor:
+        return db.session.query(Sensor).get(self.id)
+
+    @property
+    def generic_asset(self) -> GenericAsset:
+        return db.session.query(GenericAsset).get(self.corresponding_sensor.id)
+
+    def get_attribute(self, attribute: str):
+        """Looks for the attribute on the corresponding Sensor.
+
+        This should be used by all code to read these attributes,
+        over accessing them directly on this class,
+        as this table is in the process to be replaced by the Sensor table.
+        """
+        return self.corresponding_sensor.get_attribute(attribute)
 
     @property
     def power_unit(self) -> float:
@@ -257,7 +364,7 @@ class Power(TimedValue, db.Model):
         **kwargs,
     ) -> Query:
         """Construct the database query."""
-        return super().make_query(asset_class=Asset, **kwargs)
+        return super().make_query(old_sensor_class=Asset, **kwargs)
 
     def to_dict(self):
         return {

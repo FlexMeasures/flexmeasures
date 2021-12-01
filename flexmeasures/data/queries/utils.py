@@ -15,22 +15,22 @@ import flexmeasures.data.models.time_series as ts  # noqa: F401
 def create_beliefs_query(
     cls: "ts.TimedValue",
     session: Session,
-    asset_class: db.Model,
-    asset_names: Tuple[str],
+    old_sensor_class: db.Model,
+    old_sensor_names: Tuple[str],
     start: Optional[datetime],
     end: Optional[datetime],
 ) -> Query:
     query = (
         session.query(
-            asset_class.name, cls.datetime, cls.value, cls.horizon, DataSource
+            old_sensor_class.name, cls.datetime, cls.value, cls.horizon, DataSource
         )
         .join(DataSource)
         .filter(cls.data_source_id == DataSource.id)
-        .join(asset_class)
-        .filter(asset_class.name.in_(asset_names))
+        .join(old_sensor_class)
+        .filter(old_sensor_class.name.in_(old_sensor_names))
     )
     if start is not None:
-        query = query.filter((cls.datetime > start - asset_class.event_resolution))
+        query = query.filter((cls.datetime > start - old_sensor_class.event_resolution))
     if end is not None:
         query = query.filter((cls.datetime < end))
     return query
