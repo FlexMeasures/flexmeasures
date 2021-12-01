@@ -230,7 +230,7 @@ def create_test_markets(db) -> Dict[str, Market]:
     db.session.add(day_ahead)
     epex_da = Market(
         name="epex_da",
-        market_type=day_ahead,
+        market_type_name="day_ahead",
         event_resolution=timedelta(hours=1),
         unit="EUR/MWh",
         knowledge_horizon_fnc="x_days_ago_at_y_oclock",
