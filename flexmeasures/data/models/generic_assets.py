@@ -1,6 +1,5 @@
 from typing import Optional, Tuple
 
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 
 from flexmeasures.data import db
@@ -28,7 +27,7 @@ class GenericAsset(db.Model):
     name = db.Column(db.String(80), default="")
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
-    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
 
     generic_asset_type_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset_type.id"), nullable=False
