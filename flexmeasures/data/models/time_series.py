@@ -3,7 +3,9 @@ from datetime import datetime as datetime_type, timedelta
 import json
 
 from flask import current_app
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
@@ -28,7 +30,7 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
-    attributes = db.Column(db.JSON, nullable=False, default="{}")
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     generic_asset_id = db.Column(
         db.Integer,

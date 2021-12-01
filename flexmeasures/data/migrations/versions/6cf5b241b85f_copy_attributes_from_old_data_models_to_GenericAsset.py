@@ -32,7 +32,13 @@ def upgrade():
         ),
     )
     op.add_column(
-        "sensor", sa.Column("attributes", sa.JSON(), nullable=True, default="{}")
+        "sensor",
+        sa.Column(
+            "attributes",
+            MutableDict.as_mutable(postgresql.JSONB(astext_type=sa.Text())),
+            nullable=True,
+            default={},
+        ),
     )
 
     """
