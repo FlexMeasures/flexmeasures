@@ -97,7 +97,7 @@ def post_price_data_response(
             market_name = ea["market_name"]
 
             # Look for the Sensor object
-            sensor = get_sensor_by_unique_name(market_name)
+            sensor = get_sensor_by_unique_name(market_name, ["day_ahead", "tou_tariff"])
             if type(sensor) == ResponseTuple:
                 # Error message telling the user what to do
                 return sensor
