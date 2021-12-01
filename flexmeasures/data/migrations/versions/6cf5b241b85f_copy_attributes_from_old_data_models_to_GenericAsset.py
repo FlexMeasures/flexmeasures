@@ -20,6 +20,15 @@ depends_on = None
 
 
 def upgrade():
+    """
+    Add attributes column to GenericAsset and Sensor tables. Then:
+    - For each OldModel (Market/WeatherSensor/Asset), get the Sensor with the same id as the OldModel,
+      and then get the GenericAsset of that Sensor.
+    - Add the OldModel's display name to the corresponding GenericAsset's and Sensor's attributes,
+      and other attributes we want to copy. Most go to the Sensor.
+    - Find the OldModelType (MarketType/WeatherSensorType/AssetType) of the OldModel,
+      and copy its seasonalities and other attributes to the GenericAsset's or Sensor's attributes.
+    """
     op.add_column(
         "generic_asset",
         sa.Column("attributes", sa.JSON(), nullable=True, default={}),
@@ -28,15 +37,6 @@ def upgrade():
         "sensor",
         sa.Column("attributes", sa.JSON(), nullable=True, default={}),
     )
-
-    """
-    - For each OldModel (Market/WeatherSensor/Asset), get the Sensor with the same id as the OldModel,
-      and then get the GenericAsset of that Sensor.
-    - Add the OldModel's display name to the corresponding GenericAsset's attributes,
-      and other attributes we want to copy.
-    - Find the OldModelType (MarketType/WeatherSensorType/AssetType) of the OldModel,
-      and copy its seasonalities to the GenericAsset's attributes.
-    """
     # todo: find places where we look for seasonality and get it from the corresponding GenericAsset instead
     # todo: find places where we look for old_model_type and get it from the corresponding GenericAsset instead
 
