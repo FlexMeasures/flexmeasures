@@ -7,10 +7,10 @@ def message_for_get_device_message(
     message = {
         "type": "GetDeviceMessageRequest",
         "duration": "PT48H",
-        "event": "ea1.2018-06.localhost:%s:%s:203:soc",
+        "event": "ea1.2018-06.localhost:%s:203:soc",
     }
     if wrong_id:
-        message["event"] = "ea1.2018-06.localhost:%s:%s:9999:soc"
+        message["event"] = "ea1.2018-06.localhost:%s:9999:soc"
     if unknown_prices:
         message[
             "duration"
