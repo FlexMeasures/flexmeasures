@@ -82,6 +82,10 @@ def can_access_asset(asset_or_sensor: Union[Asset, Sensor]) -> bool:
     - the current user is the owner of the asset, or
     - the current user's organisation account owns the corresponding generic asset, or
     - the corresponding generic asset is public
+
+    todo: refactor to `def can_access_sensor(sensor: Sensor) -> bool` once `ui.views.state.state_view` stops calling it with an Asset
+    todo: let this function use our new auth model (row-level authorization)
+    todo: deprecate this function in favor of an authz decorator on the API route
     """
     if current_user.is_authenticated:
         if current_user.has_role(ADMIN_ROLE):
