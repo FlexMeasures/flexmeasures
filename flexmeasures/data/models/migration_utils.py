@@ -1,3 +1,8 @@
+"""
+This module is part of our data model migration (see https://github.com/SeitaBV/flexmeasures/projects/9).
+It will become obsolete when Assets, Markets and WeatherSensors can no longer be initialized.
+"""
+
 from datetime import datetime
 from typing import List
 
