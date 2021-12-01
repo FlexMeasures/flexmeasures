@@ -32,14 +32,16 @@ class MarketType(db.Model):
     yearly_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
 
     def __init__(self, **kwargs):
+        kwargs["name"] = kwargs["name"].replace(" ", "_").lower()
+        if "display_name" not in kwargs:
+            kwargs["display_name"] = humanize(kwargs["name"])
+
+        super(MarketType, self).__init__(**kwargs)
+
         generic_asset_type = GenericAssetType(
             name=kwargs["name"], description=kwargs.get("hover_label", None)
         )
         db.session.add(generic_asset_type)
-        super(MarketType, self).__init__(**kwargs)
-        self.name = self.name.replace(" ", "_").lower()
-        if "display_name" not in kwargs:
-            self.display_name = humanize(self.name)
 
     @property
     def preconditions(self) -> Dict[str, bool]:
@@ -75,6 +77,11 @@ class Market(db.Model, tb.SensorDBMixin):
             kwargs["knowledge_horizon_par"] = {
                 knowledge_horizons.ex_ante.__code__.co_varnames[1]: "PT0H"
             }
+        kwargs["name"] = kwargs["name"].replace(" ", "_").lower()
+        if "display_name" not in kwargs:
+            kwargs["display_name"] = humanize(kwargs["name"])
+
+        super(Market, self).__init__(**kwargs)
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
         if "id" not in kwargs:
@@ -118,11 +125,7 @@ class Market(db.Model, tb.SensorDBMixin):
             # The UI may initialize Market objects from API form data with a known id
             new_sensor_id = kwargs["id"]
 
-        super(Market, self).__init__(**kwargs)
         self.id = new_sensor_id
-        self.name = self.name.replace(" ", "_").lower()
-        if "display_name" not in kwargs:
-            self.display_name = humanize(self.name)
 
         # Copy over additional columns from (newly created) Market to (newly created) Sensor
         if "id" not in kwargs:

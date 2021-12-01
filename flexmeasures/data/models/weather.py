@@ -77,6 +77,9 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
     )
 
     def __init__(self, **kwargs):
+        kwargs["name"] = kwargs["name"].replace(" ", "_").lower()
+
+        super(WeatherSensor, self).__init__(**kwargs)
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
         if "id" not in kwargs:
@@ -125,9 +128,7 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
             # The UI may initialize WeatherSensor objects from API form data with a known id
             new_sensor_id = kwargs["id"]
 
-        super(WeatherSensor, self).__init__(**kwargs)
         self.id = new_sensor_id
-        self.name = self.name.replace(" ", "_").lower()
 
         # Copy over additional columns from (newly created) WeatherSensor to (newly created) Sensor
         if "id" not in kwargs:
