@@ -34,7 +34,7 @@ from flexmeasures.api.common.utils.validators import (
 from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.resources import get_sensors
@@ -81,18 +81,18 @@ def post_price_data_response(  # noqa C901
                 ea = parse_entity_address(market, entity_type="market")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
-            market_id = ea["sensor_id"]
+            sensor_id = ea["sensor_id"]
 
-            # Look for the Market object
-            market = Market.query.filter(Market.id == market_id).one_or_none()
-            if market is None:
-                return unrecognized_market(market_id)
-            elif unit != market.unit:
-                return invalid_unit("%s prices" % market.display_name, [market.unit])
+            # Look for the Sensor object
+            sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+            if sensor is None:
+                return unrecognized_market(sensor_id)
+            elif unit != sensor.unit:
+                return invalid_unit("%s prices" % sensor.name, [sensor.unit])
 
             # Convert to timely-beliefs terminology
             event_starts, belief_horizons = determine_belief_timing(
-                event_values, start, resolution, horizon, prior, market
+                event_values, start, resolution, horizon, prior, sensor
             )
 
             # Create new Price objects
@@ -102,7 +102,7 @@ def post_price_data_response(  # noqa C901
                         datetime=event_start,
                         value=event_value,
                         horizon=belief_horizon,
-                        sensor_id=market.id,
+                        sensor_id=sensor.id,
                         data_source_id=data_source.id,
                     )
                     for event_start, event_value, belief_horizon in zip(
@@ -117,7 +117,7 @@ def post_price_data_response(  # noqa C901
                 # Forecast 24 and 48 hours ahead for at most the last 24 hours of posted price data
                 forecasting_jobs = create_forecasting_jobs(
                     "Price",
-                    market.id,
+                    sensor.id,
                     max(start, start + duration - timedelta(hours=24)),
                     start + duration,
                     resolution=duration / len(event_values),
