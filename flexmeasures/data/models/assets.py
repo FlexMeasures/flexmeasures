@@ -314,21 +314,6 @@ class Power(TimedValue, db.Model):
     TODO: If there are more than one measurement per asset per time step possible, we can expand rather easily.
     """
 
-    asset_id = db.Column(
-        db.Integer(),
-        db.ForeignKey("asset.id", ondelete="CASCADE"),
-        primary_key=True,
-        index=True,
-    )
-    asset = db.relationship(
-        "Asset",
-        backref=db.backref(
-            "measurements",
-            lazy=True,
-            cascade="all, delete-orphan",
-            passive_deletes=True,
-        ),
-    )
     sensor_id = db.Column(
         db.Integer(),
         db.ForeignKey("sensor.id", ondelete="CASCADE"),
@@ -356,7 +341,7 @@ class Power(TimedValue, db.Model):
     def to_dict(self):
         return {
             "datetime": isodate.datetime_isoformat(self.datetime),
-            "asset_id": self.asset_id,
+            "sensor_id": self.sensor_id,
             "value": self.value,
             "horizon": self.horizon,
         }
@@ -364,13 +349,10 @@ class Power(TimedValue, db.Model):
     def __init__(self, **kwargs):
         super(Power, self).__init__(**kwargs)
 
-        # Sync ids
-        self.asset_id = self.sensor_id
-
     def __repr__(self):
-        return "<Power %.5f on Asset %s at %s by DataSource %s, horizon %s>" % (
+        return "<Power %.5f on Sensor %s at %s by DataSource %s, horizon %s>" % (
             self.value,
-            self.asset_id,
+            self.sensor_id,
             self.datetime,
             self.data_source_id,
             self.horizon,

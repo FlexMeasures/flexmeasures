@@ -192,10 +192,6 @@ class Price(TimedValue, db.Model):
     TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
     """
 
-    market_id = db.Column(
-        db.Integer(), db.ForeignKey("market.id"), primary_key=True, index=True
-    )
-    market = db.relationship("Market", backref=db.backref("prices", lazy=True))
     sensor_id = db.Column(
         db.Integer(), db.ForeignKey("sensor.id"), primary_key=True, index=True
     )
@@ -208,6 +204,3 @@ class Price(TimedValue, db.Model):
 
     def __init__(self, **kwargs):
         super(Price, self).__init__(**kwargs)
-
-        # Sync ids
-        self.market_id = self.sensor_id

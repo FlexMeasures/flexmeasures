@@ -273,12 +273,6 @@ class Weather(TimedValue, db.Model):
     TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
     """
 
-    weather_sensor_id = db.Column(
-        db.Integer(), db.ForeignKey("weather_sensor.id"), primary_key=True, index=True
-    )
-    weather_sensor = db.relationship(
-        "WeatherSensor", backref=db.backref("weather", lazy=True)
-    )
     sensor_id = db.Column(
         db.Integer(), db.ForeignKey("sensor.id"), primary_key=True, index=True
     )
@@ -292,13 +286,10 @@ class Weather(TimedValue, db.Model):
     def __init__(self, **kwargs):
         super(Weather, self).__init__(**kwargs)
 
-        # Sync ids
-        self.weather_sensor_id = self.sensor_id
-
     def __repr__(self):
-        return "<Weather %.5f on sensor %s at %s by DataSource %s, horizon %s>" % (
+        return "<Weather %.5f on Sensor %s at %s by DataSource %s, horizon %s>" % (
             self.value,
-            self.weather_sensor_id,
+            self.sensor_id,
             self.datetime,
             self.data_source_id,
             self.horizon,
