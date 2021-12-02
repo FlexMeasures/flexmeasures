@@ -352,7 +352,7 @@ def make_timed_value(
             datetime=dt,
             horizon=horizon,
             value=value,
-            asset_id=old_sensor_id,
+            sensor_id=old_sensor_id,
             data_source_id=data_source_id,
         )
     elif timed_value_type == "Price":
@@ -360,7 +360,7 @@ def make_timed_value(
             datetime=dt,
             horizon=horizon,
             value=value,
-            market_id=old_sensor_id,
+            sensor_id=old_sensor_id,
             data_source_id=data_source_id,
         )
     elif timed_value_type == "Weather":

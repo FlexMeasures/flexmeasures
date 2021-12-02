@@ -302,7 +302,7 @@ def create_connection_and_value_groups(  # noqa: C901
                     value=value
                     * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
                     horizon=h,
-                    asset_id=sensor_id,
+                    sensor_id=sensor_id,
                     data_source_id=data_source.id,
                 )
                 power_measurements.append(p)

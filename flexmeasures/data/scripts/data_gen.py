@@ -166,7 +166,7 @@ def add_dummy_tou_market(db: SQLAlchemy):
                 datetime=datetime(year, 1, 1, tzinfo=pytz.utc),
                 horizon=timedelta(0),
                 data_source_id=source.id,
-                market=market,
+                sensor_id=market.id,
             )
         )
 
@@ -335,7 +335,7 @@ def populate_time_series_forecasts(  # noqa: C901
                         datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         horizon=horizon,
                         value=value,
-                        market_id=old_sensor.id,
+                        sensor_id=old_sensor.id,
                         data_source_id=data_source.id,
                     )
                     for dt, value in forecasts.items()
@@ -346,7 +346,7 @@ def populate_time_series_forecasts(  # noqa: C901
                         datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         horizon=horizon,
                         value=value,
-                        weather_sensor_id=old_sensor.id,
+                        sensor_id=old_sensor.id,
                         data_source_id=data_source.id,
                     )
                     for dt, value in forecasts.items()

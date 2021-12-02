@@ -117,7 +117,7 @@ def post_price_data_response(
                     datetime=dt,
                     value=value,
                     horizon=h,
-                    market_id=sensor.id,
+                    sensor_id=sensor.id,
                     data_source_id=data_source.id,
                 )
                 prices.append(p)
@@ -201,7 +201,7 @@ def post_weather_data_response(  # noqa: C901
                     datetime=dt,
                     value=value,
                     horizon=h,
-                    weather_sensor_id=sensor.id,
+                    sensor_id=sensor.id,
                     data_source_id=data_source.id,
                 )
                 weather_measurements.append(w)

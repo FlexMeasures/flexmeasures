@@ -95,7 +95,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             + timedelta(minutes=15 * i),
             horizon=timedelta(0),
             value=(100.0 + i) * -1,
-            asset_id=cs_5.id,
+            sensor_id=cs_5.id,
             data_source_id=user1_data_source.id,
         )
         p_2 = Power(
@@ -103,7 +103,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             + timedelta(minutes=15 * i),
             horizon=timedelta(hours=0),
             value=(1000.0 - 10 * i) * -1,
-            asset_id=cs_5.id,
+            sensor_id=cs_5.id,
             data_source_id=user2_data_source.id,
         )
         meter_data.append(p_1)

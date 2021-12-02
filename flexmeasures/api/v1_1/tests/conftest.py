@@ -62,7 +62,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             + timedelta(minutes=15 * i),
             horizon=timedelta(hours=6),
             value=(300 + i) * -1,
-            asset_id=cs_1.id,
+            sensor_id=cs_1.id,
             data_source_id=data_source.id,
         )
         p_2 = Power(
@@ -70,7 +70,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             + timedelta(minutes=15 * i),
             horizon=timedelta(hours=6),
             value=(300 - i) * -1,
-            asset_id=cs_2.id,
+            sensor_id=cs_2.id,
             data_source_id=data_source.id,
         )
         p_3 = Power(
@@ -78,7 +78,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             + timedelta(minutes=15 * i),
             horizon=timedelta(hours=6),
             value=(0 + i) * -1,
-            asset_id=cs_3.id,
+            sensor_id=cs_3.id,
             data_source_id=data_source.id,
         )
         power_forecasts.append(p_1)

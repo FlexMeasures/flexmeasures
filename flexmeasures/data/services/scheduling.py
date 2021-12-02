@@ -149,7 +149,7 @@ def make_schedule(
             datetime=dt,
             horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
             value=-value,
-            asset_id=asset_id,
+            sensor_id=asset_id,
             data_source_id=data_source.id,
         )
         for dt, value in consumption_schedule.items()

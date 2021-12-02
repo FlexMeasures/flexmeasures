@@ -102,7 +102,7 @@ def post_price_data_response(  # noqa C901
                         datetime=event_start,
                         value=event_value,
                         horizon=belief_horizon,
-                        market_id=market.id,
+                        sensor_id=market.id,
                         data_source_id=data_source.id,
                     )
                     for event_start, event_value, belief_horizon in zip(
@@ -189,7 +189,7 @@ def post_weather_data_response(  # noqa: C901
                         datetime=event_start,
                         value=event_value,
                         horizon=belief_horizon,
-                        weather_sensor_id=sensor.id,
+                        sensor_id=sensor.id,
                         data_source_id=data_source.id,
                     )
                     for event_start, event_value, belief_horizon in zip(
@@ -358,7 +358,7 @@ def post_power_data(
                         value=event_value
                         * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
                         horizon=belief_horizon,
-                        asset_id=sensor_id,
+                        sensor_id=sensor_id,
                         data_source_id=data_source.id,
                     )
                     for event_start, event_value, belief_horizon in zip(
