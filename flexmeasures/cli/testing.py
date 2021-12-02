@@ -54,7 +54,7 @@ def test_making_forecasts():
 
     create_forecasting_jobs(
         old_sensor_id=sensor_id,
-        timed_value_type="Power",
+        timed_value_type=Power,
         horizons=[timedelta(hours=6)],
         start_of_roll=as_server_time(datetime(2015, 4, 1)),
         end_of_roll=as_server_time(datetime(2015, 4, 3)),

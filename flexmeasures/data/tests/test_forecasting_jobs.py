@@ -59,7 +59,7 @@ def test_forecasting_an_hour_of_wind(db, app, setup_test_data):
     # makes 4 forecasts
     horizon = timedelta(hours=1)
     job = create_forecasting_jobs(
-        timed_value_type="Power",
+        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, 6)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 7)),
         horizons=[horizon],
@@ -102,7 +102,7 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app, setup_test_
     # makes 4 forecasts, 1 of which is for a new datetime index
     horizon = timedelta(hours=6)
     job = create_forecasting_jobs(
-        timed_value_type="Power",
+        timed_value_type=Power,
         start_of_roll=last_power_datetime
         - horizon
         - timedelta(minutes=30),  # start of data on which forecast is based (5.15pm)
@@ -176,7 +176,7 @@ def test_failed_forecasting_insufficient_data(app, clean_redis, setup_test_data)
     (Power data is in 2015)"""
     solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
     create_forecasting_jobs(
-        timed_value_type="Power",
+        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2016, 1, 1, 20)),
         end_of_roll=as_server_time(datetime(2016, 1, 1, 22)),
         horizons=[timedelta(hours=1)],
@@ -191,7 +191,7 @@ def test_failed_forecasting_invalid_horizon(app, clean_redis, setup_test_data):
     """ This one (as well as the fallback) should fail as the horizon is invalid."""
     solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
     create_forecasting_jobs(
-        timed_value_type="Power",
+        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, 21)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 23)),
         horizons=[timedelta(hours=18)],
@@ -211,7 +211,7 @@ def test_failed_unknown_model(app, clean_redis, setup_test_data):
     cmp["training_and_testing_period"] = timedelta(days=365)
 
     create_forecasting_jobs(
-        timed_value_type="Power",
+        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, 12)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 14)),
         horizons=[horizon],
