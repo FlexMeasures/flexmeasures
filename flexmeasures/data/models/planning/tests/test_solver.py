@@ -4,7 +4,6 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
@@ -13,9 +12,9 @@ from flexmeasures.utils.time_utils import as_server_time
 
 
 def test_battery_solver_day_1(add_battery_assets):
-    epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert Market.query.get(battery.get_attribute("market_id")) == epex_da
+    assert Sensor.query.get(battery.get_attribute("market_id")) == epex_da
     start = as_server_time(datetime(2015, 1, 1))
     end = as_server_time(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
@@ -35,9 +34,9 @@ def test_battery_solver_day_1(add_battery_assets):
 
 
 def test_battery_solver_day_2(add_battery_assets):
-    epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert Market.query.get(battery.get_attribute("market_id")) == epex_da
+    assert Sensor.query.get(battery.get_attribute("market_id")) == epex_da
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
@@ -83,11 +82,11 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     soc_at_start = 1
     duration_until_target = timedelta(hours=2)
 
-    epex_da = Market.query.filter(Market.name == "epex_da").one_or_none()
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     charging_station = Sensor.query.filter(
         Sensor.name == charging_station_name
     ).one_or_none()
-    assert Market.query.get(charging_station.get_attribute("market_id")) == epex_da
+    assert Sensor.query.get(charging_station.get_attribute("market_id")) == epex_da
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
