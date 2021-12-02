@@ -130,7 +130,7 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
         for dt, val in zip(time_slots, values):
             db.session.add(
                 Weather(
-                    weather_sensor=sensor,
+                    weather_sensor_id=sensor.id,
                     datetime=as_server_time(dt),
                     value=val,
                     horizon=timedelta(hours=6),
