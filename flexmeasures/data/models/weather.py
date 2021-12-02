@@ -293,10 +293,7 @@ class Weather(TimedValue, db.Model):
         super(Weather, self).__init__(**kwargs)
 
         # Sync ids
-        if self.sensor_id is None:
-            self.sensor_id = self.weather_sensor_id
-        elif self.weather_sensor_id is None:
-            self.weather_sensor_id = self.sensor_id
+        self.weather_sensor_id = self.sensor_id
 
     def __repr__(self):
         return "<Weather %.5f on sensor %s at %s by DataSource %s, horizon %s>" % (

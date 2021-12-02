@@ -210,7 +210,4 @@ class Price(TimedValue, db.Model):
         super(Price, self).__init__(**kwargs)
 
         # Sync ids
-        if self.sensor_id is None:
-            self.sensor_id = self.market_id
-        elif self.market_id is None:
-            self.market_id = self.sensor_id
+        self.market_id = self.sensor_id

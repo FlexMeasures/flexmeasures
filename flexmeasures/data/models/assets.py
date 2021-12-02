@@ -365,10 +365,7 @@ class Power(TimedValue, db.Model):
         super(Power, self).__init__(**kwargs)
 
         # Sync ids
-        if self.sensor_id is None:
-            self.sensor_id = self.asset_id
-        elif self.asset_id is None:
-            self.asset_id = self.sensor_id
+        self.asset_id = self.sensor_id
 
     def __repr__(self):
         return "<Power %.5f on Asset %s at %s by DataSource %s, horizon %s>" % (
