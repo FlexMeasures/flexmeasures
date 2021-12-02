@@ -7,7 +7,8 @@ import numpy as np
 from rq.job import Job
 
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.forecasting import (
     create_forecasting_jobs,
@@ -34,11 +35,11 @@ def get_data_source(model_identifier: str = "linear-OLS model v2"):
     ).one_or_none()
 
 
-def check_aggregate(overall_expected: int, horizon: timedelta, asset_id: int):
+def check_aggregate(overall_expected: int, horizon: timedelta, sensor_id: int):
     """Check that the expected number of forecasts were made for the given horizon,
     and check that each forecast is a number."""
     all_forecasts = (
-        Power.query.filter(Power.asset_id == asset_id)
+        Power.query.filter(Power.sensor_id == sensor_id)
         .filter(Power.horizon == horizon)
         .all()
     )
@@ -51,7 +52,7 @@ def test_forecasting_an_hour_of_wind(db, app, setup_test_data):
     - data source was made,
     - forecasts have been made
     """
-    wind_device_1 = Asset.query.filter_by(name="wind-asset-1").one_or_none()
+    wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
 
     assert get_data_source() is None
 
@@ -73,7 +74,7 @@ def test_forecasting_an_hour_of_wind(db, app, setup_test_data):
     assert get_data_source() is not None
 
     forecasts = (
-        Power.query.filter(Power.asset_id == wind_device_1.id)
+        Power.query.filter(Power.sensor_id == wind_device_1.id)
         .filter(Power.horizon == horizon)
         .filter(
             (Power.datetime >= as_server_time(datetime(2015, 1, 1, 7)))
@@ -86,11 +87,11 @@ def test_forecasting_an_hour_of_wind(db, app, setup_test_data):
 
 
 def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app, setup_test_data):
-    solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
+    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
 
     last_power_datetime = (
         (
-            Power.query.filter(Power.asset_id == solar_device1.id)
+            Power.query.filter(Power.sensor_id == solar_device1.id)
             .filter(Power.horizon == timedelta(hours=0))
             .order_by(Power.datetime.desc())
         )
@@ -119,7 +120,7 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app, setup_test_
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
     forecasts = (
-        Power.query.filter(Power.asset_id == solar_device1.id)
+        Power.query.filter(Power.sensor_id == solar_device1.id)
         .filter(Power.horizon == horizon)
         .filter(Power.datetime > last_power_datetime)
         .all()
@@ -173,7 +174,7 @@ def check_failures(
 def test_failed_forecasting_insufficient_data(app, clean_redis, setup_test_data):
     """This one (as well as the fallback) should fail as there is no underlying data.
     (Power data is in 2015)"""
-    solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
+    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
     create_forecasting_jobs(
         timed_value_type="Power",
         start_of_roll=as_server_time(datetime(2016, 1, 1, 20)),
@@ -188,7 +189,7 @@ def test_failed_forecasting_insufficient_data(app, clean_redis, setup_test_data)
 
 def test_failed_forecasting_invalid_horizon(app, clean_redis, setup_test_data):
     """ This one (as well as the fallback) should fail as the horizon is invalid."""
-    solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
+    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
     create_forecasting_jobs(
         timed_value_type="Power",
         start_of_roll=as_server_time(datetime(2015, 1, 1, 21)),
@@ -203,7 +204,7 @@ def test_failed_forecasting_invalid_horizon(app, clean_redis, setup_test_data):
 
 def test_failed_unknown_model(app, clean_redis, setup_test_data):
     """ This one should fail because we use a model search term which yields no model configurator."""
-    solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
+    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
     horizon = timedelta(hours=1)
 
     cmp = custom_model_params()

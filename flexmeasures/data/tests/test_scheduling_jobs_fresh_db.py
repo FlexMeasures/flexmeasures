@@ -63,7 +63,7 @@ def test_scheduling_a_charging_station(
     )  # Make sure the scheduler data source is now there
 
     power_values = (
-        Power.query.filter(Power.asset_id == charging_station.id)
+        Power.query.filter(Power.sensor_id == charging_station.id)
         .filter(Power.data_source_id == scheduler_source.id)
         .all()
     )

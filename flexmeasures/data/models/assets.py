@@ -211,7 +211,7 @@ class Asset(db.Model, tb.SensorDBMixin):
         """Search the most recent event for this sensor, optionally before some datetime."""
         # todo: replace with Sensor.latest_state
         power_query = (
-            Power.query.filter(Power.asset == self)
+            Power.query.filter(Power.sensor_id == self.id)
             .filter(Power.horizon <= timedelta(hours=0))
             .order_by(Power.datetime.desc())
         )
@@ -336,7 +336,7 @@ class Power(TimedValue, db.Model):
         **kwargs,
     ) -> Query:
         """Construct the database query."""
-        return super().make_query(old_sensor_class=Asset, **kwargs)
+        return super().make_query(**kwargs)
 
     def to_dict(self):
         return {

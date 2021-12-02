@@ -78,17 +78,14 @@ def verify_sensor_data_in_db(
     swapped_sign: bool = False,
 ):
     """util method to verify that sensor data ended up in the database"""
+    sensor_type = Sensor
     if entity_type == "sensor":
-        sensor_type = Sensor
         data_type = TimedBelief
     elif entity_type == "connection":
-        sensor_type = Asset
         data_type = Power
     elif entity_type == "market":
-        sensor_type = Market
         data_type = Price
     elif entity_type == "weather_sensor":
-        sensor_type = WeatherSensor
         data_type = Weather
     else:
         raise ValueError("Unknown entity type")

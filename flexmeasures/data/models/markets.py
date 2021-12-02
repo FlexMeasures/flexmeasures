@@ -200,7 +200,7 @@ class Price(TimedValue, db.Model):
     @classmethod
     def make_query(cls, **kwargs) -> Query:
         """Construct the database query."""
-        return super().make_query(old_sensor_class=Market, **kwargs)
+        return super().make_query(**kwargs)
 
     def __init__(self, **kwargs):
         super(Price, self).__init__(**kwargs)

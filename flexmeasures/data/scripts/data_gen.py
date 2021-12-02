@@ -452,7 +452,7 @@ def depopulate_measurements(
                 num_prices_deleted = (
                     db.session.query(Price)
                     .filter(Price.horizon <= timedelta(hours=0))
-                    .filter(Price.market == market)
+                    .filter(Price.sensor_id == market.id)
                     .delete()
                 )
             else:
@@ -466,7 +466,7 @@ def depopulate_measurements(
                 num_power_measurements_deleted = (
                     db.session.query(Power)
                     .filter(Power.horizon <= timedelta(hours=0))
-                    .filter(Power.asset == asset)
+                    .filter(Power.sensor_id == asset.id)
                     .delete()
                 )
             else:
@@ -482,7 +482,7 @@ def depopulate_measurements(
                 num_weather_measurements_deleted = (
                     db.session.query(Weather)
                     .filter(Weather.horizon <= timedelta(hours=0))
-                    .filter(Weather.weather_sensor == sensor)
+                    .filter(Weather.sensor_id == sensor.id)
                     .delete()
                 )
             else:
@@ -547,7 +547,7 @@ def depopulate_prognoses(
                 num_prices_deleted = (
                     db.session.query(Price)
                     .filter(Price.horizon > timedelta(hours=0))
-                    .filter(Price.market == market)
+                    .filter(Price.sensor_id == market.id)
                     .delete()
                 )
             else:
@@ -561,7 +561,7 @@ def depopulate_prognoses(
                 num_power_measurements_deleted = (
                     db.session.query(Power)
                     .filter(Power.horizon > timedelta(hours=0))
-                    .filter(Power.asset == asset)
+                    .filter(Power.sensor_id == asset.id)
                     .delete()
                 )
             else:
@@ -577,7 +577,7 @@ def depopulate_prognoses(
                 num_weather_measurements_deleted = (
                     db.session.query(Weather)
                     .filter(Weather.horizon > timedelta(hours=0))
-                    .filter(Weather.weather_sensor == sensor)
+                    .filter(Weather.sensor_id == sensor.id)
                     .delete()
                 )
             else:

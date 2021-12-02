@@ -38,9 +38,9 @@ def test_making_forecasts():
 
     click.echo("Manual forecasting job queuing started ...")
 
-    asset_id = 1
+    sensor_id = 1
     forecast_filter = (
-        Power.query.filter(Power.asset_id == asset_id)
+        Power.query.filter(Power.sensor_id == sensor_id)
         .filter(Power.horizon == timedelta(hours=6))
         .filter(
             (Power.datetime >= as_server_time(datetime(2015, 4, 1, 6)))
@@ -53,7 +53,7 @@ def test_making_forecasts():
     click.echo("Forecasts found before : %d" % forecast_filter.count())
 
     create_forecasting_jobs(
-        old_sensor_id=asset_id,
+        old_sensor_id=sensor_id,
         timed_value_type="Power",
         horizons=[timedelta(hours=6)],
         start_of_roll=as_server_time(datetime(2015, 4, 1)),

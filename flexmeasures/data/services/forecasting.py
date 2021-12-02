@@ -223,7 +223,7 @@ def make_rolling_viewpoint_forecasts(
         [lag * model_specs.frequency for lag in model_specs.lags],
     )
     check_data_availability(
-        old_sensor,
+        old_sensor.corresponding_sensor,
         determine_old_time_series_class_by_old_sensor(old_sensor),
         start,
         end,
