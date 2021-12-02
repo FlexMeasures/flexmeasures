@@ -419,7 +419,7 @@ def save_forecasts_in_db(
                             datetime=fc_datetime,
                             horizon=fc_horizon,
                             value=fc_value,
-                            sensor_id=weather_sensor.id,
+                            weather_sensor_id=weather_sensor.id,
                             data_source_id=data_source.id,
                         )
                     )

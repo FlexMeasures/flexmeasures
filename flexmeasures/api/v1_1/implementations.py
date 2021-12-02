@@ -201,7 +201,7 @@ def post_weather_data_response(  # noqa: C901
                     datetime=dt,
                     value=value,
                     horizon=h,
-                    sensor_id=sensor.id,
+                    weather_sensor_id=sensor.id,
                     data_source_id=data_source.id,
                 )
                 weather_measurements.append(w)

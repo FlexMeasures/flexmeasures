@@ -346,7 +346,7 @@ def populate_time_series_forecasts(  # noqa: C901
                         datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         horizon=horizon,
                         value=value,
-                        sensor_id=old_sensor.id,
+                        weather_sensor_id=old_sensor.id,
                         data_source_id=data_source.id,
                     )
                     for dt, value in forecasts.items()
@@ -482,7 +482,7 @@ def depopulate_measurements(
                 num_weather_measurements_deleted = (
                     db.session.query(Weather)
                     .filter(Weather.horizon <= timedelta(hours=0))
-                    .filter(Weather.sensor == sensor)
+                    .filter(Weather.weather_sensor == sensor)
                     .delete()
                 )
             else:
@@ -577,7 +577,7 @@ def depopulate_prognoses(
                 num_weather_measurements_deleted = (
                     db.session.query(Weather)
                     .filter(Weather.horizon > timedelta(hours=0))
-                    .filter(Weather.sensor == sensor)
+                    .filter(Weather.weather_sensor == sensor)
                     .delete()
                 )
             else:

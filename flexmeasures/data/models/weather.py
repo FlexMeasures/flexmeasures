@@ -273,10 +273,12 @@ class Weather(TimedValue, db.Model):
     TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
     """
 
-    sensor_id = db.Column(
+    weather_sensor_id = db.Column(
         db.Integer(), db.ForeignKey("weather_sensor.id"), primary_key=True, index=True
     )
-    sensor = db.relationship("WeatherSensor", backref=db.backref("weather", lazy=True))
+    weather_sensor = db.relationship(
+        "WeatherSensor", backref=db.backref("weather", lazy=True)
+    )
 
     @classmethod
     def make_query(cls, **kwargs) -> Query:
@@ -289,7 +291,7 @@ class Weather(TimedValue, db.Model):
     def __repr__(self):
         return "<Weather %.5f on sensor %s at %s by DataSource %s, horizon %s>" % (
             self.value,
-            self.sensor_id,
+            self.weather_sensor_id,
             self.datetime,
             self.data_source_id,
             self.horizon,
