@@ -7,7 +7,7 @@ from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
 
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.exceptions import (
     UnknownMarketException,
@@ -60,11 +60,12 @@ def add_tiny_price_slope(
     return prices
 
 
-def get_market(sensor: Sensor) -> Market:
-    market = Market.query.get(sensor.get_attribute("market_id"))
-    if market is None:
+def get_market(sensor: Sensor) -> Sensor:
+    """Get market sensor from the sensor's attributes."""
+    sensor = Sensor.query.get(sensor.get_attribute("market_id"))
+    if sensor is None:
         raise UnknownMarketException
-    return market
+    return sensor
 
 
 def get_prices(
@@ -78,11 +79,11 @@ def get_prices(
           (this may require implementing a belief time for scheduling jobs).
     """
 
-    # Look for the applicable market
-    market = get_market(sensor)
+    # Look for the applicable market sensor
+    sensor = get_market(sensor)
 
     price_bdf: tb.BeliefsDataFrame = Price.collect(
-        market.name,
+        sensor.name,
         query_window=query_window,
         resolution=to_offset(resolution).freqstr,
     )
