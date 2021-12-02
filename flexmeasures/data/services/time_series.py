@@ -213,25 +213,15 @@ def query_time_series_data(
 def find_sensor_by_name(name: str):
     """
     Helper function: Find a sensor by name.
-    TODO: make obsolete when we switched to one sensor class (and timely-beliefs)
+    TODO: make obsolete when we switched to collecting sensor data by sensor id rather than name
     """
     # importing here to avoid circular imports, deemed okay for temp. solution
-    from flexmeasures.data.models.assets import Asset
-    from flexmeasures.data.models.weather import WeatherSensor
-    from flexmeasures.data.models.markets import Market
+    from flexmeasures.data.models.time_series import Sensor
 
-    asset = Asset.query.filter(Asset.name == name).one_or_none()
-    if asset:
-        return asset
-    weather_sensor = WeatherSensor.query.filter(
-        WeatherSensor.name == name
-    ).one_or_none()
-    if weather_sensor:
-        return weather_sensor
-    market = Market.query.filter(Market.name == name).one_or_none()
-    if market:
-        return market
-    raise Exception("Unknown sensor: %s" % name)
+    sensor = Sensor.query.filter(Sensor.name == name).one_or_none()
+    if sensor is None:
+        raise Exception("Unknown sensor: %s" % name)
+    return sensor
 
 
 def drop_non_unique_ids(
