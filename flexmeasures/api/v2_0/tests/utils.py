@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional
 from datetime import timedelta
 from isodate import duration_isoformat, parse_duration, parse_datetime
 
@@ -6,10 +6,10 @@ import pandas as pd
 import timely_beliefs as tb
 
 from flexmeasures.api.common.schemas.sensors import SensorField
-from flexmeasures.data.models.assets import Asset, Power
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.assets import Power
+from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.weather import WeatherSensor, Weather
+from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.v1_1.tests.utils import (
     message_for_post_price_data as v1_1_message_for_post_price_data,
@@ -26,7 +26,7 @@ def get_asset_post_data() -> dict:
         "longitude": 100.42,
         "asset_type_name": "battery",
         "owner_id": find_user_by_email("test_prosumer_user@seita.nl").id,
-        "market_id": Market.query.filter_by(name="epex_da").one_or_none().id,
+        "market_id": Sensor.query.filter_by(name="epex_da").one_or_none().id,
     }
     return post_data
 
@@ -78,7 +78,6 @@ def verify_sensor_data_in_db(
     swapped_sign: bool = False,
 ):
     """util method to verify that sensor data ended up in the database"""
-    sensor_type = Sensor
     if entity_type == "sensor":
         data_type = TimedBelief
     elif entity_type == "connection":
@@ -92,9 +91,9 @@ def verify_sensor_data_in_db(
 
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
-    sensor: Union[Sensor, Asset, Market, WeatherSensor] = SensorField(
-        entity_type, fm_scheme
-    ).deserialize(post_message[entity_type])
+    sensor: Sensor = SensorField(entity_type, fm_scheme).deserialize(
+        post_message[entity_type]
+    )
     resolution = sensor.event_resolution
     if "horizon" in post_message:
         horizon = parse_duration(post_message["horizon"])
@@ -104,8 +103,8 @@ def verify_sensor_data_in_db(
                 (data_type.datetime > start - resolution) & (data_type.datetime < end)
             )
             .filter(data_type.horizon == horizon)
-            .join(sensor_type)
-            .filter(sensor_type.name == sensor.name)
+            .join(Sensor)
+            .filter(Sensor.name == sensor.name)
         )
     else:
         query = (
@@ -118,8 +117,8 @@ def verify_sensor_data_in_db(
                 (data_type.datetime > start - resolution) & (data_type.datetime < end)
             )
             # .filter(data_type.horizon == (data_type.datetime + resolution) - prior)  # only for sensors with 0-hour ex_post knowledge horizon function
-            .join(sensor_type)
-            .filter(sensor_type.name == sensor.name)
+            .join(Sensor)
+            .filter(Sensor.name == sensor.name)
         )
     # todo: after basing Price on TimedBelief, we should be able to get a BeliefsDataFrame from the query directly
     df = pd.DataFrame(
