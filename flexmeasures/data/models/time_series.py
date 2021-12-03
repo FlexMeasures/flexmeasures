@@ -311,6 +311,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
+        user_source_ids: Optional[Union[int, List[int]]] = None,
         source_types: Optional[List[str]] = None,
         exclude_source_types: Optional[List[str]] = None,
         most_recent_beliefs_only: bool = False,
@@ -327,12 +328,13 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
 
-        * If source is specified, the "user" source type is automatically included (and not excluded).
+        * If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
           Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
         """
         # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
@@ -344,15 +346,23 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             required_argument=False,
         )
         parsed_sources = parse_source_arg(source)
-        custom_filter_criteria = []
+        extra_filter_criteria = []
+        if user_source_ids is not None:
+            extra_filter_criteria = add_user_source_criterion(
+                cls, extra_filter_criteria, user_source_ids
+            )
         if source_types is not None:
-            if source and "user" not in source_types:
+            if user_source_ids and "user" not in source_types:
                 source_types.append("user")
-            custom_filter_criteria.append(DataSource.type.in_(source_types))
+            extra_filter_criteria = add_source_type_criterion(
+                extra_filter_criteria, source_types
+            )
         if exclude_source_types is not None:
-            if source and "user" in exclude_source_types:
+            if user_source_ids and "user" in exclude_source_types:
                 exclude_source_types.remove("user")
-            custom_filter_criteria.append(DataSource.type.notin_(exclude_source_types))
+            extra_filter_criteria = add_source_type_exclusion_criterion(
+                extra_filter_criteria, exclude_source_types
+            )
         return cls.search_session(
             session=db.session,
             sensor=sensor,
@@ -365,7 +375,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             source=parsed_sources,
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
-            custom_filter_criteria=custom_filter_criteria,
+            custom_filter_criteria=extra_filter_criteria,
         )
 
     @classmethod
