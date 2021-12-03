@@ -1,5 +1,3 @@
-from typing import Union
-
 from marshmallow import fields
 
 from flexmeasures.api import FMValidationError
@@ -10,9 +8,6 @@ from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
 )
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -42,11 +37,8 @@ class SensorField(fields.Str):
         self.fm_scheme = fm_scheme
         super().__init__(*args, **kwargs)
 
-    def _deserialize(  # noqa: C901 todo: the noqa can probably be removed after refactoring Asset/Market/WeatherSensor to Sensor
-        self, value, attr, obj, **kwargs
-    ) -> Sensor:
+    def _deserialize(self, value, attr, obj, **kwargs) -> Sensor:
         """De-serialize to a Sensor."""
-        # TODO: After refactoring, unify 3 generic_asset cases -> 1 sensor case
         try:
             ea = parse_entity_address(value, self.entity_type, self.fm_scheme)
             if self.fm_scheme == "fm0":
@@ -54,47 +46,28 @@ class SensorField(fields.Str):
                     sensor = Sensor.query.filter(
                         Sensor.id == ea["asset_id"]
                     ).one_or_none()
-                    if sensor is not None:
-                        return sensor
-                    else:
-                        raise EntityAddressValidationError(
-                            f"Asset with entity address {value} doesn't exist."
-                        )
                 elif self.entity_type == "market":
                     sensor = Sensor.query.filter(
                         Sensor.name == ea["market_name"]
                     ).one_or_none()
-                    if sensor is not None:
-                        return sensor
-                    else:
-                        raise EntityAddressValidationError(
-                            f"Market with entity address {value} doesn't exist."
-                        )
                 elif self.entity_type == "weather_sensor":
                     sensor = get_sensor_by_generic_asset_type_and_location(
                         ea["weather_sensor_type_name"], ea["latitude"], ea["longitude"]
                     )
-                    if sensor is not None:
-                        return sensor
-                    else:
-                        raise EntityAddressValidationError(
-                            f"Weather sensor with entity address {value} doesn't exist."
-                        )
+                else:
+                    return NotImplemented
             else:
                 sensor = Sensor.query.filter(Sensor.id == ea["sensor_id"]).one_or_none()
-                if sensor is not None:
-                    return sensor
-                else:
-                    raise EntityAddressValidationError(
-                        f"{self.entity_type} with entity address {value} doesn't exist."
-                    )
+            if sensor is not None:
+                return sensor
+            else:
+                raise EntityAddressValidationError(
+                    f"{self.entity_type} with entity address {value} doesn't exist."
+                )
         except EntityAddressException as eae:
             raise EntityAddressValidationError(str(eae))
-        return NotImplemented
 
-    def _serialize(
-        self, value: Union[Sensor, Asset, Market, WeatherSensor], attr, data, **kwargs
-    ):
+    def _serialize(self, value: Sensor, attr, data, **kwargs):
         """Serialize to an entity address."""
         if self.fm_scheme == "fm0":
             return value.entity_address_fm0
