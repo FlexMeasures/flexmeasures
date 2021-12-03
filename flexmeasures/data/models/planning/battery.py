@@ -10,7 +10,6 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     add_tiny_price_slope,
     get_prices,
-    check_required_attributes,
 )
 
 
@@ -29,8 +28,7 @@ def schedule_battery(
     """
 
     # Check for required Sensor attributes
-    check_required_attributes(
-        sensor,
+    sensor.check_required_attributes(
         [
             ("capacity_in_mw", (float, int)),
             ("max_soc_in_mwh", (float, int)),

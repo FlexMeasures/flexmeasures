@@ -1,4 +1,4 @@
-from typing import Any, List, Dict, Optional, Union, Tuple
+from typing import Any, List, Dict, Optional, Union, Type, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
 
@@ -22,6 +22,7 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.utils import check_required_attributes
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
@@ -102,6 +103,17 @@ class Sensor(db.Model, tb.SensorDBMixin):
     def set_attribute(self, attribute: str, value):
         if self.has_attribute(attribute):
             self.attributes[attribute] = value
+
+    def check_required_attributes(
+        self,
+        attributes: List[Union[str, Tuple[str, Union[Type, Tuple[Type, ...]]]]],
+    ):
+        """Raises if any attribute in the list of attributes is missing, or has the wrong type.
+
+        :param attributes: List of either an attribute name or a tuple of an attribute name and its allowed type
+                           (the allowed type may also be a tuple of several allowed types)
+        """
+        check_required_attributes(self, attributes)
 
     def latest_state(
         self,

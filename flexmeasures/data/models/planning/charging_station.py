@@ -10,7 +10,6 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     add_tiny_price_slope,
     get_prices,
-    check_required_attributes,
 )
 
 
@@ -30,7 +29,7 @@ def schedule_charging_station(
     """
 
     # Check for required Sensor attributes
-    check_required_attributes(sensor, [("capacity_in_mw", (float, int))])
+    sensor.check_required_attributes([("capacity_in_mw", (float, int))])
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
