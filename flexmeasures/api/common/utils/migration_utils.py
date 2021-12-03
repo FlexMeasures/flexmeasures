@@ -25,13 +25,13 @@ def get_sensor_by_unique_name(
     This function should be used only for sensors that correspond to the old Market class.
     """
     # Look for the Sensor object
-    sensor = query_sensor_by_name_and_generic_asset_type_name(
+    sensors = query_sensor_by_name_and_generic_asset_type_name(
         sensor_name, generic_asset_type_names
     ).all()
-    if len(sensor) == 0:
+    if len(sensors) == 0:
         return unrecognized_market(sensor_name)
-    elif len(sensor) > 1:
+    elif len(sensors) > 1:
         return deprecated_api_version(
             f"Multiple sensors were found named {sensor_name}."
         )
-    return sensor[0]
+    return sensors[0]
