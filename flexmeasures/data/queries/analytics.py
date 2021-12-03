@@ -13,7 +13,8 @@ from flexmeasures.data.services.time_series import set_bdf_source
 from flexmeasures.utils import calculations, time_utils
 from flexmeasures.data.services.resources import Resource, find_closest_weather_sensor
 from flexmeasures.data.models.assets import Asset, Power
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.weather import Weather, WeatherSensor, WeatherSensorType
 
 
@@ -157,7 +158,7 @@ def get_power_data(
 
 def get_prices_data(
     metrics: dict,
-    market: Market,
+    market_sensor: Sensor,
     query_window: Tuple[datetime, datetime],
     resolution: str,
     forecast_horizon: timedelta,
@@ -172,7 +173,7 @@ def get_prices_data(
     - weighted absolute percentage error
     """
 
-    market_name = "" if market is None else market.name
+    market_name = "" if market_sensor is None else market_sensor.name
 
     # Get price data
     price_bdf: tb.BeliefsDataFrame = Price.collect(

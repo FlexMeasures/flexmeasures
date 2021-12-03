@@ -211,7 +211,7 @@ class Asset(db.Model, tb.SensorDBMixin):
         """Search the most recent event for this sensor, optionally before some datetime."""
         # todo: replace with Sensor.latest_state
         power_query = (
-            Power.query.filter(Power.asset == self)
+            Power.query.filter(Power.sensor_id == self.id)
             .filter(Power.horizon <= timedelta(hours=0))
             .order_by(Power.datetime.desc())
         )
@@ -314,14 +314,14 @@ class Power(TimedValue, db.Model):
     TODO: If there are more than one measurement per asset per time step possible, we can expand rather easily.
     """
 
-    asset_id = db.Column(
+    sensor_id = db.Column(
         db.Integer(),
-        db.ForeignKey("asset.id", ondelete="CASCADE"),
+        db.ForeignKey("sensor.id", ondelete="CASCADE"),
         primary_key=True,
         index=True,
     )
-    asset = db.relationship(
-        "Asset",
+    sensor = db.relationship(
+        "Sensor",
         backref=db.backref(
             "measurements",
             lazy=True,
@@ -336,12 +336,12 @@ class Power(TimedValue, db.Model):
         **kwargs,
     ) -> Query:
         """Construct the database query."""
-        return super().make_query(old_sensor_class=Asset, **kwargs)
+        return super().make_query(**kwargs)
 
     def to_dict(self):
         return {
             "datetime": isodate.datetime_isoformat(self.datetime),
-            "asset_id": self.asset_id,
+            "sensor_id": self.sensor_id,
             "value": self.value,
             "horizon": self.horizon,
         }
@@ -350,9 +350,9 @@ class Power(TimedValue, db.Model):
         super(Power, self).__init__(**kwargs)
 
     def __repr__(self):
-        return "<Power %.5f on Asset %s at %s by DataSource %s, horizon %s>" % (
+        return "<Power %.5f on Sensor %s at %s by DataSource %s, horizon %s>" % (
             self.value,
-            self.asset_id,
+            self.sensor_id,
             self.datetime,
             self.data_source_id,
             self.horizon,

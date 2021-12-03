@@ -3,7 +3,8 @@ from datetime import timedelta, datetime
 import pytest
 from sqlalchemy.orm import Query
 
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.forecasting import (
     create_forecasting_jobs,
     handle_forecasting_exception,
@@ -19,12 +20,12 @@ from flexmeasures.utils.time_utils import as_server_time
 
 
 def test_forecasting_three_hours_of_wind(app, setup_fresh_test_data, clean_redis):
-    wind_device2: Asset = Asset.query.filter_by(name="wind-asset-2").one_or_none()
+    wind_device2: Sensor = Sensor.query.filter_by(name="wind-asset-2").one_or_none()
 
     # makes 12 forecasts
     horizon = timedelta(hours=1)
     job = create_forecasting_jobs(
-        timed_value_type="Power",
+        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, 10)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 13)),
         horizons=[horizon],
@@ -36,7 +37,7 @@ def test_forecasting_three_hours_of_wind(app, setup_fresh_test_data, clean_redis
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
     forecasts = (
-        Power.query.filter(Power.asset_id == wind_device2.id)
+        Power.query.filter(Power.sensor_id == wind_device2.id)
         .filter(Power.horizon == horizon)
         .filter(
             (Power.datetime >= as_server_time(datetime(2015, 1, 1, 11)))
@@ -49,15 +50,15 @@ def test_forecasting_three_hours_of_wind(app, setup_fresh_test_data, clean_redis
 
 
 def test_forecasting_two_hours_of_solar(app, setup_fresh_test_data, clean_redis):
-    solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
-    wind_device2: Asset = Asset.query.filter_by(name="wind-asset-2").one_or_none()
+    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
+    wind_device2: Sensor = Sensor.query.filter_by(name="wind-asset-2").one_or_none()
     print(solar_device1)
     print(wind_device2)
 
     # makes 8 forecasts
     horizon = timedelta(hours=1)
     job = create_forecasting_jobs(
-        timed_value_type="Power",
+        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, 12)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 14)),
         horizons=[horizon],
@@ -68,7 +69,7 @@ def test_forecasting_two_hours_of_solar(app, setup_fresh_test_data, clean_redis)
 
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
     forecasts = (
-        Power.query.filter(Power.asset_id == solar_device1.id)
+        Power.query.filter(Power.sensor_id == solar_device1.id)
         .filter(Power.horizon == horizon)
         .filter(
             (Power.datetime >= as_server_time(datetime(2015, 1, 1, 13)))
@@ -93,7 +94,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     (fail-test falls back to linear & linear falls back to naive).
     As a result, there should be forecasts in the DB.
     """
-    solar_device1: Asset = Asset.query.filter_by(name="solar-asset-1").one_or_none()
+    solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
     horizon_hours = 1
     horizon = timedelta(hours=horizon_hours)
 
@@ -105,7 +106,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
 
     # The failed test model (this failure enqueues a new job)
     create_forecasting_jobs(
-        timed_value_type="Power",
+        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, hour_start)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, hour_start + 2)),
         horizons=[horizon],
@@ -126,7 +127,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     def make_query(the_horizon_hours: int) -> Query:
         the_horizon = timedelta(hours=the_horizon_hours)
         return (
-            Power.query.filter(Power.asset_id == solar_device1.id)
+            Power.query.filter(Power.sensor_id == solar_device1.id)
             .filter(Power.horizon == the_horizon)
             .filter(
                 (

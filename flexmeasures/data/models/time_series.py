@@ -435,7 +435,6 @@ class TimedValue(object):
     @classmethod
     def make_query(
         cls,
-        old_sensor_class: db.Model,
         old_sensor_names: Tuple[str],
         query_window: Tuple[Optional[datetime_type], Optional[datetime_type]],
         belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
@@ -473,11 +472,9 @@ class TimedValue(object):
         if session is None:
             session = db.session
         start, end = query_window
-        query = create_beliefs_query(
-            cls, session, old_sensor_class, old_sensor_names, start, end
-        )
+        query = create_beliefs_query(cls, session, Sensor, old_sensor_names, start, end)
         query = add_belief_timing_filter(
-            cls, query, old_sensor_class, belief_horizon_window, belief_time_window
+            cls, query, Sensor, belief_horizon_window, belief_time_window
         )
         if user_source_ids:
             query = add_user_source_filter(cls, query, user_source_ids)

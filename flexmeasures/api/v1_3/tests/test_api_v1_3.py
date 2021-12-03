@@ -97,7 +97,7 @@ def test_post_udi_event_and_get_device_message(
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
     power_values = (
-        Power.query.filter(Power.asset_id == sensor.id)
+        Power.query.filter(Power.sensor_id == sensor.id)
         .filter(Power.data_source_id == scheduler_source.id)
         .all()
     )

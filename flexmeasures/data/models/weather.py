@@ -274,20 +274,20 @@ class Weather(TimedValue, db.Model):
     """
 
     sensor_id = db.Column(
-        db.Integer(), db.ForeignKey("weather_sensor.id"), primary_key=True, index=True
+        db.Integer(), db.ForeignKey("sensor.id"), primary_key=True, index=True
     )
-    sensor = db.relationship("WeatherSensor", backref=db.backref("weather", lazy=True))
+    sensor = db.relationship("Sensor", backref=db.backref("weather", lazy=True))
 
     @classmethod
     def make_query(cls, **kwargs) -> Query:
         """Construct the database query."""
-        return super().make_query(old_sensor_class=WeatherSensor, **kwargs)
+        return super().make_query(**kwargs)
 
     def __init__(self, **kwargs):
         super(Weather, self).__init__(**kwargs)
 
     def __repr__(self):
-        return "<Weather %.5f on sensor %s at %s by DataSource %s, horizon %s>" % (
+        return "<Weather %.5f on Sensor %s at %s by DataSource %s, horizon %s>" % (
             self.value,
             self.sensor_id,
             self.datetime,

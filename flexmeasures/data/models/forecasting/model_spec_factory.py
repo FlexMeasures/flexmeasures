@@ -119,11 +119,13 @@ def create_initial_model_specs(  # noqa: C901
     forecast_start: datetime,  # Start of forecast period
     forecast_end: datetime,  # End of forecast period
     forecast_horizon: timedelta,  # Duration between time of forecasting and end time of the event that is forecast
-    ex_post_horizon: timedelta = None,
+    ex_post_horizon: Optional[timedelta] = None,
     transform_to_normal: bool = True,
     use_regressors: bool = True,  # If false, do not create regressor specs
     use_periodicity: bool = True,  # If false, do not create lags given the asset's periodicity
-    custom_model_params: dict = None,  # overwrite forecasting params, most useful for testing or experimentation.
+    custom_model_params: Optional[
+        dict
+    ] = None,  # overwrite model params, most useful for tests or experiments
 ) -> ModelSpecs:
     """
     Generic model specs for all asset types (also for markets and weather sensors) and horizons.

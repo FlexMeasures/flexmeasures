@@ -41,7 +41,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     )  # Make sure the scheduler data source is now there
 
     power_values = (
-        Power.query.filter(Power.asset_id == battery.id)
+        Power.query.filter(Power.sensor_id == battery.id)
         .filter(Power.data_source_id == scheduler_source.id)
         .all()
     )

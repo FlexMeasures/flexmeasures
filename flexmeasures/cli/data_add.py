@@ -16,6 +16,9 @@ import timely_beliefs as tb
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.models.assets import Power
+from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.sensors import SensorSchema
@@ -607,11 +610,11 @@ def create_forecasts(
 
     if as_job:
         if asset_type == "Asset":
-            value_type = "Power"
+            value_type = Power
         elif asset_type == "Market":
-            value_type = "Price"
+            value_type = Price
         elif asset_type == "WeatherSensor":
-            value_type = "Weather"
+            value_type = Weather
         else:
             raise TypeError(f"Unknown asset_type {asset_type}")
 

@@ -117,7 +117,7 @@ def post_price_data_response(
                     datetime=dt,
                     value=value,
                     horizon=h,
-                    market_id=sensor.id,
+                    sensor_id=sensor.id,
                     data_source_id=data_source.id,
                 )
                 prices.append(p)
@@ -127,7 +127,7 @@ def post_price_data_response(
             if current_app.config.get("FLEXMEASURES_MODE", "") != "play":
                 # Forecast 24 and 48 hours ahead for at most the last 24 hours of posted price data
                 forecasting_jobs = create_forecasting_jobs(
-                    "Price",
+                    Price,
                     sensor.id,
                     max(start, start + duration - timedelta(hours=24)),
                     start + duration,
@@ -214,7 +214,7 @@ def post_weather_data_response(  # noqa: C901
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this sensor
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
-                        "Weather",
+                        Weather,
                         sensor.id,
                         start,
                         start + duration,

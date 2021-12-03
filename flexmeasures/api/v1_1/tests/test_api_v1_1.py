@@ -24,6 +24,7 @@ from flexmeasures.api.v1_1.tests.utils import (
 from flexmeasures.auth.error_handling import UNAUTH_ERROR_STATUS
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import User
+from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -154,7 +155,7 @@ def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
-        assert job.kwargs["timed_value_type"] == "Price"
+        assert job.kwargs["timed_value_type"] == Price
         assert job.kwargs["old_sensor_id"] == market.id
 
 

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Union
+from typing import List, Type, Union
 
 from flask import current_app
 import click
@@ -9,16 +9,16 @@ from sqlalchemy.exc import IntegrityError
 from timetomodel.forecasting import make_rolling_forecasts
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import InvalidHorizonException
-from flexmeasures.data.models.markets import Market, Price
-from flexmeasures.data.models.utils import determine_old_time_series_class_by_old_sensor
+from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.forecasting.utils import (
     get_query_window,
     check_data_availability,
 )
-from flexmeasures.data.models.weather import Weather, WeatherSensor
+from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.utils import save_to_session, get_data_source
 from flexmeasures.utils.time_utils import (
     as_server_time,
@@ -46,7 +46,7 @@ class MisconfiguredForecastingJobException(Exception):
 
 
 def create_forecasting_jobs(
-    timed_value_type: str,
+    timed_value_type: Type[Union[TimedBelief, Power, Price, Weather]],
     old_sensor_id: int,
     start_of_roll: datetime,
     end_of_roll: datetime,
@@ -124,7 +124,7 @@ def create_forecasting_jobs(
 
 def make_fixed_viewpoint_forecasts(
     old_sensor_id: int,
-    timed_value_type: str,
+    timed_value_type: Type[Union[TimedBelief, Power, Price, Weather]],
     horizon: timedelta,
     start: datetime,
     end: datetime,
@@ -142,7 +142,7 @@ def make_fixed_viewpoint_forecasts(
 
 def make_rolling_viewpoint_forecasts(
     old_sensor_id: int,
-    timed_value_type: str,
+    timed_value_type: Type[Union[TimedBelief, Power, Price, Weather]],
     horizon: timedelta,
     start: datetime,
     end: datetime,
@@ -159,7 +159,7 @@ def make_rolling_viewpoint_forecasts(
     ----------
     :param old_sensor_id: int
         To identify which old sensor to forecast (note: old_sensor_id == sensor_id)
-    :param timed_value_type: str
+    :param timed_value_type: Type[Union[TimedBelief, Power, Price, Weather]]
         This should go away after a refactoring - we now use it to create the DB entry for the forecasts
     :param horizon: timedelta
         duration between the end of each interval and the time at which the belief about that interval is formed
@@ -181,15 +181,15 @@ def make_rolling_viewpoint_forecasts(
     # find out which model to run, fall back to latest recommended
     model_search_term = rq_job.meta.get("model_search_term", "linear-OLS")
 
-    # find old sensor
-    old_sensor = get_old_sensor(old_sensor_id, timed_value_type)
+    # find sensor
+    sensor = Sensor.query.filter_by(id=old_sensor_id).one_or_none()
 
     click.echo(
         "Running Forecasting Job %s: %s for %s on model '%s', from %s to %s"
-        % (rq_job.id, old_sensor, horizon, model_search_term, start, end)
+        % (rq_job.id, sensor, horizon, model_search_term, start, end)
     )
 
-    if hasattr(old_sensor, "market_type"):
+    if hasattr(sensor, "market_type"):
         ex_post_horizon = None  # Todo: until we sorted out the ex_post_horizon, use all available price data
     else:
         ex_post_horizon = timedelta(hours=0)
@@ -197,8 +197,8 @@ def make_rolling_viewpoint_forecasts(
     # Make model specs
     model_configurator = lookup_model_specs_configurator(model_search_term)
     model_specs, model_identifier, fallback_model_search_term = model_configurator(
-        sensor=old_sensor.corresponding_sensor,
-        time_series_class=determine_old_time_series_class_by_old_sensor(old_sensor),
+        sensor=sensor,
+        time_series_class=timed_value_type,
         forecast_start=as_server_time(start),
         forecast_end=as_server_time(end),
         forecast_horizon=horizon,
@@ -223,8 +223,8 @@ def make_rolling_viewpoint_forecasts(
         [lag * model_specs.frequency for lag in model_specs.lags],
     )
     check_data_availability(
-        old_sensor,
-        determine_old_time_series_class_by_old_sensor(old_sensor),
+        sensor,
+        timed_value_type,
         start,
         end,
         query_window,
@@ -245,8 +245,12 @@ def make_rolling_viewpoint_forecasts(
     click.echo("Job %s made %d forecasts." % (rq_job.id, len(forecasts)))
 
     ts_value_forecasts = [
-        make_timed_value(
-            timed_value_type, old_sensor_id, dt, value, horizon, data_source.id
+        timed_value_type(
+            datetime=dt,
+            horizon=horizon,
+            value=value,
+            sensor_id=old_sensor_id,
+            data_source_id=data_source.id,
         )
         for dt, value in forecasts.items()
     ]
@@ -305,75 +309,3 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
 def num_forecasts(start: datetime, end: datetime, resolution: timedelta) -> int:
     """Compute how many forecasts a job needs to make, given a resolution"""
     return (end - start) // resolution
-
-
-# TODO: the functions below can hopefully go away if we refactor a real generic asset class
-#       and store everything in one time series database.
-
-
-def get_old_sensor(
-    old_sensor_id: int, timed_value_type: str
-) -> Union[Asset, Market, WeatherSensor]:
-    """Get old sensor for this job. Maybe simpler once we redesign timed value classes (make a generic one)"""
-    if timed_value_type not in ("Power", "Price", "Weather"):
-        raise Exception(
-            "Cannot get old sensor for timed_value_type '%s'" % timed_value_type
-        )
-    old_sensor = None
-    if timed_value_type == "Power":
-        old_sensor = Asset.query.filter_by(id=old_sensor_id).one_or_none()
-    elif timed_value_type == "Price":
-        old_sensor = Market.query.filter_by(id=old_sensor_id).one_or_none()
-    elif timed_value_type == "Weather":
-        old_sensor = WeatherSensor.query.filter_by(id=old_sensor_id).one_or_none()
-    if old_sensor is None:
-        raise Exception(
-            "Cannot find old sensor for value type %s with id %d"
-            % (timed_value_type, old_sensor_id)
-        )
-    return old_sensor
-
-
-def make_timed_value(
-    timed_value_type: str,
-    old_sensor_id: int,
-    dt: datetime,
-    value: float,
-    horizon: timedelta,
-    data_source_id: int,
-) -> Union[Power, Price, Weather]:
-    if timed_value_type not in ("Power", "Price", "Weather"):
-        raise Exception(
-            "Cannot get old sensor for timed_value_type '%s'" % timed_value_type
-        )
-    ts_value = None
-    if timed_value_type == "Power":
-        ts_value = Power(
-            datetime=dt,
-            horizon=horizon,
-            value=value,
-            asset_id=old_sensor_id,
-            data_source_id=data_source_id,
-        )
-    elif timed_value_type == "Price":
-        ts_value = Price(
-            datetime=dt,
-            horizon=horizon,
-            value=value,
-            market_id=old_sensor_id,
-            data_source_id=data_source_id,
-        )
-    elif timed_value_type == "Weather":
-        ts_value = Weather(
-            datetime=dt,
-            horizon=horizon,
-            value=value,
-            sensor_id=old_sensor_id,
-            data_source_id=data_source_id,
-        )
-    if ts_value is None:
-        raise Exception(
-            "Cannot create timed value of type %s with id %d"
-            % (timed_value_type, old_sensor_id)
-        )
-    return ts_value

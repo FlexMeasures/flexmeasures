@@ -302,7 +302,7 @@ def create_connection_and_value_groups(  # noqa: C901
                     value=value
                     * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
                     horizon=h,
-                    asset_id=sensor_id,
+                    sensor_id=sensor_id,
                     data_source_id=data_source.id,
                 )
                 power_measurements.append(p)
@@ -313,7 +313,7 @@ def create_connection_and_value_groups(  # noqa: C901
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this sensor
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
-                        "Power",
+                        Power,
                         sensor_id,
                         start,
                         start + duration,

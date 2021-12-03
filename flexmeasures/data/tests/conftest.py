@@ -79,8 +79,8 @@ def setup_fresh_test_data(
                 horizon=parse_duration("PT0M"),
                 value=val,
                 data_source_id=data_source.id,
+                sensor_id=asset.id,
             )
-            p.asset = asset
             db.session.add(p)
     add_test_weather_sensor_and_forecasts(fresh_db)
 
@@ -130,7 +130,7 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
         for dt, val in zip(time_slots, values):
             db.session.add(
                 Weather(
-                    sensor=sensor,
+                    sensor_id=sensor.id,
                     datetime=as_server_time(dt),
                     value=val,
                     horizon=timedelta(hours=6),

@@ -168,12 +168,12 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     Power.data_source_id,
                     func.min(Power.horizon).label("most_recent_belief_horizon"),
                 )
-                .filter(Power.asset_id == sensor_id)
+                .filter(Power.sensor_id == sensor_id)
                 .group_by(Power.datetime, Power.data_source_id)
                 .subquery()
             )
             power_values = (
-                Power.query.filter(Power.asset_id == sensor_id)
+                Power.query.filter(Power.sensor_id == sensor_id)
                 .filter(Power.data_source_id == scheduler_source.id)
                 .filter(Power.datetime >= schedule_start)
                 .filter(Power.datetime < schedule_start + planning_horizon)

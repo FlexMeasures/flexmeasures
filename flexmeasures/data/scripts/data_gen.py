@@ -166,7 +166,7 @@ def add_dummy_tou_market(db: SQLAlchemy):
                 datetime=datetime(year, 1, 1, tzinfo=pytz.utc),
                 horizon=timedelta(0),
                 data_source_id=source.id,
-                market=market,
+                sensor_id=market.id,
             )
         )
 
@@ -335,7 +335,7 @@ def populate_time_series_forecasts(  # noqa: C901
                         datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         horizon=horizon,
                         value=value,
-                        market_id=old_sensor.id,
+                        sensor_id=old_sensor.id,
                         data_source_id=data_source.id,
                     )
                     for dt, value in forecasts.items()
@@ -452,7 +452,7 @@ def depopulate_measurements(
                 num_prices_deleted = (
                     db.session.query(Price)
                     .filter(Price.horizon <= timedelta(hours=0))
-                    .filter(Price.market == market)
+                    .filter(Price.sensor_id == market.id)
                     .delete()
                 )
             else:
@@ -466,7 +466,7 @@ def depopulate_measurements(
                 num_power_measurements_deleted = (
                     db.session.query(Power)
                     .filter(Power.horizon <= timedelta(hours=0))
-                    .filter(Power.asset == asset)
+                    .filter(Power.sensor_id == asset.id)
                     .delete()
                 )
             else:
@@ -482,7 +482,7 @@ def depopulate_measurements(
                 num_weather_measurements_deleted = (
                     db.session.query(Weather)
                     .filter(Weather.horizon <= timedelta(hours=0))
-                    .filter(Weather.sensor == sensor)
+                    .filter(Weather.sensor_id == sensor.id)
                     .delete()
                 )
             else:
@@ -547,7 +547,7 @@ def depopulate_prognoses(
                 num_prices_deleted = (
                     db.session.query(Price)
                     .filter(Price.horizon > timedelta(hours=0))
-                    .filter(Price.market == market)
+                    .filter(Price.sensor_id == market.id)
                     .delete()
                 )
             else:
@@ -561,7 +561,7 @@ def depopulate_prognoses(
                 num_power_measurements_deleted = (
                     db.session.query(Power)
                     .filter(Power.horizon > timedelta(hours=0))
-                    .filter(Power.asset == asset)
+                    .filter(Power.sensor_id == asset.id)
                     .delete()
                 )
             else:
@@ -577,7 +577,7 @@ def depopulate_prognoses(
                 num_weather_measurements_deleted = (
                     db.session.query(Weather)
                     .filter(Weather.horizon > timedelta(hours=0))
-                    .filter(Weather.sensor == sensor)
+                    .filter(Weather.sensor_id == sensor.id)
                     .delete()
                 )
             else:
