@@ -80,8 +80,10 @@ def test_making_forecasts():
 
 # un-comment to use as CLI function
 # @app.cli.command()
-@click.option("--asset-type", "asset_type_name", help="Asset type name.")
-@click.option("--asset", "asset_name", help="Asset name.")
+@click.option(
+    "--asset-type", "generic_asset_type_name", help="Name of generic asset type."
+)
+@click.option("--sensor", "sensor_name", help="Name of sensor.")
 @click.option(
     "--from_date",
     default="2015-03-10",
@@ -95,8 +97,8 @@ def test_making_forecasts():
     "--training", default=30, help="Number of days in the training and testing period."
 )
 def test_generic_model(
-    asset_type_name: str,
-    asset_name: Optional[str] = None,
+    generic_asset_type_name: str,
+    sensor_name: Optional[str] = None,
     from_date: str = "2015-03-10",
     period: int = 3,
     horizon_hours: int = 1,
@@ -111,7 +113,7 @@ def test_generic_model(
 
     with app.app_context():
         sensors = query_sensor_by_name_and_generic_asset_type_name(
-            sensor_name=asset_name, generic_asset_type_names=[asset_type_name]
+            sensor_name=sensor_name, generic_asset_type_names=[generic_asset_type_name]
         ).all()
         if len(sensors) == 0:
             click.echo("No such sensor in db, so I will not add any forecasts.")
