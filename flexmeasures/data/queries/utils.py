@@ -36,6 +36,30 @@ def create_beliefs_query(
     return query
 
 
+def get_source_criteria(
+    cls: "Type[ts.TimedValue]",
+    user_source_ids: Union[int, List[int]],
+    source_types: List[str],
+    exclude_source_types: List[str],
+) -> List[bool]:
+    source_criteria: List[bool] = []
+    if user_source_ids is not None:
+        source_criteria = add_user_source_criterion(
+            cls, source_criteria, user_source_ids
+        )
+    if source_types is not None:
+        if user_source_ids and "user" not in source_types:
+            source_types.append("user")
+        source_criteria = add_source_type_criterion(source_criteria, source_types)
+    if exclude_source_types is not None:
+        if user_source_ids and "user" in exclude_source_types:
+            exclude_source_types.remove("user")
+        source_criteria = add_source_type_exclusion_criterion(
+            source_criteria, exclude_source_types
+        )
+    return source_criteria
+
+
 def add_user_source_criterion(
     cls: "Type[ts.TimedValue]",
     criteria: List[bool],

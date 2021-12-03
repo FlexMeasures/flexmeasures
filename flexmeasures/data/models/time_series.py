@@ -12,10 +12,8 @@ import timely_beliefs.utils as tb_utils
 from flexmeasures.data.config import db
 from flexmeasures.data.queries.utils import (
     add_belief_timing_criteria,
-    add_user_source_criterion,
-    add_source_type_criterion,
     create_beliefs_query,
-    add_source_type_exclusion_criterion,
+    get_source_criteria,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -346,23 +344,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             required_argument=False,
         )
         parsed_sources = parse_source_arg(source)
-        extra_filter_criteria = []
-        if user_source_ids is not None:
-            extra_filter_criteria = add_user_source_criterion(
-                cls, extra_filter_criteria, user_source_ids
-            )
-        if source_types is not None:
-            if user_source_ids and "user" not in source_types:
-                source_types.append("user")
-            extra_filter_criteria = add_source_type_criterion(
-                extra_filter_criteria, source_types
-            )
-        if exclude_source_types is not None:
-            if user_source_ids and "user" in exclude_source_types:
-                exclude_source_types.remove("user")
-            extra_filter_criteria = add_source_type_exclusion_criterion(
-                extra_filter_criteria, exclude_source_types
-            )
+        source_criteria = get_source_criteria(
+            cls, user_source_ids, source_types, exclude_source_types
+        )
         return cls.search_session(
             session=db.session,
             sensor=sensor,
@@ -375,7 +359,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             source=parsed_sources,
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
-            custom_filter_criteria=extra_filter_criteria,
+            custom_filter_criteria=source_criteria,
         )
 
     @classmethod
@@ -504,20 +488,11 @@ class TimedValue(object):
         filter_criteria = add_belief_timing_criteria(
             cls, filter_criteria, Sensor, belief_horizon_window, belief_time_window
         )
-        if user_source_ids is not None:
-            filter_criteria = add_user_source_criterion(
-                cls, filter_criteria, user_source_ids
+        filter_criteria.extend(
+            get_source_criteria(
+                cls, user_source_ids, source_types, exclude_source_types
             )
-        if source_types is not None:
-            if user_source_ids and "user" not in source_types:
-                source_types.append("user")
-            filter_criteria = add_source_type_criterion(filter_criteria, source_types)
-        if exclude_source_types is not None:
-            if user_source_ids and "user" in exclude_source_types:
-                exclude_source_types.remove("user")
-            filter_criteria = add_source_type_exclusion_criterion(
-                filter_criteria, exclude_source_types
-            )
+        )
         return query.filter(*filter_criteria)
 
     @classmethod
