@@ -134,7 +134,7 @@ def test_generic_model(
             fallback_model_identifier,
         ) = linear_model_configurator(
             sensor=sensors[0],
-            time_series_class=TimedBelief,
+            time_series_class=TimedBelief,  # todo: requires streamlining of the collect function on old sensor data classes with the search function on the TimedBelief class
             forecast_start=start,
             forecast_end=end,
             forecast_horizon=horizon,
