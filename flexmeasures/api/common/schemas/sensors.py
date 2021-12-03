@@ -1,5 +1,3 @@
-from typing import Union
-
 from marshmallow import fields
 
 from flexmeasures.api import FMValidationError
@@ -10,9 +8,6 @@ from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
 )
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -72,9 +67,7 @@ class SensorField(fields.Str):
         except EntityAddressException as eae:
             raise EntityAddressValidationError(str(eae))
 
-    def _serialize(
-        self, value: Union[Sensor, Asset, Market, WeatherSensor], attr, data, **kwargs
-    ):
+    def _serialize(self, value: Sensor, attr, data, **kwargs):
         """Serialize to an entity address."""
         if self.fm_scheme == "fm0":
             return value.entity_address_fm0
