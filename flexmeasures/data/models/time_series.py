@@ -494,15 +494,15 @@ class TimedValue(object):
         filter_criteria = add_belief_timing_criteria(
             cls, filter_criteria, Sensor, belief_horizon_window, belief_time_window
         )
-        if user_source_ids:
+        if user_source_ids is not None:
             filter_criteria = add_user_source_criterion(
                 cls, filter_criteria, user_source_ids
             )
-        if source_types:
+        if source_types is not None:
             if user_source_ids and "user" not in source_types:
                 source_types.append("user")
             filter_criteria = add_source_type_criterion(filter_criteria, source_types)
-        if exclude_source_types:
+        if exclude_source_types is not None:
             if user_source_ids and "user" in exclude_source_types:
                 exclude_source_types.remove("user")
             filter_criteria = add_source_type_exclusion_criterion(

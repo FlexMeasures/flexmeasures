@@ -51,16 +51,15 @@ def add_user_source_criterion(
     """
     if user_source_ids is not None and not isinstance(user_source_ids, list):
         user_source_ids = [user_source_ids]  # ensure user_source_ids is a list
-    if user_source_ids:
-        ignorable_user_sources = (
-            DataSource.query.filter(DataSource.type == "user")
-            .filter(DataSource.id.notin_(user_source_ids))
-            .all()
-        )
-        ignorable_user_source_ids = [
-            user_source.id for user_source in ignorable_user_sources
-        ]
-        criteria.append(cls.data_source_id.notin_(ignorable_user_source_ids))
+    ignorable_user_sources = (
+        DataSource.query.filter(DataSource.type == "user")
+        .filter(DataSource.id.notin_(user_source_ids))
+        .all()
+    )
+    ignorable_user_source_ids = [
+        user_source.id for user_source in ignorable_user_sources
+    ]
+    criteria.append(cls.data_source_id.notin_(ignorable_user_source_ids))
     return criteria
 
 
@@ -68,8 +67,7 @@ def add_source_type_criterion(
     criteria: List[bool], source_types: List[str]
 ) -> List[bool]:
     """Add criterion to collect only data from sources that are of the given type."""
-    if source_types:
-        criteria.append(DataSource.type.in_(source_types))
+    criteria.append(DataSource.type.in_(source_types))
     return criteria
 
 
@@ -77,8 +75,7 @@ def add_source_type_exclusion_criterion(
     criteria: List[bool], source_types: List[str]
 ) -> List[bool]:
     """Add criterion to exclude sources that are of the given type."""
-    if source_types:
-        criteria.append(DataSource.type.notin_(source_types))
+    criteria.append(DataSource.type.notin_(source_types))
     return criteria
 
 
