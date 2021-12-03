@@ -8,3 +8,7 @@ class UnknownMarketException(Exception):
 
 class UnknownPricesException(Exception):
     pass
+
+
+class WrongTypeAttributeException(Exception):
+    pass
