@@ -79,7 +79,7 @@ def test_making_forecasts():
 
 # un-comment to use as CLI function
 # @app.cli.command()
-@click.option("--asset-type", help="Asset type name.")
+@click.option("--asset-type", "asset_type_name", help="Asset type name.")
 @click.option("--asset", "asset_name", help="Asset name.")
 @click.option(
     "--from_date",
@@ -87,12 +87,14 @@ def test_making_forecasts():
     help="Forecast from date. Follow up with a date in the form yyyy-mm-dd.",
 )
 @click.option("--period", default=3, help="Forecasting period in days.")
-@click.option("--horizon", default=1, help="Forecasting horizon in hours.")
+@click.option(
+    "--horizon", "horizon_hours", default=1, help="Forecasting horizon in hours."
+)
 @click.option(
     "--training", default=30, help="Number of days in the training and testing period."
 )
 def test_generic_model(
-    asset_type: str,
+    asset_type_name: str,
     asset_name: Optional[str] = None,
     from_date: str = "2015-03-10",
     period: int = 3,
@@ -101,7 +103,6 @@ def test_generic_model(
 ):
     """Manually test integration of timetomodel for our generic model."""
 
-    asset_type_name = asset_type
     if asset_name is None:
         asset_name = Asset.query.filter_by(asset_type_name=asset_type_name).first().name
     start = as_server_time(datetime.strptime(from_date, "%Y-%m-%d"))
