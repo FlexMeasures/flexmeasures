@@ -84,7 +84,8 @@ def get_prices(
 
     price_bdf: tb.BeliefsDataFrame = Price.collect(
         sensor.name,
-        query_window=query_window,
+        event_starts_after=query_window[0],
+        event_ends_before=query_window[1],
         resolution=to_offset(resolution).freqstr,
     )
     price_df = simplify_index(price_bdf)

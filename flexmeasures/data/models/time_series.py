@@ -492,10 +492,8 @@ class TimedValue(object):
     def collect(
         cls,
         old_sensor_names: Union[str, List[str]],
-        query_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
         belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
             None,
             None,
@@ -518,7 +516,7 @@ class TimedValue(object):
         return collect_time_series_data(
             old_sensor_names=old_sensor_names,
             make_query=cls.make_query,
-            query_window=query_window,
+            query_window=(event_starts_after, event_ends_before),
             belief_horizon_window=belief_horizon_window,
             belief_time_window=belief_time_window,
             user_source_ids=user_source_ids,

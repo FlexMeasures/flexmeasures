@@ -180,7 +180,8 @@ def create_initial_model_specs(  # noqa: C901
         time_series_class=time_series_class,
         collect_params=dict(
             old_sensor_names=[sensor.name],
-            query_window=query_window,
+            event_starts_after=query_window[0],
+            event_ends_before=query_window[1],
             belief_horizon_window=(None, ex_post_horizon),
         ),
         feature_transformation=params.get("outcome_var_transformation", None),
@@ -296,7 +297,8 @@ def configure_regressors_for_nearest_weather_sensor(
                         time_series_class=Weather,
                         collect_params=dict(
                             old_sensor_names=[closest_sensor.name],
-                            query_window=query_window,
+                            event_starts_after=query_window[0],
+                            event_ends_before=query_window[1],
                             belief_horizon_window=(horizon, None),
                         ),
                         feature_transformation=regressor_transformation,

@@ -178,7 +178,8 @@ def get_prices_data(
     # Get price data
     price_bdf: tb.BeliefsDataFrame = Price.collect(
         [market_name],
-        query_window=query_window,
+        event_starts_after=query_window[0],
+        event_ends_before=query_window[1],
         resolution=resolution,
         belief_horizon_window=(None, timedelta(hours=0)),
     )
@@ -194,7 +195,8 @@ def get_prices_data(
     # Get price forecast
     price_forecast_bdf: tb.BeliefsDataFrame = Price.collect(
         [market_name],
-        query_window=query_window,
+        event_starts_after=query_window[0],
+        event_ends_before=query_window[1],
         resolution=resolution,
         belief_horizon_window=(forecast_horizon, None),
         source_types=["user", "forecasting script", "script"],
@@ -262,7 +264,8 @@ def get_weather_data(
             # Get weather data
             weather_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.collect(
                 sensor_names,
-                query_window=query_window,
+                event_starts_after=query_window[0],
+                event_ends_before=query_window[1],
                 resolution=resolution,
                 belief_horizon_window=(None, timedelta(hours=0)),
                 sum_multiple=False,
@@ -277,7 +280,8 @@ def get_weather_data(
             # Get weather forecasts
             weather_forecast_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.collect(
                 sensor_names,
-                query_window=query_window,
+                event_starts_after=query_window[0],
+                event_ends_before=query_window[1],
                 resolution=resolution,
                 belief_horizon_window=(forecast_horizon, None),
                 source_types=["user", "forecasting script", "script"],
