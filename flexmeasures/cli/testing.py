@@ -87,6 +87,12 @@ def test_making_forecasts():
     required=True,
     help="Name of generic asset type.",
 )
+@click.option(
+    "--timed-value-type",
+    "timed_value_type",
+    required=True,
+    help="Power, Price or Weather.",
+)
 @click.option("--sensor", "sensor_name", help="Name of sensor.")
 @click.option(
     "--from_date",
@@ -102,6 +108,7 @@ def test_making_forecasts():
 )
 def test_generic_model(
     generic_asset_type_names: List[str],
+    timed_value_type_name: str,
     sensor_name: Optional[str] = None,
     from_date: str = "2015-03-10",
     period: int = 3,
@@ -127,6 +134,16 @@ def test_generic_model(
             click.echo("No unique sensor found in db, so I will not add any forecasts.")
             return
 
+        # todo: replacing this with timed_value_type = TimedBelief requires streamlining of the collect function on old sensor data classes with the search function on the TimedBelief class
+        if timed_value_type_name.lower() == "Power":
+            from flexmeasures.data.models.assets import Power as TimedValueType
+        elif timed_value_type_name.lower() == "Price":
+            from flexmeasures.data.models.markets import Price as TimedValueType
+        elif timed_value_type_name.lower() == "Weather":
+            from flexmeasures.data.models.weather import Weather as TimedValueType
+        else:
+            raise ValueError(f"Unknown timed value type {timed_value_type_name}")
+
         linear_model_configurator = lookup_model_specs_configurator("linear")
         (
             model_specs,
@@ -134,7 +151,7 @@ def test_generic_model(
             fallback_model_identifier,
         ) = linear_model_configurator(
             sensor=sensors[0],
-            time_series_class=TimedBelief,  # todo: requires streamlining of the collect function on old sensor data classes with the search function on the TimedBelief class
+            time_series_class=TimedValueType,
             forecast_start=start,
             forecast_end=end,
             forecast_horizon=horizon,
