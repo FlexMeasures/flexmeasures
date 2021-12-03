@@ -22,7 +22,7 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.utils import check_required_attributes
+from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
