@@ -10,7 +10,7 @@ from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     GenericAssetType,
 )
-from flexmeasures.data.models.migration_utils import (
+from flexmeasures.data.models.legacy_migration_utils import (
     copy_old_sensor_attributes,
     get_old_model_type,
 )
