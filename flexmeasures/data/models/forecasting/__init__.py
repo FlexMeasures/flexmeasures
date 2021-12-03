@@ -20,7 +20,8 @@ model_map = {
 def lookup_model_specs_configurator(
     model_search_term: str = "linear-OLS",
 ) -> Callable[
-    ...,  # Annotation requires Python 3.10 (specifically, ParamSpec from PEP 612), see model_spec_factory.create_initial_model_specs for function signature
+    ...,  # See model_spec_factory.create_initial_model_specs for an up-to-date type annotation
+    # Annotating here would require Python>=3.10 (specifically, ParamSpec from PEP 612)
     Tuple[ModelSpecs, str, str],
 ]:
     """
