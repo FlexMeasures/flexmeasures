@@ -498,10 +498,8 @@ class TimedValue(object):
             None,
             None,
         ),
-        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
         user_source_ids: Union[
             int, List[int]
         ] = None,  # None is interpreted as all sources
@@ -518,7 +516,7 @@ class TimedValue(object):
             make_query=cls.make_query,
             query_window=(event_starts_after, event_ends_before),
             belief_horizon_window=belief_horizon_window,
-            belief_time_window=belief_time_window,
+            belief_time_window=(beliefs_after, beliefs_before),
             user_source_ids=user_source_ids,
             source_types=source_types,
             exclude_source_types=exclude_source_types,
