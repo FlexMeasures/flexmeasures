@@ -494,10 +494,8 @@ class TimedValue(object):
         old_sensor_names: Union[str, List[str]],
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
-        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
-            None,
-            None,
-        ),
+        horizons_at_least: Optional[timedelta] = None,
+        horizons_at_most: Optional[timedelta] = None,
         beliefs_after: Optional[datetime_type] = None,
         beliefs_before: Optional[datetime_type] = None,
         user_source_ids: Union[
@@ -515,7 +513,7 @@ class TimedValue(object):
             old_sensor_names=old_sensor_names,
             make_query=cls.make_query,
             query_window=(event_starts_after, event_ends_before),
-            belief_horizon_window=belief_horizon_window,
+            belief_horizon_window=(horizons_at_least, horizons_at_most),
             belief_time_window=(beliefs_after, beliefs_before),
             user_source_ids=user_source_ids,
             source_types=source_types,

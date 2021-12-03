@@ -181,7 +181,8 @@ def get_prices_data(
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
         resolution=resolution,
-        belief_horizon_window=(None, timedelta(hours=0)),
+        horizons_at_least=None,
+        horizons_at_most=timedelta(hours=0),
     )
     price_df: pd.DataFrame = simplify_index(
         price_bdf, index_levels_to_columns=["belief_horizon", "source"]
@@ -198,7 +199,8 @@ def get_prices_data(
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
         resolution=resolution,
-        belief_horizon_window=(forecast_horizon, None),
+        horizons_at_least=forecast_horizon,
+        horizons_at_most=None,
         source_types=["user", "forecasting script", "script"],
     )
     price_forecast_df: pd.DataFrame = simplify_index(
@@ -267,7 +269,8 @@ def get_weather_data(
                 event_starts_after=query_window[0],
                 event_ends_before=query_window[1],
                 resolution=resolution,
-                belief_horizon_window=(None, timedelta(hours=0)),
+                horizons_at_least=None,
+                horizons_at_most=timedelta(hours=0),
                 sum_multiple=False,
             )
             weather_df_dict: Dict[str, pd.DataFrame] = {}
@@ -283,7 +286,8 @@ def get_weather_data(
                 event_starts_after=query_window[0],
                 event_ends_before=query_window[1],
                 resolution=resolution,
-                belief_horizon_window=(forecast_horizon, None),
+                horizons_at_least=forecast_horizon,
+                horizons_at_most=None,
                 source_types=["user", "forecasting script", "script"],
                 sum_multiple=False,
             )
