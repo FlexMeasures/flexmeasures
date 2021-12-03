@@ -114,12 +114,14 @@ def get_prices(
 
 
 def check_required_attributes(
-    sensor: Sensor, attributes: List[Union[str, Tuple[str, Type]]]
+    sensor: Sensor,
+    attributes: List[Union[str, Tuple[str, Union[Type, Tuple[Type, ...]]]]],
 ):
     """Raises if any attribute in the list of attributes is missing on the Sensor, or has the wrong type.
 
     :param sensor: Sensor object to check for attributes
-    :param attributes: list of either an attribute name or a tuple of an attribute name and its expected type
+    :param attributes: List of either an attribute name or a tuple of an attribute name and its allowed type
+                       (the allowed type may also be a tuple of several allowed types)
     """
     missing_attributes: List[str] = []
     wrong_type_attributes: List[Tuple[str, Type, Type]] = []
