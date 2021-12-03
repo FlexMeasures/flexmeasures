@@ -32,7 +32,7 @@ class BaseMessage:
 
 @BaseMessage("The requested API version is deprecated for this feature.")
 def deprecated_api_version(message: str) -> ResponseTuple:
-    return dict(result="Rejected", status="INVALID_VERSION", message=message), 400
+    return dict(result="Rejected", status="INVALID_API_VERSION", message=message), 400
 
 
 @BaseMessage("Some of the data has already been received and successfully processed.")
