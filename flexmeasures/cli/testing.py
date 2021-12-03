@@ -12,11 +12,12 @@ if os.name == "nt":
 else:
     from rq import Worker
 
-from flexmeasures.data.models.assets import Asset, Power
-from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.weather import WeatherSensor
+from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
-from flexmeasures.data.models.utils import determine_old_time_series_class_by_old_sensor
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.queries.sensors import (
+    query_sensor_by_name_and_generic_asset_type_name,
+)
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.forecasting import (
     create_forecasting_jobs,
@@ -103,37 +104,20 @@ def test_generic_model(
 ):
     """Manually test integration of timetomodel for our generic model."""
 
-    if asset_name is None:
-        asset_name = Asset.query.filter_by(asset_type_name=asset_type_name).first().name
     start = as_server_time(datetime.strptime(from_date, "%Y-%m-%d"))
     end = start + timedelta(days=period)
     training_and_testing_period = timedelta(days=training)
     horizon = timedelta(hours=horizon_hours)
 
     with app.app_context():
-        asset = (
-            Asset.query.filter_by(asset_type_name=asset_type_name)
-            .filter_by(name=asset_name)
-            .first()
-        )
-        market = (
-            Market.query.filter_by(market_type_name=asset_type_name)
-            .filter_by(name=asset_name)
-            .first()
-        )
-        sensor = (
-            WeatherSensor.query.filter_by(weather_sensor_type_name=asset_type_name)
-            .filter_by(name=asset_name)
-            .first()
-        )
-        if asset:
-            old_sensor = asset
-        elif market:
-            old_sensor = market
-        elif sensor:
-            old_sensor = sensor
-        else:
-            click.echo("No such assets in db, so I will not add any forecasts.")
+        sensors = query_sensor_by_name_and_generic_asset_type_name(
+            sensor_name=asset_name, generic_asset_type_names=[asset_type_name]
+        ).all()
+        if len(sensors) == 0:
+            click.echo("No such sensor in db, so I will not add any forecasts.")
+            return
+        elif len(sensors) > 1:
+            click.echo("No unique sensor found in db, so I will not add any forecasts.")
             return
 
         linear_model_configurator = lookup_model_specs_configurator("linear")
@@ -142,8 +126,8 @@ def test_generic_model(
             model_identifier,
             fallback_model_identifier,
         ) = linear_model_configurator(
-            sensor=old_sensor.corresponding_sensor,
-            time_series_class=determine_old_time_series_class_by_old_sensor(old_sensor),
+            sensor=sensors[0],
+            time_series_class=TimedBelief,
             forecast_start=start,
             forecast_end=end,
             forecast_horizon=horizon,
