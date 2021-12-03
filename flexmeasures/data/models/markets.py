@@ -10,6 +10,10 @@ from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     GenericAssetType,
 )
+from flexmeasures.data.models.legacy_migration_utils import (
+    copy_old_sensor_attributes,
+    get_old_model_type,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedValue
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
@@ -28,14 +32,16 @@ class MarketType(db.Model):
     yearly_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
 
     def __init__(self, **kwargs):
+        kwargs["name"] = kwargs["name"].replace(" ", "_").lower()
+        if "display_name" not in kwargs:
+            kwargs["display_name"] = humanize(kwargs["name"])
+
+        super(MarketType, self).__init__(**kwargs)
+
         generic_asset_type = GenericAssetType(
             name=kwargs["name"], description=kwargs.get("hover_label", None)
         )
         db.session.add(generic_asset_type)
-        super(MarketType, self).__init__(**kwargs)
-        self.name = self.name.replace(" ", "_").lower()
-        if "display_name" not in kwargs:
-            self.display_name = humanize(self.name)
 
     @property
     def preconditions(self) -> Dict[str, bool]:
@@ -71,11 +77,47 @@ class Market(db.Model, tb.SensorDBMixin):
             kwargs["knowledge_horizon_par"] = {
                 knowledge_horizons.ex_ante.__code__.co_varnames[1]: "PT0H"
             }
+        kwargs["name"] = kwargs["name"].replace(" ", "_").lower()
+        if "display_name" not in kwargs:
+            kwargs["display_name"] = humanize(kwargs["name"])
+
+        super(Market, self).__init__(**kwargs)
 
         # Create a new Sensor with unique id across assets, markets and weather sensors
         if "id" not in kwargs:
-            new_generic_asset = create_generic_asset("market", **kwargs)
-            new_sensor = Sensor(name=kwargs["name"], generic_asset=new_generic_asset)
+
+            market_type = get_old_model_type(
+                kwargs, MarketType, "market_type_name", "market_type"
+            )
+
+            generic_asset_kwargs = {
+                **kwargs,
+                **copy_old_sensor_attributes(
+                    self,
+                    old_sensor_type_attributes=[],
+                    old_sensor_attributes=[
+                        "display_name",
+                    ],
+                    old_sensor_type=market_type,
+                ),
+            }
+            new_generic_asset = create_generic_asset("market", **generic_asset_kwargs)
+            new_sensor = Sensor(
+                name=kwargs["name"],
+                generic_asset=new_generic_asset,
+                **copy_old_sensor_attributes(
+                    self,
+                    old_sensor_type_attributes=[
+                        "daily_seasonality",
+                        "weekly_seasonality",
+                        "yearly_seasonality",
+                    ],
+                    old_sensor_attributes=[
+                        "display_name",
+                    ],
+                    old_sensor_type=market_type,
+                ),
+            )
             db.session.add(new_sensor)
             db.session.flush()  # generates the pkey for new_sensor
             new_sensor_id = new_sensor.id
@@ -83,11 +125,16 @@ class Market(db.Model, tb.SensorDBMixin):
             # The UI may initialize Market objects from API form data with a known id
             new_sensor_id = kwargs["id"]
 
-        super(Market, self).__init__(**kwargs)
         self.id = new_sensor_id
-        self.name = self.name.replace(" ", "_").lower()
-        if "display_name" not in kwargs:
-            self.display_name = humanize(self.name)
+
+        # Copy over additional columns from (newly created) Market to (newly created) Sensor
+        if "id" not in kwargs:
+            db.session.add(self)
+            db.session.flush()  # make sure to generate each column for the old sensor
+            new_sensor.unit = self.unit
+            new_sensor.event_resolution = self.event_resolution
+            new_sensor.knowledge_horizon_fnc = self.knowledge_horizon_fnc
+            new_sensor.knowledge_horizon_par = self.knowledge_horizon_par
 
     @property
     def entity_address_fm0(self) -> str:

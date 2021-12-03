@@ -4,6 +4,7 @@ import json
 
 from flask import current_app
 from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
@@ -28,7 +29,7 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
-    attributes = db.Column(db.JSON, nullable=False, default="{}")
+    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
 
     generic_asset_id = db.Column(
         db.Integer,
@@ -90,6 +91,13 @@ class Sensor(db.Model, tb.SensorDBMixin):
             return self.attributes[attribute]
         elif attribute in self.generic_asset.attributes:
             return self.generic_asset.attributes[attribute]
+
+    def has_attribute(self, attribute: str) -> bool:
+        return attribute in self.attributes
+
+    def set_attribute(self, attribute: str, value):
+        if self.has_attribute(attribute):
+            self.attributes[attribute] = value
 
     def latest_state(
         self,

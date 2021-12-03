@@ -7,10 +7,10 @@ def message_for_get_device_message(
     message = {
         "type": "GetDeviceMessageRequest",
         "duration": "PT48H",
-        "event": "ea1.2018-06.localhost:%s:%s:204:soc",
+        "event": "ea1.2018-06.localhost:%s:204:soc",
     }
     if wrong_id:
-        message["event"] = "ea1.2018-06.localhost:%s:%s:9999:soc"
+        message["event"] = "ea1.2018-06.localhost:%s:9999:soc"
     if unknown_prices:
         message[
             "duration"
@@ -24,7 +24,7 @@ def message_for_post_udi_event(
 ) -> dict:
     message = {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.localhost:%s:%s:204:soc",
+        "event": "ea1.2018-06.localhost:%s:204:soc",
         "datetime": "2015-01-01T00:00:00+00:00",
         "value": 12.1,
         "unit": "kWh",

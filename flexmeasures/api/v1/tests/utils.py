@@ -7,7 +7,8 @@ from numpy import tile
 import pandas as pd
 
 from flexmeasures.api.common.utils.validators import validate_user_sources
-from flexmeasures.data.models.assets import Power, Asset
+from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.time_series import Sensor
 
 
 def message_for_get_meter_data(
@@ -107,7 +108,7 @@ def count_connections_in_post_message(message: dict) -> int:
 
 
 def verify_power_in_db(
-    message, asset, expected_df: pd.DataFrame, db, swapped_sign: bool = False
+    message, sensor: Sensor, expected_df: pd.DataFrame, db, swapped_sign: bool = False
 ):
     """util method to verify that power data ended up in the database"""
     # todo: combine with verify_prices_in_db (in v1_1 utils) into a single function (NB different horizon filters)
@@ -116,13 +117,16 @@ def verify_power_in_db(
     horizon = (
         parse_duration(message["horizon"]) if "horizon" in message else timedelta(0)
     )
-    resolution = asset.event_resolution
+    resolution = sensor.event_resolution
     query = (
         db.session.query(Power.datetime, Power.value, Power.data_source_id)
         .filter((Power.datetime > start - resolution) & (Power.datetime < end))
         .filter(Power.horizon == horizon)
-        .join(Asset)
-        .filter(Asset.name == asset.name)
+        .join(
+            Asset, Sensor
+        )  # we still need to join Asset, because Power.asset_id is still coupled to Asset rather than Sensor; see https://github.com/SeitaBV/flexmeasures/issues/252
+        .filter(Power.asset_id == Sensor.id)
+        .filter(Sensor.name == sensor.name)
     )
     if "source" in message:
         source_ids = validate_user_sources(message["source"])

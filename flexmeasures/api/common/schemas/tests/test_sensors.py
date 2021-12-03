@@ -62,6 +62,9 @@ def test_sensor_field_straightforward(
     sf = SensorField(entity_type, fm_scheme)
     deser = sf.deserialize(entity_address, None, None)
     assert deser.name == exp_deserialization_name
+    if fm_scheme == "fm0" and entity_type in ("connection", "market", "weather_sensor"):
+        # These entity types are deserialized to Sensors, which have no entity address under the fm0 scheme
+        return
     assert sf.serialize(entity_type, {entity_type: deser}) == entity_address
 
 

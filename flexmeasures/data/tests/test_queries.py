@@ -233,12 +233,8 @@ def test_query_beliefs(setup_beliefs):
         tb.BeliefsDataFrame(sensor.beliefs),  # doesn't allow filtering
     ]
     for bdf in bdfs:
-        assert sensor.event_resolution == timedelta(
-            hours=0
-        )  # todo change to 1 after migrating Markets to Sensors
-        assert bdf.event_resolution == timedelta(
-            hours=0
-        )  # todo change to 1 after migrating Markets to Sensors
+        assert sensor.event_resolution == timedelta(hours=1)
+        assert bdf.event_resolution == timedelta(hours=1)
         assert len(bdf) == setup_beliefs
 
 
