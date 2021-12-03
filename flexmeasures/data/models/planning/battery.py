@@ -27,6 +27,15 @@ def schedule_battery(
     For the resulting consumption schedule, consumption is defined as positive values.
     """
 
+    # Check for required Sensor attributes
+    sensor.check_required_attributes(
+        [
+            ("capacity_in_mw", (float, int)),
+            ("max_soc_in_mwh", (float, int)),
+            ("min_soc_in_mwh", (float, int)),
+        ],
+    )
+
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
         sensor, (start, end), resolution, allow_trimmed_query_window=True

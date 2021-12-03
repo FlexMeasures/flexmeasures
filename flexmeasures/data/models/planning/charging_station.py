@@ -28,6 +28,9 @@ def schedule_charging_station(
     Todo: handle uni-directional charging by setting the "min" or "derivative min" constraint to 0
     """
 
+    # Check for required Sensor attributes
+    sensor.check_required_attributes([("capacity_in_mw", (float, int))])
+
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
         sensor, (start, end), resolution, allow_trimmed_query_window=True
@@ -79,13 +82,13 @@ def schedule_charging_station(
     ) - soc_at_start * (
         timedelta(hours=1) / resolution
     )  # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-    if sensor.get_attribute("is_pure_consumer"):
+    if sensor.get_attribute("is_pure_consumer", False):
         device_constraints[0]["derivative min"] = 0
     else:
         device_constraints[0]["derivative min"] = (
             sensor.get_attribute("capacity_in_mw") * -1
         )
-    if sensor.get_attribute("is_pure_producer"):
+    if sensor.get_attribute("is_pure_producer", False):
         device_constraints[0]["derivative max"] = 0
     else:
         device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
