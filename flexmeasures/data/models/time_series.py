@@ -11,11 +11,11 @@ import timely_beliefs.utils as tb_utils
 
 from flexmeasures.data.config import db
 from flexmeasures.data.queries.utils import (
-    add_belief_timing_filter,
-    add_user_source_filter,
-    add_source_type_filter,
+    add_belief_timing_criteria,
+    add_user_source_criterion,
+    add_source_type_criterion,
     create_beliefs_query,
-    exclude_source_type_filter,
+    add_source_type_exclusion_criterion,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
 from flexmeasures.utils.entity_address_utils import build_entity_address
@@ -490,20 +490,25 @@ class TimedValue(object):
             session = db.session
         start, end = query_window
         query = create_beliefs_query(cls, session, Sensor, old_sensor_names, start, end)
-        query = add_belief_timing_filter(
-            cls, query, Sensor, belief_horizon_window, belief_time_window
+        filter_criteria = []
+        filter_criteria = add_belief_timing_criteria(
+            cls, filter_criteria, Sensor, belief_horizon_window, belief_time_window
         )
         if user_source_ids:
-            query = add_user_source_filter(cls, query, user_source_ids)
+            filter_criteria = add_user_source_criterion(
+                cls, filter_criteria, user_source_ids
+            )
         if source_types:
             if user_source_ids and "user" not in source_types:
                 source_types.append("user")
-            query = add_source_type_filter(cls, query, source_types)
+            filter_criteria = add_source_type_criterion(filter_criteria, source_types)
         if exclude_source_types:
             if user_source_ids and "user" in exclude_source_types:
                 exclude_source_types.remove("user")
-            query = exclude_source_type_filter(cls, query, exclude_source_types)
-        return query
+            filter_criteria = add_source_type_exclusion_criterion(
+                filter_criteria, exclude_source_types
+            )
+        return query.filter(*filter_criteria)
 
     @classmethod
     def collect(

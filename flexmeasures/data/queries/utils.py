@@ -36,15 +36,17 @@ def create_beliefs_query(
     return query
 
 
-def add_user_source_filter(
-    cls: "Type[ts.TimedValue]", query: Query, user_source_ids: Union[int, List[int]]
-) -> Query:
-    """Add filter to the query to search only through user data from the specified user sources.
+def add_user_source_criterion(
+    cls: "Type[ts.TimedValue]",
+    criteria: List[bool],
+    user_source_ids: Union[int, List[int]],
+) -> List[bool]:
+    """Add criterion to the query to search only through user data from the specified user sources.
 
     We distinguish user sources (sources with source.type == "user") from other sources (source.type != "user").
     Data with a user source originates from a registered user. Data with e.g. a script source originates from a script.
 
-    This filter doesn't affect the query over non-user type sources.
+    This criterion doesn't affect the query over non-user type sources.
     It does so by ignoring user sources that are not in the given list of source_ids.
     """
     if user_source_ids is not None and not isinstance(user_source_ids, list):
@@ -58,32 +60,36 @@ def add_user_source_filter(
         ignorable_user_source_ids = [
             user_source.id for user_source in ignorable_user_sources
         ]
-        query = query.filter(cls.data_source_id.notin_(ignorable_user_source_ids))
-    return query
+        criteria.append(cls.data_source_id.notin_(ignorable_user_source_ids))
+    return criteria
 
 
-def add_source_type_filter(
-    cls: "Type[ts.TimedValue]", query: Query, source_types: List[str]
-) -> Query:
-    """Add filter to the query to collect only data from sources that are of the given type."""
-    return query.filter(DataSource.type.in_(source_types)) if source_types else query
+def add_source_type_criterion(
+    criteria: List[bool], source_types: List[str]
+) -> List[bool]:
+    """Add criterion to collect only data from sources that are of the given type."""
+    if source_types:
+        criteria.append(DataSource.type.in_(source_types))
+    return criteria
 
 
-def exclude_source_type_filter(
-    cls: "Type[ts.TimedValue]", query: Query, source_types: List[str]
-) -> Query:
-    """Add filter to the query to exclude sources that are of the given type."""
-    return query.filter(DataSource.type.notin_(source_types)) if source_types else query
+def add_source_type_exclusion_criterion(
+    criteria: List[bool], source_types: List[str]
+) -> List[bool]:
+    """Add criterion to exclude sources that are of the given type."""
+    if source_types:
+        criteria.append(DataSource.type.notin_(source_types))
+    return criteria
 
 
-def add_belief_timing_filter(
+def add_belief_timing_criteria(
     cls: "Type[ts.TimedValue]",
-    query: Query,
+    criteria: List[bool],
     asset_class: db.Model,
     belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
     belief_time_window: Tuple[Optional[datetime], Optional[datetime]],
-) -> Query:
-    """Add filters for the desired windows with relevant belief times and belief horizons.
+) -> List[bool]:
+    """Add filter criteria for the desired windows with relevant belief times and belief horizons.
 
     # todo: interpret belief horizons with respect to knowledge time rather than event end.
     - a positive horizon denotes a before-the-fact belief (ex-ante w.r.t. knowledge time)
@@ -127,18 +133,18 @@ def add_belief_timing_filter(
         and latest_belief_time is not None
         and earliest_belief_time == latest_belief_time
     ):  # search directly for a unique belief time
-        query = query.filter(
+        criteria.append(
             cls.datetime + asset_class.event_resolution - cls.horizon
             == earliest_belief_time
         )
     else:
         if earliest_belief_time is not None:
-            query = query.filter(
+            criteria.append(
                 cls.datetime + asset_class.event_resolution - cls.horizon
                 >= earliest_belief_time
             )
         if latest_belief_time is not None:
-            query = query.filter(
+            criteria.append(
                 cls.datetime + asset_class.event_resolution - cls.horizon
                 <= latest_belief_time
             )
@@ -148,13 +154,13 @@ def add_belief_timing_filter(
         and long_horizon is not None
         and short_horizon == long_horizon
     ):  # search directly for a unique belief horizon
-        query = query.filter(cls.horizon == short_horizon)
+        criteria.append(cls.horizon == short_horizon)
     else:
         if short_horizon is not None:
-            query = query.filter(cls.horizon >= short_horizon)
+            criteria.append(cls.horizon >= short_horizon)
         if long_horizon is not None:
-            query = query.filter(cls.horizon <= long_horizon)
-    return query
+            criteria.append(cls.horizon <= long_horizon)
+    return criteria
 
 
 def simplify_index(
