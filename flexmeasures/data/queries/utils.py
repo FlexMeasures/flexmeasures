@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Type, Tuple, Union
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -13,7 +13,7 @@ import flexmeasures.data.models.time_series as ts  # noqa: F401
 
 
 def create_beliefs_query(
-    cls: "ts.TimedValue",
+    cls: "Type[ts.TimedValue]",
     session: Session,
     old_sensor_class: db.Model,
     old_sensor_names: Tuple[str],
@@ -37,7 +37,7 @@ def create_beliefs_query(
 
 
 def add_user_source_filter(
-    cls: "ts.TimedValue", query: Query, user_source_ids: Union[int, List[int]]
+    cls: "Type[ts.TimedValue]", query: Query, user_source_ids: Union[int, List[int]]
 ) -> Query:
     """Add filter to the query to search only through user data from the specified user sources.
 
@@ -63,21 +63,21 @@ def add_user_source_filter(
 
 
 def add_source_type_filter(
-    cls: "ts.TimedValue", query: Query, source_types: List[str]
+    cls: "Type[ts.TimedValue]", query: Query, source_types: List[str]
 ) -> Query:
     """Add filter to the query to collect only data from sources that are of the given type."""
     return query.filter(DataSource.type.in_(source_types)) if source_types else query
 
 
 def exclude_source_type_filter(
-    cls: "ts.TimedValue", query: Query, source_types: List[str]
+    cls: "Type[ts.TimedValue]", query: Query, source_types: List[str]
 ) -> Query:
     """Add filter to the query to exclude sources that are of the given type."""
     return query.filter(DataSource.type.notin_(source_types)) if source_types else query
 
 
 def add_belief_timing_filter(
-    cls: "ts.TimedValue",
+    cls: "Type[ts.TimedValue]",
     query: Query,
     asset_class: db.Model,
     belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
