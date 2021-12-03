@@ -30,7 +30,7 @@ def schedule_charging_station(
     """
 
     # Check for required Sensor attributes
-    check_required_attributes(sensor, ["capacity_in_mw"])
+    check_required_attributes(sensor, [("capacity_in_mw", (float, int))])
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(

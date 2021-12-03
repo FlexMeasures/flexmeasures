@@ -32,9 +32,9 @@ def schedule_battery(
     check_required_attributes(
         sensor,
         [
-            "capacity_in_mw",
-            "max_soc_in_mwh",
-            "min_soc_in_mwh",
+            ("capacity_in_mw", (float, int)),
+            ("max_soc_in_mwh", (float, int)),
+            ("min_soc_in_mwh", (float, int)),
         ],
     )
 
