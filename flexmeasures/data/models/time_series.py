@@ -15,7 +15,10 @@ from flexmeasures.data.queries.utils import (
     get_belief_timing_criteria,
     get_source_criteria,
 )
-from flexmeasures.data.services.time_series import collect_time_series_data
+from flexmeasures.data.services.time_series import (
+    collect_time_series_data,
+    aggregate_values,
+)
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
@@ -361,6 +364,45 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             most_recent_events_only=most_recent_events_only,
             custom_filter_criteria=source_criteria,
         )
+
+    def collect(
+        self,
+        sensors: List[Sensor],
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        horizons_at_least: Optional[timedelta] = None,
+        horizons_at_most: Optional[timedelta] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
+        user_source_ids: Union[
+            int, List[int]
+        ] = None,  # None is interpreted as all sources
+        source_types: Optional[List[str]] = None,
+        exclude_source_types: Optional[List[str]] = None,
+        resolution: Union[str, timedelta] = None,
+        sum_multiple: bool = True,
+    ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
+
+        bdf_dict = {}
+        for sensor in sensors:
+            bdf = self.search(
+                sensor,
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                horizons_at_least=horizons_at_least,
+                horizons_at_most=horizons_at_most,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                user_source_ids=user_source_ids,
+                source_types=source_types,
+                exclude_source_types=exclude_source_types,
+            ).resample_events(resolution)
+            bdf_dict[sensor.name] = bdf
+
+        if sum_multiple:
+            return aggregate_values(bdf_dict)
+        else:
+            return bdf_dict
 
     @classmethod
     def add(
