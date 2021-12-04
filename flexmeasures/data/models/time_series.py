@@ -401,7 +401,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 source_types=source_types,
                 exclude_source_types=exclude_source_types,
             ).resample_events(resolution)
-            bdf_dict[sensor.name] = bdf
+            bdf_dict[bdf.sensor.name] = bdf
 
         if sum_multiple:
             return aggregate_values(bdf_dict)
