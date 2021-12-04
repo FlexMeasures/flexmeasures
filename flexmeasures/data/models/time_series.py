@@ -302,7 +302,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     @classmethod
     def search(
         cls,
-        sensor: Sensor,
+        sensor: Union[Sensor, int],
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
@@ -367,7 +367,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
     def collect(
         self,
-        sensors: List[Sensor],
+        sensors: List[Union[Sensor, int]],
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
         horizons_at_least: Optional[timedelta] = None,
