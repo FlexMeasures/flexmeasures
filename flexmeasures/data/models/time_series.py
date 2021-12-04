@@ -11,8 +11,8 @@ import timely_beliefs.utils as tb_utils
 
 from flexmeasures.data.config import db
 from flexmeasures.data.queries.utils import (
-    add_belief_timing_criteria,
     create_beliefs_query,
+    get_belief_timing_criteria,
     get_source_criteria,
 )
 from flexmeasures.data.services.time_series import collect_time_series_data
@@ -484,16 +484,13 @@ class TimedValue(object):
             session = db.session
         start, end = query_window
         query = create_beliefs_query(cls, session, Sensor, old_sensor_names, start, end)
-        filter_criteria = []
-        filter_criteria = add_belief_timing_criteria(
-            cls, filter_criteria, Sensor, belief_horizon_window, belief_time_window
+        belief_timing_criteria = get_belief_timing_criteria(
+            cls, Sensor, belief_horizon_window, belief_time_window
         )
-        filter_criteria.extend(
-            get_source_criteria(
-                cls, user_source_ids, source_types, exclude_source_types
-            )
+        source_criteria = get_source_criteria(
+            cls, user_source_ids, source_types, exclude_source_types
         )
-        return query.filter(*filter_criteria)
+        return query.filter(*belief_timing_criteria, *source_criteria)
 
     @classmethod
     def collect(

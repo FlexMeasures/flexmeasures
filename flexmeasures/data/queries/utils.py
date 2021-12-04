@@ -44,28 +44,23 @@ def get_source_criteria(
 ) -> List[bool]:
     source_criteria: List[bool] = []
     if user_source_ids is not None:
-        source_criteria = add_user_source_criterion(
-            cls, source_criteria, user_source_ids
-        )
+        source_criteria.append(user_source_criterion(cls, user_source_ids))
     if source_types is not None:
         if user_source_ids and "user" not in source_types:
             source_types.append("user")
-        source_criteria = add_source_type_criterion(source_criteria, source_types)
+        source_criteria.append(source_type_criterion(source_types))
     if exclude_source_types is not None:
         if user_source_ids and "user" in exclude_source_types:
             exclude_source_types.remove("user")
-        source_criteria = add_source_type_exclusion_criterion(
-            source_criteria, exclude_source_types
-        )
+        source_criteria.append(source_type_exclusion_criterion(exclude_source_types))
     return source_criteria
 
 
-def add_user_source_criterion(
+def user_source_criterion(
     cls: "Type[ts.TimedValue]",
-    criteria: List[bool],
     user_source_ids: Union[int, List[int]],
-) -> List[bool]:
-    """Add criterion to the query to search only through user data from the specified user sources.
+) -> bool:
+    """Criterion to search only through user data from the specified user sources.
 
     We distinguish user sources (sources with source.type == "user") from other sources (source.type != "user").
     Data with a user source originates from a registered user. Data with e.g. a script source originates from a script.
@@ -83,34 +78,26 @@ def add_user_source_criterion(
     ignorable_user_source_ids = [
         user_source.id for user_source in ignorable_user_sources
     ]
-    criteria.append(cls.data_source_id.notin_(ignorable_user_source_ids))
-    return criteria
+    return cls.data_source_id.notin_(ignorable_user_source_ids)
 
 
-def add_source_type_criterion(
-    criteria: List[bool], source_types: List[str]
-) -> List[bool]:
-    """Add criterion to collect only data from sources that are of the given type."""
-    criteria.append(DataSource.type.in_(source_types))
-    return criteria
+def source_type_criterion(source_types: List[str]) -> bool:
+    """Criterion to collect only data from sources that are of the given type."""
+    return DataSource.type.in_(source_types)
 
 
-def add_source_type_exclusion_criterion(
-    criteria: List[bool], source_types: List[str]
-) -> List[bool]:
-    """Add criterion to exclude sources that are of the given type."""
-    criteria.append(DataSource.type.notin_(source_types))
-    return criteria
+def source_type_exclusion_criterion(source_types: List[str]) -> bool:
+    """Criterion to exclude sources that are of the given type."""
+    return DataSource.type.notin_(source_types)
 
 
-def add_belief_timing_criteria(
+def get_belief_timing_criteria(
     cls: "Type[ts.TimedValue]",
-    criteria: List[bool],
     asset_class: db.Model,
     belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
     belief_time_window: Tuple[Optional[datetime], Optional[datetime]],
 ) -> List[bool]:
-    """Add filter criteria for the desired windows with relevant belief times and belief horizons.
+    """Get filter criteria for the desired windows with relevant belief times and belief horizons.
 
     # todo: interpret belief horizons with respect to knowledge time rather than event end.
     - a positive horizon denotes a before-the-fact belief (ex-ante w.r.t. knowledge time)
@@ -148,6 +135,7 @@ def add_belief_timing_criteria(
         belief_time_window = (None, datetime(2020, 5, 13))
 
     """
+    criteria = []
     earliest_belief_time, latest_belief_time = belief_time_window
     if (
         earliest_belief_time is not None
