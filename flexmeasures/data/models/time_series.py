@@ -367,7 +367,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
     def collect(
         self,
-        sensors: List[Union[Sensor, int]],
+        sensors: Union[Sensor, int, List[Union[Sensor, int]]],
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
         horizons_at_least: Optional[timedelta] = None,
@@ -382,6 +382,10 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
+
+        # convert to list
+        if not isinstance(sensors, list):
+            sensors = [sensors]
 
         bdf_dict = {}
         for sensor in sensors:
