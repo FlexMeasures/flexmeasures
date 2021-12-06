@@ -303,7 +303,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def search(
         cls,
         sensors: Union[Sensor, int, str, List[Union[Sensor, int, str]]],
-        sensor: Sensor,  # deprecated
+        sensor: Sensor = None,  # deprecated
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
@@ -350,7 +350,6 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             sensor,
             "sensors",
             sensors,
-            required_argument=False,
         )
         # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
         most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
