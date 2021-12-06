@@ -43,7 +43,7 @@ def test_collect_power(db, app, query_start, query_end, num_values, setup_test_d
     wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
     data = Power.query.filter(Power.sensor_id == wind_device_1.id).all()
     print(data)
-    bdf: tb.BeliefsDataFrame = Power.collect(wind_device_1.name, query_start, query_end)
+    bdf: tb.BeliefsDataFrame = Power.search(wind_device_1.name, query_start, query_end)
     print(bdf)
     assert (
         bdf.index.names[0] == "event_start"
@@ -89,7 +89,7 @@ def test_collect_power_resampled(
     db, app, query_start, query_end, resolution, num_values, setup_test_data
 ):
     wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
-    bdf: tb.BeliefsDataFrame = Power.collect(
+    bdf: tb.BeliefsDataFrame = Power.search(
         wind_device_1.name, query_start, query_end, resolution=resolution
     )
     print(bdf)
@@ -206,7 +206,7 @@ def test_multiplication_with_both_empty_dataframe():
 def test_simplify_index(setup_test_data, check_empty_frame):
     """Check whether simplify_index retains the event resolution."""
     wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
-    bdf: tb.BeliefsDataFrame = Power.collect(
+    bdf: tb.BeliefsDataFrame = Power.search(
         wind_device_1.name,
         datetime(2015, 1, 1, tzinfo=pytz.utc),
         datetime(2015, 1, 2, tzinfo=pytz.utc),

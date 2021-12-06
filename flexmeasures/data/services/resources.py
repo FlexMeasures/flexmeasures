@@ -477,7 +477,7 @@ class Resource:
             )
 
             # Query the sensors
-            resource_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.collect(
+            resource_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.search(
                 old_sensor_names=list(names_of_resource_sensors),
                 event_starts_after=start,
                 event_ends_before=end,

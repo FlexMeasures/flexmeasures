@@ -586,7 +586,7 @@ class TimedValue(object):
         return query.filter(*belief_timing_criteria, *source_criteria)
 
     @classmethod
-    def collect(
+    def search(
         cls,
         old_sensor_names: Union[str, List[str]],
         event_starts_after: Optional[datetime_type] = None,

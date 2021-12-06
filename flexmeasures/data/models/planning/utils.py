@@ -82,7 +82,7 @@ def get_prices(
     # Look for the applicable market sensor
     sensor = get_market(sensor)
 
-    price_bdf: tb.BeliefsDataFrame = Price.collect(
+    price_bdf: tb.BeliefsDataFrame = Price.search(
         sensor.name,
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],

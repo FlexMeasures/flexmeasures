@@ -43,20 +43,20 @@ logger = logging.getLogger(__name__)
 class TBSeriesSpecs(SeriesSpecs):
     """Compatibility for using timetomodel.SeriesSpecs with timely_beliefs.BeliefsDataFrames.
 
-    This implements _load_series such that <time_series_class>.collect is called,
-    with the parameters in collect_params.
-    The collect function is expected to return a BeliefsDataFrame.
+    This implements _load_series such that <time_series_class>.search is called,
+    with the parameters in search_params.
+    The search function is expected to return a BeliefsDataFrame.
     """
 
-    time_series_class: Any  # with <collect_fnc> method (named "collect" by default)
-    collect_params: dict
+    time_series_class: Any  # with <search_fnc> method (named "search" by default)
+    search_params: dict
 
     def __init__(
         self,
         time_series_class,
-        collect_params: dict,
+        search_params: dict,
         name: str,
-        collect_fnc: str = "collect",
+        search_fnc: str = "search",
         original_tz: Optional[tzinfo] = pytz.utc,  # postgres stores naive datetimes
         feature_transformation: Optional[ReversibleTransformation] = None,
         post_load_processing: Optional[Transformation] = None,
@@ -72,14 +72,14 @@ class TBSeriesSpecs(SeriesSpecs):
             interpolation_config,
         )
         self.time_series_class = time_series_class
-        self.collect_params = collect_params
-        self.collect_fnc = collect_fnc
+        self.search_params = search_params
+        self.search_fnc = search_fnc
 
     def _load_series(self) -> pd.Series:
         logger.info("Reading %s data from database" % self.time_series_class.__name__)
 
-        bdf: BeliefsDataFrame = getattr(self.time_series_class, self.collect_fnc)(
-            **self.collect_params
+        bdf: BeliefsDataFrame = getattr(self.time_series_class, self.search_fnc)(
+            **self.search_params
         )
         assert isinstance(bdf, BeliefsDataFrame)
         df = simplify_index(bdf)
@@ -96,19 +96,19 @@ class TBSeriesSpecs(SeriesSpecs):
         if df.empty:
             raise MissingData(
                 "No values found in database for the requested %s data. It's no use to continue I'm afraid."
-                " Here's a print-out of what I tried to collect:\n\n%s\n\n"
+                " Here's a print-out of what I tried to search for:\n\n%s\n\n"
                 % (
                     self.time_series_class.__name__,
-                    pformat(self.collect_params, sort_dicts=False),
+                    pformat(self.search_params, sort_dicts=False),
                 )
             )
         if df.isnull().values.any():
             raise NaNData(
                 "Nan values found in database for the requested %s data. It's no use to continue I'm afraid."
-                " Here's a print-out of what I tried to collect:\n\n%s\n\n"
+                " Here's a print-out of what I tried to search for:\n\n%s\n\n"
                 % (
                     self.time_series_class.__name__,
-                    pformat(self.collect_params, sort_dicts=False),
+                    pformat(self.search_params, sort_dicts=False),
                 )
             )
 
@@ -178,7 +178,7 @@ def create_initial_model_specs(  # noqa: C901
     outcome_var_spec = TBSeriesSpecs(
         name=sensor.generic_asset.generic_asset_type.name,
         time_series_class=time_series_class,
-        collect_params=dict(
+        search_params=dict(
             old_sensor_names=[sensor.name],
             event_starts_after=query_window[0],
             event_ends_before=query_window[1],
@@ -296,7 +296,7 @@ def configure_regressors_for_nearest_weather_sensor(
                     TBSeriesSpecs(
                         name=regressor_specs_name,
                         time_series_class=Weather,
-                        collect_params=dict(
+                        search_params=dict(
                             old_sensor_names=[closest_sensor.name],
                             event_starts_after=query_window[0],
                             event_ends_before=query_window[1],
