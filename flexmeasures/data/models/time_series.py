@@ -410,7 +410,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 user_source_ids=user_source_ids,
                 source_types=source_types,
                 exclude_source_types=exclude_source_types,
-            ).resample_events(resolution)
+            )
+            if resolution is not None:
+                bdf = bdf.resample_events(resolution)
             bdf_dict[bdf.sensor.name] = bdf
 
         if sum_multiple:
