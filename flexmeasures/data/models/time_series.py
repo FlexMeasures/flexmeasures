@@ -303,7 +303,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def search(
         cls,
         sensors: Union[Sensor, int, str, List[Union[Sensor, int, str]]],
-        sensor: Union[Sensor, int],  # deprecated
+        sensor: Sensor,  # deprecated
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
