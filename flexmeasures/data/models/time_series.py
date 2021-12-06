@@ -375,11 +375,16 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         horizons_at_most: Optional[timedelta] = None,
         beliefs_after: Optional[datetime_type] = None,
         beliefs_before: Optional[datetime_type] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
         user_source_ids: Union[
             int, List[int]
         ] = None,  # None is interpreted as all sources
         source_types: Optional[List[str]] = None,
         exclude_source_types: Optional[List[str]] = None,
+        most_recent_beliefs_only: bool = False,
+        most_recent_events_only: bool = False,
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
@@ -407,9 +412,12 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 horizons_at_most=horizons_at_most,
                 beliefs_after=beliefs_after,
                 beliefs_before=beliefs_before,
+                source=source,
                 user_source_ids=user_source_ids,
                 source_types=source_types,
                 exclude_source_types=exclude_source_types,
+                most_recent_beliefs_only=most_recent_beliefs_only,
+                most_recent_events_only=most_recent_events_only,
             )
             if resolution is not None:
                 bdf = bdf.resample_events(resolution)
