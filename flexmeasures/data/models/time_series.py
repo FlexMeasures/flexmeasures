@@ -172,7 +172,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
             required_argument=False,
         )
         bdf = TimedBelief.search(
-            sensor=self,
+            sensors=self,
             event_starts_after=event_starts_after,
             event_ends_before=event_ends_before,
             beliefs_after=beliefs_after,
@@ -302,7 +302,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     @classmethod
     def search(
         cls,
-        sensor: Union[Sensor, int, str, List[Union[Sensor, int, str]]],
+        sensors: Union[Sensor, int, str, List[Union[Sensor, int, str]]],
+        sensor: Union[Sensor, int],  # deprecated
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
@@ -323,7 +324,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
         """Search all beliefs about events for the given sensors.
 
-        :param sensor: search only these sensors, identified by their instance or id (both unique) or name (non-unique)
+        :param sensors: search only these sensors, identified by their instance or id (both unique) or name (non-unique)
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -343,6 +344,14 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
            Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
         ** Note that timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
         """
+        # todo: deprecate the 'sensor' argument in favor of 'sensors' (announced v0.8.0)
+        sensors = tb_utils.replace_deprecated_argument(
+            "sensor",
+            sensor,
+            "sensors",
+            sensors,
+            required_argument=False,
+        )
         # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
         most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
             "most_recent_only",
@@ -353,12 +362,12 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         )
 
         # convert to list
-        sensors = [sensor] if not isinstance(sensor, list) else sensor
+        sensors = [sensors] if not isinstance(sensors, list) else sensors
 
         # convert from sensor names to sensors
         sensor_names = [s for s in sensors if isinstance(s, str)]
         if sensor_names:
-            sensors = [s for s in sensor if not isinstance(s, str)]
+            sensors = [s for s in sensors if not isinstance(s, str)]
             sensors_from_names = Sensor.query.filter(
                 Sensor.name.in_(sensor_names)
             ).all()
