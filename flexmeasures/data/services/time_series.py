@@ -112,8 +112,6 @@ def query_time_series_data(
     with each BeliefsDataFrame having an "event_value" column.
 
     * Note that we convert string resolutions to datetime.timedelta objects.
-      Pandas can resample with those, but still has some quirky behaviour with DST:
-      see https://github.com/pandas-dev/pandas/issues/35219
     """
 
     # On demo, we query older data as if it's the current year's data (we convert back below)

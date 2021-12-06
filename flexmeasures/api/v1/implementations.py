@@ -201,10 +201,13 @@ def collect_connection_and_value_groups(
         # TODO: fill NaN for non-existing values
         power_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Power.collect(
             old_sensor_names=sensor_names,
-            query_window=(start, end),
+            event_starts_after=start,
+            event_ends_before=end,
             resolution=resolution,
-            belief_horizon_window=belief_horizon_window,
-            belief_time_window=belief_time_window,
+            horizons_at_least=belief_horizon_window[0],
+            horizons_at_most=belief_horizon_window[1],
+            beliefs_after=belief_time_window[0],
+            beliefs_before=belief_time_window[1],
             user_source_ids=user_source_ids,
             source_types=source_types,
             sum_multiple=False,

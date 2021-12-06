@@ -479,9 +479,12 @@ class Resource:
             # Query the sensors
             resource_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.collect(
                 old_sensor_names=list(names_of_resource_sensors),
-                query_window=(start, end),
-                belief_horizon_window=belief_horizon_window,
-                belief_time_window=belief_time_window,
+                event_starts_after=start,
+                event_ends_before=end,
+                horizons_at_least=belief_horizon_window[0],
+                horizons_at_most=belief_horizon_window[1],
+                beliefs_after=belief_time_window[0],
+                beliefs_before=belief_time_window[1],
                 source_types=source_types,
                 exclude_source_types=exclude_source_types,
                 resolution=resolution,
