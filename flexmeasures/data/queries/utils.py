@@ -5,6 +5,7 @@ import pandas as pd
 import timely_beliefs as tb
 
 from sqlalchemy.orm import Query, Session
+from sqlalchemy.sql.elements import BinaryExpression
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -41,8 +42,8 @@ def get_source_criteria(
     user_source_ids: Union[int, List[int]],
     source_types: List[str],
     exclude_source_types: List[str],
-) -> List[bool]:
-    source_criteria: List[bool] = []
+) -> List[BinaryExpression]:
+    source_criteria: List[BinaryExpression] = []
     if user_source_ids is not None:
         source_criteria.append(user_source_criterion(cls, user_source_ids))
     if source_types is not None:
@@ -59,7 +60,7 @@ def get_source_criteria(
 def user_source_criterion(
     cls: "Type[ts.TimedValue]",
     user_source_ids: Union[int, List[int]],
-) -> bool:
+) -> BinaryExpression:
     """Criterion to search only through user data from the specified user sources.
 
     We distinguish user sources (sources with source.type == "user") from other sources (source.type != "user").
@@ -81,12 +82,12 @@ def user_source_criterion(
     return cls.data_source_id.notin_(ignorable_user_source_ids)
 
 
-def source_type_criterion(source_types: List[str]) -> bool:
+def source_type_criterion(source_types: List[str]) -> BinaryExpression:
     """Criterion to collect only data from sources that are of the given type."""
     return DataSource.type.in_(source_types)
 
 
-def source_type_exclusion_criterion(source_types: List[str]) -> bool:
+def source_type_exclusion_criterion(source_types: List[str]) -> BinaryExpression:
     """Criterion to exclude sources that are of the given type."""
     return DataSource.type.notin_(source_types)
 
@@ -96,7 +97,7 @@ def get_belief_timing_criteria(
     asset_class: db.Model,
     belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]],
     belief_time_window: Tuple[Optional[datetime], Optional[datetime]],
-) -> List[bool]:
+) -> List[BinaryExpression]:
     """Get filter criteria for the desired windows with relevant belief times and belief horizons.
 
     # todo: interpret belief horizons with respect to knowledge time rather than event end.
@@ -135,7 +136,7 @@ def get_belief_timing_criteria(
         belief_time_window = (None, datetime(2020, 5, 13))
 
     """
-    criteria = []
+    criteria: List[BinaryExpression] = []
     earliest_belief_time, latest_belief_time = belief_time_window
     if (
         earliest_belief_time is not None
