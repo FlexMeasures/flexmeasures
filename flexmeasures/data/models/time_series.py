@@ -388,6 +388,28 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
+        """Collect beliefs about events for the given sensors.
+
+        :param sensors: search only these sensors
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
+        :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param user_source_ids: Optional list of user source ids to query only specific user sources
+        :param source_types: Optional list of source type names to query only specific source types *
+        :param exclude_source_types: Optional list of source type names to exclude specific source types *
+        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
+        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
+        :param resolution: Optional timedelta or pandas freqstr used to resample the results **
+        :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensor names as key, each holding a BeliefsDataFrame as its value
+
+        *  If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
+           Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
+        ** Note that timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
+        """
 
         # convert to list
         if not isinstance(sensors, list):
