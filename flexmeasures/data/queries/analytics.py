@@ -176,7 +176,7 @@ def get_prices_data(
     market_name = "" if market_sensor is None else market_sensor.name
 
     # Get price data
-    price_bdf: tb.BeliefsDataFrame = Price.collect(
+    price_bdf: tb.BeliefsDataFrame = Price.search(
         [market_name],
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
@@ -194,7 +194,7 @@ def get_prices_data(
         metrics["realised_unit_price"] = np.NaN
 
     # Get price forecast
-    price_forecast_bdf: tb.BeliefsDataFrame = Price.collect(
+    price_forecast_bdf: tb.BeliefsDataFrame = Price.search(
         [market_name],
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
@@ -264,7 +264,7 @@ def get_weather_data(
             sensor_names = [sensor.name for sensor in closest_sensors]
 
             # Get weather data
-            weather_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.collect(
+            weather_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.search(
                 sensor_names,
                 event_starts_after=query_window[0],
                 event_ends_before=query_window[1],
@@ -281,7 +281,7 @@ def get_weather_data(
                 )
 
             # Get weather forecasts
-            weather_forecast_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.collect(
+            weather_forecast_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.search(
                 sensor_names,
                 event_starts_after=query_window[0],
                 event_ends_before=query_window[1],
