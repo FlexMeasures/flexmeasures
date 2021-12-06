@@ -73,13 +73,13 @@ def user_source_criterion(
         user_source_ids = [user_source_ids]  # ensure user_source_ids is a list
     ignorable_user_sources = (
         DataSource.query.filter(DataSource.type == "user")
-        .filter(DataSource.id.notin_(user_source_ids))
+        .filter(DataSource.id.not_in(user_source_ids))
         .all()
     )
     ignorable_user_source_ids = [
         user_source.id for user_source in ignorable_user_sources
     ]
-    return cls.data_source_id.notin_(ignorable_user_source_ids)
+    return cls.data_source_id.not_in(ignorable_user_source_ids)
 
 
 def source_type_criterion(source_types: List[str]) -> BinaryExpression:
@@ -89,7 +89,7 @@ def source_type_criterion(source_types: List[str]) -> BinaryExpression:
 
 def source_type_exclusion_criterion(source_types: List[str]) -> BinaryExpression:
     """Criterion to exclude sources that are of the given type."""
-    return DataSource.type.notin_(source_types)
+    return DataSource.type.not_in(source_types)
 
 
 def get_belief_timing_criteria(
