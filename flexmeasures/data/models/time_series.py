@@ -390,7 +390,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
         """Collect beliefs about events for the given sensors.
 
-        :param sensors: search only these sensors
+        :param sensors: search only these sensors, identified by their instance or id (both unique) or name (non-unique)
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -410,6 +410,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
            Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
         ** Note that timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
         """
+
+        # sanity check
+        assert sensors, "no sensors passed"
 
         # convert to list
         if not isinstance(sensors, list):
