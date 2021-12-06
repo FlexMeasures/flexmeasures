@@ -48,7 +48,7 @@ For more on FlexMeasures services, read :ref:`services`. Or head right over to :
 
 
 Using FlexMeasures benefits operators as well as asset owners,
-by allowing or automation, insight, autonomy and profit sharing.
+by allowing for automation, insight, autonomy and profit sharing.
 For more on benefits, consult :ref:`benefits`.
 
 FlexMeasures is compliant with the `Universal Smart Energy Framework (USEF) <https://www.usef.energy/>`_.
