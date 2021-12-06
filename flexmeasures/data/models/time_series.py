@@ -383,7 +383,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         ] = None,  # None is interpreted as all sources
         source_types: Optional[List[str]] = None,
         exclude_source_types: Optional[List[str]] = None,
-        most_recent_beliefs_only: bool = False,
+        most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
