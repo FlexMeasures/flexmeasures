@@ -32,15 +32,15 @@ For the curious, here are visualisations of where we're now and where we're goin
 
 The current model:
 
-.. image:: https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/FlexMeasures-CurrentDataModel.png
-    :target: https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/FlexMeasures-CurrentDataModel.png
+.. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/FlexMeasures-CurrentDataModel.png
+    :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/FlexMeasures-CurrentDataModel.png
     :align: center
 ..    :scale: 40%
 
 The new model (work in progress): 
 
-.. image:: https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/FlexMeasures-NewDataModel.png
-    :target: https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/FlexMeasures-NewDataModel.png
+.. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/FlexMeasures-NewDataModel.png
+    :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/FlexMeasures-NewDataModel.png
     :align: center
 ..    :scale: 40%
 

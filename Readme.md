@@ -12,7 +12,7 @@ The *FlexMeasures Platform* is a tool for building real-time energy flexibility 
 - Developing energy flexibility services (e.g. to enable demand response) is crucial, but expensive.
 - FlexMeasures reduces development costs with real-time data integrations, uncertainty models and API/UI support.
 
-![Separation of concerns ― FlexMeasures enhancing Energy Service Company services](https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/SeparationOfConcerns.png)
+![Separation of concerns ― FlexMeasures enhancing Energy Service Company services](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/SeparationOfConcerns.png)
 
 
 With services and data integrations built on top of FlexMeasures, energy service companies (ESCOs) can offer real-time services around energy flexibility.
@@ -24,7 +24,7 @@ FlexMeasures provides three core values:
 3. Developer support ― building customer-facing services is where energy flexibility hits the road. FlexMeasures reduces developer workload with a well-documented API, data visualisation and multi-tenancy, and supports plugins to customise and extend the platform to your needs.
 
 
-![Integration view of the FlexMeasures platform architecture](https://raw.githubusercontent.com/SeitaBV/screenshots/main/architecture/FlexMeasures-HighLevel.png)
+![Integration view of the FlexMeasures platform architecture](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/FlexMeasures-HighLevel.png)
 
 FlexMeasures is developed by [Seita BV](https://www.seita.nl) in The Netherlands.
 
