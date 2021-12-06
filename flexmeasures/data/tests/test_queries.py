@@ -226,7 +226,7 @@ def test_query_beliefs(setup_beliefs):
     bdfs = [
         TimedBelief.search(sensor, source=source),
         TimedBelief.search(sensor.id, source=source),
-        TimedBelief.collect(sensor.name, source=source),
+        TimedBelief.search(sensor.name, source=source),
         sensor.search_beliefs(source=source),
         tb.BeliefsDataFrame(sensor.beliefs),  # doesn't allow filtering
     ]

@@ -302,7 +302,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     @classmethod
     def search(
         cls,
-        sensor: Union[Sensor, int],
+        sensor: Union[Sensor, int, str, List[Union[Sensor, int, str]]],
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
@@ -318,79 +318,12 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
         most_recent_only: bool = False,  # deprecated
-    ) -> tb.BeliefsDataFrame:
-        """Search all beliefs about events for a given sensor.
-
-        :param sensor: search only this sensor
-        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
-        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
-        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
-        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
-        :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
-        :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
-        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
-        :param user_source_ids: Optional list of user source ids to query only specific user sources
-        :param source_types: Optional list of source type names to query only specific source types *
-        :param exclude_source_types: Optional list of source type names to exclude specific source types *
-        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
-        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
-
-        * If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
-          Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
-        """
-        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
-        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
-            "most_recent_only",
-            most_recent_only,
-            "most_recent_beliefs_only",
-            most_recent_beliefs_only,
-            required_argument=False,
-        )
-        parsed_sources = parse_source_arg(source)
-        source_criteria = get_source_criteria(
-            cls, user_source_ids, source_types, exclude_source_types
-        )
-        return cls.search_session(
-            session=db.session,
-            sensor=sensor,
-            event_starts_after=event_starts_after,
-            event_ends_before=event_ends_before,
-            beliefs_after=beliefs_after,
-            beliefs_before=beliefs_before,
-            horizons_at_least=horizons_at_least,
-            horizons_at_most=horizons_at_most,
-            source=parsed_sources,
-            most_recent_beliefs_only=most_recent_beliefs_only,
-            most_recent_events_only=most_recent_events_only,
-            custom_filter_criteria=source_criteria,
-        )
-
-    @classmethod
-    def collect(
-        cls,
-        sensors: Union[Sensor, int, str, List[Union[Sensor, int, str]]],
-        event_starts_after: Optional[datetime_type] = None,
-        event_ends_before: Optional[datetime_type] = None,
-        horizons_at_least: Optional[timedelta] = None,
-        horizons_at_most: Optional[timedelta] = None,
-        beliefs_after: Optional[datetime_type] = None,
-        beliefs_before: Optional[datetime_type] = None,
-        source: Optional[
-            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-        ] = None,
-        user_source_ids: Union[
-            int, List[int]
-        ] = None,  # None is interpreted as all sources
-        source_types: Optional[List[str]] = None,
-        exclude_source_types: Optional[List[str]] = None,
-        most_recent_beliefs_only: bool = True,
-        most_recent_events_only: bool = False,
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
-        """Collect beliefs about events for the given sensors.
+        """Search all beliefs about events for the given sensors.
 
-        :param sensors: search only these sensors, identified by their instance or id (both unique) or name (non-unique)
+        :param sensor: search only these sensors, identified by their instance or id (both unique) or name (non-unique)
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -410,39 +343,47 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
            Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
         ** Note that timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
         """
-
-        # sanity check
-        assert sensors, "no sensors passed"
+        # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
+        most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
+            "most_recent_only",
+            most_recent_only,
+            "most_recent_beliefs_only",
+            most_recent_beliefs_only,
+            required_argument=False,
+        )
 
         # convert to list
-        if not isinstance(sensors, list):
-            sensors = [sensors]
+        sensors = [sensor] if not isinstance(sensor, list) else sensor
 
         # convert from sensor names to sensors
         sensor_names = [s for s in sensors if isinstance(s, str)]
         if sensor_names:
-            sensors = [s for s in sensors if not isinstance(s, str)]
+            sensors = [s for s in sensor if not isinstance(s, str)]
             sensors_from_names = Sensor.query.filter(
                 Sensor.name.in_(sensor_names)
             ).all()
             sensors.extend(sensors_from_names)
 
+        parsed_sources = parse_source_arg(source)
+        source_criteria = get_source_criteria(
+            cls, user_source_ids, source_types, exclude_source_types
+        )
+
         bdf_dict = {}
         for sensor in sensors:
-            bdf = cls.search(
-                sensor,
+            bdf = cls.search_session(
+                session=db.session,
+                sensor=sensor,
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
-                horizons_at_least=horizons_at_least,
-                horizons_at_most=horizons_at_most,
                 beliefs_after=beliefs_after,
                 beliefs_before=beliefs_before,
-                source=source,
-                user_source_ids=user_source_ids,
-                source_types=source_types,
-                exclude_source_types=exclude_source_types,
+                horizons_at_least=horizons_at_least,
+                horizons_at_most=horizons_at_most,
+                source=parsed_sources,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 most_recent_events_only=most_recent_events_only,
+                custom_filter_criteria=source_criteria,
             )
             if resolution is not None:
                 bdf = bdf.resample_events(
