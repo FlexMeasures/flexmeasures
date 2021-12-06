@@ -420,7 +420,9 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 most_recent_events_only=most_recent_events_only,
             )
             if resolution is not None:
-                bdf = bdf.resample_events(resolution)
+                bdf = bdf.resample_events(
+                    resolution, keep_only_most_recent_belief=most_recent_beliefs_only
+                )
             bdf_dict[bdf.sensor.name] = bdf
 
         if sum_multiple:
