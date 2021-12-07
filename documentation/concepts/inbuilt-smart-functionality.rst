@@ -22,7 +22,7 @@ The FlexMeasures platform continuously reads in meter data from your assets. To 
 * Data gaps & strange outliers (assure data quality)
 * Idle processes / leaks (minimise waste)
 
-.. todo:: These features are work in progress. Most of our customers already do this by themselves in a straightforward manner.
+.. todo:: These features are `work in progress <https://github.com/FlexMeasures/flexmeasures/projects/12>`_. Most of our customers already do this by themselves in a straightforward manner.
 
 
 Forecasting

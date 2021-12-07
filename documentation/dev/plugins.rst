@@ -30,7 +30,7 @@ In that example, we use the first option from above to tell FlexMeasures about t
 
 The second option (the plugin being an importable Python package) allows for more professional software development. For instance, it is more straightforward in that case to add code hygiene, version management and dependencies (your plugin can depend on a specific FlexMeasures version and other plugins can depend on yours).
 
-To hit the ground running with that approach, we provide a `CookieCutter template <https://github.com/SeitaBV/flexmeasures-plugin-template>`_.
+To hit the ground running with that approach, we provide a `CookieCutter template <https://github.com/FlexMeasures/flexmeasures-plugin-template>`_.
 It also includes a few Blueprint examples and best practices.
 
 
