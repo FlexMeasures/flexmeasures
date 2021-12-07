@@ -19,6 +19,7 @@ Infrastructure / Support
 * Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <http://www.github.com/SeitaBV/flexmeasures/pull/154>`_]
 * Allow plugins to register their custom config settings, so that FlexMeasures can check whether they are set up correctly [see `PR #230 <http://www.github.com/SeitaBV/flexmeasures/pull/230>`_ and `PR #237 <http://www.github.com/SeitaBV/flexmeasures/pull/237>`_]
 * Added sensor method to obtain just its latest state (excl. forecasts) [see `PR #235 <http://www.github.com/SeitaBV/flexmeasures/pull/235>`_]
+* Migrate attributes of assets, markets and weather sensors to our new sensor model [see `PR #254 <http://www.github.com/FlexMeasures/flexmeasures/pull/254>`_ and `project 9 <http://www.github.com/FlexMeasures/flexmeasures/projects/9>`_]
 
 
 v0.7.1 | November 08, 2021
