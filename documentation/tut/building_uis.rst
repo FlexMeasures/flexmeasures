@@ -102,7 +102,7 @@ Here is some code to find out and display that information in a simple HTML tabl
            
 The result looks like this in your browser:
 
-.. image:: https://github.com/SeitaBV/screenshots/raw/main/tut/user_info.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/user_info.png
     :align: center
 ..    :scale: 40%
 
@@ -172,7 +172,7 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
            
 The result looks like this in your browser:
 
-.. image:: https://github.com/SeitaBV/screenshots/raw/main/tut/asset_info.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/asset_info.png
     :align: center
 ..    :scale: 40%
 
@@ -278,7 +278,7 @@ Note the ``show_individual_traces_for`` setting - it allows us to split data fro
            
 The result looks like this in your browser:
 
-.. image:: https://github.com/SeitaBV/screenshots/raw/main/tut/plots.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/plots.png
     :align: center
 ..    :scale: 40%
 

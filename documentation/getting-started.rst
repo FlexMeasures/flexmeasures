@@ -184,7 +184,7 @@ Add data
 
 You can use the `POST /api/v2_0/postMeterData <api/v2_0.html#post--api-v2_0-postMeterData>`_ endpoint in the FlexMeasures API to send meter data.
 
-.. note::  `issue 56 <https://github.com/SeitaBV/flexmeasures/issues/56>`_ should create a CLI function for adding a lot of data at once, from a CSV dataset.
+.. note::  `issue 56 <https://github.com/FlexMeasures/flexmeasures/issues/56>`_ should create a CLI function for adding a lot of data at once, from a CSV dataset.
 
 Also, you can add forecasts for your meter data with the ``flexmeasures add`` command, here is an example:
 
