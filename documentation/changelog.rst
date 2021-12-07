@@ -5,6 +5,8 @@ FlexMeasures Changelog
 v0.8.0 | November XX, 2021
 ===========================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -----------
 * Charts with sensor data can be requested in one of the supported  [`vega-lite themes <https://github.com/vega/vega-themes#included-themes>`_] (incl. a dark theme) [see `PR #221 <http://www.github.com/SeitaBV/flexmeasures/pull/221>`_]
