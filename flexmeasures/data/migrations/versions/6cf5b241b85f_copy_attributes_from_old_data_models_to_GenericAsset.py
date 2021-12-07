@@ -37,8 +37,6 @@ def upgrade():
         "sensor",
         sa.Column("attributes", sa.JSON(), nullable=True, default={}),
     )
-    # todo: find places where we look for seasonality and get it from the corresponding GenericAsset instead
-    # todo: find places where we look for old_model_type and get it from the corresponding GenericAsset instead
 
     # Declare ORM table views
     t_generic_asset_type = sa.Table(
@@ -248,7 +246,6 @@ def upgrade():
             "can_shift",
         ],
         extra_attributes_depending_on_old_model_type_name={
-
             "solar": {
                 "correlations": ["radiation"],
             },
@@ -267,7 +264,7 @@ def upgrade():
             "building": {
                 "correlations": ["temperature"],
             },
-        }  # The GenericAssetType table had these hardcoded weather correlations
+        },  # The GenericAssetType table had these hardcoded weather correlations
     )
     op.alter_column(
         "sensor",
@@ -371,13 +368,18 @@ def copy_attributes(
             raise ValueError
 
         # Fill in the target class's attributes: A) first those with extra attributes depending on model type name
-        generic_asset_type_names_with_extra_attributes = extra_attributes_depending_on_old_model_type_name.keys()
+        generic_asset_type_names_with_extra_attributes = (
+            extra_attributes_depending_on_old_model_type_name.keys()
+        )
         if t_target.name == "generic_asset":
             for gatn in generic_asset_type_names_with_extra_attributes:
                 connection.execute(
                     t_target.update()
                     .where(t_target.c.id == target_id)
-                    .where(t_generic_asset_type.c.id == t_generic_asset.c.generic_asset_type_id)
+                    .where(
+                        t_generic_asset_type.c.id
+                        == t_generic_asset.c.generic_asset_type_id
+                    )
                     .where(t_generic_asset_type.c.name == gatn)
                     .values(
                         attributes=json.dumps(
@@ -385,7 +387,9 @@ def copy_attributes(
                                 **old_model_attributes_to_copy,
                                 **old_model_type_attributes_to_copy,
                                 **extra_attributes,
-                                **extra_attributes_depending_on_old_model_type_name[gatn],
+                                **extra_attributes_depending_on_old_model_type_name[
+                                    gatn
+                                ],
                             }
                         )
                     )
@@ -396,7 +400,11 @@ def copy_attributes(
             t_target.update()
             .where(t_target.c.id == target_id)
             .where(t_generic_asset_type.c.id == t_generic_asset.c.generic_asset_type_id)
-            .where(t_generic_asset_type.c.name.not_in(generic_asset_type_names_with_extra_attributes))
+            .where(
+                t_generic_asset_type.c.name.not_in(
+                    generic_asset_type_names_with_extra_attributes
+                )
+            )
             .values(
                 attributes=json.dumps(
                     {
