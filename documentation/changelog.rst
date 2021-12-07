@@ -5,6 +5,9 @@ FlexMeasures Changelog
 v0.8.0 | November XX, 2021
 ===========================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+.. warning:: Changes to asset attributes made via the UI or API are not reflected in the new data model until `issue #247 <https://github.com/FlexMeasures/flexmeasures/issues/247>`_ is resolved.
+
 New features
 -----------
 * Charts with sensor data can be requested in one of the supported  [`vega-lite themes <https://github.com/vega/vega-themes#included-themes>`_] (incl. a dark theme) [see `PR #221 <http://www.github.com/SeitaBV/flexmeasures/pull/221>`_]
@@ -19,6 +22,7 @@ Infrastructure / Support
 * Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <http://www.github.com/SeitaBV/flexmeasures/pull/154>`_]
 * Allow plugins to register their custom config settings, so that FlexMeasures can check whether they are set up correctly [see `PR #230 <http://www.github.com/SeitaBV/flexmeasures/pull/230>`_ and `PR #237 <http://www.github.com/SeitaBV/flexmeasures/pull/237>`_]
 * Added sensor method to obtain just its latest state (excl. forecasts) [see `PR #235 <http://www.github.com/SeitaBV/flexmeasures/pull/235>`_]
+* Migrate attributes of assets, markets and weather sensors to our new sensor model [see `PR #254 <http://www.github.com/FlexMeasures/flexmeasures/pull/254>`_ and `project 9 <http://www.github.com/FlexMeasures/flexmeasures/projects/9>`_]
 
 
 v0.7.1 | November 08, 2021
