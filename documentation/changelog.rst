@@ -6,6 +6,7 @@ v0.8.0 | November XX, 2021
 ===========================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+.. warning:: Changes to asset attributes made via the UI or API are not reflected in the new data model until `issue #247 <https://github.com/FlexMeasures/flexmeasures/issues/247>`_ is resolved.
 
 New features
 -----------
