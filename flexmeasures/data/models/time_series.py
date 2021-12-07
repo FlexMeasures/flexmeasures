@@ -85,14 +85,30 @@ class Sensor(db.Model, tb.SensorDBMixin):
             return self.latitude, self.longitude
         return None
 
+    @property
+    def is_strictly_non_positive(self) -> bool:
+        """Return True if this sensor strictly records non-positive values."""
+        return self.get_attribute("is_consumer", False) and not self.get_attribute(
+            "is_producer", True
+        )
+
+    @property
+    def is_strictly_non_negative(self) -> bool:
+        """Return True if this sensor strictly records non-negative values."""
+        return self.get_attribute("is_producer", False) and not self.get_attribute(
+            "is_consumer", True
+        )
+
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute on the Sensor.
         If not found, looks for the attribute on the Sensor's GenericAsset.
         If not found, returns the default.
         """
+        if hasattr(self, attribute):
+            return getattr(self, attribute)
         if attribute in self.attributes:
             return self.attributes[attribute]
-        elif attribute in self.generic_asset.attributes:
+        if attribute in self.generic_asset.attributes:
             return self.generic_asset.attributes[attribute]
         return default
 
