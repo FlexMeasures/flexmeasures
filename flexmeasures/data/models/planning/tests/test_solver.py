@@ -78,7 +78,8 @@ def test_battery_solver_day_2(add_battery_assets):
 def test_charging_station_solver_day_2(target_soc, charging_station_name):
     """Starting with a state of charge 1 kWh, within 2 hours we should be able to reach
     any state of charge in the range [1, 5] kWh for a unidirectional station,
-    or [0, 5] for a bidirectional station."""
+    or [0, 5] for a bidirectional station, given a charging capacity of 2 kW.
+    """
     soc_at_start = 1
     duration_until_target = timedelta(hours=2)
 
@@ -86,6 +87,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     charging_station = Sensor.query.filter(
         Sensor.name == charging_station_name
     ).one_or_none()
+    assert charging_station.get_attribute("capacity_in_mw") == 2
     assert Sensor.query.get(charging_station.get_attribute("market_id")) == epex_da
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
@@ -113,3 +115,61 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     print(consumption_schedule.head(12))
     print(soc_schedule.head(12))
     assert abs(soc_schedule.loc[target_soc_datetime] - target_soc) < 0.00001
+
+
+@pytest.mark.parametrize(
+    "target_soc, charging_station_name",
+    [
+        (9, "Test charging station"),
+        (15, "Test charging station"),
+        (5, "Test charging station (bidirectional)"),
+        (15, "Test charging station (bidirectional)"),
+    ],
+)
+def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
+    """Starting with a state of charge 10 kWh, within 2 hours we should be able to reach
+    any state of charge in the range [10, 14] kWh for a unidirectional station,
+    or [6, 14] for a bidirectional station, given a charging capacity of 2 kW.
+    Here we test target states of charge outside that range, ones that we should be able
+    to get as close to as 1 kWh difference.
+    We want our scheduler to handle unsolvable problems like these with a sensible fallback policy.
+    """
+    soc_at_start = 10
+    duration_until_target = timedelta(hours=2)
+    expected_gap = 1
+
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    charging_station = Sensor.query.filter(
+        Sensor.name == charging_station_name
+    ).one_or_none()
+    assert charging_station.get_attribute("capacity_in_mw") == 2
+    assert Sensor.query.get(charging_station.get_attribute("market_id")) == epex_da
+    start = as_server_time(datetime(2015, 1, 2))
+    end = as_server_time(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    target_soc_datetime = start + duration_until_target
+    soc_targets = pd.Series(
+        np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
+    )
+    soc_targets.loc[target_soc_datetime] = target_soc
+    consumption_schedule = schedule_charging_station(
+        charging_station, start, end, resolution, soc_at_start, soc_targets
+    )
+    soc_schedule = integrate_time_series(
+        consumption_schedule, soc_at_start, decimal_precision=6
+    )
+
+    # Check if constraints were met
+    assert (
+        min(consumption_schedule.values)
+        >= charging_station.get_attribute("capacity_in_mw") * -1
+    )
+    assert max(consumption_schedule.values) <= charging_station.get_attribute(
+        "capacity_in_mw"
+    )
+    print(consumption_schedule.head(12))
+    print(soc_schedule.head(12))
+    assert (
+        abs(abs(soc_schedule.loc[target_soc_datetime] - target_soc) - expected_gap)
+        < 0.00001
+    )
