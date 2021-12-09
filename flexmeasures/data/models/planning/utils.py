@@ -111,3 +111,64 @@ def get_prices(
                 "Prices partially unknown for planning window."
             )
     return price_df, query_window
+
+
+def fallback_charging_policy(
+    sensor: Sensor,
+    device_constraints: pd.DataFrame,
+    start: datetime,
+    end: datetime,
+    resolution: timedelta,
+) -> pd.Series:
+    """This fallback charging policy is to just start charging or discharging, or do neither,
+    depending on the first target state of charge and the capabilities of the Charge Point.
+    Note that this ignores any cause of the infeasibility and,
+    while probably a decent policy for Charge Points,
+    should not be considered a robust policy for other asset types.
+    """
+    charge_power = (
+        sensor.get_attribute("capacity_in_mw")
+        if sensor.get_attribute("is_consumer")
+        else 0
+    )
+    discharge_power = (
+        -sensor.get_attribute("capacity_in_mw")
+        if sensor.get_attribute("is_producer")
+        else 0
+    )
+
+    charge_schedule = initialize_series(charge_power, start, end, resolution)
+    discharge_schedule = initialize_series(discharge_power, start, end, resolution)
+    idle_schedule = initialize_series(0, start, end, resolution)
+    if (
+        device_constraints["max"].first_valid_index() is not None
+        and device_constraints["max"][device_constraints["max"].first_valid_index()] < 0
+    ):
+        # start discharging to try and bring back the soc below the next max constraint
+        return discharge_schedule
+    if (
+        device_constraints["min"].first_valid_index() is not None
+        and device_constraints["min"][device_constraints["min"].first_valid_index()] > 0
+    ):
+        # start charging to try and bring back the soc above the next min constraint
+        return charge_schedule
+    if (
+        device_constraints["equals"].first_valid_index() is not None
+        and device_constraints["equals"][
+            device_constraints["equals"].first_valid_index()
+        ]
+        > 0
+    ):
+        # start charging to get as close as possible to the next target
+        return charge_schedule
+    if (
+        device_constraints["equals"].first_valid_index() is not None
+        and device_constraints["equals"][
+            device_constraints["equals"].first_valid_index()
+        ]
+        < 0
+    ):
+        # start discharging to get as close as possible to the next target
+        return discharge_schedule
+    # stand idle
+    return idle_schedule

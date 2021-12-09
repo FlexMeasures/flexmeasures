@@ -274,7 +274,7 @@ def create_connection_and_value_groups(  # noqa: C901
                 return unrecognized_connection_group()
 
             # Validate the sign of the values (following USEF specs with positive consumption and negative production)
-            if sensor.get_attribute("is_pure_consumer") and any(
+            if sensor.get_attribute("is_strictly_non_positive") and any(
                 v < 0 for v in value_group
             ):
                 extra_info = (
@@ -282,7 +282,7 @@ def create_connection_and_value_groups(  # noqa: C901
                     % sensor.entity_address
                 )
                 return power_value_too_small(extra_info)
-            elif sensor.get_attribute("is_pure_producer") and any(
+            elif sensor.get_attribute("is_strictly_non_negative") and any(
                 v > 0 for v in value_group
             ):
                 extra_info = (
