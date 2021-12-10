@@ -2,6 +2,7 @@ from typing import Dict
 
 import timely_beliefs as tb
 from timely_beliefs.sensors.func_store import knowledge_horizons
+import timely_beliefs.utils as tb_utils
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
@@ -203,6 +204,12 @@ class Price(TimedValue, db.Model):
         return super().make_query(**kwargs)
 
     def __init__(self, **kwargs):
+        # todo: deprecate the 'market_id' argument in favor of 'sensor_id' (announced v0.8.0)
         if "market_id" in kwargs and "sensor_id" not in kwargs:
-            kwargs["sensor_id"] = kwargs["market_id"]
+            kwargs["sensor_id"] = tb_utils.replace_deprecated_argument(
+                "sensor_id",
+                kwargs["sensor_id"],
+                "market_id",
+                kwargs["market_id"],
+            )
         super(Price, self).__init__(**kwargs)

@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import isodate
 import timely_beliefs as tb
+import timely_beliefs.utils as tb_utils
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.config import db
@@ -347,8 +348,14 @@ class Power(TimedValue, db.Model):
         }
 
     def __init__(self, **kwargs):
+        # todo: deprecate the 'asset_id' argument in favor of 'sensor_id' (announced v0.8.0)
         if "asset_id" in kwargs and "sensor_id" not in kwargs:
-            kwargs["sensor_id"] = kwargs["asset_id"]
+            kwargs["sensor_id"] = tb_utils.replace_deprecated_argument(
+                "sensor_id",
+                kwargs["sensor_id"],
+                "asset_id",
+                kwargs["asset_id"],
+            )
         super(Power, self).__init__(**kwargs)
 
     def __repr__(self):
