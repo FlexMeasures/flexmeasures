@@ -347,6 +347,8 @@ class Power(TimedValue, db.Model):
         }
 
     def __init__(self, **kwargs):
+        if "asset_id" in kwargs and "sensor_id" not in kwargs:
+            kwargs["sensor_id"] = kwargs["asset_id"]
         super(Power, self).__init__(**kwargs)
 
     def __repr__(self):

@@ -203,4 +203,6 @@ class Price(TimedValue, db.Model):
         return super().make_query(**kwargs)
 
     def __init__(self, **kwargs):
+        if "market_id" in kwargs and "sensor_id" not in kwargs:
+            kwargs["sensor_id"] = kwargs["market_id"]
         super(Price, self).__init__(**kwargs)
