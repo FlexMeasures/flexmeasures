@@ -336,7 +336,7 @@ def setup_assets(
                 horizon=parse_duration("PT0M"),
                 value=val,
                 data_source_id=setup_sources["Seita"].id,
-                sensor_id=asset.id,
+                asset_id=asset.id,
             )
             db.session.add(p)
     return {asset.name: asset for asset in assets}
@@ -399,7 +399,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
             horizon=timedelta(hours=0),
             value=val,
             data_source_id=setup_sources["Seita"].id,
-            sensor_id=setup_markets["epex_da"].id,
+            market_id=setup_markets["epex_da"].id,
         )
         db.session.add(p)
 
