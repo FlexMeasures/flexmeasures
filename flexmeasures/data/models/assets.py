@@ -351,10 +351,10 @@ class Power(TimedValue, db.Model):
         # todo: deprecate the 'asset_id' argument in favor of 'sensor_id' (announced v0.8.0)
         if "asset_id" in kwargs and "sensor_id" not in kwargs:
             kwargs["sensor_id"] = tb_utils.replace_deprecated_argument(
-                "sensor_id",
-                kwargs["sensor_id"],
                 "asset_id",
                 kwargs["asset_id"],
+                "sensor_id",
+                None,
             )
             kwargs.pop("asset_id", None)
         super(Power, self).__init__(**kwargs)

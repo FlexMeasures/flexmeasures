@@ -207,10 +207,10 @@ class Price(TimedValue, db.Model):
         # todo: deprecate the 'market_id' argument in favor of 'sensor_id' (announced v0.8.0)
         if "market_id" in kwargs and "sensor_id" not in kwargs:
             kwargs["sensor_id"] = tb_utils.replace_deprecated_argument(
-                "sensor_id",
-                kwargs["sensor_id"],
                 "market_id",
                 kwargs["market_id"],
+                "sensor_id",
+                None,
             )
             kwargs.pop("market_id", None)
         super(Price, self).__init__(**kwargs)
