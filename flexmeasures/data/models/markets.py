@@ -212,4 +212,5 @@ class Price(TimedValue, db.Model):
                 "market_id",
                 kwargs["market_id"],
             )
+            kwargs.pop("market_id", None)
         super(Price, self).__init__(**kwargs)

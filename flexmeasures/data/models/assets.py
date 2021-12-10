@@ -356,6 +356,7 @@ class Power(TimedValue, db.Model):
                 "asset_id",
                 kwargs["asset_id"],
             )
+            kwargs.pop("asset_id", None)
         super(Power, self).__init__(**kwargs)
 
     def __repr__(self):
