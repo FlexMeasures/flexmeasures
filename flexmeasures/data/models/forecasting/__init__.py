@@ -1,5 +1,4 @@
-from typing import Tuple, Callable, Union, Optional
-from datetime import datetime, timedelta
+from typing import Tuple, Callable
 
 from timetomodel import ModelSpecs
 
@@ -9,10 +8,6 @@ from flexmeasures.data.models.forecasting.model_specs.naive import (
 from flexmeasures.data.models.forecasting.model_specs.linear_regression import (
     ols_specs_configurator as linear_ols_specs,
 )
-
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.weather import WeatherSensor
 
 
 model_map = {
@@ -25,14 +20,8 @@ model_map = {
 def lookup_model_specs_configurator(
     model_search_term: str = "linear-OLS",
 ) -> Callable[
-    [
-        Union[Asset, Market, WeatherSensor],
-        datetime,
-        datetime,
-        timedelta,
-        Optional[timedelta],
-        Optional[dict],
-    ],
+    ...,  # See model_spec_factory.create_initial_model_specs for an up-to-date type annotation
+    # Annotating here would require Python>=3.10 (specifically, ParamSpec from PEP 612)
     Tuple[ModelSpecs, str, str],
 ]:
     """

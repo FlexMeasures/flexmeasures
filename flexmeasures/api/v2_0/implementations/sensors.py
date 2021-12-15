@@ -15,7 +15,7 @@ from flexmeasures.api.common.responses import (
     ResponseTuple,
 )
 from flexmeasures.api.common.utils.api_utils import (
-    get_weather_sensor_by,
+    get_sensor_by_generic_asset_type_and_location,
     save_to_db,
     determine_belief_timing,
 )
@@ -31,12 +31,13 @@ from flexmeasures.api.common.utils.validators import (
     period_required,
     values_required,
 )
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import get_or_create_source
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
-from flexmeasures.data.services.resources import get_assets
+from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
@@ -80,18 +81,18 @@ def post_price_data_response(  # noqa C901
                 ea = parse_entity_address(market, entity_type="market")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
-            market_id = ea["sensor_id"]
+            sensor_id = ea["sensor_id"]
 
-            # Look for the Market object
-            market = Market.query.filter(Market.id == market_id).one_or_none()
-            if market is None:
-                return unrecognized_market(market_id)
-            elif unit != market.unit:
-                return invalid_unit("%s prices" % market.display_name, [market.unit])
+            # Look for the Sensor object
+            sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+            if sensor is None:
+                return unrecognized_market(sensor_id)
+            elif unit != sensor.unit:
+                return invalid_unit("%s prices" % sensor.name, [sensor.unit])
 
             # Convert to timely-beliefs terminology
             event_starts, belief_horizons = determine_belief_timing(
-                event_values, start, resolution, horizon, prior, market
+                event_values, start, resolution, horizon, prior, sensor
             )
 
             # Create new Price objects
@@ -101,7 +102,7 @@ def post_price_data_response(  # noqa C901
                         datetime=event_start,
                         value=event_value,
                         horizon=belief_horizon,
-                        market_id=market.id,
+                        sensor_id=sensor.id,
                         data_source_id=data_source.id,
                     )
                     for event_start, event_value, belief_horizon in zip(
@@ -115,8 +116,8 @@ def post_price_data_response(  # noqa C901
             if current_app.config.get("FLEXMEASURES_MODE", "") != "play":
                 # Forecast 24 and 48 hours ahead for at most the last 24 hours of posted price data
                 forecasting_jobs = create_forecasting_jobs(
-                    "Price",
-                    market.id,
+                    Price,
+                    sensor.id,
                     max(start, start + duration - timedelta(hours=24)),
                     start + duration,
                     resolution=duration / len(event_values),
@@ -172,13 +173,13 @@ def post_weather_data_response(  # noqa: C901
             if unit not in accepted_units:
                 return invalid_unit(weather_sensor_type_name, accepted_units)
 
-            weather_sensor = get_weather_sensor_by(
+            sensor = get_sensor_by_generic_asset_type_and_location(
                 weather_sensor_type_name, latitude, longitude
             )
 
             # Convert to timely-beliefs terminology
             event_starts, belief_horizons = determine_belief_timing(
-                event_values, start, resolution, horizon, prior, weather_sensor
+                event_values, start, resolution, horizon, prior, sensor
             )
 
             # Create new Weather objects
@@ -188,7 +189,7 @@ def post_weather_data_response(  # noqa: C901
                         datetime=event_start,
                         value=event_value,
                         horizon=belief_horizon,
-                        sensor_id=weather_sensor.id,
+                        sensor_id=sensor.id,
                         data_source_id=data_source.id,
                     )
                     for event_start, event_value, belief_horizon in zip(
@@ -205,8 +206,8 @@ def post_weather_data_response(  # noqa: C901
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
-                        "Weather",
-                        weather_sensor.id,
+                        Weather,
+                        sensor.id,
                         start,
                         start + duration,
                         resolution=duration / len(event_values),
@@ -302,10 +303,10 @@ def post_power_data(
     current_app.logger.info("POSTING POWER DATA")
 
     data_source = get_or_create_source(current_user)
-    user_assets = get_assets()
-    if not user_assets:
+    user_sensors = get_sensors()
+    if not user_sensors:
         current_app.logger.info("User doesn't seem to have any assets")
-    user_asset_ids = [asset.id for asset in user_assets]
+    user_sensor_ids = [sensor.id for sensor in user_sensors]
     power_measurements = []
     forecasting_jobs = []
     for connection_group, event_values in zip(generic_asset_name_groups, value_groups):
@@ -317,32 +318,36 @@ def post_power_data(
                 ea = parse_entity_address(connection, entity_type="connection")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
-            asset_id = ea["sensor_id"]
+            sensor_id = ea["sensor_id"]
 
-            # Look for the Asset object
-            if asset_id in user_asset_ids:
-                asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
+            # Look for the Sensor object
+            if sensor_id in user_sensor_ids:
+                sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
             else:
                 current_app.logger.warning("Cannot identify connection %s" % connection)
                 return unrecognized_connection_group()
 
             # Validate the sign of the values (following USEF specs with positive consumption and negative production)
-            if asset.is_pure_consumer and any(v < 0 for v in event_values):
+            if sensor.get_attribute("is_strictly_non_positive") and any(
+                v < 0 for v in event_values
+            ):
                 extra_info = (
                     "Connection %s is registered as a pure consumer and can only receive non-negative values."
-                    % asset.entity_address
+                    % sensor.entity_address
                 )
                 return power_value_too_small(extra_info)
-            elif asset.is_pure_producer and any(v > 0 for v in event_values):
+            elif sensor.get_attribute("is_strictly_non_negative") and any(
+                v > 0 for v in event_values
+            ):
                 extra_info = (
                     "Connection %s is registered as a pure producer and can only receive non-positive values."
-                    % asset.entity_address
+                    % sensor.entity_address
                 )
                 return power_value_too_big(extra_info)
 
             # Convert to timely-beliefs terminology
             event_starts, belief_horizons = determine_belief_timing(
-                event_values, start, resolution, horizon, prior, asset
+                event_values, start, resolution, horizon, prior, sensor
             )
 
             # Create new Power objects
@@ -353,7 +358,7 @@ def post_power_data(
                         value=event_value
                         * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
                         horizon=belief_horizon,
-                        asset_id=asset.id,
+                        sensor_id=sensor_id,
                         data_source_id=data_source.id,
                     )
                     for event_start, event_value, belief_horizon in zip(
@@ -365,8 +370,8 @@ def post_power_data(
             if create_forecasting_jobs_too:
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
-                        "Power",
-                        asset_id,
+                        Power,
+                        sensor_id,
                         start,
                         start + duration,
                         resolution=duration / len(event_values),

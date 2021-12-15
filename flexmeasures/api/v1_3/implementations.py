@@ -1,5 +1,5 @@
 # flake8: noqa: C901
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import inflect
 import isodate
@@ -39,8 +39,9 @@ from flexmeasures.api.common.utils.validators import (
     parse_isodate_str,
 )
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.resources import has_assets, can_access_asset
 from flexmeasures.data.services.scheduling import create_scheduling_job
 
@@ -72,21 +73,25 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 ea = parse_entity_address(event, entity_type="event", fm_scheme="fm0")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
-            asset_id = ea["asset_id"]
+            sensor_id = ea["asset_id"]
             event_id = ea["event_id"]
             event_type = ea["event_type"]
 
-            # Look for the Asset object
-            asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
-            if asset is None or not can_access_asset(asset):
+            # Look for the Sensor object
+            sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+            if sensor is None or not can_access_asset(sensor):
                 current_app.logger.warning(
-                    "Cannot identify asset %s given the event." % event
+                    "Cannot identify sensor given the event %s." % event
                 )
                 return unrecognized_connection_group()
-            if asset.asset_type_name not in ("battery", "one-way_evse", "two-way_evse"):
+            if sensor.generic_asset.generic_asset_type.name not in (
+                "battery",
+                "one-way_evse",
+                "two-way_evse",
+            ):
                 return invalid_domain(
                     f"API version 1.3 only supports device messages for batteries and Electric Vehicle Supply Equipment (EVSE). "
-                    f"Asset ID:{asset_id} is not a battery or EVSE, but {p.a(asset.asset_type.display_name)}."
+                    f"Sensor ID:{sensor_id} does not belong to a battery or EVSE, but {p.a(sensor.generic_asset.generic_asset_type.description)}."
                 )
 
             # Use the event_id to look up the schedule start
@@ -95,9 +100,11 @@ def get_device_message_response(generic_asset_name_groups, duration):
             connection = current_app.queues["scheduling"].connection
             try:  # First try the scheduling queue
                 job = Job.fetch(event, connection=connection)
-            except NoSuchJobError:  # Then try the most recent event_id (stored as an asset attribute)
-                if event_id == asset.soc_udi_event_id:
-                    schedule_start = asset.soc_datetime
+            except NoSuchJobError:  # Then try the most recent event_id (stored as a generic asset attribute)
+                if event_id == sensor.generic_asset.get_attribute("soc_udi_event_id"):
+                    schedule_start = datetime.fromisoformat(
+                        sensor.generic_asset.get_attribute("soc_datetime")
+                    )
                     message = (
                         "Your UDI event is the most recent event for this device, but "
                     )
@@ -161,12 +168,12 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     Power.data_source_id,
                     func.min(Power.horizon).label("most_recent_belief_horizon"),
                 )
-                .filter(Power.asset_id == asset.id)
+                .filter(Power.sensor_id == sensor_id)
                 .group_by(Power.datetime, Power.data_source_id)
                 .subquery()
             )
             power_values = (
-                Power.query.filter(Power.asset_id == asset.id)
+                Power.query.filter(Power.sensor_id == sensor_id)
                 .filter(Power.data_source_id == scheduler_source.id)
                 .filter(Power.datetime >= schedule_start)
                 .filter(Power.datetime < schedule_start + planning_horizon)
@@ -191,7 +198,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 )
 
             # Update the planning window
-            resolution = asset.event_resolution
+            resolution = sensor.event_resolution
             start = consumption_schedule.index[0]
             duration = min(
                 duration, consumption_schedule.index[-1] + resolution - start
@@ -247,40 +254,51 @@ def post_udi_event_response(unit):
     except EntityAddressException as eae:
         return invalid_domain(str(eae))
 
-    asset_id = ea["asset_id"]
+    sensor_id = ea["asset_id"]
     event_id = ea["event_id"]
     event_type = ea["event_type"]
 
     if event_type not in ("soc", "soc-with-targets"):
         return unrecognized_event_type(event_type)
 
-    # get asset
-    asset: Asset = Asset.query.filter_by(id=asset_id).one_or_none()
-    if asset is None or not can_access_asset(asset):
-        current_app.logger.warning("Cannot identify asset via %s." % ea)
+    # Look for the Sensor object
+    sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
+    if sensor is None or not can_access_asset(sensor):
+        current_app.logger.warning("Cannot identify sensor via %s." % ea)
         return unrecognized_connection_group()
-    if asset.asset_type_name not in ("battery", "one-way_evse", "two-way_evse"):
+    if sensor.generic_asset.generic_asset_type.name not in (
+        "battery",
+        "one-way_evse",
+        "two-way_evse",
+    ):
         return invalid_domain(
             f"API version 1.3 only supports UDI events for batteries and Electric Vehicle Supply Equipment (EVSE). "
-            f"Asset ID:{asset_id} is not a battery or EVSE, but {p.a(asset.asset_type.display_name)}."
+            f"Sensor ID:{sensor_id} does not belong to a battery or EVSE, but {p.a(sensor.generic_asset.generic_asset_type.description)}."
         )
 
     # unless on play, keep events ordered by entry date and ID
     if current_app.config.get("FLEXMEASURES_MODE") != "play":
         # do not allow new date to precede previous date
-        if asset.soc_datetime is not None:
-            if datetime < asset.soc_datetime:
-                msg = (
-                    "The date of the requested UDI event (%s) is earlier than the latest known date (%s)."
-                    % (datetime, asset.soc_datetime)
-                )
-                current_app.logger.warning(msg)
-                return invalid_datetime(msg)
+        if isinstance(
+            sensor.generic_asset.get_attribute("soc_datetime"), str
+        ) and datetime < datetime.fromisoformat(
+            sensor.generic_asset.get_attribute("soc_datetime")
+        ):
+            msg = "The date of the requested UDI event (%s) is earlier than the latest known date (%s)." % (
+                datetime,
+                datetime.fromisoformat(
+                    sensor.generic_asset.get_attribute("soc_datetime")
+                ),
+            )
+            current_app.logger.warning(msg)
+            return invalid_datetime(msg)
 
         # check if udi event id is higher than existing
-        if asset.soc_udi_event_id is not None:
-            if asset.soc_udi_event_id >= event_id:
-                return outdated_event_id(event_id, asset.soc_udi_event_id)
+        if sensor.generic_asset.get_attribute("soc_udi_event_id") is not None:
+            if sensor.generic_asset.get_attribute("soc_udi_event_id") >= event_id:
+                return outdated_event_id(
+                    event_id, sensor.generic_asset.get_attribute("soc_udi_event_id")
+                )
 
     # get value
     if "value" not in form:
@@ -297,7 +315,7 @@ def post_udi_event_response(unit):
     # set soc targets
     start_of_schedule = datetime
     end_of_schedule = datetime + current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
-    resolution = asset.event_resolution
+    resolution = sensor.event_resolution
     soc_targets = pd.Series(
         np.nan,
         index=pd.date_range(
@@ -356,7 +374,7 @@ def post_udi_event_response(unit):
             soc_targets.loc[target_datetime] = target_value
 
     create_scheduling_job(
-        asset.id,
+        sensor_id,
         start_of_schedule,
         end_of_schedule,
         resolution=resolution,
@@ -367,10 +385,10 @@ def post_udi_event_response(unit):
         enqueue=True,
     )
 
-    # store new soc in asset
-    asset.soc_datetime = datetime
-    asset.soc_udi_event_id = event_id
-    asset.soc_in_mwh = value
+    # Store new soc info as GenericAsset attributes
+    sensor.generic_asset.set_attribute("soc_datetime", datetime.isoformat())
+    sensor.generic_asset.set_attribute("soc_udi_event_id", event_id)
+    sensor.generic_asset.set_attribute("soc_in_mwh", value)
 
     db.session.commit()
     return request_processed()

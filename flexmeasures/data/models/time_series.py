@@ -1,26 +1,29 @@
-from typing import List, Dict, Optional, Union, Tuple
+from typing import Any, List, Dict, Optional, Union, Type, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
 
 from flask import current_app
 from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
 
 from flexmeasures.data.config import db
 from flexmeasures.data.queries.utils import (
-    add_belief_timing_filter,
-    add_user_source_filter,
-    add_source_type_filter,
     create_beliefs_query,
-    exclude_source_type_filter,
+    get_belief_timing_criteria,
+    get_source_criteria,
 )
-from flexmeasures.data.services.time_series import collect_time_series_data
+from flexmeasures.data.services.time_series import (
+    collect_time_series_data,
+    aggregate_values,
+)
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
@@ -28,7 +31,7 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 class Sensor(db.Model, tb.SensorDBMixin):
     """A sensor measures events. """
 
-    attributes = db.Column(db.JSON, nullable=False, default="{}")
+    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
 
     generic_asset_id = db.Column(
         db.Integer,
@@ -82,14 +85,52 @@ class Sensor(db.Model, tb.SensorDBMixin):
             return self.latitude, self.longitude
         return None
 
-    def get_attribute(self, attribute: str):
+    @property
+    def is_strictly_non_positive(self) -> bool:
+        """Return True if this sensor strictly records non-positive values."""
+        return self.get_attribute("is_consumer", False) and not self.get_attribute(
+            "is_producer", True
+        )
+
+    @property
+    def is_strictly_non_negative(self) -> bool:
+        """Return True if this sensor strictly records non-negative values."""
+        return self.get_attribute("is_producer", False) and not self.get_attribute(
+            "is_consumer", True
+        )
+
+    def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute on the Sensor.
         If not found, looks for the attribute on the Sensor's GenericAsset.
+        If not found, returns the default.
         """
+        if hasattr(self, attribute):
+            return getattr(self, attribute)
         if attribute in self.attributes:
             return self.attributes[attribute]
-        elif attribute in self.generic_asset.attributes:
+        if attribute in self.generic_asset.attributes:
             return self.generic_asset.attributes[attribute]
+        return default
+
+    def has_attribute(self, attribute: str) -> bool:
+        return (
+            attribute in self.attributes or attribute in self.generic_asset.attributes
+        )
+
+    def set_attribute(self, attribute: str, value):
+        if self.has_attribute(attribute):
+            self.attributes[attribute] = value
+
+    def check_required_attributes(
+        self,
+        attributes: List[Union[str, Tuple[str, Union[Type, Tuple[Type, ...]]]]],
+    ):
+        """Raises if any attribute in the list of attributes is missing, or has the wrong type.
+
+        :param attributes: List of either an attribute name or a tuple of an attribute name and its allowed type
+                           (the allowed type may also be a tuple of several allowed types)
+        """
+        check_required_attributes(self, attributes)
 
     def latest_state(
         self,
@@ -147,7 +188,7 @@ class Sensor(db.Model, tb.SensorDBMixin):
             required_argument=False,
         )
         bdf = TimedBelief.search(
-            sensor=self,
+            sensors=self,
             event_starts_after=event_starts_after,
             event_ends_before=event_ends_before,
             beliefs_after=beliefs_after,
@@ -277,7 +318,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     @classmethod
     def search(
         cls,
-        sensor: Sensor,
+        sensors: Union[Sensor, int, str, List[Union[Sensor, int, str]]],
+        sensor: Sensor = None,  # deprecated
         event_starts_after: Optional[datetime_type] = None,
         event_ends_before: Optional[datetime_type] = None,
         beliefs_after: Optional[datetime_type] = None,
@@ -287,13 +329,18 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
+        user_source_ids: Optional[Union[int, List[int]]] = None,
+        source_types: Optional[List[str]] = None,
+        exclude_source_types: Optional[List[str]] = None,
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
         most_recent_only: bool = False,  # deprecated
-    ) -> tb.BeliefsDataFrame:
-        """Search all beliefs about events for a given sensor.
+        resolution: Union[str, timedelta] = None,
+        sum_multiple: bool = True,
+    ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
+        """Search all beliefs about events for the given sensors.
 
-        :param sensor: search only this sensor
+        :param sensors: search only these sensors, identified by their instance or id (both unique) or name (non-unique)
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -301,9 +348,25 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param user_source_ids: Optional list of user source ids to query only specific user sources
+        :param source_types: Optional list of source type names to query only specific source types *
+        :param exclude_source_types: Optional list of source type names to exclude specific source types *
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
+        :param resolution: Optional timedelta or pandas freqstr used to resample the results **
+        :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensor names as key, each holding a BeliefsDataFrame as its value
+
+        *  If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
+           Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
+        ** Note that timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
         """
+        # todo: deprecate the 'sensor' argument in favor of 'sensors' (announced v0.8.0)
+        sensors = tb_utils.replace_deprecated_argument(
+            "sensor",
+            sensor,
+            "sensors",
+            sensors,
+        )
         # todo: deprecate the 'most_recent_only' argument in favor of 'most_recent_beliefs_only' (announced v0.8.0)
         most_recent_beliefs_only = tb_utils.replace_deprecated_argument(
             "most_recent_only",
@@ -312,20 +375,50 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             most_recent_beliefs_only,
             required_argument=False,
         )
+
+        # convert to list
+        sensors = [sensors] if not isinstance(sensors, list) else sensors
+
+        # convert from sensor names to sensors
+        sensor_names = [s for s in sensors if isinstance(s, str)]
+        if sensor_names:
+            sensors = [s for s in sensors if not isinstance(s, str)]
+            sensors_from_names = Sensor.query.filter(
+                Sensor.name.in_(sensor_names)
+            ).all()
+            sensors.extend(sensors_from_names)
+
         parsed_sources = parse_source_arg(source)
-        return cls.search_session(
-            session=db.session,
-            sensor=sensor,
-            event_starts_after=event_starts_after,
-            event_ends_before=event_ends_before,
-            beliefs_after=beliefs_after,
-            beliefs_before=beliefs_before,
-            horizons_at_least=horizons_at_least,
-            horizons_at_most=horizons_at_most,
-            source=parsed_sources,
-            most_recent_beliefs_only=most_recent_beliefs_only,
-            most_recent_events_only=most_recent_events_only,
+        source_criteria = get_source_criteria(
+            cls, user_source_ids, source_types, exclude_source_types
         )
+
+        bdf_dict = {}
+        for sensor in sensors:
+            bdf = cls.search_session(
+                session=db.session,
+                sensor=sensor,
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                horizons_at_least=horizons_at_least,
+                horizons_at_most=horizons_at_most,
+                source=parsed_sources,
+                most_recent_beliefs_only=most_recent_beliefs_only,
+                most_recent_events_only=most_recent_events_only,
+                custom_filter_criteria=source_criteria,
+            )
+            if resolution is not None:
+                bdf = bdf.resample_events(
+                    resolution, keep_only_most_recent_belief=most_recent_beliefs_only
+                )
+            bdf_dict[bdf.sensor.name] = bdf
+
+        if sum_multiple:
+            return aggregate_values(bdf_dict)
+        else:
+            return bdf_dict
 
     @classmethod
     def add(
@@ -411,7 +504,6 @@ class TimedValue(object):
     @classmethod
     def make_query(
         cls,
-        old_sensor_class: db.Model,
         old_sensor_names: Tuple[str],
         query_window: Tuple[Optional[datetime_type], Optional[datetime_type]],
         belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
@@ -440,7 +532,7 @@ class TimedValue(object):
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
 
         * If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
-          Somewhat redundant, but still allowed is to set both source_types and exclude_source_types.
+          Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
 
 
         # todo: add examples
@@ -449,40 +541,25 @@ class TimedValue(object):
         if session is None:
             session = db.session
         start, end = query_window
-        query = create_beliefs_query(
-            cls, session, old_sensor_class, old_sensor_names, start, end
+        query = create_beliefs_query(cls, session, Sensor, old_sensor_names, start, end)
+        belief_timing_criteria = get_belief_timing_criteria(
+            cls, Sensor, belief_horizon_window, belief_time_window
         )
-        query = add_belief_timing_filter(
-            cls, query, old_sensor_class, belief_horizon_window, belief_time_window
+        source_criteria = get_source_criteria(
+            cls, user_source_ids, source_types, exclude_source_types
         )
-        if user_source_ids:
-            query = add_user_source_filter(cls, query, user_source_ids)
-        if source_types:
-            if user_source_ids and "user" not in source_types:
-                source_types.append("user")
-            query = add_source_type_filter(cls, query, source_types)
-        if exclude_source_types:
-            if user_source_ids and "user" in exclude_source_types:
-                exclude_source_types.remove("user")
-            query = exclude_source_type_filter(cls, query, exclude_source_types)
-        return query
+        return query.filter(*belief_timing_criteria, *source_criteria)
 
     @classmethod
-    def collect(
+    def search(
         cls,
         old_sensor_names: Union[str, List[str]],
-        query_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
-        belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
-            None,
-            None,
-        ),
-        belief_time_window: Tuple[Optional[datetime_type], Optional[datetime_type]] = (
-            None,
-            None,
-        ),
+        event_starts_after: Optional[datetime_type] = None,
+        event_ends_before: Optional[datetime_type] = None,
+        horizons_at_least: Optional[timedelta] = None,
+        horizons_at_most: Optional[timedelta] = None,
+        beliefs_after: Optional[datetime_type] = None,
+        beliefs_before: Optional[datetime_type] = None,
         user_source_ids: Union[
             int, List[int]
         ] = None,  # None is interpreted as all sources
@@ -497,9 +574,9 @@ class TimedValue(object):
         return collect_time_series_data(
             old_sensor_names=old_sensor_names,
             make_query=cls.make_query,
-            query_window=query_window,
-            belief_horizon_window=belief_horizon_window,
-            belief_time_window=belief_time_window,
+            query_window=(event_starts_after, event_ends_before),
+            belief_horizon_window=(horizons_at_least, horizons_at_most),
+            belief_time_window=(beliefs_after, beliefs_before),
             user_source_ids=user_source_ids,
             source_types=source_types,
             exclude_source_types=exclude_source_types,

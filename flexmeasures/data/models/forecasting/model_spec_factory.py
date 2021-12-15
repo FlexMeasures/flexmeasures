@@ -43,20 +43,20 @@ logger = logging.getLogger(__name__)
 class TBSeriesSpecs(SeriesSpecs):
     """Compatibility for using timetomodel.SeriesSpecs with timely_beliefs.BeliefsDataFrames.
 
-    This implements _load_series such that <time_series_class>.collect is called,
-    with the parameters in collect_params.
-    The collect function is expected to return a BeliefsDataFrame.
+    This implements _load_series such that <time_series_class>.search is called,
+    with the parameters in search_params.
+    The search function is expected to return a BeliefsDataFrame.
     """
 
-    time_series_class: Any  # with <collect_fnc> method (named "collect" by default)
-    collect_params: dict
+    time_series_class: Any  # with <search_fnc> method (named "search" by default)
+    search_params: dict
 
     def __init__(
         self,
         time_series_class,
-        collect_params: dict,
+        search_params: dict,
         name: str,
-        collect_fnc: str = "collect",
+        search_fnc: str = "search",
         original_tz: Optional[tzinfo] = pytz.utc,  # postgres stores naive datetimes
         feature_transformation: Optional[ReversibleTransformation] = None,
         post_load_processing: Optional[Transformation] = None,
@@ -72,14 +72,14 @@ class TBSeriesSpecs(SeriesSpecs):
             interpolation_config,
         )
         self.time_series_class = time_series_class
-        self.collect_params = collect_params
-        self.collect_fnc = collect_fnc
+        self.search_params = search_params
+        self.search_fnc = search_fnc
 
     def _load_series(self) -> pd.Series:
         logger.info("Reading %s data from database" % self.time_series_class.__name__)
 
-        bdf: BeliefsDataFrame = getattr(self.time_series_class, self.collect_fnc)(
-            **self.collect_params
+        bdf: BeliefsDataFrame = getattr(self.time_series_class, self.search_fnc)(
+            **self.search_params
         )
         assert isinstance(bdf, BeliefsDataFrame)
         df = simplify_index(bdf)
@@ -96,19 +96,19 @@ class TBSeriesSpecs(SeriesSpecs):
         if df.empty:
             raise MissingData(
                 "No values found in database for the requested %s data. It's no use to continue I'm afraid."
-                " Here's a print-out of what I tried to collect:\n\n%s\n\n"
+                " Here's a print-out of what I tried to search for:\n\n%s\n\n"
                 % (
                     self.time_series_class.__name__,
-                    pformat(self.collect_params, sort_dicts=False),
+                    pformat(self.search_params, sort_dicts=False),
                 )
             )
         if df.isnull().values.any():
             raise NaNData(
                 "Nan values found in database for the requested %s data. It's no use to continue I'm afraid."
-                " Here's a print-out of what I tried to collect:\n\n%s\n\n"
+                " Here's a print-out of what I tried to search for:\n\n%s\n\n"
                 % (
                     self.time_series_class.__name__,
-                    pformat(self.collect_params, sort_dicts=False),
+                    pformat(self.search_params, sort_dicts=False),
                 )
             )
 
@@ -119,11 +119,13 @@ def create_initial_model_specs(  # noqa: C901
     forecast_start: datetime,  # Start of forecast period
     forecast_end: datetime,  # End of forecast period
     forecast_horizon: timedelta,  # Duration between time of forecasting and end time of the event that is forecast
-    ex_post_horizon: timedelta = None,
+    ex_post_horizon: Optional[timedelta] = None,
     transform_to_normal: bool = True,
     use_regressors: bool = True,  # If false, do not create regressor specs
     use_periodicity: bool = True,  # If false, do not create lags given the asset's periodicity
-    custom_model_params: dict = None,  # overwrite forecasting params, most useful for testing or experimentation.
+    custom_model_params: Optional[
+        dict
+    ] = None,  # overwrite model params, most useful for tests or experiments
 ) -> ModelSpecs:
     """
     Generic model specs for all asset types (also for markets and weather sensors) and horizons.
@@ -176,10 +178,12 @@ def create_initial_model_specs(  # noqa: C901
     outcome_var_spec = TBSeriesSpecs(
         name=sensor.generic_asset.generic_asset_type.name,
         time_series_class=time_series_class,
-        collect_params=dict(
+        search_params=dict(
             old_sensor_names=[sensor.name],
-            query_window=query_window,
-            belief_horizon_window=(None, ex_post_horizon),
+            event_starts_after=query_window[0],
+            event_ends_before=query_window[1],
+            horizons_at_least=None,
+            horizons_at_most=ex_post_horizon,
         ),
         feature_transformation=params.get("outcome_var_transformation", None),
         interpolation_config={"method": "time"},
@@ -292,10 +296,12 @@ def configure_regressors_for_nearest_weather_sensor(
                     TBSeriesSpecs(
                         name=regressor_specs_name,
                         time_series_class=Weather,
-                        collect_params=dict(
+                        search_params=dict(
                             old_sensor_names=[closest_sensor.name],
-                            query_window=query_window,
-                            belief_horizon_window=(horizon, None),
+                            event_starts_after=query_window[0],
+                            event_ends_before=query_window[1],
+                            horizons_at_least=horizon,
+                            horizons_at_most=None,
                         ),
                         feature_transformation=regressor_transformation,
                         interpolation_config={"method": "time"},

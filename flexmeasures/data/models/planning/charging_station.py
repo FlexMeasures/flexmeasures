@@ -10,6 +10,7 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     add_tiny_price_slope,
     get_prices,
+    fallback_charging_policy,
 )
 
 
@@ -27,6 +28,9 @@ def schedule_charging_station(
     For the resulting consumption schedule, consumption is defined as positive values.
     Todo: handle uni-directional charging by setting the "min" or "derivative min" constraint to 0
     """
+
+    # Check for required Sensor attributes
+    sensor.check_required_attributes([("capacity_in_mw", (float, int))])
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
@@ -79,13 +83,14 @@ def schedule_charging_station(
     ) - soc_at_start * (
         timedelta(hours=1) / resolution
     )  # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-    if sensor.get_attribute("is_pure_consumer"):
+
+    if sensor.get_attribute("is_strictly_non_positive"):
         device_constraints[0]["derivative min"] = 0
     else:
         device_constraints[0]["derivative min"] = (
             sensor.get_attribute("capacity_in_mw") * -1
         )
-    if sensor.get_attribute("is_pure_producer"):
+    if sensor.get_attribute("is_strictly_non_negative"):
         device_constraints[0]["derivative max"] = 0
     else:
         device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
@@ -94,13 +99,19 @@ def schedule_charging_station(
     columns = ["derivative max", "derivative min"]
     ems_constraints = initialize_df(columns, start, end, resolution)
 
-    ems_schedule, expected_costs = device_scheduler(
+    ems_schedule, expected_costs, scheduler_results = device_scheduler(
         device_constraints,
         ems_constraints,
         commitment_quantities,
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
     )
-    charging_station_schedule = ems_schedule[0]
+    if scheduler_results.solver.termination_condition == "infeasible":
+        # Fallback policy if the problem was unsolvable
+        charging_station_schedule = fallback_charging_policy(
+            sensor, device_constraints[0], start, end, resolution
+        )
+    else:
+        charging_station_schedule = ems_schedule[0]
 
     return charging_station_schedule

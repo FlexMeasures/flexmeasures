@@ -20,29 +20,36 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "generic_asset", sa.Column("attributes", sa.JSON(), nullable=True, default="{}")
-    )
-    op.add_column(
-        "sensor", sa.Column("attributes", sa.JSON(), nullable=True, default="{}")
-    )
-
     """
+    Add attributes column to GenericAsset and Sensor tables. Then:
     - For each OldModel (Market/WeatherSensor/Asset), get the Sensor with the same id as the OldModel,
       and then get the GenericAsset of that Sensor.
-    - Add the OldModel's display name to the corresponding GenericAsset's attributes,
-      and other attributes we want to copy.
+    - Add the OldModel's display name to the corresponding GenericAsset's and Sensor's attributes,
+      and other attributes we want to copy. Most go to the Sensor.
     - Find the OldModelType (MarketType/WeatherSensorType/AssetType) of the OldModel,
-      and copy its seasonalities to the GenericAsset's attributes.
+      and copy its seasonalities and other attributes to the GenericAsset's or Sensor's attributes.
     """
-    # todo: find places where we look for seasonality and get it from the corresponding GenericAsset instead
-    # todo: find places where we look for old_model_type and get it from the corresponding GenericAsset instead
+    op.add_column(
+        "generic_asset",
+        sa.Column("attributes", sa.JSON(), nullable=True, default={}),
+    )
+    op.add_column(
+        "sensor",
+        sa.Column("attributes", sa.JSON(), nullable=True, default={}),
+    )
 
     # Declare ORM table views
+    t_generic_asset_type = sa.Table(
+        "generic_asset_type",
+        sa.MetaData(),
+        sa.Column("id"),
+        sa.Column("name"),
+    )
     t_generic_asset = sa.Table(
         "generic_asset",
         sa.MetaData(),
         sa.Column("id"),
+        sa.Column("generic_asset_type_id"),
         sa.Column("attributes"),
     )
     t_sensor = sa.Table(
@@ -147,6 +154,8 @@ def upgrade():
         connection,
         t_market,
         t_sensor,
+        t_generic_asset_type,
+        t_generic_asset,
         t_target=t_sensor,
         t_old_model_type=t_market_type,
         old_model_attributes=["id", "market_type_name", "display_name"],
@@ -160,6 +169,8 @@ def upgrade():
         connection,
         t_market,
         t_sensor,
+        t_generic_asset_type,
+        t_generic_asset,
         t_target=t_generic_asset,
         t_old_model_type=t_market_type,
         old_model_attributes=["id", "market_type_name", "display_name"],
@@ -168,6 +179,8 @@ def upgrade():
         connection,
         t_weather_sensor,
         t_sensor,
+        t_generic_asset_type,
+        t_generic_asset,
         t_target=t_sensor,
         t_old_model_type=t_weather_sensor_type,
         old_model_attributes=["id", "weather_sensor_type_name", "display_name"],
@@ -181,6 +194,8 @@ def upgrade():
         connection,
         t_weather_sensor,
         t_sensor,
+        t_generic_asset_type,
+        t_generic_asset,
         t_target=t_generic_asset,
         t_old_model_type=t_weather_sensor_type,
         old_model_attributes=["id", "weather_sensor_type_name", "display_name"],
@@ -189,6 +204,8 @@ def upgrade():
         connection,
         t_asset,
         t_sensor,
+        t_generic_asset_type,
+        t_generic_asset,
         t_target=t_sensor,
         t_old_model_type=t_asset_type,
         old_model_attributes=[
@@ -210,6 +227,8 @@ def upgrade():
         connection,
         t_asset,
         t_sensor,
+        t_generic_asset_type,
+        t_generic_asset,
         t_target=t_generic_asset,
         t_old_model_type=t_asset_type,
         old_model_attributes=[
@@ -226,6 +245,26 @@ def upgrade():
             "can_curtail",
             "can_shift",
         ],
+        extra_attributes_depending_on_old_model_type_name={
+            "solar": {
+                "correlations": ["radiation"],
+            },
+            "wind": {
+                "correlations": ["wind_speed"],
+            },
+            "one-way_evse": {
+                "correlations": ["temperature"],
+            },
+            "two-way_evse": {
+                "correlations": ["temperature"],
+            },
+            "battery": {
+                "correlations": ["temperature"],
+            },
+            "building": {
+                "correlations": ["temperature"],
+            },
+        },  # The GenericAssetType table had these hardcoded weather correlations
     )
     op.alter_column(
         "sensor",
@@ -283,24 +322,28 @@ def copy_attributes(
     connection,
     t_old_model,
     t_sensor,
+    t_generic_asset_type,
+    t_generic_asset,
     t_target,
     t_old_model_type,
     old_model_attributes,
     old_model_type_attributes=[],
     extra_attributes={},
+    extra_attributes_depending_on_old_model_type_name={},
 ):
     """
 
     :param old_model_attributes: first two attributes should be id and old_model_type_name, then any other columns we want to copy over from the old model
     :param old_model_type_attributes: columns we want to copy over from the old model type
     :param extra_attributes: any additional attributes we want to set
+    :param extra_attributes_depending_on_old_model_type_name: any additional attributes we want to set, depending on old model type name
     """
     # Get attributes from old model
     results = connection.execute(
         sa.select([getattr(t_old_model.c, a) for a in old_model_attributes])
     ).fetchall()
 
-    for id, type_name, *args in results:
+    for _id, type_name, *args in results:
 
         # Obtain attributes we want to copy over, from the old model
         old_model_attributes_to_copy = {
@@ -316,18 +359,52 @@ def copy_attributes(
             old_model_type_attributes=old_model_type_attributes,
         )
 
-        # Find out where to copy over the attributes
+        # Find out where to copy over the attributes and where the old sensor type lives
         if t_target.name == "generic_asset":
-            target_id = get_generic_asset_id(connection, id, t_sensor)
+            target_id = get_generic_asset_id(connection, _id, t_sensor)
         elif t_target.name == "sensor":
-            target_id = id
+            target_id = _id
         else:
             raise ValueError
 
-        # Fill in the target class's attributes
-        connection.execute(
+        # Fill in the target class's attributes: A) first those with extra attributes depending on model type name
+        generic_asset_type_names_with_extra_attributes = (
+            extra_attributes_depending_on_old_model_type_name.keys()
+        )
+        if t_target.name == "generic_asset":
+            for gatn in generic_asset_type_names_with_extra_attributes:
+                connection.execute(
+                    t_target.update()
+                    .where(t_target.c.id == target_id)
+                    .where(
+                        t_generic_asset_type.c.id
+                        == t_generic_asset.c.generic_asset_type_id
+                    )
+                    .where(t_generic_asset_type.c.name == gatn)
+                    .values(
+                        attributes=json.dumps(
+                            {
+                                **old_model_attributes_to_copy,
+                                **old_model_type_attributes_to_copy,
+                                **extra_attributes,
+                                **extra_attributes_depending_on_old_model_type_name[
+                                    gatn
+                                ],
+                            }
+                        )
+                    )
+                )
+
+        # Fill in the target class's attributes: B) then those without extra attributes depending on model type name
+        query = (
             t_target.update()
             .where(t_target.c.id == target_id)
+            .where(t_generic_asset_type.c.id == t_generic_asset.c.generic_asset_type_id)
+            .where(
+                t_generic_asset_type.c.name.not_in(
+                    generic_asset_type_names_with_extra_attributes
+                )
+            )
             .values(
                 attributes=json.dumps(
                     {
@@ -338,6 +415,12 @@ def copy_attributes(
                 )
             )
         )
+        if t_target.name == "generic_asset":
+            connection.execute(query)
+        elif t_target.name == "sensor":
+            connection.execute(
+                query.where(t_sensor.c.generic_asset_id == t_generic_asset.c.id)
+            )
 
 
 def get_generic_asset_id(connection, old_model_id: int, t_sensors) -> int:

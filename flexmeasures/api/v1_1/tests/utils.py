@@ -9,7 +9,8 @@ from rq.job import Job
 from flask import current_app
 
 from flexmeasures.api.common.schemas.sensors import SensorField
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.time_series import Sensor
 
 
 def message_for_get_prognosis(
@@ -153,14 +154,15 @@ def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
     horizon = parse_duration(post_message["horizon"])
-    market = SensorField("market", "fm0").deserialize(post_message["market"])
-    resolution = market.event_resolution
+    sensor = SensorField("market", "fm0").deserialize(post_message["market"])
+    resolution = sensor.event_resolution
     query = (
         db.session.query(Price.value, Price.horizon)
         .filter((Price.datetime > start - resolution) & (Price.datetime < end))
         .filter(Price.horizon == horizon - (end - (Price.datetime + resolution)))
-        .join(Market)
-        .filter(Market.name == market.name)
+        .join(Sensor)
+        .filter(Price.sensor_id == Sensor.id)
+        .filter(Sensor.name == sensor.name)
     )
     df = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]

@@ -89,7 +89,7 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, app):
     ).all()
     asset_ids = [asset.id for asset in user_assets_with_measurements_before]
     for asset_id in asset_ids:
-        num_power_measurements = Power.query.filter(Power.asset_id == asset_id).count()
+        num_power_measurements = Power.query.filter(Power.sensor_id == asset_id).count()
         assert num_power_measurements == 96
     delete_user(prosumer)
     assert find_user_by_email("test_prosumer_user@seita.nl") is None
@@ -97,5 +97,5 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, app):
     assert len(user_assets_after) == 0
     assert User.query.count() == num_users_before - 1
     for asset_id in asset_ids:
-        num_power_measurements = Power.query.filter(Power.asset_id == asset_id).count()
+        num_power_measurements = Power.query.filter(Power.sensor_id == asset_id).count()
         assert num_power_measurements == 0

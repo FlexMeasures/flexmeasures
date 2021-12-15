@@ -26,7 +26,7 @@ Such effects could be taken into account by FlexMeasures and shown to the user, 
 Below is an example of what this could look like.
 This is a potential UX design which we have not implemented yet.
 
-.. image:: https://github.com/SeitaBV/screenshots/raw/main/screenshot_control.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_control.png
     :align: center
 ..    :scale: 40%
 

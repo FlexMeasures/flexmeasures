@@ -10,6 +10,7 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     add_tiny_price_slope,
     get_prices,
+    fallback_charging_policy,
 )
 
 
@@ -26,6 +27,15 @@ def schedule_battery(
     window.
     For the resulting consumption schedule, consumption is defined as positive values.
     """
+
+    # Check for required Sensor attributes
+    sensor.check_required_attributes(
+        [
+            ("capacity_in_mw", (float, int)),
+            ("max_soc_in_mwh", (float, int)),
+            ("min_soc_in_mwh", (float, int)),
+        ],
+    )
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
@@ -84,13 +94,19 @@ def schedule_battery(
     columns = ["derivative max", "derivative min"]
     ems_constraints = initialize_df(columns, start, end, resolution)
 
-    ems_schedule, expected_costs = device_scheduler(
+    ems_schedule, expected_costs, scheduler_results = device_scheduler(
         device_constraints,
         ems_constraints,
         commitment_quantities,
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
     )
-    battery_schedule = ems_schedule[0]
+    if scheduler_results.solver.termination_condition == "infeasible":
+        # Fallback policy if the problem was unsolvable
+        battery_schedule = fallback_charging_policy(
+            sensor, device_constraints[0], start, end, resolution
+        )
+    else:
+        battery_schedule = ems_schedule[0]
 
     return battery_schedule

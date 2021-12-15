@@ -13,7 +13,8 @@ from flexmeasures.data.services.time_series import set_bdf_source
 from flexmeasures.utils import calculations, time_utils
 from flexmeasures.data.services.resources import Resource, find_closest_weather_sensor
 from flexmeasures.data.models.assets import Asset, Power
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.weather import Weather, WeatherSensor, WeatherSensorType
 
 
@@ -157,7 +158,7 @@ def get_power_data(
 
 def get_prices_data(
     metrics: dict,
-    market: Market,
+    market_sensor: Sensor,
     query_window: Tuple[datetime, datetime],
     resolution: str,
     forecast_horizon: timedelta,
@@ -172,14 +173,16 @@ def get_prices_data(
     - weighted absolute percentage error
     """
 
-    market_name = "" if market is None else market.name
+    market_name = "" if market_sensor is None else market_sensor.name
 
     # Get price data
-    price_bdf: tb.BeliefsDataFrame = Price.collect(
+    price_bdf: tb.BeliefsDataFrame = Price.search(
         [market_name],
-        query_window=query_window,
+        event_starts_after=query_window[0],
+        event_ends_before=query_window[1],
         resolution=resolution,
-        belief_horizon_window=(None, timedelta(hours=0)),
+        horizons_at_least=None,
+        horizons_at_most=timedelta(hours=0),
     )
     price_df: pd.DataFrame = simplify_index(
         price_bdf, index_levels_to_columns=["belief_horizon", "source"]
@@ -191,11 +194,13 @@ def get_prices_data(
         metrics["realised_unit_price"] = np.NaN
 
     # Get price forecast
-    price_forecast_bdf: tb.BeliefsDataFrame = Price.collect(
+    price_forecast_bdf: tb.BeliefsDataFrame = Price.search(
         [market_name],
-        query_window=query_window,
+        event_starts_after=query_window[0],
+        event_ends_before=query_window[1],
         resolution=resolution,
-        belief_horizon_window=(forecast_horizon, None),
+        horizons_at_least=forecast_horizon,
+        horizons_at_most=None,
         source_types=["user", "forecasting script", "script"],
     )
     price_forecast_df: pd.DataFrame = simplify_index(
@@ -259,11 +264,13 @@ def get_weather_data(
             sensor_names = [sensor.name for sensor in closest_sensors]
 
             # Get weather data
-            weather_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.collect(
+            weather_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.search(
                 sensor_names,
-                query_window=query_window,
+                event_starts_after=query_window[0],
+                event_ends_before=query_window[1],
                 resolution=resolution,
-                belief_horizon_window=(None, timedelta(hours=0)),
+                horizons_at_least=None,
+                horizons_at_most=timedelta(hours=0),
                 sum_multiple=False,
             )
             weather_df_dict: Dict[str, pd.DataFrame] = {}
@@ -274,11 +281,13 @@ def get_weather_data(
                 )
 
             # Get weather forecasts
-            weather_forecast_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.collect(
+            weather_forecast_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.search(
                 sensor_names,
-                query_window=query_window,
+                event_starts_after=query_window[0],
+                event_ends_before=query_window[1],
                 resolution=resolution,
-                belief_horizon_window=(forecast_horizon, None),
+                horizons_at_least=forecast_horizon,
+                horizons_at_most=None,
                 source_types=["user", "forecasting script", "script"],
                 sum_multiple=False,
             )

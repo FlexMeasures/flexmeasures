@@ -76,7 +76,7 @@ class SensorDataDescriptionSchema(ma.Schema):
         over which the Prosumer has no ownership, raise a ValidationError.
         """
         # todo: implement check once sensors can belong to an asset
-        #       https://github.com/SeitaBV/flexmeasures/issues/155
+        #       https://github.com/FlexMeasures/flexmeasures/issues/155
         pass
 
     @validates_schema

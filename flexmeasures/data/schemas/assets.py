@@ -2,7 +2,7 @@ from marshmallow import validates, ValidationError, validates_schema, fields, va
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.assets import Asset, AssetType
-from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import User
 from flexmeasures.data.schemas.sensors import SensorSchemaMixin
 
@@ -34,8 +34,8 @@ class AssetSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 
     @validates("market_id")
     def validate_market(self, market_id: int):
-        market = Market.query.get(market_id)
-        if not market:
+        sensor = Sensor.query.get(market_id)
+        if not sensor:
             raise ValidationError(f"Market with id {market_id} doesn't exist.")
 
     @validates("asset_type_name")

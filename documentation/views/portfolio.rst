@@ -15,7 +15,7 @@ In particular, the page contains:
     :depth: 1
 
 
-.. image:: https://github.com/SeitaBV/screenshots/raw/main/screenshot_portfolio.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_portfolio.png
     :align: center
 ..    :scale: 40%
 

@@ -15,6 +15,7 @@ from pandas.tseries.frequencies import to_offset
 
 from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.services.resources import (
     get_assets,
@@ -99,7 +100,7 @@ def analytics_view():
         if view_shows_individual_traces
         else "none",
         selected_resource,
-        selected_market,
+        selected_market.corresponding_sensor,
         selected_sensor_type,
         selected_resource.assets,
     )
@@ -258,7 +259,7 @@ def analytics_data_view(content, content_type):
         show_consumption_as_positive,
         "none",
         selected_resource,
-        selected_market,
+        selected_market.corresponding_sensor,
         selected_sensor_type,
         selected_resource.assets,
     )
@@ -386,7 +387,7 @@ def get_data_and_metrics(
     show_consumption_as_positive: bool,
     showing_individual_traces_for: str,
     selected_resource: Resource,
-    selected_market,
+    selected_market_sensor: Sensor,
     selected_sensor_type,
     assets,
 ) -> Tuple[Dict[str, pd.DataFrame], Dict[str, float], str, WeatherSensor]:
@@ -410,7 +411,7 @@ def get_data_and_metrics(
     )
     data["prices"], data["prices_forecast"], metrics = get_prices_data(
         metrics,
-        selected_market,
+        selected_market_sensor,
         query_window,
         resolution,
         forecast_horizon,
@@ -474,7 +475,7 @@ def get_data_and_metrics(
             "event_value"
         ] * (1 - error_margin_lower)
 
-    unit_factor = revenue_unit_factor("MWh", selected_market.unit)
+    unit_factor = revenue_unit_factor("MWh", selected_market_sensor.unit)
     data["rev_cost"], data["rev_cost_forecast"], metrics = get_revenues_costs_data(
         data["power"],
         data["prices"],

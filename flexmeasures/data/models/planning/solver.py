@@ -16,7 +16,7 @@ from pyomo.core import (
 )
 from pyomo.environ import UnknownSolver  # noqa F401
 from pyomo.environ import value
-from pyomo.opt import SolverFactory
+from pyomo.opt import SolverFactory, SolverResults
 
 from flexmeasures.data.models.planning.utils import initialize_series
 
@@ -29,7 +29,7 @@ def device_scheduler(  # noqa C901
     commitment_quantities: List[pd.Series],
     commitment_downwards_deviation_price: Union[List[pd.Series], List[float]],
     commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
-) -> Tuple[List[pd.Series], float]:
+) -> Tuple[List[pd.Series], float, SolverResults]:
     """Schedule devices given constraints on a device and EMS level, and given a list of commitments by the EMS.
     The commitments are assumed to be with regards to the flow of energy to the device (positive for consumption,
     negative for production). The solver minimises the costs of deviating from the commitments.
@@ -223,7 +223,9 @@ def device_scheduler(  # noqa C901
     model.costs = Objective(rule=cost_function, sense=minimize)
 
     # Solve
-    SolverFactory(current_app.config.get("FLEXMEASURES_LP_SOLVER")).solve(model)
+    results = SolverFactory(current_app.config.get("FLEXMEASURES_LP_SOLVER")).solve(
+        model
+    )
 
     planned_costs = value(model.costs)
     planned_power_per_device = []
@@ -239,6 +241,7 @@ def device_scheduler(  # noqa C901
         )
 
     # model.pprint()
+    # print(results.solver.termination_condition)
     # print(planned_costs)
     # input()
-    return planned_power_per_device, planned_costs
+    return planned_power_per_device, planned_costs, results

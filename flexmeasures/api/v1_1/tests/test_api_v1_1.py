@@ -24,7 +24,8 @@ from flexmeasures.api.v1_1.tests.utils import (
 from flexmeasures.auth.error_handling import UNAUTH_ERROR_STATUS
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import User
-from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.time_series import Sensor
 
 
 @pytest.mark.parametrize("query", [{}, {"access": "Prosumer"}])
@@ -154,7 +155,7 @@ def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
-        assert job.kwargs["timed_value_type"] == "Price"
+        assert job.kwargs["timed_value_type"] == Price
         assert job.kwargs["old_sensor_id"] == market.id
 
 
@@ -178,10 +179,10 @@ def test_post_price_data_invalid_unit(setup_api_test_data, client, post_message)
     assert post_price_data_response.json["type"] == "PostPriceDataResponse"
     ea = parse_entity_address(post_message["market"], "market", fm_scheme="fm0")
     market_name = ea["market_name"]
-    market = Market.query.filter_by(name=market_name).one_or_none()
+    sensor = Sensor.query.filter_by(name=market_name).one_or_none()
     assert (
         post_price_data_response.json["message"]
-        == invalid_unit("%s prices" % market.display_name, ["EUR/MWh"])[0]["message"]
+        == invalid_unit("%s prices" % sensor.name, ["EUR/MWh"])[0]["message"]
     )
 
 
