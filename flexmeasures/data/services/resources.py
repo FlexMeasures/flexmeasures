@@ -6,6 +6,8 @@ from __future__ import annotations
 from functools import cached_property, wraps
 from typing import List, Dict, Tuple, Type, TypeVar, Union, Optional
 from datetime import datetime
+
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.utils.flexmeasures_inflection import parameterize, pluralize
 from itertools import groupby
 
@@ -675,8 +677,8 @@ def find_closest_weather_sensor(
         WeatherSensor.weather_sensor_type_name == sensor_type
     ).order_by(WeatherSensor.great_circle_distance(lat=latitude, lng=longitude).asc())
     if n == 1:
-        sensor = sensors.first()
-        return sensor.corresponding_sensor
+        sensor = get_closest_sensor(sensor_type, latitude, longitude)
+        return sensor
     else:
         weather_sensors = sensors.limit(n).all()
         # return [weather_sensor.corresponding_sensor for weather_sensor in weather_sensors]
@@ -693,3 +695,19 @@ def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:
     for _k, g in groupby(sorted_asset_list, key=key_function):
         groups.append(list(g))
     return groups
+
+
+def get_closest_sensor(
+    generic_asset_type_name: str, latitude: float, longitude: float
+) -> Sensor:
+    closest_sensor = (
+        Sensor.query.join(GenericAsset, GenericAssetType)
+        .filter(
+            Sensor.generic_asset_id == GenericAsset.id,
+            GenericAsset.generic_asset_type_id == GenericAssetType.id,
+            GenericAssetType.name == generic_asset_type_name,
+        )
+        .order_by(GenericAsset.great_circle_distance(lat=latitude, lng=longitude).asc())
+        .first()
+    )
+    return closest_sensor

@@ -1,5 +1,4 @@
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.services.resources import get_closest_sensor
 
 
 def test_closest_sensor(add_weather_sensors):
@@ -16,19 +15,3 @@ def test_closest_sensor(add_weather_sensors):
     assert (
         closest_sensor.generic_asset.generic_asset_type.name == generic_asset_type_name
     )
-
-
-def get_closest_sensor(
-    generic_asset_type_name: str, latitude: float, longitude: float
-) -> Sensor:
-    closest_sensor = (
-        Sensor.query.join(GenericAsset, GenericAssetType)
-        .filter(
-            Sensor.generic_asset_id == GenericAsset.id,
-            GenericAsset.generic_asset_type_id == GenericAssetType.id,
-            GenericAssetType.name == generic_asset_type_name,
-        )
-        .order_by(GenericAsset.great_circle_distance(lat=latitude, lng=longitude).asc())
-        .first()
-    )
-    return closest_sensor
