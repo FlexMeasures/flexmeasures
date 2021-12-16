@@ -655,7 +655,7 @@ def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
 
 def find_closest_weather_sensor(
     sensor_type: str, n: int = 1, **kwargs
-) -> Union[WeatherSensor, List[WeatherSensor], None]:
+) -> Union[Sensor, List[WeatherSensor], None]:
     """Returns the closest n weather sensors of a given type (as a list if n > 1).
     Parses latitude and longitude values stated in kwargs.
 
@@ -675,9 +675,12 @@ def find_closest_weather_sensor(
         WeatherSensor.weather_sensor_type_name == sensor_type
     ).order_by(WeatherSensor.great_circle_distance(lat=latitude, lng=longitude).asc())
     if n == 1:
-        return sensors.first()
+        sensor = sensors.first()
+        return sensor.corresponding_sensor
     else:
-        return sensors.limit(n).all()
+        weather_sensors = sensors.limit(n).all()
+        # return [weather_sensor.corresponding_sensor for weather_sensor in weather_sensors]
+        return weather_sensors
 
 
 def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:
