@@ -673,14 +673,20 @@ def find_closest_weather_sensor(
     """
 
     latitude, longitude = parse_lat_lng(kwargs)
-    sensors = WeatherSensor.query.filter(
-        WeatherSensor.weather_sensor_type_name == sensor_type
-    ).order_by(WeatherSensor.great_circle_distance(lat=latitude, lng=longitude).asc())
     if n == 1:
         sensor = get_closest_sensor(sensor_type, latitude, longitude)
         return sensor
     else:
-        weather_sensors = sensors.limit(n).all()
+        weather_sensors = (
+            WeatherSensor.query.filter(
+                WeatherSensor.weather_sensor_type_name == sensor_type
+            )
+            .order_by(
+                WeatherSensor.great_circle_distance(lat=latitude, lng=longitude).asc()
+            )
+            .limit(n)
+            .all()
+        )
         # return [weather_sensor.corresponding_sensor for weather_sensor in weather_sensors]
         return weather_sensors
 
