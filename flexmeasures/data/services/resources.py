@@ -1,5 +1,10 @@
 """
 Generic services for accessing asset data.
+
+TODO: This works with the legacy data model (esp. Assets), so it is marked for deprecation.
+      We are building data.services.asset_grouping, porting much of the code here.
+      The data access logic here might also be useful for sensor data access logic we'll build
+      elsewhere, but that's not quite certain at this point in time.
 """
 
 from __future__ import annotations

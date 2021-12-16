@@ -9,6 +9,7 @@ from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
 
+from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.data.config import db
 from flexmeasures.data.queries.utils import (
     create_beliefs_query,
@@ -28,7 +29,7 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
-class Sensor(db.Model, tb.SensorDBMixin):
+class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     """A sensor measures events. """
 
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
@@ -66,6 +67,15 @@ class Sensor(db.Model, tb.SensorDBMixin):
         if attributes is not None:
             kwargs["attributes"] = attributes
         db.Model.__init__(self, **kwargs)
+
+    def __acl__(self):
+        """
+        Within same account, everyone can read and update.
+        Creation and deletion are left to site admins in CLI.
+
+        TODO: needs an iteration
+        """
+        return {"read": f"account:{self.id}", "update": f"account:{self.id}"}
 
     @property
     def entity_address(self) -> str:
@@ -464,6 +474,8 @@ class TimedValue(object):
     """
     A mixin of all tables that store time series data, either forecasts or measurements.
     Represents one row.
+
+    Note: This will be deprecated in favour of Timely-Beliefs - based code (see Sensor/TimedBelief)
     """
 
     @declared_attr
