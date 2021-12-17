@@ -7,7 +7,7 @@ from functools import cached_property, wraps
 from typing import List, Dict, Tuple, Type, TypeVar, Union, Optional
 from datetime import datetime
 
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.flexmeasures_inflection import parameterize, pluralize
 from itertools import groupby
 
@@ -695,18 +695,3 @@ def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:
     for _k, g in groupby(sorted_asset_list, key=key_function):
         groups.append(list(g))
     return groups
-
-
-def query_sensors_by_proximity(
-    generic_asset_type_name: str, latitude: float, longitude: float
-) -> Query:
-    closest_sensor_query = (
-        Sensor.query.join(GenericAsset, GenericAssetType)
-        .filter(
-            Sensor.generic_asset_id == GenericAsset.id,
-            GenericAsset.generic_asset_type_id == GenericAssetType.id,
-            GenericAssetType.name == generic_asset_type_name,
-        )
-        .order_by(GenericAsset.great_circle_distance(lat=latitude, lng=longitude).asc())
-    )
-    return closest_sensor_query
