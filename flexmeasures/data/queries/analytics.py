@@ -15,7 +15,7 @@ from flexmeasures.data.services.resources import Resource, find_closest_weather_
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import Weather, WeatherSensor, WeatherSensorType
+from flexmeasures.data.models.weather import Weather, WeatherSensorType
 
 
 def get_power_data(
@@ -234,7 +234,7 @@ def get_weather_data(
     query_window: Tuple[datetime, datetime],
     resolution: str,
     forecast_horizon: timedelta,
-) -> Tuple[pd.DataFrame, pd.DataFrame, str, WeatherSensor, dict]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, str, Sensor, dict]:
     """Get most recent weather data and forecast weather data for the requested forecast horizon.
 
     Return weather observations, weather forecasts (either might be an empty DataFrame),
