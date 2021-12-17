@@ -655,10 +655,10 @@ def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
     return sensor_types
 
 
-def find_closest_weather_sensor(
-    sensor_type: str, n: int = 1, **kwargs
+def find_closest_sensor(
+    generic_asset_type_name: str, n: int = 1, **kwargs
 ) -> Union[Sensor, List[Sensor], None]:
-    """Returns the closest n weather sensors of a given type (as a list if n > 1).
+    """Returns the closest n sensors of a given type (as a list if n > 1).
     Parses latitude and longitude values stated in kwargs.
 
     Can be called with an object that has latitude and longitude properties, for example:
@@ -674,10 +674,14 @@ def find_closest_weather_sensor(
 
     latitude, longitude = parse_lat_lng(kwargs)
     if n == 1:
-        return query_sensors_by_proximity(sensor_type, latitude, longitude).first()
+        return query_sensors_by_proximity(
+            generic_asset_type_name, latitude, longitude
+        ).first()
     else:
         return (
-            query_sensors_by_proximity(sensor_type, latitude, longitude).limit(n).all()
+            query_sensors_by_proximity(generic_asset_type_name, latitude, longitude)
+            .limit(n)
+            .all()
         )
 
 
