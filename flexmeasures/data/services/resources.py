@@ -697,14 +697,6 @@ def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:
     return groups
 
 
-def get_closest_sensor(
-    generic_asset_type_name: str, latitude: float, longitude: float
-) -> Sensor:
-    return query_sensors_by_proximity(
-        generic_asset_type_name, latitude, longitude
-    ).first()
-
-
 def query_sensors_by_proximity(
     generic_asset_type_name: str, latitude: float, longitude: float
 ) -> Sensor:
