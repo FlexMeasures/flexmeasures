@@ -95,6 +95,7 @@ class GenericAsset(db.Model):
             great_circle_distance(latitude=32, longitude=54)
             great_circle_distance(lat=32, lng=54)
 
+        Requires the following Postgres extensions: earthdistance and cube.
         """
         other_location = geo_utils.parse_lat_lng(kwargs)
         if None in other_location:
