@@ -58,6 +58,7 @@ def upgrade():
         "sensor",
         sa.MetaData(),
         sa.Column("id"),
+        sa.Column("name"),
         sa.Column("attributes"),
         sa.Column("generic_asset_id"),
         sa.Column("unit"),
@@ -70,6 +71,7 @@ def upgrade():
         sa.MetaData(),
         sa.Column("id", sa.Integer),
         sa.Column("market_type_name", sa.String(80)),
+        sa.Column("name"),  # Copy to Sensor
         sa.Column(
             "display_name", sa.String(80)
         ),  # Copy to both Sensor and to GenericAsset
@@ -91,6 +93,7 @@ def upgrade():
         sa.MetaData(),
         sa.Column("id"),
         sa.Column("asset_type_name"),
+        sa.Column("name"),  # Copy to Sensor
         sa.Column("display_name"),  # Copy to both Sensor and to GenericAsset
         sa.Column("latitude"),  # Copy to GenericAsset
         sa.Column("longitude"),  # Copy to GenericAsset
@@ -127,6 +130,7 @@ def upgrade():
         sa.MetaData(),
         sa.Column("id"),
         sa.Column("weather_sensor_type_name"),
+        sa.Column("name"),  # Copy to Sensor
         sa.Column("display_name"),  # Copy to both Sensor and to GenericAsset
         sa.Column("latitude"),  # Copy to GenericAsset
         sa.Column("longitude"),  # Copy to GenericAsset
@@ -340,6 +344,7 @@ def copy_location_columns_to_generic_asset(
 def copy_sensor_columns(connection, t_old_model, t_sensor):
     old_model_attributes = [
         "id",
+        "name",
         "unit",
         "event_resolution",
         "knowledge_horizon_fnc",
