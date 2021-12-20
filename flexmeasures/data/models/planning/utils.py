@@ -148,6 +148,10 @@ def fallback_charging_policy(
         > 0
     ):
         # start charging to get as close as possible to the next target
+        first_target = device_constraints["equals"][
+            device_constraints["equals"].first_valid_index()
+        ]
+        charge_schedule[charge_schedule.cumsum() > first_target] = 0
         return charge_schedule
     if (
         device_constraints["equals"].first_valid_index() is not None
@@ -157,6 +161,10 @@ def fallback_charging_policy(
         < 0
     ):
         # start discharging to get as close as possible to the next target
+        first_target = device_constraints["equals"][
+            device_constraints["equals"].first_valid_index()
+        ]
+        discharge_schedule[discharge_schedule.cumsum() < first_target] = 0
         return discharge_schedule
     if (
         device_constraints["max"].first_valid_index() is not None
