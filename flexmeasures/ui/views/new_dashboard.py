@@ -30,11 +30,12 @@ def new_dashboard_view():
         clear_session()
         msg = "Your session was cleared."
 
-    aggregate_groups = ["renewables", "EVSE"]
+    aggregate_groups = current_app.config.get("FLEXMEASURES_ASSET_TYPE_GROUPS", {})
     asset_groups = get_asset_group_queries(custom_additional_groups=aggregate_groups)
+
     map_asset_groups = {}
-    for asset_group_name in asset_groups:
-        asset_group = AssetGroup(asset_group_name)
+    for asset_group_name, asset_group_query in asset_groups.items():
+        asset_group = AssetGroup(asset_group_name, asset_query=asset_group_query)
         map_asset_groups[asset_group_name] = asset_group
 
     # Pack CDN resources (from pandas_bokeh/base.py)

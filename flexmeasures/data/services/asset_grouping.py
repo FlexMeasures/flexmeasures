@@ -25,7 +25,7 @@ p = inflect.engine()
 
 
 def get_asset_group_queries(
-    custom_additional_groups: Optional[List[str]] = None,
+    custom_additional_groups: Optional[Dict[str, List[str]]] = None,
 ) -> Dict[str, Query]:
     """
     An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised  names.
@@ -36,23 +36,16 @@ def get_asset_group_queries(
 
     Note: Make sure the current user has the "read" permission on his account (on GenericAsset.__class__?? See https://github.com/FlexMeasures/flexmeasures/issues/200).
 
-    :param custom_additional_groups: list of additional groups next to groups that represent unique asset types.
-                                     Valid names are:
-                                     - "renewables", to query all solar and wind assets
-                                     - "EVSE", to query all Electric Vehicle Supply Equipment
+    :param custom_additional_groups: dict of asset type groupings (mapping group names to names of asset types). See also the setting FLEXMEASURES_ASSET_TYPE_GROUPS.
                                      - "location", to query each individual location with assets
                                                             (i.e. all EVSE at 1 location or each household)
     """
-
-    if custom_additional_groups is None:
-        custom_additional_groups = []
     asset_queries = {}
 
     # 1. Custom asset groups by combinations of asset types
-    if "renewables" in custom_additional_groups:
-        asset_queries["renewables"] = query_assets_by_type(["solar", "wind"])
-    if "EVSE" in custom_additional_groups:
-        asset_queries["EVSE"] = query_assets_by_type(["one-way_evse", "two-way_evse"])
+    if custom_additional_groups:
+        for asset_type_group_name, asset_types in custom_additional_groups.items():
+            asset_queries[asset_type_group_name] = query_assets_by_type(asset_types)
 
     # 2. We also include a group per asset type - using the pluralised asset type name
     for asset_type in GenericAssetType.query.all():
@@ -132,10 +125,11 @@ class AssetGroup:
     This class represents a group of assets of the same type, offering some convenience functions
     for displaying their properties.
 
-    When initialised with a plural asset type name, the resource will contain all assets of
-    the given type that are accessible to the current user's account if the user may read them.
+    When initialised with an asset type name, the group will contain all assets of
+    the given type that are accessible to the current user's account.
 
-    When initialised with just one asset name, the resource will list only that asset.
+    When initialised with a query for GenericAssets, as well, the group will list the assets returned by that query. This can be useful in combination with get_asset_group_queries,
+    see above.
 
     TODO: On a conceptual level, we can model two functionally useful ways of grouping assets:
     - AggregatedAsset if it groups assets of only 1 type,
@@ -149,30 +143,23 @@ class AssetGroup:
     unique_asset_types: List[GenericAssetType]
     unique_asset_type_names: List[str]
 
-    def __init__(self, name: str):
-        """ The resource name is either the name of an asset group or an individual asset. """
+    def __init__(self, name: str, asset_query: Optional[Query] = None):
+        """ The asset group name is either the name of an asset group or an individual asset. """
         if name is None or name == "":
             raise Exception("Empty asset (group) name passed (%s)" % name)
         self.name = name
 
-        # Query assets for all users to set some public information about the resource
-        asset_queries = get_asset_group_queries(
-            custom_additional_groups=["renewables", "EVSE", "location"],
-        )
-        asset_query = (
-            asset_queries[self.name]
-            if name in asset_queries
-            else GenericAsset.query.filter_by(name=self.name)
-        )  # gather assets that are identified by this resource's name
+        if not asset_query:
+            asset_query = GenericAsset.query.filter_by(name=self.name)
 
-        # List unique asset types and asset type names represented by this resource
+        # List unique asset types and asset type names represented by this group
         self.assets = asset_query.all()
         self.unique_asset_types = list(set([a.asset_type for a in self.assets]))
         self.unique_asset_type_names = list(
             set([a.asset_type.name for a in self.assets])
         )
 
-        # Count all assets that are identified by this resource's name and accessible by the current user
+        # Count all assets that are identified by this group's name
         self.count = len(self.assets)
 
     @property
