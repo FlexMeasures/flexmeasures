@@ -50,12 +50,15 @@ def upgrade():
         sa.MetaData(),
         sa.Column("id"),
         sa.Column("generic_asset_type_id"),
+        sa.Column("latitude"),
+        sa.Column("longitude"),
         sa.Column("attributes"),
     )
     t_sensor = sa.Table(
         "sensor",
         sa.MetaData(),
         sa.Column("id"),
+        sa.Column("name"),
         sa.Column("attributes"),
         sa.Column("generic_asset_id"),
         sa.Column("unit"),
@@ -68,6 +71,7 @@ def upgrade():
         sa.MetaData(),
         sa.Column("id", sa.Integer),
         sa.Column("market_type_name", sa.String(80)),
+        sa.Column("name"),  # Copy to Sensor
         sa.Column(
             "display_name", sa.String(80)
         ),  # Copy to both Sensor and to GenericAsset
@@ -89,7 +93,10 @@ def upgrade():
         sa.MetaData(),
         sa.Column("id"),
         sa.Column("asset_type_name"),
+        sa.Column("name"),  # Copy to Sensor
         sa.Column("display_name"),  # Copy to both Sensor and to GenericAsset
+        sa.Column("latitude"),  # Copy to GenericAsset
+        sa.Column("longitude"),  # Copy to GenericAsset
         sa.Column("capacity_in_mw"),  # Copy to Sensor
         sa.Column("min_soc_in_mwh"),  # Copy to GenericAsset [1]
         sa.Column("max_soc_in_mwh"),  # Copy to GenericAsset [1]
@@ -123,7 +130,10 @@ def upgrade():
         sa.MetaData(),
         sa.Column("id"),
         sa.Column("weather_sensor_type_name"),
+        sa.Column("name"),  # Copy to Sensor
         sa.Column("display_name"),  # Copy to both Sensor and to GenericAsset
+        sa.Column("latitude"),  # Copy to GenericAsset
+        sa.Column("longitude"),  # Copy to GenericAsset
         sa.Column("unit"),  # Copy to Sensor [done]
         sa.Column("event_resolution"),  # Copy to Sensor [done]
         sa.Column("knowledge_horizon_fnc"),  # Copy to Sensor [done]
@@ -183,7 +193,13 @@ def upgrade():
         t_generic_asset,
         t_target=t_sensor,
         t_old_model_type=t_weather_sensor_type,
-        old_model_attributes=["id", "weather_sensor_type_name", "display_name"],
+        old_model_attributes=[
+            "id",
+            "weather_sensor_type_name",
+            "display_name",
+            "latitude",
+            "longitude",
+        ],
         extra_attributes={
             "daily_seasonality": True,
             "weekly_seasonality": False,
@@ -212,6 +228,8 @@ def upgrade():
             "id",
             "asset_type_name",
             "display_name",
+            "latitude",
+            "longitude",
             "capacity_in_mw",
             "market_id",
         ],
@@ -279,6 +297,12 @@ def upgrade():
     copy_sensor_columns(connection, t_market, t_sensor)
     copy_sensor_columns(connection, t_weather_sensor, t_sensor)
     copy_sensor_columns(connection, t_asset, t_sensor)
+    copy_location_columns_to_generic_asset(
+        connection, t_weather_sensor, t_generic_asset, t_sensor
+    )
+    copy_location_columns_to_generic_asset(
+        connection, t_asset, t_generic_asset, t_sensor
+    )
 
 
 def downgrade():
@@ -286,9 +310,41 @@ def downgrade():
     op.drop_column("generic_asset", "attributes")
 
 
+def copy_location_columns_to_generic_asset(
+    connection, t_old_model, t_generic_asset, t_sensor
+):
+    old_model_attributes = [
+        "id",
+        "latitude",
+        "longitude",
+    ]
+    # Get columns from old model
+    results = connection.execute(
+        sa.select([getattr(t_old_model.c, a) for a in old_model_attributes])
+    ).fetchall()
+
+    for sensor_id, *args in results:
+        # Obtain columns we want to copy over, from the old model
+        old_model_columns_to_copy = {
+            k: v if not isinstance(v, dict) else json.dumps(v)
+            for k, v in zip(old_model_attributes[-len(args) :], args)
+        }
+
+        # Fill in the GenericAsset's columns
+        connection.execute(
+            t_generic_asset.update()
+            .where(t_generic_asset.c.id == t_sensor.c.generic_asset_id)
+            .where(t_sensor.c.id == sensor_id)
+            .values(
+                **old_model_columns_to_copy,
+            )
+        )
+
+
 def copy_sensor_columns(connection, t_old_model, t_sensor):
     old_model_attributes = [
         "id",
+        "name",
         "unit",
         "event_resolution",
         "knowledge_horizon_fnc",

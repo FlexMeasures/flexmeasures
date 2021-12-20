@@ -1,6 +1,7 @@
 import pytest
 from datetime import datetime, timedelta
 from random import random
+from typing import Dict
 
 from isodate import parse_duration
 import pandas as pd
@@ -155,3 +156,29 @@ def add_failing_test_model(db):
         return model_specs, model_identifier, "linear-OLS"
 
     model_map["failing-test"] = test_specs
+
+
+@pytest.fixture(scope="module")
+def add_nearby_weather_sensors(db, add_weather_sensors) -> Dict[str, WeatherSensor]:
+    temp_sensor_location = add_weather_sensors["temperature"].location
+    farther_temp_sensor = WeatherSensor(
+        name="farther_temperature_sensor",
+        weather_sensor_type_name="temperature",
+        event_resolution=timedelta(minutes=5),
+        latitude=temp_sensor_location[0],
+        longitude=temp_sensor_location[1] + 0.1,
+        unit="°C",
+    )
+    even_farther_temp_sensor = WeatherSensor(
+        name="even_farther_temperature_sensor",
+        weather_sensor_type_name="temperature",
+        event_resolution=timedelta(minutes=5),
+        latitude=temp_sensor_location[0],
+        longitude=temp_sensor_location[1] + 0.2,
+        unit="°C",
+    )
+    db.session.add(farther_temp_sensor)
+    db.session.add(even_farther_temp_sensor)
+    add_weather_sensors["farther_temperature"] = farther_temp_sensor
+    add_weather_sensors["even_farther_temperature"] = even_farther_temp_sensor
+    return add_weather_sensors

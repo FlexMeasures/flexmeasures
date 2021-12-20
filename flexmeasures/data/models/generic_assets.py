@@ -4,12 +4,16 @@ from flask_security import current_user
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import Row
 
+from sqlalchemy.ext.hybrid import hybrid_method
+from sqlalchemy.sql.expression import func
+
 from sqlalchemy.ext.mutable import MutableDict
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User
 from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.utils.unit_utils import is_power_unit
+from flexmeasures.utils import geo_utils
 
 
 class GenericAssetType(db.Model):
@@ -82,6 +86,48 @@ class GenericAsset(db.Model, AuthModelMixin):
         if None not in (self.latitude, self.longitude):
             return self.latitude, self.longitude
         return None
+
+    @hybrid_method
+    def great_circle_distance(self, **kwargs):
+        """Query great circle distance (in km).
+
+        Can be called with an object that has latitude and longitude properties, for example:
+
+            great_circle_distance(object=asset)
+
+        Can also be called with latitude and longitude parameters, for example:
+
+            great_circle_distance(latitude=32, longitude=54)
+            great_circle_distance(lat=32, lng=54)
+
+        """
+        other_location = geo_utils.parse_lat_lng(kwargs)
+        if None in other_location:
+            return None
+        return geo_utils.earth_distance(self.location, other_location)
+
+    @great_circle_distance.expression
+    def great_circle_distance(self, **kwargs):
+        """Query great circle distance (unclear if in km or in miles).
+
+        Can be called with an object that has latitude and longitude properties, for example:
+
+            great_circle_distance(object=asset)
+
+        Can also be called with latitude and longitude parameters, for example:
+
+            great_circle_distance(latitude=32, longitude=54)
+            great_circle_distance(lat=32, lng=54)
+
+        Requires the following Postgres extensions: earthdistance and cube.
+        """
+        other_location = geo_utils.parse_lat_lng(kwargs)
+        if None in other_location:
+            return None
+        return func.earth_distance(
+            func.ll_to_earth(self.latitude, self.longitude),
+            func.ll_to_earth(*other_location),
+        )
 
     def get_attribute(self, attribute: str):
         if attribute in self.attributes:
