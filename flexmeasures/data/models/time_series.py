@@ -108,6 +108,8 @@ class Sensor(db.Model, tb.SensorDBMixin):
             return getattr(self, attribute)
         if attribute in self.attributes:
             return self.attributes[attribute]
+        if hasattr(self.generic_asset, attribute):
+            return getattr(self.generic_asset, attribute)
         if attribute in self.generic_asset.attributes:
             return self.generic_asset.attributes[attribute]
         return default
