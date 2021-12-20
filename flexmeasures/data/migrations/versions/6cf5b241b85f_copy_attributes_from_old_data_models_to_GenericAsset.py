@@ -297,8 +297,12 @@ def upgrade():
     copy_sensor_columns(connection, t_market, t_sensor)
     copy_sensor_columns(connection, t_weather_sensor, t_sensor)
     copy_sensor_columns(connection, t_asset, t_sensor)
-    copy_location_columns(connection, t_weather_sensor, t_generic_asset, t_sensor)
-    copy_location_columns(connection, t_asset, t_generic_asset, t_sensor)
+    copy_location_columns_to_generic_asset(
+        connection, t_weather_sensor, t_generic_asset, t_sensor
+    )
+    copy_location_columns_to_generic_asset(
+        connection, t_asset, t_generic_asset, t_sensor
+    )
 
 
 def downgrade():
@@ -306,7 +310,9 @@ def downgrade():
     op.drop_column("generic_asset", "attributes")
 
 
-def copy_location_columns(connection, t_old_model, t_generic_asset, t_sensor):
+def copy_location_columns_to_generic_asset(
+    connection, t_old_model, t_generic_asset, t_sensor
+):
     old_model_attributes = [
         "id",
         "latitude",

@@ -11,11 +11,11 @@ from flexmeasures.data.queries.utils import (
 )
 from flexmeasures.data.services.time_series import set_bdf_source
 from flexmeasures.utils import calculations, time_utils
-from flexmeasures.data.services.resources import Resource, find_closest_weather_sensor
+from flexmeasures.data.services.resources import Resource, find_closest_sensor
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import Weather, WeatherSensor, WeatherSensorType
+from flexmeasures.data.models.weather import Weather, WeatherSensorType
 
 
 def get_power_data(
@@ -234,7 +234,7 @@ def get_weather_data(
     query_window: Tuple[datetime, datetime],
     resolution: str,
     forecast_horizon: timedelta,
-) -> Tuple[pd.DataFrame, pd.DataFrame, str, WeatherSensor, dict]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, str, Sensor, dict]:
     """Get most recent weather data and forecast weather data for the requested forecast horizon.
 
     Return weather observations, weather forecasts (either might be an empty DataFrame),
@@ -254,9 +254,7 @@ def get_weather_data(
     if sensor_type:
         # Find the 50 closest weather sensors
         sensor_type_name = sensor_type.name
-        closest_sensors = find_closest_weather_sensor(
-            sensor_type_name, n=50, object=asset
-        )
+        closest_sensors = find_closest_sensor(sensor_type_name, n=50, object=asset)
         if closest_sensors:
             closest_sensor = closest_sensors[0]
 

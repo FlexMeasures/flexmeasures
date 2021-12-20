@@ -16,7 +16,6 @@ from pandas.tseries.frequencies import to_offset
 from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.services.resources import (
     get_assets,
     get_asset_group_queries,
@@ -31,7 +30,6 @@ from flexmeasures.data.queries.analytics import (
     get_revenues_costs_data,
 )
 from flexmeasures.utils import time_utils
-from flexmeasures.utils.flexmeasures_inflection import humanize
 from flexmeasures.ui.utils.view_utils import (
     render_flexmeasures_template,
     set_session_resource,
@@ -390,7 +388,7 @@ def get_data_and_metrics(
     selected_market_sensor: Sensor,
     selected_sensor_type,
     assets,
-) -> Tuple[Dict[str, pd.DataFrame], Dict[str, float], str, WeatherSensor]:
+) -> Tuple[Dict[str, pd.DataFrame], Dict[str, float], str, Sensor]:
     """Getting data and calculating metrics for them"""
     data: Dict[str, pd.DataFrame] = dict()
     forecast_horizon = pd.to_timedelta(session["forecast_horizon"])
@@ -490,7 +488,7 @@ def get_data_and_metrics(
 
 
 def filter_for_past_data(data):
-    """ Make sure we only show past data, useful for demo mode """
+    """Make sure we only show past data, useful for demo mode"""
     most_recent_quarter = time_utils.get_most_recent_quarter()
 
     if not data["power"].empty:
@@ -513,7 +511,7 @@ def filter_for_past_data(data):
 
 
 def filter_forecasts_for_limited_time_window(data):
-    """ Show forecasts only up to a limited horizon """
+    """Show forecasts only up to a limited horizon"""
     most_recent_quarter = time_utils.get_most_recent_quarter()
     horizon_days = 10  # keep a 10 day forecast
     max_forecast_datetime = most_recent_quarter + timedelta(hours=horizon_days * 24)
@@ -603,7 +601,7 @@ def make_weather_figure(
     data: pd.DataFrame,
     forecast_data: Union[None, pd.DataFrame],
     shared_x_range: Range1d,
-    weather_sensor: WeatherSensor,
+    weather_sensor: Sensor,
     tools: List[str] = None,
     sizing_mode="scale_width",
 ) -> Figure:
@@ -616,17 +614,17 @@ def make_weather_figure(
         )
     unit = weather_sensor.unit
     weather_axis_label = "%s (in %s)" % (
-        humanize(weather_sensor.sensor_type.display_name),
+        weather_sensor.generic_asset.generic_asset_type.description,
         unit,
     )
 
     if selected_resource.is_unique_asset:
         title = "%s at %s" % (
-            humanize(weather_sensor.sensor_type.display_name),
+            weather_sensor.generic_asset.generic_asset_type.description,
             selected_resource.display_name,
         )
     else:
-        title = "%s" % humanize(weather_sensor.sensor_type.display_name)
+        title = "%s" % weather_sensor.generic_asset.generic_asset_type.description
     return create_graph(
         data,
         unit=unit,

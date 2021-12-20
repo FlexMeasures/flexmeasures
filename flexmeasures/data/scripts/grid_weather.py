@@ -12,7 +12,7 @@ import pytz
 
 from flexmeasures.utils.time_utils import as_server_time, get_timezone
 from flexmeasures.utils.geo_utils import compute_irradiance
-from flexmeasures.data.services.resources import find_closest_weather_sensor
+from flexmeasures.data.services.resources import find_closest_sensor
 from flexmeasures.data.config import db
 from flexmeasures.data.transactional import task_with_status_report
 from flexmeasures.data.models.weather import Weather
@@ -382,7 +382,7 @@ def save_forecasts_in_db(
                 if needed_response_label in fc:
                     weather_sensor = weather_sensors.get(flexmeasures_sensor_type, None)
                     if weather_sensor is None:
-                        weather_sensor = find_closest_weather_sensor(
+                        weather_sensor = find_closest_sensor(
                             flexmeasures_sensor_type, lat=location[0], lng=location[1]
                         )
                         if weather_sensor is not None:
