@@ -11,6 +11,7 @@ from itertools import groupby
 from sqlalchemy.orm import Query
 from flask_security import current_user
 from werkzeug.exceptions import Forbidden
+from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 
 from flexmeasures.utils.flexmeasures_inflection import parameterize, pluralize
 from flexmeasures.data.models.generic_assets import (
@@ -26,10 +27,13 @@ def get_asset_group_queries(
     custom_additional_groups: Optional[List[str]] = None,
 ) -> Dict[str, Query]:
     """
-    An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised display names.
+    An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised  names.
     They still need an executive call, like all(), count() or first().
 
-    Note: Make sure the current user has the "read" permission on his account (on GenericAsset.__class__??).
+    This function limits the assets to be queried to the current user's account,
+    if the user is not an admin.
+
+    Note: Make sure the current user has the "read" permission on his account (on GenericAsset.__class__?? See https://github.com/FlexMeasures/flexmeasures/issues/200).
 
     :param custom_additional_groups: list of additional groups next to groups that represent unique asset types.
                                      Valid names are:
@@ -64,7 +68,7 @@ def get_asset_group_queries(
             .filter(GenericAssetType.name.in_(["one-way_evse", "two-way_evse"]))
         )
 
-    # 2. We also include a group per asset type - using the pluralised asset type display name
+    # 2. We also include a group per asset type - using the pluralised asset type name
     for asset_type in GenericAssetType.query.all():
         asset_queries[pluralize(asset_type.name)] = (
             GenericAsset.query.join(GenericAssetType)
@@ -76,8 +80,11 @@ def get_asset_group_queries(
     if "location" in custom_additional_groups:
         asset_queries.update(get_location_queries())
 
-    # only current user's account
-    asset_queries = limit_assets_to_account(asset_queries)
+    if not (
+        current_user.has_role(ADMIN_ROLE) or current_user.has_role(ADMIN_READER_ROLE)
+    ):
+        # only current user's account
+        asset_queries = limit_assets_to_account(asset_queries)
 
     return asset_queries
 
@@ -88,11 +95,11 @@ def get_location_queries() -> Dict[str, Query]:
     Like get_asset_group_queries, the values in the returned dict still need an executive call, like all(), count() or first().
 
     The Charge Points are named on the basis of the first EVSE in their list,
-    using either the whole EVSE display name or that part that comes before a " -" delimiter. For example:
+    using either the whole EVSE name or that part that comes before a " -" delimiter. For example:
     If:
-        evse_display_name = "Seoul Hilton - charger 1"
+        evse_name = "Seoul Hilton - charger 1"
     Then:
-        charge_point_display_name = "Seoul Hilton (Charge Point)"
+        charge_point_name = "Seoul Hilton (Charge Point)"
 
     A Charge Point is a special case. If all assets on a location are of type EVSE,
     we can call the location a "Charge Point".

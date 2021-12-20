@@ -75,7 +75,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
         TODO: needs an iteration
         """
-        return {"read": f"account:{self.id}", "update": f"account:{self.id}"}
+        return {
+            "read": f"account:{self.generic_asset.account_id}",
+            "update": f"account:{self.generic_asset.account_id}",
+        }
 
     @property
     def entity_address(self) -> str:

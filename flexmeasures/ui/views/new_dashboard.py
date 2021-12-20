@@ -19,8 +19,10 @@ from flexmeasures.data.services.asset_grouping import (
 def new_dashboard_view():
     """Dashboard view.
     This is the default landing page.
-    It shows a map with the location of all of the user's assets,
-    as well as a breakdown of the asset types in the user's portfolio.
+    It shows a map with the location of all of the assets in the user's account,
+    as well as a breakdown of the asset types.
+    Admins get to see all assets.
+
     TODO: Assets for which the platform has identified upcoming balancing opportunities are highlighted.
     """
     msg = ""

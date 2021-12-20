@@ -43,6 +43,18 @@ class GenericAsset(db.Model):
         backref=db.backref("generic_assets", lazy=True),
     )
 
+    def __acl__(self):
+        """
+        Within same account, everyone can read and update.
+        Creation and deletion are left to site admins in CLI.
+
+        TODO: needs an iteration
+        """
+        return {
+            "read": f"account:{self.account_id}",
+            "update": f"account:{self.account_id}",
+        }
+
     @property
     def asset_type(self) -> GenericAssetType:
         """ This property prepares for dropping the "generic" prefix later"""
@@ -65,7 +77,6 @@ class GenericAsset(db.Model):
 
     @property
     def location(self) -> Optional[Tuple[float, float]]:
-        print((self.latitude, self.longitude))
         if None not in (self.latitude, self.longitude):
             return self.latitude, self.longitude
         return None

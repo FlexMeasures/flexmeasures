@@ -24,7 +24,7 @@ class SensorIdField(fields.Integer):
     def _deserialize(self, sensor_id: int, attr, obj, **kwargs) -> Sensor:
         sensor: Sensor = Sensor.query.filter_by(id=int(sensor_id)).one_or_none()
         if sensor is None:
-            raise abort(404, f"User {id} not found")
+            raise abort(404, f"Sensor {id} not found")
         return sensor
 
     def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
