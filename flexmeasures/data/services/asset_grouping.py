@@ -19,6 +19,7 @@ from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     assets_share_location,
 )
+from flexmeasures.data.queries.generic_assets import query_assets_by_type
 
 p = inflect.engine()
 
@@ -47,33 +48,16 @@ def get_asset_group_queries(
         custom_additional_groups = []
     asset_queries = {}
 
-    """
-    GenericAsset
-    .join(GenericAssetType)
-    .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
-    .filter(GenericAssetType.name == generic_asset_type_name)
-    """
-
     # 1. Custom asset groups by combinations of asset types
     if "renewables" in custom_additional_groups:
-        asset_queries["renewables"] = (
-            GenericAsset.query.join(GenericAssetType)
-            .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
-            .filter(GenericAssetType.name.in_(["solar", "wind"]))
-        )
+        asset_queries["renewables"] = query_assets_by_type(["solar", "wind"])
     if "EVSE" in custom_additional_groups:
-        asset_queries["EVSE"] = (
-            GenericAsset.query.join(GenericAssetType)
-            .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
-            .filter(GenericAssetType.name.in_(["one-way_evse", "two-way_evse"]))
-        )
+        asset_queries["EVSE"] = query_assets_by_type(["one-way_evse", "two-way_evse"])
 
     # 2. We also include a group per asset type - using the pluralised asset type name
     for asset_type in GenericAssetType.query.all():
-        asset_queries[pluralize(asset_type.name)] = (
-            GenericAsset.query.join(GenericAssetType)
-            .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
-            .filter(GenericAssetType.name == asset_type.name)
+        asset_queries[pluralize(asset_type.name)] = query_assets_by_type(
+            asset_type.name
         )
 
     # 3. Finally, we group assets by location
