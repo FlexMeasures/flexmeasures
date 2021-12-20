@@ -1,8 +1,41 @@
 from typing import Tuple, Union
 from datetime import datetime
+import math
 
 from pvlib.location import Location
 import pandas as pd
+
+
+def cos_rad_lat(latitude: float) -> float:
+    return math.cos(math.radians(latitude))
+
+
+def sin_rad_lat(latitude: float) -> float:
+    return math.sin(math.radians(latitude))
+
+
+def rad_lng(longitude: float) -> float:
+    return math.radians(longitude)
+
+
+def earth_distance(
+    location: Tuple[float, float], other_location: Tuple[float, float]
+) -> float:
+    """Great circle distance in km between two locations on Earth."""
+    r = 6371  # Radius of Earth in kilometres
+    _cos_rad_lat = cos_rad_lat(location[0])
+    _sin_rad_lat = sin_rad_lat(location[0])
+    _rad_lng = rad_lng(location[1])
+    other_cos_rad_lat = cos_rad_lat(other_location[0])
+    other_sin_rad_lat = sin_rad_lat(other_location[0])
+    other_rad_lng = rad_lng(other_location[1])
+    return (
+        math.acos(
+            _cos_rad_lat * other_cos_rad_lat * math.cos(_rad_lng - other_rad_lng)
+            + _sin_rad_lat * other_sin_rad_lat
+        )
+        * r
+    )
 
 
 def parse_lat_lng(kwargs) -> Union[Tuple[float, float], Tuple[None, None]]:

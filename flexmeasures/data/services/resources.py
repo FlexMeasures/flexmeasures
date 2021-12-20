@@ -6,6 +6,8 @@ from __future__ import annotations
 from functools import cached_property, wraps
 from typing import List, Dict, Tuple, Type, TypeVar, Union, Optional
 from datetime import datetime
+
+from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.flexmeasures_inflection import parameterize, pluralize
 from itertools import groupby
 
@@ -25,7 +27,7 @@ from flexmeasures.data.models.assets import (
 )
 from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import Weather, WeatherSensor, WeatherSensorType
+from flexmeasures.data.models.weather import Weather, WeatherSensorType
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.services.time_series import aggregate_values
@@ -653,10 +655,10 @@ def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
     return sensor_types
 
 
-def find_closest_weather_sensor(
-    sensor_type: str, n: int = 1, **kwargs
-) -> Union[WeatherSensor, List[WeatherSensor], None]:
-    """Returns the closest n weather sensors of a given type (as a list if n > 1).
+def find_closest_sensor(
+    generic_asset_type_name: str, n: int = 1, **kwargs
+) -> Union[Sensor, List[Sensor], None]:
+    """Returns the closest n sensors of a given type (as a list if n > 1).
     Parses latitude and longitude values stated in kwargs.
 
     Can be called with an object that has latitude and longitude properties, for example:
@@ -671,13 +673,16 @@ def find_closest_weather_sensor(
     """
 
     latitude, longitude = parse_lat_lng(kwargs)
-    sensors = WeatherSensor.query.filter(
-        WeatherSensor.weather_sensor_type_name == sensor_type
-    ).order_by(WeatherSensor.great_circle_distance(lat=latitude, lng=longitude).asc())
     if n == 1:
-        return sensors.first()
+        return query_sensors_by_proximity(
+            generic_asset_type_name, latitude, longitude
+        ).first()
     else:
-        return sensors.limit(n).all()
+        return (
+            query_sensors_by_proximity(generic_asset_type_name, latitude, longitude)
+            .limit(n)
+            .all()
+        )
 
 
 def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:

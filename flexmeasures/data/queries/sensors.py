@@ -27,3 +27,19 @@ def query_sensor_by_name_and_generic_asset_type_name(
             .filter(Sensor.generic_asset_id == GenericAsset.id)
         )
     return query
+
+
+def query_sensors_by_proximity(
+    generic_asset_type_name: str, latitude: float, longitude: float
+) -> Query:
+    """Match sensors by the name of their generic asset type, and order them by proximity."""
+    closest_sensor_query = (
+        Sensor.query.join(GenericAsset, GenericAssetType)
+        .filter(
+            Sensor.generic_asset_id == GenericAsset.id,
+            GenericAsset.generic_asset_type_id == GenericAssetType.id,
+            GenericAssetType.name == generic_asset_type_name,
+        )
+        .order_by(GenericAsset.great_circle_distance(lat=latitude, lng=longitude).asc())
+    )
+    return closest_sensor_query

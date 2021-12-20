@@ -118,7 +118,7 @@ Finally, test if you can log in as the flexmeasures user:
 Add Postgres Extensions to your database(s)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To find the nearest sensors, FlexMeasures needs some extra POstgres support. 
+To find the nearest sensors, FlexMeasures needs some extra Postgres support.
 Add the following extensions while logged in as the postgres superuser:
 
 .. code-block:: bash
