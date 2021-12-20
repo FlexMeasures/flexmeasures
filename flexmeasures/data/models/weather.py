@@ -1,9 +1,8 @@
 from typing import Dict, Tuple
-import math
 
 import timely_beliefs as tb
 from sqlalchemy.orm import Query
-from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
+from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
 
@@ -18,7 +17,7 @@ from flexmeasures.data.models.generic_assets import (
     GenericAsset,
     GenericAssetType,
 )
-from flexmeasures.utils.geo_utils import parse_lat_lng
+from flexmeasures.utils import geo_utils
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.flexmeasures_inflection import humanize
 
@@ -186,18 +185,6 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
     def location(self) -> Tuple[float, float]:
         return self.latitude, self.longitude
 
-    @hybrid_property
-    def cos_rad_lat(self):
-        return math.cos(math.radians(self.latitude))
-
-    @hybrid_property
-    def sin_rad_lat(self):
-        return math.sin(math.radians(self.latitude))
-
-    @hybrid_property
-    def rad_lng(self):
-        return math.radians(self.longitude)
-
     @hybrid_method
     def great_circle_distance(self, **kwargs):
         """Query great circle distance (in km).
@@ -212,22 +199,10 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
             great_circle_distance(lat=32, lng=54)
 
         """
-        r = 6371  # Radius of Earth in kilometres
-        other_latitude, other_longitude = parse_lat_lng(kwargs)
-        if other_latitude is None or other_longitude is None:
+        other_location = geo_utils.parse_lat_lng(kwargs)
+        if None in other_location:
             return None
-        other_cos_rad_lat = math.cos(math.radians(other_latitude))
-        other_sin_rad_lat = math.sin(math.radians(other_latitude))
-        other_rad_lng = math.radians(other_longitude)
-        return (
-            math.acos(
-                self.cos_rad_lat
-                * other_cos_rad_lat
-                * math.cos(self.rad_lng - other_rad_lng)
-                + self.sin_rad_lat * other_sin_rad_lat
-            )
-            * r
-        )
+        return geo_utils.earth_distance(self.location, other_location)
 
     @great_circle_distance.expression
     def great_circle_distance(self, **kwargs):
@@ -243,12 +218,12 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
             great_circle_distance(lat=32, lng=54)
 
         """
-        other_latitude, other_longitude = parse_lat_lng(kwargs)
-        if other_latitude is None or other_longitude is None:
+        other_location = geo_utils.parse_lat_lng(kwargs)
+        if None in other_location:
             return None
         return func.earth_distance(
             func.ll_to_earth(self.latitude, self.longitude),
-            func.ll_to_earth(other_latitude, other_longitude),
+            func.ll_to_earth(*other_location),
         )
 
     sensor_type = db.relationship(
