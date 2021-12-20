@@ -62,6 +62,8 @@ def parse_lat_lng(kwargs) -> Union[Tuple[float, float], Tuple[None, None]]:
                 return obj.latitude, obj.longitude
             elif hasattr(obj, "lat") and hasattr(obj, "lng"):
                 return obj.lat, obj.lng
+            elif hasattr(obj, "location"):
+                return obj.location
     return None, None
 
 

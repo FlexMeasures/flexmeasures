@@ -333,8 +333,7 @@ def get_sensor_by_generic_asset_type_and_location(
             ).first()
             if nearest_weather_sensor is not None:
                 return unrecognized_sensor(
-                    nearest_weather_sensor.latitude,
-                    nearest_weather_sensor.longitude,
+                    *nearest_weather_sensor.location,
                 )
             else:
                 return unrecognized_sensor()

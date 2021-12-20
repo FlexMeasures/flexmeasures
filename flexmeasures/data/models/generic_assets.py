@@ -59,9 +59,9 @@ class GenericAsset(db.Model):
 
     @property
     def location(self) -> Optional[Tuple[float, float]]:
-        if None not in (self.latitude, self.longitude):
-            return self.latitude, self.longitude
-        return None
+        location = (self.latitude, self.longitude)
+        if None not in location:
+            return location
 
     @hybrid_method
     def great_circle_distance(self, **kwargs):

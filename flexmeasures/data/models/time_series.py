@@ -72,18 +72,10 @@ class Sensor(db.Model, tb.SensorDBMixin):
         return build_entity_address(dict(sensor_id=self.id), "sensor")
 
     @property
-    def latitude(self) -> float:
-        return self.generic_asset.latitude
-
-    @property
-    def longitude(self) -> float:
-        return self.generic_asset.longitude
-
-    @property
     def location(self) -> Optional[Tuple[float, float]]:
-        if None not in (self.latitude, self.longitude):
-            return self.latitude, self.longitude
-        return None
+        location = (self.get_attribute("latitude"), self.get_attribute("longitude"))
+        if None not in location:
+            return location
 
     @property
     def is_strictly_non_positive(self) -> bool:
