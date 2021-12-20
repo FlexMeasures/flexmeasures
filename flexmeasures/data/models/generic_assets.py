@@ -8,6 +8,7 @@ from sqlalchemy.ext.mutable import MutableDict
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User
+from flexmeasures.auth.policy import AuthModelMixin
 
 
 class GenericAssetType(db.Model):
@@ -21,7 +22,7 @@ class GenericAssetType(db.Model):
     description = db.Column(db.String(80), nullable=True, unique=False)
 
 
-class GenericAsset(db.Model):
+class GenericAsset(db.Model, AuthModelMixin):
     """An asset is something that has economic value.
 
     Examples of tangible assets: a house, a ship, a weather station.

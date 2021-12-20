@@ -144,7 +144,7 @@
 
     function lookForState(event) {
         $.ajax({
-            url: "/sensor/" + encodeURI(this.options.id) + "/state",
+            url: "/asset/" + encodeURI(this.options.id) + "/state",
             success: stateFoundCallback
         });
     }
