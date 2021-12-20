@@ -21,6 +21,7 @@ def new_dashboard_view():
     This is the default landing page.
     It shows a map with the location of all of the assets in the user's account,
     as well as a breakdown of the asset types.
+    Here, we are only interested in showing assets with power sensors.
     Admins get to see all assets.
 
     TODO: Assets for which the platform has identified upcoming balancing opportunities are highlighted.
@@ -36,7 +37,8 @@ def new_dashboard_view():
     map_asset_groups = {}
     for asset_group_name, asset_group_query in asset_groups.items():
         asset_group = AssetGroup(asset_group_name, asset_query=asset_group_query)
-        map_asset_groups[asset_group_name] = asset_group
+        if any([a.location and a.has_power_sensors() for a in asset_group.assets]):
+            map_asset_groups[asset_group_name] = asset_group
 
     # Pack CDN resources (from pandas_bokeh/base.py)
     bokeh_html_embedded = ""
