@@ -26,6 +26,7 @@ p = inflect.engine()
 
 def get_asset_group_queries(
     custom_additional_groups: Optional[Dict[str, List[str]]] = None,
+    group_by_location: bool = False,
 ) -> Dict[str, Query]:
     """
     An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised  names.
@@ -37,8 +38,7 @@ def get_asset_group_queries(
     Note: Make sure the current user has the "read" permission on his account (on GenericAsset.__class__?? See https://github.com/FlexMeasures/flexmeasures/issues/200).
 
     :param custom_additional_groups: dict of asset type groupings (mapping group names to names of asset types). See also the setting FLEXMEASURES_ASSET_TYPE_GROUPS.
-                                     - "location", to query each individual location with assets
-                                                            (i.e. all EVSE at 1 location or each household)
+    :param group_by_location: If True, groups will be made for assets at the same location. Naming of the location currently supports charge points (for EVSEs).
     """
     asset_queries = {}
 
@@ -54,7 +54,7 @@ def get_asset_group_queries(
         )
 
     # 3. Finally, we group assets by location
-    if "location" in custom_additional_groups:
+    if group_by_location:
         asset_queries.update(get_location_queries())
 
     if not (
@@ -68,8 +68,10 @@ def get_asset_group_queries(
 
 def get_location_queries() -> Dict[str, Query]:
     """
+    Make queries for grouping assets by location.
+
     We group EVSE assets by location (if they share a location, they belong to the same Charge Point)
-    Like get_asset_group_queries, the values in the returned dict still need an executive call, like all(), count() or first().
+    Like get_asset_group_queries, the values in the returned dict still need an executive call, like all(), count() or first(). Note that this function will still load and inspect assets to do its job.
 
     The Charge Points are named on the basis of the first EVSE in their list,
     using either the whole EVSE name or that part that comes before a " -" delimiter. For example:
