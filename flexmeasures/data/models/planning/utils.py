@@ -171,12 +171,20 @@ def fallback_charging_policy(
         and device_constraints["max"][device_constraints["max"].first_valid_index()] < 0
     ):
         # start discharging to try and bring back the soc below the next max constraint
+        first_target = device_constraints["max"][
+            device_constraints["max"].first_valid_index()
+        ]
+        discharge_schedule[discharge_schedule.cumsum() < first_target] = 0
         return discharge_schedule
     if (
         device_constraints["min"].first_valid_index() is not None
         and device_constraints["min"][device_constraints["min"].first_valid_index()] > 0
     ):
         # start charging to try and bring back the soc above the next min constraint
+        first_target = device_constraints["min"][
+            device_constraints["min"].first_valid_index()
+        ]
+        charge_schedule[charge_schedule.cumsum() > first_target] = 0
         return charge_schedule
     # stand idle
     return idle_schedule
