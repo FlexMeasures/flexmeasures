@@ -148,7 +148,7 @@ def fallback_charging_policy(
         > 0
     ):
         # start charging to get as close as possible to the next target
-        return charge_schedule
+        return idle_after_reaching_target(charge_schedule, device_constraints["equals"])
     if (
         device_constraints["equals"].first_valid_index() is not None
         and device_constraints["equals"][
@@ -157,18 +157,34 @@ def fallback_charging_policy(
         < 0
     ):
         # start discharging to get as close as possible to the next target
-        return discharge_schedule
+        return idle_after_reaching_target(
+            discharge_schedule, device_constraints["equals"]
+        )
     if (
         device_constraints["max"].first_valid_index() is not None
         and device_constraints["max"][device_constraints["max"].first_valid_index()] < 0
     ):
         # start discharging to try and bring back the soc below the next max constraint
-        return discharge_schedule
+        return idle_after_reaching_target(discharge_schedule, device_constraints["max"])
     if (
         device_constraints["min"].first_valid_index() is not None
         and device_constraints["min"][device_constraints["min"].first_valid_index()] > 0
     ):
         # start charging to try and bring back the soc above the next min constraint
-        return charge_schedule
+        return idle_after_reaching_target(charge_schedule, device_constraints["min"])
     # stand idle
     return idle_schedule
+
+
+def idle_after_reaching_target(
+    schedule: pd.Series,
+    target: pd.Series,
+    initial_state: float = 0,
+) -> pd.Series:
+    """Stop planned (dis)charging after target is reached (or constraint is met)."""
+    first_target = target[target.first_valid_index()]
+    if first_target > initial_state:
+        schedule[schedule.cumsum() > first_target] = 0
+    else:
+        schedule[schedule.cumsum() < first_target] = 0
+    return schedule
