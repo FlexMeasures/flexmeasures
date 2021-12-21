@@ -109,6 +109,10 @@ class Config(object):
     ]
     FLEXMEASURES_MENU_LISTED_VIEW_ICONS: Dict[str, str] = {}
     FLEXMEASURES_MENU_LISTED_VIEW_TITLES: Dict[str, str] = {}
+    FLEXMEASURES_ASSET_TYPE_GROUPS = {
+        "renewables": ["solar", "wind"],
+        "EVSE": ["one-way_evse", "two-way_evse"],
+    }  # how to group assets by asset types
     FLEXMEASURES_LP_SOLVER: str = "cbc"
     FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(hours=2 * 24)

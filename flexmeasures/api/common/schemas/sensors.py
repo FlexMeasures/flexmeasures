@@ -1,3 +1,4 @@
+from flask import abort
 from marshmallow import fields
 
 from flexmeasures.api import FMValidationError
@@ -13,6 +14,21 @@ from flexmeasures.data.models.time_series import Sensor
 
 class EntityAddressValidationError(FMValidationError):
     status = "INVALID_DOMAIN"  # USEF error status
+
+
+class SensorIdField(fields.Integer):
+    """
+    Field that represents a sensor ID. It de-serializes from the sensor id to a sensor instance.
+    """
+
+    def _deserialize(self, sensor_id: int, attr, obj, **kwargs) -> Sensor:
+        sensor: Sensor = Sensor.query.filter_by(id=int(sensor_id)).one_or_none()
+        if sensor is None:
+            raise abort(404, f"Sensor {sensor_id} not found")
+        return sensor
+
+    def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
+        return sensor.id
 
 
 class SensorField(fields.Str):

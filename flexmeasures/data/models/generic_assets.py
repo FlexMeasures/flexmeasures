@@ -1,4 +1,8 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
+
+from flask_security import current_user
+from sqlalchemy.orm import Session
+from sqlalchemy.engine import Row
 
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
@@ -6,6 +10,8 @@ from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict
 
 from flexmeasures.data import db
+from flexmeasures.data.models.user import User
+from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.utils import geo_utils
 
 
@@ -20,7 +26,7 @@ class GenericAssetType(db.Model):
     description = db.Column(db.String(80), nullable=True, unique=False)
 
 
-class GenericAsset(db.Model):
+class GenericAsset(db.Model, AuthModelMixin):
     """An asset is something that has economic value.
 
     Examples of tangible assets: a house, a ship, a weather station.
@@ -41,6 +47,23 @@ class GenericAsset(db.Model):
         foreign_keys=[generic_asset_type_id],
         backref=db.backref("generic_assets", lazy=True),
     )
+
+    def __acl__(self):
+        """
+        Within same account, everyone can read and update.
+        Creation and deletion are left to site admins in CLI.
+
+        TODO: needs an iteration
+        """
+        return {
+            "read": f"account:{self.account_id}",
+            "update": f"account:{self.account_id}",
+        }
+
+    @property
+    def asset_type(self) -> GenericAssetType:
+        """ This property prepares for dropping the "generic" prefix later"""
+        return self.generic_asset_type
 
     account_id = db.Column(
         db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
@@ -116,6 +139,16 @@ class GenericAsset(db.Model):
         if self.has_attribute(attribute):
             self.attributes[attribute] = value
 
+    @property
+    def has_power_sensors(self) -> bool:
+        """True if at least one power sensor is attached"""
+        return any([s.measures_power for s in self.sensors])
+
+    @property
+    def has_energy_sensors(self) -> bool:
+        """True if at least one power energy is attached"""
+        return any([s.measures_energy for s in self.sensors])
+
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     """Create a GenericAsset and assigns it an id.
@@ -150,3 +183,37 @@ def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     db.session.add(new_generic_asset)
     db.session.flush()  # generates the pkey for new_generic_asset
     return new_generic_asset
+
+
+def assets_share_location(assets: List[GenericAsset]) -> bool:
+    """
+    Return True if all assets in this list are located on the same spot.
+    TODO: In the future, we might soften this to compare if assets are in the same "housing" or "site".
+    """
+    if not assets:
+        return True
+    return all([a.location == assets[0].location for a in assets])
+
+
+def get_center_location_of_assets(
+    db: Session, user: Optional[User]
+) -> Tuple[float, float]:
+    """
+    Find the center position between all generic assets of the user's account.
+    """
+    query = (
+        "Select (min(latitude) + max(latitude)) / 2 as latitude,"
+        " (min(longitude) + max(longitude)) / 2 as longitude"
+        " from generic_asset"
+    )
+    if user is None:
+        user = current_user
+    query += f" where generic_asset.account_id = {user.account_id}"
+    locations: List[Row] = db.session.execute(query + ";").fetchall()
+    if (
+        len(locations) == 0
+        or locations[0].latitude is None
+        or locations[0].longitude is None
+    ):
+        return 52.366, 4.904  # Amsterdam, NL
+    return locations[0].latitude, locations[0].longitude

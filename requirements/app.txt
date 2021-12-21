@@ -21,6 +21,10 @@ attrs==21.2.0
     #   jsonschema
     #   outcome
     #   trio
+backports.zoneinfo==0.2.1
+    # via
+    #   pytz-deprecation-shim
+    #   tzlocal
 bcrypt==3.2.0
     # via -r requirements/app.in
 beautifulsoup4==4.10.0
@@ -136,7 +140,10 @@ idna==3.3
 importlib-metadata==4.8.1
     # via
     #   -r requirements/app.in
+    #   alembic
     #   timely-beliefs
+importlib-resources==5.4.0
+    # via alembic
 inflect==5.3.0
     # via -r requirements/app.in
 inflection==0.5.1
@@ -383,7 +390,9 @@ wtforms==2.3.3
 xlrd==2.0.1
     # via -r requirements/app.in
 zipp==3.6.0
-    # via importlib-metadata
+    # via
+    #   importlib-metadata
+    #   importlib-resources
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

@@ -12,9 +12,12 @@ from flexmeasures.data.services.resources import (
     get_center_location,
 )
 
+"""
+Note: This view is deprecated.
+"""
 
-# Dashboard (default root view, see utils/app_utils.py)
-@flexmeasures_ui.route("/dashboard")
+
+@flexmeasures_ui.route("/legacy-dashboard")
 @login_required
 def dashboard_view():
     """Dashboard view.

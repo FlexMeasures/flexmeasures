@@ -9,6 +9,7 @@ from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
 import timely_beliefs.utils as tb_utils
 
+from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.data.config import db
 from flexmeasures.data.queries.utils import (
     create_beliefs_query,
@@ -20,6 +21,7 @@ from flexmeasures.data.services.time_series import (
     aggregate_values,
 )
 from flexmeasures.utils.entity_address_utils import build_entity_address
+from flexmeasures.utils.unit_utils import is_energy_unit, is_power_unit
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -28,7 +30,7 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
-class Sensor(db.Model, tb.SensorDBMixin):
+class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     """A sensor measures events. """
 
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
@@ -67,6 +69,18 @@ class Sensor(db.Model, tb.SensorDBMixin):
             kwargs["attributes"] = attributes
         db.Model.__init__(self, **kwargs)
 
+    def __acl__(self):
+        """
+        Within same account, everyone can read and update.
+        Creation and deletion are left to site admins in CLI.
+
+        TODO: needs an iteration
+        """
+        return {
+            "read": f"account:{self.generic_asset.account_id}",
+            "update": f"account:{self.generic_asset.account_id}",
+        }
+
     @property
     def entity_address(self) -> str:
         return build_entity_address(dict(sensor_id=self.id), "sensor")
@@ -76,6 +90,16 @@ class Sensor(db.Model, tb.SensorDBMixin):
         location = (self.get_attribute("latitude"), self.get_attribute("longitude"))
         if None not in location:
             return location
+
+    @property
+    def measures_power(self) -> bool:
+        """True if this sensor's unit is measuring power"""
+        return is_power_unit(self.unit)
+
+    @property
+    def measures_energy(self) -> bool:
+        """True if this sensor's unit is measuring energy"""
+        return is_energy_unit(self.unit)
 
     @property
     def is_strictly_non_positive(self) -> bool:
@@ -458,6 +482,8 @@ class TimedValue(object):
     """
     A mixin of all tables that store time series data, either forecasts or measurements.
     Represents one row.
+
+    Note: This will be deprecated in favour of Timely-Beliefs - based code (see Sensor/TimedBelief)
     """
 
     @declared_attr

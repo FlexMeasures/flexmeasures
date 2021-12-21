@@ -197,6 +197,14 @@ Interval in which viewing the queues dashboard refreshes itself, in milliseconds
 Default: ``3000`` (3 seconds) 
 
 
+FLEXMEASURES_ASSET_TYPE_GROUPS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How to group asset types together, e.g. in a dashboard.
+
+Default: ``{"renewables": ["solar", "wind"], "EVSE": ["one-way_evse", "two-way_evse"]}``
+
+
 Timing
 ------
 
