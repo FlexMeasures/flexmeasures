@@ -176,10 +176,14 @@ def fallback_charging_policy(
     return idle_schedule
 
 
-def idle_after_reaching_target(schedule: pd.Series, target: pd.Series) -> pd.Series:
+def idle_after_reaching_target(
+    schedule: pd.Series,
+    target: pd.Series,
+    initial_state: float = 0,
+) -> pd.Series:
     """Stop planned (dis)charging after target is reached (or constraint is met)."""
     first_target = target[target.first_valid_index()]
-    if first_target > 0:
+    if first_target > initial_state:
         schedule[schedule.cumsum() > first_target] = 0
     else:
         schedule[schedule.cumsum() < first_target] = 0
