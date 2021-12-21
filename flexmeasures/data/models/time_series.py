@@ -21,6 +21,7 @@ from flexmeasures.data.services.time_series import (
     aggregate_values,
 )
 from flexmeasures.utils.entity_address_utils import build_entity_address
+from flexmeasures.utils.unit_utils import is_energy_unit, is_power_unit
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -97,6 +98,16 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         if None not in (self.latitude, self.longitude):
             return self.latitude, self.longitude
         return None
+
+    @property
+    def measures_power(self) -> bool:
+        """True if this sensor's unit is measuring power"""
+        return is_power_unit(self.unit)
+
+    @property
+    def measures_energy(self) -> bool:
+        """True if this sensor's unit is measuring energy"""
+        return is_energy_unit(self.unit)
 
     @property
     def is_strictly_non_positive(self) -> bool:

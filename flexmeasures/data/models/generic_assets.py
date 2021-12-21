@@ -12,7 +12,6 @@ from sqlalchemy.ext.mutable import MutableDict
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User
 from flexmeasures.auth.policy import AuthModelMixin
-from flexmeasures.utils.unit_utils import is_power_unit
 from flexmeasures.utils import geo_utils
 
 
@@ -140,9 +139,15 @@ class GenericAsset(db.Model, AuthModelMixin):
         if self.has_attribute(attribute):
             self.attributes[attribute] = value
 
+    @property
     def has_power_sensors(self) -> bool:
         """True if at least one power sensor is attached"""
-        return any([is_power_unit(s.unit) for s in self.sensors])
+        return any([s.measures_power for s in self.sensors])
+
+    @property
+    def has_energy_sensors(self) -> bool:
+        """True if at least one power sensor is attached"""
+        return any([s.measures_energy for s in self.sensors])
 
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:

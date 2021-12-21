@@ -30,3 +30,13 @@ def is_power_unit(unit: str) -> bool:
     >>> is_power_unit("EUR/kWh")  # False
     """
     return unit in ("W", "kW", "MW")
+
+
+def is_energy_unit(unit: str) -> bool:
+    """For example:
+    >>> is_power_unit("kW")  # False
+    >>> is_power_unit("°C")  # False
+    >>> is_power_unit("kWh")  # True
+    >>> is_power_unit("EUR/kWh")  # False
+    """
+    return unit in ("Wh", "kWh", "MWh")
