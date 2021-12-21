@@ -8,125 +8,62 @@
 
 <div class="container-fluid">
     <div class="row">
-        <div class="col-sm-4 top-bottom">
-            <h3>About</h3>
-            <div class="justify">
-                <p>
-                    In a world with renewable energy, flexibility is crucial for cost and CO₂ reduction.
-                    Planning ahead allows flexible devices to profit from scheduling the best flexible
-                    actions (such as shifting or curtailing energy use).
-                </p>
-                <p>
-                    The {{ FLEXMEASURES_PLATFORM_NAME }} Platform is a tool for businesses operating electric devices.
-                    Its purpose is to realise the best value for device owners by scheduling balancing actions.
-                    If the devices draw from or supply to the power grid, {{ FLEXMEASURES_PLATFORM_NAME }} can assist in
-                    selling balancing services to energy markets.
-                    It fulfills this purpose with three services: Monitoring, forecasting and scheduling.
-                    {{ FLEXMEASURES_PLATFORM_NAME }} is designed as open-source software to empower energy service
-                    companies while they
-                    maintain autonomy over their operations and their technology roadmap.
-                </p>
-                <p>
-                    {{ FLEXMEASURES_PLATFORM_NAME }} is compliant with the Universal Smart Energy Framework (<a
-                        href="https://www.usef.energy/download-the-framework/a-flexibility-market-design/">USEF</a>), a
-                    “flexibility market design for the trading and commoditisation of energy flexibility and the
-                    architecture, tools and rules to make it work effectively.
-                    USEF fits on top of most market models and is already being adopted across Europe to accelerate and
-                    future-proof smart energy projects.”
-                </p>
-                {% if current_user.has_role('anonymous') and current_user.has_role('CPO') %}
-                <p>
-                    This demo is tuned to operators of charge points for electric vehicles (EVs).
-                    The terminology used follows the Open Charge Point Interface (<a
-                        href="https://ocpi-protocol.org/">OCPI</a>).
-                    This dashboard shows you the locations of all charge points connected to the platform and how they
-                    are doing.
-                    Each charge point contains multiple chargers&mdash;called Electric Vehicle Supply Equipment (EVSE)
-                    in OCPI&mdash;which are monitored individually (click on a charge point location to reveal its
-                    EVSE).
-                </p>
-                <p>
-                    {{ FLEXMEASURES_PLATFORM_NAME }} supports automated scheduling of charging profiles through its API.
-                    Charging profiles are optimised against applicable market conditions like wholesale prices and
-                    contracted (time-of-use) tariffs.
-                    Charging preferences can be set to reflect whether EV owners are in a hurry or parking for some
-                    time.
-                </p>
-                {% else %}
-                <p>
-                    This dashboard shows you the locations of all your devices connected to the platform and how they
-                    are doing.
-                </p>
-                {% endif %}
-                {% if documentation_exists %}
-                <p>
-                    Need help understanding this page? Check out the
-                    <a href="{{ url_for('flexmeasures_ui.static', filename='documentation/html/views/dashboard.html') }}"
-                        target="_blank">documentation</a>.
-                </p>
-                {% endif %}
-            </div>
-        </div>
-        <div class="col-sm-8">
-            <div class="row eq-height">
-                <div class="col-sm-12">
-                    <h3>
-                        {% if user_is_admin %}{{ FLEXMEASURES_PLATFORM_NAME }} ― asset status:
-                        {% else %}Status of my assets:{% endif%}
-                    </h3>
+        <div class="col-sm-12">
+            <h3>
+                {% if user_is_admin %}{{ FLEXMEASURES_PLATFORM_NAME }} ― asset status:
+                {% else %}Status of my assets:{% endif%}
+            </h3>
 
-                    <div id="mapid"></div>
+            <div id="mapid"></div>
 
-                    <table class="table" style="font-size: 100%;">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
-                                {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
-                                <th {% if asset_groups[asset_group_name].hover_label %}
-                                    title="{{ asset_groups[asset_group_name].hover_label | capitalize }}" {% endif %}
-                                    class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}"><a
-                                        href="analytics?resource={{ asset_group_name }}">{{ asset_group_name | capitalize }}</a>
-                                </th>
-                                {% endfor %}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td></td>
+            <table class="table" style="font-size: 100%;">
+                <thead>
+                    <tr>
+                        <th></th>
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
+                        <th {% if asset_groups[asset_group_name].hover_label %}
+                            title="{{ asset_groups[asset_group_name].hover_label | capitalize }}" {% endif %}
+                            class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}"><a
+                                href="analytics?resource={{ asset_group_name }}">{{ asset_group_name | capitalize }}</a>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td></td>
 
-                                {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
-                                <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
-                                    <div style="min-height: 20px; padding:15px;">
-                                        <i class="{{ asset_group_name | asset_icon }} center-icon"></i>
-                                    </div>
-                                </td>
-                                {% endfor %}
-                            </tr>
-                            {% if not user_is_admin %}
-                            <tr>
-                                <td>My assets:</td>
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+                            <div style="min-height: 20px; padding:15px;">
+                                <i class="{{ asset_group_name | asset_icon }} center-icon"></i>
+                            </div>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% if not user_is_admin %}
+                    <tr>
+                        <td>My assets:</td>
 
-                                {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
-                                <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
-                                    {{ asset_groups[asset_group_name].count }}</td>
-                                {% endfor %}
-                            </tr>
-                            {% endif %}
-                            {% if user_is_admin or FLEXMEASURES_MODE == "demo" %}
-                            <tr>
-                                <td>{{ FLEXMEASURES_PLATFORM_NAME }} total:</td>
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+                            {{ asset_groups[asset_group_name].count }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endif %}
+                    {% if user_is_admin or FLEXMEASURES_MODE == "demo" %}
+                    <tr>
+                        <td>{{ FLEXMEASURES_PLATFORM_NAME }} total:</td>
 
-                                {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
-                                <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
-                                    {{ asset_groups[asset_group_name].count }}</td>
-                                {% endfor %}
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+                            {{ asset_groups[asset_group_name].count }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
