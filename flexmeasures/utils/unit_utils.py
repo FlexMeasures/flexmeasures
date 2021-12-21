@@ -24,8 +24,9 @@ def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
 
 def is_power_unit(unit: str) -> bool:
     """For example:
-    >>> is_power_unit("kWh")  # True
+    >>> is_power_unit("kW")  # True
     >>> is_power_unit("°C")  # False
-    >>> is_power_unit("EUR/kWh")  # True
+    >>> is_power_unit("kWh")  # False
+    >>> is_power_unit("EUR/kWh")  # False
     """
-    return unit in ("W", "Wh", "kW", "kWh", "MW", "MWh")
+    return unit in ("W", "kW", "MW")
