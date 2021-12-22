@@ -147,7 +147,7 @@ class SensorDataSchema(SensorDataDescriptionSchema):
             if scalar.dimensionality == u.Quantity("h").dimensionality:
                 multiplier = scalar.to_timedelta() / data["sensor"].event_resolution
             else:
-                multiplier = scalar.magnitude
+                multiplier = scalar.to_reduced_units().magnitude
             data["values"] = [multiplier * value for value in data["values"]]
         return data
 
