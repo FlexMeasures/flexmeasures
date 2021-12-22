@@ -57,7 +57,7 @@ def to_preferred(x):
 
 def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
     """For example:
-    >>> determine_flow_unit("m3")  # m3/h
+    >>> determine_flow_unit("m³")  # m³/h
     >>> determine_flow_unit("kWh")  # kW
     """
     flow = to_preferred(u.Quantity(stock_unit) / u.Quantity(time_unit))
@@ -66,7 +66,7 @@ def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
 
 def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
     """For example:
-    >>> determine_stock_unit("m3/h")  # m3
+    >>> determine_stock_unit("m³/h")  # m³
     >>> determine_stock_unit("kW")  # kWh
     """
     stock = to_preferred(u.Quantity(flow_unit) * u.Quantity(time_unit))
