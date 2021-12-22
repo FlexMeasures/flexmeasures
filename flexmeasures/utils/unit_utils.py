@@ -78,16 +78,16 @@ def is_power_unit(unit: str) -> bool:
     >>> is_power_unit("kW")  # True
     >>> is_power_unit("°C")  # False
     >>> is_power_unit("kWh")  # False
-    >>> is_power_unit("EUR/kWh")  # False
+    >>> is_power_unit("EUR/MWh")  # False
     """
     return u.Quantity(unit).dimensionality == u.Quantity("W").dimensionality
 
 
 def is_energy_unit(unit: str) -> bool:
     """For example:
-    >>> is_power_unit("kW")  # False
-    >>> is_power_unit("°C")  # False
-    >>> is_power_unit("kWh")  # True
-    >>> is_power_unit("EUR/kWh")  # False
+    >>> is_energy_unit("kW")  # False
+    >>> is_energy_unit("°C")  # False
+    >>> is_energy_unit("kWh")  # True
+    >>> is_energy_unit("EUR/MWh")  # False
     """
     return u.Quantity(unit).dimensionality == u.Quantity("Wh").dimensionality
