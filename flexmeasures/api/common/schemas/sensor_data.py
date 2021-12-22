@@ -13,6 +13,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.utils.unit_utils import u
 
 
 class SingleValueField(fields.Float):
@@ -81,13 +82,25 @@ class SensorDataDescriptionSchema(ma.Schema):
 
     @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
-        # TODO: technically, there are compatible units, like kWh and kW.
-        #       They could be allowed here, and the SensorDataSchema could
-        #       even convert values to the sensor's unit if possible.
-        if data["unit"] != data["sensor"].unit:
-            raise ValidationError(
-                f"Required unit for this sensor is {data['sensor'].unit}, got: {data['unit']}"
-            )
+        """Allows units compatible with that of the sensor.
+        For example, a sensor with W units allows data to be posted with units:
+        - W, kW, MW, etc. (i.e. units with different prefixes)
+        - J/s, Nm/s, etc. (i.e. units that can be converted using some multiplier)
+        - Wh, kWh, etc. (i.e. units that represent a stock delta, which knowing the duration can be converted to a flow)
+        For compatible units, the SensorDataSchema converts values to the sensor's unit.
+        """
+        posted_unit = data["unit"]
+        required_unit = data["sensor"].unit
+
+        if posted_unit != required_unit:
+            scalar = u.Quantity(posted_unit) / u.Quantity(required_unit)
+            if scalar.dimensionality not in (
+                u.Quantity("h").dimensionality,
+                u.Quantity("dimensionless").dimensionality,
+            ):
+                raise ValidationError(
+                    f"Required unit for this sensor is {data['sensor'].unit}, got incompatible unit: {data['unit']}"
+                )
 
 
 class SensorDataSchema(SensorDataDescriptionSchema):
@@ -119,6 +132,24 @@ class SensorDataSchema(SensorDataDescriptionSchema):
             raise ValidationError(
                 f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
             )
+
+    @post_load()
+    def possibly_convert_units(self, data, **kwargs):
+        """
+        Convert values if needed, to fit the sensor's unit.
+        Marshmallow runs this after validation.
+        """
+        posted_unit = data["unit"]
+        required_unit = data["sensor"].unit
+
+        if posted_unit != required_unit:
+            scalar = u.Quantity(posted_unit) / u.Quantity(required_unit)
+            if scalar.dimensionality == u.Quantity("h").dimensionality:
+                multiplier = scalar.to_timedelta() / data["sensor"].event_resolution
+            else:
+                multiplier = scalar.magnitude
+            data["values"] = [multiplier * value for value in data["values"]]
+        return data
 
     @post_load()
     def possibly_upsample_values(self, data, **kwargs):

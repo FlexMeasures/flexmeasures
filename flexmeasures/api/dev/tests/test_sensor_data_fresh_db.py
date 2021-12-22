@@ -35,4 +35,5 @@ def test_post_sensor_data(
     beliefs = TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).all()
     print(f"BELIEFS AFTER: {beliefs}")
     assert len(beliefs) == expected_num_values
-    assert beliefs[0].event_value == -11.28
+    # check that values in units of m³ are scaled to the sensor unit of m³/h correctly (6 * 10-min intervals per hour)
+    assert beliefs[0].event_value == -11.28 * 6
