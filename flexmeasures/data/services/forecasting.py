@@ -245,7 +245,7 @@ def make_rolling_viewpoint_forecasts(
     click.echo("Job %s made %d forecasts." % (rq_job.id, len(forecasts)))
 
     ts_value_forecasts = [
-        timed_value_type(
+        Power(
             use_legacy_kwargs=False,
             event_start=dt,
             belief_horizon=horizon,
