@@ -364,16 +364,10 @@ def populate_time_series_forecasts(  # noqa: C901
                 db.session.add(belief)
 
     click.echo(
-        "DB now has %d Power Forecasts"
-        % db.session.query(Power).filter(Power.horizon > timedelta(hours=0)).count()
-    )
-    click.echo(
-        "DB now has %d Price Forecasts"
-        % db.session.query(Price).filter(Price.horizon > timedelta(hours=0)).count()
-    )
-    click.echo(
-        "DB now has %d Weather Forecasts"
-        % db.session.query(Weather).filter(Weather.horizon > timedelta(hours=0)).count()
+        "DB now has %d forecasts"
+        % db.session.query(TimedBelief)
+        .filter(TimedBelief.belief_horizon > timedelta(hours=0))
+        .count()
     )
 
 
