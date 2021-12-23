@@ -411,186 +411,45 @@ def depopulate_structure(db: SQLAlchemy):
 @as_transaction
 def depopulate_measurements(
     db: SQLAlchemy,
-    old_sensor_class_name: Optional[str] = None,
-    old_sensor_id: Optional[id] = None,
+    sensor_id: Optional[id] = None,
 ):
-    click.echo("Depopulating (time series) data from the database %s ..." % db.engine)
-    num_prices_deleted = 0
-    num_power_measurements_deleted = 0
-    num_weather_measurements_deleted = 0
+    click.echo("Deleting (time series) data from the database %s ..." % db.engine)
 
-    # TODO: simplify this when sensors moved to one unified table
+    query = db.session.query(TimedBelief).filter(
+        TimedBelief.belief_horizon <= timedelta(hours=0)
+    )
+    if sensor_id is not None:
+        query = query.filter(TimedBelief.sensor_id == sensor_id)
+    num_measurements_deleted = query.delete()
 
-    if old_sensor_id is None:
-        if old_sensor_class_name is None or old_sensor_class_name == "Market":
-            num_prices_deleted = (
-                db.session.query(Price)
-                .filter(Price.horizon <= timedelta(hours=0))
-                .delete()
-            )
-        if old_sensor_class_name is None or old_sensor_class_name == "Asset":
-            num_power_measurements_deleted = (
-                db.session.query(Power)
-                .filter(Power.horizon <= timedelta(hours=0))
-                .delete()
-            )
-        if old_sensor_class_name is None or old_sensor_class_name == "WeatherSensor":
-            num_weather_measurements_deleted = (
-                db.session.query(Weather)
-                .filter(Weather.horizon <= timedelta(hours=0))
-                .delete()
-            )
-    else:
-        if old_sensor_class_name is None:
-            click.echo(
-                "If you specify --asset-name, please also specify --asset-type, so we can look it up."
-            )
-            return
-        if old_sensor_class_name == "Market":
-            market = (
-                db.session.query(Market)
-                .filter(Market.id == old_sensor_id)
-                .one_or_none()
-            )
-            if market is not None:
-                num_prices_deleted = (
-                    db.session.query(Price)
-                    .filter(Price.horizon <= timedelta(hours=0))
-                    .filter(Price.sensor_id == market.id)
-                    .delete()
-                )
-            else:
-                num_prices_deleted = 0
-
-        elif old_sensor_class_name == "Asset":
-            asset = (
-                db.session.query(Asset).filter(Asset.id == old_sensor_id).one_or_none()
-            )
-            if asset is not None:
-                num_power_measurements_deleted = (
-                    db.session.query(Power)
-                    .filter(Power.horizon <= timedelta(hours=0))
-                    .filter(Power.sensor_id == asset.id)
-                    .delete()
-                )
-            else:
-                num_power_measurements_deleted = 0
-
-        elif old_sensor_class_name == "WeatherSensor":
-            sensor = (
-                db.session.query(WeatherSensor)
-                .filter(WeatherSensor.id == old_sensor_id)
-                .one_or_none()
-            )
-            if sensor is not None:
-                num_weather_measurements_deleted = (
-                    db.session.query(Weather)
-                    .filter(Weather.horizon <= timedelta(hours=0))
-                    .filter(Weather.sensor_id == sensor.id)
-                    .delete()
-                )
-            else:
-                num_weather_measurements_deleted = 0
-
-    click.echo("Deleted %d Prices" % num_prices_deleted)
-    click.echo("Deleted %d Power Measurements" % num_power_measurements_deleted)
-    click.echo("Deleted %d Weather Measurements" % num_weather_measurements_deleted)
+    click.echo("Deleted %d measurements (ex-post beliefs)" % num_measurements_deleted)
 
 
 @as_transaction
 def depopulate_prognoses(
     db: SQLAlchemy,
-    old_sensor_class_name: Optional[str] = None,
-    old_sensor_id: Optional[id] = None,
+    sensor_id: Optional[id] = None,
 ):
     click.echo(
-        "Depopulating (time series) forecasts and schedules data from the database %s ..."
+        "Deleting (time series) forecasts and schedules data from the database %s ..."
         % db.engine
     )
-    num_prices_deleted = 0
-    num_power_measurements_deleted = 0
-    num_weather_measurements_deleted = 0
 
     # Clear all jobs
     num_forecasting_jobs_deleted = app.queues["forecasting"].empty()
     num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
 
     # Clear all forecasts (data with positive horizon)
-    if old_sensor_id is None:
-        if old_sensor_class_name is None or old_sensor_class_name == "Market":
-            num_prices_deleted = (
-                db.session.query(Price)
-                .filter(Price.horizon > timedelta(hours=0))
-                .delete()
-            )
-        if old_sensor_class_name is None or old_sensor_class_name == "Asset":
-            num_power_measurements_deleted = (
-                db.session.query(Power)
-                .filter(Power.horizon > timedelta(hours=0))
-                .delete()
-            )
-        if old_sensor_class_name is None or old_sensor_class_name == "WeatherSensor":
-            num_weather_measurements_deleted = (
-                db.session.query(Weather)
-                .filter(Weather.horizon > timedelta(hours=0))
-                .delete()
-            )
-    else:
-        click.echo(
-            "Depopulating (time series) forecasts and schedules for %s from the database %s ..."
-            % (old_sensor_id, db.engine)
-        )
+    query = db.session.query(TimedBelief).filter(
+        TimedBelief.belief_horizon > timedelta(hours=0)
+    )
+    if sensor_id is not None:
+        query = query.filter(TimedBelief.sensor_id == sensor_id)
+    num_forecasts_deleted = query.delete()
 
-        if old_sensor_class_name == "Market":
-            market = (
-                db.session.query(Market)
-                .filter(Market.id == old_sensor_id)
-                .one_or_none()
-            )
-            if market is not None:
-                num_prices_deleted = (
-                    db.session.query(Price)
-                    .filter(Price.horizon > timedelta(hours=0))
-                    .filter(Price.sensor_id == market.id)
-                    .delete()
-                )
-            else:
-                num_prices_deleted = 0
-
-        if old_sensor_class_name == "Asset":
-            asset = (
-                db.session.query(Asset).filter(Asset.id == old_sensor_id).one_or_none()
-            )
-            if asset is not None:
-                num_power_measurements_deleted = (
-                    db.session.query(Power)
-                    .filter(Power.horizon > timedelta(hours=0))
-                    .filter(Power.sensor_id == asset.id)
-                    .delete()
-                )
-            else:
-                num_power_measurements_deleted = 0
-
-        if old_sensor_class_name == "WeatherSensor":
-            sensor = (
-                db.session.query(WeatherSensor)
-                .filter(WeatherSensor.id == old_sensor_id)
-                .one_or_none()
-            )
-            if sensor is not None:
-                num_weather_measurements_deleted = (
-                    db.session.query(Weather)
-                    .filter(Weather.horizon > timedelta(hours=0))
-                    .filter(Weather.sensor_id == sensor.id)
-                    .delete()
-                )
-            else:
-                num_weather_measurements_deleted = 0
     click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
     click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
-    click.echo("Deleted %d Price Forecasts" % num_prices_deleted)
-    click.echo("Deleted %d Power Forecasts" % num_power_measurements_deleted)
-    click.echo("Deleted %d Weather Forecasts" % num_weather_measurements_deleted)
+    click.echo("Deleted %d forecasts (ex-ante beliefs)" % num_forecasts_deleted)
 
 
 def reset_db(db: SQLAlchemy):
@@ -706,5 +565,5 @@ def get_affected_classes(structure: bool = True, data: bool = False) -> List:
             DataSource,
         ]
     if data:
-        affected_classes += [TimedBelief, Power, Price, Weather]
+        affected_classes += [TimedBelief]
     return affected_classes
