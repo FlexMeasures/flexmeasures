@@ -99,11 +99,12 @@ def post_price_data_response(  # noqa C901
             prices.extend(
                 [
                     Price(
-                        datetime=event_start,
-                        value=event_value,
-                        horizon=belief_horizon,
-                        sensor_id=sensor.id,
-                        data_source_id=data_source.id,
+                        use_legacy_kwargs=False,
+                        event_start=event_start,
+                        event_value=event_value,
+                        belief_horizon=belief_horizon,
+                        sensor=sensor,
+                        source=data_source,
                     )
                     for event_start, event_value, belief_horizon in zip(
                         event_starts, event_values, belief_horizons

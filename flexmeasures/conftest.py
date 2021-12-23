@@ -395,11 +395,12 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
     values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
     for dt, val in zip(time_slots, values):
         p = Price(
-            datetime=as_server_time(dt),
-            horizon=timedelta(hours=0),
-            value=val,
-            data_source_id=setup_sources["Seita"].id,
-            market_id=setup_markets["epex_da"].id,
+            use_legacy_kwargs=False,
+            event_start=as_server_time(dt),
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da"].corresponding_sensor,
         )
         db.session.add(p)
 
@@ -410,11 +411,12 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
     values = [100] * 8 * 4 + [90] * 8 * 4 + [100] * 8 * 4
     for dt, val in zip(time_slots, values):
         p = Price(
-            datetime=as_server_time(dt),
-            horizon=timedelta(hours=0),
-            value=val,
-            data_source_id=setup_sources["Seita"].id,
-            sensor_id=setup_markets["epex_da"].id,
+            use_legacy_kwargs=False,
+            event_start=as_server_time(dt),
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["Seita"],
+            sensor=setup_markets["epex_da"].corresponding_sensor,
         )
         db.session.add(p)
 
