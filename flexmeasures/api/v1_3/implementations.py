@@ -156,6 +156,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 event_ends_before=schedule_start + planning_horizon,
                 source=scheduler_source,
                 most_recent_beliefs_only=True,
+                one_deterministic_belief_per_event=True,
             )
             # For consumption schedules, positive values denote consumption. For the db, consumption is negative
             consumption_schedule = -simplify_index(power_values)["event_value"]
