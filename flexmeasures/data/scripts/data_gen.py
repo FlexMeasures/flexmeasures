@@ -322,11 +322,12 @@ def populate_time_series_forecasts(  # noqa: C901
             if isinstance(old_sensor, Asset):
                 beliefs = [
                     Power(
-                        datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
-                        horizon=horizon,
-                        value=value,
-                        asset_id=old_sensor.id,
-                        data_source_id=data_source.id,
+                        use_legacy_kwargs=False,
+                        event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
+                        belief_horizon=horizon,
+                        event_value=value,
+                        sensor=old_sensor.corresponding_sensor,
+                        source=data_source,
                     )
                     for dt, value in forecasts.items()
                 ]

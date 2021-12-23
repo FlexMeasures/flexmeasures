@@ -356,12 +356,13 @@ def post_power_data(
             power_measurements.extend(
                 [
                     Power(
-                        datetime=event_start,
-                        value=event_value
+                        use_legacy_kwargs=False,
+                        event_start=event_start,
+                        event_value=event_value
                         * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
-                        horizon=belief_horizon,
-                        sensor_id=sensor_id,
-                        data_source_id=data_source.id,
+                        belief_horizon=belief_horizon,
+                        sensor=sensor,
+                        source=data_source,
                     )
                     for event_start, event_value, belief_horizon in zip(
                         event_starts, event_values, belief_horizons

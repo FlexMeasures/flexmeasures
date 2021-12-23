@@ -301,12 +301,13 @@ def create_connection_and_value_groups(  # noqa: C901
                         (start + duration) - (dt + duration / len(value_group))
                     )
                 p = Power(
-                    datetime=dt,
-                    value=value
+                    use_legacy_kwargs=False,
+                    event_start=dt,
+                    event_value=value
                     * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
-                    horizon=h,
-                    sensor_id=sensor_id,
-                    data_source_id=data_source.id,
+                    belief_horizon=h,
+                    sensor=sensor,
+                    source=data_source,
                 )
                 power_measurements.append(p)
 

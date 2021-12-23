@@ -337,11 +337,12 @@ def setup_assets(
         ]
         for dt, val in zip(time_slots, values):
             p = Power(
-                datetime=as_server_time(dt),
-                horizon=parse_duration("PT0M"),
-                value=val,
-                data_source_id=setup_sources["Seita"].id,
-                asset_id=asset.id,
+                use_legacy_kwargs=False,
+                event_start=as_server_time(dt),
+                belief_horizon=parse_duration("PT0M"),
+                event_value=val,
+                sensor=asset.corresponding_sensor,
+                source=setup_sources["Seita"],
             )
             db.session.add(p)
     return {asset.name: asset for asset in assets}

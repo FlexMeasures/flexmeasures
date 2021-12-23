@@ -146,11 +146,12 @@ def make_schedule(
 
     ts_value_schedule = [
         Power(
-            datetime=dt,
-            horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
-            value=-value,
-            sensor_id=asset_id,
-            data_source_id=data_source.id,
+            use_legacy_kwargs=False,
+            event_start=dt,
+            belief_horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
+            event_value=-value,
+            sensor=sensor,
+            source=data_source,
         )
         for dt, value in consumption_schedule.items()
     ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
