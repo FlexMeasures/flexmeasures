@@ -343,6 +343,7 @@ def populate_time_series_forecasts(  # noqa: C901
             elif isinstance(old_sensor, WeatherSensor):
                 beliefs = [
                     Weather(
+                        use_legacy_kwargs=False,
                         event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         belief_horizon=horizon,
                         event_value=value,

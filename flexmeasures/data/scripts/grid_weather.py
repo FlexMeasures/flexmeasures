@@ -417,6 +417,7 @@ def save_forecasts_in_db(
 
                     db_forecasts.append(
                         Weather(
+                            use_legacy_kwargs=False,
                             event_start=fc_datetime,
                             belief_horizon=fc_horizon,
                             event_value=fc_value,

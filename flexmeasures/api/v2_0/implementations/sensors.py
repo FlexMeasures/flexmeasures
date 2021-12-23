@@ -186,6 +186,7 @@ def post_weather_data_response(  # noqa: C901
             weather_measurements.extend(
                 [
                     Weather(
+                        use_legacy_kwargs=False,
                         event_start=event_start,
                         event_value=event_value,
                         belief_horizon=belief_horizon,

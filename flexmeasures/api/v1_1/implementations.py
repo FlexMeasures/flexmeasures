@@ -198,6 +198,7 @@ def post_weather_data_response(  # noqa: C901
                         (start + duration) - (dt + duration / len(value_group))
                     )
                 w = Weather(
+                    use_legacy_kwargs=False,
                     event_start=dt,
                     event_value=value,
                     belief_horizon=h,

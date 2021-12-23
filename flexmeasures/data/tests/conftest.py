@@ -131,6 +131,7 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
         for dt, val in zip(time_slots, values):
             db.session.add(
                 Weather(
+                    use_legacy_kwargs=False,
                     sensor=sensor.corresponding_sensor,
                     event_start=as_server_time(dt),
                     event_value=val,

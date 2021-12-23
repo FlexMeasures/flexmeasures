@@ -258,18 +258,28 @@ class Weather(TimedValue, db.Model):
         """Construct the database query."""
         return super().make_query(**kwargs)
 
-    def __init__(self, **kwargs):
+    def __init__(self, use_legacy_kwargs: bool = True, **kwargs):
 
-        # Create corresponding TimedBelief
-        belief = TimedBelief(**kwargs)
-        db.session.add(belief)
+        # todo: deprecate the 'Weather' class in favor of 'TimedBelief' (announced v0.8.0)
+        if use_legacy_kwargs is False:
 
-        # Convert key names for legacy model
-        kwargs["value"] = kwargs.pop("event_value")
-        kwargs["datetime"] = kwargs.pop("event_start")
-        kwargs["horizon"] = kwargs.pop("belief_horizon")
-        kwargs["sensor_id"] = kwargs.pop("sensor").id
-        kwargs["data_source_id"] = kwargs.pop("source").id
+            # Create corresponding TimedBelief
+            belief = TimedBelief(**kwargs)
+            db.session.add(belief)
+
+            # Convert key names for legacy model
+            kwargs["value"] = kwargs.pop("event_value")
+            kwargs["datetime"] = kwargs.pop("event_start")
+            kwargs["horizon"] = kwargs.pop("belief_horizon")
+            kwargs["sensor_id"] = kwargs.pop("sensor").id
+            kwargs["data_source_id"] = kwargs.pop("source").id
+        else:
+            import warnings
+
+            warnings.warn(
+                f"The {self.__class__} class is deprecated. Switch to using the TimedBelief class to suppress this warning.",
+                FutureWarning,
+            )
 
         super(Weather, self).__init__(**kwargs)
 
