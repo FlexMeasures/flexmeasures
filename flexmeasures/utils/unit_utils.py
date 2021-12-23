@@ -61,7 +61,7 @@ def to_preferred(x):
 def determine_unit_conversion_multiplier(
     from_unit: str, to_unit: str, duration: Optional[timedelta] = None
 ):
-    scalar = u.Quantity(from_unit) / u.Quantity(to_unit)
+    scalar = u.Quantity(from_unit).to_base_units() / u.Quantity(to_unit).to_base_units()
     if scalar.dimensionality == u.Quantity("h").dimensionality:
         if duration is None:
             raise ValueError(
@@ -98,7 +98,7 @@ def units_are_convertible(
     >>> units_are_convertible("Wh", "W")  # True (units that represent a stock delta can, knowing the duration, be converted to a flow)
     >>> units_are_convertible("°C", "W")  # False
     """
-    scalar = u.Quantity(from_unit) / u.Quantity(to_unit)
+    scalar = u.Quantity(from_unit).to_base_units() / u.Quantity(to_unit).to_base_units()
     if duration_known:
         return scalar.dimensionality in (
             u.Quantity("h").dimensionality,
