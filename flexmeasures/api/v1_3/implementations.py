@@ -8,7 +8,6 @@ from flask import request, current_app
 import numpy as np
 import pandas as pd
 from rq.job import Job, NoSuchJobError
-from sqlalchemy import and_, func
 
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
@@ -39,9 +38,9 @@ from flexmeasures.api.common.utils.validators import (
     parse_isodate_str,
 )
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.services.resources import has_assets, can_access_asset
 from flexmeasures.data.services.scheduling import create_scheduling_job
 
@@ -152,46 +151,14 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     message + f'no data is known from "{schedule_data_source_name}".'
                 )
 
-            # todo: after moving the Asset's Power data to the corresponding Sensor's TimedBeliefs,
-            #       the query below should be replaced by:
-            #       sensor.search_beliefs(
-            #           event_starts_after=schedule_start,
-            #           event_ends_before=schedule_start + planning_horizon,
-            #           source=scheduler_source,
-            #           most_recent_beliefs_only=True,
-            #       )
-
-            # Subquery to get the most recent schedule only
-            subq = (
-                db.session.query(
-                    Power.datetime,
-                    Power.data_source_id,
-                    func.min(Power.horizon).label("most_recent_belief_horizon"),
-                )
-                .filter(Power.sensor_id == sensor_id)
-                .group_by(Power.datetime, Power.data_source_id)
-                .subquery()
+            power_values = sensor.search_beliefs(
+                event_starts_after=schedule_start,
+                event_ends_before=schedule_start + planning_horizon,
+                source=scheduler_source,
+                most_recent_beliefs_only=True,
             )
-            power_values = (
-                Power.query.filter(Power.sensor_id == sensor_id)
-                .filter(Power.data_source_id == scheduler_source.id)
-                .filter(Power.datetime >= schedule_start)
-                .filter(Power.datetime < schedule_start + planning_horizon)
-                .order_by(Power.datetime.asc())
-                .join(
-                    subq,
-                    and_(
-                        Power.datetime == subq.c.datetime,
-                        Power.data_source_id == subq.c.data_source_id,
-                        Power.horizon == subq.c.most_recent_belief_horizon,
-                    ),
-                )
-                .all()
-            )
-            consumption_schedule = pd.Series(
-                [-v.value for v in power_values],
-                index=pd.DatetimeIndex([v.datetime for v in power_values]),
-            )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+            # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+            consumption_schedule = -simplify_index(power_values)["event_value"]
             if consumption_schedule.empty:
                 return unknown_schedule(
                     message + "the schedule was not found in the database."
