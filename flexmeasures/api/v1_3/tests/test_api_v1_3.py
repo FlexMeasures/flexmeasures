@@ -12,9 +12,8 @@ from flexmeasures.api.v1_3.tests.utils import (
     message_for_get_device_message,
     message_for_post_udi_event,
 )
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.utils.calculations import integrate_time_series
@@ -97,13 +96,13 @@ def test_post_udi_event_and_get_device_message(
         scheduler_source is not None
     )  # Make sure the scheduler data source is now there
     power_values = (
-        Power.query.filter(Power.sensor_id == sensor.id)
-        .filter(Power.data_source_id == scheduler_source.id)
+        TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id)
+        .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
     consumption_schedule = pd.Series(
-        [-v.value for v in power_values],
-        index=pd.DatetimeIndex([v.datetime for v in power_values], freq=resolution),
+        [-v.event_value for v in power_values],
+        index=pd.DatetimeIndex([v.event_start for v in power_values], freq=resolution),
     )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
     assert (
         len(consumption_schedule)
