@@ -81,37 +81,23 @@ def verify_sensor_data_in_db(
         post_message[entity_type]
     )
     resolution = sensor.event_resolution
+    query = (
+        db.session.query(
+            TimedBelief.event_start,
+            TimedBelief.event_value,
+            TimedBelief.belief_horizon,
+        )
+        .filter(
+            (TimedBelief.event_start > start - resolution)
+            & (TimedBelief.event_start < end)
+        )
+        # .filter(TimedBelief.belief_horizon == (TimedBelief.event_start + resolution) - prior)  # only for sensors with 0-hour ex_post knowledge horizon function
+        .join(Sensor)
+        .filter(Sensor.name == sensor.name)
+    )
     if "horizon" in post_message:
         horizon = parse_duration(post_message["horizon"])
-        query = (
-            db.session.query(
-                TimedBelief.event_start,
-                TimedBelief.event_value,
-                TimedBelief.belief_horizon,
-            )
-            .filter(
-                (TimedBelief.event_start > start - resolution)
-                & (TimedBelief.event_start < end)
-            )
-            .filter(TimedBelief.belief_horizon == horizon)
-            .join(Sensor)
-            .filter(Sensor.name == sensor.name)
-        )
-    else:
-        query = (
-            db.session.query(
-                TimedBelief.event_start,
-                TimedBelief.event_value,
-                TimedBelief.belief_horizon,
-            )
-            .filter(
-                (TimedBelief.event_start > start - resolution)
-                & (TimedBelief.event_start < end)
-            )
-            # .filter(TimedBelief.belief_horizon == (TimedBelief.event_start + resolution) - prior)  # only for sensors with 0-hour ex_post knowledge horizon function
-            .join(Sensor)
-            .filter(Sensor.name == sensor.name)
-        )
+        query = query.filter(TimedBelief.belief_horizon == horizon)
     # todo: after basing sensor data on TimedBelief, we should be able to get a BeliefsDataFrame from the query directly
     df = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
