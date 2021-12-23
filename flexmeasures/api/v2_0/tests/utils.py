@@ -6,10 +6,7 @@ import pandas as pd
 import timely_beliefs as tb
 
 from flexmeasures.api.common.schemas.sensors import SensorField
-from flexmeasures.data.models.assets import Power
-from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.v1_1.tests.utils import (
     message_for_post_price_data as v1_1_message_for_post_price_data,
@@ -78,17 +75,6 @@ def verify_sensor_data_in_db(
     swapped_sign: bool = False,
 ):
     """util method to verify that sensor data ended up in the database"""
-    if entity_type == "sensor":
-        data_type = TimedBelief
-    elif entity_type == "connection":
-        data_type = Power
-    elif entity_type == "market":
-        data_type = Price
-    elif entity_type == "weather_sensor":
-        data_type = Weather
-    else:
-        raise ValueError("Unknown entity type")
-
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
     sensor: Sensor = SensorField(entity_type, fm_scheme).deserialize(
@@ -98,38 +84,37 @@ def verify_sensor_data_in_db(
     if "horizon" in post_message:
         horizon = parse_duration(post_message["horizon"])
         query = (
-            db.session.query(data_type.datetime, data_type.value, data_type.horizon)
-            .filter(
-                (data_type.datetime > start - resolution) & (data_type.datetime < end)
+            db.session.query(
+                TimedBelief.event_start,
+                TimedBelief.event_value,
+                TimedBelief.belief_horizon,
             )
-            .filter(data_type.horizon == horizon)
+            .filter(
+                (TimedBelief.event_start > start - resolution)
+                & (TimedBelief.event_start < end)
+            )
+            .filter(TimedBelief.belief_horizon == horizon)
             .join(Sensor)
             .filter(Sensor.name == sensor.name)
         )
     else:
         query = (
             db.session.query(
-                data_type.datetime,
-                data_type.value,
-                data_type.horizon,
+                TimedBelief.event_start,
+                TimedBelief.event_value,
+                TimedBelief.belief_horizon,
             )
             .filter(
-                (data_type.datetime > start - resolution) & (data_type.datetime < end)
+                (TimedBelief.event_start > start - resolution)
+                & (TimedBelief.event_start < end)
             )
-            # .filter(data_type.horizon == (data_type.datetime + resolution) - prior)  # only for sensors with 0-hour ex_post knowledge horizon function
+            # .filter(TimedBelief.belief_horizon == (TimedBelief.event_start + resolution) - prior)  # only for sensors with 0-hour ex_post knowledge horizon function
             .join(Sensor)
             .filter(Sensor.name == sensor.name)
         )
-    # todo: after basing Price on TimedBelief, we should be able to get a BeliefsDataFrame from the query directly
+    # todo: after basing sensor data on TimedBelief, we should be able to get a BeliefsDataFrame from the query directly
     df = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
-    )
-    df = df.rename(
-        columns={
-            "value": "event_value",
-            "datetime": "event_start",
-            "horizon": "belief_horizon",
-        }
     )
     bdf = tb.BeliefsDataFrame(df, sensor=sensor, source="Some source")
     if "prior" in post_message:
