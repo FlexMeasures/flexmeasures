@@ -246,11 +246,12 @@ def make_rolling_viewpoint_forecasts(
 
     ts_value_forecasts = [
         timed_value_type(
-            datetime=dt,
-            horizon=horizon,
-            value=value,
-            sensor_id=old_sensor_id,
-            data_source_id=data_source.id,
+            use_legacy_kwargs=False,
+            event_start=dt,
+            belief_horizon=horizon,
+            event_value=value,
+            sensor=sensor,
+            source=data_source,
         )
         for dt, value in forecasts.items()
     ]
