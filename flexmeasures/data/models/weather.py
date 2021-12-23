@@ -11,7 +11,7 @@ from flexmeasures.data.models.legacy_migration_utils import (
     copy_old_sensor_attributes,
     get_old_model_type,
 )
-from flexmeasures.data.models.time_series import Sensor, TimedValue
+from flexmeasures.data.models.time_series import Sensor, TimedValue, TimedBelief
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
     GenericAsset,
@@ -259,6 +259,18 @@ class Weather(TimedValue, db.Model):
         return super().make_query(**kwargs)
 
     def __init__(self, **kwargs):
+
+        # Create corresponding TimedBelief
+        belief = TimedBelief(**kwargs)
+        db.session.add(belief)
+
+        # Convert key names for legacy model
+        kwargs["value"] = kwargs.pop("event_value")
+        kwargs["datetime"] = kwargs.pop("event_start")
+        kwargs["horizon"] = kwargs.pop("belief_horizon")
+        kwargs["sensor_id"] = kwargs.pop("sensor").id
+        kwargs["data_source_id"] = kwargs.pop("source").id
+
         super(Weather, self).__init__(**kwargs)
 
     def __repr__(self):

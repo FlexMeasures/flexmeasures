@@ -173,7 +173,7 @@ def post_weather_data_response(  # noqa: C901
             if unit not in accepted_units:
                 return invalid_unit(weather_sensor_type_name, accepted_units)
 
-            sensor = get_sensor_by_generic_asset_type_and_location(
+            sensor: Sensor = get_sensor_by_generic_asset_type_and_location(
                 weather_sensor_type_name, latitude, longitude
             )
 
@@ -186,11 +186,11 @@ def post_weather_data_response(  # noqa: C901
             weather_measurements.extend(
                 [
                     Weather(
-                        datetime=event_start,
-                        value=event_value,
-                        horizon=belief_horizon,
-                        sensor_id=sensor.id,
-                        data_source_id=data_source.id,
+                        event_start=event_start,
+                        event_value=event_value,
+                        belief_horizon=belief_horizon,
+                        sensor=sensor,
+                        source=data_source,
                     )
                     for event_start, event_value, belief_horizon in zip(
                         event_starts, event_values, belief_horizons

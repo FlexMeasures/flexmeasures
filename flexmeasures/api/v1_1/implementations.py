@@ -198,11 +198,11 @@ def post_weather_data_response(  # noqa: C901
                         (start + duration) - (dt + duration / len(value_group))
                     )
                 w = Weather(
-                    datetime=dt,
-                    value=value,
-                    horizon=h,
-                    sensor_id=sensor.id,
-                    data_source_id=data_source.id,
+                    event_start=dt,
+                    event_value=value,
+                    belief_horizon=h,
+                    sensor=sensor,
+                    source=data_source,
                 )
                 weather_measurements.append(w)
 

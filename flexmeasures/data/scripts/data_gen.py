@@ -343,11 +343,11 @@ def populate_time_series_forecasts(  # noqa: C901
             elif isinstance(old_sensor, WeatherSensor):
                 beliefs = [
                     Weather(
-                        datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
-                        horizon=horizon,
-                        value=value,
-                        sensor_id=old_sensor.id,
-                        data_source_id=data_source.id,
+                        event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
+                        belief_horizon=horizon,
+                        event_value=value,
+                        sensor=old_sensor.corresponding_sensor,
+                        source=data_source,
                     )
                     for dt, value in forecasts.items()
                 ]
