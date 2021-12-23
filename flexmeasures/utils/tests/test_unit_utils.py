@@ -70,8 +70,12 @@ def test_h_denotes_hour_and_not_planck_constant():
 
 def test_units_are_convertible():
     assert units_are_convertible("kW", "W")  # units just have different prefixes
-    assert units_are_convertible("J/s", "W")  # units can be converted using some multiplier
-    assert units_are_convertible("Wh", "W")  # units that represent a stock delta can, knowing the duration, be converted to a flow
+    assert units_are_convertible(
+        "J/s", "W"
+    )  # units can be converted using some multiplier
+    assert units_are_convertible(
+        "Wh", "W"
+    )  # units that represent a stock delta can, knowing the duration, be converted to a flow
     assert units_are_convertible("toe", "W")  # tonne of oil equivalent
     assert units_are_convertible("°C", "K")  # offset unit to absolute unit
     assert not units_are_convertible("°C", "W")
