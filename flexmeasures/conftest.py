@@ -329,7 +329,7 @@ def setup_assets(
         time_slots = pd.date_range(
             datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
         )
-        values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
+        values = [random() * (1 + np.sin(x * 2 * np.pi / (4 * 24))) for x in range(len(time_slots))]
         for dt, val in zip(time_slots, values):
             p = Power(
                 datetime=as_server_time(dt),
@@ -390,9 +390,9 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
 
     # one day of test data (one complete sine curve)
     time_slots = pd.date_range(
-        datetime(2015, 1, 1), datetime(2015, 1, 2), freq="15T", closed="left"
+        datetime(2015, 1, 1), datetime(2015, 1, 2), freq="1H", closed="left"
     )
-    values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
+    values = [random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))]
     for dt, val in zip(time_slots, values):
         p = Price(
             use_legacy_kwargs=False,
@@ -406,9 +406,9 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
 
     # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
     time_slots = pd.date_range(
-        datetime(2015, 1, 2), datetime(2015, 1, 3), freq="15T", closed="left"
+        datetime(2015, 1, 2), datetime(2015, 1, 3), freq="1H", closed="left"
     )
-    values = [100] * 8 * 4 + [90] * 8 * 4 + [100] * 8 * 4
+    values = [100] * 8 + [90] * 8 + [100] * 8
     for dt, val in zip(time_slots, values):
         p = Price(
             use_legacy_kwargs=False,
