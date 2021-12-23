@@ -61,6 +61,9 @@ def to_preferred(x):
 def determine_unit_conversion_multiplier(
     from_unit: str, to_unit: str, duration: Optional[timedelta] = None
 ):
+    """Determine the value multiplier for a given unit conversion.
+    If needed, requires a duration to convert from units of stock change to units of flow.
+    """
     scalar = u.Quantity(from_unit).to_base_units() / u.Quantity(to_unit).to_base_units()
     if scalar.dimensionality == u.Quantity("h").dimensionality:
         if duration is None:
