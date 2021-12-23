@@ -222,13 +222,16 @@ def test_simplify_index(setup_test_data, check_empty_frame):
 def test_query_beliefs(setup_beliefs):
     """Check various ways of querying for beliefs."""
     sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
-    source = DataSource.query.filter_by(name="Seita").one_or_none()
+    source = DataSource.query.filter_by(name="ENTSO-E").one_or_none()
     bdfs = [
         TimedBelief.search(sensor, source=source),
         TimedBelief.search(sensor.id, source=source),
         TimedBelief.search(sensor.name, source=source),
         sensor.search_beliefs(source=source),
-        tb.BeliefsDataFrame(sensor.beliefs),  # doesn't allow filtering
+        tb.BeliefsDataFrame(sensor.beliefs)[
+            tb.BeliefsDataFrame(sensor.beliefs).index.get_level_values("source")
+            == source
+        ],
     ]
     for bdf in bdfs:
         assert sensor.event_resolution == timedelta(hours=1)
@@ -242,7 +245,8 @@ def test_persist_beliefs(setup_beliefs, setup_test_data):
     We load the already set up beliefs, and form new beliefs an hour later.
     """
     sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
-    bdf: tb.BeliefsDataFrame = TimedBelief.search(sensor)
+    source = DataSource.query.filter_by(name="ENTSO-E").one_or_none()
+    bdf: tb.BeliefsDataFrame = TimedBelief.search(sensor, source=source)
 
     # Form new beliefs
     df = bdf.reset_index()
@@ -253,5 +257,5 @@ def test_persist_beliefs(setup_beliefs, setup_test_data):
     )
 
     TimedBelief.add(bdf)
-    bdf: tb.BeliefsDataFrame = TimedBelief.search(sensor)
+    bdf: tb.BeliefsDataFrame = TimedBelief.search(sensor, source=source)
     assert len(bdf) == setup_beliefs * 2

@@ -27,7 +27,8 @@ def test_get_device_message(client, message):
     assert get_device_message_response.json["type"] == "GetDeviceMessageResponse"
     assert len(get_device_message_response.json["values"]) == 192
 
-    # Test that a shorter planning horizon yields the same result
+    # Test that a shorter planning horizon yields a shorter result
+    # Note that the scheduler might give a different result, because it doesn't look as far ahead
     message["duration"] = "PT6H"
     get_device_message_response_short = client.get(
         url_for("flexmeasures_api_v1_2.get_device_message"),
@@ -36,10 +37,7 @@ def test_get_device_message(client, message):
     )
     print("Server responded with:\n%s" % get_device_message_response_short.json)
     assert get_device_message_response_short.status_code == 200
-    assert (
-        get_device_message_response_short.json["values"]
-        == get_device_message_response.json["values"][0:24]
-    )
+    assert len(get_device_message_response_short.json["values"]) == 24
 
     # Test that a much longer planning horizon yields the same result (when there are only 2 days of prices)
     message["duration"] = "PT1000H"

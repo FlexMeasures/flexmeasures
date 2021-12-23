@@ -162,11 +162,12 @@ def add_dummy_tou_market(db: SQLAlchemy):
     for year in range(2015, 2025):
         db.session.add(
             Price(
-                value=50,
-                datetime=datetime(year, 1, 1, tzinfo=pytz.utc),
-                horizon=timedelta(0),
-                data_source_id=source.id,
-                sensor_id=market.id,
+                use_legacy_kwargs=False,
+                event_value=50,
+                event_start=datetime(year, 1, 1, tzinfo=pytz.utc),
+                belief_horizon=timedelta(0),
+                source=source,
+                sensor=market.corresponding_sensor,
             )
         )
 
@@ -321,33 +322,36 @@ def populate_time_series_forecasts(  # noqa: C901
             if isinstance(old_sensor, Asset):
                 beliefs = [
                     Power(
-                        datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
-                        horizon=horizon,
-                        value=value,
-                        asset_id=old_sensor.id,
-                        data_source_id=data_source.id,
+                        use_legacy_kwargs=False,
+                        event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
+                        belief_horizon=horizon,
+                        event_value=value,
+                        sensor=old_sensor.corresponding_sensor,
+                        source=data_source,
                     )
                     for dt, value in forecasts.items()
                 ]
             elif isinstance(old_sensor, Market):
                 beliefs = [
                     Price(
-                        datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
-                        horizon=horizon,
-                        value=value,
-                        sensor_id=old_sensor.id,
-                        data_source_id=data_source.id,
+                        use_legacy_kwargs=False,
+                        event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
+                        belief_horizon=horizon,
+                        event_value=value,
+                        sensor=old_sensor.corresponding_sensor,
+                        source=data_source,
                     )
                     for dt, value in forecasts.items()
                 ]
             elif isinstance(old_sensor, WeatherSensor):
                 beliefs = [
                     Weather(
-                        datetime=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
-                        horizon=horizon,
-                        value=value,
-                        sensor_id=old_sensor.id,
-                        data_source_id=data_source.id,
+                        use_legacy_kwargs=False,
+                        event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
+                        belief_horizon=horizon,
+                        event_value=value,
+                        sensor=old_sensor.corresponding_sensor,
+                        source=data_source,
                     )
                     for dt, value in forecasts.items()
                 ]

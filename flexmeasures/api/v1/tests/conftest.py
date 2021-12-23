@@ -91,20 +91,22 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     meter_data = []
     for i in range(6):
         p_1 = Power(
-            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+            use_legacy_kwargs=False,
+            event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
-            horizon=timedelta(0),
-            value=(100.0 + i) * -1,
-            sensor_id=cs_5.id,
-            data_source_id=user1_data_source.id,
+            belief_horizon=timedelta(0),
+            event_value=(100.0 + i) * -1,
+            sensor=cs_5.corresponding_sensor,
+            source=user1_data_source,
         )
         p_2 = Power(
-            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+            use_legacy_kwargs=False,
+            event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
-            horizon=timedelta(hours=0),
-            value=(1000.0 - 10 * i) * -1,
-            sensor_id=cs_5.id,
-            data_source_id=user2_data_source.id,
+            belief_horizon=timedelta(hours=0),
+            event_value=(1000.0 - 10 * i) * -1,
+            sensor=cs_5.corresponding_sensor,
+            source=user2_data_source,
         )
         meter_data.append(p_1)
         meter_data.append(p_2)

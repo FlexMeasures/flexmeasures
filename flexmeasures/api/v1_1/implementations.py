@@ -114,11 +114,12 @@ def post_price_data_response(
                         (start + duration) - (dt + duration / len(value_group))
                     )
                 p = Price(
-                    datetime=dt,
-                    value=value,
-                    horizon=h,
-                    sensor_id=sensor.id,
-                    data_source_id=data_source.id,
+                    use_legacy_kwargs=False,
+                    event_start=dt,
+                    event_value=value,
+                    belief_horizon=h,
+                    sensor=sensor,
+                    source=data_source,
                 )
                 prices.append(p)
 
@@ -198,11 +199,12 @@ def post_weather_data_response(  # noqa: C901
                         (start + duration) - (dt + duration / len(value_group))
                     )
                 w = Weather(
-                    datetime=dt,
-                    value=value,
-                    horizon=h,
-                    sensor_id=sensor.id,
-                    data_source_id=data_source.id,
+                    use_legacy_kwargs=False,
+                    event_start=dt,
+                    event_value=value,
+                    belief_horizon=h,
+                    sensor=sensor,
+                    source=data_source,
                 )
                 weather_measurements.append(w)
 

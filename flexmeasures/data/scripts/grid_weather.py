@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional
 import json
 from datetime import datetime
 
@@ -17,6 +17,7 @@ from flexmeasures.data.config import db
 from flexmeasures.data.transactional import task_with_status_report
 from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 
 FILE_PATH_LOCATION = "/../raw_data/weather-forecasts"
 DATA_SOURCE_NAME = "OpenWeatherMap"
@@ -382,7 +383,7 @@ def save_forecasts_in_db(
                 if needed_response_label in fc:
                     weather_sensor = weather_sensors.get(flexmeasures_sensor_type, None)
                     if weather_sensor is None:
-                        weather_sensor = find_closest_sensor(
+                        weather_sensor: Optional[Sensor] = find_closest_sensor(
                             flexmeasures_sensor_type, lat=location[0], lng=location[1]
                         )
                         if weather_sensor is not None:
@@ -416,11 +417,12 @@ def save_forecasts_in_db(
 
                     db_forecasts.append(
                         Weather(
-                            datetime=fc_datetime,
-                            horizon=fc_horizon,
-                            value=fc_value,
-                            sensor_id=weather_sensor.id,
-                            data_source_id=data_source.id,
+                            use_legacy_kwargs=False,
+                            event_start=fc_datetime,
+                            belief_horizon=fc_horizon,
+                            event_value=fc_value,
+                            sensor=weather_sensor,
+                            source=data_source,
                         )
                     )
                 else:

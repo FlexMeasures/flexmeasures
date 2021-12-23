@@ -58,28 +58,31 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     power_forecasts = []
     for i in range(6):
         p_1 = Power(
-            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+            use_legacy_kwargs=False,
+            event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
-            horizon=timedelta(hours=6),
-            value=(300 + i) * -1,
-            sensor_id=cs_1.id,
-            data_source_id=data_source.id,
+            belief_horizon=timedelta(hours=6),
+            event_value=(300 + i) * -1,
+            sensor=cs_1.corresponding_sensor,
+            source=data_source,
         )
         p_2 = Power(
-            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+            use_legacy_kwargs=False,
+            event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
-            horizon=timedelta(hours=6),
-            value=(300 - i) * -1,
-            sensor_id=cs_2.id,
-            data_source_id=data_source.id,
+            belief_horizon=timedelta(hours=6),
+            event_value=(300 - i) * -1,
+            sensor=cs_2.corresponding_sensor,
+            source=data_source,
         )
         p_3 = Power(
-            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+            use_legacy_kwargs=False,
+            event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
-            horizon=timedelta(hours=6),
-            value=(0 + i) * -1,
-            sensor_id=cs_3.id,
-            data_source_id=data_source.id,
+            belief_horizon=timedelta(hours=6),
+            event_value=(0 + i) * -1,
+            sensor=cs_3.corresponding_sensor,
+            source=data_source,
         )
         power_forecasts.append(p_1)
         power_forecasts.append(p_2)

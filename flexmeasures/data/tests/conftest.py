@@ -76,11 +76,12 @@ def setup_fresh_test_data(
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
         for dt, val in zip(time_slots, values):
             p = Power(
-                datetime=as_server_time(dt),
-                horizon=parse_duration("PT0M"),
-                value=val,
-                data_source_id=data_source.id,
-                sensor_id=asset.id,
+                use_legacy_kwargs=False,
+                event_start=as_server_time(dt),
+                belief_horizon=parse_duration("PT0M"),
+                event_value=val,
+                sensor=asset.corresponding_sensor,
+                source=data_source,
             )
             db.session.add(p)
     add_test_weather_sensor_and_forecasts(fresh_db)
@@ -131,11 +132,12 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
         for dt, val in zip(time_slots, values):
             db.session.add(
                 Weather(
-                    sensor_id=sensor.id,
-                    datetime=as_server_time(dt),
-                    value=val,
-                    horizon=timedelta(hours=6),
-                    data_source_id=data_source.id,
+                    use_legacy_kwargs=False,
+                    sensor=sensor.corresponding_sensor,
+                    event_start=as_server_time(dt),
+                    event_value=val,
+                    belief_horizon=timedelta(hours=6),
+                    source=data_source,
                 )
             )
 
