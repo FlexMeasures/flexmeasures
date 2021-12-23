@@ -1,3 +1,6 @@
+from datetime import timedelta
+from typing import Optional
+
 from moneyed import list_all_currencies
 import importlib.resources as pkg_resources
 import pint
@@ -55,6 +58,19 @@ def to_preferred(x):
     return x
 
 
+def determine_unit_conversion_multiplier(
+    from_unit: str, to_unit: str, duration: Optional[timedelta] = None
+):
+    scalar = u.Quantity(from_unit) / u.Quantity(to_unit)
+    if scalar.dimensionality == u.Quantity("h").dimensionality:
+        if duration is None:
+            raise ValueError(
+                f"Cannot convert units from {from_unit} to {to_unit} without known duration."
+            )
+        return scalar.to_timedelta() / duration
+    return scalar.to_reduced_units().magnitude
+
+
 def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
     """For example:
     >>> determine_flow_unit("m³")  # m³/h
@@ -71,6 +87,24 @@ def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
     """
     stock = to_preferred(u.Quantity(flow_unit) * u.Quantity(time_unit))
     return "{:~P}".format(stock.units)
+
+
+def units_are_convertible(
+    from_unit: str, to_unit: str, duration_known: bool = True
+) -> bool:
+    """For example, a sensor with W units allows data to be posted with units:
+    >>> units_are_convertible("kW", "W")  # True (units just have different prefixes)
+    >>> units_are_convertible("J/s", "W")  # True (units can be converted using some multiplier)
+    >>> units_are_convertible("Wh", "W")  # True (units that represent a stock delta can, knowing the duration, be converted to a flow)
+    >>> units_are_convertible("°C", "W")  # False
+    """
+    scalar = u.Quantity(from_unit) / u.Quantity(to_unit)
+    if duration_known:
+        return scalar.dimensionality in (
+            u.Quantity("h").dimensionality,
+            u.Quantity("dimensionless").dimensionality,
+        )
+    return scalar.dimensionality == u.Quantity("dimensionless").dimensionality
 
 
 def is_power_unit(unit: str) -> bool:

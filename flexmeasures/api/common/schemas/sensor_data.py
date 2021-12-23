@@ -13,7 +13,10 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
-from flexmeasures.utils.unit_utils import u
+from flexmeasures.utils.unit_utils import (
+    determine_unit_conversion_multiplier,
+    units_are_convertible,
+)
 
 
 class SingleValueField(fields.Float):
@@ -92,15 +95,12 @@ class SensorDataDescriptionSchema(ma.Schema):
         posted_unit = data["unit"]
         required_unit = data["sensor"].unit
 
-        if posted_unit != required_unit:
-            scalar = u.Quantity(posted_unit) / u.Quantity(required_unit)
-            if scalar.dimensionality not in (
-                u.Quantity("h").dimensionality,
-                u.Quantity("dimensionless").dimensionality,
-            ):
-                raise ValidationError(
-                    f"Required unit for this sensor is {data['sensor'].unit}, got incompatible unit: {data['unit']}"
-                )
+        if posted_unit != required_unit and not units_are_convertible(
+            posted_unit, required_unit
+        ):
+            raise ValidationError(
+                f"Required unit for this sensor is {data['sensor'].unit}, got incompatible unit: {data['unit']}"
+            )
 
 
 class SensorDataSchema(SensorDataDescriptionSchema):
@@ -143,11 +143,9 @@ class SensorDataSchema(SensorDataDescriptionSchema):
         required_unit = data["sensor"].unit
 
         if posted_unit != required_unit:
-            scalar = u.Quantity(posted_unit) / u.Quantity(required_unit)
-            if scalar.dimensionality == u.Quantity("h").dimensionality:
-                multiplier = scalar.to_timedelta() / data["sensor"].event_resolution
-            else:
-                multiplier = scalar.to_reduced_units().magnitude
+            multiplier = determine_unit_conversion_multiplier(
+                posted_unit, required_unit, data["sensor"].event_resolution
+            )
             data["values"] = [multiplier * value for value in data["values"]]
         return data
 
