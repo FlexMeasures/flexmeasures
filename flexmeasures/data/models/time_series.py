@@ -410,6 +410,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         source_criteria = get_source_criteria(
             cls, user_source_ids, source_types, exclude_source_types
         )
+        custom_join_targets = [] if parsed_sources else [DataSource]
 
         bdf_dict = {}
         for sensor in sensors:
@@ -426,6 +427,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 most_recent_events_only=most_recent_events_only,
                 custom_filter_criteria=source_criteria,
+                custom_join_targets=custom_join_targets,
             )
             if resolution is not None:
                 bdf = bdf.resample_events(
