@@ -7,6 +7,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
 import timely_beliefs as tb
+from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
 from flexmeasures.auth.policy import AuthModelMixin
@@ -31,7 +32,7 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
-    """A sensor measures events. """
+    """A sensor measures events."""
 
     attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
 
@@ -353,6 +354,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
         most_recent_only: bool = False,  # deprecated
+        one_deterministic_belief_per_event: bool = False,
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
@@ -429,6 +431,14 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
             )
+            if one_deterministic_belief_per_event:
+                # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
+                # todo: move to timely-beliefs: select mean/median belief
+                bdf = (
+                    bdf.for_each_belief(get_median_belief)
+                    .groupby(level=["event_start", "belief_time"])
+                    .apply(lambda x: x.head(1))
+                )
             if resolution is not None:
                 bdf = bdf.resample_events(
                     resolution, keep_only_most_recent_belief=most_recent_beliefs_only
