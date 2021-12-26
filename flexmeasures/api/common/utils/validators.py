@@ -271,7 +271,7 @@ def optional_user_sources_accepted(
         }
 
     The source ids then include the user's own id,
-    and ids of other users that are registered as a Prosumer and/or Energy Service Company.
+    and ids of other users whose organisation account is registered as a Prosumer and/or Energy Service Company.
     """
 
     def wrapper(fn):
