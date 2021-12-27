@@ -9,8 +9,9 @@ import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
 
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
 from flexmeasures.data.models.forecasting import model_map
 from flexmeasures.data.models.forecasting.model_spec_factory import (
@@ -75,8 +76,7 @@ def setup_fresh_test_data(
         )
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
         for dt, val in zip(time_slots, values):
-            p = Power(
-                use_legacy_kwargs=False,
+            p = TimedBelief(
                 event_start=as_server_time(dt),
                 belief_horizon=parse_duration("PT0M"),
                 event_value=val,

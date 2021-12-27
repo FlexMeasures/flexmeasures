@@ -23,11 +23,11 @@ from flexmeasures.app import create as create_app
 from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.assets import AssetType, Asset, Power
+from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
-from flexmeasures.data.models.markets import Market, MarketType, Price
+from flexmeasures.data.models.markets import Market, MarketType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import User, Account, AccountRole
 
@@ -336,8 +336,7 @@ def setup_assets(
             for x in range(len(time_slots))
         ]
         for dt, val in zip(time_slots, values):
-            p = Power(
-                use_legacy_kwargs=False,
+            p = TimedBelief(
                 event_start=as_server_time(dt),
                 belief_horizon=parse_duration("PT0M"),
                 event_value=val,
@@ -402,8 +401,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
         random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
     ]
     for dt, val in zip(time_slots, values):
-        p = Price(
-            use_legacy_kwargs=False,
+        p = TimedBelief(
             event_start=as_server_time(dt),
             belief_horizon=timedelta(hours=0),
             event_value=val,
@@ -418,8 +416,7 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
     )
     values = [100] * 8 + [90] * 8 + [100] * 8
     for dt, val in zip(time_slots, values):
-        p = Price(
-            use_legacy_kwargs=False,
+        p = TimedBelief(
             event_start=as_server_time(dt),
             belief_horizon=timedelta(hours=0),
             event_value=val,
