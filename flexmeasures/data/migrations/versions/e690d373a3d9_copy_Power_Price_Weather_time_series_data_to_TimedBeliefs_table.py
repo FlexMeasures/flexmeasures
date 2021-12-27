@@ -78,7 +78,6 @@ def upgrade():
         t_timed_belief,
     )
     print("- finished copying time series data...")
-    raise
 
 
 def downgrade():
