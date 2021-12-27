@@ -7,8 +7,7 @@ from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
 
-from flexmeasures.data.models.markets import Price
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
     UnknownMarketException,
     UnknownPricesException,
@@ -82,11 +81,13 @@ def get_prices(
     # Look for the applicable market sensor
     sensor = get_market(sensor)
 
-    price_bdf: tb.BeliefsDataFrame = Price.search(
+    price_bdf: tb.BeliefsDataFrame = TimedBelief.search(
         sensor.name,
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
         resolution=to_offset(resolution).freqstr,
+        most_recent_beliefs_only=True,
+        one_deterministic_belief_per_event=True,
     )
     price_df = simplify_index(price_bdf)
     nan_prices = price_df.isnull().values
