@@ -6,10 +6,7 @@ from flask.cli import with_appcontext
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.markets import Price
-from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.scripts.data_gen import get_affected_classes
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 
