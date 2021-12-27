@@ -20,10 +20,10 @@ from humanize import naturaldelta
 import inflect
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.markets import MarketType, Market, Price
-from flexmeasures.data.models.assets import AssetType, Asset, Power
+from flexmeasures.data.models.markets import MarketType, Market
+from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
+from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor
 from flexmeasures.data.models.user import User, Role, RolesUsers
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
@@ -157,11 +157,12 @@ def add_dummy_tou_market(db: SQLAlchemy):
         unit="EUR/MWh",
     )
     db.session.add(market)
-    source = DataSource.query.filter(DataSource.name == "Seita").one_or_none()
+    source = DataSource.query.filter(
+        DataSource.name == "Seita", DataSource.type == "demo script"
+    ).one_or_none()
     for year in range(2015, 2025):
         db.session.add(
-            Price(
-                use_legacy_kwargs=False,
+            TimedBelief(
                 event_value=50,
                 event_start=datetime(year, 1, 1, tzinfo=pytz.utc),
                 belief_horizon=timedelta(0),
@@ -317,8 +318,7 @@ def populate_time_series_forecasts(  # noqa: C901
             beliefs = []
             if isinstance(old_sensor, Asset):
                 beliefs = [
-                    Power(
-                        use_legacy_kwargs=False,
+                    TimedBelief(
                         event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         belief_horizon=horizon,
                         event_value=value,
@@ -329,8 +329,7 @@ def populate_time_series_forecasts(  # noqa: C901
                 ]
             elif isinstance(old_sensor, Market):
                 beliefs = [
-                    Price(
-                        use_legacy_kwargs=False,
+                    TimedBelief(
                         event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         belief_horizon=horizon,
                         event_value=value,
@@ -341,8 +340,7 @@ def populate_time_series_forecasts(  # noqa: C901
                 ]
             elif isinstance(old_sensor, WeatherSensor):
                 beliefs = [
-                    Weather(
-                        use_legacy_kwargs=False,
+                    TimedBelief(
                         event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                         belief_horizon=horizon,
                         event_value=value,
