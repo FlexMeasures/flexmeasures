@@ -38,7 +38,7 @@ def create_beliefs_query(
 
 
 def get_source_criteria(
-    cls: "Type[ts.TimedValue, ts.TimedBelief]",
+    cls: "Union[Type[ts.TimedValue], Type[ts.TimedBelief]]",
     user_source_ids: Union[int, List[int]],
     source_types: List[str],
     exclude_source_types: List[str],
@@ -58,7 +58,7 @@ def get_source_criteria(
 
 
 def user_source_criterion(
-    cls: "Type[ts.TimedValue, ts.TimedBelief]",
+    cls: "Union[Type[ts.TimedValue], Type[ts.TimedBelief]]",
     user_source_ids: Union[int, List[int]],
 ) -> BinaryExpression:
     """Criterion to search only through user data from the specified user sources.
