@@ -335,15 +335,17 @@ def setup_assets(
             random() * (1 + np.sin(x * 2 * np.pi / (4 * 24)))
             for x in range(len(time_slots))
         ]
-        for dt, val in zip(time_slots, values):
-            p = TimedBelief(
+        beliefs = [
+            TimedBelief(
                 event_start=as_server_time(dt),
                 belief_horizon=parse_duration("PT0M"),
                 event_value=val,
                 sensor=asset.corresponding_sensor,
                 source=setup_sources["Seita"],
             )
-            db.session.add(p)
+            for dt, val in zip(time_slots, values)
+        ]
+        db.session.add_all(beliefs)
     return {asset.name: asset for asset in assets}
 
 
@@ -400,30 +402,34 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
     values = [
         random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
     ]
-    for dt, val in zip(time_slots, values):
-        p = TimedBelief(
+    day1_beliefs = [
+        TimedBelief(
             event_start=as_server_time(dt),
             belief_horizon=timedelta(hours=0),
             event_value=val,
             source=setup_sources["Seita"],
             sensor=setup_markets["epex_da"].corresponding_sensor,
         )
-        db.session.add(p)
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(day1_beliefs)
 
     # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
     time_slots = pd.date_range(
         datetime(2015, 1, 2), datetime(2015, 1, 3), freq="1H", closed="left"
     )
     values = [100] * 8 + [90] * 8 + [100] * 8
-    for dt, val in zip(time_slots, values):
-        p = TimedBelief(
+    day2_beliefs = [
+        TimedBelief(
             event_start=as_server_time(dt),
             belief_horizon=timedelta(hours=0),
             event_value=val,
             source=setup_sources["Seita"],
             sensor=setup_markets["epex_da"].corresponding_sensor,
         )
-        db.session.add(p)
+        for dt, val in zip(time_slots, values)
+    ]
+    db.session.add_all(day2_beliefs)
 
 
 @pytest.fixture(scope="module")

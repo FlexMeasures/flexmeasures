@@ -75,15 +75,17 @@ def setup_fresh_test_data(
             datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
         )
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
-        for dt, val in zip(time_slots, values):
-            p = TimedBelief(
+        beliefs = [
+            TimedBelief(
                 event_start=as_server_time(dt),
                 belief_horizon=parse_duration("PT0M"),
                 event_value=val,
                 sensor=asset.corresponding_sensor,
                 source=data_source,
             )
-            db.session.add(p)
+            for dt, val in zip(time_slots, values)
+        ]
+        db.session.add_all(beliefs)
     add_test_weather_sensor_and_forecasts(fresh_db)
 
 

@@ -89,9 +89,8 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     user2_data_source = DataSource.query.filter(
         DataSource.user == test_user_2
     ).one_or_none()
-    meter_data = []
-    for i in range(6):
-        p_1 = TimedBelief(
+    user1_beliefs = [
+        TimedBelief(
             event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
             belief_horizon=timedelta(0),
@@ -99,7 +98,10 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             sensor=cs_5.corresponding_sensor,
             source=user1_data_source,
         )
-        p_2 = TimedBelief(
+        for i in range(6)
+    ]
+    user2_beliefs = [
+        TimedBelief(
             event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
             belief_horizon=timedelta(hours=0),
@@ -107,9 +109,9 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             sensor=cs_5.corresponding_sensor,
             source=user2_data_source,
         )
-        meter_data.append(p_1)
-        meter_data.append(p_2)
-    db.session.bulk_save_objects(meter_data)
+        for i in range(6)
+    ]
+    db.session.add_all(user1_beliefs + user2_beliefs)
 
     print("Done setting up data for API v1 tests")
 
