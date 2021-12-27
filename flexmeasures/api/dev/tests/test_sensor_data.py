@@ -2,7 +2,7 @@ from flask import url_for
 import pytest
 
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.dev.tests.utils import make_sensor_data_request
+from flexmeasures.api.dev.tests.utils import make_sensor_data_request_for_gas_sensor
 
 
 @pytest.mark.parametrize("use_auth", [False, True])
@@ -48,7 +48,7 @@ def test_post_sensor_data_bad_auth(client, setup_api_test_data, use_auth):
 def test_post_invalid_sensor_data(
     client, setup_api_test_data, request_field, new_value, error_field, error_text
 ):
-    post_data = make_sensor_data_request()
+    post_data = make_sensor_data_request_for_gas_sensor()
     post_data[request_field] = new_value
     # this guy is allowed to post sensorData
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
@@ -64,7 +64,7 @@ def test_post_invalid_sensor_data(
 
 def test_post_sensor_data_twice(client, setup_api_test_data):
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
-    post_data = make_sensor_data_request()
+    post_data = make_sensor_data_request_for_gas_sensor()
     response = client.post(
         url_for("post_sensor_data"),
         json=post_data,
