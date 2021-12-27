@@ -13,9 +13,8 @@ from flexmeasures.data.services.time_series import set_bdf_source
 from flexmeasures.utils import calculations, time_utils
 from flexmeasures.data.services.resources import Resource, find_closest_sensor
 from flexmeasures.data.models.assets import Asset, Power
-from flexmeasures.data.models.markets import Price
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import Weather, WeatherSensorType
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.weather import WeatherSensorType
 
 
 def get_power_data(
@@ -176,7 +175,7 @@ def get_prices_data(
     market_name = "" if market_sensor is None else market_sensor.name
 
     # Get price data
-    price_bdf: tb.BeliefsDataFrame = Price.search(
+    price_bdf: tb.BeliefsDataFrame = TimedBelief.search(
         [market_name],
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
@@ -194,7 +193,7 @@ def get_prices_data(
         metrics["realised_unit_price"] = np.NaN
 
     # Get price forecast
-    price_forecast_bdf: tb.BeliefsDataFrame = Price.search(
+    price_forecast_bdf: tb.BeliefsDataFrame = TimedBelief.search(
         [market_name],
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
@@ -262,7 +261,7 @@ def get_weather_data(
             sensor_names = [sensor.name for sensor in closest_sensors]
 
             # Get weather data
-            weather_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.search(
+            weather_bdf_dict: Dict[str, tb.BeliefsDataFrame] = TimedBelief.search(
                 sensor_names,
                 event_starts_after=query_window[0],
                 event_ends_before=query_window[1],
@@ -279,7 +278,9 @@ def get_weather_data(
                 )
 
             # Get weather forecasts
-            weather_forecast_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Weather.search(
+            weather_forecast_bdf_dict: Dict[
+                str, tb.BeliefsDataFrame
+            ] = TimedBelief.search(
                 sensor_names,
                 event_starts_after=query_window[0],
                 event_ends_before=query_window[1],
