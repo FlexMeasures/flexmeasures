@@ -27,7 +27,6 @@ from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, W
 from flexmeasures.data.models.user import User, Role, RolesUsers
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.data.models.utils import determine_old_time_series_class_by_old_sensor
 from flexmeasures.utils.time_utils import ensure_local_timezone
 from flexmeasures.data.transactional import as_transaction
 
@@ -266,9 +265,6 @@ def populate_time_series_forecasts(  # noqa: C901
                 default_model = lookup_model_specs_configurator()
                 model_specs, model_identifier, model_fallback = default_model(
                     sensor=old_sensor.corresponding_sensor,
-                    time_series_class=determine_old_time_series_class_by_old_sensor(
-                        old_sensor
-                    ),
                     forecast_start=forecast_start,
                     forecast_end=forecast_end,
                     forecast_horizon=horizon,

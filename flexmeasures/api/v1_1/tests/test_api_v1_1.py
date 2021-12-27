@@ -24,7 +24,6 @@ from flexmeasures.api.v1_1.tests.utils import (
 from flexmeasures.auth.error_handling import UNAUTH_ERROR_STATUS
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import User
-from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -155,7 +154,6 @@ def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
-        assert job.kwargs["timed_value_type"] == Price
         assert job.kwargs["old_sensor_id"] == market.id
 
 
@@ -195,9 +193,9 @@ def test_post_weather_forecasts(
 ):
     """
     Try to post wind speed and temperature forecasts as a logged-in test user with the Prosumer role, which should succeed.
-    As only forecasts are sent, no forecasting jobs are expected.
+    As only forecasts are sent, no additional forecasting jobs are expected.
     """
-    assert len(get_forecasting_jobs("Weather")) == 0
+    num_jobs_before = len(get_forecasting_jobs())
 
     # post weather data
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
@@ -210,7 +208,8 @@ def test_post_weather_forecasts(
     assert post_weather_data_response.status_code == 200
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
 
-    assert len(get_forecasting_jobs("Weather")) == 0
+    num_jobs_after = len(get_forecasting_jobs())
+    assert num_jobs_after == num_jobs_before
 
 
 @pytest.mark.parametrize(

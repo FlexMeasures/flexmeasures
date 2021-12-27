@@ -3,7 +3,6 @@ from datetime import timedelta, datetime
 import pytest
 from sqlalchemy.orm import Query
 
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.forecasting import (
     create_forecasting_jobs,
@@ -25,7 +24,6 @@ def test_forecasting_three_hours_of_wind(app, setup_fresh_test_data, clean_redis
     # makes 12 forecasts
     horizon = timedelta(hours=1)
     job = create_forecasting_jobs(
-        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, 10)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 13)),
         horizons=[horizon],
@@ -58,7 +56,6 @@ def test_forecasting_two_hours_of_solar(app, setup_fresh_test_data, clean_redis)
     # makes 8 forecasts
     horizon = timedelta(hours=1)
     job = create_forecasting_jobs(
-        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, 12)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 14)),
         horizons=[horizon],
@@ -106,7 +103,6 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
 
     # The failed test model (this failure enqueues a new job)
     create_forecasting_jobs(
-        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, hour_start)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, hour_start + 2)),
         horizons=[horizon],

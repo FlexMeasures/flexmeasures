@@ -177,9 +177,8 @@ def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     assert df["event_value"].tolist() == values
 
 
-def get_forecasting_jobs(timed_value_type: str) -> List[Job]:
-    return [
-        job
-        for job in current_app.queues["forecasting"].jobs
-        if job.kwargs["timed_value_type"] == timed_value_type
-    ]
+def get_forecasting_jobs(last_n: Optional[int] = None) -> List[Job]:
+    """Get all or last n forecasting jobs."""
+    if last_n:
+        return current_app.queues["forecasting"].jobs[-last_n:]
+    return current_app.queues["forecasting"].jobs

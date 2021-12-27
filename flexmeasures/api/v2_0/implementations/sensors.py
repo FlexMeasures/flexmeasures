@@ -117,7 +117,6 @@ def post_price_data_response(  # noqa C901
             if current_app.config.get("FLEXMEASURES_MODE", "") != "play":
                 # Forecast 24 and 48 hours ahead for at most the last 24 hours of posted price data
                 forecasting_jobs = create_forecasting_jobs(
-                    Price,
                     sensor.id,
                     max(start, start + duration - timedelta(hours=24)),
                     start + duration,
@@ -208,7 +207,6 @@ def post_weather_data_response(  # noqa: C901
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
-                        Weather,
                         sensor.id,
                         start,
                         start + duration,
@@ -373,7 +371,6 @@ def post_power_data(
             if create_forecasting_jobs_too:
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
-                        Power,
                         sensor_id,
                         start,
                         start + duration,

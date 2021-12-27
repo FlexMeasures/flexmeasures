@@ -21,14 +21,14 @@ def check_data_availability(
     q = old_time_series_data_model.query.join(old_sensor_model.__class__).filter(
         old_sensor_model.__class__.name == old_sensor_model.name
     )
-    first_value = q.order_by(old_time_series_data_model.datetime.asc()).first()
-    last_value = q.order_by(old_time_series_data_model.datetime.desc()).first()
+    first_value = q.order_by(old_time_series_data_model.event_start.asc()).first()
+    last_value = q.order_by(old_time_series_data_model.event_start.desc()).first()
     if first_value is None:
         raise NotEnoughDataException(
             "No data available at all. Forecasting impossible."
         )
-    first = as_server_time(first_value.datetime)
-    last = as_server_time(last_value.datetime)
+    first = as_server_time(first_value.event_start)
+    last = as_server_time(last_value.event_start)
     if query_window[0] < first:
         suggested_start = forecast_start + (first - query_window[0])
         raise NotEnoughDataException(
@@ -56,7 +56,7 @@ def create_lags(
     resolution: timedelta,
     use_periodicity: bool,
 ) -> List[timedelta]:
-    """ List the lags for this asset type, using horizon and resolution information."""
+    """List the lags for this asset type, using horizon and resolution information."""
     lags = []
 
     # Include a zero lag in case of backwards forecasting
