@@ -3,7 +3,7 @@ import pytest
 from flask import url_for
 
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.dev.tests.utils import make_sensor_data_request
+from flexmeasures.api.dev.tests.utils import make_sensor_data_request_for_gas_sensor
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
 
 
@@ -30,7 +30,9 @@ def test_post_sensor_data(
     unit,
     expected_value,
 ):
-    post_data = make_sensor_data_request(num_values=num_values, unit=unit)
+    post_data = make_sensor_data_request_for_gas_sensor(
+        num_values=num_values, unit=unit
+    )
     sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
     beliefs_before = TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).all()
     print(f"BELIEFS BEFORE: {beliefs_before}")

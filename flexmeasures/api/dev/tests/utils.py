@@ -1,9 +1,12 @@
 from flexmeasures.data.models.time_series import Sensor
 
 
-def make_sensor_data_request(
+def make_sensor_data_request_for_gas_sensor(
     num_values: int = 6, duration: str = "PT1H", unit: str = "m³"
 ) -> dict:
+    """Creates request to post sensor data for a gas sensor.
+    This particular gas sensor measures units of m³/h with a 10-minute resolution.
+    """
     sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
     message: dict = {
         "type": "PostSensorDataRequest",
