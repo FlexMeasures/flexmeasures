@@ -30,7 +30,7 @@ full_template = (
 
 # Set up UnitRegistry with abbreviated scientific format
 u = pint.UnitRegistry(full_template)
-u.default_format = "~P"
+u.default_format = "~P"  # short pretty
 
 
 PREFERRED_UNITS = [
