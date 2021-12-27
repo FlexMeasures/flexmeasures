@@ -50,7 +50,7 @@ PREFERRED_UNITS = [
 PREFERRED_UNITS_DICT = dict([(u[x].dimensionality, x) for x in PREFERRED_UNITS])
 
 
-def to_preferred(x):
+def to_preferred(x: pint.Quantity) -> pint.Quantity:
     """From https://github.com/hgrecco/pint/issues/676#issuecomment-689157693"""
     dim = x.dimensionality
     if dim in PREFERRED_UNITS_DICT:
