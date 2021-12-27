@@ -166,6 +166,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             source=source,
             most_recent_beliefs_only=True,
             most_recent_events_only=True,
+            one_deterministic_belief_per_event=True,
         )
 
     def search_beliefs(
