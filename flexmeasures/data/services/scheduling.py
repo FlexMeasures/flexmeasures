@@ -8,7 +8,9 @@ import pandas as pd
 import pytz
 from rq import get_current_job
 from rq.job import Job
+import timely_beliefs as tb
 
+from flexmeasures.api.common.utils.api_utils import save_to_db
 from flexmeasures.data.config import db
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
@@ -142,14 +144,18 @@ def make_schedule(
     )
     click.echo("Job %s made schedule." % rq_job.id)
 
-    for dt, value in consumption_schedule.items():
+    ts_value_schedule = [
         TimedBelief(
             event_start=dt,
             belief_horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
             event_value=-value,
             sensor=sensor,
             source=data_source,
-        )  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+        )
+        for dt, value in consumption_schedule.items()
+    ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
+    bdf = tb.BeliefsDataFrame(ts_value_schedule)
+    save_to_db(bdf)
 
     return True
 
