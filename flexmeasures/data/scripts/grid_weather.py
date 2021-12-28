@@ -15,9 +15,8 @@ from flexmeasures.utils.geo_utils import compute_irradiance
 from flexmeasures.data.services.resources import find_closest_sensor
 from flexmeasures.data.config import db
 from flexmeasures.data.transactional import task_with_status_report
-from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 FILE_PATH_LOCATION = "/../raw_data/weather-forecasts"
 DATA_SOURCE_NAME = "OpenWeatherMap"
@@ -416,8 +415,7 @@ def save_forecasts_in_db(
                         )
 
                     db_forecasts.append(
-                        Weather(
-                            use_legacy_kwargs=False,
+                        TimedBelief(
                             event_start=fc_datetime,
                             belief_horizon=fc_horizon,
                             event_value=fc_value,
