@@ -12,7 +12,7 @@ from statsmodels.api import OLS
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
+from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor
 from flexmeasures.data.models.forecasting import model_map
 from flexmeasures.data.models.forecasting.model_spec_factory import (
     create_initial_model_specs,
@@ -133,8 +133,7 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
             values = [value * 600 for value in values]
         for dt, val in zip(time_slots, values):
             db.session.add(
-                Weather(
-                    use_legacy_kwargs=False,
+                TimedBelief(
                     sensor=sensor.corresponding_sensor,
                     event_start=as_server_time(dt),
                     event_value=val,
