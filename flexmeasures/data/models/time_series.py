@@ -325,8 +325,22 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def source_id(cls):
         return db.Column(db.Integer, db.ForeignKey("data_source.id"), primary_key=True)
 
-    sensor = db.relationship("Sensor", backref=db.backref("beliefs", lazy=True))
-    source = db.relationship("DataSource", backref=db.backref("beliefs", lazy=True))
+    sensor = db.relationship(
+        "Sensor",
+        backref=db.backref(
+            "beliefs",
+            lazy=True,
+            cascade="merge",  # i.e. no save-update
+        ),
+    )
+    source = db.relationship(
+        "DataSource",
+        backref=db.backref(
+            "beliefs",
+            lazy=True,
+            cascade="merge",  # i.e. no save-update
+        ),
+    )
 
     def __init__(
         self,
