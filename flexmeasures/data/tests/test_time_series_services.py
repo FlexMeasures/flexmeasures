@@ -1,7 +1,7 @@
 import pandas as pd
 from timely_beliefs import utils as tb_utils
 
-from flexmeasures.api.common.utils.api_utils import save_to_db
+from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 

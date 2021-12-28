@@ -10,12 +10,11 @@ from rq import get_current_job
 from rq.job import Job
 import timely_beliefs as tb
 
-from flexmeasures.api.common.utils.api_utils import save_to_db
 from flexmeasures.data.config import db
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.utils import get_data_source
+from flexmeasures.data.utils import get_data_source, save_to_db
 
 """
 The life cycle of a scheduling job:

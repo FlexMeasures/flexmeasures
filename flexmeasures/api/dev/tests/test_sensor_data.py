@@ -77,5 +77,5 @@ def test_post_sensor_data_twice(client, setup_api_test_data):
         headers={"Authorization": auth_token},
     )
     print(response.json)
-    assert response.status_code == 400
+    assert response.status_code == 200
     assert "data has already been received" in response.json["message"]

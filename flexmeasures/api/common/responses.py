@@ -39,11 +39,25 @@ def deprecated_api_version(message: str) -> ResponseTuple:
 def already_received_and_successfully_processed(message: str) -> ResponseTuple:
     return (
         dict(
-            results="Rejected",
+            results="PROCESSED",
             status="ALREADY_RECEIVED_AND_SUCCESSFULLY_PROCESSED",
             message=message,
         ),
-        400,
+        200,
+    )
+
+
+@BaseMessage(
+    "Some of the data represents a replacement, which is reserved for servers in play mode. Enable play mode or update the prior in your request."
+)
+def invalid_replacement(message: str) -> ResponseTuple:
+    return (
+        dict(
+            results="Rejected",
+            status="INVALID_REPLACEMENT",
+            message=message,
+        ),
+        403,
     )
 
 
