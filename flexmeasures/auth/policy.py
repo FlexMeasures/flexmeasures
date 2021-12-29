@@ -29,9 +29,9 @@ class AuthModelMixin(object):
         {
             "create": "account:3",               # Everyone in Account 3 can create
             "read": EVERYONE,                    # Reading is available to every logged-in user
-            "update": "user:14",                  # This user can update, ...
-            "update": "user:15",                  # and also this user, ...
-            "update": "account-role:MDC",         # also people in such accounts can update
+            "update": "user:14",                 # This user can update, ...
+            "update": "user:15",                 # and also this user, ...
+            "update": "account-role:MDC",        # also people in such accounts can update
             "delete": ("account:3", "role:CEO"), # Only CEOs of Account 3 can delete
         }
 
@@ -41,7 +41,7 @@ class AuthModelMixin(object):
 
         - Iterable principal descriptors should be treated as to be AND-connected. This helps to define subsets,
           like the deletion example above.
-        - This is row-level authorization, which requires an instance. We are considering table-level authorization, which wouldn't, so it would allow for faster authorization checks if no instances are needed.
+        - This is row-level authorization, which requires an instance. We are considering table-level authorization (which wouldn't require that an instance to make a decision), which would allow for faster authorization checks (no instances need to be loaded). Checking the instance also does not make much sense if what you need a permission for is to create a new instance. A different way we can go (aside from table-level authorization) is to make use of the hierarchy which exists in our model ― it makes sense to use the instance one level up to look up the correct permission. E.g. to create belief data for a sensor, we can check the create-permission on the sensor. TODO: if we go down that route, we might create dedicated permissions for these cases to be more clear, e.g. "create-children" in addition to "create". This might also be a clean approach to think this through (will that cover the use cases we need?)
 
         [1] https://docs.microsoft.com/en-us/windows/security/identity-protection/access-control/security-principals#a-href-idw2k3tr-princ-whatawhat-are-security-principals
         """

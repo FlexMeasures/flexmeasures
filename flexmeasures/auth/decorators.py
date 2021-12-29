@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, Optional
 from functools import wraps
 from flask import current_app
 from flask_json import as_json
@@ -104,12 +104,22 @@ def account_roles_required(*account_roles):
 
 
 def permission_required_for_context(
-    permission: str, arg_pos: Optional[int] = None, arg_name: Optional[str] = None
+    permission: str,
+    arg_pos: Optional[int] = None,
+    arg_name: Optional[str] = None,
+    arg_loader: Optional[Callable] = None,
 ):
     """
     This decorator can be used to make sure that the current user has the necessary permission to access the context.
-    The context needs to be an AuthModelMixin and is found in the keyword arguments by name and/or by a position in the non-keyword arguments (defaults to 0).
-    Using both arguments is useful when Marshmallow places a dict of de-serialized fields and you are using use_args.
+    The context needs to be an AuthModelMixin and is found ...
+    - by loading it via the arg_loader callable;
+    - otherwise:
+      * by the keyword argument arg_name;
+      * and/or by a position in the non-keyword arguments (arg_pos).
+    If nothing is passed, the context lookup defaults to arg_pos=0.
+
+    Using both arg_name and arg_pos arguments is useful when Marshmallow de-serializes to a dict and you are using use_args. In this case, the context lookup applies first arg_pos, then arg_name.
+
     The permission needs to be a known permission and is checked with principal descriptions from the context's access control list (see AuthModelMixin.__acl__).
 
     Usually, you'd place a marshmallow field further up in the decorator chain, e.g.:
@@ -138,8 +148,10 @@ def permission_required_for_context(
             if current_user.is_anonymous:
                 raise Unauthorized()
             # load & check context
-            if arg_pos is not None and arg_name is not None:
-                context: AuthModelMixin = args[arg_pos][arg_name]
+            if arg_loader is not None:
+                context: AuthModelMixin = arg_loader()
+            elif arg_pos is not None and arg_name is not None:
+                context = args[arg_pos][arg_name]
             elif arg_pos is not None:
                 context = args[arg_pos]
             elif arg_name is not None:
