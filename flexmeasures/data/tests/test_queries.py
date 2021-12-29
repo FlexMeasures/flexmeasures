@@ -90,7 +90,7 @@ def test_collect_power(db, app, query_start, query_end, num_values, setup_test_d
         ),
     ],
 )
-def test_collect_power_resampled(
+def tesfijfijft_collect_power_resampled(
     db, app, query_start, query_end, resolution, num_values, setup_test_data
 ):
     wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
@@ -220,7 +220,7 @@ def test_simplify_index(setup_test_data, check_empty_frame):
         event_starts_after=datetime(2015, 1, 1, tzinfo=pytz.utc),
         event_ends_before=datetime(2015, 1, 2, tzinfo=pytz.utc),
         resolution=timedelta(minutes=15),
-    )
+    ).convert_index_from_belief_time_to_horizon()
     if check_empty_frame:
         # We empty the BeliefsDataFrame, which retains the metadata such as sensor and resolution
         bdf = bdf.iloc[0:0, :]
