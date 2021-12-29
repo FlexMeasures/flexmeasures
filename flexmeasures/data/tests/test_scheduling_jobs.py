@@ -2,8 +2,7 @@
 from datetime import datetime, timedelta
 
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.assets import Power
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.utils.time_utils import as_server_time
@@ -41,9 +40,9 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     )  # Make sure the scheduler data source is now there
 
     power_values = (
-        Power.query.filter(Power.sensor_id == battery.id)
-        .filter(Power.data_source_id == scheduler_source.id)
+        TimedBelief.query.filter(TimedBelief.sensor_id == battery.id)
+        .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
-    print([v.value for v in power_values])
+    print([v.event_value for v in power_values])
     assert len(power_values) == 96

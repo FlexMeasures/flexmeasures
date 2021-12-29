@@ -13,7 +13,7 @@ from flexmeasures.utils.entity_address_utils import (
 )
 from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import get_or_create_source
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.api.common.responses import (
@@ -199,8 +199,8 @@ def collect_connection_and_value_groups(
 
         # Get the power values
         # TODO: fill NaN for non-existing values
-        power_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Power.search(
-            old_sensor_names=sensor_names,
+        power_bdf_dict: Dict[str, tb.BeliefsDataFrame] = TimedBelief.search(
+            sensor_names,
             event_starts_after=start,
             event_ends_before=end,
             resolution=resolution,
@@ -210,6 +210,8 @@ def collect_connection_and_value_groups(
             beliefs_before=belief_time_window[1],
             user_source_ids=user_source_ids,
             source_types=source_types,
+            most_recent_beliefs_only=True,
+            one_deterministic_belief_per_event=True,
             sum_multiple=False,
         )
         # Todo: parse time window of power_bdf_dict, which will be different for requests that are not of the form:
@@ -317,7 +319,6 @@ def create_connection_and_value_groups(  # noqa: C901
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this sensor
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
-                        Power,
                         sensor_id,
                         start,
                         start + duration,

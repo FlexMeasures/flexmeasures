@@ -199,35 +199,33 @@ def test_get_meter_data(db, app, client, message):
         [
             pd.DataFrame.from_dict(
                 dict(
-                    value=[(100.0 + i) for i in range(6)],
-                    datetime=[
+                    event_value=[(100.0 + i) for i in range(6)],
+                    event_start=[
                         isodate.parse_datetime("2015-01-01T00:00:00Z")
                         + timedelta(minutes=15 * i)
                         for i in range(6)
                     ],
-                    data_source_id=1,
+                    source_id=1,
                 )
             ),
             pd.DataFrame.from_dict(
                 dict(
-                    value=[(1000.0 - 10 * i) for i in range(6)],
-                    datetime=[
+                    event_value=[(1000.0 - 10 * i) for i in range(6)],
+                    event_start=[
                         isodate.parse_datetime("2015-01-01T00:00:00Z")
                         + timedelta(minutes=15 * i)
                         for i in range(6)
                     ],
-                    data_source_id=2,
+                    source_id=2,
                 )
             ),
         ]
     )
     if "source" in message:
         source_ids = validate_user_sources(message["source"])
-        expected_values = expected_values[
-            expected_values["data_source_id"].isin(source_ids)
-        ]
+        expected_values = expected_values[expected_values["source_id"].isin(source_ids)]
     expected_values = expected_values.set_index(
-        ["datetime", "data_source_id"]
+        ["event_start", "source_id"]
     ).sort_index()
 
     # check whether conftest.py did its job setting up the database with expected values

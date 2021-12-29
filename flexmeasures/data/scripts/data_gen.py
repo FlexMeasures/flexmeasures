@@ -20,14 +20,13 @@ from humanize import naturaldelta
 import inflect
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.markets import MarketType, Market, Price
-from flexmeasures.data.models.assets import AssetType, Asset, Power
+from flexmeasures.data.models.markets import MarketType, Market
+from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
+from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor
 from flexmeasures.data.models.user import User, Role, RolesUsers
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.data.models.utils import determine_old_time_series_class_by_old_sensor
 from flexmeasures.utils.time_utils import ensure_local_timezone
 from flexmeasures.data.transactional import as_transaction
 
@@ -158,11 +157,12 @@ def add_dummy_tou_market(db: SQLAlchemy):
         unit="EUR/MWh",
     )
     db.session.add(market)
-    source = DataSource.query.filter(DataSource.name == "Seita").one_or_none()
+    source = DataSource.query.filter(
+        DataSource.name == "Seita", DataSource.type == "demo script"
+    ).one_or_none()
     for year in range(2015, 2025):
         db.session.add(
-            Price(
-                use_legacy_kwargs=False,
+            TimedBelief(
                 event_value=50,
                 event_start=datetime(year, 1, 1, tzinfo=pytz.utc),
                 belief_horizon=timedelta(0),
@@ -266,9 +266,6 @@ def populate_time_series_forecasts(  # noqa: C901
                 default_model = lookup_model_specs_configurator()
                 model_specs, model_identifier, model_fallback = default_model(
                     sensor=old_sensor.corresponding_sensor,
-                    time_series_class=determine_old_time_series_class_by_old_sensor(
-                        old_sensor
-                    ),
                     forecast_start=forecast_start,
                     forecast_end=forecast_end,
                     forecast_horizon=horizon,
@@ -318,43 +315,16 @@ def populate_time_series_forecasts(  # noqa: C901
             plt.show()
             """
 
-            beliefs = []
-            if isinstance(old_sensor, Asset):
-                beliefs = [
-                    Power(
-                        use_legacy_kwargs=False,
-                        event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
-                        belief_horizon=horizon,
-                        event_value=value,
-                        sensor=old_sensor.corresponding_sensor,
-                        source=data_source,
-                    )
-                    for dt, value in forecasts.items()
-                ]
-            elif isinstance(old_sensor, Market):
-                beliefs = [
-                    Price(
-                        use_legacy_kwargs=False,
-                        event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
-                        belief_horizon=horizon,
-                        event_value=value,
-                        sensor=old_sensor.corresponding_sensor,
-                        source=data_source,
-                    )
-                    for dt, value in forecasts.items()
-                ]
-            elif isinstance(old_sensor, WeatherSensor):
-                beliefs = [
-                    Weather(
-                        use_legacy_kwargs=False,
-                        event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
-                        belief_horizon=horizon,
-                        event_value=value,
-                        sensor=old_sensor.corresponding_sensor,
-                        source=data_source,
-                    )
-                    for dt, value in forecasts.items()
-                ]
+            beliefs = [
+                TimedBelief(
+                    event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
+                    belief_horizon=horizon,
+                    event_value=value,
+                    sensor=old_sensor.corresponding_sensor,
+                    source=data_source,
+                )
+                for dt, value in forecasts.items()
+            ]
 
             print(
                 "Saving %s %s-forecasts for %s..."
@@ -364,16 +334,10 @@ def populate_time_series_forecasts(  # noqa: C901
                 db.session.add(belief)
 
     click.echo(
-        "DB now has %d Power Forecasts"
-        % db.session.query(Power).filter(Power.horizon > timedelta(hours=0)).count()
-    )
-    click.echo(
-        "DB now has %d Price Forecasts"
-        % db.session.query(Price).filter(Price.horizon > timedelta(hours=0)).count()
-    )
-    click.echo(
-        "DB now has %d Weather Forecasts"
-        % db.session.query(Weather).filter(Weather.horizon > timedelta(hours=0)).count()
+        "DB now has %d forecasts"
+        % db.session.query(TimedBelief)
+        .filter(TimedBelief.belief_horizon > timedelta(hours=0))
+        .count()
     )
 
 
@@ -411,186 +375,45 @@ def depopulate_structure(db: SQLAlchemy):
 @as_transaction
 def depopulate_measurements(
     db: SQLAlchemy,
-    old_sensor_class_name: Optional[str] = None,
-    old_sensor_id: Optional[id] = None,
+    sensor_id: Optional[id] = None,
 ):
-    click.echo("Depopulating (time series) data from the database %s ..." % db.engine)
-    num_prices_deleted = 0
-    num_power_measurements_deleted = 0
-    num_weather_measurements_deleted = 0
+    click.echo("Deleting (time series) data from the database %s ..." % db.engine)
 
-    # TODO: simplify this when sensors moved to one unified table
+    query = db.session.query(TimedBelief).filter(
+        TimedBelief.belief_horizon <= timedelta(hours=0)
+    )
+    if sensor_id is not None:
+        query = query.filter(TimedBelief.sensor_id == sensor_id)
+    num_measurements_deleted = query.delete()
 
-    if old_sensor_id is None:
-        if old_sensor_class_name is None or old_sensor_class_name == "Market":
-            num_prices_deleted = (
-                db.session.query(Price)
-                .filter(Price.horizon <= timedelta(hours=0))
-                .delete()
-            )
-        if old_sensor_class_name is None or old_sensor_class_name == "Asset":
-            num_power_measurements_deleted = (
-                db.session.query(Power)
-                .filter(Power.horizon <= timedelta(hours=0))
-                .delete()
-            )
-        if old_sensor_class_name is None or old_sensor_class_name == "WeatherSensor":
-            num_weather_measurements_deleted = (
-                db.session.query(Weather)
-                .filter(Weather.horizon <= timedelta(hours=0))
-                .delete()
-            )
-    else:
-        if old_sensor_class_name is None:
-            click.echo(
-                "If you specify --asset-name, please also specify --asset-type, so we can look it up."
-            )
-            return
-        if old_sensor_class_name == "Market":
-            market = (
-                db.session.query(Market)
-                .filter(Market.id == old_sensor_id)
-                .one_or_none()
-            )
-            if market is not None:
-                num_prices_deleted = (
-                    db.session.query(Price)
-                    .filter(Price.horizon <= timedelta(hours=0))
-                    .filter(Price.sensor_id == market.id)
-                    .delete()
-                )
-            else:
-                num_prices_deleted = 0
-
-        elif old_sensor_class_name == "Asset":
-            asset = (
-                db.session.query(Asset).filter(Asset.id == old_sensor_id).one_or_none()
-            )
-            if asset is not None:
-                num_power_measurements_deleted = (
-                    db.session.query(Power)
-                    .filter(Power.horizon <= timedelta(hours=0))
-                    .filter(Power.sensor_id == asset.id)
-                    .delete()
-                )
-            else:
-                num_power_measurements_deleted = 0
-
-        elif old_sensor_class_name == "WeatherSensor":
-            sensor = (
-                db.session.query(WeatherSensor)
-                .filter(WeatherSensor.id == old_sensor_id)
-                .one_or_none()
-            )
-            if sensor is not None:
-                num_weather_measurements_deleted = (
-                    db.session.query(Weather)
-                    .filter(Weather.horizon <= timedelta(hours=0))
-                    .filter(Weather.sensor_id == sensor.id)
-                    .delete()
-                )
-            else:
-                num_weather_measurements_deleted = 0
-
-    click.echo("Deleted %d Prices" % num_prices_deleted)
-    click.echo("Deleted %d Power Measurements" % num_power_measurements_deleted)
-    click.echo("Deleted %d Weather Measurements" % num_weather_measurements_deleted)
+    click.echo("Deleted %d measurements (ex-post beliefs)" % num_measurements_deleted)
 
 
 @as_transaction
 def depopulate_prognoses(
     db: SQLAlchemy,
-    old_sensor_class_name: Optional[str] = None,
-    old_sensor_id: Optional[id] = None,
+    sensor_id: Optional[id] = None,
 ):
     click.echo(
-        "Depopulating (time series) forecasts and schedules data from the database %s ..."
+        "Deleting (time series) forecasts and schedules data from the database %s ..."
         % db.engine
     )
-    num_prices_deleted = 0
-    num_power_measurements_deleted = 0
-    num_weather_measurements_deleted = 0
 
     # Clear all jobs
     num_forecasting_jobs_deleted = app.queues["forecasting"].empty()
     num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
 
     # Clear all forecasts (data with positive horizon)
-    if old_sensor_id is None:
-        if old_sensor_class_name is None or old_sensor_class_name == "Market":
-            num_prices_deleted = (
-                db.session.query(Price)
-                .filter(Price.horizon > timedelta(hours=0))
-                .delete()
-            )
-        if old_sensor_class_name is None or old_sensor_class_name == "Asset":
-            num_power_measurements_deleted = (
-                db.session.query(Power)
-                .filter(Power.horizon > timedelta(hours=0))
-                .delete()
-            )
-        if old_sensor_class_name is None or old_sensor_class_name == "WeatherSensor":
-            num_weather_measurements_deleted = (
-                db.session.query(Weather)
-                .filter(Weather.horizon > timedelta(hours=0))
-                .delete()
-            )
-    else:
-        click.echo(
-            "Depopulating (time series) forecasts and schedules for %s from the database %s ..."
-            % (old_sensor_id, db.engine)
-        )
+    query = db.session.query(TimedBelief).filter(
+        TimedBelief.belief_horizon > timedelta(hours=0)
+    )
+    if sensor_id is not None:
+        query = query.filter(TimedBelief.sensor_id == sensor_id)
+    num_forecasts_deleted = query.delete()
 
-        if old_sensor_class_name == "Market":
-            market = (
-                db.session.query(Market)
-                .filter(Market.id == old_sensor_id)
-                .one_or_none()
-            )
-            if market is not None:
-                num_prices_deleted = (
-                    db.session.query(Price)
-                    .filter(Price.horizon > timedelta(hours=0))
-                    .filter(Price.sensor_id == market.id)
-                    .delete()
-                )
-            else:
-                num_prices_deleted = 0
-
-        if old_sensor_class_name == "Asset":
-            asset = (
-                db.session.query(Asset).filter(Asset.id == old_sensor_id).one_or_none()
-            )
-            if asset is not None:
-                num_power_measurements_deleted = (
-                    db.session.query(Power)
-                    .filter(Power.horizon > timedelta(hours=0))
-                    .filter(Power.sensor_id == asset.id)
-                    .delete()
-                )
-            else:
-                num_power_measurements_deleted = 0
-
-        if old_sensor_class_name == "WeatherSensor":
-            sensor = (
-                db.session.query(WeatherSensor)
-                .filter(WeatherSensor.id == old_sensor_id)
-                .one_or_none()
-            )
-            if sensor is not None:
-                num_weather_measurements_deleted = (
-                    db.session.query(Weather)
-                    .filter(Weather.horizon > timedelta(hours=0))
-                    .filter(Weather.sensor_id == sensor.id)
-                    .delete()
-                )
-            else:
-                num_weather_measurements_deleted = 0
     click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
     click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
-    click.echo("Deleted %d Price Forecasts" % num_prices_deleted)
-    click.echo("Deleted %d Power Forecasts" % num_power_measurements_deleted)
-    click.echo("Deleted %d Weather Forecasts" % num_weather_measurements_deleted)
+    click.echo("Deleted %d forecasts (ex-ante beliefs)" % num_forecasts_deleted)
 
 
 def reset_db(db: SQLAlchemy):
@@ -706,5 +529,5 @@ def get_affected_classes(structure: bool = True, data: bool = False) -> List:
             DataSource,
         ]
     if data:
-        affected_classes += [TimedBelief, Power, Price, Weather]
+        affected_classes += [TimedBelief]
     return affected_classes

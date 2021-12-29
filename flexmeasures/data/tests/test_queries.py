@@ -6,7 +6,6 @@ import pytest
 import pytz
 import timely_beliefs as tb
 
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import (
@@ -41,19 +40,25 @@ from flexmeasures.data.queries.utils import (
 )
 def test_collect_power(db, app, query_start, query_end, num_values, setup_test_data):
     wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
-    data = Power.query.filter(Power.sensor_id == wind_device_1.id).all()
+    data = TimedBelief.query.filter(TimedBelief.sensor_id == wind_device_1.id).all()
     print(data)
-    bdf: tb.BeliefsDataFrame = Power.search(wind_device_1.name, query_start, query_end)
+    bdf: tb.BeliefsDataFrame = TimedBelief.search(
+        wind_device_1.name,
+        event_starts_after=query_start,
+        event_ends_before=query_end,
+    )
     print(bdf)
     assert (
         bdf.index.names[0] == "event_start"
     )  # first index level of collect function should be event_start, so that df.loc[] refers to event_start
     assert pd.api.types.is_timedelta64_dtype(
-        bdf.index.get_level_values("belief_horizon")
+        bdf.convert_index_from_belief_time_to_horizon().index.get_level_values(
+            "belief_horizon"
+        )
     )  # dtype of belief_horizon is timedelta64[ns], so the minimum horizon on an empty BeliefsDataFrame is NaT instead of NaN
     assert len(bdf) == num_values
-    for v1, v2 in zip(bdf.values, data):
-        assert abs(v1[0] - v2.value) < 10 ** -6
+    for v1, v2 in zip(bdf["event_value"].tolist(), data):
+        assert abs(v1 - v2.event_value) < 10 ** -6
 
 
 @pytest.mark.parametrize(
@@ -89,8 +94,12 @@ def test_collect_power_resampled(
     db, app, query_start, query_end, resolution, num_values, setup_test_data
 ):
     wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
-    bdf: tb.BeliefsDataFrame = Power.search(
-        wind_device_1.name, query_start, query_end, resolution=resolution
+    bdf: tb.BeliefsDataFrame = TimedBelief.search(
+        wind_device_1.name,
+        event_starts_after=query_start,
+        event_ends_before=query_end,
+        resolution=resolution,
+        most_recent_beliefs_only=True,
     )
     print(bdf)
     assert len(bdf) == num_values
@@ -206,10 +215,10 @@ def test_multiplication_with_both_empty_dataframe():
 def test_simplify_index(setup_test_data, check_empty_frame):
     """Check whether simplify_index retains the event resolution."""
     wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()
-    bdf: tb.BeliefsDataFrame = Power.search(
+    bdf: tb.BeliefsDataFrame = TimedBelief.search(
         wind_device_1.name,
-        datetime(2015, 1, 1, tzinfo=pytz.utc),
-        datetime(2015, 1, 2, tzinfo=pytz.utc),
+        event_starts_after=datetime(2015, 1, 1, tzinfo=pytz.utc),
+        event_ends_before=datetime(2015, 1, 2, tzinfo=pytz.utc),
         resolution=timedelta(minutes=15),
     )
     if check_empty_frame:

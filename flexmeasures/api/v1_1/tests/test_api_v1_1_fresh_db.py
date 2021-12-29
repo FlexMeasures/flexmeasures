@@ -78,7 +78,7 @@ def test_post_weather_data(
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
 
     forecast_horizons = forecast_horizons_for(timedelta(minutes=5))
-    jobs = get_forecasting_jobs("Weather")
+    jobs = get_forecasting_jobs(last_n=len(forecast_horizons))
     for job, horizon in zip(
         sorted(jobs, key=lambda x: x.kwargs["horizon"]), forecast_horizons
     ):
