@@ -131,10 +131,10 @@ def permission_required_for_context(
         )
         @permission_required_for_context("read", arg_name="the_resource")
         @as_json
-        def view(resource_id: int, resource: Resource):
-            return dict(name=resource.name)
+        def view(resource_id: int, the_resource: Resource):
+            return dict(name=the_resource.name)
 
-    Where `ResourceIdField._deserialize()` turns the id parameter into a resource context (if possible).
+    Where `ResourceIdField._deserialize()` turns the id parameter into a Resource context (if possible).
 
     This decorator raises a 403 response if there is no principal for the required permission.
     It raises a 401 response if the user is not authenticated at all.

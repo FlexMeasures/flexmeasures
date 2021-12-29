@@ -10,12 +10,6 @@ class AccountIdField(fields.Integer):
     Field that represents an account ID. It de-serializes from the account id to an account instance.
     """
 
-    def __init__(self, *args, **kwargs):
-        kwargs["load_default"] = (
-            lambda: current_user.account if not current_user.is_anonymous else None
-        )
-        super().__init__(*args, **kwargs)
-
     def _deserialize(self, account_id: int, attr, obj, **kwargs) -> Account:
         account: Account = Account.query.filter_by(id=int(account_id)).one_or_none()
         if account is None:
@@ -24,6 +18,14 @@ class AccountIdField(fields.Integer):
 
     def _serialize(self, account: Account, attr, data, **kwargs) -> int:
         return account.id
+
+    @classmethod
+    def load_current(cls):
+        """
+        Use this with the load_default arg to __init__ if you want the current user's account
+        by default.
+        """
+        return current_user.account if not current_user.is_anonymous else None
 
 
 class UserIdField(fields.Integer):

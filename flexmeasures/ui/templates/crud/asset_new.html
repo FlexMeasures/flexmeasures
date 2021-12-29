@@ -26,64 +26,28 @@
                     <h2> Creating a new asset </h2>
 
                     <div class="form-group">
-                        {{ asset_form.display_name.label(class="col-sm-6 control-label") }}
+                        {{ asset_form.name.label(class="col-sm-6 control-label") }}
                         <div class="col-sm-6">
-                            {{ asset_form.display_name(class_="form-control") }}
-                            {% for error in asset_form.errors.display_name %}
+                            {{ asset_form.name(class_="form-control") }}
+                            {% for error in asset_form.errors.name %}
                             <span style="color: red;">[{{error}}]</span>
                             {% endfor %}
                         </div>
                     </div>
                     <div class="form-group">
-                        {{ asset_form.asset_type_name.label(class="col-sm-6 control-label") }}
+                        {{ asset_form.generic_asset_type_id.label(class="col-sm-6 control-label")}}
                         <div class="col-sm-6">
-                            {{ asset_form.asset_type_name(class_="form-control") }}
-                            {% for error in asset_form.errors.asset_type_name %}
+                            {{ asset_form.generic_asset_type_id(class_="form-control") }}
+                            {% for error in asset_form.errors.generic_asset_type_id%}
                             <span style="color: red;">[{{error}}]</span>
                             {% endfor %}
                         </div>
                     </div>
                     <div class="form-group">
-                        {{ asset_form.market_id.label(class="col-sm-6 control-label")}}
+                        {{ asset_form.account_id.label(class="col-sm-6 control-label") }}
                         <div class="col-sm-6">
-                            {{ asset_form.market_id(class_="form-control") }}
-                            {% for error in asset_form.errors.market_id%}
-                            <span style="color: red;">[{{error}}]</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        {{ asset_form.owner_id.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
-                            {{ asset_form.owner_id(class_="form-control") }}
-                            {% for error in asset_form.errors.owner_id %}
-                            <span style="color: red;">[{{error}}]</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        {{ asset_form.capacity_in_mw.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
-                            {{ asset_form.capacity_in_mw(class_="form-control") }}
-                            {% for error in asset_form.errors.capacity_in_mw %}
-                            <span style="color: red;">[{{error}}]</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        {{ asset_form.unit.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
-                            {{ asset_form.unit(class_="form-control") }}
-                            {% for error in asset_form.errors.unit %}
-                            <span style="color: red;">[{{error}}]</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        {{ asset_form.event_resolution.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
-                            {{ asset_form.event_resolution(class_="form-control") }}
-                            {% for error in asset_form.errors.event_resolution %}
+                            {{ asset_form.account_id(class_="form-control") }}
+                            {% for error in asset_form.errors.account_id %}
                             <span style="color: red;">[{{error}}]</span>
                             {% endfor %}
                         </div>
@@ -104,42 +68,6 @@
                             {% for error in asset_form.errors.longitude %}
                             <span style="color: red;">[{{error}}]</span>
                             {% endfor %}
-                        </div>
-                    </div>
-                    <div id="soc_info" style="display:none;">
-                        <!-- show this only when the asset type field changes to "battery" or asset_type.data is already "battery" -->
-                        <script type="text/javascript">
-                            function show_or_hide_soc_info() {
-                                if ($("#asset_type_name").val() == "battery") {
-                                    $("#soc_info").show();
-                                } else {
-                                    $("#min_soc_in_mwh").val("0");
-                                    $("#max_soc_in_mwh").val("0");
-                                    $("#soc_info").hide();
-                                }
-                            }
-                            show_or_hide_soc_info();
-                            $("#asset_type_name").change(function () {
-                                show_or_hide_soc_info();
-                            });
-                        </script>
-                        <div class="form-group">
-                            {{ asset_form.min_soc_in_mwh.label(class="col-sm-6 control-label") }}
-                            <div class="col-sm-6">
-                                {{ asset_form.min_soc_in_mwh(class_="form-control") }}
-                                {% for error in asset_form.errors.min_soc_in_mwh %}
-                                <span style="color: red;">[{{error}}]</span>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            {{ asset_form.max_soc_in_mwh.label(class="col-sm-6 control-label") }}
-                            <div class="col-sm-6">
-                                {{ asset_form.max_soc_in_mwh(class_="form-control") }}
-                                {% for error in asset_form.errors.max_soc_in_mwh %}
-                                <span style="color: red;">[{{error}}]</span>
-                                {% endfor %}
-                            </div>
                         </div>
                     </div>
                     <div class="col-sm-6"></div>

@@ -51,6 +51,14 @@
                         </tr>
                         <tr>
                             <td>
+                                Assets in account
+                            </td>
+                            <td>
+                                <a href="/assets">{{ num_assets }}</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
                                 Time Zone
                             </td>
                             <td>
@@ -63,14 +71,6 @@
                             </td>
                             <td>
                                 {{ logged_in_user.last_login_at | localized_datetime }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Assets owned
-                            </td>
-                            <td>
-                                <a href="/assets">{{ num_assets }}</a>
                             </td>
                         </tr>
                         <tr>

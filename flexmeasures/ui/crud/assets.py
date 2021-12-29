@@ -1,55 +1,39 @@
 from typing import Union, Optional, Tuple
-from datetime import timedelta
 import copy
 
 from flask import url_for, current_app
 from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
-from wtforms import StringField, DecimalField, IntegerField, SelectField
+from wtforms import StringField, DecimalField, SelectField
 from wtforms.validators import DataRequired
+from flexmeasures.auth.policy import ADMIN_ROLE
 
 from flexmeasures.data.config import db
 from flexmeasures.auth.error_handling import unauthorized_handler
-from flexmeasures.data.services.users import get_users
-from flexmeasures.data.services.resources import get_markets, get_center_location
-from flexmeasures.data.models.assets import AssetType, Asset
-from flexmeasures.data.models.user import User
-from flexmeasures.data.models.markets import Market
-from flexmeasures.utils.flexmeasures_inflection import parameterize
-from flexmeasures.ui.utils.plotting_utils import get_latest_power_as_plot
+from flexmeasures.data.services.resources import get_center_location
+from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
+from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.ui.charts.latest_state import get_latest_power_as_plot
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
+from flexmeasures.utils.unit_utils import is_power_unit
 
 
 """
 Asset crud view.
 
-Note: This uses the internal API 2.0 ― if these endpoints get updated in a later version,
-      we should change the version here.
+Note: This uses the internal dev API version
+      ― if those endpoints get moved or updated to a higher version,
+      we probably should change the version used here, as well.
 """
 
 
 class AssetForm(FlaskForm):
-    """The default asset form only allows to edit the name, numbers and market."""
+    """The default asset form only allows to edit the name and location."""
 
-    display_name = StringField("Display name")
-    capacity_in_mw = DecimalField("Capacity in MW", places=2)
-    unit = SelectField("Unit", default="MW", choices=[("MW", "MW")])
-    event_resolution = IntegerField(
-        "Resolution in minutes (e.g. 15)",
-        default=15,
-    )
-    min_soc_in_mwh = DecimalField(
-        "Minimum state of charge (SOC) in MWh",
-        places=2,
-        default=0,
-    )
-    max_soc_in_mwh = DecimalField(
-        "Maximum state of charge (SOC) in MWh",
-        places=2,
-        default=0,
-    )
+    name = StringField("Name")
     latitude = DecimalField(
         "Latitude",
         places=4,
@@ -60,25 +44,17 @@ class AssetForm(FlaskForm):
         places=4,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
-    market_id = SelectField("Market", coerce=int)
 
     def validate_on_submit(self):
-        if self.market_id.data == -1:
-            self.market_id.data = (
+        if self.generic_asset_type_id.data == -1:
+            self.generic_asset_type_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )
         return super().validate_on_submit()
 
-    def to_json(self, for_posting=False) -> dict:
+    def to_json(self) -> dict:
         """ turn form data into a JSON we can POST to our internal API """
         data = copy.copy(self.data)
-        if for_posting:
-            data["name"] = parameterize(
-                data["display_name"]
-            )  # best guess at un-humanizing
-        data["capacity_in_mw"] = float(data["capacity_in_mw"])
-        data["min_soc_in_mwh"] = float(data["min_soc_in_mwh"])
-        data["max_soc_in_mwh"] = float(data["max_soc_in_mwh"])
         data["longitude"] = float(data["longitude"])
         data["latitude"] = float(data["latitude"])
 
@@ -100,33 +76,31 @@ class AssetForm(FlaskForm):
 
 
 class NewAssetForm(AssetForm):
-    """Here, in addition, we allow to set asset type and owner."""
+    """Here, in addition, we allow to set asset type and account."""
 
-    asset_type_name = SelectField("Asset type", validators=[DataRequired()])
-    owner_id = SelectField("Owner", coerce=int)
+    generic_asset_type_id = SelectField(
+        "Asset type", coerce=int, validators=[DataRequired()]
+    )
+    account_id = SelectField("Account", coerce=int)
 
 
 def with_options(
     form: Union[AssetForm, NewAssetForm]
 ) -> Union[AssetForm, NewAssetForm]:
-    if "asset_type_name" in form:
-        form.asset_type_name.choices = [("none chosen", "--Select type--")] + [
-            (atype.name, atype.display_name) for atype in AssetType.query.all()
+    if "generic_asset_type_id" in form:
+        form.generic_asset_type_id.choices = [(-1, "--Select type--")] + [
+            (atype.id, atype.name) for atype in GenericAssetType.query.all()
         ]
-    if "owner_id" in form:
-        form.owner_id.choices = [(-1, "--Select existing--")] + [
-            (o.id, o.username) for o in get_users(role_name="Prosumer")
-        ]
-    if "market_id" in form:
-        form.market_id.choices = [(-1, "--Select existing--")] + [
-            (m.id, m.display_name) for m in get_markets()
+    if "account_id" in form:
+        form.account_id.choices = [(-1, "--Select account--")] + [
+            (account.id, account.name) for account in Account.query.all()
         ]
     return form
 
 
 def process_internal_api_response(
     asset_data: dict, asset_id: Optional[int] = None, make_obj=False
-) -> Union[Asset, dict]:
+) -> Union[GenericAsset, dict]:
     """
     Turn data from the internal API into something we can use to further populate the UI.
     Either as an asset object or a dict for form filling.
@@ -135,11 +109,13 @@ def process_internal_api_response(
     if asset_id:
         asset_data["id"] = asset_id
     if make_obj:
-        asset_data["event_resolution"] = timedelta(
-            minutes=int(asset_data["event_resolution"])
+        asset = GenericAsset(**asset_data)  # TODO: use schema?
+        asset.generic_asset_type = GenericAssetType.query.get(
+            asset.generic_asset_type_id
         )
-        return Asset(**asset_data)
-    asset_data["event_resolution"] = asset_data["event_resolution"].seconds / 60
+        if asset in db.session:
+            db.session.expunge(asset)  # no insert wanted (the query above flushes)
+        return asset
     return asset_data
 
 
@@ -148,7 +124,7 @@ class AssetCrudUI(FlaskView):
     These views help us offering a Jinja2-based UI.
     The main focus on logic is the API, so these views simply call the API functions,
     and deal with the response.
-    Some new functionality, like fetching users and markets, is added here.
+    Some new functionality, like fetching accounts and asset types, is added here.
     """
 
     route_base = "/assets"
@@ -157,27 +133,39 @@ class AssetCrudUI(FlaskView):
     def index(self, msg=""):
         """/assets"""
         get_assets_response = InternalApi().get(
-            url_for("flexmeasures_api_v2_0.get_assets")
+            url_for("AssetAPI:get"), query={"account_id": current_user.account_id}
         )
         assets = [
             process_internal_api_response(ad, make_obj=True)
             for ad in get_assets_response.json()
         ]
         return render_flexmeasures_template(
-            "crud/assets.html", assets=assets, message=msg
+            "crud/assets.html", account=current_user.account, assets=assets, message=msg
         )
 
     @login_required
-    def owned_by(self, owner_id: str):
-        """/assets/owned_by/<user_id>"""
+    def owned_by(self, account_id: str):
+        """/assets/owned_by/<account_id>"""
+        msg = ""
         get_assets_response = InternalApi().get(
-            url_for("flexmeasures_api_v2_0.get_assets"), query={"owner_id": owner_id}
+            url_for("AssetAPI:get"),
+            query={"account_id": account_id},
+            do_not_raise_for=[404],
         )
-        assets = [
-            process_internal_api_response(ad, make_obj=True)
-            for ad in get_assets_response.json()
-        ]
-        return render_flexmeasures_template("crud/assets.html", assets=assets)
+        if get_assets_response.status_code == 404:
+            assets = []
+            msg = f"Account {account_id} unknown."
+        else:
+            assets = [
+                process_internal_api_response(ad, make_obj=True)
+                for ad in get_assets_response.json()
+            ]
+        return render_flexmeasures_template(
+            "crud/assets.html",
+            account=Account.query.get(account_id),
+            assets=assets,
+            msg=msg,
+        )
 
     @login_required
     def get(self, id: str):
@@ -196,9 +184,7 @@ class AssetCrudUI(FlaskView):
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             )
 
-        get_asset_response = InternalApi().get(
-            url_for("flexmeasures_api_v2_0.get_asset", id=id)
-        )
+        get_asset_response = InternalApi().get(url_for("AssetAPI:fetch_one", id=id))
         asset_dict = get_asset_response.json()
 
         asset_form = with_options(AssetForm())
@@ -206,7 +192,7 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         asset_form.process(data=process_internal_api_response(asset_dict))
 
-        latest_measurement_time_str, asset_plot_html = get_latest_power_as_plot(asset)
+        latest_measurement_time_str, asset_plot_html = _get_latest_power_plot(asset)
         return render_flexmeasures_template(
             "crud/asset.html",
             asset=asset,
@@ -223,36 +209,32 @@ class AssetCrudUI(FlaskView):
         Most of the code deals with creating a user for the asset if no existing is chosen.
         """
 
-        asset: Asset = None
+        asset: GenericAsset = None
         error_msg = ""
 
         if id == "create":
             asset_form = with_options(NewAssetForm())
 
-            owner, owner_error = set_owner(asset_form)
-            market, market_error = set_market(asset_form)
-
-            if asset_form.asset_type_name.data == "none chosen":
-                asset_form.asset_type_name.data = ""
+            account, account_error = _set_account(asset_form)
+            asset_type, asset_type_error = _set_asset_type(asset_form)
 
             form_valid = asset_form.validate_on_submit()
 
             # Fill up the form with useful errors for the user
-            if owner_error is not None:
+            if account_error is not None:
                 form_valid = False
-                asset_form.owner_id.errors.append(owner_error)
-            if market_error is not None:
+                asset_form.account_id.errors.append(account_error)
+            if asset_type_error is not None:
                 form_valid = False
-                asset_form.market_id.errors.append(market_error)
+                asset_form.generic_asset_type_id.errors.append(asset_type_error)
 
             # Create new asset or return the form for new assets with a message
-            if form_valid and owner is not None and market is not None:
+            if form_valid and account is not None and asset_type is not None:
                 post_asset_response = InternalApi().post(
-                    url_for("flexmeasures_api_v2_0.post_assets"),
-                    args=asset_form.to_json(for_posting=True),
+                    url_for("AssetAPI:post"),
+                    args=asset_form.to_json(),
                     do_not_raise_for=[400, 422],
                 )
-
                 if post_asset_response.status_code in (200, 201):
                     asset_dict = post_asset_response.json()
                     asset = process_internal_api_response(
@@ -282,26 +264,28 @@ class AssetCrudUI(FlaskView):
         else:
             asset_form = with_options(AssetForm())
             if not asset_form.validate_on_submit():
-                asset = Asset.query.get(id)
-                latest_measurement_time_str, asset_plot_html = get_latest_power_as_plot(
+                asset = GenericAsset.query.get(id)
+                latest_measurement_time_str, asset_plot_html = _get_latest_power_plot(
                     asset
                 )
                 # Display the form data, but set some extra data which the page wants to show.
-                asset_info = asset_form.data.copy()
+                asset_info = asset_form.to_json()
                 asset_info["id"] = id
-                asset_info["owner_id"] = asset.owner_id
-                asset_info["entity_address"] = asset.entity_address
+                asset_info["account_id"] = asset.account_id
+                asset = process_internal_api_response(
+                    asset_info, int(id), make_obj=True
+                )
                 return render_flexmeasures_template(
                     "crud/asset.html",
                     asset_form=asset_form,
-                    asset=asset_info,
+                    asset=asset,
                     msg="Cannot edit asset.",
                     latest_measurement_time_str=latest_measurement_time_str,
                     asset_plot_html=asset_plot_html,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
             patch_asset_response = InternalApi().patch(
-                url_for("flexmeasures_api_v2_0.patch_asset", id=id),
+                url_for("AssetAPI:patch", id=id),
                 args=asset_form.to_json(),
                 do_not_raise_for=[400, 422],
             )
@@ -317,9 +301,9 @@ class AssetCrudUI(FlaskView):
                 )
                 msg = "Cannot edit asset."
                 asset_form.process_api_validation_errors(patch_asset_response.json())
-                asset = Asset.query.get(id)
+                asset = GenericAsset.query.get(id)
 
-        latest_measurement_time_str, asset_plot_html = get_latest_power_as_plot(asset)
+        latest_measurement_time_str, asset_plot_html = _get_latest_power_plot(asset)
         return render_flexmeasures_template(
             "crud/asset.html",
             asset=asset,
@@ -333,45 +317,66 @@ class AssetCrudUI(FlaskView):
     @login_required
     def delete_with_data(self, id: str):
         """Delete via /assets/delete_with_data/<id>"""
-        InternalApi().delete(
-            url_for("flexmeasures_api_v2_0.delete_asset", id=id),
-        )
+        InternalApi().delete(url_for("AssetAPI:delete", id=id))
         return self.index(
             msg=f"Asset {id} and assorted meter readings / forecasts have been deleted."
         )
 
 
-def set_owner(asset_form: NewAssetForm) -> Tuple[Optional[User], Optional[str]]:
-    """Set a user as owner for the to-be-created asset.
-    Return the user (if available and an error message)"""
-    owner = None
-    owner_error = None
+def _set_account(asset_form: NewAssetForm) -> Tuple[Optional[Account], Optional[str]]:
+    """Set an account for the to-be-created asset.
+    Return the account (if available) and an error message"""
+    account = None
+    account_error = None
 
-    if asset_form.owner_id.data == -1:
-        owner_error = "Pick an existing owner."
+    if asset_form.account_id.data == -1:
+        if current_user.has_role(ADMIN_ROLE):
+            return None, None  # Account can be None (public asset)
+        else:
+            account_error = "Please pick an existing account."
+
+    account = Account.query.filter_by(id=int(asset_form.account_id.data)).one_or_none()
+
+    if account:
+        asset_form.account_id.data = account.id
     else:
-        owner = User.query.filter_by(id=int(asset_form.owner_id.data)).one_or_none()
+        current_app.logger.error(account_error)
+    return account, account_error
 
-    if owner:
-        asset_form.owner_id.data = owner.id
+
+def _set_asset_type(
+    asset_form: NewAssetForm,
+) -> Tuple[Optional[GenericAssetType], Optional[str]]:
+    """Set an asset type for the to-be-created asset.
+    Return the asset type (if available) and an error message."""
+    asset_type = None
+    asset_type_error = None
+
+    if int(asset_form.generic_asset_type_id.data) == -1:
+        asset_type_error = "Pick an existing asset type."
     else:
-        current_app.logger.error(owner_error)
-    return owner, owner_error
+        asset_type = GenericAssetType.query.filter_by(
+            id=int(asset_form.generic_asset_type_id.data)
+        ).one_or_none()
 
-
-def set_market(asset_form: NewAssetForm) -> Tuple[Optional[Market], Optional[str]]:
-    """Set a market for the to-be-created asset.
-    Return the market (if available) and an error message."""
-    market = None
-    market_error = None
-
-    if int(asset_form.market_id.data) == -1:
-        market_error = "Pick an existing market."
+    if asset_type:
+        asset_form.generic_asset_type_id.data = asset_type.id
     else:
-        market = Market.query.filter_by(id=int(asset_form.market_id.data)).one_or_none()
+        current_app.logger.error(asset_type_error)
+    return asset_type, asset_type_error
 
-    if market:
-        asset_form.market_id.data = market.id
+
+def _get_latest_power_plot(asset: GenericAsset) -> Tuple[str, str]:
+    power_sensor: Optional[Sensor] = None
+    if asset._sa_instance_state.transient:
+        sensors = Sensor.query.filter(Sensor.generic_asset_id == asset.id).all()
     else:
-        current_app.logger.error(market_error)
-    return market, market_error
+        sensors = asset.sensors
+    for sensor in sensors:
+        if is_power_unit(sensor.unit):
+            power_sensor = sensor
+            break
+    if power_sensor is None:
+        return "", ""
+    else:
+        return get_latest_power_as_plot(power_sensor)
