@@ -51,13 +51,16 @@ class GenericAsset(db.Model, AuthModelMixin):
     def __acl__(self):
         """
         Within same account, everyone can read and update.
-        Creation and deletion are left to site admins in CLI.
-
-        TODO: needs an iteration
+        Creation and deletion are left to account admins (a role we don't use yet).
+        Note: creation is not relevant on a GenericAsset object (as it already exists),
+              but we might want to use this permission to check if data *within* the asset,
+              like sensors, can be created. See the discussion in auth/policy.
         """
         return {
+            "create": (f"account:{self.account_id}", "role:account-admin"),
             "read": f"account:{self.account_id}",
             "update": f"account:{self.account_id}",
+            "delete": (f"account:{self.account_id}", "role:account-admin"),
         }
 
     @property
