@@ -46,7 +46,10 @@ class AssetForm(FlaskForm):
     )
 
     def validate_on_submit(self):
-        if self.generic_asset_type_id.data == -1:
+        if (
+            hasattr(self, "generic_asset_type_id")
+            and self.generic_asset_type_id.data == -1
+        ):
             self.generic_asset_type_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )

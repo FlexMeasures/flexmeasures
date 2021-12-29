@@ -153,7 +153,7 @@
     // create marker
     var asset_icon = new L.DivIcon({
         className: 'map-icon',
-        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.asset_type_name | default("info") | asset_icon }}"></i>',
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset.generic_asset_type.name | default("info") | asset_icon }}"></i>',
         iconSize: [100, 100], // size of the icon
         iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
         popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
