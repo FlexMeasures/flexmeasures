@@ -330,7 +330,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         backref=db.backref(
             "beliefs",
             lazy=True,
-            cascade="merge",  # i.e. no save-update
+            cascade="merge",  # no save-update (i.e. don't auto-save time series data to session upon updating sensor)
         ),
     )
     source = db.relationship(
@@ -338,7 +338,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         backref=db.backref(
             "beliefs",
             lazy=True,
-            cascade="merge",  # i.e. no save-update
+            cascade="merge",  # no save-update (i.e. don't auto-save time series data to session upon updating source)
         ),
     )
 
