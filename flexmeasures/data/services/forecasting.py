@@ -6,7 +6,9 @@ import click
 from rq import get_current_job
 from rq.job import Job
 from timetomodel.forecasting import make_rolling_forecasts
+import timely_beliefs as tb
 
+from flexmeasures.api.common.utils.api_utils import save_to_db
 from flexmeasures.data.config import db
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import InvalidHorizonException
@@ -233,7 +235,7 @@ def make_rolling_viewpoint_forecasts(
     )
     click.echo("Job %s made %d forecasts." % (rq_job.id, len(forecasts)))
 
-    for dt, value in forecasts.items():
+    ts_value_forecasts = [
         TimedBelief(
             event_start=dt,
             belief_horizon=horizon,
@@ -241,6 +243,10 @@ def make_rolling_viewpoint_forecasts(
             sensor=sensor,
             source=data_source,
         )
+        for dt, value in forecasts.items()
+    ]
+    bdf = tb.BeliefsDataFrame(ts_value_forecasts)
+    save_to_db(bdf)
 
     return len(forecasts)
 

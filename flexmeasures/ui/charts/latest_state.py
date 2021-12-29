@@ -34,14 +34,15 @@ def get_latest_power_as_plot(sensor: Sensor, small: bool = False) -> Tuple[str, 
 
     latest_power = sensor.latest_state()
     if not latest_power.empty:
-        # TODO: Get first entry
-        latest_power_value = latest_power.event_value
+        latest_power_value = latest_power["event_value"].values[0]
         if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
-            latest_power_datetime = latest_power.belief_time.replace(
-                year=datetime.now().year
+            latest_power_datetime = (
+                latest_power.event_ends[0]
+                .to_pydatetime()
+                .replace(year=datetime.now().year)
             )
         else:
-            latest_power_datetime = latest_power.belief_time
+            latest_power_datetime = latest_power.event_ends[0].to_pydatetime()
         latest_measurement_time_str = localized_datetime_str(
             latest_power_datetime + sensor.event_resolution
         )

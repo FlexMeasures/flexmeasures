@@ -46,13 +46,15 @@ def test_collect_power(db, app, query_start, query_end, num_values, setup_test_d
         wind_device_1.name,
         event_starts_after=query_start,
         event_ends_before=query_end,
-    ).convert_index_from_belief_time_to_horizon()
+    )
     print(bdf)
     assert (
         bdf.index.names[0] == "event_start"
     )  # first index level of collect function should be event_start, so that df.loc[] refers to event_start
     assert pd.api.types.is_timedelta64_dtype(
-        bdf.index.get_level_values("belief_horizon")
+        bdf.convert_index_from_belief_time_to_horizon().index.get_level_values(
+            "belief_horizon"
+        )
     )  # dtype of belief_horizon is timedelta64[ns], so the minimum horizon on an empty BeliefsDataFrame is NaT instead of NaN
     assert len(bdf) == num_values
     for v1, v2 in zip(bdf["event_value"].tolist(), data):
@@ -97,7 +99,8 @@ def tesfijfijft_collect_power_resampled(
         event_starts_after=query_start,
         event_ends_before=query_end,
         resolution=resolution,
-    ).convert_index_from_belief_time_to_horizon()
+        most_recent_beliefs_only=True,
+    )
     print(bdf)
     assert len(bdf) == num_values
 

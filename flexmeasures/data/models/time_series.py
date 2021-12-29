@@ -166,6 +166,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             source=source,
             most_recent_beliefs_only=True,
             most_recent_events_only=True,
+            one_deterministic_belief_per_event=True,
         )
 
     def search_beliefs(
@@ -181,7 +182,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         ] = None,
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
-        most_recent_only: bool = False,  # deprecated
+        most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
         as_json: bool = False,
     ) -> Union[tb.BeliefsDataFrame, str]:
@@ -324,8 +325,22 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     def source_id(cls):
         return db.Column(db.Integer, db.ForeignKey("data_source.id"), primary_key=True)
 
-    sensor = db.relationship("Sensor", backref=db.backref("beliefs", lazy=True))
-    source = db.relationship("DataSource", backref=db.backref("beliefs", lazy=True))
+    sensor = db.relationship(
+        "Sensor",
+        backref=db.backref(
+            "beliefs",
+            lazy=True,
+            cascade="merge",  # no save-update (i.e. don't auto-save time series data to session upon updating sensor)
+        ),
+    )
+    source = db.relationship(
+        "DataSource",
+        backref=db.backref(
+            "beliefs",
+            lazy=True,
+            cascade="merge",  # no save-update (i.e. don't auto-save time series data to session upon updating source)
+        ),
+    )
 
     def __init__(
         self,
@@ -356,7 +371,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         exclude_source_types: Optional[List[str]] = None,
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
-        most_recent_only: bool = False,  # deprecated
+        most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
