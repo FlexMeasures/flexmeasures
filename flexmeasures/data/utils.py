@@ -58,6 +58,8 @@ def save_to_db(
 ) -> str:
     """Save the timed beliefs to the database.
 
+    NB Roles back session in case of IntegrityError upon flushing the session. Best to keep transactions short.
+
     We make the distinction between updating beliefs and replacing beliefs.
 
     # Updating beliefs
