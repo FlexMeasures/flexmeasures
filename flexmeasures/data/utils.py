@@ -130,7 +130,6 @@ def save_to_db(
             TimedBelief.add_to_session(
                 session=db.session, beliefs_data_frame=timed_values
             )
-            db.session.flush()
             db.session.commit()
             if len_after < len_before:
                 # new data was saved
