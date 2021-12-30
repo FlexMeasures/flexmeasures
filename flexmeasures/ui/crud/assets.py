@@ -136,7 +136,7 @@ class AssetCrudUI(FlaskView):
     def index(self, msg=""):
         """/assets"""
         get_assets_response = InternalApi().get(
-            url_for("AssetAPI:get"), query={"account_id": current_user.account_id}
+            url_for("AssetAPI:index"), query={"account_id": current_user.account_id}
         )
         assets = [
             process_internal_api_response(ad, make_obj=True)
@@ -151,7 +151,7 @@ class AssetCrudUI(FlaskView):
         """/assets/owned_by/<account_id>"""
         msg = ""
         get_assets_response = InternalApi().get(
-            url_for("AssetAPI:get"),
+            url_for("AssetAPI:index"),
             query={"account_id": account_id},
             do_not_raise_for=[404],
         )
