@@ -70,7 +70,9 @@ def save_to_db(
 
     A replaced belief is a belief from the same source as some already saved belief,
     and about the same event and with the same belief time, but with a different event value.
-    Replacing beliefs is not allowed, except on servers in play mode.
+    Replacing beliefs is not allowed, because messing with the history corrupts data lineage.
+    Corrections should instead be recorded as updated beliefs.
+    Servers in 'play' mode are excempted from this rule, to facilitate replaying simulations.
 
     :param data: BeliefsDataFrame (or a list thereof) to be saved
     :param save_changed_beliefs_only: if True, beliefs that are already stored in the database with an earlier belief time are dropped.
