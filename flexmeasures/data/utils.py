@@ -75,7 +75,7 @@ def save_to_db(
     Servers in 'play' mode are excempted from this rule, to facilitate replaying simulations.
 
     :param data: BeliefsDataFrame (or a list thereof) to be saved
-    :param save_changed_beliefs_only: if True, beliefs that are already stored in the database with an earlier belief time are dropped.
+    :param save_changed_beliefs_only: if True, updated beliefs are only stored if they represent changed beliefs
     :returns: status string (or a list thereof), one of the following:
               - 'success': all beliefs were saved
               - 'success_with_replacements': all beliefs were saves, (some) replacing pre-existing beliefs
