@@ -47,10 +47,15 @@ class Account(db.Model, AuthModelMixin):
 
     def __acl__(self):
         """
+        Only account admins can create things in the account (e.g. users or assets).
         Within same account, everyone can read and update.
         Creation and deletion are left to site admins in CLI.
         """
-        return {"read": f"account:{self.id}", "update": f"account:{self.id}"}
+        return {
+            "create-children": (f"account:{self.id}", "role:account-admin"),
+            "read": f"account:{self.id}",
+            "update": f"account:{self.id}",
+        }
 
     def has_role(self, role: Union[str, AccountRole]) -> bool:
         """Returns `True` if the account has the specified role.
@@ -115,10 +120,17 @@ class User(db.Model, UserMixin, AuthModelMixin):
 
     def __acl__(self):
         """
-        Within same account, everyone can read. Only the user themselves can edit their user record.
+        Within same account, everyone can read.
+        Only the user themselves or account-admins can edit their user record.
         Creation and deletion are left to site admins in CLI.
         """
-        return {"read": f"account:{self.account_id}", "update": f"user:{self.id}"}
+        return {
+            "read": f"account:{self.account_id}",
+            "update": [
+                f"user:{self.id}",
+                (f"account:{self.account_id}", "role:account-admin"),
+            ],
+        }
 
     @property
     def is_authenticated(self) -> bool:

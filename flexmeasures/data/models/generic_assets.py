@@ -57,11 +57,18 @@ class GenericAsset(db.Model, AuthModelMixin):
               like sensors, can be created. See the discussion in auth/policy.
         """
         return {
-            "create": (f"account:{self.account_id}", "role:account-admin"),
+            "create-children": (f"account:{self.account_id}", "role:account-admin"),
             "read": f"account:{self.account_id}",
             "update": f"account:{self.account_id}",
             "delete": (f"account:{self.account_id}", "role:account-admin"),
         }
+
+    def __repr__(self):
+        return "<GenericAsset %s:%r (%s)>" % (
+            self.id,
+            self.name,
+            self.generic_asset_type.name,
+        )
 
     @property
     def asset_type(self) -> GenericAssetType:

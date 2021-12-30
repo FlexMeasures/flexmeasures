@@ -1,9 +1,9 @@
-from typing import Dict, Union, Tuple
+from typing import Dict, Union, Tuple, List
 
 from flask import current_app
 
 
-PERMISSIONS = ["create", "read", "update", "delete"]
+PERMISSIONS = ["create-children", "read", "read-children", "update", "delete"]
 
 ADMIN_ROLE = "admin"
 ADMIN_READER_ROLE = "admin-reader"
@@ -27,10 +27,10 @@ class AuthModelMixin(object):
         Here are some (fictional) examples:
 
         {
-            "create": "account:3",               # Everyone in Account 3 can create
+            "create-children": "account:3",      # Everyone in Account 3 can create child items (e.g. beliefs for a sensor)
             "read": EVERYONE,                    # Reading is available to every logged-in user
-            "update": "user:14",                 # This user can update, ...
-            "update": "user:15",                 # and also this user, ...
+            "update": ["user:14",                # This user can update, ...
+                        user:15"],               # and also this user, ...
             "update": "account-role:MDC",        # also people in such accounts can update
             "delete": ("account:3", "role:CEO"), # Only CEOs of Account 3 can delete
         }
@@ -39,9 +39,10 @@ class AuthModelMixin(object):
 
         Notes:
 
-        - Iterable principal descriptors should be treated as to be AND-connected. This helps to define subsets,
-          like the deletion example above.
-        - This is row-level authorization, which requires an instance. We are considering table-level authorization (which wouldn't require that an instance to make a decision), which would allow for faster authorization checks (no instances need to be loaded). Checking the instance also does not make much sense if what you need a permission for is to create a new instance. A different way we can go (aside from table-level authorization) is to make use of the hierarchy which exists in our model ― it makes sense to use the instance one level up to look up the correct permission. E.g. to create belief data for a sensor, we can check the create-permission on the sensor. TODO: if we go down that route, we might create dedicated permissions for these cases to be more clear, e.g. "create-children" in addition to "create". This might also be a clean approach to think this through (will that cover the use cases we need?)
+        - Iterable principal descriptors should be treated as follows: a list is OR-connected. A tuple is AND-connected. This helps to define subsets,
+          like the update and deletion example above. You could have a list of tuples.
+        - This is row-level authorization, which always requires an instance. We make use of the hierarchy in our model ― for creation of instances,
+        it makes sense to use the instance one level up to look up the correct permission ("create-children"). E.g. to create belief data for a sensor, we can check the create-permission on the sensor.
 
         [1] https://docs.microsoft.com/en-us/windows/security/identity-protection/access-control/security-principals#a-href-idw2k3tr-princ-whatawhat-are-security-principals
         """
@@ -56,29 +57,34 @@ def user_has_admin_access(user, permission: str) -> bool:
     return False
 
 
-def user_matches_principals(user, principals: Union[str, Tuple[str]]) -> bool:
+def user_matches_principals(
+    user, principals: Union[str, Tuple[str], List[Union[str, Tuple[str]]]]
+) -> bool:
     """
     Tests if the user matches all passed principals.
     Returns False if no principals are passed.
     """
-    if isinstance(principals, str):
-        principals = (principals,)
-    if EVERYONE in principals:
-        return True
-    if user is None:
-        return False
-    if all(
-        [
-            (
-                check_user_identity(user, principal)
-                or check_user_role(user, principal)
-                or check_account_membership(user, principal)
-                or check_account_role(user, principal)
-            )
-            for principal in principals
-        ]
-    ):
-        return True
+    if not isinstance(principals, list):
+        principals = [principals]  # now we handle a list of str or Tuple[str]
+    for matchable_principals in principals:
+        if isinstance(matchable_principals, str):
+            matchable_principals = (
+                matchable_principals,
+            )  # now we handle only Tuple[str]
+        if EVERYONE in matchable_principals:
+            return True
+        if user is not None and all(
+            [
+                (
+                    check_user_identity(user, principal)
+                    or check_user_role(user, principal)
+                    or check_account_membership(user, principal)
+                    or check_account_role(user, principal)
+                )
+                for principal in matchable_principals
+            ]
+        ):
+            return True
     return False
 
 

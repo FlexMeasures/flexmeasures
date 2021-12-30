@@ -81,6 +81,16 @@ def make_mock_user(
             ),
             True,
         ),
+        (
+            make_mock_user(19, ["waitress"], 113, ["hotel"]),
+            ["user:13", ("account:113", "role:waitress", "role:chef")],
+            False,
+        ),
+        (
+            make_mock_user(19, ["waitress"], 113, ["hotel"]),
+            ["user:13", ("account:113", "role:waitress"), "role:chef"],
+            True,
+        ),
     ],
 )
 def test_principals_match(mock_user, principals, should_match):

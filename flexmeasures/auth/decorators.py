@@ -168,6 +168,8 @@ def permission_required_for_context(
                 )
             # now check access, either with admin rights or principal(s)
             acl = context.__acl__()
+            print(context)
+            print(acl)
             principals = acl.get(permission, tuple())
             if not user_has_admin_access(
                 current_user, permission
