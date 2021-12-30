@@ -131,7 +131,8 @@ def save_to_db(
             allow_overwrite=allow_overwrite,
         )
     try:
-        db.session.commit()
+        # Flush to check for unique violations (due to attempting to replace beliefs)
+        db.session.flush()
     except IntegrityError as e:
         current_app.logger.warning(e)
         db.session.rollback()
