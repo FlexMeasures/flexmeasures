@@ -75,7 +75,7 @@ def save_to_db(
     and about the same event and with the same belief time, but with a different event value.
     Replacing beliefs is not allowed, because messing with the history corrupts data lineage.
     Corrections should instead be recorded as updated beliefs.
-    Servers in 'play' mode are excempted from this rule, to facilitate replaying simulations.
+    Servers in 'play' mode are exempt from this rule, to facilitate replaying simulations.
 
     :param data: BeliefsDataFrame (or a list thereof) to be saved
     :param save_changed_beliefs_only: if True, unchanged beliefs are skipped (updated beliefs are only stored if they represent changed beliefs)
