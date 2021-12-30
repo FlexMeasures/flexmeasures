@@ -19,7 +19,7 @@ assets_schema = AssetSchema(many=True)
 
 class AssetAPI(FlaskView):
     """
-    This view exposes asset attributes through API endpoints.
+    This API view exposes generic assets.
     Under development until it replaces the original Asset API.
     """
 
@@ -34,11 +34,11 @@ class AssetAPI(FlaskView):
     )
     @permission_required_for_context("read", arg_name="account")
     @as_json
-    def get(self, account: Account):
+    def index(self, account: Account):
         """List all assets owned by a certain account."""
         return assets_schema.dump(account.generic_assets), 200
 
-    @route("/post", methods=["POST"])
+    @route("/", methods=["POST"])
     @use_args(AssetSchema())
     @permission_required_for_context("create", arg_loader=AccountIdField.load_current)
     def post(self, asset_data):
@@ -63,7 +63,7 @@ class AssetAPI(FlaskView):
         """Fetch a given asset"""
         return asset_schema.dump(asset), 200
 
-    @route("/patch/<id>", methods=["PATCH"])
+    @route("/<id>", methods=["PATCH"])
     @use_args(AssetSchema(partial=True))
     @use_kwargs({"db_asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", arg_name="db_asset")
@@ -83,7 +83,7 @@ class AssetAPI(FlaskView):
             )
         return asset_schema.dump(db_asset), 200
 
-    @route("/delete/<id>", methods=["DELETE"])
+    @route("/<id>", methods=["DELETE"])
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("delete", arg_name="asset")
     @as_json
