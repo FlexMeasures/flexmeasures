@@ -58,7 +58,7 @@ def save_to_db(
 ) -> str:
     """Save the timed beliefs to the database.
 
-    NB Roles back session in case of IntegrityError upon flushing the session. Best to keep transactions short.
+    NB Flushing the session. Best to keep transactions short.
 
     We make the distinction between updating beliefs and replacing beliefs.
 
@@ -83,7 +83,6 @@ def save_to_db(
     :returns: status string, one of the following:
               - 'success': all beliefs were saved
               - 'success_with_unchanged_beliefs_skipped': not all beliefs represented a state change
-              - 'failed_due_to_forbidden_replacements': no beliefs were saved, because replacing pre-existing beliefs is forbidden
     """
 
     # Convert to list
@@ -130,19 +129,6 @@ def save_to_db(
             if current_app.config.get("FLEXMEASURES_MODE", "") != "play"
             else True,
         )
-    try:
-        # Flush to check for unique violations (due to attempting to replace beliefs)
-        db.session.flush()
-    except IntegrityError as e:
-        current_app.logger.warning(e)
-        db.session.rollback()
-
-        # Catch only unique violations
-        if not isinstance(e.orig, UniqueViolation):
-            # reraise
-            raise e.orig
-
-        # Some beliefs represented replacements, which was forbidden
-        status = "failed_due_to_forbidden_replacements"
-
+    # Flush to bring up potential unique violations (due to attempting to replace beliefs)
+    db.session.flush()
     return status
