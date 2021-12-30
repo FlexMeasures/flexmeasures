@@ -2,6 +2,7 @@ from typing import List, Optional, Union
 
 import click
 from flask import current_app
+from psycopg2.errors import UniqueViolation
 from sqlalchemy.exc import IntegrityError
 from timely_beliefs import BeliefsDataFrame
 
@@ -151,9 +152,12 @@ def save_to_db(
                 db.session.commit()
                 # some beliefs have been replaced, which was allowed
                 success_list.append("success_with_replacements")
-            else:
+            elif isinstance(e.orig, UniqueViolation):
                 # some beliefs represented replacements, which was forbidden
                 success_list.append("failed_due_to_forbidden_replacements")
+            else:
+                # reraise
+                raise e.orig
 
     # Return a success indicator for each BeliefsDataFrame
     if not isinstance(data, list):
