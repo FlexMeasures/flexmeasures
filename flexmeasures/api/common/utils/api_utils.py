@@ -369,7 +369,7 @@ def save_and_enqueue(
     # Pick a response
     if status == "success":
         return request_processed()
-    elif status[:7] == "success":
+    elif status == "success_with_unchanged_beliefs_skipped":
         return already_received_and_successfully_processed()
     return invalid_replacement()
 

@@ -55,7 +55,6 @@ def get_data_source(
 def save_to_db(
     data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
     save_changed_beliefs_only: bool = True,
-    allow_overwrite: bool = False,
 ) -> str:
     """Save the timed beliefs to the database.
 
@@ -79,11 +78,8 @@ def save_to_db(
     :param data: BeliefsDataFrame (or a list thereof) to be saved
     :param save_changed_beliefs_only: if True, unchanged beliefs are skipped (updated beliefs are only stored if they represent changed beliefs)
                                       if False, all updated beliefs are stored
-    :param allow_overwrite:           if True, already stored beliefs may be replaced
-                                      if False, already stored beliefs may not be replaced
     :returns: status string, one of the following:
               - 'success': all beliefs were saved
-              - 'success_with_replacements': all beliefs were saved, (possibly) replacing pre-existing beliefs
               - 'success_with_unchanged_beliefs_skipped': not all beliefs represented a state change
               - 'failed_due_to_forbidden_replacements': no beliefs were saved, because replacing pre-existing beliefs is forbidden
     """
@@ -94,7 +90,7 @@ def save_to_db(
     else:
         timed_values_list = data
 
-    status = "success" if not allow_overwrite else "success_with_replacements"
+    status = "success"
     for timed_values in timed_values_list:
 
         if timed_values.empty:
@@ -128,7 +124,9 @@ def save_to_db(
         TimedBelief.add_to_session(
             session=db.session,
             beliefs_data_frame=timed_values,
-            allow_overwrite=allow_overwrite,
+            allow_overwrite=False
+            if current_app.config.get("FLEXMEASURES_MODE", "") != "play"
+            else True,
         )
     try:
         # Flush to check for unique violations (due to attempting to replace beliefs)
@@ -142,15 +140,7 @@ def save_to_db(
             # reraise
             raise e.orig
 
-        # Allow data to be replaced only in play mode
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            status = save_to_db(
-                data=data,
-                save_changed_beliefs_only=save_changed_beliefs_only,
-                allow_overwrite=True,
-            )
-        else:
-            # some beliefs represented replacements, which was forbidden
-            status = "failed_due_to_forbidden_replacements"
+        # Some beliefs represented replacements, which was forbidden
+        status = "failed_due_to_forbidden_replacements"
 
     return status
