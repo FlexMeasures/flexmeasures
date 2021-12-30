@@ -92,12 +92,12 @@ def save_to_db(
     else:
         timed_values_list = data
 
-    success_list = []
+    status_list = []
     for timed_values in timed_values_list:
 
         if timed_values.empty:
             # Nothing to save
-            success_list.append("success_but_data_empty")
+            status_list.append("success_but_data_empty")
             continue
 
         len_before = len(timed_values)
@@ -117,7 +117,7 @@ def save_to_db(
 
             if timed_values.empty:
                 # No state changes among the beliefs
-                success_list.append("success_but_nothing_new")
+                status_list.append("success_but_nothing_new")
                 continue
         else:
             len_after = len_before
@@ -134,10 +134,10 @@ def save_to_db(
             db.session.commit()
             if len_after < len_before:
                 # new data was saved
-                success_list.append("success_but_partially_new")
+                status_list.append("success_but_partially_new")
             else:
                 # all data was saved
-                success_list.append("success")
+                status_list.append("success")
         except IntegrityError as e:
             current_app.logger.warning(e)
             db.session.rollback()
@@ -151,15 +151,15 @@ def save_to_db(
                 )
                 db.session.commit()
                 # some beliefs have been replaced, which was allowed
-                success_list.append("success_with_replacements")
+                status_list.append("success_with_replacements")
             elif isinstance(e.orig, UniqueViolation):
                 # some beliefs represented replacements, which was forbidden
-                success_list.append("failed_due_to_forbidden_replacements")
+                status_list.append("failed_due_to_forbidden_replacements")
             else:
                 # reraise
                 raise e.orig
 
     # Return a success indicator for each BeliefsDataFrame
     if not isinstance(data, list):
-        return success_list[0]
-    return success_list
+        return status_list[0]
+    return status_list
