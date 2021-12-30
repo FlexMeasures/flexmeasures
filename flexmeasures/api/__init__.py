@@ -4,7 +4,6 @@ from flask_json import as_json
 from flask_login import current_user
 from psycopg2.errors import UniqueViolation
 from sqlalchemy.exc import IntegrityError
-from werkzeug.exceptions import HTTPException
 
 from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.data.models.user import User

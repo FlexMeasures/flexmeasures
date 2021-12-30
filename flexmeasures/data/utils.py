@@ -2,8 +2,6 @@ from typing import List, Optional, Union
 
 import click
 from flask import current_app
-from psycopg2.errors import UniqueViolation
-from sqlalchemy.exc import IntegrityError
 from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures.data import db
