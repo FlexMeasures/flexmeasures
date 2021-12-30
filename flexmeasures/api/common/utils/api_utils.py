@@ -356,15 +356,13 @@ def save_and_enqueue(
     forecasting_jobs: List[Job] = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
-    statuses = modern_save_to_db(
+    status = modern_save_to_db(
         data, save_changed_beliefs_only=save_changed_beliefs_only
     )
     enqueue_forecasting_jobs(forecasting_jobs)
-    if not isinstance(statuses, list):
-        statuses = [statuses]
-    if all([status == "success" for status in statuses]):
+    if status == "success":
         return request_processed()
-    elif all([status[:7] == "success" for status in statuses]):
+    elif status[:7] == "success":
         return already_received_and_successfully_processed()
     return invalid_replacement()
 

@@ -55,7 +55,8 @@ def get_data_source(
 def save_to_db(
     data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
     save_changed_beliefs_only: bool = True,
-) -> Union[str, List[str]]:
+    allow_overwrite: bool = False,
+) -> str:
     """Save the timed beliefs to the database.
 
     We make the distinction between updating beliefs and replacing beliefs.
@@ -76,13 +77,14 @@ def save_to_db(
     Servers in 'play' mode are excempted from this rule, to facilitate replaying simulations.
 
     :param data: BeliefsDataFrame (or a list thereof) to be saved
-    :param save_changed_beliefs_only: if True, updated beliefs are only stored if they represent changed beliefs
-    :returns: status string (or a list thereof), one of the following:
+    :param save_changed_beliefs_only: if True, unchanged beliefs are skipped (updated beliefs are only stored if they represent changed beliefs)
+                                      if False, all updated beliefs are stored
+    :param allow_overwrite:           if True, already stored beliefs may be replaced
+                                      if False, already stored beliefs may not be replaced
+    :returns: status string, one of the following:
               - 'success': all beliefs were saved
-              - 'success_with_replacements': all beliefs were saves, (some) replacing pre-existing beliefs
-              - 'success_but_data_empty': there was nothing to save
-              - 'success_but_nothing_new': no beliefs represented a state change
-              - 'success_but_partially_new': not all beliefs represented a state change
+              - 'success_with_replacements': all beliefs were saved, (possibly) replacing pre-existing beliefs
+              - 'success_with_unchanged_beliefs_skipped': not all beliefs represented a state change
               - 'failed_due_to_forbidden_replacements': no beliefs were saved, because replacing pre-existing beliefs is forbidden
     """
 
@@ -92,12 +94,11 @@ def save_to_db(
     else:
         timed_values_list = data
 
-    status_list = []
+    status = "success" if not allow_overwrite else "success_with_replacements"
     for timed_values in timed_values_list:
 
         if timed_values.empty:
             # Nothing to save
-            status_list.append("success_but_data_empty")
             continue
 
         len_before = len(timed_values)
@@ -110,6 +111,8 @@ def save_to_db(
                 .apply(drop_unchanged_beliefs)
             )
             len_after = len(timed_values)
+            if len_after < len_before:
+                status = "success_with_unchanged_beliefs_skipped"
 
             # Work around bug in which groupby still introduces an index level, even though we asked it not to
             if None in timed_values.index.names:
@@ -117,49 +120,36 @@ def save_to_db(
 
             if timed_values.empty:
                 # No state changes among the beliefs
-                status_list.append("success_but_nothing_new")
                 continue
         else:
             len_after = len_before
 
-        # if timed_values.empty or (save_changed_beliefs_only and len_after < len_before):
-        #     current_app.logger.info("Nothing new to save")
-        #     success_list.append(False)  # no data or data already existed or data doesn't represent updated beliefs
-        # else:
         current_app.logger.info("SAVING TO DB...")
-        try:
-            TimedBelief.add_to_session(
-                session=db.session, beliefs_data_frame=timed_values
+        TimedBelief.add_to_session(
+            session=db.session,
+            beliefs_data_frame=timed_values,
+            allow_overwrite=allow_overwrite,
+        )
+    try:
+        db.session.commit()
+    except IntegrityError as e:
+        current_app.logger.warning(e)
+        db.session.rollback()
+
+        # Catch only unique violations
+        if not isinstance(e.orig, UniqueViolation):
+            # reraise
+            raise e.orig
+
+        # Allow data to be replaced only in play mode
+        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
+            status = save_to_db(
+                data=data,
+                save_changed_beliefs_only=save_changed_beliefs_only,
+                allow_overwrite=True,
             )
-            db.session.commit()
-            if len_after < len_before:
-                # new data was saved
-                status_list.append("success_but_partially_new")
-            else:
-                # all data was saved
-                status_list.append("success")
-        except IntegrityError as e:
-            current_app.logger.warning(e)
-            db.session.rollback()
+        else:
+            # some beliefs represented replacements, which was forbidden
+            status = "failed_due_to_forbidden_replacements"
 
-            # Allow data to be replaced only in play mode
-            if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-                TimedBelief.add_to_session(
-                    session=db.session,
-                    beliefs_data_frame=timed_values,
-                    allow_overwrite=True,
-                )
-                db.session.commit()
-                # some beliefs have been replaced, which was allowed
-                status_list.append("success_with_replacements")
-            elif isinstance(e.orig, UniqueViolation):
-                # some beliefs represented replacements, which was forbidden
-                status_list.append("failed_due_to_forbidden_replacements")
-            else:
-                # reraise
-                raise e.orig
-
-    # Return a success indicator for each BeliefsDataFrame
-    if not isinstance(data, list):
-        return status_list[0]
-    return status_list
+    return status
