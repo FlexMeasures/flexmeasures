@@ -36,6 +36,7 @@ def create_scheduling_job(
     resolution: timedelta = DEFAULT_RESOLUTION,
     soc_at_start: Optional[float] = None,
     soc_targets: Optional[pd.Series] = None,
+    roundtrip_efficiency: Optional[float] = None,
     udi_event_ea: Optional[str] = None,
     enqueue: bool = True,
 ) -> Job:
@@ -61,6 +62,7 @@ def create_scheduling_job(
             resolution=resolution,
             soc_at_start=soc_at_start,
             soc_targets=soc_targets,
+            roundtrip_efficiency=roundtrip_efficiency,
         ),
         id=udi_event_ea,
         connection=current_app.queues["scheduling"].connection,
@@ -88,6 +90,7 @@ def make_schedule(
     resolution: timedelta,
     soc_at_start: Optional[float] = None,
     soc_targets: Optional[pd.Series] = None,
+    roundtrip_efficiency: Optional[float] = None,
 ) -> bool:
     """Preferably, a starting soc is given.
     Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
@@ -122,14 +125,26 @@ def make_schedule(
 
     if sensor.generic_asset.generic_asset_type.name == "battery":
         consumption_schedule = schedule_battery(
-            sensor, start, end, resolution, soc_at_start, soc_targets
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            soc_targets,
+            roundtrip_efficiency,
         )
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
         "two-way_evse",
     ):
         consumption_schedule = schedule_charging_station(
-            sensor, start, end, resolution, soc_at_start, soc_targets
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            soc_targets,
+            roundtrip_efficiency,
         )
     else:
         raise ValueError(

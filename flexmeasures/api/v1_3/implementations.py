@@ -280,6 +280,9 @@ def post_udi_event_response(unit):
     if unit == "kWh":
         value = value / 1000.0
 
+    # get optional efficiency
+    roundtrip_efficiency = form.get("roundtrip_efficiency", None)
+
     # set soc targets
     start_of_schedule = datetime
     end_of_schedule = datetime + current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
@@ -349,6 +352,7 @@ def post_udi_event_response(unit):
         belief_time=datetime,
         soc_at_start=value,
         soc_targets=soc_targets,
+        roundtrip_efficiency=roundtrip_efficiency,
         udi_event_ea=form.get("event"),
         enqueue=True,
     )
