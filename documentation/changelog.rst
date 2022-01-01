@@ -2,11 +2,10 @@
 FlexMeasures Changelog
 **********************
 
-v0.8.0 | November XX, 2021
+v0.8.0 | January XX, 2022
 ===========================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-.. warning:: Changes to asset attributes made via the UI or API are not reflected in the new data model until `issue #247 <https://github.com/FlexMeasures/flexmeasures/issues/247>`_ is resolved.
 
 New features
 -----------
@@ -23,6 +22,7 @@ Infrastructure / Support
 * Allow plugins to register their custom config settings, so that FlexMeasures can check whether they are set up correctly [see `PR #230 <http://www.github.com/FlexMeasures/flexmeasures/pull/230>`_ and `PR #237 <http://www.github.com/FlexMeasures/flexmeasures/pull/237>`_]
 * Add sensor method to obtain just its latest state (excl. forecasts) [see `PR #235 <http://www.github.com/FlexMeasures/flexmeasures/pull/235>`_]
 * Migrate attributes of assets, markets and weather sensors to our new sensor model [see `PR #254 <http://www.github.com/FlexMeasures/flexmeasures/pull/254>`_ and `project 9 <http://www.github.com/FlexMeasures/flexmeasures/projects/9>`_]
+* Support the new asset model (the business/non-data world) in UI and API [see `PR #251 <http://www.github.com/FlexMeasures/flexmeasures/pull/251>`_ and `PR #290 <http://www.github.com/FlexMeasures/flexmeasures/pulls/290>`_]
 
 
 v0.7.1 | November 08, 2021
