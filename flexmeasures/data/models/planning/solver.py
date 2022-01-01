@@ -10,6 +10,8 @@ from pyomo.core import (
     RangeSet,
     Param,
     Reals,
+    NonNegativeReals,
+    NonPositiveReals,
     Constraint,
     Objective,
     minimize,
@@ -182,6 +184,12 @@ def device_scheduler(  # noqa C901
 
     # Add variables
     model.power = Var(model.d, model.j, domain=Reals, initialize=0)
+    model.ems_power_deviation_down = Var(
+        model.c, model.j, domain=NonPositiveReals, initialize=0
+    )
+    model.ems_power_deviation_up = Var(
+        model.c, model.j, domain=NonNegativeReals, initialize=0
+    )
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
     def device_bounds(m, d, j):
@@ -201,23 +209,33 @@ def device_scheduler(  # noqa C901
     def ems_derivative_bounds(m, j):
         return m.ems_derivative_min[j], sum(m.power[:, j]), m.ems_derivative_max[j]
 
+    def power_commitment_equality(m, j):
+        """Total power (sum over devices) should equal sum of commitments and deviations from commitments."""
+        return (
+            0,
+            sum(m.commitment_quantity[:, j])
+            + sum(m.ems_power_deviation_down[:, j])
+            + sum(m.ems_power_deviation_up[:, j])
+            - sum(m.power[:, j]),
+            0,
+        )
+
     model.device_energy_bounds = Constraint(model.d, model.j, rule=device_bounds)
     model.device_power_bounds = Constraint(
         model.d, model.j, rule=device_derivative_bounds
     )
     model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
+    model.power_commitment_equality = Constraint(
+        model.j, rule=power_commitment_equality
+    )
 
     # Add objective
     def cost_function(m):
         costs = 0
         for c in m.c:
             for j in m.j:
-                ems_power_in_j = sum(m.power[d, j] for d in m.d)
-                ems_power_deviation = ems_power_in_j - m.commitment_quantity[c, j]
-                if value(ems_power_deviation) >= 0:
-                    costs += ems_power_deviation * m.up_price[c, j]
-                else:
-                    costs += ems_power_deviation * m.down_price[c, j]
+                costs += m.ems_power_deviation_down[c, j] * m.down_price[c, j]
+                costs += m.ems_power_deviation_up[c, j] * m.up_price[c, j]
         return costs
 
     model.costs = Objective(rule=cost_function, sense=minimize)
@@ -243,5 +261,5 @@ def device_scheduler(  # noqa C901
     # model.pprint()
     # print(results.solver.termination_condition)
     # print(planned_costs)
-    # input()
+    # model.display()
     return planned_power_per_device, planned_costs, results
