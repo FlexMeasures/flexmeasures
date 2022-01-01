@@ -67,16 +67,6 @@ def schedule_battery(
         prices.loc[start : end - resolution]["event_value"]
     ]
 
-    # Apply round-trip efficiency evenly to charging and discharging prices
-    commitment_downwards_deviation_price = [
-        commitment * roundtrip_efficiency ** 0.5
-        for commitment in commitment_downwards_deviation_price
-    ]
-    commitment_upwards_deviation_price = [
-        commitment / roundtrip_efficiency ** 0.5
-        for commitment in commitment_upwards_deviation_price
-    ]
-
     # Set up device constraints (only one device for this EMS)
     columns = [
         "equals",
@@ -85,6 +75,8 @@ def schedule_battery(
         "derivative equals",
         "derivative max",
         "derivative min",
+        "derivative down efficiency",
+        "derivative up efficiency",
     ]
     device_constraints = [initialize_df(columns, start, end, resolution)]
     if soc_targets is not None:
@@ -105,6 +97,10 @@ def schedule_battery(
         sensor.get_attribute("capacity_in_mw") * -1
     )
     device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
+
+    # Apply round-trip efficiency evenly to charging and discharging
+    device_constraints[0]["derivative down efficiency"] = roundtrip_efficiency ** 0.5
+    device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency ** 0.5
 
     # Set up EMS constraints (no additional constraints)
     columns = ["derivative max", "derivative min"]
