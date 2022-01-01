@@ -39,10 +39,14 @@ class AssetType(db.Model):
     yearly_seasonality = db.Column(db.Boolean(), nullable=False, default=False)
 
     def __init__(self, **kwargs):
-        generic_asset_type = GenericAssetType(
-            name=kwargs["name"], description=kwargs.get("hover_label", None)
-        )
-        db.session.add(generic_asset_type)
+        generic_asset_type = GenericAssetType.query.filter_by(
+            name=kwargs["name"]
+        ).one_or_none()
+        if not generic_asset_type:
+            generic_asset_type = GenericAssetType(
+                name=kwargs["name"], description=kwargs.get("hover_label", None)
+            )
+            db.session.add(generic_asset_type)
         super(AssetType, self).__init__(**kwargs)
         self.name = self.name.replace(" ", "_").lower()
         if "display_name" not in kwargs:

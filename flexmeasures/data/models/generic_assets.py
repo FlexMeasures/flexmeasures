@@ -6,7 +6,6 @@ from sqlalchemy.engine import Row
 
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
-
 from sqlalchemy.ext.mutable import MutableDict
 
 from flexmeasures.data import db

@@ -1,7 +1,6 @@
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from sqlalchemy.exc import IntegrityError
 from webargs.flaskparser import use_kwargs, use_args
 
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -28,7 +27,9 @@ class AssetAPI(FlaskView):
     @route("/", methods=["GET"])
     @use_kwargs(
         {
-            "account": AccountIdField(data_key="account_id"),
+            "account": AccountIdField(
+                data_key="account_id", load_default=AccountIdField.load_current
+            ),
         },
         location="query",
     )
@@ -39,20 +40,15 @@ class AssetAPI(FlaskView):
         return assets_schema.dump(account.generic_assets), 200
 
     @route("/", methods=["POST"])
+    @permission_required_for_context(
+        "create-children", arg_loader=AccountIdField.load_current
+    )
     @use_args(AssetSchema())
-    @permission_required_for_context("create", arg_loader=AccountIdField.load_current)
     def post(self, asset_data):
         """Create new asset"""
         asset = AssetModel(**asset_data)
         db.session.add(asset)
-        try:
-            db.session.commit()
-        except IntegrityError as ie:
-            return (
-                dict(message="Duplicate asset already exists", detail=ie._message()),
-                400,
-            )
-
+        db.session.commit()
         return asset_schema.dump(asset), 201
 
     @route("/<id>", methods=["GET"])
@@ -74,13 +70,7 @@ class AssetAPI(FlaskView):
         for k, v in [(k, v) for k, v in asset_data.items() if k not in ignored_fields]:
             setattr(db_asset, k, v)
         db.session.add(db_asset)
-        try:
-            db.session.commit()
-        except IntegrityError as ie:
-            return (
-                dict(message="Duplicate asset already exists", detail=ie._message()),
-                400,
-            )
+        db.session.commit()
         return asset_schema.dump(db_asset), 200
 
     @route("/<id>", methods=["DELETE"])
