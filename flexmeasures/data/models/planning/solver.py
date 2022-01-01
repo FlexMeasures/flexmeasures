@@ -33,7 +33,7 @@ def device_scheduler(  # noqa C901
     commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
 ) -> Tuple[List[pd.Series], float, SolverResults]:
     """Schedule devices given constraints on a device and EMS level, and given a list of commitments by the EMS.
-    The commitments are assumed to be with regards to the flow of energy to the device (positive for consumption,
+    The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption,
     negative for production). The solver minimises the costs of deviating from the commitments.
 
     Device constraints are on a device level. Handled constraints (listed by column name):
@@ -56,7 +56,7 @@ def device_scheduler(  # noqa C901
 
     All Series and DataFrames should have the same resolution.
 
-    For now we pass in the various constraints and prices as separate variables, from which we make a MultiIndex
+    For now, we pass in the various constraints and prices as separate variables, from which we make a MultiIndex
     DataFrame. Later we could pass in a MultiIndex DataFrame directly.
     """
 
