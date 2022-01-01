@@ -11,6 +11,9 @@ from flexmeasures.utils.calculations import integrate_time_series
 from flexmeasures.utils.time_utils import as_server_time
 
 
+TOLERANCE = 0.00001
+
+
 def test_battery_solver_day_1(add_battery_assets):
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
@@ -26,7 +29,9 @@ def test_battery_solver_day_1(add_battery_assets):
         print(soc_schedule)
 
     # Check if constraints were met
-    assert min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1
+    assert (
+        min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1 - TOLERANCE
+    )
     assert max(schedule.values) <= battery.get_attribute("capacity_in_mw")
     for soc in soc_schedule.values:
         assert soc >= battery.get_attribute("min_soc_in_mwh")
@@ -64,7 +69,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
 
     # Check if constraints were met
     assert min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1
-    assert max(schedule.values) <= battery.get_attribute("capacity_in_mw")
+    assert max(schedule.values) <= battery.get_attribute("capacity_in_mw") + TOLERANCE
     for soc in soc_schedule.values:
         assert soc >= battery.get_attribute("min_soc_in_mwh")
         assert soc <= battery.get_attribute("max_soc_in_mwh")
@@ -135,12 +140,13 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
         min(consumption_schedule.values)
         >= charging_station.get_attribute("capacity_in_mw") * -1
     )
-    assert max(consumption_schedule.values) <= charging_station.get_attribute(
-        "capacity_in_mw"
+    assert (
+        max(consumption_schedule.values)
+        <= charging_station.get_attribute("capacity_in_mw") + TOLERANCE
     )
     print(consumption_schedule.head(12))
     print(soc_schedule.head(12))
-    assert abs(soc_schedule.loc[target_soc_datetime] - target_soc) < 0.00001
+    assert abs(soc_schedule.loc[target_soc_datetime] - target_soc) < TOLERANCE
 
 
 @pytest.mark.parametrize(
@@ -197,5 +203,5 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     print(soc_schedule.head(12))
     assert (
         abs(abs(soc_schedule.loc[target_soc_datetime] - target_soc) - expected_gap)
-        < 0.00001
+        < TOLERANCE
     )
