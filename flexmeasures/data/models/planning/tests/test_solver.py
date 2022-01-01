@@ -33,7 +33,15 @@ def test_battery_solver_day_1(add_battery_assets):
         assert soc <= battery.get_attribute("max_soc_in_mwh")
 
 
-def test_battery_solver_day_2(add_battery_assets):
+@pytest.mark.parametrize(
+    "roundtrip_efficiency",
+    [
+        1,
+        0.99,
+        0.01,
+    ],
+)
+def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     assert Sensor.query.get(battery.get_attribute("market_id")) == epex_da
@@ -41,7 +49,14 @@ def test_battery_solver_day_2(add_battery_assets):
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     soc_at_start = battery.get_attribute("soc_in_mwh")
-    schedule = schedule_battery(battery, start, end, resolution, soc_at_start)
+    schedule = schedule_battery(
+        battery,
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        roundtrip_efficiency=roundtrip_efficiency,
+    )
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
@@ -58,12 +73,23 @@ def test_battery_solver_day_2(add_battery_assets):
     assert soc_schedule.iloc[-1] == battery.get_attribute(
         "min_soc_in_mwh"
     )  # Battery sold out at the end of its planning horizon
-    assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
-        "min_soc_in_mwh"
-    )  # Sell what you begin with
-    assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
-        "max_soc_in_mwh"
-    )  # Buy what you can to sell later
+
+    # As long as the roundtrip efficiency isn't too bad (I haven't computed the actual switch point)
+    if roundtrip_efficiency > 0.9:
+        assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
+            "min_soc_in_mwh"
+        )  # Sell what you begin with
+        assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
+            "max_soc_in_mwh"
+        )  # Buy what you can to sell later
+    else:
+        # If the roundtrip efficiency is poor, best to stand idle
+        assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
+            "soc_in_mwh"
+        )
+        assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
+            "soc_in_mwh"
+        )
 
 
 @pytest.mark.parametrize(
