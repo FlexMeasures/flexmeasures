@@ -7,6 +7,7 @@ from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User
@@ -21,7 +22,7 @@ class GenericAssetType(db.Model):
     """
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), default="")
+    name = db.Column(db.String(80), default="", unique=True)
     description = db.Column(db.String(80), nullable=True, unique=False)
 
 
@@ -45,6 +46,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
         backref=db.backref("generic_assets", lazy=True),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "name",
+            "account_id",
+            name="generic_asset_name_account_id_key",
+        ),
     )
 
     def __acl__(self):
