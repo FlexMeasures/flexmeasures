@@ -62,7 +62,7 @@ def device_scheduler(  # noqa C901
 
     # If the EMS has no devices, don't bother
     if len(device_constraints) == 0:
-        return [], 0
+        return [], 0, SolverResults()
 
     # Check if commitments have the same time window and resolution as the constraints
     start = device_constraints[0].index.to_pydatetime()[0]
