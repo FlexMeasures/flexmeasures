@@ -47,6 +47,16 @@ def test_battery_solver_day_1(add_battery_assets):
     ],
 )
 def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
+    """Check battery scheduling results for day 2, which is set up with
+    8 expensive, then 8 cheap, then again 8 expensive hours.
+    If efficiency losses aren't too bad, we expect the scheduler to:
+    - completely discharge within the first 8 hours
+    - completely charge within the next 8 hours
+    - completely discharge within the last 8 hours
+    If efficiency losses are bad, the price difference is not worth cycling the battery,
+    and so we expect the scheduler to only:
+    - completely discharge within the last 8 hours
+    """
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     assert Sensor.query.get(battery.get_attribute("market_id")) == epex_da
