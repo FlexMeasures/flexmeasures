@@ -2,10 +2,12 @@
 // Useful functions for our asset-specific Leaflet code
 
 function addTileLayer(leafletMap, mapboxAccessToken) {
+    /*
+    Add the tile layer for FlexMeasures.
+    Configure tile size, Mapbox API access and attribution.
+    */
     var tileLayer = new L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-        attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
-            '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
-            'Imagery &copy <a href="http://mapbox.com">Mapbox</a>',
+        attribution: '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> <strong><a href="https://www.mapbox.com/map-feedback/" target="_blank">Improve this map</a></strong>',
         tileSize: 512,
         maxZoom: 18,
         zoomOffset: -1,
@@ -13,6 +15,10 @@ function addTileLayer(leafletMap, mapboxAccessToken) {
         accessToken: mapboxAccessToken
     });
     tileLayer.addTo(leafletMap);
+    // add link for Mapbox logo (logo added via CSS)
+    $("#" + leafletMap._container.id).append(
+        '<a href="http://mapbox.com/about/maps" class="mapbox-logo" target="_blank">Mapbox</a>' 
+    );
 }
 
 
