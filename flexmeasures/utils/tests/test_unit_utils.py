@@ -8,7 +8,7 @@ from flexmeasures.utils.unit_utils import (
     units_are_convertible,
     is_energy_unit,
     is_power_unit,
-    u,
+    ur,
 )
 
 
@@ -61,10 +61,10 @@ def test_determine_unit_conversion_multiplier():
 
 
 def test_h_denotes_hour_and_not_planck_constant():
-    assert u.Quantity("h").dimensionality == u.Quantity("hour").dimensionality
+    assert ur.Quantity("h").dimensionality == ur.Quantity("hour").dimensionality
     assert (
-        u.Quantity("hbar").dimensionality
-        == u.Quantity("planck_constant").dimensionality
+        ur.Quantity("hbar").dimensionality
+        == ur.Quantity("planck_constant").dimensionality
     )
 
 
