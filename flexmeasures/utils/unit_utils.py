@@ -29,8 +29,8 @@ full_template = (
 )
 
 # Set up UnitRegistry with abbreviated scientific format
-u = pint.UnitRegistry(full_template)
-u.default_format = "~P"  # short pretty
+ur = pint.UnitRegistry(full_template)
+ur.default_format = "~P"  # short pretty
 
 
 PREFERRED_UNITS = [
@@ -47,7 +47,9 @@ PREFERRED_UNITS = [
     "A",
     "dimensionless",
 ]  # todo: move to config setting, with these as a default (NB prefixes do not matter here, this is about SI base units, so km/h is equivalent to m/h)
-PREFERRED_UNITS_DICT = dict([(u[x].dimensionality, x) for x in PREFERRED_UNITS])
+PREFERRED_UNITS_DICT = dict(
+    [(ur.parse_expression(x).dimensionality, x) for x in PREFERRED_UNITS]
+)
 
 
 def to_preferred(x: pint.Quantity) -> pint.Quantity:
@@ -58,14 +60,27 @@ def to_preferred(x: pint.Quantity) -> pint.Quantity:
     return x
 
 
+def is_valid_unit(unit: str) -> bool:
+    """Return True if the pint library can work with this unit identifier."""
+    try:
+        ur.Quantity(unit)
+    except ValueError:
+        return False
+    except pint.errors.UndefinedUnitError:
+        return False
+    return True
+
+
 def determine_unit_conversion_multiplier(
     from_unit: str, to_unit: str, duration: Optional[timedelta] = None
 ):
     """Determine the value multiplier for a given unit conversion.
     If needed, requires a duration to convert from units of stock change to units of flow.
     """
-    scalar = u.Quantity(from_unit).to_base_units() / u.Quantity(to_unit).to_base_units()
-    if scalar.dimensionality == u.Quantity("h").dimensionality:
+    scalar = (
+        ur.Quantity(from_unit).to_base_units() / ur.Quantity(to_unit).to_base_units()
+    )
+    if scalar.dimensionality == ur.Quantity("h").dimensionality:
         if duration is None:
             raise ValueError(
                 f"Cannot convert units from {from_unit} to {to_unit} without known duration."
@@ -79,7 +94,7 @@ def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
     >>> determine_flow_unit("m³")  # m³/h
     >>> determine_flow_unit("kWh")  # kW
     """
-    flow = to_preferred(u.Quantity(stock_unit) / u.Quantity(time_unit))
+    flow = to_preferred(ur.Quantity(stock_unit) / ur.Quantity(time_unit))
     return "{:~P}".format(flow.units)
 
 
@@ -88,7 +103,7 @@ def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
     >>> determine_stock_unit("m³/h")  # m³
     >>> determine_stock_unit("kW")  # kWh
     """
-    stock = to_preferred(u.Quantity(flow_unit) * u.Quantity(time_unit))
+    stock = to_preferred(ur.Quantity(flow_unit) * ur.Quantity(time_unit))
     return "{:~P}".format(stock.units)
 
 
@@ -101,13 +116,17 @@ def units_are_convertible(
     >>> units_are_convertible("Wh", "W")  # True (units that represent a stock delta can, knowing the duration, be converted to a flow)
     >>> units_are_convertible("°C", "W")  # False
     """
-    scalar = u.Quantity(from_unit).to_base_units() / u.Quantity(to_unit).to_base_units()
+    if not is_valid_unit(from_unit) or not is_valid_unit(to_unit):
+        return False
+    scalar = (
+        ur.Quantity(from_unit).to_base_units() / ur.Quantity(to_unit).to_base_units()
+    )
     if duration_known:
         return scalar.dimensionality in (
-            u.Quantity("h").dimensionality,
-            u.Quantity("dimensionless").dimensionality,
+            ur.Quantity("h").dimensionality,
+            ur.Quantity("dimensionless").dimensionality,
         )
-    return scalar.dimensionality == u.Quantity("dimensionless").dimensionality
+    return scalar.dimensionality == ur.Quantity("dimensionless").dimensionality
 
 
 def is_power_unit(unit: str) -> bool:
@@ -117,7 +136,9 @@ def is_power_unit(unit: str) -> bool:
     >>> is_power_unit("kWh")  # False
     >>> is_power_unit("EUR/MWh")  # False
     """
-    return u.Quantity(unit).dimensionality == u.Quantity("W").dimensionality
+    if not is_valid_unit(unit):
+        return False
+    return ur.Quantity(unit).dimensionality == ur.Quantity("W").dimensionality
 
 
 def is_energy_unit(unit: str) -> bool:
@@ -127,4 +148,6 @@ def is_energy_unit(unit: str) -> bool:
     >>> is_energy_unit("kWh")  # True
     >>> is_energy_unit("EUR/MWh")  # False
     """
-    return u.Quantity(unit).dimensionality == u.Quantity("Wh").dimensionality
+    if not is_valid_unit(unit):
+        return False
+    return ur.Quantity(unit).dimensionality == ur.Quantity("Wh").dimensionality

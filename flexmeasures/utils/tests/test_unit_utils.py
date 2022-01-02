@@ -80,6 +80,7 @@ def test_units_are_convertible():
     assert units_are_convertible("°C", "K")  # offset unit to absolute unit
     assert not units_are_convertible("°C", "W")
     assert not units_are_convertible("EUR/MWh", "W")
+    assert not units_are_convertible("not-a-unit", "W")
 
 
 @pytest.mark.parametrize(
@@ -91,6 +92,8 @@ def test_units_are_convertible():
         ("kW", True),
         ("watt", True),
         ("°C", False),
+        ("", False),
+        ("not-a-unit", False),
     ],
 )
 def test_is_power_unit(unit: str, power_unit: bool):
@@ -106,6 +109,8 @@ def test_is_power_unit(unit: str, power_unit: bool):
         ("kW", False),
         ("watthour", True),
         ("°C", False),
+        ("", False),
+        ("not-a-unit", False),
     ],
 )
 def test_is_energy_unit(unit: str, energy_unit: bool):
