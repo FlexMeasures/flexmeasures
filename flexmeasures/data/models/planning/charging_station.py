@@ -37,6 +37,8 @@ def schedule_charging_station(
     if roundtrip_efficiency is None:
         # Get default from sensor, or use 100% otherwise
         roundtrip_efficiency = sensor.get_attribute("roundtrip_efficiency", 1)
+    if roundtrip_efficiency <= 0 or roundtrip_efficiency > 1:
+        raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
