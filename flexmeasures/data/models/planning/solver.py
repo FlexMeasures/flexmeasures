@@ -266,7 +266,7 @@ def device_scheduler(  # noqa C901
         return (
             0,
             m.device_power_up[d, j] / m.device_derivative_up_efficiency[d, j]
-            + m.device_power_down[d, j] * m.device_derivative_up_efficiency[d, j]
+            + m.device_power_down[d, j] * m.device_derivative_down_efficiency[d, j]
             - m.ems_power[d, j],
             0,
         )
