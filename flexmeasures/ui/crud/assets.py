@@ -53,6 +53,8 @@ class AssetForm(FlaskForm):
             self.generic_asset_type_id.data = (
                 ""  # cannot be coerced to int so will be flagged as invalid input
             )
+        if hasattr(self, "account_id") and self.account_id.data == -1:
+            del self.account_id  # asset will be public
         return super().validate_on_submit()
 
     def to_json(self) -> dict:
@@ -232,7 +234,7 @@ class AssetCrudUI(FlaskView):
                 asset_form.generic_asset_type_id.errors.append(asset_type_error)
 
             # Create new asset or return the form for new assets with a message
-            if form_valid and account is not None and asset_type is not None:
+            if form_valid and asset_type is not None:
                 post_asset_response = InternalApi().post(
                     url_for("AssetAPI:post"),
                     args=asset_form.to_json(),
