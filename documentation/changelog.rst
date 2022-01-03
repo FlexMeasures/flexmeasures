@@ -11,6 +11,7 @@ v0.8.0 | November XX, 2021
 New features
 -----------
 * Charts with sensor data can be requested in one of the supported  [`vega-lite themes <https://github.com/vega/vega-themes#included-themes>`_] (incl. a dark theme) [see `PR #221 <http://www.github.com/FlexMeasures/flexmeasures/pull/221>`_]
+* Schedulers take into account round-trip efficiency if set [see `PR #291 <http://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
 
 Bugfixes
 -----------

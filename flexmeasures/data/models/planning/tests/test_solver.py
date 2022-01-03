@@ -11,6 +11,9 @@ from flexmeasures.utils.calculations import integrate_time_series
 from flexmeasures.utils.time_utils import as_server_time
 
 
+TOLERANCE = 0.00001
+
+
 def test_battery_solver_day_1(add_battery_assets):
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
@@ -26,14 +29,34 @@ def test_battery_solver_day_1(add_battery_assets):
         print(soc_schedule)
 
     # Check if constraints were met
-    assert min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1
+    assert (
+        min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1 - TOLERANCE
+    )
     assert max(schedule.values) <= battery.get_attribute("capacity_in_mw")
     for soc in soc_schedule.values:
         assert soc >= battery.get_attribute("min_soc_in_mwh")
         assert soc <= battery.get_attribute("max_soc_in_mwh")
 
 
-def test_battery_solver_day_2(add_battery_assets):
+@pytest.mark.parametrize(
+    "roundtrip_efficiency",
+    [
+        1,
+        0.99,
+        0.01,
+    ],
+)
+def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
+    """Check battery scheduling results for day 2, which is set up with
+    8 expensive, then 8 cheap, then again 8 expensive hours.
+    If efficiency losses aren't too bad, we expect the scheduler to:
+    - completely discharge within the first 8 hours
+    - completely charge within the next 8 hours
+    - completely discharge within the last 8 hours
+    If efficiency losses are bad, the price difference is not worth cycling the battery,
+    and so we expect the scheduler to only:
+    - completely discharge within the last 8 hours
+    """
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     assert Sensor.query.get(battery.get_attribute("market_id")) == epex_da
@@ -41,7 +64,14 @@ def test_battery_solver_day_2(add_battery_assets):
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     soc_at_start = battery.get_attribute("soc_in_mwh")
-    schedule = schedule_battery(battery, start, end, resolution, soc_at_start)
+    schedule = schedule_battery(
+        battery,
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        roundtrip_efficiency=roundtrip_efficiency,
+    )
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
@@ -49,7 +79,7 @@ def test_battery_solver_day_2(add_battery_assets):
 
     # Check if constraints were met
     assert min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1
-    assert max(schedule.values) <= battery.get_attribute("capacity_in_mw")
+    assert max(schedule.values) <= battery.get_attribute("capacity_in_mw") + TOLERANCE
     for soc in soc_schedule.values:
         assert soc >= battery.get_attribute("min_soc_in_mwh")
         assert soc <= battery.get_attribute("max_soc_in_mwh")
@@ -58,12 +88,23 @@ def test_battery_solver_day_2(add_battery_assets):
     assert soc_schedule.iloc[-1] == battery.get_attribute(
         "min_soc_in_mwh"
     )  # Battery sold out at the end of its planning horizon
-    assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
-        "min_soc_in_mwh"
-    )  # Sell what you begin with
-    assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
-        "max_soc_in_mwh"
-    )  # Buy what you can to sell later
+
+    # As long as the roundtrip efficiency isn't too bad (I haven't computed the actual switch point)
+    if roundtrip_efficiency > 0.9:
+        assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
+            "min_soc_in_mwh"
+        )  # Sell what you begin with
+        assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
+            "max_soc_in_mwh"
+        )  # Buy what you can to sell later
+    else:
+        # If the roundtrip efficiency is poor, best to stand idle
+        assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
+            "soc_in_mwh"
+        )
+        assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
+            "soc_in_mwh"
+        )
 
 
 @pytest.mark.parametrize(
@@ -109,12 +150,13 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
         min(consumption_schedule.values)
         >= charging_station.get_attribute("capacity_in_mw") * -1
     )
-    assert max(consumption_schedule.values) <= charging_station.get_attribute(
-        "capacity_in_mw"
+    assert (
+        max(consumption_schedule.values)
+        <= charging_station.get_attribute("capacity_in_mw") + TOLERANCE
     )
     print(consumption_schedule.head(12))
     print(soc_schedule.head(12))
-    assert abs(soc_schedule.loc[target_soc_datetime] - target_soc) < 0.00001
+    assert abs(soc_schedule.loc[target_soc_datetime] - target_soc) < TOLERANCE
 
 
 @pytest.mark.parametrize(
@@ -171,5 +213,5 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     print(soc_schedule.head(12))
     assert (
         abs(abs(soc_schedule.loc[target_soc_datetime] - target_soc) - expected_gap)
-        < 0.00001
+        < TOLERANCE
     )

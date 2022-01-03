@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 from datetime import datetime, timedelta
 
 from pandas import Series, Timestamp
@@ -21,6 +21,7 @@ def schedule_charging_station(
     resolution: timedelta,
     soc_at_start: float,
     soc_targets: Series,
+    roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
 ) -> Union[Series, None]:
     """Schedule a charging station asset based directly on the latest beliefs regarding market prices within the specified time
@@ -31,6 +32,13 @@ def schedule_charging_station(
 
     # Check for required Sensor attributes
     sensor.check_required_attributes([("capacity_in_mw", (float, int))])
+
+    # Check for round-trip efficiency
+    if roundtrip_efficiency is None:
+        # Get default from sensor, or use 100% otherwise
+        roundtrip_efficiency = sensor.get_attribute("roundtrip_efficiency", 1)
+    if roundtrip_efficiency <= 0 or roundtrip_efficiency > 1:
+        raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
@@ -94,6 +102,10 @@ def schedule_charging_station(
         device_constraints[0]["derivative max"] = 0
     else:
         device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
+
+    # Apply round-trip efficiency evenly to charging and discharging
+    device_constraints[0]["derivative down efficiency"] = roundtrip_efficiency ** 0.5
+    device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency ** 0.5
 
     # Set up EMS constraints (no additional constraints)
     columns = ["derivative max", "derivative min"]

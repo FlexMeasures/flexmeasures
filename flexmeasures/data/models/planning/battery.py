@@ -21,6 +21,7 @@ def schedule_battery(
     resolution: timedelta,
     soc_at_start: float,
     soc_targets: Optional[pd.Series] = None,
+    roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
 ) -> Union[pd.Series, None]:
     """Schedule a battery asset based directly on the latest beliefs regarding market prices within the specified time
@@ -36,6 +37,13 @@ def schedule_battery(
             ("min_soc_in_mwh", (float, int)),
         ],
     )
+
+    # Check for round-trip efficiency
+    if roundtrip_efficiency is None:
+        # Get default from sensor, or use 100% otherwise
+        roundtrip_efficiency = sensor.get_attribute("roundtrip_efficiency", 1)
+    if roundtrip_efficiency <= 0 or roundtrip_efficiency > 1:
+        raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
@@ -69,6 +77,8 @@ def schedule_battery(
         "derivative equals",
         "derivative max",
         "derivative min",
+        "derivative down efficiency",
+        "derivative up efficiency",
     ]
     device_constraints = [initialize_df(columns, start, end, resolution)]
     if soc_targets is not None:
@@ -89,6 +99,10 @@ def schedule_battery(
         sensor.get_attribute("capacity_in_mw") * -1
     )
     device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
+
+    # Apply round-trip efficiency evenly to charging and discharging
+    device_constraints[0]["derivative down efficiency"] = roundtrip_efficiency ** 0.5
+    device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency ** 0.5
 
     # Set up EMS constraints (no additional constraints)
     columns = ["derivative max", "derivative min"]
