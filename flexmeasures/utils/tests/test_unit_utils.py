@@ -8,7 +8,7 @@ from flexmeasures.utils.unit_utils import (
     units_are_convertible,
     is_energy_unit,
     is_power_unit,
-    u,
+    ur,
 )
 
 
@@ -61,10 +61,10 @@ def test_determine_unit_conversion_multiplier():
 
 
 def test_h_denotes_hour_and_not_planck_constant():
-    assert u.Quantity("h").dimensionality == u.Quantity("hour").dimensionality
+    assert ur.Quantity("h").dimensionality == ur.Quantity("hour").dimensionality
     assert (
-        u.Quantity("hbar").dimensionality
-        == u.Quantity("planck_constant").dimensionality
+        ur.Quantity("hbar").dimensionality
+        == ur.Quantity("planck_constant").dimensionality
     )
 
 
@@ -80,6 +80,7 @@ def test_units_are_convertible():
     assert units_are_convertible("°C", "K")  # offset unit to absolute unit
     assert not units_are_convertible("°C", "W")
     assert not units_are_convertible("EUR/MWh", "W")
+    assert not units_are_convertible("not-a-unit", "W")
 
 
 @pytest.mark.parametrize(
@@ -91,6 +92,8 @@ def test_units_are_convertible():
         ("kW", True),
         ("watt", True),
         ("°C", False),
+        ("", False),
+        ("not-a-unit", False),
     ],
 )
 def test_is_power_unit(unit: str, power_unit: bool):
@@ -106,6 +109,8 @@ def test_is_power_unit(unit: str, power_unit: bool):
         ("kW", False),
         ("watthour", True),
         ("°C", False),
+        ("", False),
+        ("not-a-unit", False),
     ],
 )
 def test_is_energy_unit(unit: str, energy_unit: bool):
