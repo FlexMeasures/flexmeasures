@@ -151,8 +151,7 @@ def test_post_an_asset_with_existing_name(client, setup_api_test_data):
     print(f"Creation Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 422
     assert (
-        "already exists"
-        in asset_creation_response.json["message"]["json"]["_schema"][0]
+        "already exists" in asset_creation_response.json["message"]["json"]["name"][0]
     )
 
 
