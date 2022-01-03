@@ -182,7 +182,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         ] = None,
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
-        most_recent_only: bool = False,  # deprecated
+        most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
         as_json: bool = False,
     ) -> Union[tb.BeliefsDataFrame, str]:
@@ -330,7 +330,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         backref=db.backref(
             "beliefs",
             lazy=True,
-            cascade="merge",  # i.e. no save-update
+            cascade="merge",  # no save-update (i.e. don't auto-save time series data to session upon updating sensor)
         ),
     )
     source = db.relationship(
@@ -338,7 +338,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         backref=db.backref(
             "beliefs",
             lazy=True,
-            cascade="merge",  # i.e. no save-update
+            cascade="merge",  # no save-update (i.e. don't auto-save time series data to session upon updating source)
         ),
     )
 
@@ -371,7 +371,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         exclude_source_types: Optional[List[str]] = None,
         most_recent_beliefs_only: bool = False,
         most_recent_events_only: bool = False,
-        most_recent_only: bool = False,  # deprecated
+        most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
