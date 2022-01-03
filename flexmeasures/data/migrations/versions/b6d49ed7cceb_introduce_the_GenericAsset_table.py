@@ -11,12 +11,6 @@ from alembic import context, op
 from sqlalchemy import orm, insert, update
 import sqlalchemy as sa
 
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.generic_assets import GenericAssetType
-from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import WeatherSensor
-
 
 # revision identifiers, used by Alembic.
 revision = "b6d49ed7cceb"
@@ -39,6 +33,36 @@ t_generic_assets = sa.Table(
     sa.Column("name", sa.String(80)),
     sa.Column("generic_asset_type_id", sa.Integer),
     sa.Column("owner_id", sa.Integer),
+)
+t_generic_asset_types = sa.Table(
+    "generic_asset_type",
+    sa.MetaData(),
+    sa.Column("id"),
+    sa.Column("name"),
+)
+t_assets = sa.Table(
+    "asset",
+    sa.MetaData(),
+    sa.Column("id"),
+    sa.Column(
+        "asset_type_name",
+    ),
+)
+t_markets = sa.Table(
+    "market",
+    sa.MetaData(),
+    sa.Column("id"),
+    sa.Column(
+        "market_type_name",
+    ),
+)
+t_weather_sensors = sa.Table(
+    "weather_sensor",
+    sa.MetaData(),
+    sa.Column("id"),
+    sa.Column(
+        "weather_sensor_type_name",
+    ),
 )
 
 
@@ -89,7 +113,7 @@ def upgrade_data():
             ]
         )
     ).fetchall()
-    sensors = session.query(Sensor).all()
+    sensor_ids = [sensor_result[0] for sensor_result in sensor_results]
 
     # Construct generic asset for each user defined sensor group
     sensor_results_dict = {k: v for k, v in sensor_results}
@@ -102,37 +126,40 @@ def upgrade_data():
             raise ValueError(
                 f"At least some of these sensor ids {sensor_group_dict['sensor_ids']} do not exist."
             )
-        generic_asset_type = (
-            session.query(GenericAssetType)
-            .filter_by(name=sensor_group_dict["asset_type_name"])
-            .one_or_none()
-        )
-        if generic_asset_type is None:
+        generic_asset_type_results = connection.execute(
+            sa.select([t_generic_asset_types.c.id,]).where(
+                t_generic_asset_types.c.name == sensor_group_dict["asset_type_name"]
+            )
+        ).one_or_none()
+        if generic_asset_type_results is None:
             raise ValueError(
                 f"Asset type name '{sensor_group_dict['asset_type_name']}' does not exist."
             )
-        group_sensors = [
-            sensor for sensor in sensors if sensor.id in sensor_group_dict["sensor_ids"]
+        generic_asset_type_id = generic_asset_type_results[0]
+        group_sensor_ids = [
+            sensor_id
+            for sensor_id in sensor_ids
+            if sensor_id in sensor_group_dict["sensor_ids"]
         ]
         connection.execute(
             insert(t_generic_assets).values(
                 name=sensor_group_dict["asset_name"],
-                generic_asset_type_id=generic_asset_type.id,
+                generic_asset_type_id=generic_asset_type_id,
                 owner_id=sensor_group_dict["owner_id"],
             )
         )
         latest_ga_id = get_latest_generic_asset_id(connection)
         print(
-            f"Created new generic asset with ID {latest_ga_id}. Now tying {len(group_sensors)} sensors to it ..."
+            f"Created new generic asset with ID {latest_ga_id}. Now tying {len(group_sensor_ids)} sensors to it ..."
         )
-        for sensor in group_sensors:
+        for sensor_id in group_sensor_ids:
             connection.execute(
                 update(t_sensors)
-                .where(t_sensors.c.id == sensor.id)
+                .where(t_sensors.c.id == sensor_id)
                 .values(generic_asset_id=latest_ga_id)
             )
-        for id in sensor_group_dict["sensor_ids"]:
-            sensor_results_dict.pop(id)
+        for id_ in sensor_group_dict["sensor_ids"]:
+            sensor_results_dict.pop(id_)
 
     # Construct generic assets for all remaining sensors
     if sensor_results_dict:
@@ -140,47 +167,65 @@ def upgrade_data():
             f"Constructing generic assets for each of the following sensors: {sensor_results_dict}"
         )
     for id_, name in sensor_results_dict.items():
-        _sensors = [sensor for sensor in sensors if sensor.id == id_]
+        _sensor_ids = [sensor_id for sensor_id in sensor_ids if sensor_id == id_]
 
-        asset = session.query(Asset).filter_by(id=id_).one_or_none()
-        if asset is not None:
-            asset_type_name = asset.asset_type_name
+        asset_results = connection.execute(
+            sa.select(
+                [
+                    t_assets.c.asset_type_name,
+                ]
+            ).where(t_assets.c.id == id_)
+        ).one_or_none()
+        if asset_results is not None:
+            asset_type_name = asset_results[0]
         else:
-            market = session.query(Market).filter_by(id=id_).one_or_none()
-            if market is not None:
-                asset_type_name = market.market_type_name
+            market_results = connection.execute(
+                sa.select(
+                    [
+                        t_markets.c.market_type_name,
+                    ]
+                ).where(t_markets.c.id == id_)
+            ).one_or_none()
+            if market_results is not None:
+                asset_type_name = market_results[0]
             else:
-                weather_sensor = (
-                    session.query(WeatherSensor).filter_by(id=id_).one_or_none()
-                )
-                if weather_sensor is not None:
-                    asset_type_name = weather_sensor.weather_sensor_type_name
+                weather_sensor_results = connection.execute(
+                    sa.select(
+                        [
+                            t_weather_sensors.c.weather_sensor_type_name,
+                        ]
+                    ).where(t_weather_sensors.c.id == id_)
+                ).one_or_none()
+                if weather_sensor_results is not None:
+                    asset_type_name = weather_sensor_results[0]
                 else:
                     raise ValueError(
                         f"Cannot find an Asset, Market or WeatherSensor with id {id_}"
                     )
 
-        generic_asset_type = (
-            session.query(GenericAssetType)
-            .filter_by(name=asset_type_name)
-            .one_or_none()
-        )
+        generic_asset_type_results = connection.execute(
+            sa.select(
+                [
+                    t_generic_asset_types.c.id,
+                ]
+            ).where(t_generic_asset_types.c.name == asset_type_name)
+        ).one_or_none()
 
         # Create new GenericAssets with matching names
         connection.execute(
             insert(t_generic_assets).values(
                 name=name,
-                generic_asset_type_id=generic_asset_type.id,
+                generic_asset_type_id=generic_asset_type_results[0],
             )
         )
         latest_ga_id = get_latest_generic_asset_id(connection)
         print(
-            f"Created new generic asset with ID {latest_ga_id}. Now tying {len(_sensors)} sensors to it ..."
+            f"Created new generic asset with ID {latest_ga_id}. Now tying {len(_sensor_ids)} sensors to it ..."
         )
-        for sensor in _sensors:
+        for sensor_id in _sensor_ids:
             connection.execute(
                 update(t_sensors)
-                .where(t_sensors.c.id == sensor.id)
+                .where(t_sensors.c.id == sensor_id)
                 .values(generic_asset_id=latest_ga_id)
             )
 

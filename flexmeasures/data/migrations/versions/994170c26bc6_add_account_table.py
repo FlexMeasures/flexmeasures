@@ -17,7 +17,6 @@ import inflection
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.assets import Asset
 
 
 # revision identifiers, used by Alembic.
@@ -26,6 +25,13 @@ down_revision = "b6d49ed7cceb"
 branch_labels = None
 depends_on = None
 asset_ownership_backup_script = "generic_asset_fm_user_ownership.sql"
+
+t_assets = sa.Table(
+    "asset",
+    sa.MetaData(),
+    sa.Column("id"),
+    sa.Column("owner_id"),
+)
 
 
 def upgrade():
@@ -131,7 +137,10 @@ def upgrade_data():
         old_owner_id = _get_old_owner_id_from_db_result(
             asset_ownership_db, generic_asset.id
         )
-        user = session.query(User).get(old_owner_id)
+        if old_owner_id is None:
+            user = None
+        else:
+            user = session.query(User).get(old_owner_id)
         # 2. Otherwise, then try the old-style Asset's ownership (via Sensor)
         if user is None:
             sensor = (
@@ -143,13 +152,17 @@ def upgrade_data():
                 raise ValueError(
                     f"GenericAsset {generic_asset.id} ({generic_asset.name}) does not have an assorted sensor. Please investigate ..."
                 )
-            asset = session.query(Asset).filter_by(id=sensor.id).one_or_none()
-            if asset is None:
+            asset_results = connection.execute(
+                sa.select(
+                    t_assets.c.owner_id,
+                ).where(t_assets.c.id == sensor.id)
+            ).one_or_none()
+            if asset_results is None:
                 print(
                     f"Generic asset {generic_asset.name} does not have an asset associated, probably because it's of type {generic_asset.generic_asset_type.name}."
                 )
             else:
-                user = asset.owner
+                user = session.query(User).get(asset_results[0])
         if user is not None:
             generic_asset.account_id = user.account.id
     session.commit()
