@@ -10,7 +10,6 @@ import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
-from flask_security.utils import hash_password
 from werkzeug.exceptions import (
     InternalServerError,
     BadRequest,
@@ -166,7 +165,7 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             username="Test Prosumer User",
             email="test_prosumer_user@seita.nl",
             account_name=test_accounts["Prosumer"].name,
-            password=hash_password("testtest"),
+            password="testtest",
             # TODO: test some normal user roles later in our auth progress
             # user_roles=dict(name="", description=""),
         )
@@ -176,7 +175,7 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             username="Test Prosumer User 2",
             email="test_prosumer_user_2@seita.nl",
             account_name=test_accounts["Prosumer"].name,
-            password=hash_password("testtest"),
+            password="testtest",
             user_roles=dict(name="account-admin", description="Admin for this account"),
         )
     )
@@ -186,7 +185,7 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             username="Test Dummy User",
             email="test_dummy_user_3@seita.nl",
             account_name=test_accounts["Dummy"].name,
-            password=hash_password("testtest"),
+            password="testtest",
         )
     )
     # A supplier user
@@ -195,7 +194,7 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             username="Test Supplier User",
             email="test_supplier_user_4@seita.nl",
             account_name=test_accounts["Supplier"].name,
-            password=hash_password("testtest"),
+            password="testtest",
         )
     )
     # One platform admin
@@ -206,7 +205,7 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             account_name=test_accounts[
                 "Dummy"
             ].name,  # the account does not give rights
-            password=hash_password("testtest"),
+            password="testtest",
             user_roles=dict(
                 name=ADMIN_ROLE, description="A user who can do everything."
             ),

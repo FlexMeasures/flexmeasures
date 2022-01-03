@@ -49,7 +49,7 @@ class Account(db.Model, AuthModelMixin):
         """
         Only account admins can create things in the account (e.g. users or assets).
         Within same account, everyone can read and update.
-        Creation and deletion are left to site admins in CLI.
+        Creation and deletion of accounts are left to site admins in CLI.
         """
         return {
             "create-children": (f"account:{self.id}", "role:account-admin"),

@@ -1,7 +1,5 @@
 import pytest
 
-from flask_security.utils import hash_password
-
 from flexmeasures.data.models.user import User, Role
 from flexmeasures.data.services.users import (
     create_user,
@@ -20,7 +18,7 @@ def test_create_user(
     num_users = User.query.count()
     user = create_user(
         email="new_user@seita.nl",
-        password=hash_password("testtest"),
+        password="testtest",
         account_name=setup_accounts_fresh_db["Prosumer"].name,
         user_roles=["SomeRole"],
     )
@@ -38,12 +36,12 @@ def test_create_invalid_user(
 ):
     """A few invalid attempts to create a user"""
     with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
-        create_user(password=hash_password("testtest"))
+        create_user(password="testtest")
     assert "No email" in str(exc_info.value)
     with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
         create_user(
             email="test_user_AT_seita.nl",
-            password=hash_password("testtest"),
+            password="testtest",
             account_name=setup_accounts_fresh_db["Prosumer"].name,
         )
         assert "not a valid" in str(exc_info.value)
@@ -51,7 +49,7 @@ def test_create_invalid_user(
     with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
         create_user(
             email="test_prosumer@sdkkhflzsxlgjxhglkzxjhfglkxhzlzxcvlzxvb.nl",
-            password=hash_password("testtest"),
+            password="testtest",
             account_name=setup_account_fresh_db.name,
         )
     assert "not seem to be deliverable" in str(exc_info.value)
@@ -59,7 +57,7 @@ def test_create_invalid_user(
     with pytest.raises(InvalidFlexMeasuresUser) as exc_info:
         create_user(
             email="test_prosumer_user@seita.nl",
-            password=hash_password("testtest"),
+            password="testtest",
             account_name=setup_accounts_fresh_db["Prosumer"].name,
         )
     assert "already exists" in str(exc_info.value)
@@ -67,7 +65,7 @@ def test_create_invalid_user(
         create_user(
             email="new_user@seita.nl",
             username="Test Prosumer User",
-            password=hash_password("testtest"),
+            password="testtest",
             account_name=setup_accounts_fresh_db["Prosumer"].name,
         )
     assert "already exists" in str(exc_info.value)
@@ -75,7 +73,7 @@ def test_create_invalid_user(
         create_user(
             email="new_user@seita.nl",
             username="New Test Prosumer User",
-            password=hash_password("testtest"),
+            password="testtest",
         )
     assert "without knowing the name of the account" in str(exc_info.value)
 
