@@ -56,7 +56,7 @@ def save_to_db(
 ) -> str:
     """Save the timed beliefs to the database.
 
-    NB Flushing the session. Best to keep transactions short.
+    NB Flushes the session. Best to keep transactions short.
 
     We make the distinction between updating beliefs and replacing beliefs.
 
@@ -116,8 +116,6 @@ def save_to_db(
             if timed_values.empty:
                 # No state changes among the beliefs
                 continue
-        else:
-            len_after = len_before
 
         current_app.logger.info("SAVING TO DB...")
         TimedBelief.add_to_session(

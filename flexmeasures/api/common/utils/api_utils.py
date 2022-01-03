@@ -7,6 +7,7 @@ from json import loads as parse_json, JSONDecodeError
 from flask import current_app
 from inflection import pluralize
 from numpy import array
+from psycopg2.errors import UniqueViolation
 from rq.job import Job
 from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
@@ -26,6 +27,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     already_received_and_successfully_processed,
 )
+from flexmeasures.utils.error_utils import error_handling_router
 
 
 def list_access(service_listing, service_name):
@@ -492,3 +494,18 @@ def determine_belief_timing(
         ]
         return event_starts, belief_horizons
     raise ValueError("Missing horizon or prior.")
+
+
+def catch_timed_belief_replacements(error: IntegrityError):
+    """Catch IntegrityErrors due to a UniqueViolation on the TimedBelief primary key.
+
+    Return a more informative message.
+    """
+    if isinstance(error.orig, UniqueViolation) and "timed_belief_pkey" in str(
+        error.orig
+    ):
+        # Some beliefs represented replacements, which was forbidden
+        return invalid_replacement()
+
+    # Forward to our generic error handler
+    return error_handling_router(error)
