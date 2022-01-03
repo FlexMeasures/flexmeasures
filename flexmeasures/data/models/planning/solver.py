@@ -32,7 +32,10 @@ def device_scheduler(  # noqa C901
     commitment_downwards_deviation_price: Union[List[pd.Series], List[float]],
     commitment_upwards_deviation_price: Union[List[pd.Series], List[float]],
 ) -> Tuple[List[pd.Series], float, SolverResults]:
-    """Schedule devices given constraints on a device and EMS level, and given a list of commitments by the EMS.
+    """This generic device scheduler is able to handle an EMS with multiple devices,
+    with various types of constraints on the EMS level and on the device level,
+    and with multiple market commitments on the EMS level.
+    A typical example is a house with many devices.
     The commitments are assumed to be with regard to the flow of energy to the device (positive for consumption,
     negative for production). The solver minimises the costs of deviating from the commitments.
 
