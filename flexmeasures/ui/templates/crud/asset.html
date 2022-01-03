@@ -48,7 +48,7 @@
 
                     <h3>Edit asset {{ asset.name }}</h3>
 
-                    <small>(Owned by <a href="/account/{{asset.account_id}}">{{ asset.account_id | username }}</a>)</small>
+                    <small>(Owned by account: {{ asset.account_id | accountname }})</small>
                     
                     <div class="form-group">
                         {{ asset_form.name.label(class="col-sm-6 control-label") }}
