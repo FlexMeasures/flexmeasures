@@ -3,8 +3,7 @@ from datetime import timedelta, datetime
 import pytest
 from sqlalchemy.orm import Query
 
-from flexmeasures.data.models.assets import Power
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.forecasting import (
     create_forecasting_jobs,
     handle_forecasting_exception,
@@ -25,7 +24,6 @@ def test_forecasting_three_hours_of_wind(app, setup_fresh_test_data, clean_redis
     # makes 12 forecasts
     horizon = timedelta(hours=1)
     job = create_forecasting_jobs(
-        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, 10)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 13)),
         horizons=[horizon],
@@ -37,11 +35,11 @@ def test_forecasting_three_hours_of_wind(app, setup_fresh_test_data, clean_redis
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
 
     forecasts = (
-        Power.query.filter(Power.sensor_id == wind_device2.id)
-        .filter(Power.horizon == horizon)
+        TimedBelief.query.filter(TimedBelief.sensor_id == wind_device2.id)
+        .filter(TimedBelief.belief_horizon == horizon)
         .filter(
-            (Power.datetime >= as_server_time(datetime(2015, 1, 1, 11)))
-            & (Power.datetime < as_server_time(datetime(2015, 1, 1, 14)))
+            (TimedBelief.event_start >= as_server_time(datetime(2015, 1, 1, 11)))
+            & (TimedBelief.event_start < as_server_time(datetime(2015, 1, 1, 14)))
         )
         .all()
     )
@@ -58,7 +56,6 @@ def test_forecasting_two_hours_of_solar(app, setup_fresh_test_data, clean_redis)
     # makes 8 forecasts
     horizon = timedelta(hours=1)
     job = create_forecasting_jobs(
-        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, 12)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 14)),
         horizons=[horizon],
@@ -69,11 +66,11 @@ def test_forecasting_two_hours_of_solar(app, setup_fresh_test_data, clean_redis)
 
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
     forecasts = (
-        Power.query.filter(Power.sensor_id == solar_device1.id)
-        .filter(Power.horizon == horizon)
+        TimedBelief.query.filter(TimedBelief.sensor_id == solar_device1.id)
+        .filter(TimedBelief.belief_horizon == horizon)
         .filter(
-            (Power.datetime >= as_server_time(datetime(2015, 1, 1, 13)))
-            & (Power.datetime < as_server_time(datetime(2015, 1, 1, 15)))
+            (TimedBelief.event_start >= as_server_time(datetime(2015, 1, 1, 13)))
+            & (TimedBelief.event_start < as_server_time(datetime(2015, 1, 1, 15)))
         )
         .all()
     )
@@ -106,7 +103,6 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
 
     # The failed test model (this failure enqueues a new job)
     create_forecasting_jobs(
-        timed_value_type=Power,
         start_of_roll=as_server_time(datetime(2015, 1, 1, hour_start)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, hour_start + 2)),
         horizons=[horizon],
@@ -127,17 +123,17 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
     def make_query(the_horizon_hours: int) -> Query:
         the_horizon = timedelta(hours=the_horizon_hours)
         return (
-            Power.query.filter(Power.sensor_id == solar_device1.id)
-            .filter(Power.horizon == the_horizon)
+            TimedBelief.query.filter(TimedBelief.sensor_id == solar_device1.id)
+            .filter(TimedBelief.belief_horizon == the_horizon)
             .filter(
                 (
-                    Power.datetime
+                    TimedBelief.event_start
                     >= as_server_time(
                         datetime(2015, 1, 1, hour_start + the_horizon_hours)
                     )
                 )
                 & (
-                    Power.datetime
+                    TimedBelief.event_start
                     < as_server_time(
                         datetime(2015, 1, 1, hour_start + the_horizon_hours + 2)
                     )
@@ -155,7 +151,7 @@ def test_failed_model_with_too_much_training_then_succeed_with_fallback(
         existing_data = make_query(the_horizon_hours=0).all()
 
         for ed, fd in zip(existing_data, forecasts):
-            assert ed.value == fd.value
+            assert ed.event_value == fd.event_value
 
     # Now to check which models actually got to work.
     # We check which data sources do and do not exist by now:

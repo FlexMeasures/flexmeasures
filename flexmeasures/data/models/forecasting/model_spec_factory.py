@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timedelta, tzinfo
 from pprint import pformat
 import logging
@@ -19,10 +19,8 @@ from timetomodel.transforming import (
 )
 import pandas as pd
 
-from flexmeasures.data.models.assets import Power
-from flexmeasures.data.models.markets import Price
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.weather import Weather, WeatherSensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.models.forecasting.utils import (
     create_lags,
     set_training_and_testing_dates,
@@ -53,9 +51,9 @@ class TBSeriesSpecs(SeriesSpecs):
 
     def __init__(
         self,
-        time_series_class,
         search_params: dict,
         name: str,
+        time_series_class: Optional[type] = TimedBelief,
         search_fnc: str = "search",
         original_tz: Optional[tzinfo] = pytz.utc,  # postgres stores naive datetimes
         feature_transformation: Optional[ReversibleTransformation] = None,
@@ -115,7 +113,6 @@ class TBSeriesSpecs(SeriesSpecs):
 
 def create_initial_model_specs(  # noqa: C901
     sensor: Sensor,
-    time_series_class: Type[Union[Power, Price, Weather]],
     forecast_start: datetime,  # Start of forecast period
     forecast_end: datetime,  # End of forecast period
     forecast_horizon: timedelta,  # Duration between time of forecasting and end time of the event that is forecast
@@ -126,6 +123,7 @@ def create_initial_model_specs(  # noqa: C901
     custom_model_params: Optional[
         dict
     ] = None,  # overwrite model params, most useful for tests or experiments
+    time_series_class: Optional[type] = TimedBelief,
 ) -> ModelSpecs:
     """
     Generic model specs for all asset types (also for markets and weather sensors) and horizons.
@@ -179,7 +177,7 @@ def create_initial_model_specs(  # noqa: C901
         name=sensor.generic_asset.generic_asset_type.name,
         time_series_class=time_series_class,
         search_params=dict(
-            old_sensor_names=[sensor.name],
+            sensors=sensor,
             event_starts_after=query_window[0],
             event_ends_before=query_window[1],
             horizons_at_least=None,
@@ -295,9 +293,9 @@ def configure_regressors_for_nearest_weather_sensor(
                 regressor_specs.append(
                     TBSeriesSpecs(
                         name=regressor_specs_name,
-                        time_series_class=Weather,
+                        time_series_class=TimedBelief,
                         search_params=dict(
-                            old_sensor_names=[closest_sensor.name],
+                            sensors=closest_sensor,
                             event_starts_after=query_window[0],
                             event_ends_before=query_window[1],
                             horizons_at_least=horizon,

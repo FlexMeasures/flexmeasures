@@ -7,6 +7,7 @@ import pytest
 from flask_security.utils import hash_password
 
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.models.time_series import TimedBelief
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -16,7 +17,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     """
     print("Setting up data for API v1 tests on %s" % db.engine)
 
-    from flexmeasures.data.models.assets import Asset, AssetType, Power
+    from flexmeasures.data.models.assets import Asset, AssetType
     from flexmeasures.data.models.data_sources import DataSource
 
     # Create an anonymous user TODO: used for demo purposes, maybe "demo-user" would be a better name
@@ -88,27 +89,29 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     user2_data_source = DataSource.query.filter(
         DataSource.user == test_user_2
     ).one_or_none()
-    meter_data = []
-    for i in range(6):
-        p_1 = Power(
-            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+    user1_beliefs = [
+        TimedBelief(
+            event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
-            horizon=timedelta(0),
-            value=(100.0 + i) * -1,
-            sensor_id=cs_5.id,
-            data_source_id=user1_data_source.id,
+            belief_horizon=timedelta(0),
+            event_value=(100.0 + i) * -1,
+            sensor=cs_5.corresponding_sensor,
+            source=user1_data_source,
         )
-        p_2 = Power(
-            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+        for i in range(6)
+    ]
+    user2_beliefs = [
+        TimedBelief(
+            event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
-            horizon=timedelta(hours=0),
-            value=(1000.0 - 10 * i) * -1,
-            sensor_id=cs_5.id,
-            data_source_id=user2_data_source.id,
+            belief_horizon=timedelta(hours=0),
+            event_value=(1000.0 - 10 * i) * -1,
+            sensor=cs_5.corresponding_sensor,
+            source=user2_data_source,
         )
-        meter_data.append(p_1)
-        meter_data.append(p_2)
-    db.session.bulk_save_objects(meter_data)
+        for i in range(6)
+    ]
+    db.session.add_all(user1_beliefs + user2_beliefs)
 
     print("Done setting up data for API v1 tests")
 

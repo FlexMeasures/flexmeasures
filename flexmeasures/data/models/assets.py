@@ -12,7 +12,7 @@ from flexmeasures.data.models.legacy_migration_utils import (
     get_old_model_type,
 )
 from flexmeasures.data.models.user import User
-from flexmeasures.data.models.time_series import Sensor, TimedValue
+from flexmeasures.data.models.time_series import Sensor, TimedValue, TimedBelief
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
     GenericAsset,
@@ -84,7 +84,7 @@ class AssetType(db.Model):
 
 
 class Asset(db.Model, tb.SensorDBMixin):
-    """Each asset is an energy- consuming or producing hardware. """
+    """Each asset is an energy- consuming or producing hardware."""
 
     id = db.Column(
         db.Integer, db.ForeignKey("sensor.id"), primary_key=True, autoincrement=True
@@ -347,7 +347,7 @@ class Power(TimedValue, db.Model):
             "horizon": self.horizon,
         }
 
-    def __init__(self, **kwargs):
+    def __init__(self, use_legacy_kwargs: bool = True, **kwargs):
         # todo: deprecate the 'asset_id' argument in favor of 'sensor_id' (announced v0.8.0)
         if "asset_id" in kwargs and "sensor_id" not in kwargs:
             kwargs["sensor_id"] = tb_utils.replace_deprecated_argument(
@@ -357,6 +357,28 @@ class Power(TimedValue, db.Model):
                 None,
             )
             kwargs.pop("asset_id", None)
+
+        # todo: deprecate the 'Power' class in favor of 'TimedBelief' (announced v0.8.0)
+        if use_legacy_kwargs is False:
+            # Create corresponding TimedBelief
+            belief = TimedBelief(**kwargs)
+            db.session.add(belief)
+
+            # Convert key names for legacy model
+            kwargs["value"] = kwargs.pop("event_value")
+            kwargs["datetime"] = kwargs.pop("event_start")
+            kwargs["horizon"] = kwargs.pop("belief_horizon")
+            kwargs["sensor_id"] = kwargs.pop("sensor").id
+            kwargs["data_source_id"] = kwargs.pop("source").id
+
+        else:
+            import warnings
+
+            warnings.warn(
+                f"The {self.__class__} class is deprecated. Switch to using the TimedBelief class to suppress this warning.",
+                FutureWarning,
+            )
+
         super(Power, self).__init__(**kwargs)
 
     def __repr__(self):
