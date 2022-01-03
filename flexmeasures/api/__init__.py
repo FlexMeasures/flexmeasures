@@ -2,17 +2,16 @@ from flask import Flask, Blueprint, request
 from flask_security.utils import verify_password
 from flask_json import as_json
 from flask_login import current_user
-from psycopg2.errors import UniqueViolation
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures import __version__ as flexmeasures_version
+from flexmeasures.api.common.utils.api_utils import catch_timed_belief_replacements
 from flexmeasures.data.models.user import User
 from flexmeasures.api.common.utils.args_parsing import (
     validation_error_handler,
 )
-from flexmeasures.api.common.responses import invalid_replacement, invalid_sender
+from flexmeasures.api.common.responses import invalid_sender
 from flexmeasures.data.schemas.utils import FMValidationError
-from flexmeasures.utils.error_utils import error_handling_router
 
 # The api blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_api = Blueprint("flexmeasures_api", __name__)
@@ -119,18 +118,3 @@ def register_at(app: Flask):
     v1_3_register_at(app)
     v2_0_register_at(app)
     dev_register_at(app)
-
-
-def catch_timed_belief_replacements(error: IntegrityError):
-    """Catch IntegrityErrors due to a UniqueViolation on the TimedBelief primary key.
-
-    Return a more informative message.
-    """
-    if isinstance(error.orig, UniqueViolation) and "timed_belief_pkey" in str(
-        error.orig
-    ):
-        # Some beliefs represented replacements, which was forbidden
-        return invalid_replacement()
-
-    # Forward to our generic error handler
-    return error_handling_router(error)
