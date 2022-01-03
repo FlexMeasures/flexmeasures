@@ -8,7 +8,6 @@ from rq.job import Job
 from timetomodel.forecasting import make_rolling_forecasts
 import timely_beliefs as tb
 
-from flexmeasures.api.common.utils.api_utils import save_to_db
 from flexmeasures.data.config import db
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import InvalidHorizonException
@@ -17,7 +16,7 @@ from flexmeasures.data.models.forecasting.utils import (
     get_query_window,
     check_data_availability,
 )
-from flexmeasures.data.utils import get_data_source
+from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import (
     as_server_time,
     server_now,

@@ -4,6 +4,7 @@ from datetime import timedelta
 from flask import current_app
 from flask_json import as_json
 from flask_security import current_user
+import timely_beliefs as tb
 
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
@@ -16,7 +17,7 @@ from flexmeasures.api.common.responses import (
     invalid_horizon,
 )
 from flexmeasures.api.common.utils.api_utils import (
-    save_to_db,
+    save_and_enqueue,
 )
 from flexmeasures.api.common.utils.migration_utils import get_sensor_by_unique_name
 from flexmeasures.api.common.utils.validators import (
@@ -41,8 +42,7 @@ from flexmeasures.api.common.utils.api_utils import (
     get_sensor_by_generic_asset_type_and_location,
 )
 from flexmeasures.data.models.data_sources import get_or_create_source
-from flexmeasures.data.models.markets import Price
-from flexmeasures.data.models.weather import Weather
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 
@@ -84,7 +84,7 @@ def post_price_data_response(
     current_app.logger.info("POSTING PRICE DATA")
 
     data_source = get_or_create_source(current_user)
-    prices = []
+    price_df_per_market = []
     forecasting_jobs = []
     for market_group, value_group in zip(generic_asset_name_groups, value_groups):
         for market in market_group:
@@ -105,6 +105,7 @@ def post_price_data_response(
                 return invalid_unit("%s prices" % sensor.name, [sensor.unit])
 
             # Create new Price objects
+            beliefs = []
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -113,15 +114,15 @@ def post_price_data_response(
                     h = horizon - (
                         (start + duration) - (dt + duration / len(value_group))
                     )
-                p = Price(
-                    use_legacy_kwargs=False,
+                p = TimedBelief(
                     event_start=dt,
                     event_value=value,
                     belief_horizon=h,
                     sensor=sensor,
                     source=data_source,
                 )
-                prices.append(p)
+                beliefs.append(p)
+            price_df_per_market.append(tb.BeliefsDataFrame(beliefs))
 
             # Make forecasts, but not in play mode. Price forecasts (horizon>0) can still lead to other price forecasts,
             # by the way, due to things like day-ahead markets.
@@ -133,10 +134,10 @@ def post_price_data_response(
                     start + duration,
                     resolution=duration / len(value_group),
                     horizons=[timedelta(hours=24), timedelta(hours=48)],
-                    enqueue=False,  # will enqueue later, only if we successfully saved prices
+                    enqueue=False,  # will enqueue later, after saving data
                 )
 
-    return save_to_db(prices, forecasting_jobs)
+    return save_and_enqueue(price_df_per_market, forecasting_jobs)
 
 
 @type_accepted("PostWeatherDataRequest")
@@ -160,7 +161,7 @@ def post_weather_data_response(  # noqa: C901
     current_app.logger.info("POSTING WEATHER DATA")
 
     data_source = get_or_create_source(current_user)
-    weather_measurements = []
+    weather_df_per_sensor = []
     forecasting_jobs = []
     for sensor_group, value_group in zip(generic_asset_name_groups, value_groups):
         for sensor in sensor_group:
@@ -189,6 +190,7 @@ def post_weather_data_response(  # noqa: C901
                 return sensor
 
             # Create new Weather objects
+            beliefs = []
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -197,15 +199,15 @@ def post_weather_data_response(  # noqa: C901
                     h = horizon - (
                         (start + duration) - (dt + duration / len(value_group))
                     )
-                w = Weather(
-                    use_legacy_kwargs=False,
+                w = TimedBelief(
                     event_start=dt,
                     event_value=value,
                     belief_horizon=h,
                     sensor=sensor,
                     source=data_source,
                 )
-                weather_measurements.append(w)
+                beliefs.append(w)
+            weather_df_per_sensor.append(tb.BeliefsDataFrame(beliefs))
 
             # make forecasts, but only if the sent-in values are not forecasts themselves (and also not in play)
             if current_app.config.get(
@@ -219,11 +221,11 @@ def post_weather_data_response(  # noqa: C901
                         start,
                         start + duration,
                         resolution=duration / len(value_group),
-                        enqueue=False,  # will enqueue later, only if we successfully saved weather measurements
+                        enqueue=False,  # will enqueue later, after saving data
                     )
                 )
 
-    return save_to_db(weather_measurements, forecasting_jobs)
+    return save_and_enqueue(weather_df_per_sensor, forecasting_jobs)
 
 
 @type_accepted("GetPrognosisRequest")

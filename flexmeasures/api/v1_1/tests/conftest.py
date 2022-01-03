@@ -6,8 +6,8 @@ import isodate
 from flask_security import SQLAlchemySessionUserDatastore
 from flask_security.utils import hash_password
 
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import TimedBelief
 
 
 @pytest.fixture(scope="module")
@@ -55,10 +55,8 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     cs_2 = Asset.query.filter(Asset.name == "CS 2").one_or_none()
     cs_3 = Asset.query.filter(Asset.name == "CS 3").one_or_none()
     data_source = DataSource.query.filter(DataSource.user == test_user).one_or_none()
-    power_forecasts = []
-    for i in range(6):
-        p_1 = Power(
-            use_legacy_kwargs=False,
+    cs1_beliefs = [
+        TimedBelief(
             event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
             belief_horizon=timedelta(hours=6),
@@ -66,8 +64,10 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             sensor=cs_1.corresponding_sensor,
             source=data_source,
         )
-        p_2 = Power(
-            use_legacy_kwargs=False,
+        for i in range(6)
+    ]
+    cs2_beliefs = [
+        TimedBelief(
             event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
             belief_horizon=timedelta(hours=6),
@@ -75,8 +75,10 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             sensor=cs_2.corresponding_sensor,
             source=data_source,
         )
-        p_3 = Power(
-            use_legacy_kwargs=False,
+        for i in range(6)
+    ]
+    cs3_beliefs = [
+        TimedBelief(
             event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
             belief_horizon=timedelta(hours=6),
@@ -84,10 +86,9 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             sensor=cs_3.corresponding_sensor,
             source=data_source,
         )
-        power_forecasts.append(p_1)
-        power_forecasts.append(p_2)
-        power_forecasts.append(p_3)
-    db.session.bulk_save_objects(power_forecasts)
+        for i in range(6)
+    ]
+    db.session.add_all(cs1_beliefs + cs2_beliefs + cs3_beliefs)
 
     print("Done setting up data for API v1.1 tests")
 

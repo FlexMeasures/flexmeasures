@@ -11,7 +11,7 @@ from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
 )
-from flexmeasures.data.models.assets import Power
+from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.resources import get_sensors
@@ -26,7 +26,7 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.api.common.utils.api_utils import (
     groups_to_dict,
-    save_to_db,
+    save_and_enqueue,
 )
 from flexmeasures.api.common.utils.validators import (
     type_accepted,
@@ -253,7 +253,7 @@ def create_connection_and_value_groups(  # noqa: C901
     if not user_sensors:
         current_app.logger.info("User doesn't seem to have any assets")
     user_sensor_ids = [sensor.id for sensor in user_sensors]
-    power_measurements = []
+    power_df_per_connection = []
     forecasting_jobs = []
     for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
         for connection in connection_group:
@@ -293,7 +293,8 @@ def create_connection_and_value_groups(  # noqa: C901
                 )
                 return power_value_too_big(extra_info)
 
-            # Create new Power objects
+            # Create a new BeliefsDataFrame
+            beliefs = []
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -302,8 +303,7 @@ def create_connection_and_value_groups(  # noqa: C901
                     h = horizon - (
                         (start + duration) - (dt + duration / len(value_group))
                     )
-                p = Power(
-                    use_legacy_kwargs=False,
+                p = TimedBelief(
                     event_start=dt,
                     event_value=value
                     * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
@@ -311,7 +311,10 @@ def create_connection_and_value_groups(  # noqa: C901
                     sensor=sensor,
                     source=data_source,
                 )
-                power_measurements.append(p)
+
+                assert p not in db.session
+                beliefs.append(p)
+            power_df_per_connection.append(tb.BeliefsDataFrame(beliefs))
 
             # make forecasts, but only if the sent-in values are not forecasts themselves
             if horizon <= timedelta(
@@ -323,8 +326,8 @@ def create_connection_and_value_groups(  # noqa: C901
                         start,
                         start + duration,
                         resolution=duration / len(value_group),
-                        enqueue=False,
+                        enqueue=False,  # will enqueue later, after saving data
                     )
                 )
 
-    return save_to_db(power_measurements, forecasting_jobs)
+    return save_and_enqueue(power_df_per_connection, forecasting_jobs)

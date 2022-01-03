@@ -65,17 +65,32 @@ def test_post_invalid_sensor_data(
 def test_post_sensor_data_twice(client, setup_api_test_data):
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_data = make_sensor_data_request()
+
+    # Check that 1st time posting the data succeeds
     response = client.post(
         url_for("post_sensor_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )
     assert response.status_code == 200
+
+    # Check that 2nd time posting the same data succeeds informatively
     response = client.post(
         url_for("post_sensor_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )
     print(response.json)
-    assert response.status_code == 400
+    assert response.status_code == 200
     assert "data has already been received" in response.json["message"]
+
+    # Check that replacing data fails informatively
+    post_data["values"][0] = 100
+    response = client.post(
+        url_for("post_sensor_data"),
+        json=post_data,
+        headers={"Authorization": auth_token},
+    )
+    print(response.json)
+    assert response.status_code == 403
+    assert "data represents a replacement" in response.json["message"]

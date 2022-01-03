@@ -9,9 +9,10 @@ import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
 
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor
 from flexmeasures.data.models.forecasting import model_map
 from flexmeasures.data.models.forecasting.model_spec_factory import (
     create_initial_model_specs,
@@ -74,16 +75,17 @@ def setup_fresh_test_data(
             datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
         )
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
-        for dt, val in zip(time_slots, values):
-            p = Power(
-                use_legacy_kwargs=False,
+        beliefs = [
+            TimedBelief(
                 event_start=as_server_time(dt),
                 belief_horizon=parse_duration("PT0M"),
                 event_value=val,
                 sensor=asset.corresponding_sensor,
                 source=data_source,
             )
-            db.session.add(p)
+            for dt, val in zip(time_slots, values)
+        ]
+        db.session.add_all(beliefs)
     add_test_weather_sensor_and_forecasts(fresh_db)
 
 
@@ -131,8 +133,7 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
             values = [value * 600 for value in values]
         for dt, val in zip(time_slots, values):
             db.session.add(
-                Weather(
-                    use_legacy_kwargs=False,
+                TimedBelief(
                     sensor=sensor.corresponding_sensor,
                     event_start=as_server_time(dt),
                     event_value=val,

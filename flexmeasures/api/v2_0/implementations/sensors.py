@@ -3,6 +3,7 @@ from datetime import timedelta
 from flask import current_app
 from flask_json import as_json
 from flask_security import current_user
+import timely_beliefs as tb
 
 from flexmeasures.api.common.responses import (
     invalid_domain,
@@ -16,7 +17,7 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.api.common.utils.api_utils import (
     get_sensor_by_generic_asset_type_and_location,
-    save_to_db,
+    save_and_enqueue,
     determine_belief_timing,
 )
 from flexmeasures.api.common.utils.validators import (
@@ -31,11 +32,8 @@ from flexmeasures.api.common.utils.validators import (
     period_required,
     values_required,
 )
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.data_sources import get_or_create_source
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.markets import Price
-from flexmeasures.data.models.weather import Weather
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.utils.entity_address_utils import (
@@ -71,7 +69,7 @@ def post_price_data_response(  # noqa C901
     current_app.logger.info("POSTING PRICE DATA")
 
     data_source = get_or_create_source(current_user)
-    prices = []
+    price_df_per_market = []
     forecasting_jobs = []
     for market_group, event_values in zip(generic_asset_name_groups, value_groups):
         for market in market_group:
@@ -96,21 +94,19 @@ def post_price_data_response(  # noqa C901
             )
 
             # Create new Price objects
-            prices.extend(
-                [
-                    Price(
-                        use_legacy_kwargs=False,
-                        event_start=event_start,
-                        event_value=event_value,
-                        belief_horizon=belief_horizon,
-                        sensor=sensor,
-                        source=data_source,
-                    )
-                    for event_start, event_value, belief_horizon in zip(
-                        event_starts, event_values, belief_horizons
-                    )
-                ]
-            )
+            beliefs = [
+                TimedBelief(
+                    event_start=event_start,
+                    event_value=event_value,
+                    belief_horizon=belief_horizon,
+                    sensor=sensor,
+                    source=data_source,
+                )
+                for event_start, event_value, belief_horizon in zip(
+                    event_starts, event_values, belief_horizons
+                )
+            ]
+            price_df_per_market.append(tb.BeliefsDataFrame(beliefs))
 
             # Make forecasts, but not in play mode. Price forecasts (horizon>0) can still lead to other price forecasts,
             # by the way, due to things like day-ahead markets.
@@ -122,10 +118,10 @@ def post_price_data_response(  # noqa C901
                     start + duration,
                     resolution=duration / len(event_values),
                     horizons=[timedelta(hours=24), timedelta(hours=48)],
-                    enqueue=False,  # will enqueue later, only if we successfully saved prices
+                    enqueue=False,  # will enqueue later, after saving data
                 )
 
-    return save_to_db(prices, forecasting_jobs)
+    return save_and_enqueue(price_df_per_market, forecasting_jobs)
 
 
 @type_accepted("PostWeatherDataRequest")
@@ -154,7 +150,7 @@ def post_weather_data_response(  # noqa: C901
     current_app.logger.info("POSTING WEATHER DATA")
 
     data_source = get_or_create_source(current_user)
-    weather_measurements = []
+    weather_df_per_sensor = []
     forecasting_jobs = []
     for sensor_group, event_values in zip(generic_asset_name_groups, value_groups):
         for sensor in sensor_group:
@@ -183,21 +179,19 @@ def post_weather_data_response(  # noqa: C901
             )
 
             # Create new Weather objects
-            weather_measurements.extend(
-                [
-                    Weather(
-                        use_legacy_kwargs=False,
-                        event_start=event_start,
-                        event_value=event_value,
-                        belief_horizon=belief_horizon,
-                        sensor=sensor,
-                        source=data_source,
-                    )
-                    for event_start, event_value, belief_horizon in zip(
-                        event_starts, event_values, belief_horizons
-                    )
-                ]
-            )
+            beliefs = [
+                TimedBelief(
+                    event_start=event_start,
+                    event_value=event_value,
+                    belief_horizon=belief_horizon,
+                    sensor=sensor,
+                    source=data_source,
+                )
+                for event_start, event_value, belief_horizon in zip(
+                    event_starts, event_values, belief_horizons
+                )
+            ]
+            weather_df_per_sensor.append(tb.BeliefsDataFrame(beliefs))
 
             # make forecasts, but only if the sent-in values are not forecasts themselves (and also not in play)
             if current_app.config.get(
@@ -212,11 +206,11 @@ def post_weather_data_response(  # noqa: C901
                         start + duration,
                         resolution=duration / len(event_values),
                         horizons=[horizon],
-                        enqueue=False,  # will enqueue later, only if we successfully saved weather measurements
+                        enqueue=False,  # will enqueue later, after saving data
                     )
                 )
 
-    return save_to_db(weather_measurements, forecasting_jobs)
+    return save_and_enqueue(weather_df_per_sensor, forecasting_jobs)
 
 
 @type_accepted("PostMeterDataRequest")
@@ -307,7 +301,7 @@ def post_power_data(
     if not user_sensors:
         current_app.logger.info("User doesn't seem to have any assets")
     user_sensor_ids = [sensor.id for sensor in user_sensors]
-    power_measurements = []
+    power_df_per_connection = []
     forecasting_jobs = []
     for connection_group, event_values in zip(generic_asset_name_groups, value_groups):
         for connection in connection_group:
@@ -351,22 +345,20 @@ def post_power_data(
             )
 
             # Create new Power objects
-            power_measurements.extend(
-                [
-                    Power(
-                        use_legacy_kwargs=False,
-                        event_start=event_start,
-                        event_value=event_value
-                        * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
-                        belief_horizon=belief_horizon,
-                        sensor=sensor,
-                        source=data_source,
-                    )
-                    for event_start, event_value, belief_horizon in zip(
-                        event_starts, event_values, belief_horizons
-                    )
-                ]
-            )
+            beliefs = [
+                TimedBelief(
+                    event_start=event_start,
+                    event_value=event_value
+                    * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
+                    belief_horizon=belief_horizon,
+                    sensor=sensor,
+                    source=data_source,
+                )
+                for event_start, event_value, belief_horizon in zip(
+                    event_starts, event_values, belief_horizons
+                )
+            ]
+            power_df_per_connection.append(tb.BeliefsDataFrame(beliefs))
 
             if create_forecasting_jobs_too:
                 forecasting_jobs.extend(
@@ -375,8 +367,8 @@ def post_power_data(
                         start,
                         start + duration,
                         resolution=duration / len(event_values),
-                        enqueue=False,  # will enqueue later, only if we successfully saved power measurements
+                        enqueue=False,  # will enqueue later, after saving data
                     )
                 )
 
-    return save_to_db(power_measurements, forecasting_jobs)
+    return save_and_enqueue(power_df_per_connection, forecasting_jobs)
