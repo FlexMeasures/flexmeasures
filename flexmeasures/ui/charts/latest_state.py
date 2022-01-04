@@ -53,7 +53,7 @@ def get_latest_power_as_plot(sensor: Sensor, small: bool = False) -> Tuple[str, 
         latest_power_value *= -1
     else:
         consumption = False
-    capacity_in_mw = sensor.get_attribute("capacity_in_mw", 0)
+    capacity_in_mw = sensor.get_attribute("capacity_in_mw", latest_power_value)
     data = {
         latest_measurement_time_str if not small else "": [0],
         "Capacity in use": [latest_power_value],
