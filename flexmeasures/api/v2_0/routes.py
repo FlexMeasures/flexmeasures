@@ -525,7 +525,7 @@ def get_connection():
 def post_price_data():
     """API endpoint to post price data.
 
-    .. :quickref: User; Upload price data to the platform
+    .. :quickref: Data; Upload price data to the platform
 
     **Optional fields**
 
@@ -611,9 +611,7 @@ def post_weather_data():
     - "temperature" (with °C as unit)
     - "wind_speed" (with m/s as unit)
 
-    The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
-
-    .. :quickref: User; Upload weather data to the platform
+    .. :quickref: Data; Upload weather data to the platform
 
     **Optional fields**
 
@@ -700,7 +698,7 @@ def get_meter_data():
 def post_meter_data():
     """API endpoint to post meter data.
 
-    .. :quickref: User; Upload meter data to the platform
+    .. :quickref: Data; Upload meter data to the platform
 
     **Optional fields**
 
@@ -783,7 +781,7 @@ def post_meter_data():
 def post_prognosis():
     """API endpoint to post prognoses about meter data.
 
-    .. :quickref: User; Upload prognosis to the platform
+    .. :quickref: Data; Upload prognosis to the platform
 
     **Optional fields**
 

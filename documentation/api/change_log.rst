@@ -15,6 +15,8 @@ v2.0-4 | 2022-01-04
     - Rewrote the subsection on entity addresses to refer users to where they can find the entity addresses of their sensors.
     - Rewrote the subsection on sensor identification (formerly known as asset identification) to place the fm1 scheme front and center.
 
+- Fixed the categorisation of the *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints from the User category to the Data category.
+
 v2.0-3 | 2021-06-07
 """""""""""""""""""
 
