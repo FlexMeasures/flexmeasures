@@ -37,8 +37,10 @@
                                     href="/assets/{{ asset.id }}" alt="Edit this asset">{{ asset.name }}</a></i>
                         </td>
                         <td class="text-right">
+                            {% if asset.latitude and asset.longitude %}
                             LAT: {{ "{:,.4f}".format( asset.latitude ) }} LONG:
                             {{ "{:,.4f}".format( asset.longitude ) }}
+                            {% endif %}
                         </td>
                         <td class="text-right">
                             {{ asset.id }}
