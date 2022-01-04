@@ -65,7 +65,7 @@ def get_sensors(
     owner_id: Optional[int] = None,
     order_by_asset_attribute: str = "id",
     order_direction: str = "desc",
-) -> List[Asset]:
+) -> List[Sensor]:
     """Return a list of all Sensor objects owned by current_user's organisation account
     (or all users or a specific user - for this, admins can set an owner_id).
     """
