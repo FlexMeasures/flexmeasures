@@ -151,7 +151,7 @@ class AssetCrudUI(FlaskView):
             url_for("AssetAPI:index"), query={"account_id": current_user.account_id}
         )
         assets = [
-            process_internal_api_response(ad, int(ad["id"]), make_obj=True)
+            process_internal_api_response(ad, make_obj=True)
             for ad in get_assets_response.json()
         ]
         return render_flexmeasures_template(
@@ -172,7 +172,7 @@ class AssetCrudUI(FlaskView):
             msg = f"Account {account_id} unknown."
         else:
             assets = [
-                process_internal_api_response(ad, int(ad["id"]), make_obj=True)
+                process_internal_api_response(ad, make_obj=True)
                 for ad in get_assets_response.json()
             ]
         return render_flexmeasures_template(
