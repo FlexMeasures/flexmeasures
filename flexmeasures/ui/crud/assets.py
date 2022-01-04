@@ -110,6 +110,12 @@ def process_internal_api_response(
     Turn data from the internal API into something we can use to further populate the UI.
     Either as an asset object or a dict for form filling.
     """
+
+    def expunge_asset():
+        # us if no insert wanted from a previous query which flushes its results
+        if asset in db.session:
+            db.session.expunge(asset)
+
     asset_data.pop("status", None)  # might have come from requests.response
     if asset_id:
         asset_data["id"] = asset_id
@@ -118,8 +124,12 @@ def process_internal_api_response(
         asset.generic_asset_type = GenericAssetType.query.get(
             asset.generic_asset_type_id
         )
-        if asset in db.session:
-            db.session.expunge(asset)  # no insert wanted (the query above flushes)
+        if asset_id:
+            expunge_asset()
+            asset.sensors = Sensor.query.filter(
+                Sensor.generic_asset_id == asset_id
+            ).all()
+        expunge_asset()
         return asset
     return asset_data
 
