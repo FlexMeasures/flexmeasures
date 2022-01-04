@@ -112,7 +112,7 @@ def process_internal_api_response(
     """
 
     def expunge_asset():
-        # us if no insert wanted from a previous query which flushes its results
+        # use if no insert is wanted from a previous query which flushes its results
         if asset in db.session:
             db.session.expunge(asset)
 
@@ -136,7 +136,7 @@ def process_internal_api_response(
 
 class AssetCrudUI(FlaskView):
     """
-    These views help us offering a Jinja2-based UI.
+    These views help us offer a Jinja2-based UI.
     The main focus on logic is the API, so these views simply call the API functions,
     and deal with the response.
     Some new functionality, like fetching accounts and asset types, is added here.

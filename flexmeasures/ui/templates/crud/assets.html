@@ -18,8 +18,7 @@
                         <th class="text-right no-sort">Location</th>
                         <th class="text-right">Asset id</th>
                         <th class="text-right">Account id</th>
-                        <th class="text-right no-sort">Entity address</th>
-                        <th class="text-right no-sort">Old entity address (API v1)</th>
+                        <th class="text-right no-sort">Sensors</th>
                         <th class="text-right no-sort">
                             {% if user_is_admin %}
                             <form action="/assets/new" method="get">
@@ -38,8 +37,10 @@
                                     href="/assets/{{ asset.id }}" alt="Edit this asset">{{ asset.name }}</a></i>
                         </td>
                         <td class="text-right">
+                            {% if asset.latitude and asset.longitude %}
                             LAT: {{ "{:,.4f}".format( asset.latitude ) }} LONG:
                             {{ "{:,.4f}".format( asset.longitude ) }}
+                            {% endif %}
                         </td>
                         <td class="text-right">
                             {{ asset.id }}
@@ -48,10 +49,7 @@
                             {{ asset.account_id }}
                         </td>
                         <td class="text-right">
-                            {{ asset.entity_address }}
-                        </td>
-                        <td class="text-right">
-                            {{ asset.entity_address_fm0 }}
+                            {{ asset.sensors | length }}
                         </td>
                         <td class="text-right">
                             <form action="../../analytics" method="get">
