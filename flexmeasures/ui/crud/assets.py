@@ -124,10 +124,10 @@ def process_internal_api_response(
         asset.generic_asset_type = GenericAssetType.query.get(
             asset.generic_asset_type_id
         )
-        if asset_id:
+        if "id" in asset_data:
             expunge_asset()
             asset.sensors = Sensor.query.filter(
-                Sensor.generic_asset_id == asset_id
+                Sensor.generic_asset_id == asset_data["id"]
             ).all()
         expunge_asset()
         return asset
