@@ -1,3 +1,5 @@
+from typing import Optional
+
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
@@ -33,11 +35,13 @@ class AssetAPI(FlaskView):
         },
         location="query",
     )
-    @permission_required_for_context("read", arg_name="account")
+    # @permission_required_for_context("read", arg_name="account")
     @as_json
-    def index(self, account: Account):
+    def index(self, account: Optional[Account] = None):
         """List all assets owned by a certain account."""
-        return assets_schema.dump(account.generic_assets), 200
+        if account is not None:
+            return assets_schema.dump(account.generic_assets), 200
+        return assets_schema.dump(AssetModel.query.filter_by(account_id=None).all()), 200
 
     @route("/", methods=["POST"])
     @permission_required_for_context(

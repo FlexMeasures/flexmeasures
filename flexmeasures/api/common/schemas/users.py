@@ -1,3 +1,5 @@
+from typing import Optional
+
 from flask import abort
 from flask_security import current_user
 from marshmallow import fields
@@ -10,7 +12,9 @@ class AccountIdField(fields.Integer):
     Field that represents an account ID. It de-serializes from the account id to an account instance.
     """
 
-    def _deserialize(self, account_id: str, attr, obj, **kwargs) -> Account:
+    def _deserialize(self, account_id: str, attr, obj, **kwargs) -> Optional[Account]:
+        if account_id == "-1" and current_user.has_role("admin"):
+            return None
         account: Account = Account.query.filter_by(id=int(account_id)).one_or_none()
         if account is None:
             raise abort(404, f"Account {account_id} not found")
