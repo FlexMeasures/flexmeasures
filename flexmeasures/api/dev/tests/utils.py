@@ -1,7 +1,12 @@
 from flexmeasures.data.models.time_series import Sensor
 
 
-def make_sensor_data_request(num_values: int = 6, duration: str = "PT1H") -> dict:
+def make_sensor_data_request_for_gas_sensor(
+    num_values: int = 6, duration: str = "PT1H", unit: str = "m³"
+) -> dict:
+    """Creates request to post sensor data for a gas sensor.
+    This particular gas sensor measures units of m³/h with a 10-minute resolution.
+    """
     sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
     message: dict = {
         "type": "PostSensorDataRequest",
@@ -9,7 +14,7 @@ def make_sensor_data_request(num_values: int = 6, duration: str = "PT1H") -> dic
         "values": num_values * [-11.28],
         "start": "2021-06-07T00:00:00+02:00",
         "duration": duration,
-        "unit": "m³/h",
+        "unit": unit,
     }
     if num_values == 1:
         # flatten [<float>] to <float>

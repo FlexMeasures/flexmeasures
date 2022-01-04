@@ -12,7 +12,6 @@ if os.name == "nt":
 else:
     from rq import Worker
 
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.queries.sensors import (
@@ -41,11 +40,11 @@ def test_making_forecasts():
 
     sensor_id = 1
     forecast_filter = (
-        Power.query.filter(Power.sensor_id == sensor_id)
-        .filter(Power.horizon == timedelta(hours=6))
+        TimedBelief.query.filter(TimedBelief.sensor_id == sensor_id)
+        .filter(TimedBelief.belief_horizon == timedelta(hours=6))
         .filter(
-            (Power.datetime >= as_server_time(datetime(2015, 4, 1, 6)))
-            & (Power.datetime < as_server_time(datetime(2015, 4, 3, 6)))
+            (TimedBelief.event_start >= as_server_time(datetime(2015, 4, 1, 6)))
+            & (TimedBelief.event_start < as_server_time(datetime(2015, 4, 3, 6)))
         )
     )
 
@@ -55,7 +54,6 @@ def test_making_forecasts():
 
     create_forecasting_jobs(
         old_sensor_id=sensor_id,
-        timed_value_type=Power,
         horizons=[timedelta(hours=6)],
         start_of_roll=as_server_time(datetime(2015, 4, 1)),
         end_of_roll=as_server_time(datetime(2015, 4, 3)),
@@ -87,12 +85,6 @@ def test_making_forecasts():
     required=True,
     help="Name of generic asset type.",
 )
-@click.option(
-    "--timed-value-type",
-    "timed_value_type",
-    required=True,
-    help="Power, Price or Weather.",
-)
 @click.option("--sensor", "sensor_name", help="Name of sensor.")
 @click.option(
     "--from_date",
@@ -108,7 +100,6 @@ def test_making_forecasts():
 )
 def test_generic_model(
     generic_asset_type_names: List[str],
-    timed_value_type_name: str,
     sensor_name: Optional[str] = None,
     from_date: str = "2015-03-10",
     period: int = 3,
@@ -134,16 +125,6 @@ def test_generic_model(
             click.echo("No unique sensor found in db, so I will not add any forecasts.")
             return
 
-        # todo: replacing this with timed_value_type = TimedBelief requires streamlining of the collect function on old sensor data classes with the search function on the TimedBelief class
-        if timed_value_type_name.lower() == "Power":
-            from flexmeasures.data.models.assets import Power as TimedValueType
-        elif timed_value_type_name.lower() == "Price":
-            from flexmeasures.data.models.markets import Price as TimedValueType
-        elif timed_value_type_name.lower() == "Weather":
-            from flexmeasures.data.models.weather import Weather as TimedValueType
-        else:
-            raise ValueError(f"Unknown timed value type {timed_value_type_name}")
-
         linear_model_configurator = lookup_model_specs_configurator("linear")
         (
             model_specs,
@@ -151,7 +132,6 @@ def test_generic_model(
             fallback_model_identifier,
         ) = linear_model_configurator(
             sensor=sensors[0],
-            time_series_class=TimedValueType,
             forecast_start=start,
             forecast_end=end,
             forecast_horizon=horizon,

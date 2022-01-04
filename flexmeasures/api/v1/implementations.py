@@ -11,9 +11,9 @@ from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
     EntityAddressException,
 )
-from flexmeasures.data.models.assets import Power
+from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import get_or_create_source
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.api.common.responses import (
@@ -26,7 +26,7 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.api.common.utils.api_utils import (
     groups_to_dict,
-    save_to_db,
+    save_and_enqueue,
 )
 from flexmeasures.api.common.utils.validators import (
     type_accepted,
@@ -199,8 +199,8 @@ def collect_connection_and_value_groups(
 
         # Get the power values
         # TODO: fill NaN for non-existing values
-        power_bdf_dict: Dict[str, tb.BeliefsDataFrame] = Power.search(
-            old_sensor_names=sensor_names,
+        power_bdf_dict: Dict[str, tb.BeliefsDataFrame] = TimedBelief.search(
+            sensor_names,
             event_starts_after=start,
             event_ends_before=end,
             resolution=resolution,
@@ -210,6 +210,8 @@ def collect_connection_and_value_groups(
             beliefs_before=belief_time_window[1],
             user_source_ids=user_source_ids,
             source_types=source_types,
+            most_recent_beliefs_only=True,
+            one_deterministic_belief_per_event=True,
             sum_multiple=False,
         )
         # Todo: parse time window of power_bdf_dict, which will be different for requests that are not of the form:
@@ -251,7 +253,7 @@ def create_connection_and_value_groups(  # noqa: C901
     if not user_sensors:
         current_app.logger.info("User doesn't seem to have any assets")
     user_sensor_ids = [sensor.id for sensor in user_sensors]
-    power_measurements = []
+    power_df_per_connection = []
     forecasting_jobs = []
     for connection_group, value_group in zip(generic_asset_name_groups, value_groups):
         for connection in connection_group:
@@ -291,7 +293,8 @@ def create_connection_and_value_groups(  # noqa: C901
                 )
                 return power_value_too_big(extra_info)
 
-            # Create new Power objects
+            # Create a new BeliefsDataFrame
+            beliefs = []
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -300,15 +303,18 @@ def create_connection_and_value_groups(  # noqa: C901
                     h = horizon - (
                         (start + duration) - (dt + duration / len(value_group))
                     )
-                p = Power(
-                    datetime=dt,
-                    value=value
+                p = TimedBelief(
+                    event_start=dt,
+                    event_value=value
                     * -1,  # Reverse sign for FlexMeasures specs with positive production and negative consumption
-                    horizon=h,
-                    sensor_id=sensor_id,
-                    data_source_id=data_source.id,
+                    belief_horizon=h,
+                    sensor=sensor,
+                    source=data_source,
                 )
-                power_measurements.append(p)
+
+                assert p not in db.session
+                beliefs.append(p)
+            power_df_per_connection.append(tb.BeliefsDataFrame(beliefs))
 
             # make forecasts, but only if the sent-in values are not forecasts themselves
             if horizon <= timedelta(
@@ -316,13 +322,12 @@ def create_connection_and_value_groups(  # noqa: C901
             ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this sensor
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
-                        Power,
                         sensor_id,
                         start,
                         start + duration,
                         resolution=duration / len(value_group),
-                        enqueue=False,
+                        enqueue=False,  # will enqueue later, after saving data
                     )
                 )
 
-    return save_to_db(power_measurements, forecasting_jobs)
+    return save_and_enqueue(power_df_per_connection, forecasting_jobs)

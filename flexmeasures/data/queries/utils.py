@@ -38,7 +38,7 @@ def create_beliefs_query(
 
 
 def get_source_criteria(
-    cls: "Type[ts.TimedValue]",
+    cls: "Union[Type[ts.TimedValue], Type[ts.TimedBelief]]",
     user_source_ids: Union[int, List[int]],
     source_types: List[str],
     exclude_source_types: List[str],
@@ -58,7 +58,7 @@ def get_source_criteria(
 
 
 def user_source_criterion(
-    cls: "Type[ts.TimedValue]",
+    cls: "Union[Type[ts.TimedValue], Type[ts.TimedBelief]]",
     user_source_ids: Union[int, List[int]],
 ) -> BinaryExpression:
     """Criterion to search only through user data from the specified user sources.
@@ -79,7 +79,11 @@ def user_source_criterion(
     ignorable_user_source_ids = [
         user_source.id for user_source in ignorable_user_sources
     ]
-    return cls.data_source_id.not_in(ignorable_user_source_ids)
+
+    # todo: [legacy] deprecate this if-statement, which is used to support the TimedValue class
+    if hasattr(cls, "data_source_id"):
+        return cls.data_source_id.not_in(ignorable_user_source_ids)
+    return cls.source_id.not_in(ignorable_user_source_ids)
 
 
 def source_type_criterion(source_types: List[str]) -> BinaryExpression:

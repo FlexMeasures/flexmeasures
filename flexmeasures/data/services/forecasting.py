@@ -1,25 +1,22 @@
 from datetime import datetime, timedelta
-from typing import List, Type, Union
+from typing import List
 
 from flask import current_app
 import click
 from rq import get_current_job
 from rq.job import Job
-from sqlalchemy.exc import IntegrityError
 from timetomodel.forecasting import make_rolling_forecasts
+import timely_beliefs as tb
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import InvalidHorizonException
-from flexmeasures.data.models.markets import Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.forecasting.utils import (
     get_query_window,
     check_data_availability,
 )
-from flexmeasures.data.models.weather import Weather
-from flexmeasures.data.utils import save_to_session, get_data_source
+from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import (
     as_server_time,
     server_now,
@@ -46,7 +43,6 @@ class MisconfiguredForecastingJobException(Exception):
 
 
 def create_forecasting_jobs(
-    timed_value_type: Type[Union[TimedBelief, Power, Price, Weather]],
     old_sensor_id: int,
     start_of_roll: datetime,
     end_of_roll: datetime,
@@ -101,7 +97,6 @@ def create_forecasting_jobs(
             make_rolling_viewpoint_forecasts,
             kwargs=dict(
                 old_sensor_id=old_sensor_id,
-                timed_value_type=timed_value_type,
                 horizon=horizon,
                 start=start_of_roll + horizon,
                 end=end_of_roll + horizon,
@@ -124,7 +119,6 @@ def create_forecasting_jobs(
 
 def make_fixed_viewpoint_forecasts(
     old_sensor_id: int,
-    timed_value_type: Type[Union[TimedBelief, Power, Price, Weather]],
     horizon: timedelta,
     start: datetime,
     end: datetime,
@@ -142,7 +136,6 @@ def make_fixed_viewpoint_forecasts(
 
 def make_rolling_viewpoint_forecasts(
     old_sensor_id: int,
-    timed_value_type: Type[Union[TimedBelief, Power, Price, Weather]],
     horizon: timedelta,
     start: datetime,
     end: datetime,
@@ -159,8 +152,6 @@ def make_rolling_viewpoint_forecasts(
     ----------
     :param old_sensor_id: int
         To identify which old sensor to forecast (note: old_sensor_id == sensor_id)
-    :param timed_value_type: Type[Union[TimedBelief, Power, Price, Weather]]
-        This should go away after a refactoring - we now use it to create the DB entry for the forecasts
     :param horizon: timedelta
         duration between the end of each interval and the time at which the belief about that interval is formed
     :param start: datetime
@@ -198,7 +189,6 @@ def make_rolling_viewpoint_forecasts(
     model_configurator = lookup_model_specs_configurator(model_search_term)
     model_specs, model_identifier, fallback_model_search_term = model_configurator(
         sensor=sensor,
-        time_series_class=timed_value_type,
         forecast_start=as_server_time(start),
         forecast_end=as_server_time(end),
         forecast_horizon=horizon,
@@ -224,7 +214,7 @@ def make_rolling_viewpoint_forecasts(
     )
     check_data_availability(
         sensor,
-        timed_value_type,
+        TimedBelief,
         start,
         end,
         query_window,
@@ -245,29 +235,17 @@ def make_rolling_viewpoint_forecasts(
     click.echo("Job %s made %d forecasts." % (rq_job.id, len(forecasts)))
 
     ts_value_forecasts = [
-        timed_value_type(
-            datetime=dt,
-            horizon=horizon,
-            value=value,
-            sensor_id=old_sensor_id,
-            data_source_id=data_source.id,
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=horizon,
+            event_value=value,
+            sensor=sensor,
+            source=data_source,
         )
         for dt, value in forecasts.items()
     ]
-
-    try:
-        save_to_session(ts_value_forecasts)
-    except IntegrityError as e:
-
-        current_app.logger.warning(e)
-        click.echo("Rolling back due to IntegrityError")
-        db.session.rollback()
-
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            click.echo("Saving again, with overwrite=True")
-            save_to_session(ts_value_forecasts, overwrite=True)
-
-    db.session.commit()
+    bdf = tb.BeliefsDataFrame(ts_value_forecasts)
+    save_to_db(bdf)
 
     return len(forecasts)
 

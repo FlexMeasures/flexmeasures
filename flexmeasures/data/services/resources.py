@@ -31,7 +31,7 @@ from flexmeasures.data.models.assets import (
     assets_share_location,
 )
 from flexmeasures.data.models.markets import Market, Price
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.weather import Weather, WeatherSensorType
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.utils import simplify_index
@@ -484,8 +484,8 @@ class Resource:
             )
 
             # Query the sensors
-            resource_data: Dict[str, tb.BeliefsDataFrame] = sensor_type.search(
-                old_sensor_names=list(names_of_resource_sensors),
+            resource_data: Dict[str, tb.BeliefsDataFrame] = TimedBelief.search(
+                list(names_of_resource_sensors),
                 event_starts_after=start,
                 event_ends_before=end,
                 horizons_at_least=belief_horizon_window[0],

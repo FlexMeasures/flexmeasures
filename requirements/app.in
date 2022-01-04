@@ -6,6 +6,8 @@ pscript
 pandas
 # pandas-bokeh 0.5 requires bokeh>=2.0, but bokeh still doesn't support sharing a legend across plots
 pandas-bokeh==0.4.3
+pint
+py-moneyed
 iso8601
 xlrd
 inflection
@@ -32,7 +34,7 @@ netCDF4
 siphon
 tables
 timetomodel>=0.7.1
-timely-beliefs>=1.8.0
+timely-beliefs>=1.9.0
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata

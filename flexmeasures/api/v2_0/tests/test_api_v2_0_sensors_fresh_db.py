@@ -10,7 +10,6 @@ from flexmeasures.api.v2_0.tests.utils import (
     message_for_post_price_data,
     verify_sensor_data_in_db,
 )
-from flexmeasures.data.models.markets import Price
 
 
 @pytest.mark.parametrize(
@@ -60,5 +59,4 @@ def test_post_price_data_2_0(
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
-        assert job.kwargs["timed_value_type"] == Price
         assert job.kwargs["old_sensor_id"] == market.id

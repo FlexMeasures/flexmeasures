@@ -1,5 +1,4 @@
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
-from flexmeasures.data.models.time_series import TimedBelief
 from typing import List, Sequence, Tuple, Union
 import copy
 from datetime import datetime, timedelta
@@ -8,6 +7,7 @@ from json import loads as parse_json, JSONDecodeError
 from flask import current_app
 from inflection import pluralize
 from numpy import array
+from psycopg2.errors import UniqueViolation
 from rq.job import Job
 from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
@@ -16,16 +16,18 @@ from flexmeasures.data import db
 from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.markets import Price
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
-from flexmeasures.data.utils import save_to_session
+from flexmeasures.data.utils import save_to_session, save_to_db as modern_save_to_db
 from flexmeasures.api.common.responses import (
+    invalid_replacement,
     unrecognized_sensor,
     ResponseTuple,
     request_processed,
     already_received_and_successfully_processed,
 )
+from flexmeasures.utils.error_utils import error_handling_router
 
 
 def list_access(service_listing, service_name):
@@ -340,6 +342,40 @@ def get_sensor_by_generic_asset_type_and_location(
     return sensor
 
 
+def enqueue_forecasting_jobs(
+    forecasting_jobs: List[Job] = None,
+):
+    """Enqueue forecasting jobs.
+
+    :param forecasting_jobs: list of forecasting Jobs for redis queues.
+    """
+    if forecasting_jobs is not None:
+        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
+
+
+def save_and_enqueue(
+    data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
+    forecasting_jobs: List[Job] = None,
+    save_changed_beliefs_only: bool = True,
+) -> ResponseTuple:
+
+    # Attempt to save
+    status = modern_save_to_db(
+        data, save_changed_beliefs_only=save_changed_beliefs_only
+    )
+
+    # Only enqueue forecasting jobs upon successfully saving new data
+    if status[:7] == "success":
+        enqueue_forecasting_jobs(forecasting_jobs)
+
+    # Pick a response
+    if status == "success":
+        return request_processed()
+    elif status == "success_with_unchanged_beliefs_skipped":
+        return already_received_and_successfully_processed()
+    return invalid_replacement()
+
+
 def save_to_db(
     timed_values: Union[BeliefsDataFrame, List[Union[Power, Price, Weather]]],
     forecasting_jobs: List[Job] = [],
@@ -349,13 +385,21 @@ def save_to_db(
 
     Data can only be replaced on servers in play mode.
 
-    TODO: remove options for Power, Price and Weather if we only handle beliefs one day.
+    TODO: remove this legacy function in its entirety (announced v0.8.0)
 
     :param timed_values: BeliefsDataFrame or a list of Power, Price or Weather values to be saved
     :param forecasting_jobs: list of forecasting Jobs for redis queues.
     :param save_changed_beliefs_only: if True, beliefs that are already stored in the database with an earlier belief time are dropped.
     :returns: ResponseTuple
     """
+
+    import warnings
+
+    warnings.warn(
+        "The method api.common.utils.api_utils.save_to_db is deprecated. Check out the following replacements:"
+        "- [recommended option] to store BeliefsDataFrames only, switch to data.utils.save_to_db"
+        "- to store BeliefsDataFrames and enqueue jobs, switch to api.common.utils.api_utils.save_and_enqueue"
+    )
 
     if isinstance(timed_values, BeliefsDataFrame):
 
@@ -450,3 +494,18 @@ def determine_belief_timing(
         ]
         return event_starts, belief_horizons
     raise ValueError("Missing horizon or prior.")
+
+
+def catch_timed_belief_replacements(error: IntegrityError):
+    """Catch IntegrityErrors due to a UniqueViolation on the TimedBelief primary key.
+
+    Return a more informative message.
+    """
+    if isinstance(error.orig, UniqueViolation) and "timed_belief_pkey" in str(
+        error.orig
+    ):
+        # Some beliefs represented replacements, which was forbidden
+        return invalid_replacement()
+
+    # Forward to our generic error handler
+    return error_handling_router(error)

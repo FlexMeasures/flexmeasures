@@ -8,14 +8,13 @@ import pandas as pd
 import pytz
 from rq import get_current_job
 from rq.job import Job
-from sqlalchemy.exc import IntegrityError
+import timely_beliefs as tb
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Power
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.utils import save_to_session, get_data_source
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.utils import get_data_source, save_to_db
 
 """
 The life cycle of a scheduling job:
@@ -37,6 +36,7 @@ def create_scheduling_job(
     resolution: timedelta = DEFAULT_RESOLUTION,
     soc_at_start: Optional[float] = None,
     soc_targets: Optional[pd.Series] = None,
+    roundtrip_efficiency: Optional[float] = None,
     udi_event_ea: Optional[str] = None,
     enqueue: bool = True,
 ) -> Job:
@@ -62,6 +62,7 @@ def create_scheduling_job(
             resolution=resolution,
             soc_at_start=soc_at_start,
             soc_targets=soc_targets,
+            roundtrip_efficiency=roundtrip_efficiency,
         ),
         id=udi_event_ea,
         connection=current_app.queues["scheduling"].connection,
@@ -89,6 +90,7 @@ def make_schedule(
     resolution: timedelta,
     soc_at_start: Optional[float] = None,
     soc_targets: Optional[pd.Series] = None,
+    roundtrip_efficiency: Optional[float] = None,
 ) -> bool:
     """Preferably, a starting soc is given.
     Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
@@ -123,14 +125,26 @@ def make_schedule(
 
     if sensor.generic_asset.generic_asset_type.name == "battery":
         consumption_schedule = schedule_battery(
-            sensor, start, end, resolution, soc_at_start, soc_targets
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            soc_targets,
+            roundtrip_efficiency,
         )
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
         "two-way_evse",
     ):
         consumption_schedule = schedule_charging_station(
-            sensor, start, end, resolution, soc_at_start, soc_targets
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            soc_targets,
+            roundtrip_efficiency,
         )
     else:
         raise ValueError(
@@ -145,29 +159,17 @@ def make_schedule(
     click.echo("Job %s made schedule." % rq_job.id)
 
     ts_value_schedule = [
-        Power(
-            datetime=dt,
-            horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
-            value=-value,
-            sensor_id=asset_id,
-            data_source_id=data_source.id,
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
+            event_value=-value,
+            sensor=sensor,
+            source=data_source,
         )
         for dt, value in consumption_schedule.items()
     ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
-
-    try:
-        save_to_session(ts_value_schedule)
-    except IntegrityError as e:
-
-        current_app.logger.warning(e)
-        click.echo("Rolling back due to IntegrityError")
-        db.session.rollback()
-
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            click.echo("Saving again, with overwrite=True")
-            save_to_session(ts_value_schedule, overwrite=True)
-
-    db.session.commit()
+    bdf = tb.BeliefsDataFrame(ts_value_schedule)
+    save_to_db(bdf)
 
     return True
 

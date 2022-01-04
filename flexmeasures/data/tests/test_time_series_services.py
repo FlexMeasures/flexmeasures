@@ -1,7 +1,7 @@
 import pandas as pd
 from timely_beliefs import utils as tb_utils
 
-from flexmeasures.api.common.utils.api_utils import save_to_db
+from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
@@ -68,7 +68,7 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs):
 
     # Set a reference for the number of beliefs stored
     sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
-    bdf = sensor.search_beliefs(source="Seita")
+    bdf = sensor.search_beliefs(source="ENTSO-E")
     num_beliefs_before = len(bdf)
 
     # See what happens when storing a belief with more certainty one hour later
@@ -91,6 +91,6 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs):
     save_to_db(new_belief)
 
     # Verify that the whole probabilistic belief was added
-    bdf = sensor.search_beliefs(source="Seita")
+    bdf = sensor.search_beliefs(source="ENTSO-E")
     num_beliefs_after = len(bdf)
     assert num_beliefs_after == num_beliefs_before + len(new_belief)

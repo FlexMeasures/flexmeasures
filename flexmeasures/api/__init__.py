@@ -2,8 +2,10 @@ from flask import Flask, Blueprint, request
 from flask_security.utils import verify_password
 from flask_json import as_json
 from flask_login import current_user
+from sqlalchemy.exc import IntegrityError
 
 from flexmeasures import __version__ as flexmeasures_version
+from flexmeasures.api.common.utils.api_utils import catch_timed_belief_replacements
 from flexmeasures.data.models.user import User
 from flexmeasures.api.common.utils.args_parsing import (
     validation_error_handler,
@@ -84,6 +86,7 @@ def register_at(app: Flask):
 
     # handle API specific errors
     app.register_error_handler(FMValidationError, validation_error_handler)
+    app.register_error_handler(IntegrityError, catch_timed_belief_replacements)
     app.unauthorized_handler_api = invalid_sender
 
     app.register_blueprint(
