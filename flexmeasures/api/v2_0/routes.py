@@ -710,7 +710,7 @@ def post_meter_data():
     **Example request**
 
     This "PostMeterDataRequest" message posts measured consumption for 15-minute intervals between 0.00am and 1.30am for
-    charging stations 1, 2 and 3 (negative values denote production).
+    connections 3, 4 and 5 (negative values denote production).
 
     .. code-block:: json
 
@@ -719,8 +719,8 @@ def post_meter_data():
             "groups": [
                 {
                     "connections": [
-                        "CS 1",
-                        "CS 3"
+                        "ea1.2021-01.io.flexmeasures.company:fm1.3",
+                        "ea1.2021-01.io.flexmeasures.company:fm1.4"
                     ],
                     "values": [
                         306.66,
@@ -733,7 +733,7 @@ def post_meter_data():
                 },
                 {
                     "connections": [
-                        "CS 2"
+                        "ea1.2021-01.io.flexmeasures.company:fm1.5"
                     ],
                     "values": [
                         306.66,
@@ -793,7 +793,7 @@ def post_prognosis():
     **Example request**
 
     This "PostPrognosisRequest" message posts prognosed consumption for 15-minute intervals between 0.00am and 1.30am for
-    charging stations 1, 2 and 3 (negative values denote production), prognosed at 6pm the previous day.
+    connections 3, 4 and 5 (negative values denote production), prognosed at 6pm the previous day.
 
     .. code-block:: json
 
@@ -802,8 +802,8 @@ def post_prognosis():
             "groups": [
                 {
                     "connections": [
-                        "ea1.2018-06.localhost:1:3",
-                        "ea1.2018-06.localhost:1:4"
+                        "ea1.2021-01.io.flexmeasures.company:fm1.3",
+                        "ea1.2021-01.io.flexmeasures.company:fm1.4"
                     ],
                     "values": [
                         300,
@@ -816,7 +816,7 @@ def post_prognosis():
                 },
                 {
                     "connections": [
-                        "ea1.2018-06.localhost:1:5"
+                        "ea1.2021-01.io.flexmeasures.company:fm1.5"
                     ],
                     "values": [
                         300,
