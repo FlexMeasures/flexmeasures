@@ -141,7 +141,7 @@ We distinguish the following roles with different access rights to the individua
 - admin
 - Aggregator
 - Supplier: an energy retailer (see :ref:`supplier`)
-- Prosumer: an asset owner (see :ref:`prosumer`)
+- Prosumer: owner of a grid connection (see :ref:`prosumer`)
 - ESCo: an energy service company (see :ref:`esco`)
 - MDC: a meter data company (see :ref:`mdc`)
 - DSO: a distribution system operator (see :ref:`dso`)
@@ -182,7 +182,7 @@ The API, however, does not distinguish between singular and plural key notation.
 Connections and entity addresses
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Connections are end points of the grid at which an asset is located. 
+A connection represents an end point of the grid, at which an electricity sensor (power meter) is located.
 Connections should be identified with an entity address following the EA1 addressing scheme prescribed by USEF[1],
 which is mostly taken from IETF RFC 3720 [2]:
 
@@ -199,10 +199,10 @@ Here is a full example for a FlexMeasures connection address:
 .. code-block:: json
 
     {
-        "connection": "ea1.2021-02.io.flexmeasures.company:fm0.30:73"
+        "connection": "ea1.2021-02.io.flexmeasures.company:fm1.73"
     }
 
-where FlexMeasures runs at `company.flexmeasures.io` (which the current domain owner started using in February 2021), and the locally unique string is of scheme `fm0` (see below) and the asset ID is 73. The asset's owner ID is 30, but this part is optional.
+where FlexMeasures runs at `company.flexmeasures.io` (which the current domain owner started using in February 2021), and the locally unique string uses the `fm1` scheme (see below) to identify sensor ID 73.
 
 Assets are listed at:
 
@@ -210,11 +210,11 @@ Assets are listed at:
 
     https://company.flexmeasures.io/assets
 
-Both the owner ID and the full entity address can be obtained on the asset's page, e.g.:
+The full entity addresses of all of the asset's sensors can be obtained on the asset's page, e.g. for asset 81:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/assets/73
+    https://company.flexmeasures.io/assets/81
 
 
 Entity address structure
@@ -237,41 +237,31 @@ Some deeper explanations about an entity address:
 [3] https://tools.ietf.org/html/rfc3721
 
 
-Types of asset identifications used in FlexMeasures
+Types of sensor identification used in FlexMeasures
 """"""""""""""""""""""""""""""""""""""""""""""""""""
 
-FlexMeasures expects the locally unique string string to contain information in
-a certain structure. We distinguish type ``fm0`` and type ``fm1`` FlexMeasures entity addresses.
+FlexMeasures expects the locally unique string string to contain information in a certain structure.
+We distinguish type ``fm0`` and type ``fm1`` FlexMeasures entity addresses.
 
-The ``fm0`` scheme is the original scheme. It identifies connected assets, weather stations, markets and UDI events in different ways. 
+The ``fm1`` scheme is the latest version.
+It uses the fact that all FlexMeasures sensors have unique IDs.
 
-Examples for the fm0 scheme:
+.. code-block::
 
-- connection = ea1.2021-01.localhost:fm0.40:30
-- connection = ea1.2021-01.io.flexmeasures:fm0.<owner_id>:<asset_id>
-- weather_sensor = ea1.2021-01.io.flexmeasures:fm0.temperature:52:73.0
-- weather_sensor = ea1.2021-01.io.flexmeasures:fm0.<sensor_type>:<latitude>:<longitude>
-- market = ea1.2021-01.io.flexmeasures:fm0.epex_da
-- market = ea1.2021-01.io.flexmeasures:fm0.<market_name>
-- event = ea1.2021-01.io.flexmeasures:fm0.40:30:302:soc
-- event = ea1.2021-01.io.flexmeasures:fm0.<owner_id>:<asset_id>:<event_id>:<event_type>
+    ea1.2021-01.io.flexmeasures:fm1.42
+    ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
 
-This scheme is explicit but also a little cumbersome to use, as one needs to look up the type or even owner (for assets), and weather sensors are identified by coordinates.
-For the fm0 scheme, the 'fm0.' part is optional, for backwards compatibility.
+.. todo:: UDI events are not yet modelled in the fm1 scheme
 
+The ``fm0`` scheme is the original scheme.
+It identified different types of sensors (such as connections, weather sensors and markets) in different ways.
+The ``fm0`` scheme has been deprecated for the most part and is no longer supported officially.
+Only UDI events still need to be sent using the fm0 scheme.
 
-The ``fm1`` scheme is the latest version, currently under development. It works with the database structure 
-we are developing in the background, where all connected sensors have unique IDs. This makes it more straightforward (the scheme works the same way for all types of sensors), if less explicit.
+.. code-block::
 
-Examples for the fm1 scheme:
-
-- sensor = ea1.2021-01.io.flexmeasures:fm1.42
-- sensor = ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
-- connection = ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
-- market = ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
-- weather_station = ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
-    
-.. todo:: UDI events are not yet modelled in the fm1 scheme, but will probably be ea1.2021-01.io.flexmeasures:fm1.<actuator_id>
+    ea1.2021-01.io.flexmeasures:fm0.40:30:302:soc
+    ea1.2021-01.io.flexmeasures:fm0.<owner_id>:<sensor_id>:<event_id>:<event_type>
 
 
 Groups
@@ -286,8 +276,8 @@ When the attributes "start", "duration" and "unit" are stated outside of "groups
         "groups": [
             {
                 "connections": [
-                    "ea1.2021-02.io.flexmeasures.company:fm0.30:71",
-                    "ea1.2021-02.io.flexmeasures.company:fm0.30:72"
+                    "ea1.2021-02.io.flexmeasures.company:fm1.71",
+                    "ea1.2021-02.io.flexmeasures.company:fm1.72"
                 ],
                 "values": [
                     306.66,
@@ -299,7 +289,7 @@ When the attributes "start", "duration" and "unit" are stated outside of "groups
                 ]
             },
             {
-                "connection": "ea1.2021-02.io.flexmeasures.company:fm0.30:73"
+                "connection": "ea1.2021-02.io.flexmeasures.company:fm1.73"
                 "values": [
                     306.66,
                     0,
@@ -321,8 +311,8 @@ In case of a single group of connections, the message may be flattened to:
 
     {
         "connections": [
-            "ea1.2021-02.io.flexmeasures.company:fm0.30:71",
-            "ea1.2021-02.io.flexmeasures.company:fm0.30:72"
+            "ea1.2021-02.io.flexmeasures.company:fm1.71",
+            "ea1.2021-02.io.flexmeasures.company:fm1.72"
         ],
         "values": [
             306.66,

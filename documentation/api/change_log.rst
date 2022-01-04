@@ -6,6 +6,14 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
 
+v2.0-4 | 2022-01-04
+"""""""""""""""""""
+
+- Changed the Introduction section:
+
+    - Rewrote the subsection on entity addresses to refer users to where they can find the entity addresses of their sensors.
+    - Rewrote the subsection on sensor identification (formerly known as asset identification) to place the fm1 scheme front and center.
+
 v2.0-3 | 2021-06-07
 """""""""""""""""""
 
