@@ -137,10 +137,9 @@ def upgrade_data():
         old_owner_id = _get_old_owner_id_from_db_result(
             asset_ownership_db, generic_asset.id
         )
-        if old_owner_id is None:
-            user = None
-        else:
-            user = session.query(User).get(old_owner_id)
+        user = (
+            session.query(User).get(old_owner_id) if old_owner_id is not None else None
+        )
         # 2. Otherwise, then try the old-style Asset's ownership (via Sensor)
         if user is None:
             sensor = (
@@ -153,9 +152,7 @@ def upgrade_data():
                     f"GenericAsset {generic_asset.id} ({generic_asset.name}) does not have an assorted sensor. Please investigate ..."
                 )
             asset_results = connection.execute(
-                sa.select(
-                    t_assets.c.owner_id,
-                ).where(t_assets.c.id == sensor.id)
+                sa.select([t_assets.c.owner_id]).where(t_assets.c.id == sensor.id)
             ).one_or_none()
             if asset_results is None:
                 print(

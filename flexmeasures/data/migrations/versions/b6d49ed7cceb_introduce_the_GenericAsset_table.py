@@ -127,7 +127,7 @@ def upgrade_data():
                 f"At least some of these sensor ids {sensor_group_dict['sensor_ids']} do not exist."
             )
         generic_asset_type_results = connection.execute(
-            sa.select([t_generic_asset_types.c.id,]).where(
+            sa.select([t_generic_asset_types.c.id]).where(
                 t_generic_asset_types.c.name == sensor_group_dict["asset_type_name"]
             )
         ).one_or_none()
