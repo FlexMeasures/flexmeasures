@@ -13,7 +13,7 @@ class AccountIdField(fields.Integer):
     def _deserialize(self, account_id: int, attr, obj, **kwargs) -> Account:
         account: Account = Account.query.filter_by(id=int(account_id)).one_or_none()
         if account is None:
-            raise abort(404, f"Account {id} not found")
+            raise abort(404, f"Account {account_id} not found")
         return account
 
     def _serialize(self, account: Account, attr, data, **kwargs) -> int:
