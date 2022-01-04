@@ -204,11 +204,17 @@ Here is a full example for a FlexMeasures connection address:
 
 where FlexMeasures runs at `company.flexmeasures.io` (which the current domain owner started using in February 2021), and the locally unique string is of scheme `fm0` (see below) and the asset ID is 73. The asset's owner ID is 30, but this part is optional.
 
-Both the owner ID and the asset ID, as well as the full entity address can be obtained on the asset's listing:
+Assets are listed at:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/assets
+
+Both the owner ID and the full entity address can be obtained on the asset's page, e.g.:
+
+.. code-block:: html
+
+    https://company.flexmeasures.io/assets/73
 
 
 Entity address structure
