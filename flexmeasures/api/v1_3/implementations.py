@@ -1,5 +1,5 @@
 # flake8: noqa: C901
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import inflect
 import isodate
@@ -218,7 +218,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
 @units_accepted("State of charge", "kWh", "MWh")
 @optional_prior_accepted()
 @as_json
-def post_udi_event_response(unit, prior):
+def post_udi_event_response(unit: str, prior: datetime):
 
     if not has_assets():
         current_app.logger.info("User doesn't seem to have any assets.")
@@ -362,7 +362,7 @@ def post_udi_event_response(unit, prior):
         start_of_schedule,
         end_of_schedule,
         resolution=resolution,
-        belief_time=prior,
+        belief_time=prior,  # server time if no prior time was sent
         soc_at_start=value,
         soc_targets=soc_targets,
         udi_event_ea=form.get("event"),
