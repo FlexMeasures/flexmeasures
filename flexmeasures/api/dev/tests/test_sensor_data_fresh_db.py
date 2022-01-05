@@ -1,5 +1,4 @@
 import pytest
-
 from flask import url_for
 
 from flexmeasures.api.tests.utils import get_auth_token

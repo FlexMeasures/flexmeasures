@@ -17,6 +17,11 @@ from flexmeasures.data.config import db
 from flexmeasures.api.common.responses import required_info_missing
 
 
+"""
+Deprecated. Use /api/dev/generic_assets.
+TODO: Can/should we add a deprecation warning to responses?
+"""
+
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
 

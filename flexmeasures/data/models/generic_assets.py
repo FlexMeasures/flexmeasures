@@ -6,8 +6,8 @@ from sqlalchemy.engine import Row
 
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
-
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User
@@ -22,7 +22,7 @@ class GenericAssetType(db.Model):
     """
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), default="")
+    name = db.Column(db.String(80), default="", unique=True)
     description = db.Column(db.String(80), nullable=True, unique=False)
 
 
@@ -48,17 +48,35 @@ class GenericAsset(db.Model, AuthModelMixin):
         backref=db.backref("generic_assets", lazy=True),
     )
 
+    __table_args__ = (
+        UniqueConstraint(
+            "name",
+            "account_id",
+            name="generic_asset_name_account_id_key",
+        ),
+    )
+
     def __acl__(self):
         """
         Within same account, everyone can read and update.
-        Creation and deletion are left to site admins in CLI.
-
-        TODO: needs an iteration
+        Creation and deletion are left to account admins (a role we don't use yet).
+        Note: creation is not relevant on a GenericAsset object (as it already exists),
+              but we might want to use this permission to check if data *within* the asset,
+              like sensors, can be created. See the discussion in auth/policy.
         """
         return {
+            "create-children": (f"account:{self.account_id}", "role:account-admin"),
             "read": f"account:{self.account_id}",
             "update": f"account:{self.account_id}",
+            "delete": (f"account:{self.account_id}", "role:account-admin"),
         }
+
+    def __repr__(self):
+        return "<GenericAsset %s:%r (%s)>" % (
+            self.id,
+            self.name,
+            self.generic_asset_type.name,
+        )
 
     @property
     def asset_type(self) -> GenericAssetType:

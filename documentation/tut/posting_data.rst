@@ -35,22 +35,23 @@ Weather data (both observations and forecasts) can be posted to `POST  /api/v2_0
 
     https://company.flexmeasures.io/api/<version>/postWeatherData
 
-Weather data can be posted for the following three types of weather sensors:
+Weather data can be posted for different types of sensors, such as:
 
 - "radiation" (with kW/m² as unit)
 - "temperature" (with °C as unit)
-- "wind_speed" (with m/s as unit)
+- "wind speed" (with m/s as unit)
 
 The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
 
-This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm for a weather sensor located at latitude 33.4843866 and longitude 126.477859. This sensor is located in Korea's timezone ― we also reflect that in the datetimes.
+This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm for a weather sensor with id 602.
+As this sensor is located in Korea's timezone ― we also reflect that in the datetimes.
 The forecasts were made at noon, as the ``prior`` field indicates.
 
 .. code-block:: json
 
         {
             "type": "PostWeatherDataRequest",
-            "sensor": "ea1.2018-06.io.flexmeasures.company:temperature:33.4843866:126.477859",
+            "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.602",
             "values": [
                 20.04,
                 20.23,
@@ -106,14 +107,14 @@ Price data (both observations and forecasts) can be posted to `POST  /api/v2_0/p
     https://company.flexmeasures.io/api/<version>/postPriceData
 
 This example "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
-for the Korean Power Exchange (KPX) day-ahead auction.
+for the Korean Power Exchange (KPX) day-ahead auction, registered under sensor 16.
 The ``prior`` indicates that the prices were published at 3pm on December 31st 2014 (i.e. the clearing time of the KPX day-ahead market, which is at 3 PM on the previous day ― see below for a deeper explanation).
 
 .. code-block:: json
 
     {
         "type": "PostPriceDataRequest",
-        "market": "ea1.2018-06.io.flexmeasures.company:kpx_da",
+        "market": "ea1.2021-01.io.flexmeasures.company:fm1.16",
         "values": [
             52.37,
             51.14,
@@ -187,7 +188,7 @@ A single average power value for a 15-minute time interval for a single connecti
 
     {
         "type": "PostMeterDataRequest",
-        "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
+        "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "value": 220,
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT0H15M",
@@ -204,7 +205,7 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
 
     {
         "type": "PostMeterDataRequest",
-        "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
+        "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "values": [
             220,
             210,
@@ -228,8 +229,8 @@ We recommend to use this notation for zero values only.
     {
         "type": "PostMeterDataRequest",
         "connections": [
-            "ea1.2018-06.io.flexmeasures.company:1:1",
-            "ea1.2018-06.io.flexmeasures.company:1:2"
+            "ea1.2021-01.io.flexmeasures.company:fm1.1",
+            "ea1.2021-01.io.flexmeasures.company:fm1.2"
         ],
         "value": 10,
         "start": "2015-01-01T00:00:00+00:00",
@@ -249,11 +250,11 @@ Single different values for a 15-minute time interval for two connections, poste
         "type": "PostMeterDataRequest",
         "groups": [
             {
-                "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
+                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
                 "value": 220
             },
             {
-                "connection": "ea1.2018-06.io.flexmeasures.company:1:2",
+                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.2",
                 "value": 300
             }
         ],
@@ -274,7 +275,7 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
         "type": "PostMeterDataRequest",
         "groups": [
             {
-                "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
+                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
                 "values": [
                     220,
                     210,
@@ -282,7 +283,7 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
                 ]
             },
             {
-                "connection": "ea1.2018-06.io.flexmeasures.company:1:2",
+                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.2",
                 "values": [
                     300,
                     303,
@@ -318,7 +319,7 @@ From this, FlexMeasures derives the energy flexibility this battery has in the n
 
         {
             "type": "PostUdiEventRequest",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc",
+            "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc",
             "value": 12.1,
             "datetime": "2015-06-02T10:00:00+00:00",
             "unit": "kWh"

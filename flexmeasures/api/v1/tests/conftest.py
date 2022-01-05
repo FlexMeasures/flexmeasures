@@ -4,8 +4,6 @@ from datetime import timedelta
 import isodate
 import pytest
 
-from flask_security.utils import hash_password
-
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -24,7 +22,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     test_anonymous_user = create_user(
         username="anonymous user",
         email="demo@seita.nl",
-        password=hash_password("testtest"),
+        password="testtest",
         account_name=setup_accounts["Dummy"].name,
         user_roles=[
             dict(name="anonymous", description="Anonymous test user"),
@@ -49,16 +47,6 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
         )
         assets.append(asset)
         db.session.add(asset)
-
-    """
-    # Create a test user without a USEF role
-    create_user(
-        username="test user without roles",
-        email="test_prosumer_user@seita.nl",
-        password=hash_password("testtest"),
-        account_name=setup_accounts["Prosumer"].name,
-    )
-    """
 
     # Create 5 test assets for the test user
     test_user = setup_roles_users["Test Prosumer User"]

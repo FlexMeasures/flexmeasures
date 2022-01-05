@@ -10,7 +10,6 @@ import numpy as np
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
-from flask_security.utils import hash_password
 from werkzeug.exceptions import (
     InternalServerError,
     BadRequest,
@@ -166,7 +165,7 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             username="Test Prosumer User",
             email="test_prosumer_user@seita.nl",
             account_name=test_accounts["Prosumer"].name,
-            password=hash_password("testtest"),
+            password="testtest",
             # TODO: test some normal user roles later in our auth progress
             # user_roles=dict(name="", description=""),
         )
@@ -176,10 +175,8 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             username="Test Prosumer User 2",
             email="test_prosumer_user_2@seita.nl",
             account_name=test_accounts["Prosumer"].name,
-            password=hash_password("testtest"),
-            # TODO: Test some normal user roles later in our auth progress.
-            #       This user will then differ from the user above
-            # user_roles=dict(name="", description=""),
+            password="testtest",
+            user_roles=dict(name="account-admin", description="Admin for this account"),
         )
     )
     # A user on an account without any special rights
@@ -188,7 +185,16 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             username="Test Dummy User",
             email="test_dummy_user_3@seita.nl",
             account_name=test_accounts["Dummy"].name,
-            password=hash_password("testtest"),
+            password="testtest",
+        )
+    )
+    # A supplier user
+    new_users.append(
+        create_user(
+            username="Test Supplier User",
+            email="test_supplier_user_4@seita.nl",
+            account_name=test_accounts["Supplier"].name,
+            password="testtest",
         )
     )
     # One platform admin
@@ -199,7 +205,7 @@ def create_roles_users(db, test_accounts) -> Dict[str, User]:
             account_name=test_accounts[
                 "Dummy"
             ].name,  # the account does not give rights
-            password=hash_password("testtest"),
+            password="testtest",
             user_roles=dict(
                 name=ADMIN_ROLE, description="A user who can do everything."
             ),
@@ -260,28 +266,77 @@ def setup_asset_types_fresh_db(fresh_db) -> Dict[str, AssetType]:
 
 
 @pytest.fixture(scope="module")
-def setup_generic_asset(db, setup_generic_asset_type) -> Dict[str, AssetType]:
+def setup_generic_assets(
+    db, setup_generic_asset_types, setup_accounts
+) -> Dict[str, AssetType]:
     """Make some generic assets used throughout."""
+    return create_generic_assets(db, setup_generic_asset_types, setup_accounts)
+
+
+@pytest.fixture(scope="function")
+def setup_generic_assets_fresh_db(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+) -> Dict[str, AssetType]:
+    """Make some generic assets used throughout."""
+    return create_generic_assets(
+        fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+    )
+
+
+def create_generic_assets(db, setup_generic_asset_types, setup_accounts):
     troposphere = GenericAsset(
-        name="troposphere", generic_asset_type=setup_generic_asset_type["public_good"]
+        name="troposphere", generic_asset_type=setup_generic_asset_types["public_good"]
     )
     db.session.add(troposphere)
-    return dict(troposphere=troposphere)
+    test_battery = GenericAsset(
+        name="Test battery",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        account_id=setup_accounts["Prosumer"].id,
+    )
+    db.session.add(test_battery)
+    test_wind_turbine = GenericAsset(
+        name="Test wind turbine",
+        generic_asset_type=setup_generic_asset_types["wind"],
+        account_id=setup_accounts["Supplier"].id,
+    )
+    db.session.add(test_wind_turbine)
+
+    return dict(
+        troposphere=troposphere,
+        test_battery=test_battery,
+        test_wind_turbine=test_wind_turbine,
+    )
 
 
 @pytest.fixture(scope="module")
-def setup_generic_asset_type(db) -> Dict[str, AssetType]:
+def setup_generic_asset_types(db) -> Dict[str, AssetType]:
     """Make some generic asset types used throughout."""
+    return create_generic_asset_types(db)
 
+
+@pytest.fixture(scope="function")
+def setup_generic_asset_types_fresh_db(fresh_db) -> Dict[str, AssetType]:
+    """Make some generic asset types used throughout."""
+    return create_generic_asset_types(fresh_db)
+
+
+def create_generic_asset_types(db):
     public_good = GenericAssetType(
         name="public good",
     )
     db.session.add(public_good)
-    return dict(public_good=public_good)
+    solar = GenericAssetType(name="solar")
+    db.session.add(solar)
+    wind = GenericAssetType(name="wind")
+    db.session.add(wind)
+    battery = GenericAssetType(name="battery")
+    db.session.add(battery)
+    return dict(public_good=public_good, solar=solar, wind=wind, battery=battery)
 
 
 def create_test_asset_types(db) -> Dict[str, AssetType]:
-    """Make some asset types used throughout."""
+    """Make some asset types used throughout.
+    Deprecated. Remove with Asset model."""
 
     solar = AssetType(
         name="solar",
@@ -306,7 +361,8 @@ def create_test_asset_types(db) -> Dict[str, AssetType]:
 def setup_assets(
     db, setup_roles_users, setup_markets, setup_sources, setup_asset_types
 ) -> Dict[str, Asset]:
-    """Add assets to known test users."""
+    """Add assets to known test users.
+    Deprecated. Remove with Asset model."""
 
     assets = []
     for asset_name in ["wind-asset-1", "wind-asset-2", "solar-asset-1"]:
@@ -617,10 +673,10 @@ def create_weather_sensors(db: SQLAlchemy):
 
 
 @pytest.fixture(scope="module")
-def add_sensors(db: SQLAlchemy, setup_generic_asset):
+def add_sensors(db: SQLAlchemy, setup_generic_assets):
     """Add some generic sensors."""
     height_sensor = Sensor(
-        name="height", unit="m", generic_asset=setup_generic_asset["troposphere"]
+        name="height", unit="m", generic_asset=setup_generic_assets["troposphere"]
     )
     db.session.add(height_sensor)
     return height_sensor

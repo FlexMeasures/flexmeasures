@@ -15,7 +15,7 @@ from flexmeasures import __version__ as flexmeasures_version
 from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
-from flexmeasures.data.models.user import User
+from flexmeasures.data.models.user import User, Account
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensorType
@@ -369,3 +369,12 @@ def username(user_id) -> str:
         return ""
     else:
         return user.username
+
+
+def accountname(account_id) -> str:
+    account = Account.query.get(account_id)
+    if account is None:
+        current_app.logger.warning(f"Could not find account with id {account_id}")
+        return ""
+    else:
+        return account.name

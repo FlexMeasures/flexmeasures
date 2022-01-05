@@ -73,13 +73,19 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def __acl__(self):
         """
         Within same account, everyone can read and update.
-        Creation and deletion are left to site admins in CLI.
-
-        TODO: needs an iteration
+        Deletion needs the account-admin role.
         """
         return {
+            "create-children": (
+                f"account:{self.generic_asset.account_id}",
+                "role:account-admin",
+            ),
             "read": f"account:{self.generic_asset.account_id}",
             "update": f"account:{self.generic_asset.account_id}",
+            "delete": (
+                f"account:{self.generic_asset.account_id}",
+                "role:account-admin",
+            ),
         }
 
     @property

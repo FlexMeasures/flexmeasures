@@ -30,7 +30,11 @@ def test_portfolio_responds(client, setup_assets, as_prosumer_user1):
 
 
 def test_assets_responds(client, requests_mock, as_prosumer_user1):
-    requests_mock.get("http://localhost//api/v2_0/assets", status_code=200, json={})
+    requests_mock.get(
+        "http://localhost//api/dev/generic_assets/?account_id=1",
+        status_code=200,
+        json={},
+    )
     assets_page = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert assets_page.status_code == 200
     assert b"All assets" in assets_page.data
@@ -60,12 +64,3 @@ def test_analytics_responds(db, client, setup_assets, as_prosumer_user1):
 def test_logout(client, as_prosumer_user1):
     logout_response = logout(client)
     assert b"Please log in" in logout_response.data
-
-
-""" TODO https://trello.com/c/GjsWgLOE/226-load-docs-in-bvpui-and-put-it-inside-based-template
-def test_docs_responds(app, authable, client):
-    login(client, "wind@seita.nl", "wind")
-    dashboard = client.get(url_for("flexmeasures_ui.docs_view"), follow_redirects=True)
-    assert dashboard.status_code == 200
-    assert b"Control actions" in dashboard.data
-"""

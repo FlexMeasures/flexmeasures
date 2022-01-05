@@ -7,7 +7,6 @@ import pandas as pd
 import pytz
 from flask import current_app as app
 from flask.cli import with_appcontext
-from flask_security.utils import hash_password
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
@@ -139,7 +138,7 @@ def new_user(
     created_user = create_user(
         username=username,
         email=email,
-        password=hash_password(pwd1),
+        password=pwd1,
         account_name=account.name,
         timezone=timezone,
         user_roles=roles,

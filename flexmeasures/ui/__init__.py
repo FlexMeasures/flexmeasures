@@ -118,7 +118,7 @@ def register_rq_dashboard(app):
 
 
 def add_jinja_filters(app):
-    from flexmeasures.ui.utils.view_utils import asset_icon_name, username
+    from flexmeasures.ui.utils.view_utils import asset_icon_name, username, accountname
 
     app.jinja_env.filters["zip"] = zip  # Allow zip function in templates
     app.jinja_env.add_extension(
@@ -138,6 +138,7 @@ def add_jinja_filters(app):
     )
     app.jinja_env.filters["asset_icon"] = asset_icon_name
     app.jinja_env.filters["username"] = username
+    app.jinja_env.filters["accountname"] = accountname
     app.jinja_env.filters[
         "parse_config_entry_by_account_roles"
     ] = parse_config_entry_by_account_roles

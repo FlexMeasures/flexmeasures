@@ -6,6 +6,17 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
 
+v2.0-4 | 2022-01-04
+"""""""""""""""""""
+
+- Updated entity addresses in documentation, according to the fm1 scheme.
+- Changed the Introduction section:
+
+    - Rewrote the subsection on entity addresses to refer users to where they can find the entity addresses of their sensors.
+    - Rewrote the subsection on sensor identification (formerly known as asset identification) to place the fm1 scheme front and center.
+
+- Fixed the categorisation of the *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints from the User category to the Data category.
+
 v2.0-3 | 2021-06-07
 """""""""""""""""""
 
@@ -152,14 +163,14 @@ v1.2-1 | 2018-09-24
 
     {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc",
+        "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc",
     }
 
     rather than the erroneously double-keyed:
 
     {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.io.flexmeasures.company:7:10:203",
+        "event": "ea1.2021-01.io.flexmeasures.company:7:10:203",
         "type": "soc"
     }
 

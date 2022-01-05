@@ -10,6 +10,8 @@ from flexmeasures.data.schemas.sensors import SensorSchemaMixin
 class AssetSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
     Asset schema, with validations.
+
+    TODO: deprecate, as it is based on legacy data model. Move some attributes to SensorSchema.
     """
 
     class Meta:
