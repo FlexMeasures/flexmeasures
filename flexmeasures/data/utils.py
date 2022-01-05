@@ -1,6 +1,5 @@
 from typing import List, Optional, Union
 
-import click
 from flask import current_app
 from timely_beliefs import BeliefsDataFrame
 
@@ -44,7 +43,7 @@ def get_data_source(
         )
         db.session.add(data_source)
         db.session.flush()  # populate the primary key attributes (like id) without committing the transaction
-        click.echo(
+        current_app.logger.info(
             f'Session updated with new {data_source_type} data source "{data_source.__repr__()}".'
         )
     return data_source
