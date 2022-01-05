@@ -112,7 +112,7 @@ def post_udi_event():
 
         {
             "type": "PostUdiEventRequest",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc",
+            "event": "ea1.2021-01.io.flexmeasures.company:fm0.7:10:203:soc",
             "value": 12.1,
             "unit": "kWh",
             "datetime": "2015-06-02T10:00:00+00:00",

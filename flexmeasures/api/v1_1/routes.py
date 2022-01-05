@@ -83,10 +83,10 @@ def get_connection():
         {
             "type": "GetConnectionResponse",
             "connections": [
-                "ea1.2018-06.io.flexmeasures.company:3:4",
-                "ea1.2018-06.io.flexmeasures.company:8:3",
-                "ea1.2018-06.io.flexmeasures.company:9:2",
-                "ea1.2018-06.io.flexmeasures.company:3:1"
+                "ea1.2021-01.io.flexmeasures.company:3:4",
+                "ea1.2021-01.io.flexmeasures.company:8:3",
+                "ea1.2021-01.io.flexmeasures.company:9:2",
+                "ea1.2021-01.io.flexmeasures.company:3:1"
             ],
             "names": [
                 "CS 4",
@@ -132,7 +132,7 @@ def post_price_data():
 
         {
             "type": "PostPriceDataRequest",
-            "market": "ea1.2018-06.localhost:epex_da",
+            "market": "ea1.2021-01.io.flexmeasures.company:epex_da",
             "values": [
                 52.37,
                 51.14,
@@ -220,7 +220,7 @@ def post_weather_data():
             "type": "PostWeatherDataRequest",
             "groups": [
                 {
-                    "sensor": "ea1.2018-06.localhost:temperature:33.4843866:126.477859",
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:temperature:33.4843866:126.477859",
                     "values": [
                         20.04,
                         20.23,
