@@ -535,14 +535,14 @@ def post_price_data():
     **Example request**
 
     This "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
-    for the EPEX SPOT day-ahead auction.
+    for the EPEX SPOT day-ahead auction, registered as sensor 12.
     The prior indicates that the prices were published at 1pm on December 31st 2020.
 
     .. code-block:: json
 
         {
             "type": "PostPriceDataRequest",
-            "market": "ea1.2018-06.localhost:epex_da",
+            "market": "ea1.2021-01.io.flexmeasures.company:fm1.12",
             "values": [
                 52.37,
                 51.14,
@@ -621,7 +621,7 @@ def post_weather_data():
     **Example request**
 
     This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm
-    for a weather sensor located at latitude 33.4843866 and longitude 126.477859. The forecasts were made at noon.
+    for a weather sensor with id 602. The forecasts were made at noon.
 
     .. code-block:: json
 
@@ -629,7 +629,7 @@ def post_weather_data():
             "type": "PostWeatherDataRequest",
             "groups": [
                 {
-                    "sensor": "ea1.2018-06.localhost:temperature:33.4843866:126.477859",
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.602",
                     "values": [
                         20.04,
                         20.23,

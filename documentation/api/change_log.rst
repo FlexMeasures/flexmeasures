@@ -9,7 +9,7 @@ API change log
 v2.0-4 | 2022-01-04
 """""""""""""""""""
 
-- Updated entity addresses of connections in documentation, according to the fm1 scheme.
+- Updated entity addresses in documentation, according to the fm1 scheme.
 - Changed the Introduction section:
 
     - Rewrote the subsection on entity addresses to refer users to where they can find the entity addresses of their sensors.
