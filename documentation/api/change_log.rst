@@ -163,14 +163,14 @@ v1.2-1 | 2018-09-24
 
     {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc",
+        "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc",
     }
 
     rather than the erroneously double-keyed:
 
     {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.io.flexmeasures.company:7:10:203",
+        "event": "ea1.2021-01.io.flexmeasures.company:7:10:203",
         "type": "soc"
     }
 

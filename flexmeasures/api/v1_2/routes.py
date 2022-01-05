@@ -57,7 +57,7 @@ def get_device_message():
 
         {
             "type": "GetDeviceMessageRequest",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc"
+            "event": "ea1.2021-01.io.flexmeasures.company:fm0.7:10:203:soc"
         }
 
     **Example response**
@@ -69,7 +69,7 @@ def get_device_message():
 
         {
             "type": "GetDeviceMessageResponse",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc",
+            "event": "ea1.2021-01.io.flexmeasures.company:fm0.7:10:203:soc",
             "values": [
                 2.15,
                 3,
