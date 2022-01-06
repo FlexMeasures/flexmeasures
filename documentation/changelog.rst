@@ -15,6 +15,7 @@ New features
 
 Bugfixes
 -----------
+* Fix recording time of schedules triggered by UDI events [see `PR #300 <http://www.github.com/FlexMeasures/flexmeasures/pull/300>`_]
 
 Infrastructure / Support
 ----------------------

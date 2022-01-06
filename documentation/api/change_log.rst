@@ -50,13 +50,16 @@ v2.0-0 | 2020-11-14
 - REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
 
 
-v1.3-11 | 2022-01-01
+v1.3-11 | 2022-01-05
 """"""""""""""""""""
 
 *Affects all versions since v1.3*.
 
-- Extended the *postUdiEvent* endpoint with an optional "roundtrip_efficiency" field, for use in scheduling.
+- Changed and extended the *postUdiEvent* endpoint:
 
+    - The recording time of new schedules triggered by calling the endpoint is now the time at which the endpoint was called, rather than the datetime of the sent state of charge (SOC).
+    - Introduced the "prior" field for the purpose of communicating an alternative recording time, thereby keeping support for simulations.
+    - Introduced an optional "roundtrip_efficiency" field, for use in scheduling.
 
 v1.3-10 | 2021-11-08
 """"""""""""""""""""
