@@ -365,13 +365,16 @@ def save_and_enqueue(
     )
 
     # Only enqueue forecasting jobs upon successfully saving new data
-    if status[:7] == "success":
+    if status[:7] == "success" and status != "success_but_nothing_new":
         enqueue_forecasting_jobs(forecasting_jobs)
 
     # Pick a response
     if status == "success":
         return request_processed()
-    elif status == "success_with_unchanged_beliefs_skipped":
+    elif status in (
+        "success_with_unchanged_beliefs_skipped",
+        "success_but_nothing_new",
+    ):
         return already_received_and_successfully_processed()
     return invalid_replacement()
 
