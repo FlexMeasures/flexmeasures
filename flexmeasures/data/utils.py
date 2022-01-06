@@ -80,6 +80,7 @@ def save_to_db(
     :returns: status string, one of the following:
               - 'success': all beliefs were saved
               - 'success_with_unchanged_beliefs_skipped': not all beliefs represented a state change
+              - 'success_but_nothing_new': no beliefs represented a state change
     """
 
     # Convert to list
@@ -89,6 +90,7 @@ def save_to_db(
         timed_values_list = data
 
     status = "success"
+    values_saved = 0
     for timed_values in timed_values_list:
 
         if timed_values.empty:
@@ -124,6 +126,10 @@ def save_to_db(
             if current_app.config.get("FLEXMEASURES_MODE", "") != "play"
             else True,
         )
+        values_saved += len(timed_values)
     # Flush to bring up potential unique violations (due to attempting to replace beliefs)
     db.session.flush()
+
+    if values_saved == 0:
+        status = "success_but_nothing_new"
     return status
