@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Tuple, Union, Callable
+from typing import Any, List, Dict, Optional, Tuple, Union, Callable
 from datetime import datetime, timedelta
 
 import inflect
@@ -259,13 +259,18 @@ def convert_query_window_for_demo(
     return start, end
 
 
-def aggregate_values(bdf_dict: Dict[str, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
+def aggregate_values(bdf_dict: Dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
 
     # todo: test this function rigorously, e.g. with empty bdfs in bdf_dict
     # todo: consider 1 bdf with beliefs from source A, plus 1 bdf with beliefs from source B -> 1 bdf with sources A+B
     # todo: consider 1 bdf with beliefs from sources A and B, plus 1 bdf with beliefs from source C. -> 1 bdf with sources A+B and A+C
     # todo: consider 1 bdf with beliefs from sources A and B, plus 1 bdf with beliefs from source C and D. -> 1 bdf with sources A+B, A+C, B+C and B+D
     # Relevant issue: https://github.com/SeitaBV/timely-beliefs/issues/33
+
+    # Nothing to aggregate
+    if len(bdf_dict) == 1:
+        return list(bdf_dict.values())[0]
+
     unique_source_ids: List[int] = []
     for bdf in bdf_dict.values():
         unique_source_ids.extend(bdf.lineage.sources)
