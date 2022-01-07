@@ -388,13 +388,13 @@ def save_forecasts_in_db(
                         if weather_sensor is not None:
                             # Complain if the nearest weather sensor is further away than 2 degrees
                             if abs(
-                                location[0] - weather_sensor.latitude
+                                location[0] - weather_sensor.location[0]
                             ) > max_degree_difference_for_nearest_weather_sensor or abs(
-                                location[1] - weather_sensor.longitude
+                                location[1] - weather_sensor.location[1]
                                 > max_degree_difference_for_nearest_weather_sensor
                             ):
                                 raise Exception(
-                                    f"No sufficiently close weather sensor found (within 2 degrees distance) for type {flexmeasures_sensor_type}! We're looking for: {location}, closest available: ({weather_sensor.latitude}, {weather_sensor.longitude})"
+                                    f"No sufficiently close weather sensor found (within 2 degrees distance) for type {flexmeasures_sensor_type}! We're looking for: {location}, closest available: ({weather_sensor.location})"
                                 )
                             weather_sensors[flexmeasures_sensor_type] = weather_sensor
                         else:
