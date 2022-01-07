@@ -9,6 +9,7 @@ import click
 from flask import Flask, current_app
 import requests
 import pytz
+from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures.utils.time_utils import as_server_time, get_timezone
 from flexmeasures.utils.geo_utils import compute_irradiance
@@ -17,6 +18,7 @@ from flexmeasures.data.config import db
 from flexmeasures.data.transactional import task_with_status_report
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.utils import save_to_db
 
 FILE_PATH_LOCATION = "/../raw_data/weather-forecasts"
 DATA_SOURCE_NAME = "OpenWeatherMap"
@@ -347,8 +349,8 @@ def save_forecasts_in_db(
     click.echo("[FLEXMEASURES] Getting weather forecasts:")
     click.echo("[FLEXMEASURES]  Latitude, Longitude")
     click.echo("[FLEXMEASURES] -----------------------")
-    db_forecasts = []
-    weather_sensors: dict = {}  # keep track of the sensors to save lookups
+    weather_sensors: Dict[str, Sensor] = {}  # keep track of the sensors to save lookups
+    db_forecasts: Dict[Sensor, List[TimedBelief]] = {}  # collect beliefs per sensor
 
     for location in locations:
         click.echo("[FLEXMEASURES] %s, %s" % location)
@@ -403,6 +405,9 @@ def save_forecasts_in_db(
                                 % flexmeasures_sensor_type
                             )
 
+                    if weather_sensor not in db_forecasts.keys():
+                        db_forecasts[weather_sensor] = []
+
                     fc_value = fc[needed_response_label]
                     # the radiation is not available in OWM -> we compute it ourselves
                     if flexmeasures_sensor_type == "radiation":
@@ -414,7 +419,7 @@ def save_forecasts_in_db(
                             fc[needed_response_label] / 100.0,
                         )
 
-                    db_forecasts.append(
+                    db_forecasts[weather_sensor].append(
                         TimedBelief(
                             event_start=fc_datetime,
                             belief_horizon=fc_horizon,
@@ -431,12 +436,14 @@ def save_forecasts_in_db(
                     )
                     click.echo("[FLEXMEASURES] %s" % msg)
                     current_app.logger.warning(msg)
-    if len(db_forecasts) == 0:
-        # This is probably a serious problem
-        raise Exception(
-            "Nothing to put in the database was produced. That does not seem right..."
-        )
-    db.session.bulk_save_objects(db_forecasts)
+    for sensor in db_forecasts.keys():
+        click.echo(f"Saving {sensor.name} forecasts ...")
+        if len(db_forecasts[sensor]) == 0:
+            # This is probably a serious problem
+            raise Exception(
+                "Nothing to put in the database was produced. That does not seem right..."
+            )
+        save_to_db(BeliefsDataFrame(db_forecasts[sensor]))
 
 
 def save_forecasts_as_json(
