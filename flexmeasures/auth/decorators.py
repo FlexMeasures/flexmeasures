@@ -23,14 +23,14 @@ _security = LocalProxy(lambda: current_app.extensions["security"])
 
 
 def roles_accepted(*roles):
-    """ As in Flask-Security, but also accept admin"""
+    """As in Flask-Security, but also accept admin"""
     if ADMIN_ROLE not in roles:
         roles = roles + (ADMIN_ROLE,)
     return roles_accepted_fs(roles)
 
 
 def roles_required(*roles):
-    """ As in Flask-Security, but wave through if user is admin"""
+    """As in Flask-Security, but wave through if user is admin"""
     if current_user and current_user.has_role(ADMIN_ROLE):
         roles = []
     return roles_required_fs(*roles)

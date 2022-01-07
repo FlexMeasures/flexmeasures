@@ -21,6 +21,6 @@ from flexmeasures.ui.views.charts import get_power_chart  # noqa: F401
 
 @flexmeasures_ui.route("/docs")
 def docs_view():
-    """ Render the Sphinx documentation """
+    """Render the Sphinx documentation"""
     # Todo: render the docs with this nicer url and include the app's navigation menu
     return

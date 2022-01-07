@@ -80,7 +80,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     @property
     def asset_type(self) -> GenericAssetType:
-        """ This property prepares for dropping the "generic" prefix later"""
+        """This property prepares for dropping the "generic" prefix later"""
         return self.generic_asset_type
 
     account_id = db.Column(

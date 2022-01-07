@@ -58,7 +58,7 @@ class AssetForm(FlaskForm):
         return super().validate_on_submit()
 
     def to_json(self) -> dict:
-        """ turn form data into a JSON we can POST to our internal API """
+        """turn form data into a JSON we can POST to our internal API"""
         data = copy.copy(self.data)
         data["longitude"] = float(data["longitude"])
         data["latitude"] = float(data["latitude"])

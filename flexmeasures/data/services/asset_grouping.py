@@ -146,7 +146,7 @@ class AssetGroup:
     unique_asset_type_names: List[str]
 
     def __init__(self, name: str, asset_query: Optional[Query] = None):
-        """ The asset group name is either the name of an asset group or an individual asset. """
+        """The asset group name is either the name of an asset group or an individual asset."""
         if name is None or name == "":
             raise Exception("Empty asset (group) name passed (%s)" % name)
         self.name = name

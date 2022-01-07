@@ -11,7 +11,7 @@ ACRONYMS = ["EVSE"]
 
 
 def capitalize(x: str, lower_case_remainder: bool = False) -> str:
-    """ Capitalize string with control over whether to lower case the remainder."""
+    """Capitalize string with control over whether to lower case the remainder."""
     if lower_case_remainder:
         return x.capitalize()
     return x[0].upper() + x[1:]

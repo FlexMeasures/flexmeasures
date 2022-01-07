@@ -432,7 +432,7 @@ def create_graph(  # noqa: C901
 
 
 def make_datasource_from(data: pd.DataFrame, resolution: timedelta) -> ColumnDataSource:
-    """ Make a bokeh data source, which is for instance useful for the hover tool. """
+    """Make a bokeh data source, which is for instance useful for the hover tool."""
 
     # Set column names that our HoverTool can interpret (in case of multiple index levels, use the first one)
     data.index.names = ["x"] + data.index.names[1:]

@@ -319,7 +319,7 @@ def mock_flex_action_in_main_figure(fig_profile: Figure):
 
 
 def get_flex_action_hour(h: int) -> datetime:
-    """ get the next hour from now on """
+    """get the next hour from now on"""
     this_hour = time_utils.get_most_recent_hour()
     return [
         dt
