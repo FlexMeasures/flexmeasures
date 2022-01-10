@@ -244,6 +244,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
+        most_recent_beliefs_only: bool = True,
         include_data: bool = False,
         dataset_name: Optional[str] = None,
         **kwargs,
@@ -256,6 +257,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
         :param beliefs_before: only return beliefs formed before this datetime (inclusive)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param include_data: if True, include data in the chart, or if False, exclude data
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         """
@@ -283,6 +285,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 event_ends_before=event_ends_before,
                 beliefs_after=beliefs_after,
                 beliefs_before=beliefs_before,
+                most_recent_beliefs_only=most_recent_beliefs_only,
                 source=source,
             )
             # Combine chart specs and data
