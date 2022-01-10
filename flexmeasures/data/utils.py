@@ -55,7 +55,7 @@ def save_to_db(
 ) -> str:
     """Save the timed beliefs to the database.
 
-    NB Flushes the session. Best to keep transactions short.
+    Note: This function does not commit. It does, however, flush the session. Best to keep transactions short.
 
     We make the distinction between updating beliefs and replacing beliefs.
 

@@ -246,6 +246,7 @@ def make_rolling_viewpoint_forecasts(
     ]
     bdf = tb.BeliefsDataFrame(ts_value_forecasts)
     save_to_db(bdf)
+    db.session.commit()
 
     return len(forecasts)
 
