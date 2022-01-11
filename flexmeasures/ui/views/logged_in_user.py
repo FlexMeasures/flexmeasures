@@ -9,6 +9,10 @@ from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 @flexmeasures_ui.route("/logged-in-user", methods=["GET"])
 @login_required
 def logged_in_user_view():
+    """TODO:
+    - Show account name & roles
+    - Count their assets with a query, link to their (new) list
+    """
     return render_flexmeasures_template(
         "admin/logged_in_user.html",
         logged_in_user=current_user,

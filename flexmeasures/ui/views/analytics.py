@@ -42,6 +42,12 @@ from flexmeasures.ui.utils.view_utils import (
 from flexmeasures.ui.utils.plotting_utils import create_graph, separate_legend
 from flexmeasures.ui.views import flexmeasures_ui
 
+"""
+These views are considered legacy by now. They is too specific to a use case and also
+rely on Bokeh. We might move them (re-implement with Altair) in a plugin.
+When removing this, also remove the templates.
+"""
+
 
 @flexmeasures_ui.route("/analytics", methods=["GET", "POST"])
 @account_roles_accepted("Prosumer")

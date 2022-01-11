@@ -39,6 +39,12 @@ from flexmeasures.data.services.time_series import aggregate_values
 from flexmeasures.utils.geo_utils import parse_lat_lng
 from flexmeasures.utils import coding_utils, time_utils
 
+"""
+This module is legacy, as we move to the new data model (see projects on Github).
+Do check, but apart from get_sensors (which needs a rewrite), functionality has
+either been copied in services/asset_grouping or is not needed any more.
+Two views using this (analytics and portfolio) are also considered legacy.
+"""
 
 p = inflect.engine()
 cached_property = coding_utils.make_registering_decorator(cached_property)
