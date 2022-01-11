@@ -170,6 +170,7 @@ def make_schedule(
     ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
     bdf = tb.BeliefsDataFrame(ts_value_schedule)
     save_to_db(bdf)
+    db.session.commit()
 
     return True
 
