@@ -7,7 +7,7 @@ def bar_chart(
 ):
     unit = sensor.unit if sensor.unit else "a.u."
     event_value_field_definition = dict(
-        title=f"{capitalize(sensor.type)} ({unit})",
+        title=f"{capitalize(sensor.sensor_type)} ({unit})",
         format=".3s",
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
