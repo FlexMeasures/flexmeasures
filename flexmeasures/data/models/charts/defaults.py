@@ -16,6 +16,11 @@ FIELD_DEFINITIONS = {
         type="temporal",
         title=None,
     ),
+    "event_end": dict(
+        field="event_end",
+        type="temporal",
+        title=None,
+    ),
     "event_value": dict(
         field="event_value",
         type="quantitative",
