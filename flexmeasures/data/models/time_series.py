@@ -378,7 +378,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         user_source_ids: Optional[Union[int, List[int]]] = None,
         source_types: Optional[List[str]] = None,
         exclude_source_types: Optional[List[str]] = None,
-        most_recent_beliefs_only: bool = False,
+        most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,

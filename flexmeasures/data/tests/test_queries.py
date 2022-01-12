@@ -233,9 +233,9 @@ def test_query_beliefs(setup_beliefs):
     sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
     source = DataSource.query.filter_by(name="ENTSO-E").one_or_none()
     bdfs = [
-        TimedBelief.search(sensor, source=source),
-        TimedBelief.search(sensor.id, source=source),
-        TimedBelief.search(sensor.name, source=source),
+        TimedBelief.search(sensor, source=source, most_recent_beliefs_only=False),
+        TimedBelief.search(sensor.id, source=source, most_recent_beliefs_only=False),
+        TimedBelief.search(sensor.name, source=source, most_recent_beliefs_only=False),
         sensor.search_beliefs(source=source, most_recent_beliefs_only=False),
         tb.BeliefsDataFrame(sensor.beliefs)[
             tb.BeliefsDataFrame(sensor.beliefs).index.get_level_values("source")
@@ -255,7 +255,9 @@ def test_persist_beliefs(setup_beliefs, setup_test_data):
     """
     sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
     source = DataSource.query.filter_by(name="ENTSO-E").one_or_none()
-    bdf: tb.BeliefsDataFrame = TimedBelief.search(sensor, source=source)
+    bdf: tb.BeliefsDataFrame = TimedBelief.search(
+        sensor, source=source, most_recent_beliefs_only=False
+    )
 
     # Form new beliefs
     df = bdf.reset_index()
@@ -266,5 +268,7 @@ def test_persist_beliefs(setup_beliefs, setup_test_data):
     )
 
     TimedBelief.add(bdf)
-    bdf: tb.BeliefsDataFrame = TimedBelief.search(sensor, source=source)
+    bdf: tb.BeliefsDataFrame = TimedBelief.search(
+        sensor, source=source, most_recent_beliefs_only=False
+    )
     assert len(bdf) == setup_beliefs * 2

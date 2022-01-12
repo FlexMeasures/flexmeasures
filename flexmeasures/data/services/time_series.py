@@ -329,6 +329,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         event_ends_before=bdf.event_ends[-1],
         beliefs_before=bdf.lineage.belief_times[0],  # unique belief time
         source=bdf.lineage.sources[0],  # unique source
+        most_recent_beliefs_only=False,
     )
     previous_most_recent_beliefs_in_db = belief_utils.select_most_recent_belief(
         previous_beliefs_in_db
