@@ -194,6 +194,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     ) -> Union[tb.BeliefsDataFrame, str]:
         """Search all beliefs about events for this sensor.
 
+        If you don't set any filters, you get the most recent beliefs about all events.
+
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -386,6 +388,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         sum_multiple: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
         """Search all beliefs about events for the given sensors.
+
+        If you don't set any filters, you get the most recent beliefs about all events.
 
         :param sensors: search only these sensors, identified by their instance or id (both unique) or name (non-unique)
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
