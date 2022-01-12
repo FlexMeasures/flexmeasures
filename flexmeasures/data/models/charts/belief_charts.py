@@ -1,18 +1,20 @@
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS
+from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
-def bar_chart(title: str, quantity: str = "unknown quantity", unit: str = "a.u."):
-    if not unit:
-        unit = "a.u."
+def bar_chart(
+    sensor: "Sensor",
+):
+    unit = sensor.unit if sensor.unit else "a.u."
     event_value_field_definition = dict(
-        title=f"{quantity} ({unit})",
+        title=f"{capitalize(sensor.type)} ({unit})",
         format=".3s",
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
     return {
         "description": "A simple bar chart.",
-        "title": title,
+        "title": capitalize(sensor.name),
         "mark": "bar",
         "encoding": {
             "x": FIELD_DEFINITIONS["event_start"],
