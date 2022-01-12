@@ -50,12 +50,14 @@ def apply_chart_defaults(fn):
             chart_specs["data"] = {"name": dataset_name}
         chart_specs["height"] = HEIGHT
         chart_specs["width"] = WIDTH
-        chart_specs["transform"] = [
+        if "transform" not in chart_specs:
+            chart_specs["transform"] = []
+        chart_specs["transform"].append(
             {
                 "as": "full_date",
                 "calculate": f"timeFormat(datum.event_start, '{TIME_FORMAT}')",
             }
-        ]
+        )
         return chart_specs
 
     return decorated_chart_specs
