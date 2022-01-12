@@ -28,7 +28,6 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
@@ -270,9 +269,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         )  # todo remove this placeholder when sensor types are modelled
         chart_specs = chart_type_to_chart_specs(
             chart_type,
-            title=capitalize(self.name),
-            quantity=capitalize(self.sensor_type),
-            unit=self.unit,
+            sensor=self,
             dataset_name=dataset_name,
             **kwargs,
         )

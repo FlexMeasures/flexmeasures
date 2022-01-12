@@ -16,6 +16,11 @@ FIELD_DEFINITIONS = {
         type="temporal",
         title=None,
     ),
+    "event_end": dict(
+        field="event_end",
+        type="temporal",
+        title=None,
+    ),
     "event_value": dict(
         field="event_value",
         type="quantitative",
@@ -48,14 +53,22 @@ def apply_chart_defaults(fn):
             chart_specs.pop("$schema")
         if dataset_name:
             chart_specs["data"] = {"name": dataset_name}
-        chart_specs["height"] = HEIGHT
-        chart_specs["width"] = WIDTH
-        chart_specs["transform"] = [
+
+        # Fall back to default height and width, if needed
+        if "height" not in chart_specs:
+            chart_specs["height"] = HEIGHT
+        if "width" not in chart_specs:
+            chart_specs["width"] = WIDTH
+
+        # Add transform function to calculate full date
+        if "transform" not in chart_specs:
+            chart_specs["transform"] = []
+        chart_specs["transform"].append(
             {
                 "as": "full_date",
                 "calculate": f"timeFormat(datum.event_start, '{TIME_FORMAT}')",
             }
-        ]
+        )
         return chart_specs
 
     return decorated_chart_specs
