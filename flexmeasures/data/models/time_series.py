@@ -186,7 +186,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
-        most_recent_beliefs_only: bool = False,
+        most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,

@@ -236,7 +236,7 @@ def test_query_beliefs(setup_beliefs):
         TimedBelief.search(sensor, source=source),
         TimedBelief.search(sensor.id, source=source),
         TimedBelief.search(sensor.name, source=source),
-        sensor.search_beliefs(source=source),
+        sensor.search_beliefs(source=source, most_recent_beliefs_only=False),
         tb.BeliefsDataFrame(sensor.beliefs)[
             tb.BeliefsDataFrame(sensor.beliefs).index.get_level_values("source")
             == source
