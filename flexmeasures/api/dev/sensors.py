@@ -29,6 +29,8 @@ class SensorAPI(FlaskView):
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "include_data": fields.Boolean(required=False),
             "dataset_name": fields.Str(required=False),
+            "height": fields.Str(required=False),
+            "width": fields.Str(required=False),
         },
         location="query",
     )
