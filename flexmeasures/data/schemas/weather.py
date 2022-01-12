@@ -8,6 +8,8 @@ from flexmeasures.data.schemas.sensors import SensorSchemaMixin
 class WeatherSensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
     WeatherSensor schema, with validations.
+
+    This is considered legacy now, as the WeatherSensor creation CLI task is also going to be deprecated.
     """
 
     class Meta:

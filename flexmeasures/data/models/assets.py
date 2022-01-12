@@ -23,7 +23,11 @@ from flexmeasures.utils.flexmeasures_inflection import humanize, pluralize
 
 
 class AssetType(db.Model):
-    """Describing asset types for our purposes"""
+    """
+    Describing asset types for our purposes
+
+    This model is now considered legacy. See GenericAssetType.
+    """
 
     name = db.Column(db.String(80), primary_key=True)
     # The name we want to see (don't unnecessarily capitalize, so it can be used in a sentence)
@@ -88,7 +92,11 @@ class AssetType(db.Model):
 
 
 class Asset(db.Model, tb.SensorDBMixin):
-    """Each asset is an energy- consuming or producing hardware."""
+    """
+    Each asset is an energy- consuming or producing hardware.
+
+    This model is now considered legacy. See GenericAsset and Sensor.
+    """
 
     id = db.Column(
         db.Integer, db.ForeignKey("sensor.id"), primary_key=True, autoincrement=True
@@ -315,8 +323,8 @@ class Power(TimedValue, db.Model):
     """
     All measurements of power data are stored in one slim table.
     Negative values indicate consumption.
-    TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
-    TODO: If there are more than one measurement per asset per time step possible, we can expand rather easily.
+
+    This model is now considered legacy. See TimedBelief.
     """
 
     sensor_id = db.Column(

@@ -23,8 +23,8 @@ from flexmeasures.utils.flexmeasures_inflection import humanize
 
 
 class WeatherSensorType(db.Model):
-    """ "
-    TODO: Add useful attributes like ...?
+    """
+    This model is now considered legacy. See GenericAssetType.
     """
 
     name = db.Column(db.String(80), primary_key=True)
@@ -49,8 +49,12 @@ class WeatherSensorType(db.Model):
 
 
 class WeatherSensor(db.Model, tb.SensorDBMixin):
-    """A weather sensor has a location on Earth and measures weather values of a certain weather sensor type, such as
-    temperature, wind speed and radiation."""
+    """
+    A weather sensor has a location on Earth and measures weather values of a certain weather sensor type, such as
+    temperature, wind speed and radiation.
+
+    This model is now considered legacy. See GenericAsset and Sensor.
+    """
 
     id = db.Column(
         db.Integer, db.ForeignKey("sensor.id"), primary_key=True, autoincrement=True
@@ -245,7 +249,8 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
 class Weather(TimedValue, db.Model):
     """
     All weather measurements are stored in one slim table.
-    TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
+
+    This model is now considered legacy. See TimedBelief.
     """
 
     sensor_id = db.Column(

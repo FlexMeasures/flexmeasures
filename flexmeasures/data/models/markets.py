@@ -21,8 +21,9 @@ from flexmeasures.utils.flexmeasures_inflection import humanize
 
 
 class MarketType(db.Model):
-    """Describing market types for our purposes.
-    TODO: Add useful attributes like frequency (e.g. 1H) and the meaning of units (e.g. Mwh).
+    """
+    Describing market types for our purposes.
+    This model is now considered legacy. See GenericAssetType.
     """
 
     name = db.Column(db.String(80), primary_key=True)
@@ -59,7 +60,11 @@ class MarketType(db.Model):
 
 
 class Market(db.Model, tb.SensorDBMixin):
-    """Each market is a pricing service."""
+    """
+    Each market is a pricing service.
+
+    This model is now considered legacy. See GenericAsset and Sensor.
+    """
 
     id = db.Column(
         db.Integer, db.ForeignKey("sensor.id"), primary_key=True, autoincrement=True
@@ -190,7 +195,8 @@ class Market(db.Model, tb.SensorDBMixin):
 class Price(TimedValue, db.Model):
     """
     All prices are stored in one slim table.
-    TODO: datetime objects take up most of the space (12 bytes each)). One way out is to normalise them out to a table.
+
+    This model is now considered legacy. See TimedBelief.
     """
 
     sensor_id = db.Column(
