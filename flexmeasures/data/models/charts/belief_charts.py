@@ -4,6 +4,7 @@ from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 def bar_chart(
     sensor: "Sensor",  # noqa F821
+    **override_chart_specs: dict,
 ):
     unit = sensor.unit if sensor.unit else "a.u."
     event_value_field_definition = dict(
@@ -12,7 +13,7 @@ def bar_chart(
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
-    return {
+    chart_specs = {
         "description": "A simple bar chart.",
         "title": capitalize(sensor.name),
         "mark": "bar",
@@ -35,3 +36,6 @@ def bar_chart(
             },
         ],
     }
+    for k, v in override_chart_specs.items():
+        chart_specs[k] = v
+    return chart_specs

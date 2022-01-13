@@ -53,8 +53,14 @@ def apply_chart_defaults(fn):
             chart_specs.pop("$schema")
         if dataset_name:
             chart_specs["data"] = {"name": dataset_name}
-        chart_specs["height"] = HEIGHT
-        chart_specs["width"] = WIDTH
+
+        # Fall back to default height and width, if needed
+        if "height" not in chart_specs:
+            chart_specs["height"] = HEIGHT
+        if "width" not in chart_specs:
+            chart_specs["width"] = WIDTH
+
+        # Add transform function to calculate full date
         if "transform" not in chart_specs:
             chart_specs["transform"] = []
         chart_specs["transform"].append(
