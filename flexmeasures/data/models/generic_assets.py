@@ -11,7 +11,7 @@ from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
 
 
@@ -66,7 +66,9 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         return {
             "create-children": (f"account:{self.account_id}", "role:account-admin"),
-            "read": f"account:{self.account_id}",
+            "read": f"account:{self.account_id}"
+            if self.account_id is not None
+            else EVERY_LOGGED_IN_USER,
             "update": f"account:{self.account_id}",
             "delete": (f"account:{self.account_id}", "role:account-admin"),
         }

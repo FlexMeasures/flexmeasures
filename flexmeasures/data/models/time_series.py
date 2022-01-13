@@ -10,7 +10,7 @@ import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.data.config import db
 from flexmeasures.data.queries.utils import (
     create_beliefs_query,
@@ -79,7 +79,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 f"account:{self.generic_asset.account_id}",
                 "role:account-admin",
             ),
-            "read": f"account:{self.generic_asset.account_id}",
+            "read": f"account:{self.generic_asset.account_id}"
+            if self.generic_asset.account_id is not None
+            else EVERY_LOGGED_IN_USER,
             "update": f"account:{self.generic_asset.account_id}",
             "delete": (
                 f"account:{self.generic_asset.account_id}",
