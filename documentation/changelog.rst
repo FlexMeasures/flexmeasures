@@ -17,6 +17,7 @@ New features
 Bugfixes
 -----------
 * Fix recording time of schedules triggered by UDI events [see `PR #300 <http://www.github.com/FlexMeasures/flexmeasures/pull/300>`_]
+* Set bar width of bar charts based on sensor resolution [see `PR #310 <http://www.github.com/FlexMeasures/flexmeasures/pull/310>`_]
 
 Infrastructure / Support
 ----------------------
