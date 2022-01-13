@@ -58,11 +58,9 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def __acl__(self):
         """
+        All logged-in users can read.
         Within same account, everyone can read and update.
         Creation and deletion are left to account admins (a role we don't use yet).
-        Note: creation is not relevant on a GenericAsset object (as it already exists),
-              but we might want to use this permission to check if data *within* the asset,
-              like sensors, can be created. See the discussion in auth/policy.
         """
         return {
             "create-children": (f"account:{self.account_id}", "role:account-admin"),
