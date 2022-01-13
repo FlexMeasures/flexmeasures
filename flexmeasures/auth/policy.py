@@ -9,7 +9,7 @@ ADMIN_ROLE = "admin"
 ADMIN_READER_ROLE = "admin-reader"
 
 # constants to allow access to certain groups
-EVERYONE = "everyone"
+EVERY_LOGGED_IN_USER = "every-logged-in-user"
 
 PRINCIPALS_TYPE = Union[str, Tuple[str], List[Union[str, Tuple[str]]]]
 
@@ -89,7 +89,7 @@ def user_matches_principals(user, principals: PRINCIPALS_TYPE) -> bool:
             matchable_principals = (
                 matchable_principals,
             )  # now we handle only Tuple[str]
-        if EVERYONE in matchable_principals:
+        if EVERY_LOGGED_IN_USER in matchable_principals:
             return True
         if user is not None and all(
             [
