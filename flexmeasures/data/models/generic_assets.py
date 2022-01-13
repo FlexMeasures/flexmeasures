@@ -58,9 +58,9 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def __acl__(self):
         """
-        All logged-in users can read.
+        All logged-in users can read if the asset is public.
         Within same account, everyone can read and update.
-        Creation and deletion are left to account admins (a role we don't use yet).
+        Creation and deletion are left to account admins.
         """
         return {
             "create-children": (f"account:{self.account_id}", "role:account-admin"),

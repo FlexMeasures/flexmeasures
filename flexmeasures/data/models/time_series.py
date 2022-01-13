@@ -71,9 +71,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def __acl__(self):
         """
-        All logged-in users can read.
+        All logged-in users can read if the sensor is public.
         Within same account, everyone can read and update.
-        Deletion needs the account-admin role.
+        Creation and deletion are left to account admins.
         """
         return {
             "create-children": (
