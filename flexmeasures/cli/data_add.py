@@ -279,6 +279,7 @@ def add_generic_asset(**args):
 def new_asset(**args):
     """
     Create a new asset.
+    This is legacy, with the new data model we only want to add GenericAssets.
     """
     check_timezone(args["timezone"])
     # if no market given, select dummy market
@@ -328,7 +329,11 @@ def new_asset(**args):
     help="timezone as string, e.g. 'UTC' (default) or 'Europe/Amsterdam'",
 )
 def add_weather_sensor(**args):
-    """Add a weather sensor."""
+    """
+    Add a weather sensor.
+    This is legacy, after we moved to the new data model.
+    Adding necessary GenericAsset and Sensor(s) should be done by the (to be built) OWM plugin.
+    """
     check_timezone(args["timezone"])
     check_errors(WeatherSensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
@@ -668,6 +673,8 @@ def collect_weather_data(region, location, num_cells, method, store_in_db):
 
     This function can get weather data for one location or for several locations within
     a geometrical grid (See the --location parameter).
+
+    This should move to a FlexMeasures plugin for OWM integration.
     """
     from flexmeasures.data.scripts.grid_weather import get_weather_forecasts
 
