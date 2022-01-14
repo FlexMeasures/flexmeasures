@@ -11,7 +11,7 @@ from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User
-from flexmeasures.auth.policy import AuthModelMixin
+from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
 
 
@@ -58,15 +58,15 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def __acl__(self):
         """
+        All logged-in users can read if the asset is public.
         Within same account, everyone can read and update.
-        Creation and deletion are left to account admins (a role we don't use yet).
-        Note: creation is not relevant on a GenericAsset object (as it already exists),
-              but we might want to use this permission to check if data *within* the asset,
-              like sensors, can be created. See the discussion in auth/policy.
+        Creation and deletion are left to account admins.
         """
         return {
             "create-children": (f"account:{self.account_id}", "role:account-admin"),
-            "read": f"account:{self.account_id}",
+            "read": f"account:{self.account_id}"
+            if self.account_id is not None
+            else EVERY_LOGGED_IN_USER,
             "update": f"account:{self.account_id}",
             "delete": (f"account:{self.account_id}", "role:account-admin"),
         }
