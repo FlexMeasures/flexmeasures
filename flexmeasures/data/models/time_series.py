@@ -71,7 +71,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def __acl__(self):
         """
-        All logged-in users can read if the sensor is public.
+        All logged-in users can read if the sensor belongs to a public asset.
         Within same account, everyone can read and update.
         Creation and deletion are left to account admins.
         """
