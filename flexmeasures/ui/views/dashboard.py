@@ -13,7 +13,8 @@ from flexmeasures.data.services.resources import (
 )
 
 """
-Note: This view is deprecated.
+Note: This view is deprecated / legacy.
+Also remove its HTML template.
 """
 
 

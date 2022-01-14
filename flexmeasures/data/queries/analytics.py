@@ -16,6 +16,11 @@ from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.weather import WeatherSensorType
 
+"""
+These queries are considered legacy by now.
+They are used in legacy views and use the old data model.
+"""
+
 
 def get_power_data(
     resource: Union[str, Resource],  # name or instance

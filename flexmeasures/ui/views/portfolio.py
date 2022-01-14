@@ -28,6 +28,14 @@ from flexmeasures.ui.utils.view_utils import (
     set_time_range_for_session,
 )
 
+"""
+This view is considered legacy by now. It is too specific to a use case and also
+relies on Bokeh. It also contains mock code.
+We might re-implement with Altair, as an account portfolio overview is handy.
+Maybe for all sensors sharing some trait, for instance all power sensors.
+When removing this, also remove the template.
+"""
+
 
 @flexmeasures_ui.route("/portfolio", methods=["GET", "POST"])
 @account_roles_accepted("Prosumer")

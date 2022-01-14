@@ -9,6 +9,12 @@ from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.services.resources import Resource
 
 
+"""
+This is considered legacy code now.
+The view is considered legacy, and it relies on the old data model.
+"""
+
+
 def get_structure(
     assets: List[Asset],
 ) -> Tuple[Dict[str, AssetType], List[Market], Dict[str, Resource]]:

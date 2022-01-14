@@ -142,7 +142,8 @@ def delete_structure(force):
     markets (types) and weather sensors (types) and users.
 
     TODO: This could in our future data model (currently in development) be replaced by
-    `flexmeasures delete generic-asset-type` and `flexmeasures delete sensor`.
+    `flexmeasures delete generic-asset-type`, `flexmeasures delete generic-asset`
+    and `flexmeasures delete sensor`.
     """
     if not force:
         confirm_deletion(structure=True)
