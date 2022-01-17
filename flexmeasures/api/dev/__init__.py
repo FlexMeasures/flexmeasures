@@ -16,7 +16,7 @@ def register_at(app: Flask):
     SensorAPI.register(app, route_prefix=dev_api_prefix)
     AssetAPI.register(app, route_prefix=dev_api_prefix)
 
-    @app.route("/sensorData", methods=["POST"])
+    @app.route(f"{dev_api_prefix}/sensorData", methods=["POST"])
     @auth_token_required
     @account_roles_accepted("MDC", "Prosumer")
     def post_sensor_data():
