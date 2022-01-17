@@ -188,13 +188,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
-        most_recent_beliefs_only: bool = False,
+        most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
         as_json: bool = False,
     ) -> Union[tb.BeliefsDataFrame, str]:
         """Search all beliefs about events for this sensor.
+
+        If you don't set any filters, you get the most recent beliefs about all events.
 
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
@@ -378,7 +380,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         user_source_ids: Optional[Union[int, List[int]]] = None,
         source_types: Optional[List[str]] = None,
         exclude_source_types: Optional[List[str]] = None,
-        most_recent_beliefs_only: bool = False,
+        most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
@@ -386,6 +388,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         sum_multiple: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
         """Search all beliefs about events for the given sensors.
+
+        If you don't set any filters, you get the most recent beliefs about all events.
 
         :param sensors: search only these sensors, identified by their instance or id (both unique) or name (non-unique)
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
