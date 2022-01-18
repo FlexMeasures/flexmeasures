@@ -24,6 +24,7 @@ Infrastructure / Support
 * Account-based authorization, incl. new decorators for endpoints [see `PR #210 <http://www.github.com/FlexMeasures/flexmeasures/pull/210>`_]
 * Central authorization policy which lets database models codify who can do what (permission-based) and relieve API endpoints from this [see `PR #234 <http://www.github.com/FlexMeasures/flexmeasures/pull/234>`_]
 * Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <http://www.github.com/FlexMeasures/flexmeasures/pull/154>`_]
+* Properly attribute Mapbox and OpenStreetMap [see `PR #292 <http://www.github.com/FlexMeasures/flexmeasures/pull/292>`_]
 * Allow plugins to register their custom config settings, so that FlexMeasures can check whether they are set up correctly [see `PR #230 <http://www.github.com/FlexMeasures/flexmeasures/pull/230>`_ and `PR #237 <http://www.github.com/FlexMeasures/flexmeasures/pull/237>`_]
 * Add sensor method to obtain just its latest state (excl. forecasts) [see `PR #235 <http://www.github.com/FlexMeasures/flexmeasures/pull/235>`_]
 * Migrate attributes of assets, markets and weather sensors to our new sensor model [see `PR #254 <http://www.github.com/FlexMeasures/flexmeasures/pull/254>`_ and `project 9 <http://www.github.com/FlexMeasures/flexmeasures/projects/9>`_]
