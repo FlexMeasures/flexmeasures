@@ -31,6 +31,7 @@ Infrastructure / Support
 * Migrate all time series data to our new sensor data model based on the `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib [see `PR #286 <http://www.github.com/FlexMeasures/flexmeasures/pull/286>`_ and `project 9 <http://www.github.com/FlexMeasures/flexmeasures/projects/9>`_]
 * Support the new asset model (which describes the organisational structure, rather than sensors and data) in UI and API. Until the transition to our new data model is completed, the new API for assets is at `/api/dev/generic_assets`. [see `PR #251 <http://www.github.com/FlexMeasures/flexmeasures/pull/251>`_ and `PR #290 <http://www.github.com/FlexMeasures/flexmeasures/pulls/290>`_]
 * Internal search methods return most recent beliefs by default, also for charts, which can make them load a lot faster [see `PR #307 <http://www.github.com/FlexMeasures/flexmeasures/pull/307>`_ and `PR #312 <http://www.github.com/FlexMeasures/flexmeasures/pull/312>`_]
+* Support unit conversion for posting sensor data [see `PR #283 <http://www.github.com/FlexMeasures/flexmeasures/pull/283>`_ and `PR #293 <http://www.github.com/FlexMeasures/flexmeasures/pull/293>`_]
 
 
 v0.7.1 | November 08, 2021
