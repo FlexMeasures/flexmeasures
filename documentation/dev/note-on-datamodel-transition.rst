@@ -1,3 +1,11 @@
+.. |check_| raw:: html
+
+    <input checked=""  disabled="" type="checkbox">
+
+.. |uncheck_| raw:: html
+
+    <input disabled="" type="checkbox">
+
 .. _note_on_datamodel_transition:
 
 A note on the ongoing data model transition
@@ -52,12 +60,12 @@ We made `a technical roadmap on Github Projects <https://github.com/FlexMeasures
 
 Here is a brief list:
 
-- `Data model based on timely beliefs <https://github.com/FlexMeasures/flexmeasures/projects/3>`_: Our data model of beliefs about timed events, timely-beliefs, is being more tightly integrated into FlexMeasures. We do this so we can take advantage of timely-belief's capabilities more and increase the focus of FlexMeasures on features.
-- `Scheduling of sensors <https://github.com/FlexMeasures/flexmeasures/projects/6>`_: We are extending our database structure for Sensors with actuator functionality, and are moving to a model store where scheduling models can be registered. We do this so we can provide better plugin support for scheduling a diverse set of devices.
-- `Forecasting of sensors <https://github.com/FlexMeasures/flexmeasures/projects/8>`_: We are revising our forecasting tooling to support fixed-viewpoint forecasts. We do this so we can better support decision moments with the most recent expectations about relevant sensors.
-- `Sensor relations and GeneralizedAssets with metadata <https://github.com/FlexMeasures/flexmeasures/projects/9>`_: We are generalizing our database structure for organising energy data, to support all sorts of sensors and relationships between them. We do this so we can better support the diverse set of use cases for energy flexibility.
-- `UI views for GeneralizedAssets <https://github.com/FlexMeasures/flexmeasures/projects/10>`_: We are updating our UI views (dashboard maps and analytics charts) according to our new database structure for organising energy data. We do this so users can customize what they want to see.
-- `Deprecate old database models <https://github.com/FlexMeasures/flexmeasures/projects/11>`_: We are deprecating the Power, Price and Weather tables in favour of the TimedBelief table, and deprecating the Asset, Market and WeatherSensor tables in favour of the Sensor and GeneralizedAsset tables. We are doing this so users can move their data to the new database model.
+- |check_| `Data model based on timely beliefs <https://github.com/FlexMeasures/flexmeasures/projects/3>`_: Our data model of beliefs about timed events, timely-beliefs, is being more tightly integrated into FlexMeasures. We do this so we can take advantage of timely-belief's capabilities more and increase the focus of FlexMeasures on features.
+- |check_| `Sensor relations and GeneralizedAssets with metadata <https://github.com/FlexMeasures/flexmeasures/projects/9>`_: We are generalizing our database structure for organising energy data, to support all sorts of sensors and relationships between them. We do this so we can better support the diverse set of use cases for energy flexibility.
+- |uncheck_| `UI views for GeneralizedAssets <https://github.com/FlexMeasures/flexmeasures/projects/10>`_: We are updating our UI views (dashboard maps and analytics charts) according to our new database structure for organising energy data. We do this so users can customize what they want to see.
+- |uncheck_| `Scheduling of sensors <https://github.com/FlexMeasures/flexmeasures/projects/6>`_: We are extending our database structure for Sensors with actuator functionality, and are moving to a model store where scheduling models can be registered. We do this so we can provide better plugin support for scheduling a diverse set of devices.
+- |uncheck_| `Forecasting of sensors <https://github.com/FlexMeasures/flexmeasures/projects/8>`_: We are revising our forecasting tooling to support fixed-viewpoint forecasts. We do this so we can better support decision moments with the most recent expectations about relevant sensors.
+- |uncheck_| `Deprecate old database models <https://github.com/FlexMeasures/flexmeasures/projects/11>`_: We are deprecating the Power, Price and Weather tables in favour of the TimedBelief table, and deprecating the Asset, Market and WeatherSensor tables in favour of the Sensor and GeneralizedAsset tables. We are doing this so users can move their data to the new database model.
 
 
 The state of the transition (January 2022, v0.8.0)
