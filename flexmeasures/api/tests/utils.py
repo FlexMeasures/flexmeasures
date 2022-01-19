@@ -4,6 +4,8 @@ from flask import url_for, current_app
 
 from flexmeasures.data.config import db
 from flexmeasures.data.services.users import find_user_by_email
+from flexmeasures.data.models.user import Account
+
 
 """
 Useful things for API testing
@@ -27,6 +29,31 @@ def get_auth_token(client, user_email, password):
     return auth_response.json["auth_token"]
 
 
+class AccountContext(object):
+    """
+    Context manager for a temporary account instance from the DB,
+    which is expunged from the session at Exit.
+    Expunging is useful, so that the API call being tested still operates on
+    a "fresh" session.
+    While the context is alive, you can collect any useful information, like
+    the account's assets:
+
+    with AccountContext("Supplier") as supplier:
+        assets = supplier.generic_assets
+    """
+
+    def __init__(self, account_name: str):
+        self.the_account = Account.query.filter(
+            Account.name == account_name
+        ).one_or_none()
+
+    def __enter__(self):
+        return self.the_account
+
+    def __exit__(self, type, value, traceback):
+        db.session.expunge(self.the_account)
+
+
 class UserContext(object):
     """
     Context manager for a temporary user instance from the DB,
@@ -37,7 +64,7 @@ class UserContext(object):
     the user's assets:
 
     with UserContext("test_prosumer_user@seita.nl") as prosumer:
-        assets = prosumer.assets
+        user_roles = prosumer.roles
     """
 
     def __init__(self, user_email: str):

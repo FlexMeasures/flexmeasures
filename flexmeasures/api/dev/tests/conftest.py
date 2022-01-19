@@ -6,17 +6,19 @@ from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAss
 from flexmeasures.data.models.time_series import Sensor
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup_api_test_data(db, setup_roles_users):
+@pytest.fixture(scope="module")
+def setup_api_test_data(db, setup_roles_users, setup_generic_assets):
     """
     Set up data for API dev tests.
     """
-    print("Setting up data for API v2.0 tests on %s" % db.engine)
+    print("Setting up data for API dev tests on %s" % db.engine)
     add_gas_sensor(db, setup_roles_users["Test Prosumer User 2"])
 
 
 @pytest.fixture(scope="function")
-def setup_api_fresh_test_data(fresh_db, setup_roles_users_fresh_db):
+def setup_api_fresh_test_data(
+    fresh_db, setup_roles_users_fresh_db, setup_generic_assets_fresh_db
+):
     """
     Set up fresh data for API dev tests.
     """

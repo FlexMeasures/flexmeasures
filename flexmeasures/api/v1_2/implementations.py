@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import isodate
 from flask_json import as_json
@@ -32,9 +32,12 @@ from flexmeasures.api.common.utils.validators import (
     parse_isodate_str,
 )
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.planning.battery import schedule_battery
-from flexmeasures.data.models.planning.exceptions import UnknownPricesException
+from flexmeasures.data.models.planning.exceptions import (
+    UnknownMarketException,
+    UnknownPricesException,
+)
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.resources import has_assets, can_access_asset
 
 
@@ -66,45 +69,45 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 ea = parse_entity_address(event, entity_type="event", fm_scheme="fm0")
             except EntityAddressException as eae:
                 return invalid_domain(str(eae))
-            asset_id = ea["asset_id"]
+            sensor_id = ea["asset_id"]
             event_id = ea["event_id"]
             event_type = ea["event_type"]
 
-            # Look for the Asset object
-            asset = Asset.query.filter(Asset.id == asset_id).one_or_none()
-            if asset is None or not can_access_asset(asset):
+            # Look for the Sensor object
+            sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+            if sensor is None or not can_access_asset(sensor):
                 current_app.logger.warning(
-                    "Cannot identify asset %s given the event." % event
+                    "Cannot identify sensor given the event %s." % event
                 )
                 return unrecognized_connection_group()
-            if asset.asset_type_name != "battery":
+            if sensor.generic_asset.generic_asset_type.name != "battery":
                 return invalid_domain(
-                    "API version 1.2 only supports device messages for batteries. Asset ID:%s is not a battery."
-                    % asset_id
+                    "API version 1.2 only supports device messages for batteries. "
+                    "Sensor ID:%s does not belong to a battery." % sensor_id
                 )
-            if event_type != "soc" or event_id != asset.soc_udi_event_id:
+            if event_type != "soc" or event_id != sensor.generic_asset.get_attribute(
+                "soc_udi_event_id"
+            ):
                 return unrecognized_event(event_id, event_type)
-            start = asset.soc_datetime
-            resolution = asset.event_resolution
-
-            # Look for the Market object
-            market = asset.market
-            if market is None:
-                return invalid_market()
+            start = datetime.fromisoformat(
+                sensor.generic_asset.get_attribute("soc_datetime")
+            )
+            resolution = sensor.event_resolution
 
             # Schedule the asset
             try:
                 schedule = schedule_battery(
-                    asset,
-                    market,
+                    sensor,
                     start,
                     start + planning_horizon,
                     resolution,
-                    soc_at_start=asset.soc_in_mwh,
+                    soc_at_start=sensor.generic_asset.get_attribute("soc_in_mwh"),
                     prefer_charging_sooner=False,
                 )
             except UnknownPricesException:
                 return unknown_prices()
+            except UnknownMarketException:
+                return invalid_market()
             else:
                 # Update the planning window
                 start = schedule.index[0]
@@ -159,40 +162,47 @@ def post_udi_event_response(unit):  # noqa: C901
     except EntityAddressException as eae:
         return invalid_domain(str(eae))
 
-    asset_id = ea["asset_id"]
+    sensor_id = ea["asset_id"]
     event_id = ea["event_id"]
     event_type = ea["event_type"]
 
     if event_type != "soc":
         return unrecognized_event(event_id, event_type)
 
-    # get asset
-    asset: Asset = Asset.query.filter_by(id=asset_id).one_or_none()
-    if asset is None or not can_access_asset(asset):
-        current_app.logger.warning("Cannot identify asset via %s." % ea)
+    # Look for the Sensor object
+    sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+    if sensor is None or not can_access_asset(sensor):
+        current_app.logger.warning("Cannot identify sensor via %s." % ea)
         return unrecognized_connection_group()
-    if asset.asset_type_name != "battery":
+    if sensor.generic_asset.generic_asset_type.name != "battery":
         return invalid_domain(
-            "API version 1.2 only supports UDI events for batteries. Asset ID:%s is not a battery."
-            % asset_id
+            "API version 1.2 only supports UDI events for batteries. "
+            "Sensor ID:%s does not belong to a battery." % sensor_id
         )
 
     # unless on play, keep events ordered by entry date and ID
     if current_app.config.get("FLEXMEASURES_MODE") != "play":
         # do not allow new date to be after last date
-        if asset.soc_datetime is not None:
-            if asset.soc_datetime >= datetime:
-                msg = (
-                    "The date of the requested UDI event (%s) is earlier than the latest known date (%s)."
-                    % (datetime, asset.soc_datetime)
-                )
-                current_app.logger.warning(msg)
-                return invalid_datetime(msg)
+        if (
+            isinstance(sensor.generic_asset.get_attribute("soc_datetime"), str)
+            and datetime.fromisoformat(
+                sensor.generic_asset.get_attribute("soc_datetime")
+            )
+            >= datetime
+        ):
+            msg = "The date of the requested UDI event (%s) is earlier than the latest known date (%s)." % (
+                datetime,
+                datetime.fromisoformat(
+                    sensor.generic_asset.get_attribute("soc_datetime")
+                ),
+            )
+            current_app.logger.warning(msg)
+            return invalid_datetime(msg)
 
         # check if udi event id is higher than existing
-        if asset.soc_udi_event_id is not None:
-            if asset.soc_udi_event_id >= event_id:
-                return outdated_event_id(event_id, asset.soc_udi_event_id)
+        soc_udi_event_id = sensor.generic_asset.get_attribute("soc_udi_event_id")
+        if soc_udi_event_id is not None and soc_udi_event_id >= event_id:
+            return outdated_event_id(event_id, soc_udi_event_id)
 
     # get value
     if "value" not in form:
@@ -201,10 +211,10 @@ def post_udi_event_response(unit):  # noqa: C901
     if unit == "kWh":
         value = value / 1000.0
 
-    # store new soc in asset
-    asset.soc_datetime = datetime
-    asset.soc_udi_event_id = event_id
-    asset.soc_in_mwh = value
+    # Store new soc info as GenericAsset attributes
+    sensor.generic_asset.set_attribute("soc_datetime", datetime.isoformat())
+    sensor.generic_asset.set_attribute("soc_udi_event_id", event_id)
+    sensor.generic_asset.set_attribute("soc_in_mwh", value)
 
     db.session.commit()
     return request_processed("Request has been processed.")

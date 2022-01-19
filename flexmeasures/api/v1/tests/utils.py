@@ -7,7 +7,7 @@ from numpy import tile
 import pandas as pd
 
 from flexmeasures.api.common.utils.validators import validate_user_sources
-from flexmeasures.data.models.assets import Power, Asset
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
 def message_for_get_meter_data(
@@ -107,7 +107,7 @@ def count_connections_in_post_message(message: dict) -> int:
 
 
 def verify_power_in_db(
-    message, asset, expected_df: pd.DataFrame, db, swapped_sign: bool = False
+    message, sensor: Sensor, expected_df: pd.DataFrame, db, swapped_sign: bool = False
 ):
     """util method to verify that power data ended up in the database"""
     # todo: combine with verify_prices_in_db (in v1_1 utils) into a single function (NB different horizon filters)
@@ -116,22 +116,28 @@ def verify_power_in_db(
     horizon = (
         parse_duration(message["horizon"]) if "horizon" in message else timedelta(0)
     )
-    resolution = asset.event_resolution
+    resolution = sensor.event_resolution
     query = (
-        db.session.query(Power.datetime, Power.value, Power.data_source_id)
-        .filter((Power.datetime > start - resolution) & (Power.datetime < end))
-        .filter(Power.horizon == horizon)
-        .join(Asset)
-        .filter(Asset.name == asset.name)
+        db.session.query(
+            TimedBelief.event_start, TimedBelief.event_value, TimedBelief.source_id
+        )
+        .filter(
+            (TimedBelief.event_start > start - resolution)
+            & (TimedBelief.event_start < end)
+        )
+        .filter(TimedBelief.belief_horizon == horizon)
+        .join(Sensor)
+        .filter(TimedBelief.sensor_id == Sensor.id)
+        .filter(Sensor.name == sensor.name)
     )
     if "source" in message:
         source_ids = validate_user_sources(message["source"])
-        query = query.filter(Power.data_source_id.in_(source_ids))
+        query = query.filter(TimedBelief.source_id.in_(source_ids))
     df = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
     )
-    df = df.set_index(["datetime", "data_source_id"]).sort_index()
+    df = df.set_index(["event_start", "source_id"]).sort_index()
     if swapped_sign:
-        df["value"] = -df["value"]
+        df["event_value"] = -df["event_value"]
 
-    assert df["value"].to_list() == expected_df["value"].to_list()
+    assert df["event_value"].to_list() == expected_df["event_value"].to_list()

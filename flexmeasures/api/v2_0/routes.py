@@ -104,6 +104,8 @@ def get_assets():
     If no owner is set, all accessible assets are returned.
     A non-admin user can only access their own assets.
 
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
+
     **Example response**
 
     An example of one asset being returned:
@@ -156,6 +158,8 @@ def post_assets():
 
     This endpoint creates a new asset.
     Only users with the admin role are allowed to create assets.
+
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
 
     **Example request**
 
@@ -228,6 +232,8 @@ def get_asset(id: int):
     This endpoint gets an asset.
     Only users who own the asset can use this endpoint.
 
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
+
     **Example response**
 
     .. sourcecode:: json
@@ -273,6 +279,8 @@ def patch_asset(id: int):
     This endpoint sets data for an existing asset.
     Any subset of asset fields can be sent.
     Only users who own the asset are allowed to update its data.
+
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
 
     Several fields are not allowed to be updated, e.g. id. They are ignored.
 
@@ -335,6 +343,8 @@ def delete_asset(id: int):
 
     This endpoint deletes an existing asset, as well as all measurements recorded for it.
     Only users who own the asset are allowed to delete the asset.
+
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
 
     :reqheader Authorization: The authentication token
     :reqheader Content-Type: application/json
@@ -515,7 +525,7 @@ def get_connection():
 def post_price_data():
     """API endpoint to post price data.
 
-    .. :quickref: User; Upload price data to the platform
+    .. :quickref: Data; Upload price data to the platform
 
     **Optional fields**
 
@@ -525,14 +535,14 @@ def post_price_data():
     **Example request**
 
     This "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
-    for the EPEX SPOT day-ahead auction.
+    for the EPEX SPOT day-ahead auction, registered as sensor 12.
     The prior indicates that the prices were published at 1pm on December 31st 2020.
 
     .. code-block:: json
 
         {
             "type": "PostPriceDataRequest",
-            "market": "ea1.2018-06.localhost:epex_da",
+            "market": "ea1.2021-01.io.flexmeasures.company:fm1.12",
             "values": [
                 52.37,
                 51.14,
@@ -601,9 +611,7 @@ def post_weather_data():
     - "temperature" (with °C as unit)
     - "wind_speed" (with m/s as unit)
 
-    The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
-
-    .. :quickref: User; Upload weather data to the platform
+    .. :quickref: Data; Upload weather data to the platform
 
     **Optional fields**
 
@@ -613,7 +621,7 @@ def post_weather_data():
     **Example request**
 
     This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm
-    for a weather sensor located at latitude 33.4843866 and longitude 126.477859. The forecasts were made at noon.
+    for a weather sensor with id 602. The forecasts were made at noon.
 
     .. code-block:: json
 
@@ -621,7 +629,7 @@ def post_weather_data():
             "type": "PostWeatherDataRequest",
             "groups": [
                 {
-                    "sensor": "ea1.2018-06.localhost:temperature:33.4843866:126.477859",
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.602",
                     "values": [
                         20.04,
                         20.23,
@@ -690,7 +698,7 @@ def get_meter_data():
 def post_meter_data():
     """API endpoint to post meter data.
 
-    .. :quickref: User; Upload meter data to the platform
+    .. :quickref: Data; Upload meter data to the platform
 
     **Optional fields**
 
@@ -700,7 +708,7 @@ def post_meter_data():
     **Example request**
 
     This "PostMeterDataRequest" message posts measured consumption for 15-minute intervals between 0.00am and 1.30am for
-    charging stations 1, 2 and 3 (negative values denote production).
+    connections 3, 4 and 5 (negative values denote production).
 
     .. code-block:: json
 
@@ -709,8 +717,8 @@ def post_meter_data():
             "groups": [
                 {
                     "connections": [
-                        "CS 1",
-                        "CS 3"
+                        "ea1.2021-01.io.flexmeasures.company:fm1.3",
+                        "ea1.2021-01.io.flexmeasures.company:fm1.4"
                     ],
                     "values": [
                         306.66,
@@ -723,7 +731,7 @@ def post_meter_data():
                 },
                 {
                     "connections": [
-                        "CS 2"
+                        "ea1.2021-01.io.flexmeasures.company:fm1.5"
                     ],
                     "values": [
                         306.66,
@@ -773,7 +781,7 @@ def post_meter_data():
 def post_prognosis():
     """API endpoint to post prognoses about meter data.
 
-    .. :quickref: User; Upload prognosis to the platform
+    .. :quickref: Data; Upload prognosis to the platform
 
     **Optional fields**
 
@@ -783,7 +791,7 @@ def post_prognosis():
     **Example request**
 
     This "PostPrognosisRequest" message posts prognosed consumption for 15-minute intervals between 0.00am and 1.30am for
-    charging stations 1, 2 and 3 (negative values denote production), prognosed at 6pm the previous day.
+    connections 3, 4 and 5 (negative values denote production), prognosed at 6pm the previous day.
 
     .. code-block:: json
 
@@ -792,8 +800,8 @@ def post_prognosis():
             "groups": [
                 {
                     "connections": [
-                        "ea1.2018-06.localhost:1:3",
-                        "ea1.2018-06.localhost:1:4"
+                        "ea1.2021-01.io.flexmeasures.company:fm1.3",
+                        "ea1.2021-01.io.flexmeasures.company:fm1.4"
                     ],
                     "values": [
                         300,
@@ -806,7 +814,7 @@ def post_prognosis():
                 },
                 {
                     "connections": [
-                        "ea1.2018-06.localhost:1:5"
+                        "ea1.2021-01.io.flexmeasures.company:fm1.5"
                     ],
                     "values": [
                         300,

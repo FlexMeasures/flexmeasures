@@ -12,7 +12,7 @@ from flexmeasures.api.v1.tests.utils import (
     message_for_get_meter_data,
     count_connections_in_post_message,
 )
-from flexmeasures.data.models.assets import Asset
+from flexmeasures.data.models.time_series import Sensor
 
 
 @pytest.mark.parametrize(
@@ -72,8 +72,8 @@ def test_post_and_get_meter_data(
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
     for asset_name in ("CS 1", "CS 2", "CS 3"):
         if asset_name in str(post_message):
-            asset = Asset.query.filter_by(name=asset_name).one_or_none()
-            assert asset.id in [job.kwargs["asset_id"] for job in jobs]
+            sensor = Sensor.query.filter_by(name=asset_name).one_or_none()
+            assert sensor.id in [job.kwargs["old_sensor_id"] for job in jobs]
 
     # get meter data
     get_meter_data_response = client.get(

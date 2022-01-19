@@ -15,7 +15,7 @@ from pandas.tseries.frequencies import to_offset
 
 from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.weather import WeatherSensor
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.resources import (
     get_assets,
     get_asset_group_queries,
@@ -30,7 +30,6 @@ from flexmeasures.data.queries.analytics import (
     get_revenues_costs_data,
 )
 from flexmeasures.utils import time_utils
-from flexmeasures.utils.flexmeasures_inflection import humanize
 from flexmeasures.ui.utils.view_utils import (
     render_flexmeasures_template,
     set_session_resource,
@@ -42,6 +41,12 @@ from flexmeasures.ui.utils.view_utils import (
 )
 from flexmeasures.ui.utils.plotting_utils import create_graph, separate_legend
 from flexmeasures.ui.views import flexmeasures_ui
+
+"""
+These views are considered legacy by now. They is too specific to a use case and also
+rely on Bokeh. We might move them (re-implement with Altair) in a plugin.
+When removing this, also remove the templates.
+"""
 
 
 @flexmeasures_ui.route("/analytics", methods=["GET", "POST"])
@@ -99,7 +104,7 @@ def analytics_view():
         if view_shows_individual_traces
         else "none",
         selected_resource,
-        selected_market,
+        selected_market.corresponding_sensor,
         selected_sensor_type,
         selected_resource.assets,
     )
@@ -258,7 +263,7 @@ def analytics_data_view(content, content_type):
         show_consumption_as_positive,
         "none",
         selected_resource,
-        selected_market,
+        selected_market.corresponding_sensor,
         selected_sensor_type,
         selected_resource.assets,
     )
@@ -386,10 +391,10 @@ def get_data_and_metrics(
     show_consumption_as_positive: bool,
     showing_individual_traces_for: str,
     selected_resource: Resource,
-    selected_market,
+    selected_market_sensor: Sensor,
     selected_sensor_type,
     assets,
-) -> Tuple[Dict[str, pd.DataFrame], Dict[str, float], str, WeatherSensor]:
+) -> Tuple[Dict[str, pd.DataFrame], Dict[str, float], str, Sensor]:
     """Getting data and calculating metrics for them"""
     data: Dict[str, pd.DataFrame] = dict()
     forecast_horizon = pd.to_timedelta(session["forecast_horizon"])
@@ -410,7 +415,7 @@ def get_data_and_metrics(
     )
     data["prices"], data["prices_forecast"], metrics = get_prices_data(
         metrics,
-        selected_market,
+        selected_market_sensor,
         query_window,
         resolution,
         forecast_horizon,
@@ -474,7 +479,7 @@ def get_data_and_metrics(
             "event_value"
         ] * (1 - error_margin_lower)
 
-    unit_factor = revenue_unit_factor("MWh", selected_market.unit)
+    unit_factor = revenue_unit_factor("MWh", selected_market_sensor.unit)
     data["rev_cost"], data["rev_cost_forecast"], metrics = get_revenues_costs_data(
         data["power"],
         data["prices"],
@@ -489,7 +494,7 @@ def get_data_and_metrics(
 
 
 def filter_for_past_data(data):
-    """ Make sure we only show past data, useful for demo mode """
+    """Make sure we only show past data, useful for demo mode"""
     most_recent_quarter = time_utils.get_most_recent_quarter()
 
     if not data["power"].empty:
@@ -512,7 +517,7 @@ def filter_for_past_data(data):
 
 
 def filter_forecasts_for_limited_time_window(data):
-    """ Show forecasts only up to a limited horizon """
+    """Show forecasts only up to a limited horizon"""
     most_recent_quarter = time_utils.get_most_recent_quarter()
     horizon_days = 10  # keep a 10 day forecast
     max_forecast_datetime = most_recent_quarter + timedelta(hours=horizon_days * 24)
@@ -602,7 +607,7 @@ def make_weather_figure(
     data: pd.DataFrame,
     forecast_data: Union[None, pd.DataFrame],
     shared_x_range: Range1d,
-    weather_sensor: WeatherSensor,
+    weather_sensor: Sensor,
     tools: List[str] = None,
     sizing_mode="scale_width",
 ) -> Figure:
@@ -615,17 +620,17 @@ def make_weather_figure(
         )
     unit = weather_sensor.unit
     weather_axis_label = "%s (in %s)" % (
-        humanize(weather_sensor.sensor_type.display_name),
+        weather_sensor.generic_asset.generic_asset_type.description,
         unit,
     )
 
     if selected_resource.is_unique_asset:
         title = "%s at %s" % (
-            humanize(weather_sensor.sensor_type.display_name),
+            weather_sensor.generic_asset.generic_asset_type.description,
             selected_resource.display_name,
         )
     else:
-        title = "%s" % humanize(weather_sensor.sensor_type.display_name)
+        title = "%s" % weather_sensor.generic_asset.generic_asset_type.description
     return create_graph(
         data,
         unit=unit,

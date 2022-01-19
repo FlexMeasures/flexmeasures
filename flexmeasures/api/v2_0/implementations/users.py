@@ -29,7 +29,9 @@ users_schema = UserSchema(many=True)
 
 @use_kwargs(
     {
-        "account": AccountIdField(data_key="account_id"),
+        "account": AccountIdField(
+            data_key="account_id", load_default=AccountIdField.load_current
+        ),
         "include_inactive": fields.Bool(load_default=False),
     },
     location="query",

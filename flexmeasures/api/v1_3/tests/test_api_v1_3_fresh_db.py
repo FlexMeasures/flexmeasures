@@ -9,8 +9,8 @@ from flexmeasures.api.v1_3.tests.utils import (
     message_for_post_udi_event,
     message_for_get_device_message,
 )
-from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.tests.utils import work_on_rq
 
@@ -21,10 +21,8 @@ def test_post_udi_event_and_get_device_message_with_unknown_prices(
 ):
     auth_token = None
     with app.test_client() as client:
-        asset = Asset.query.filter(Asset.name == "Test battery").one_or_none()
-        asset_id = asset.id
-        asset_owner_id = asset.owner_id
-        message["event"] = message["event"] % (asset.owner_id, asset.id)
+        sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+        message["event"] = message["event"] % sensor.id
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         post_udi_event_response = client.post(
             url_for("flexmeasures_api_v1_3.post_udi_event"),
@@ -40,7 +38,7 @@ def test_post_udi_event_and_get_device_message_with_unknown_prices(
             len(app.queues["scheduling"]) == 1
         )  # only 1 schedule should be made for 1 asset
         job = app.queues["scheduling"].jobs[0]
-        assert job.kwargs["asset_id"] == asset_id
+        assert job.kwargs["asset_id"] == sensor.id
         assert job.kwargs["start"] == parse_datetime(message["datetime"])
         assert job.id == message["event"]
         assert (
@@ -65,7 +63,7 @@ def test_post_udi_event_and_get_device_message_with_unknown_prices(
 
         # try to retrieve the schedule through the getDeviceMessage api endpoint
         message = message_for_get_device_message()
-        message["event"] = message["event"] % (asset_owner_id, asset_id)
+        message["event"] = message["event"] % sensor.id
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         get_device_message_response = client.get(
             url_for("flexmeasures_api_v1_3.get_device_message"),

@@ -1,47 +1,68 @@
-from typing import Dict, Union, Tuple
+from typing import Dict, Union, Tuple, List
 
 from flask import current_app
 
 
-PERMISSIONS = ["create", "read", "update", "delete"]
+PERMISSIONS = ["create-children", "read", "read-children", "update", "delete"]
 
 ADMIN_ROLE = "admin"
 ADMIN_READER_ROLE = "admin-reader"
 
 # constants to allow access to certain groups
-EVERYONE = "everyone"
+EVERY_LOGGED_IN_USER = "every-logged-in-user"
+
+PRINCIPALS_TYPE = Union[str, Tuple[str], List[Union[str, Tuple[str]]]]
 
 
 class AuthModelMixin(object):
-    def __acl__(self) -> Dict[str, Union[str, Tuple[str]]]:
+    def __acl__(self) -> Dict[str, PRINCIPALS_TYPE]:
         """
-        Access control list for a resource instance. Inspired by Pyramid's resource ACLs.
+        This function returns an access control list (ACL) for a instance of a model which is relevant for authorization.
 
-        This function returns a mapping of permissions to principal descriptors.
+        ACLs in FlexMeasures are inspired by Pyramid's resource ACLs.
+        In an ACL, we list which principal (security contexts, see below) allow certain kinds of actions
+        ― by mapping supported permissions to the required principals.
 
-        In computer security, a principal is the security context of the authenticated user [1].
-        In the access control list, we list which principal aspects allow certain kinds of actions.
+        # What is a principal / security context?
 
-        In these access control lists, we allow to codify user and account roles, as well as user and account IDs.
+        In computer security, a "principal" is the security context of the authenticated user [1].
+        For example, within FlexMeasures, an accepted principal is "user:2", which denotes that the user should have ID 2
+        (more technical specifications follow below).
 
-        Here are some (fictional) examples:
+        # Example
+
+        Here are some examples of principals mapped to permissions in a fictional ACL:
 
         {
-            "create": "account:3",               # Everyone in Account 3 can create
+            "create-children": "account:3",      # Everyone in Account 3 can create child items (e.g. beliefs for a sensor)
             "read": EVERYONE,                    # Reading is available to every logged-in user
-            "update": "user:14",                  # This user can update, ...
-            "update": "user:15",                  # and also this user, ...
-            "update": "account-role:MDC",         # also people in such accounts can update
+            "update": ["user:14",                # This user can update, ...
+                        user:15"],               # and also this user, ...
+            "update": "account-role:MDC",        # also people in such accounts can update
             "delete": ("account:3", "role:CEO"), # Only CEOs of Account 3 can delete
         }
 
         Such a list of principals can be checked with match_principals, see below.
 
-        Notes:
+        # Specifications of principals
 
-        - Iterable principal descriptors should be treated as to be AND-connected. This helps to define subsets,
-          like the deletion example above.
-        - This is row-level authorization, which requires an instance. We are considering table-level authorization, which wouldn't, so it would allow for faster authorization checks if no instances are needed.
+        Within FlexMeasures, a principal is handled as a string, usually defining context and identification, like so:
+
+            <context>:<identification>.
+
+        Supported contexts are user and account IDs, as well as user and account roles. All of them feature in the example above.
+
+        Iterable principal descriptors should be treated as follows:
+        - a list contains OR-connected items, which can be principal or tuples of principals (one of the items in the list is sufficient to grant the permission)
+        - a tuple contains AND-connected strings (you need all of the items in the list to grant the permission).
+
+        # Row-level authorization
+
+        This ACL approach to authorization is usually called "row-level authorization" ― it always requires an instance, from which to get the ACL.
+        Unlike pyramid, we have not implemented table-level authorization, where a class also can provide an ACL.
+        This works because we make use of the hierarchy in our model.
+        The highest level (e.g. an account) is created by site-admins and usually not in the API, but CLI. For everything else, we can ask the ACL
+        on an instance, if we can handle it like we intend to. For creation of instances (where there is no instance to ask), it makes sense to use the instance one level up to look up the correct permission ("create-children"). E.g. to create belief data for a sensor, we can check the "create-children" - permission on the sensor.
 
         [1] https://docs.microsoft.com/en-us/windows/security/identity-protection/access-control/security-principals#a-href-idw2k3tr-princ-whatawhat-are-security-principals
         """
@@ -56,29 +77,32 @@ def user_has_admin_access(user, permission: str) -> bool:
     return False
 
 
-def user_matches_principals(user, principals: Union[str, Tuple[str]]) -> bool:
+def user_matches_principals(user, principals: PRINCIPALS_TYPE) -> bool:
     """
     Tests if the user matches all passed principals.
     Returns False if no principals are passed.
     """
-    if isinstance(principals, str):
-        principals = (principals,)
-    if EVERYONE in principals:
-        return True
-    if user is None:
-        return False
-    if all(
-        [
-            (
-                check_user_identity(user, principal)
-                or check_user_role(user, principal)
-                or check_account_membership(user, principal)
-                or check_account_role(user, principal)
-            )
-            for principal in principals
-        ]
-    ):
-        return True
+    if not isinstance(principals, list):
+        principals = [principals]  # now we handle a list of str or Tuple[str]
+    for matchable_principals in principals:
+        if isinstance(matchable_principals, str):
+            matchable_principals = (
+                matchable_principals,
+            )  # now we handle only Tuple[str]
+        if EVERY_LOGGED_IN_USER in matchable_principals:
+            return True
+        if user is not None and all(
+            [
+                (
+                    check_user_identity(user, principal)
+                    or check_user_role(user, principal)
+                    or check_account_membership(user, principal)
+                    or check_account_role(user, principal)
+                )
+                for principal in matchable_principals
+            ]
+        ):
+            return True
     return False
 
 

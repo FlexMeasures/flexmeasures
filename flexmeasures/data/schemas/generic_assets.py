@@ -1,6 +1,6 @@
 from typing import Optional
 
-from marshmallow import validates, ValidationError, fields
+from marshmallow import validates, validates_schema, ValidationError, fields
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.user import Account
@@ -13,14 +13,27 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     """
 
     id = ma.auto_field()
-    name = fields.Str()
+    name = fields.Str(required=True)
     account_id = ma.auto_field()
     latitude = ma.auto_field()
     longitude = ma.auto_field()
-    generic_asset_type_id = fields.Integer()
+    generic_asset_type_id = fields.Integer(required=True)
 
     class Meta:
         model = GenericAsset
+
+    @validates_schema(skip_on_field_errors=False)
+    def validate_name_is_unique_in_account(self, data, **kwargs):
+        if "name" in data and "account_id" in data:
+            asset = GenericAsset.query.filter(
+                GenericAsset.name == data["name"]
+                and GenericAsset.account_id == data["account_id"]
+            ).one_or_none()
+            if asset:
+                raise ValidationError(
+                    f"An asset with the name {data['name']} already exists in this account.",
+                    "name",
+                )
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int):

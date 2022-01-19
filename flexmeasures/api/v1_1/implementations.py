@@ -4,6 +4,7 @@ from datetime import timedelta
 from flask import current_app
 from flask_json import as_json
 from flask_security import current_user
+import timely_beliefs as tb
 
 from flexmeasures.utils.entity_address_utils import (
     parse_entity_address,
@@ -12,13 +13,13 @@ from flexmeasures.utils.entity_address_utils import (
 from flexmeasures.api.common.responses import (
     invalid_domain,
     invalid_unit,
-    unrecognized_market,
     ResponseTuple,
     invalid_horizon,
 )
 from flexmeasures.api.common.utils.api_utils import (
-    save_to_db,
+    save_and_enqueue,
 )
+from flexmeasures.api.common.utils.migration_utils import get_sensor_by_unique_name
 from flexmeasures.api.common.utils.validators import (
     type_accepted,
     units_accepted,
@@ -37,26 +38,27 @@ from flexmeasures.api.v1.implementations import (
     collect_connection_and_value_groups,
     create_connection_and_value_groups,
 )
-from flexmeasures.api.common.utils.api_utils import get_weather_sensor_by
+from flexmeasures.api.common.utils.api_utils import (
+    get_sensor_by_generic_asset_type_and_location,
+)
 from flexmeasures.data.models.data_sources import get_or_create_source
-from flexmeasures.data.models.markets import Market, Price
-from flexmeasures.data.models.weather import Weather
-from flexmeasures.data.services.resources import get_assets
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 
 
 @as_json
 def get_connection_response():
 
-    # Look up Asset objects
-    user_assets = get_assets()
+    # Look up Sensor objects
+    user_sensors = get_sensors()
 
     # Return entity addresses of assets
-    message = dict(connections=[asset.entity_address for asset in user_assets])
+    message = dict(connections=[sensor.entity_address for sensor in user_sensors])
     if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-        message["names"] = [asset.name for asset in user_assets]
+        message["names"] = [sensor.name for sensor in user_sensors]
     else:
-        message["names"] = [asset.display_name for asset in user_assets]
+        message["names"] = [sensor.display_name for sensor in user_sensors]
 
     return message
 
@@ -82,7 +84,7 @@ def post_price_data_response(
     current_app.logger.info("POSTING PRICE DATA")
 
     data_source = get_or_create_source(current_user)
-    prices = []
+    price_df_per_market = []
     forecasting_jobs = []
     for market_group, value_group in zip(generic_asset_name_groups, value_groups):
         for market in market_group:
@@ -94,14 +96,16 @@ def post_price_data_response(
                 return invalid_domain(str(eae))
             market_name = ea["market_name"]
 
-            # Look for the Market object
-            market = Market.query.filter(Market.name == market_name).one_or_none()
-            if market is None:
-                return unrecognized_market(market_name)
-            elif unit != market.unit:
-                return invalid_unit("%s prices" % market.display_name, [market.unit])
+            # Look for the Sensor object
+            sensor = get_sensor_by_unique_name(market_name, ["day_ahead", "tou_tariff"])
+            if type(sensor) == ResponseTuple:
+                # Error message telling the user what to do
+                return sensor
+            if unit != sensor.unit:
+                return invalid_unit("%s prices" % sensor.name, [sensor.unit])
 
             # Create new Price objects
+            beliefs = []
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -110,30 +114,30 @@ def post_price_data_response(
                     h = horizon - (
                         (start + duration) - (dt + duration / len(value_group))
                     )
-                p = Price(
-                    datetime=dt,
-                    value=value,
-                    horizon=h,
-                    market_id=market.id,
-                    data_source_id=data_source.id,
+                p = TimedBelief(
+                    event_start=dt,
+                    event_value=value,
+                    belief_horizon=h,
+                    sensor=sensor,
+                    source=data_source,
                 )
-                prices.append(p)
+                beliefs.append(p)
+            price_df_per_market.append(tb.BeliefsDataFrame(beliefs))
 
             # Make forecasts, but not in play mode. Price forecasts (horizon>0) can still lead to other price forecasts,
             # by the way, due to things like day-ahead markets.
             if current_app.config.get("FLEXMEASURES_MODE", "") != "play":
                 # Forecast 24 and 48 hours ahead for at most the last 24 hours of posted price data
                 forecasting_jobs = create_forecasting_jobs(
-                    "Price",
-                    market.id,
+                    sensor.id,
                     max(start, start + duration - timedelta(hours=24)),
                     start + duration,
                     resolution=duration / len(value_group),
                     horizons=[timedelta(hours=24), timedelta(hours=48)],
-                    enqueue=False,  # will enqueue later, only if we successfully saved prices
+                    enqueue=False,  # will enqueue later, after saving data
                 )
 
-    return save_to_db(prices, forecasting_jobs)
+    return save_and_enqueue(price_df_per_market, forecasting_jobs)
 
 
 @type_accepted("PostWeatherDataRequest")
@@ -157,7 +161,7 @@ def post_weather_data_response(  # noqa: C901
     current_app.logger.info("POSTING WEATHER DATA")
 
     data_source = get_or_create_source(current_user)
-    weather_measurements = []
+    weather_df_per_sensor = []
     forecasting_jobs = []
     for sensor_group, value_group in zip(generic_asset_name_groups, value_groups):
         for sensor in sensor_group:
@@ -178,14 +182,15 @@ def post_weather_data_response(  # noqa: C901
             if unit not in accepted_units:
                 return invalid_unit(weather_sensor_type_name, accepted_units)
 
-            weather_sensor = get_weather_sensor_by(
+            sensor = get_sensor_by_generic_asset_type_and_location(
                 weather_sensor_type_name, latitude, longitude
             )
-            if type(weather_sensor) == ResponseTuple:
+            if type(sensor) == ResponseTuple:
                 # Error message telling the user about the nearest weather sensor they can post to
-                return weather_sensor
+                return sensor
 
             # Create new Weather objects
+            beliefs = []
             for j, value in enumerate(value_group):
                 dt = start + j * duration / len(value_group)
                 if rolling:
@@ -194,33 +199,33 @@ def post_weather_data_response(  # noqa: C901
                     h = horizon - (
                         (start + duration) - (dt + duration / len(value_group))
                     )
-                w = Weather(
-                    datetime=dt,
-                    value=value,
-                    horizon=h,
-                    sensor_id=weather_sensor.id,
-                    data_source_id=data_source.id,
+                w = TimedBelief(
+                    event_start=dt,
+                    event_value=value,
+                    belief_horizon=h,
+                    sensor=sensor,
+                    source=data_source,
                 )
-                weather_measurements.append(w)
+                beliefs.append(w)
+            weather_df_per_sensor.append(tb.BeliefsDataFrame(beliefs))
 
             # make forecasts, but only if the sent-in values are not forecasts themselves (and also not in play)
             if current_app.config.get(
                 "FLEXMEASURES_MODE", ""
             ) != "play" and horizon <= timedelta(
                 hours=0
-            ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this generic asset
+            ):  # Todo: replace 0 hours with whatever the moment of switching from ex-ante to ex-post is for this sensor
                 forecasting_jobs.extend(
                     create_forecasting_jobs(
-                        "Weather",
-                        weather_sensor.id,
+                        sensor.id,
                         start,
                         start + duration,
                         resolution=duration / len(value_group),
-                        enqueue=False,  # will enqueue later, only if we successfully saved weather measurements
+                        enqueue=False,  # will enqueue later, after saving data
                     )
                 )
 
-    return save_to_db(weather_measurements, forecasting_jobs)
+    return save_and_enqueue(weather_df_per_sensor, forecasting_jobs)
 
 
 @type_accepted("GetPrognosisRequest")

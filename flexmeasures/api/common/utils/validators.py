@@ -271,7 +271,7 @@ def optional_user_sources_accepted(
         }
 
     The source ids then include the user's own id,
-    and ids of other users that are registered as a Prosumer and/or Energy Service Company.
+    and ids of other users whose organisation account is registered as a Prosumer and/or Energy Service Company.
     """
 
     def wrapper(fn):
@@ -750,9 +750,9 @@ def post_data_checked_for_required_resolution(
     entity_type: str, fm_scheme: str
 ):  # noqa: C901
     """Decorator which checks that a POST request receives time series data with the event resolutions
-    required by the sensor (asset). It sets the "resolution" keyword argument.
-    If the resolution in the data is a multiple of the asset resolution, values are upsampled to the asset resolution.
-    Finally, this decorator also checks if all assets have the same event_resolution and complains otherwise.
+    required by the sensor. It sets the "resolution" keyword argument.
+    If the resolution in the data is a multiple of the sensor resolution, values are upsampled to the sensor resolution.
+    Finally, this decorator also checks if all sensors have the same event_resolution and complains otherwise.
 
     The resolution of the data is inferred from the duration and the number of values.
     Therefore, the decorator should follow after the values_required, period_required and assets_required decorators.
@@ -800,30 +800,30 @@ def post_data_checked_for_required_resolution(
                 (kwargs["start"] + kwargs["duration"]) - kwargs["start"]
             ) / len(kwargs["value_groups"][0])
 
-            # Finding the required resolution for assets affected in this request
+            # Finding the required resolution for sensors affected in this request
             required_resolution = None
-            last_asset = None
+            last_sensor = None
             for asset_group in kwargs["generic_asset_name_groups"]:
                 for asset_descriptor in asset_group:
-                    # Getting the asset
-                    generic_asset = SensorField(entity_type, fm_scheme).deserialize(
+                    # Getting the sensor
+                    sensor = SensorField(entity_type, fm_scheme).deserialize(
                         asset_descriptor
                     )
-                    if generic_asset is None:
+                    if sensor is None:
                         return unrecognized_asset(
                             f"Failed to look up asset by {asset_descriptor}"
                         )
-                    # Complain if assets don't all require the same resolution
+                    # Complain if sensors don't all require the same resolution
                     if (
                         required_resolution is not None
-                        and generic_asset.event_resolution != required_resolution
+                        and sensor.event_resolution != required_resolution
                     ):
                         return conflicting_resolutions(
-                            f"Cannot send data for both {generic_asset} and {last_asset}."
+                            f"Cannot send data for both {sensor} and {last_sensor}."
                         )
-                    # Setting the resolution & remembering last looked-at asset
-                    required_resolution = generic_asset.event_resolution
-                    last_asset = generic_asset
+                    # Setting the resolution & remembering last looked-at sensor
+                    required_resolution = sensor.event_resolution
+                    last_sensor = sensor
 
             # if inferred resolution is a multiple from required_solution, we can upsample_values
             # todo: next line fails on sensors with 0 resolution
@@ -855,12 +855,12 @@ def post_data_checked_for_required_resolution(
 def get_data_downsampling_allowed(entity_type: str, fm_scheme: str):
     """Decorator which allows downsampling of data which a GET request returns.
     It checks for a form parameter "resolution".
-    If that is given and is a multiple of the asset's event_resolution,
+    If that is given and is a multiple of the sensor's event_resolution,
     downsampling is performed on the data. This is done by setting the "resolution"
     keyword parameter, which is obeyed by collect_time_series_data and used
     in resampling.
 
-    The original resolution of the data is the event_resolution of the asset.
+    The original resolution of the data is the event_resolution of the sensor.
     Therefore, the decorator should follow after the assets_required decorator.
 
     Example:
@@ -891,19 +891,19 @@ def get_data_downsampling_allowed(entity_type: str, fm_scheme: str):
                 ds_resolution = parse_duration(form["resolution"])
                 if ds_resolution is None:
                     return invalid_resolution_str(form["resolution"])
-                # Check if the resolution can be applied to all assets (if it is a multiple
+                # Check if the resolution can be applied to all sensors (if it is a multiple
                 # of the event_resolution(s) and thus downsampling is possible)
                 for asset_group in kwargs["generic_asset_name_groups"]:
                     for asset_descriptor in asset_group:
-                        generic_asset = SensorField(entity_type, fm_scheme).deserialize(
+                        sensor = SensorField(entity_type, fm_scheme).deserialize(
                             asset_descriptor
                         )
-                        if generic_asset is None:
+                        if sensor is None:
                             return unrecognized_asset()
-                        asset_resolution = generic_asset.event_resolution
-                        if ds_resolution % asset_resolution != timedelta(minutes=0):
+                        sensor_resolution = sensor.event_resolution
+                        if ds_resolution % sensor_resolution != timedelta(minutes=0):
                             return unapplicable_resolution(
-                                f"{isodate.duration_isoformat(asset_resolution)} or a multiple hereof."
+                                f"{isodate.duration_isoformat(sensor_resolution)} or a multiple hereof."
                             )
                 kwargs["resolution"] = to_offset(
                     isodate.parse_duration(form["resolution"])

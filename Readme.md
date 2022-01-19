@@ -29,6 +29,7 @@ FlexMeasures provides three core values:
 FlexMeasures is developed by [Seita BV](https://www.seita.nl) in The Netherlands.
 
 We made FlexMeasures freely available under the Apache2.0 licence. Please get in contact if you use FlexMeasures or are considering it.
+See also [Seita's Github profile](https://github.com/SeitaBV), e.g. for FlexMeasures plugin examples.
 
 Head over to our [documentation](https://flexmeasures.readthedocs.io), e.g. the [getting started guide](https://flexmeasures.readthedocs.io/en/latest/getting-started.html). Or find more information on [FlexMeasures.io](https://flexmeasures.io).
 

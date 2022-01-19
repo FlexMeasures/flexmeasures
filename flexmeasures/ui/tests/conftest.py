@@ -1,7 +1,5 @@
 import pytest
 
-from flask_security.utils import hash_password
-
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
@@ -40,13 +38,15 @@ def setup_ui_test_data(
     """
     Create another prosumer, without data, and an admin
     Also, a weather sensor (and sensor type).
+
+    TODO: review if any of these are really needed (might be covered now by main conftest)
     """
     print("Setting up data for UI tests on %s" % db.engine)
 
     create_user(
         username="Site Admin",
         email="flexmeasures-admin@seita.nl",
-        password=hash_password("testtest"),
+        password="testtest",
         account_name=setup_accounts["Prosumer"].name,
         user_roles=dict(name="admin", description="A site admin."),
     )
@@ -54,7 +54,7 @@ def setup_ui_test_data(
     test_user_ui = create_user(
         username=" Test Prosumer User UI",
         email="test_user_ui@seita.nl",
-        password=hash_password("testtest"),
+        password="testtest",
         account_name=setup_accounts["Prosumer"].name,
     )
     asset = Asset(

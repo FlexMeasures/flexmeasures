@@ -14,12 +14,9 @@ from flexmeasures.ui.views.analytics import make_power_figure
 """
 An endpoint to get a power chart.
 
-This will grow to become code for more charts eventually.
-The plan is to separate charts specs from the actual data later,
-and to switch to Altair.
-
-For now, we'll keep this endpoint here, with route and implementation in the same file.
-When we move forward, we'll review the architecture.
+This chart view is considered legacy now. See flexmeasures/data/models/charts for our new approach
+to support charts per API, using Altair and the Sensor ID.
+It also uses the old data model.
 """
 
 

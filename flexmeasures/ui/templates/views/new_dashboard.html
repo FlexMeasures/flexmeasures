@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% set active_page = "dashboard" %}
+
+{% block title %} Dashboard {% endblock %}
+
+{% block divs %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-sm-12">
+            <h3>
+                {% if user_is_admin %}{{ FLEXMEASURES_PLATFORM_NAME }} ― asset status:
+                {% else %}Status of my assets:{% endif%}
+            </h3>
+
+            <div id="mapid"></div>
+
+            <table class="table" style="font-size: 100%;">
+                <thead>
+                    <tr>
+                        <th></th>
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
+                        <th {% if asset_groups[asset_group_name].hover_label %}
+                            title="{{ asset_groups[asset_group_name].hover_label | capitalize }}" {% endif %}
+                            class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+<!--                            <a href="analytics?resource={{ asset_group_name }}">-->
+                                {{ asset_group_name | capitalize }}
+<!--                            </a>-->
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td></td>
+
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+                            <div style="min-height: 20px; padding:15px;">
+                                <i class="{{ asset_group_name | asset_icon }} center-icon"></i>
+                            </div>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% if not user_is_admin %}
+                    <tr>
+                        <td>My assets:</td>
+
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+                            {{ asset_groups[asset_group_name].count }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endif %}
+                    {% if user_is_admin or FLEXMEASURES_MODE == "demo" %}
+                    <tr>
+                        <td>{{ FLEXMEASURES_PLATFORM_NAME }} total:</td>
+
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+                            {{ asset_groups[asset_group_name].count }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+<!-- Initialise the map -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>
+<script src="{{ url_for('flexmeasures_ui.static', filename='js/map-init.js') }}"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+<script
+    src="https://unpkg.com/leaflet.markercluster.layersupport@2.0.1/dist/leaflet.markercluster.layersupport.js"></script>
+
+{{ bokeh_html_embedded | safe }}
+<script type="text/javascript">
+
+    function lookForState(event) {
+        $.ajax({
+            url: "/asset/" + encodeURI(this.options.id) + "/state",
+            success: stateFoundCallback
+        });
+    }
+
+    function stateFoundCallback(data) {
+        $(".bokeh-state-plot").html(data);
+    }
+
+    // create lists for markers, one per asset type, and icons, one per asset type
+
+    {% for asset_group_name in asset_groups %}
+    {% if asset_group_name not in aggregate_groups %}
+    {% if asset_groups[asset_group_name].count > 0 %}
+    var {{ asset_groups[asset_group_name].parameterized_name }}_markers = [];
+
+    var {{ asset_groups[asset_group_name].parameterized_name }}_icon = new L.DivIcon({
+        className: 'map-icon',
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset_groups[asset_group_name].unique_asset_types[0].name | asset_icon }}"></i>',
+        iconSize: [100, 100], // size of the icon
+        iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
+    });
+
+    var {{ asset_groups[asset_group_name].parameterized_name }}_opportunity_icon = new L.DivIcon({
+        className: 'map-icon opportunity',
+        html: '<i class="{{ asset_groups[asset_group_name].unique_asset_types[0].name | asset_icon }}"></i>',
+        iconSize: [24, 24], // size of the icon
+        iconAnchor: [12, 12], // point of the icon which will correspond to marker's location
+        popupAnchor: [0, -12] // point from which the popup should open relative to the iconAnchor
+    });
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+
+
+    // create markers, keep them in separate lists (by asset type) to be put into layers
+
+    {% for asset_group_name in asset_groups %}
+    {% if asset_group_name not in aggregate_groups %}
+    {% for asset in asset_groups[asset_group_name].assets if asset.location %}
+                <!--var marker_for_{{ (asset.name | parameterize) }} = makeMarker({{ asset }})-->
+
+                if (typeof marker_for_{{ (asset.name | parameterize) }} == 'undefined') {
+        var marker_for_{{ (asset.name | parameterize)
+    }} = L
+        .marker(
+            [{{ asset.location[0] }}, {{ asset.location[1] }}],
+            { icon: {{ asset_groups[asset_group_name].parameterized_name }}_icon, id: "{{ asset.id }}"}
+    )
+        .bindPopup(`
+                            <div class="leaflet-marker-popup">
+                                <div class="row">
+                                    <div class="col-sm-12">
+                                        <h4>{{ asset.name }}</h4>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-5 bokeh-state-plot"></div>
+                                    <div class="col-sm-7">
+                                        <div class="row top-buffer">
+<!--                                            <div class="col-sm-12">-->
+<!--                                                <form action="analytics" method="get">-->
+<!--                                                    <input type="hidden" name="resource" value="{{ asset.name }}">-->
+<!--                                                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
+<!--                                                </form>-->
+<!--                                            </div>-->
+                                        </div>
+                                        <div class="row top-buffer">
+                                            <div class="col-sm-12">
+                                                <form action="assets/{{ asset.id }}" method="get">
+                                                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Edit this asset</button>
+                                                </form>
+                                            </div>
+                                        </div>
+        <!--                                <div class="row top-buffer">-->
+        <!--                                    <div class="col-sm-12">-->
+        <!--                                        <form action="control" method="get">-->
+        <!--                                            &lt;!&ndash;<input type="hidden" name="offer" value="still_mocked">&ndash;&gt;-->
+        <!--                                            &lt;!&ndash;<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>&ndash;&gt;-->
+        <!--                                        </form>-->
+        <!--                                    </div>-->
+        <!--                                </div>-->
+                                    </div>
+                                </div>
+                            </div>
+                            `
+        )
+        .on('mouseover', function () {
+            $(this._icon).addClass('over');
+        })
+        .on('mouseout', function () {
+            $(this._icon).delay(3000).queue(function (next) {
+                $(this).removeClass('over');
+                next();
+            });
+        })
+        .bindTooltip("{{ asset.name }}",
+        {
+            permanent: false,
+            direction: 'right'
+        })
+        .on('click', clickPan)
+        .on('click', lookForState);
+    // .openPopup();
+    {{ asset_groups[asset_group_name].parameterized_name }}_markers.push(marker_for_{{ (asset.name | parameterize) }});
+                }
+    {% endfor %}
+    {% endif %}
+    {% endfor %}
+
+    // create Map with tiles
+    var assetMap = L
+        .map('mapid', { center: [{{ map_center[0] }}, {{ map_center[1] }}], zoom: 6 })
+        .on('popupopen', function () {
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        });
+    addTileLayer(assetMap, '{{ mapboxAccessToken }}');
+    var mcgLayerSupportGroup = L.markerClusterGroup.layerSupport();
+    var control = L.control.layers(null, null, { collapsed: true });
+
+    // add a layer for each asset type
+    {% for asset_group_name in asset_groups %}
+    {% if asset_group_name not in aggregate_groups %}
+    {% if asset_groups[asset_group_name].count > 0 %}
+    var {{ asset_groups[asset_group_name].parameterized_name }}_layer = new L.LayerGroup({{ asset_groups[asset_group_name].parameterized_name }}_markers);
+    mcgLayerSupportGroup.checkIn({{ asset_groups[asset_group_name].parameterized_name }}_layer);
+    control.addOverlay({{ asset_groups[asset_group_name].parameterized_name }}_layer, "{{ asset_group_name | capitalize }}")
+    {{ asset_groups[asset_group_name].parameterized_name }}_layer.addTo(assetMap);
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+    mcgLayerSupportGroup.addTo(assetMap);
+    control.addTo(assetMap);
+
+</script>
+
+
+{% endblock %}

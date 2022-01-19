@@ -255,6 +255,75 @@
                 <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.
                 {% endblock copyright_notice %}
 
+                {% block about %}
+                <a href="#" data-toggle="modal" data-target="#About">About FlexMeasures</a>.
+                <!-- The modal -->
+                <div class="modal fade" id="About" tabindex="-1" role="dialog" aria-labelledby="modalLabelLarge" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="modalLabelLarge">About FlexMeasures</h4>
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="justify">
+                        <p>
+                            In a world with renewable energy, flexibility is crucial for cost and CO₂ reduction.
+                            Planning ahead allows flexible devices to profit from scheduling the best flexible
+                            actions (such as shifting or curtailing energy use).
+                        </p>
+                        <p>
+                            The {{ FLEXMEASURES_PLATFORM_NAME }} Platform is a tool for businesses operating energy devices.
+                            Its purpose is to realise the best value for device owners by scheduling balancing actions.
+                            For instance, if the devices draw from or supply to the power grid, {{ FLEXMEASURES_PLATFORM_NAME }} can assist in
+                            selling balancing services to energy markets.
+                            It fulfills this purpose with three services: Monitoring, forecasting and scheduling.
+                            {{ FLEXMEASURES_PLATFORM_NAME }} is designed as open-source software to empower energy service companies while they
+                            maintain autonomy over their operations and their technology roadmap.
+                            Read more <a href="https://flexmeasures.readthedocs.io">here</a>.
+
+                        </p>
+                        <p>
+                            {{ FLEXMEASURES_PLATFORM_NAME }} is compliant with the Universal Smart Energy Framework (<a
+                                href="https://www.usef.energy/download-the-framework/a-flexibility-market-design/">USEF</a>), a
+                            “flexibility market design for the trading and commoditisation of energy flexibility and the
+                            architecture, tools and rules to make it work effectively.
+                            USEF fits on top of most market models and is already being adopted across Europe to accelerate and
+                            future-proof smart energy projects.”
+                        </p>
+                        {% if current_user.has_role('anonymous') and current_user.has_role('CPO') %}
+                        <p>
+                            This demo is tuned to operators of charge points for electric vehicles (EVs).
+                            The terminology used follows the Open Charge Point Interface (<a
+                                href="https://ocpi-protocol.org/">OCPI</a>).
+                            This dashboard shows you the locations of all charge points connected to the platform and how they
+                            are doing.
+                            Each charge point contains multiple chargers&mdash;called Electric Vehicle Supply Equipment (EVSE)
+                            in OCPI&mdash;which are monitored individually (click on a charge point location to reveal its
+                            EVSE).
+                        </p>
+                        <p>
+                            {{ FLEXMEASURES_PLATFORM_NAME }} supports automated scheduling of charging profiles through its API.
+                            Charging profiles are optimised against applicable market conditions like wholesale prices and
+                            contracted (time-of-use) tariffs.
+                            Charging preferences can be set to reflect whether EV owners are in a hurry or parking for some
+                            time.
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                </div>
+                </div>
+                </div>
+
+                {% endblock about %}
+
                 {% block credits %}
                 <a href="#" data-toggle="modal" data-target="#Credits">Credits</a>.
 

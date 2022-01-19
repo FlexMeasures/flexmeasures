@@ -1,7 +1,7 @@
 import pandas as pd
 from timely_beliefs import utils as tb_utils
 
-from flexmeasures.api.common.utils.api_utils import save_to_db
+from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
@@ -14,7 +14,7 @@ def test_drop_unchanged_beliefs(setup_beliefs):
 
     # Set a reference for the number of beliefs stored and their belief times
     sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
-    bdf = sensor.search_beliefs()
+    bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
     num_beliefs_before = len(bdf)
     belief_times_before = bdf.belief_times
 
@@ -22,7 +22,7 @@ def test_drop_unchanged_beliefs(setup_beliefs):
     save_to_db(bdf)
 
     # Verify that no new beliefs were saved
-    bdf = sensor.search_beliefs()
+    bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
     assert len(bdf) == num_beliefs_before
 
     # See what happens when storing all beliefs with their belief time updated
@@ -32,7 +32,7 @@ def test_drop_unchanged_beliefs(setup_beliefs):
     save_to_db(bdf)
 
     # Verify that no new beliefs were saved
-    bdf = sensor.search_beliefs()
+    bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
     assert len(bdf) == num_beliefs_before
     assert list(bdf.belief_times) == list(belief_times_before)
 
@@ -42,7 +42,7 @@ def test_do_not_drop_beliefs_copied_by_another_source(setup_beliefs):
 
     # Set a reference for the number of beliefs stored
     sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
-    bdf = sensor.search_beliefs()
+    bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
     num_beliefs_before = len(bdf)
 
     # See what happens when storing all belief with their source updated
@@ -53,7 +53,7 @@ def test_do_not_drop_beliefs_copied_by_another_source(setup_beliefs):
     save_to_db(bdf)
 
     # Verify that all the new beliefs were added
-    bdf = sensor.search_beliefs()
+    bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
     num_beliefs_after = len(bdf)
     assert num_beliefs_after == 2 * num_beliefs_before
 
@@ -68,7 +68,7 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs):
 
     # Set a reference for the number of beliefs stored
     sensor = Sensor.query.filter_by(name="epex_da").one_or_none()
-    bdf = sensor.search_beliefs(source="Seita")
+    bdf = sensor.search_beliefs(source="ENTSO-E", most_recent_beliefs_only=False)
     num_beliefs_before = len(bdf)
 
     # See what happens when storing a belief with more certainty one hour later
@@ -79,7 +79,7 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs):
         )
         & (
             bdf.index.get_level_values("belief_time")
-            == pd.Timestamp("2021-03-28 14:00:00+00:00")
+            == pd.Timestamp("2021-03-27 9:00:00+00:00")
         )
     ]
     new_belief = tb_utils.replace_multi_index_level(
@@ -91,6 +91,6 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs):
     save_to_db(new_belief)
 
     # Verify that the whole probabilistic belief was added
-    bdf = sensor.search_beliefs(source="Seita")
+    bdf = sensor.search_beliefs(source="ENTSO-E", most_recent_beliefs_only=False)
     num_beliefs_after = len(bdf)
     assert num_beliefs_after == num_beliefs_before + len(new_belief)

@@ -1,27 +1,27 @@
-from typing import Union
+from typing import Optional, Union
 from datetime import datetime, timedelta
 
 from pandas import Series, Timestamp
 
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.models.markets import Market
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.solver import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     initialize_df,
     initialize_series,
     add_tiny_price_slope,
     get_prices,
+    fallback_charging_policy,
 )
 
 
 def schedule_charging_station(
-    asset: Asset,
-    market: Market,
+    sensor: Sensor,
     start: datetime,
     end: datetime,
     resolution: timedelta,
     soc_at_start: float,
     soc_targets: Series,
+    roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
 ) -> Union[Series, None]:
     """Schedule a charging station asset based directly on the latest beliefs regarding market prices within the specified time
@@ -30,9 +30,19 @@ def schedule_charging_station(
     Todo: handle uni-directional charging by setting the "min" or "derivative min" constraint to 0
     """
 
+    # Check for required Sensor attributes
+    sensor.check_required_attributes([("capacity_in_mw", (float, int))])
+
+    # Check for round-trip efficiency
+    if roundtrip_efficiency is None:
+        # Get default from sensor, or use 100% otherwise
+        roundtrip_efficiency = sensor.get_attribute("roundtrip_efficiency", 1)
+    if roundtrip_efficiency <= 0 or roundtrip_efficiency > 1:
+        raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
+
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
-        market, (start, end), resolution, allow_trimmed_query_window=True
+        sensor, (start, end), resolution, allow_trimmed_query_window=True
     )
     # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
     soc_targets = soc_targets.tz_convert("UTC")
@@ -81,26 +91,39 @@ def schedule_charging_station(
     ) - soc_at_start * (
         timedelta(hours=1) / resolution
     )  # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-    if asset.is_pure_consumer:
+
+    if sensor.get_attribute("is_strictly_non_positive"):
         device_constraints[0]["derivative min"] = 0
     else:
-        device_constraints[0]["derivative min"] = asset.capacity_in_mw * -1
-    if asset.is_pure_producer:
+        device_constraints[0]["derivative min"] = (
+            sensor.get_attribute("capacity_in_mw") * -1
+        )
+    if sensor.get_attribute("is_strictly_non_negative"):
         device_constraints[0]["derivative max"] = 0
     else:
-        device_constraints[0]["derivative max"] = asset.capacity_in_mw
+        device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
+
+    # Apply round-trip efficiency evenly to charging and discharging
+    device_constraints[0]["derivative down efficiency"] = roundtrip_efficiency ** 0.5
+    device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency ** 0.5
 
     # Set up EMS constraints (no additional constraints)
     columns = ["derivative max", "derivative min"]
     ems_constraints = initialize_df(columns, start, end, resolution)
 
-    ems_schedule, expected_costs = device_scheduler(
+    ems_schedule, expected_costs, scheduler_results = device_scheduler(
         device_constraints,
         ems_constraints,
         commitment_quantities,
         commitment_downwards_deviation_price,
         commitment_upwards_deviation_price,
     )
-    charging_station_schedule = ems_schedule[0]
+    if scheduler_results.solver.termination_condition == "infeasible":
+        # Fallback policy if the problem was unsolvable
+        charging_station_schedule = fallback_charging_policy(
+            sensor, device_constraints[0], start, end, resolution
+        )
+    else:
+        charging_station_schedule = ems_schedule[0]
 
     return charging_station_schedule

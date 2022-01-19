@@ -5,21 +5,42 @@ FlexMeasures Changelog
 v0.8.0 | November XX, 2021
 ===========================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+.. note:: v0.8.0 is doing much of the work we need to do to move to the new data model (see :ref:`note_on_datamodel_transition`). We hope to keep the migration steps for users very limited. One thing you'll notice is that we are copying over existing data to the new model (which will be kept in sync) with the `db upgrade` command (see warning above), which can take a few minutes.
+
 New features
 -----------
+* Bar charts of sensor data for individual sensors, that can be navigated using a calendar [see `PR #99 <http://www.github.com/FlexMeasures/flexmeasures/pull/99>`_ and `PR #290 <http://www.github.com/FlexMeasures/flexmeasures/pull/290>`_]
 * Charts with sensor data can be requested in one of the supported  [`vega-lite themes <https://github.com/vega/vega-themes#included-themes>`_] (incl. a dark theme) [see `PR #221 <http://www.github.com/FlexMeasures/flexmeasures/pull/221>`_]
+* Mobile friendly (responsive) charts of sensor data, and such charts can be requested with a custom width and height [see `PR #313 <http://www.github.com/FlexMeasures/flexmeasures/pull/313>`_]
+* Schedulers take into account round-trip efficiency if set [see `PR #291 <http://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
+* Fallback policies for charging schedules of batteries and Charge Points, in cases where the solver is presented with an infeasible problem [see `PR #267 <http://www.github.com/FlexMeasures/flexmeasures/pull/267>`_ and `PR #270 <http://www.github.com/FlexMeasures/flexmeasures/pull/270>`_]
+
+Deprecations
+------------
+* The Portfolio and Analytics views are deprecated [see `PR #321 <http://www.github.com/FlexMeasures/flexmeasures/pull/321>`_]
 
 Bugfixes
 -----------
 * Fix recording time of schedules triggered by UDI events [see `PR #300 <http://www.github.com/FlexMeasures/flexmeasures/pull/300>`_]
+* Set bar width of bar charts based on sensor resolution [see `PR #310 <http://www.github.com/FlexMeasures/flexmeasures/pull/310>`_]
+* Fix bug in sensor data charts where data from multiple sources would be stacked, which incorrectly suggested that the data should be summed, whereas the data represents alternative beliefs [see `PR #228 <http://www.github.com/FlexMeasures/flexmeasures/pull/228>`_]
 
 Infrastructure / Support
 ----------------------
 * Account-based authorization, incl. new decorators for endpoints [see `PR #210 <http://www.github.com/FlexMeasures/flexmeasures/pull/210>`_]
 * Central authorization policy which lets database models codify who can do what (permission-based) and relieve API endpoints from this [see `PR #234 <http://www.github.com/FlexMeasures/flexmeasures/pull/234>`_]
 * Improve data specification for forecasting models using timely-beliefs data [see `PR #154 <http://www.github.com/FlexMeasures/flexmeasures/pull/154>`_]
+* Properly attribute Mapbox and OpenStreetMap [see `PR #292 <http://www.github.com/FlexMeasures/flexmeasures/pull/292>`_]
 * Allow plugins to register their custom config settings, so that FlexMeasures can check whether they are set up correctly [see `PR #230 <http://www.github.com/FlexMeasures/flexmeasures/pull/230>`_ and `PR #237 <http://www.github.com/FlexMeasures/flexmeasures/pull/237>`_]
-* Added sensor method to obtain just its latest state (excl. forecasts) [see `PR #235 <http://www.github.com/FlexMeasures/flexmeasures/pull/235>`_]
+* Add sensor method to obtain just its latest state (excl. forecasts) [see `PR #235 <http://www.github.com/FlexMeasures/flexmeasures/pull/235>`_]
+* Migrate attributes of assets, markets and weather sensors to our new sensor model [see `PR #254 <http://www.github.com/FlexMeasures/flexmeasures/pull/254>`_ and `project 9 <http://www.github.com/FlexMeasures/flexmeasures/projects/9>`_]
+* Migrate all time series data to our new sensor data model based on the `timely beliefs <https://github.com/SeitaBV/timely-beliefs>`_ lib [see `PR #286 <http://www.github.com/FlexMeasures/flexmeasures/pull/286>`_ and `project 9 <http://www.github.com/FlexMeasures/flexmeasures/projects/9>`_]
+* Support the new asset model (which describes the organisational structure, rather than sensors and data) in UI and API. Until the transition to our new data model is completed, the new API for assets is at `/api/dev/generic_assets`. [see `PR #251 <http://www.github.com/FlexMeasures/flexmeasures/pull/251>`_ and `PR #290 <http://www.github.com/FlexMeasures/flexmeasures/pulls/290>`_]
+* Internal search methods return most recent beliefs by default, also for charts, which can make them load a lot faster [see `PR #307 <http://www.github.com/FlexMeasures/flexmeasures/pull/307>`_ and `PR #312 <http://www.github.com/FlexMeasures/flexmeasures/pull/312>`_]
+* Support unit conversion for posting sensor data [see `PR #283 <http://www.github.com/FlexMeasures/flexmeasures/pull/283>`_ and `PR #293 <http://www.github.com/FlexMeasures/flexmeasures/pull/293>`_]
+* Improve the core device scheduler to support dealing with asymmetric efficiency losses of individual devices, and with asymmetric up and down prices for deviating from previous commitments (such as a different feed-in tariff) [see `PR #291 <http://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
+* Stop automatically triggering forecasting jobs when API calls save nothing new to the database, thereby saving redundant computation [see `PR #303 <http://www.github.com/FlexMeasures/flexmeasures/pull/303>`_]
 
 
 v0.7.1 | November 08, 2021
@@ -33,6 +54,7 @@ Bugfixes
 v0.7.0 | October 26, 2021
 ===========================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 .. warning:: The config setting ``FLEXMEASURES_PLUGIN_PATHS`` has been renamed to ``FLEXMEASURES_PLUGINS``. The old name still works but is deprecated.
 
 New features

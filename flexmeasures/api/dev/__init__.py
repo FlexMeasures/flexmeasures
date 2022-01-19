@@ -8,11 +8,15 @@ def register_at(app: Flask):
     """This can be used to register FlaskViews."""
 
     from flexmeasures.api.dev.sensors import SensorAPI
+    from flexmeasures.api.dev.assets import AssetAPI
     from flexmeasures.api.dev.sensor_data import post_data as post_sensor_data_impl
 
-    SensorAPI.register(app, route_prefix="/api/dev")
+    dev_api_prefix = "/api/dev"
 
-    @app.route("/sensorData", methods=["POST"])
+    SensorAPI.register(app, route_prefix=dev_api_prefix)
+    AssetAPI.register(app, route_prefix=dev_api_prefix)
+
+    @app.route(f"{dev_api_prefix}/sensorData", methods=["POST"])
     @auth_token_required
     @account_roles_accepted("MDC", "Prosumer")
     def post_sensor_data():

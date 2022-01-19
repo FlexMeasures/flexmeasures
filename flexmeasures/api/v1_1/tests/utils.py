@@ -9,7 +9,7 @@ from rq.job import Job
 from flask import current_app
 
 from flexmeasures.api.common.schemas.sensors import SensorField
-from flexmeasures.data.models.markets import Market, Price
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
 def message_for_get_prognosis(
@@ -153,26 +153,32 @@ def verify_prices_in_db(post_message, values, db, swapped_sign: bool = False):
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
     horizon = parse_duration(post_message["horizon"])
-    market = SensorField("market", "fm0").deserialize(post_message["market"])
-    resolution = market.event_resolution
+    sensor = SensorField("market", "fm0").deserialize(post_message["market"])
+    resolution = sensor.event_resolution
     query = (
-        db.session.query(Price.value, Price.horizon)
-        .filter((Price.datetime > start - resolution) & (Price.datetime < end))
-        .filter(Price.horizon == horizon - (end - (Price.datetime + resolution)))
-        .join(Market)
-        .filter(Market.name == market.name)
+        db.session.query(TimedBelief.event_value, TimedBelief.belief_horizon)
+        .filter(
+            (TimedBelief.event_start > start - resolution)
+            & (TimedBelief.event_start < end)
+        )
+        .filter(
+            TimedBelief.belief_horizon
+            == horizon - (end - (TimedBelief.event_start + resolution))
+        )
+        .join(Sensor)
+        .filter(TimedBelief.sensor_id == Sensor.id)
+        .filter(Sensor.name == sensor.name)
     )
     df = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
     )
     if swapped_sign:
-        df["value"] = -df["value"]
-    assert df.value.tolist() == values
+        df["event_value"] = -df["event_value"]
+    assert df["event_value"].tolist() == values
 
 
-def get_forecasting_jobs(timed_value_type: str) -> List[Job]:
-    return [
-        job
-        for job in current_app.queues["forecasting"].jobs
-        if job.kwargs["timed_value_type"] == timed_value_type
-    ]
+def get_forecasting_jobs(last_n: Optional[int] = None) -> List[Job]:
+    """Get all or last n forecasting jobs."""
+    if last_n:
+        return current_app.queues["forecasting"].jobs[-last_n:]
+    return current_app.queues["forecasting"].jobs

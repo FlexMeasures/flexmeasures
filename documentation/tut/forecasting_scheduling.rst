@@ -89,7 +89,7 @@ As an example, consider the same UDI event as we saw earlier (in :ref:`posting_f
 
     {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.io.flexmeasures.company:7:10:204:soc-with-targets",
+        "event": "ea1.2021-01.io.flexmeasures.company:7:10:204:soc-with-targets",
         "value": 12.1,
         "datetime": "2015-06-02T10:00:00+00:00",
         "unit": "kWh",
@@ -132,7 +132,7 @@ This example requests a prognosis for 24 hours, with a rolling horizon of 6 hour
 
     {
         "type": "GetPrognosisRequest",
-        "connection": "ea1.2018-06.io.flexmeasures.company:1:1",
+        "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT24H",
         "horizon": "PT6H",
@@ -159,7 +159,7 @@ This example of a request body shows that we want to look up a control signal fo
 
         {
             "type": "GetDeviceMessageRequest",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc"
+            "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc"
         }
 
 The following example response indicates that FlexMeasures planned ahead 45 minutes for this battery.
@@ -170,7 +170,7 @@ Each value represents the average power over a 15 minute time interval.
 
         {
             "type": "GetDeviceMessageResponse",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203",
+            "event": "ea1.2021-01.io.flexmeasures.company:7:10:203",
             "values": [
                 2.15,
                 3,

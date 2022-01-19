@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 
-{% set active_page = "assets" %}
+{% set active_page = "sensors" %}
 
-{% block title %} Assets {% endblock %}
+{% block title %} Sensor data {% endblock %}
 
 {% block divs %}
 
       <div class="charts text-center">
           <div class="row"><div class="alert alert-info" id="tzwarn" style="display:none;"></div></div>
           <div class="row"><div id="datepicker"></div></div>
-          <div class="row"><div id="sensorchart"></div></div><hr>
+          <div class="row">
+              <div class="col-sm-12">
+                  <div id="sensorchart" style="width: 100%;"></div>
+              </div>
+          </div>
+          <hr>
       </div>
 
     <script src="https://d3js.org/d3.v6.min.js"></script>
@@ -31,7 +36,7 @@
 
       async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName, {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName + '&width=container', {{ chart_options | safe }})
         .then(function (result) {
           // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
           vegaView = result.view;

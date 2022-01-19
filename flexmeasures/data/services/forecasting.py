@@ -1,25 +1,22 @@
 from datetime import datetime, timedelta
-from typing import List, Union
+from typing import List
 
 from flask import current_app
 import click
 from rq import get_current_job
 from rq.job import Job
-from sqlalchemy.exc import IntegrityError
 from timetomodel.forecasting import make_rolling_forecasts
+import timely_beliefs as tb
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import InvalidHorizonException
-from flexmeasures.data.models.markets import Market, Price
-from flexmeasures.data.models.utils import determine_asset_value_class_by_asset
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.forecasting.utils import (
     get_query_window,
     check_data_availability,
 )
-from flexmeasures.data.models.weather import Weather, WeatherSensor
-from flexmeasures.data.utils import save_to_session, get_data_source
+from flexmeasures.data.utils import get_data_source, save_to_db
 from flexmeasures.utils.time_utils import (
     as_server_time,
     server_now,
@@ -46,8 +43,7 @@ class MisconfiguredForecastingJobException(Exception):
 
 
 def create_forecasting_jobs(
-    timed_value_type: str,
-    asset_id: int,
+    old_sensor_id: int,
     start_of_roll: datetime,
     end_of_roll: datetime,
     resolution: timedelta = None,
@@ -100,8 +96,7 @@ def create_forecasting_jobs(
         job = Job.create(
             make_rolling_viewpoint_forecasts,
             kwargs=dict(
-                asset_id=asset_id,
-                timed_value_type=timed_value_type,
+                old_sensor_id=old_sensor_id,
                 horizon=horizon,
                 start=start_of_roll + horizon,
                 end=end_of_roll + horizon,
@@ -123,8 +118,7 @@ def create_forecasting_jobs(
 
 
 def make_fixed_viewpoint_forecasts(
-    asset_id: int,
-    timed_value_type: str,
+    old_sensor_id: int,
     horizon: timedelta,
     start: datetime,
     end: datetime,
@@ -141,8 +135,7 @@ def make_fixed_viewpoint_forecasts(
 
 
 def make_rolling_viewpoint_forecasts(
-    asset_id: int,
-    timed_value_type: str,
+    old_sensor_id: int,
     horizon: timedelta,
     start: datetime,
     end: datetime,
@@ -157,10 +150,8 @@ def make_rolling_viewpoint_forecasts(
 
     Parameters
     ----------
-    :param asset_id: int
-        To identify which asset to forecast
-    :param timed_value_type: str
-        This should go away after a refactoring - we now use it to create the DB entry for the forecasts
+    :param old_sensor_id: int
+        To identify which old sensor to forecast (note: old_sensor_id == sensor_id)
     :param horizon: timedelta
         duration between the end of each interval and the time at which the belief about that interval is formed
     :param start: datetime
@@ -181,15 +172,15 @@ def make_rolling_viewpoint_forecasts(
     # find out which model to run, fall back to latest recommended
     model_search_term = rq_job.meta.get("model_search_term", "linear-OLS")
 
-    # find asset
-    asset = get_asset(asset_id, timed_value_type)
+    # find sensor
+    sensor = Sensor.query.filter_by(id=old_sensor_id).one_or_none()
 
     click.echo(
         "Running Forecasting Job %s: %s for %s on model '%s', from %s to %s"
-        % (rq_job.id, asset, horizon, model_search_term, start, end)
+        % (rq_job.id, sensor, horizon, model_search_term, start, end)
     )
 
-    if hasattr(asset, "market_type"):
+    if hasattr(sensor, "market_type"):
         ex_post_horizon = None  # Todo: until we sorted out the ex_post_horizon, use all available price data
     else:
         ex_post_horizon = timedelta(hours=0)
@@ -197,7 +188,7 @@ def make_rolling_viewpoint_forecasts(
     # Make model specs
     model_configurator = lookup_model_specs_configurator(model_search_term)
     model_specs, model_identifier, fallback_model_search_term = model_configurator(
-        generic_asset=asset,
+        sensor=sensor,
         forecast_start=as_server_time(start),
         forecast_end=as_server_time(end),
         forecast_horizon=horizon,
@@ -222,8 +213,8 @@ def make_rolling_viewpoint_forecasts(
         [lag * model_specs.frequency for lag in model_specs.lags],
     )
     check_data_availability(
-        asset,
-        determine_asset_value_class_by_asset(asset),
+        sensor,
+        TimedBelief,
         start,
         end,
         query_window,
@@ -244,22 +235,17 @@ def make_rolling_viewpoint_forecasts(
     click.echo("Job %s made %d forecasts." % (rq_job.id, len(forecasts)))
 
     ts_value_forecasts = [
-        make_timed_value(timed_value_type, asset_id, dt, value, horizon, data_source.id)
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=horizon,
+            event_value=value,
+            sensor=sensor,
+            source=data_source,
+        )
         for dt, value in forecasts.items()
     ]
-
-    try:
-        save_to_session(ts_value_forecasts)
-    except IntegrityError as e:
-
-        current_app.logger.warning(e)
-        click.echo("Rolling back due to IntegrityError")
-        db.session.rollback()
-
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            click.echo("Saving again, with overwrite=True")
-            save_to_session(ts_value_forecasts, overwrite=True)
-
+    bdf = tb.BeliefsDataFrame(ts_value_forecasts)
+    save_to_db(bdf)
     db.session.commit()
 
     return len(forecasts)
@@ -302,70 +288,3 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
 def num_forecasts(start: datetime, end: datetime, resolution: timedelta) -> int:
     """Compute how many forecasts a job needs to make, given a resolution"""
     return (end - start) // resolution
-
-
-# TODO: the functions below can hopefully go away if we refactor a real generic asset class
-#       and store everything in one time series database.
-
-
-def get_asset(
-    asset_id: int, timed_value_type: str
-) -> Union[Asset, Market, WeatherSensor]:
-    """Get asset for this job. Maybe simpler once we redesign timed value classes (make a generic one)"""
-    if timed_value_type not in ("Power", "Price", "Weather"):
-        raise Exception("Cannot get asset for asset_type '%s'" % timed_value_type)
-    asset = None
-    if timed_value_type == "Power":
-        asset = Asset.query.filter_by(id=asset_id).one_or_none()
-    elif timed_value_type == "Price":
-        asset = Market.query.filter_by(id=asset_id).one_or_none()
-    elif timed_value_type == "Weather":
-        asset = WeatherSensor.query.filter_by(id=asset_id).one_or_none()
-    if asset is None:
-        raise Exception(
-            "Cannot find asset for value type %s with id %d"
-            % (timed_value_type, asset_id)
-        )
-    return asset
-
-
-def make_timed_value(
-    timed_value_type: str,
-    asset_id: int,
-    dt: datetime,
-    value: float,
-    horizon: timedelta,
-    data_source_id: int,
-) -> Union[Power, Price, Weather]:
-    if timed_value_type not in ("Power", "Price", "Weather"):
-        raise Exception("Cannot get asset for asset_type '%s'" % timed_value_type)
-    ts_value = None
-    if timed_value_type == "Power":
-        ts_value = Power(
-            datetime=dt,
-            horizon=horizon,
-            value=value,
-            asset_id=asset_id,
-            data_source_id=data_source_id,
-        )
-    elif timed_value_type == "Price":
-        ts_value = Price(
-            datetime=dt,
-            horizon=horizon,
-            value=value,
-            market_id=asset_id,
-            data_source_id=data_source_id,
-        )
-    elif timed_value_type == "Weather":
-        ts_value = Weather(
-            datetime=dt,
-            horizon=horizon,
-            value=value,
-            sensor_id=asset_id,
-            data_source_id=data_source_id,
-        )
-    if ts_value is None:
-        raise Exception(
-            "Cannot create asset of type %s with id %d" % (timed_value_type, asset_id)
-        )
-    return ts_value

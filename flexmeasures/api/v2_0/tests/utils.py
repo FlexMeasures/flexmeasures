@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional
 from datetime import timedelta
 from isodate import duration_isoformat, parse_duration, parse_datetime
 
@@ -6,10 +6,7 @@ import pandas as pd
 import timely_beliefs as tb
 
 from flexmeasures.api.common.schemas.sensors import SensorField
-from flexmeasures.data.models.assets import Asset, Power
-from flexmeasures.data.models.markets import Market, Price
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.v1_1.tests.utils import (
     message_for_post_price_data as v1_1_message_for_post_price_data,
@@ -26,7 +23,7 @@ def get_asset_post_data() -> dict:
         "longitude": 100.42,
         "asset_type_name": "battery",
         "owner_id": find_user_by_email("test_prosumer_user@seita.nl").id,
-        "market_id": Market.query.filter_by(name="epex_da").one_or_none().id,
+        "market_id": Sensor.query.filter_by(name="epex_da").one_or_none().id,
     }
     return post_data
 
@@ -78,62 +75,32 @@ def verify_sensor_data_in_db(
     swapped_sign: bool = False,
 ):
     """util method to verify that sensor data ended up in the database"""
-    if entity_type == "sensor":
-        sensor_type = Sensor
-        data_type = TimedBelief
-    elif entity_type == "connection":
-        sensor_type = Asset
-        data_type = Power
-    elif entity_type == "market":
-        sensor_type = Market
-        data_type = Price
-    elif entity_type == "weather_sensor":
-        sensor_type = WeatherSensor
-        data_type = Weather
-    else:
-        raise ValueError("Unknown entity type")
-
     start = parse_datetime(post_message["start"])
     end = start + parse_duration(post_message["duration"])
-    sensor: Union[Sensor, Asset, Market, WeatherSensor] = SensorField(
-        entity_type, fm_scheme
-    ).deserialize(post_message[entity_type])
+    sensor: Sensor = SensorField(entity_type, fm_scheme).deserialize(
+        post_message[entity_type]
+    )
     resolution = sensor.event_resolution
+    query = (
+        db.session.query(
+            TimedBelief.event_start,
+            TimedBelief.event_value,
+            TimedBelief.belief_horizon,
+        )
+        .filter(
+            (TimedBelief.event_start > start - resolution)
+            & (TimedBelief.event_start < end)
+        )
+        # .filter(TimedBelief.belief_horizon == (TimedBelief.event_start + resolution) - prior)  # only for sensors with 0-hour ex_post knowledge horizon function
+        .join(Sensor)
+        .filter(Sensor.name == sensor.name)
+    )
     if "horizon" in post_message:
         horizon = parse_duration(post_message["horizon"])
-        query = (
-            db.session.query(data_type.datetime, data_type.value, data_type.horizon)
-            .filter(
-                (data_type.datetime > start - resolution) & (data_type.datetime < end)
-            )
-            .filter(data_type.horizon == horizon)
-            .join(sensor_type)
-            .filter(sensor_type.name == sensor.name)
-        )
-    else:
-        query = (
-            db.session.query(
-                data_type.datetime,
-                data_type.value,
-                data_type.horizon,
-            )
-            .filter(
-                (data_type.datetime > start - resolution) & (data_type.datetime < end)
-            )
-            # .filter(data_type.horizon == (data_type.datetime + resolution) - prior)  # only for sensors with 0-hour ex_post knowledge horizon function
-            .join(sensor_type)
-            .filter(sensor_type.name == sensor.name)
-        )
-    # todo: after basing Price on TimedBelief, we should be able to get a BeliefsDataFrame from the query directly
+        query = query.filter(TimedBelief.belief_horizon == horizon)
+    # todo: after basing sensor data on TimedBelief, we should be able to get a BeliefsDataFrame from the query directly
     df = pd.DataFrame(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
-    )
-    df = df.rename(
-        columns={
-            "value": "event_value",
-            "datetime": "event_start",
-            "horizon": "belief_horizon",
-        }
     )
     bdf = tb.BeliefsDataFrame(df, sensor=sensor, source="Some source")
     if "prior" in post_message:

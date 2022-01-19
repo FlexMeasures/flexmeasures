@@ -39,7 +39,7 @@ def get_device_message():
 
         {
             "type": "GetDeviceMessageRequest",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc"
+            "event": "ea1.2021-01.io.flexmeasures.company:fm0.7:10:203:soc"
         }
 
     **Example response**
@@ -51,7 +51,7 @@ def get_device_message():
 
         {
             "type": "GetDeviceMessageResponse",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc",
+            "event": "ea1.2021-01.io.flexmeasures.company:fm0.7:10:203:soc",
             "values": [
                 2.15,
                 3,
@@ -93,7 +93,7 @@ def post_udi_event():
 
         {
             "type": "PostUdiEventRequest",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc",
+            "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc",
             "value": 12.1,
             "unit": "kWh",
             "datetime": "2015-06-02T10:00:00+00:00"
@@ -104,12 +104,13 @@ def post_udi_event():
     This "PostUdiEventRequest" message posts a state of charge (soc) of 12.1 kWh at 10.00am,
     and a target state of charge of 25 kWh at 4.00pm,
     as UDI event 204 of device 10 of owner 7.
+    Roundtrip efficiency for use in scheduling is set to 98%.
 
     .. code-block:: json
 
         {
             "type": "PostUdiEventRequest",
-            "event": "ea1.2018-06.io.flexmeasures.company:7:10:204:soc-with-targets",
+            "event": "ea1.2021-01.io.flexmeasures.company:fm0.7:10:204:soc-with-targets",
             "value": 12.1,
             "unit": "kWh",
             "datetime": "2015-06-02T10:00:00+00:00",
@@ -118,7 +119,8 @@ def post_udi_event():
                     "value": 25,
                     "datetime": "2015-06-02T16:00:00+00:00"
                 }
-            ]
+            ],
+            "roundtrip_efficiency": 0.98
         }
 
     **Example response**

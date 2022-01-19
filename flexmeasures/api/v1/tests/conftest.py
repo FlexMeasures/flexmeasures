@@ -4,9 +4,8 @@ from datetime import timedelta
 import isodate
 import pytest
 
-from flask_security.utils import hash_password
-
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.models.time_series import TimedBelief
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -16,14 +15,14 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     """
     print("Setting up data for API v1 tests on %s" % db.engine)
 
-    from flexmeasures.data.models.assets import Asset, AssetType, Power
+    from flexmeasures.data.models.assets import Asset, AssetType
     from flexmeasures.data.models.data_sources import DataSource
 
     # Create an anonymous user TODO: used for demo purposes, maybe "demo-user" would be a better name
     test_anonymous_user = create_user(
         username="anonymous user",
         email="demo@seita.nl",
-        password=hash_password("testtest"),
+        password="testtest",
         account_name=setup_accounts["Dummy"].name,
         user_roles=[
             dict(name="anonymous", description="Anonymous test user"),
@@ -38,6 +37,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     for asset_name in asset_names:
         asset = Asset(
             name=asset_name,
+            owner_id=test_anonymous_user.id,
             asset_type_name="test-type",
             event_resolution=timedelta(minutes=15),
             capacity_in_mw=1,
@@ -45,19 +45,8 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_anonymous_user
         assets.append(asset)
         db.session.add(asset)
-
-    """
-    # Create a test user without a USEF role
-    create_user(
-        username="test user without roles",
-        email="test_prosumer_user@seita.nl",
-        password=hash_password("testtest"),
-        account_name=setup_accounts["Prosumer"].name,
-    )
-    """
 
     # Create 5 test assets for the test user
     test_user = setup_roles_users["Test Prosumer User"]
@@ -66,16 +55,16 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     for asset_name in asset_names:
         asset = Asset(
             name=asset_name,
+            owner_id=test_user.id,
             asset_type_name="test-type",
-            event_resolution=timedelta(minutes=15),
+            event_resolution=timedelta(minutes=15)
+            if not asset_name == "CS 4"
+            else timedelta(hours=1),
             capacity_in_mw=1,
             latitude=100,
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_user
-        if asset_name == "CS 4":
-            asset.event_resolution = timedelta(hours=1)
         assets.append(asset)
         db.session.add(asset)
 
@@ -88,27 +77,29 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     user2_data_source = DataSource.query.filter(
         DataSource.user == test_user_2
     ).one_or_none()
-    meter_data = []
-    for i in range(6):
-        p_1 = Power(
-            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+    user1_beliefs = [
+        TimedBelief(
+            event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
-            horizon=timedelta(0),
-            value=(100.0 + i) * -1,
-            asset_id=cs_5.id,
-            data_source_id=user1_data_source.id,
+            belief_horizon=timedelta(0),
+            event_value=(100.0 + i) * -1,
+            sensor=cs_5.corresponding_sensor,
+            source=user1_data_source,
         )
-        p_2 = Power(
-            datetime=isodate.parse_datetime("2015-01-01T00:00:00Z")
+        for i in range(6)
+    ]
+    user2_beliefs = [
+        TimedBelief(
+            event_start=isodate.parse_datetime("2015-01-01T00:00:00Z")
             + timedelta(minutes=15 * i),
-            horizon=timedelta(hours=0),
-            value=(1000.0 - 10 * i) * -1,
-            asset_id=cs_5.id,
-            data_source_id=user2_data_source.id,
+            belief_horizon=timedelta(hours=0),
+            event_value=(1000.0 - 10 * i) * -1,
+            sensor=cs_5.corresponding_sensor,
+            source=user2_data_source,
         )
-        meter_data.append(p_1)
-        meter_data.append(p_2)
-    db.session.bulk_save_objects(meter_data)
+        for i in range(6)
+    ]
+    db.session.add_all(user1_beliefs + user2_beliefs)
 
     print("Done setting up data for API v1 tests")
 
@@ -128,15 +119,15 @@ def setup_fresh_api_test_data(fresh_db, setup_roles_users_fresh_db):
     for asset_name in asset_names:
         asset = Asset(
             name=asset_name,
+            owner_id=test_user.id,
             asset_type_name="test-type",
-            event_resolution=timedelta(minutes=15),
+            event_resolution=timedelta(minutes=15)
+            if not asset_name == "CS 4"
+            else timedelta(hours=1),
             capacity_in_mw=1,
             latitude=100,
             longitude=100,
             unit="MW",
         )
-        asset.owner = test_user
-        if asset_name == "CS 4":
-            asset.event_resolution = timedelta(hours=1)
         assets.append(asset)
         db.session.add(asset)

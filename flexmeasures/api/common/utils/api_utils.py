@@ -1,5 +1,4 @@
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
-from flexmeasures.data.models.time_series import TimedBelief
 from typing import List, Sequence, Tuple, Union
 import copy
 from datetime import datetime, timedelta
@@ -8,22 +7,27 @@ from json import loads as parse_json, JSONDecodeError
 from flask import current_app
 from inflection import pluralize
 from numpy import array
+from psycopg2.errors import UniqueViolation
 from rq.job import Job
 from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.markets import Price
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.weather import WeatherSensor, Weather
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
-from flexmeasures.data.utils import save_to_session
+from flexmeasures.data.utils import save_to_session, save_to_db as modern_save_to_db
 from flexmeasures.api.common.responses import (
+    invalid_replacement,
     unrecognized_sensor,
     ResponseTuple,
     request_processed,
     already_received_and_successfully_processed,
 )
+from flexmeasures.utils.error_utils import error_handling_router
 
 
 def list_access(service_listing, service_name):
@@ -284,24 +288,26 @@ def asset_replace_name_with_id(connections_as_name: List[str]) -> List[str]:
     return connections_as_ea
 
 
-def get_weather_sensor_by(
-    weather_sensor_type_name: str, latitude: float = 0, longitude: float = 0
-) -> Union[WeatherSensor, ResponseTuple]:
+def get_sensor_by_generic_asset_type_and_location(
+    generic_asset_type_name: str, latitude: float = 0, longitude: float = 0
+) -> Union[Sensor, ResponseTuple]:
     """
-    Search a weather sensor by type and location.
-    Can create a weather sensor if needed (depends on API mode)
+    Search a sensor by generic asset type and location.
+    Can create a sensor if needed (depends on API mode)
     and then inform the requesting user which one to use.
     """
-    # Look for the WeatherSensor object
-    weather_sensor = (
-        WeatherSensor.query.filter(
-            WeatherSensor.weather_sensor_type_name == weather_sensor_type_name
-        )
-        .filter(WeatherSensor.latitude == latitude)
-        .filter(WeatherSensor.longitude == longitude)
+    # Look for the Sensor object
+    sensor = (
+        Sensor.query.join(GenericAsset)
+        .join(GenericAssetType)
+        .filter(GenericAssetType.name == generic_asset_type_name)
+        .filter(GenericAsset.generic_asset_type_id == GenericAssetType.id)
+        .filter(GenericAsset.latitude == latitude)
+        .filter(GenericAsset.longitude == longitude)
+        .filter(Sensor.generic_asset_id == GenericAsset.id)
         .one_or_none()
     )
-    if weather_sensor is None:
+    if sensor is None:
         create_sensor_if_unknown = False
         if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
             create_sensor_if_unknown = True
@@ -311,13 +317,14 @@ def get_weather_sensor_by(
             current_app.logger.info("CREATING NEW WEATHER SENSOR...")
             weather_sensor = WeatherSensor(
                 name="Weather sensor for %s at latitude %s and longitude %s"
-                % (weather_sensor_type_name, latitude, longitude),
-                weather_sensor_type_name=weather_sensor_type_name,
+                % (generic_asset_type_name, latitude, longitude),
+                weather_sensor_type_name=generic_asset_type_name,
                 latitude=latitude,
                 longitude=longitude,
             )
             db.session.add(weather_sensor)
             db.session.flush()  # flush so that we can reference the new object in the current db session
+            sensor = weather_sensor.corresponding_sensor
 
         # or query and return the nearest sensor and let the requesting user post to that one
         else:
@@ -328,12 +335,49 @@ def get_weather_sensor_by(
             ).first()
             if nearest_weather_sensor is not None:
                 return unrecognized_sensor(
-                    nearest_weather_sensor.latitude,
-                    nearest_weather_sensor.longitude,
+                    *nearest_weather_sensor.location,
                 )
             else:
                 return unrecognized_sensor()
-    return weather_sensor
+    return sensor
+
+
+def enqueue_forecasting_jobs(
+    forecasting_jobs: List[Job] = None,
+):
+    """Enqueue forecasting jobs.
+
+    :param forecasting_jobs: list of forecasting Jobs for redis queues.
+    """
+    if forecasting_jobs is not None:
+        [current_app.queues["forecasting"].enqueue_job(job) for job in forecasting_jobs]
+
+
+def save_and_enqueue(
+    data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
+    forecasting_jobs: List[Job] = None,
+    save_changed_beliefs_only: bool = True,
+) -> ResponseTuple:
+
+    # Attempt to save
+    status = modern_save_to_db(
+        data, save_changed_beliefs_only=save_changed_beliefs_only
+    )
+    db.session.commit()
+
+    # Only enqueue forecasting jobs upon successfully saving new data
+    if status[:7] == "success" and status != "success_but_nothing_new":
+        enqueue_forecasting_jobs(forecasting_jobs)
+
+    # Pick a response
+    if status == "success":
+        return request_processed()
+    elif status in (
+        "success_with_unchanged_beliefs_skipped",
+        "success_but_nothing_new",
+    ):
+        return already_received_and_successfully_processed()
+    return invalid_replacement()
 
 
 def save_to_db(
@@ -345,13 +389,21 @@ def save_to_db(
 
     Data can only be replaced on servers in play mode.
 
-    TODO: remove options for Power, Price and Weather if we only handle beliefs one day.
+    TODO: remove this legacy function in its entirety (announced v0.8.0)
 
     :param timed_values: BeliefsDataFrame or a list of Power, Price or Weather values to be saved
     :param forecasting_jobs: list of forecasting Jobs for redis queues.
     :param save_changed_beliefs_only: if True, beliefs that are already stored in the database with an earlier belief time are dropped.
     :returns: ResponseTuple
     """
+
+    import warnings
+
+    warnings.warn(
+        "The method api.common.utils.api_utils.save_to_db is deprecated. Check out the following replacements:"
+        "- [recommended option] to store BeliefsDataFrames only, switch to data.utils.save_to_db"
+        "- to store BeliefsDataFrames and enqueue jobs, switch to api.common.utils.api_utils.save_and_enqueue"
+    )
 
     if isinstance(timed_values, BeliefsDataFrame):
 
@@ -446,3 +498,18 @@ def determine_belief_timing(
         ]
         return event_starts, belief_horizons
     raise ValueError("Missing horizon or prior.")
+
+
+def catch_timed_belief_replacements(error: IntegrityError):
+    """Catch IntegrityErrors due to a UniqueViolation on the TimedBelief primary key.
+
+    Return a more informative message.
+    """
+    if isinstance(error.orig, UniqueViolation) and "timed_belief_pkey" in str(
+        error.orig
+    ):
+        # Some beliefs represented replacements, which was forbidden
+        return invalid_replacement()
+
+    # Forward to our generic error handler
+    return error_handling_router(error)

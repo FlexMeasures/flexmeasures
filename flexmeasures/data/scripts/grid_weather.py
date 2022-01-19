@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional
 import json
 from datetime import datetime
 
@@ -9,14 +9,16 @@ import click
 from flask import Flask, current_app
 import requests
 import pytz
+from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures.utils.time_utils import as_server_time, get_timezone
 from flexmeasures.utils.geo_utils import compute_irradiance
-from flexmeasures.data.services.resources import find_closest_weather_sensor
+from flexmeasures.data.services.resources import find_closest_sensor
 from flexmeasures.data.config import db
 from flexmeasures.data.transactional import task_with_status_report
-from flexmeasures.data.models.weather import Weather
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.utils import save_to_db
 
 FILE_PATH_LOCATION = "/../raw_data/weather-forecasts"
 DATA_SOURCE_NAME = "OpenWeatherMap"
@@ -335,6 +337,37 @@ def call_openweatherapi(
     return data["current"]["dt"], data["hourly"]
 
 
+def find_weather_sensor_by_location_or_fail(
+    weather_sensor: Sensor,
+    location: Tuple[float, float],
+    max_degree_difference_for_nearest_weather_sensor: int,
+    flexmeasures_asset_type: str,
+) -> Optional[Sensor]:
+    """
+    Try to find a weather sensor of fitting type close by.
+    Complain if the nearest weather sensor is further away than some minimum degrees.
+    """
+    weather_sensor: Optional[Sensor] = find_closest_sensor(
+        flexmeasures_asset_type, lat=location[0], lng=location[1]
+    )
+    if weather_sensor is not None:
+        if abs(
+            location[0] - weather_sensor.location[0]
+        ) > max_degree_difference_for_nearest_weather_sensor or abs(
+            location[1] - weather_sensor.location[1]
+            > max_degree_difference_for_nearest_weather_sensor
+        ):
+            raise Exception(
+                f"No sufficiently close weather sensor found (within 2 degrees distance) for type {flexmeasures_asset_type}! We're looking for: {location}, closest available: ({weather_sensor.location})"
+            )
+    else:
+        raise Exception(
+            "No weather sensor set up for this sensor type (%s)"
+            % flexmeasures_asset_type
+        )
+    return weather_sensor
+
+
 def save_forecasts_in_db(
     api_key: str,
     locations: List[Tuple[float, float]],
@@ -347,8 +380,8 @@ def save_forecasts_in_db(
     click.echo("[FLEXMEASURES] Getting weather forecasts:")
     click.echo("[FLEXMEASURES]  Latitude, Longitude")
     click.echo("[FLEXMEASURES] -----------------------")
-    db_forecasts = []
-    weather_sensors: dict = {}  # keep track of the sensors to save lookups
+    weather_sensors: Dict[str, Sensor] = {}  # keep track of the sensors to save lookups
+    db_forecasts: Dict[Sensor, List[TimedBelief]] = {}  # collect beliefs per sensor
 
     for location in locations:
         click.echo("[FLEXMEASURES] %s, %s" % location)
@@ -362,8 +395,10 @@ def save_forecasts_in_db(
             % time_of_api_call
         )
 
-        # map sensor name in our db to sensor name/label in OWM response
-        sensor_name_mapping = dict(
+        # map asset type name in our db to sensor name/label in OWM response
+        # TODO: This assumes one asset per sensor in our database, should move to
+        #       one weather station asset per location, with multiple sensors.
+        asset_type_to_OWM_sensor_mapping = dict(
             temperature="temp", wind_speed="wind_speed", radiation="clouds"
         )
 
@@ -377,35 +412,26 @@ def save_forecasts_in_db(
                 "[FLEXMEASURES] Processing forecast for %s (horizon: %s) ..."
                 % (fc_datetime, fc_horizon)
             )
-            for flexmeasures_sensor_type in sensor_name_mapping.keys():
-                needed_response_label = sensor_name_mapping[flexmeasures_sensor_type]
+            for flexmeasures_asset_type in asset_type_to_OWM_sensor_mapping.keys():
+                needed_response_label = asset_type_to_OWM_sensor_mapping[
+                    flexmeasures_asset_type
+                ]
                 if needed_response_label in fc:
-                    weather_sensor = weather_sensors.get(flexmeasures_sensor_type, None)
+                    weather_sensor = weather_sensors.get(flexmeasures_asset_type, None)
                     if weather_sensor is None:
-                        weather_sensor = find_closest_weather_sensor(
-                            flexmeasures_sensor_type, lat=location[0], lng=location[1]
+                        weather_sensor = find_weather_sensor_by_location_or_fail(
+                            weather_sensor,
+                            location,
+                            max_degree_difference_for_nearest_weather_sensor,
+                            flexmeasures_asset_type,
                         )
-                        if weather_sensor is not None:
-                            # Complain if the nearest weather sensor is further away than 2 degrees
-                            if abs(
-                                location[0] - weather_sensor.latitude
-                            ) > max_degree_difference_for_nearest_weather_sensor or abs(
-                                location[1] - weather_sensor.longitude
-                                > max_degree_difference_for_nearest_weather_sensor
-                            ):
-                                raise Exception(
-                                    f"No sufficiently close weather sensor found (within 2 degrees distance) for type {flexmeasures_sensor_type}! We're looking for: {location}, closest available: ({weather_sensor.latitude}, {weather_sensor.longitude})"
-                                )
-                            weather_sensors[flexmeasures_sensor_type] = weather_sensor
-                        else:
-                            raise Exception(
-                                "No weather sensor set up for this sensor type (%s)"
-                                % flexmeasures_sensor_type
-                            )
+                    weather_sensors[flexmeasures_asset_type] = weather_sensor
+                    if weather_sensor not in db_forecasts.keys():
+                        db_forecasts[weather_sensor] = []
 
                     fc_value = fc[needed_response_label]
                     # the radiation is not available in OWM -> we compute it ourselves
-                    if flexmeasures_sensor_type == "radiation":
+                    if flexmeasures_asset_type == "radiation":
                         fc_value = compute_irradiance(
                             location[0],
                             location[1],
@@ -414,13 +440,13 @@ def save_forecasts_in_db(
                             fc[needed_response_label] / 100.0,
                         )
 
-                    db_forecasts.append(
-                        Weather(
-                            datetime=fc_datetime,
-                            horizon=fc_horizon,
-                            value=fc_value,
-                            sensor_id=weather_sensor.id,
-                            data_source_id=data_source.id,
+                    db_forecasts[weather_sensor].append(
+                        TimedBelief(
+                            event_start=fc_datetime,
+                            belief_horizon=fc_horizon,
+                            event_value=fc_value,
+                            sensor=weather_sensor,
+                            source=data_source,
                         )
                     )
                 else:
@@ -431,12 +457,20 @@ def save_forecasts_in_db(
                     )
                     click.echo("[FLEXMEASURES] %s" % msg)
                     current_app.logger.warning(msg)
-    if len(db_forecasts) == 0:
-        # This is probably a serious problem
-        raise Exception(
-            "Nothing to put in the database was produced. That does not seem right..."
-        )
-    db.session.bulk_save_objects(db_forecasts)
+    for sensor in db_forecasts.keys():
+        click.echo(f"Saving {sensor.name} forecasts ...")
+        if len(db_forecasts[sensor]) == 0:
+            # This is probably a serious problem
+            raise Exception(
+                "Nothing to put in the database was produced. That does not seem right..."
+            )
+        status = save_to_db(BeliefsDataFrame(db_forecasts[sensor]))
+        if status == "success_but_nothing_new":
+            current_app.logger.info(
+                "Done. These beliefs had already been saved before."
+            )
+        elif status == "success_with_unchanged_beliefs_skipped":
+            current_app.logger.info("Done. Some beliefs had already been saved before.")
 
 
 def save_forecasts_as_json(

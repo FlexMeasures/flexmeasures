@@ -11,6 +11,7 @@ from email_validator import (
     EmailNotValidError,
     EmailUndeliverableError,
 )
+from flask_security.utils import hash_password
 from werkzeug.exceptions import NotFound
 
 from flexmeasures.data.config import db
@@ -74,13 +75,18 @@ def find_user_by_email(user_email: str, keep_in_session: bool = True) -> User:
 
 
 def create_user(  # noqa: C901
+    password: str = None,
     user_roles: Union[Dict[str, str], List[Dict[str, str]], str, List[str]] = None,
     check_email_deliverability: bool = True,
     account_name: Optional[str] = None,
     **kwargs,
 ) -> User:
     """
-    Convenience wrapper to create a new User object, together with
+    Convenience wrapper to create a new User object.
+
+    It hashes the password.
+
+    In addition to the user, this function can create
     - new Role objects (if user roles do not already exist)
     - an Account object (if it does not exist yet)
     - a new DataSource object that corresponds to the user
@@ -89,6 +95,8 @@ def create_user(  # noqa: C901
     """
 
     # Check necessary input explicitly before anything happens
+    if password is None or password == "":
+        raise InvalidFlexMeasuresUser("No password provided.")
     if "email" not in kwargs:
         raise InvalidFlexMeasuresUser("No email address provided.")
     email = kwargs.pop("email").strip()
@@ -138,11 +146,8 @@ def create_user(  # noqa: C901
         db.session.flush()
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-    kwargs.update(email=email, username=username)
+    kwargs.update(password=hash_password(password), email=email, username=username)
     user = user_datastore.create_user(**kwargs)
-
-    if user.password is None:
-        set_random_password(user)
 
     user.account_id = account.id
 

@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Tuple, Union, Callable
+from typing import Any, List, Dict, Optional, Tuple, Union, Callable
 from datetime import datetime, timedelta
 
 import inflect
@@ -33,7 +33,7 @@ QueryCallType = Callable[
 
 
 def collect_time_series_data(
-    generic_asset_names: Union[str, List[str]],
+    old_sensor_names: Union[str, List[str]],
     make_query: QueryCallType,
     query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
     belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
@@ -48,12 +48,12 @@ def collect_time_series_data(
     resolution: Union[str, timedelta] = None,
     sum_multiple: bool = True,
 ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
-    """Get time series data from one or more generic assets and rescale and re-package it to order.
+    """Get time series data from one or more old sensor models and rescale and re-package it to order.
 
     We can (lazily) look up by pickle, or load from the database.
     In the latter case, we are relying on time series data (power measurements and prices at this point) to
     have the same relevant column names (datetime, value).
-    We require a list of assets or market names to find the generic asset.
+    We require an old sensor model name of list thereof.
     If the time range parameters are None, they will be gotten from the session.
     Response is a 2D BeliefsDataFrame with the column event_value.
     If data from multiple assets is retrieved, the results are being summed.
@@ -64,13 +64,13 @@ def collect_time_series_data(
     """
 
     # convert to tuple to support caching the query
-    if isinstance(generic_asset_names, str):
-        generic_asset_names = (generic_asset_names,)
-    elif isinstance(generic_asset_names, list):
-        generic_asset_names = tuple(generic_asset_names)
+    if isinstance(old_sensor_names, str):
+        old_sensor_names = (old_sensor_names,)
+    elif isinstance(old_sensor_names, list):
+        old_sensor_names = tuple(old_sensor_names)
 
     bdf_dict = query_time_series_data(
-        generic_asset_names,
+        old_sensor_names,
         make_query,
         query_window,
         belief_horizon_window,
@@ -89,7 +89,7 @@ def collect_time_series_data(
 
 
 def query_time_series_data(
-    generic_asset_names: Tuple[str],
+    old_sensor_names: Tuple[str],
     make_query: QueryCallType,
     query_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None),
     belief_horizon_window: Tuple[Optional[timedelta], Optional[timedelta]] = (
@@ -112,8 +112,6 @@ def query_time_series_data(
     with each BeliefsDataFrame having an "event_value" column.
 
     * Note that we convert string resolutions to datetime.timedelta objects.
-      Pandas can resample with those, but still has some quirky behaviour with DST:
-      see https://github.com/pandas-dev/pandas/issues/35219
     """
 
     # On demo, we query older data as if it's the current year's data (we convert back below)
@@ -121,7 +119,7 @@ def query_time_series_data(
         query_window = convert_query_window_for_demo(query_window)
 
     query = make_query(
-        asset_names=generic_asset_names,
+        old_sensor_names=old_sensor_names,
         query_window=query_window,
         belief_horizon_window=belief_horizon_window,
         belief_time_window=belief_time_window,
@@ -135,10 +133,10 @@ def query_time_series_data(
         query.all(), columns=[col["name"] for col in query.column_descriptions]
     )
     bdf_dict: Dict[str, tb.BeliefsDataFrame] = {}
-    for generic_asset_name in generic_asset_names:
+    for old_sensor_model_name in old_sensor_names:
 
         # Select data for the given asset
-        df = df_all_assets[df_all_assets["name"] == generic_asset_name].loc[
+        df = df_all_assets[df_all_assets["name"] == old_sensor_model_name].loc[
             :, df_all_assets.columns != "name"
         ]
 
@@ -182,7 +180,7 @@ def query_time_series_data(
         if current_app.config.get("FLEXMEASURES_MODE", "") == "demo":
             df.index = df.index.map(lambda t: t.replace(year=datetime.now().year))
 
-        sensor = find_sensor_by_name(name=generic_asset_name)
+        sensor = find_sensor_by_name(name=old_sensor_model_name)
         bdf = tb.BeliefsDataFrame(df.reset_index(), sensor=sensor)
 
         # re-sample data to the resolution we need to serve
@@ -205,7 +203,7 @@ def query_time_series_data(
         if query_window[1] is not None:
             bdf = bdf[bdf.index.get_level_values("event_start") < query_window[1]]
 
-        bdf_dict[generic_asset_name] = bdf
+        bdf_dict[old_sensor_model_name] = bdf
 
     return bdf_dict
 
@@ -213,25 +211,15 @@ def query_time_series_data(
 def find_sensor_by_name(name: str):
     """
     Helper function: Find a sensor by name.
-    TODO: make obsolete when we switched to one sensor class (and timely-beliefs)
+    TODO: make obsolete when we switched to collecting sensor data by sensor id rather than name
     """
     # importing here to avoid circular imports, deemed okay for temp. solution
-    from flexmeasures.data.models.assets import Asset
-    from flexmeasures.data.models.weather import WeatherSensor
-    from flexmeasures.data.models.markets import Market
+    from flexmeasures.data.models.time_series import Sensor
 
-    asset = Asset.query.filter(Asset.name == name).one_or_none()
-    if asset:
-        return asset
-    weather_sensor = WeatherSensor.query.filter(
-        WeatherSensor.name == name
-    ).one_or_none()
-    if weather_sensor:
-        return weather_sensor
-    market = Market.query.filter(Market.name == name).one_or_none()
-    if market:
-        return market
-    raise Exception("Unknown sensor: %s" % name)
+    sensor = Sensor.query.filter(Sensor.name == name).one_or_none()
+    if sensor is None:
+        raise Exception("Unknown sensor: %s" % name)
+    return sensor
 
 
 def drop_non_unique_ids(
@@ -271,13 +259,18 @@ def convert_query_window_for_demo(
     return start, end
 
 
-def aggregate_values(bdf_dict: Dict[str, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
+def aggregate_values(bdf_dict: Dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsDataFrame:
 
     # todo: test this function rigorously, e.g. with empty bdfs in bdf_dict
     # todo: consider 1 bdf with beliefs from source A, plus 1 bdf with beliefs from source B -> 1 bdf with sources A+B
     # todo: consider 1 bdf with beliefs from sources A and B, plus 1 bdf with beliefs from source C. -> 1 bdf with sources A+B and A+C
     # todo: consider 1 bdf with beliefs from sources A and B, plus 1 bdf with beliefs from source C and D. -> 1 bdf with sources A+B, A+C, B+C and B+D
     # Relevant issue: https://github.com/SeitaBV/timely-beliefs/issues/33
+
+    # Nothing to aggregate
+    if len(bdf_dict) == 1:
+        return list(bdf_dict.values())[0]
+
     unique_source_ids: List[int] = []
     for bdf in bdf_dict.values():
         unique_source_ids.extend(bdf.lineage.sources)
@@ -336,7 +329,9 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         event_ends_before=bdf.event_ends[-1],
         beliefs_before=bdf.lineage.belief_times[0],  # unique belief time
         source=bdf.lineage.sources[0],  # unique source
+        most_recent_beliefs_only=False,
     )
+    # todo: delete next line and set most_recent_beliefs_only=True when this is resolved: https://github.com/SeitaBV/timely-beliefs/issues/97
     previous_most_recent_beliefs_in_db = belief_utils.select_most_recent_belief(
         previous_beliefs_in_db
     )

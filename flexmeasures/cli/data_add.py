@@ -7,7 +7,6 @@ import pandas as pd
 import pytz
 from flask import current_app as app
 from flask.cli import with_appcontext
-from flask_security.utils import hash_password
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
@@ -139,7 +138,7 @@ def new_user(
     created_user = create_user(
         username=username,
         email=email,
-        password=hash_password(pwd1),
+        password=pwd1,
         account_name=account.name,
         timezone=timezone,
         user_roles=roles,
@@ -280,6 +279,7 @@ def add_generic_asset(**args):
 def new_asset(**args):
     """
     Create a new asset.
+    This is legacy, with the new data model we only want to add GenericAssets.
     """
     check_timezone(args["timezone"])
     # if no market given, select dummy market
@@ -329,7 +329,11 @@ def new_asset(**args):
     help="timezone as string, e.g. 'UTC' (default) or 'Europe/Amsterdam'",
 )
 def add_weather_sensor(**args):
-    """Add a weather sensor."""
+    """
+    Add a weather sensor.
+    This is legacy, after we moved to the new data model.
+    Adding necessary GenericAsset and Sensor(s) should be done by the (to be built) OWM plugin.
+    """
     check_timezone(args["timezone"])
     check_errors(WeatherSensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
@@ -606,21 +610,11 @@ def create_forecasts(
         event_resolution = None
 
     if as_job:
-        if asset_type == "Asset":
-            value_type = "Power"
-        elif asset_type == "Market":
-            value_type = "Price"
-        elif asset_type == "WeatherSensor":
-            value_type = "Weather"
-        else:
-            raise TypeError(f"Unknown asset_type {asset_type}")
-
         for horizon in horizons:
             # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
             # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
             create_forecasting_jobs(
-                asset_id=asset_id,
-                timed_value_type=value_type,
+                old_sensor_id=asset_id,
                 horizons=[horizon],
                 start_of_roll=forecast_start - horizon,
                 end_of_roll=forecast_end - horizon,
@@ -634,8 +628,8 @@ def create_forecasts(
             forecast_start=forecast_start,
             forecast_end=forecast_end,
             event_resolution=event_resolution,
-            generic_asset_type=asset_type,
-            generic_asset_id=asset_id,
+            old_sensor_class_name=asset_type,
+            old_sensor_id=asset_id,
         )
 
 
@@ -679,6 +673,8 @@ def collect_weather_data(region, location, num_cells, method, store_in_db):
 
     This function can get weather data for one location or for several locations within
     a geometrical grid (See the --location parameter).
+
+    This should move to a FlexMeasures plugin for OWM integration.
     """
     from flexmeasures.data.scripts.grid_weather import get_weather_forecasts
 

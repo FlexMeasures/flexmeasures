@@ -1,6 +1,7 @@
 import pytest
 from datetime import datetime, timedelta
 from random import random
+from typing import Dict
 
 from isodate import parse_duration
 import pandas as pd
@@ -8,9 +9,10 @@ import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
 
-from flexmeasures.data.models.assets import Asset, Power
+from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor, Weather
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor
 from flexmeasures.data.models.forecasting import model_map
 from flexmeasures.data.models.forecasting.model_spec_factory import (
     create_initial_model_specs,
@@ -73,15 +75,17 @@ def setup_fresh_test_data(
             datetime(2015, 1, 1), datetime(2015, 1, 1, 23, 45), freq="15T"
         )
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
-        for dt, val in zip(time_slots, values):
-            p = Power(
-                datetime=as_server_time(dt),
-                horizon=parse_duration("PT0M"),
-                value=val,
-                data_source_id=data_source.id,
+        beliefs = [
+            TimedBelief(
+                event_start=as_server_time(dt),
+                belief_horizon=parse_duration("PT0M"),
+                event_value=val,
+                sensor=asset.corresponding_sensor,
+                source=data_source,
             )
-            p.asset = asset
-            db.session.add(p)
+            for dt, val in zip(time_slots, values)
+        ]
+        db.session.add_all(beliefs)
     add_test_weather_sensor_and_forecasts(fresh_db)
 
 
@@ -129,12 +133,12 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
             values = [value * 600 for value in values]
         for dt, val in zip(time_slots, values):
             db.session.add(
-                Weather(
-                    sensor=sensor,
-                    datetime=as_server_time(dt),
-                    value=val,
-                    horizon=timedelta(hours=6),
-                    data_source_id=data_source.id,
+                TimedBelief(
+                    sensor=sensor.corresponding_sensor,
+                    event_start=as_server_time(dt),
+                    event_value=val,
+                    belief_horizon=timedelta(hours=6),
+                    source=data_source,
                 )
             )
 
@@ -155,3 +159,29 @@ def add_failing_test_model(db):
         return model_specs, model_identifier, "linear-OLS"
 
     model_map["failing-test"] = test_specs
+
+
+@pytest.fixture(scope="module")
+def add_nearby_weather_sensors(db, add_weather_sensors) -> Dict[str, WeatherSensor]:
+    temp_sensor_location = add_weather_sensors["temperature"].location
+    farther_temp_sensor = WeatherSensor(
+        name="farther_temperature_sensor",
+        weather_sensor_type_name="temperature",
+        event_resolution=timedelta(minutes=5),
+        latitude=temp_sensor_location[0],
+        longitude=temp_sensor_location[1] + 0.1,
+        unit="°C",
+    )
+    even_farther_temp_sensor = WeatherSensor(
+        name="even_farther_temperature_sensor",
+        weather_sensor_type_name="temperature",
+        event_resolution=timedelta(minutes=5),
+        latitude=temp_sensor_location[0],
+        longitude=temp_sensor_location[1] + 0.2,
+        unit="°C",
+    )
+    db.session.add(farther_temp_sensor)
+    db.session.add(even_farther_temp_sensor)
+    add_weather_sensors["farther_temperature"] = farther_temp_sensor
+    add_weather_sensors["even_farther_temperature"] = even_farther_temp_sensor
+    return add_weather_sensors

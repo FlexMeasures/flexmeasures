@@ -1,5 +1,5 @@
 # flake8: noqa: E402
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime, timedelta
 import os
 
@@ -12,10 +12,11 @@ if os.name == "nt":
 else:
     from rq import Worker
 
-from flexmeasures.data.models.assets import Asset, Power
-from flexmeasures.data.models.markets import Market
-from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.queries.sensors import (
+    query_sensor_by_name_and_generic_asset_type_name,
+)
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.forecasting import (
     create_forecasting_jobs,
@@ -37,13 +38,13 @@ def test_making_forecasts():
 
     click.echo("Manual forecasting job queuing started ...")
 
-    asset_id = 1
+    sensor_id = 1
     forecast_filter = (
-        Power.query.filter(Power.asset_id == asset_id)
-        .filter(Power.horizon == timedelta(hours=6))
+        TimedBelief.query.filter(TimedBelief.sensor_id == sensor_id)
+        .filter(TimedBelief.belief_horizon == timedelta(hours=6))
         .filter(
-            (Power.datetime >= as_server_time(datetime(2015, 4, 1, 6)))
-            & (Power.datetime < as_server_time(datetime(2015, 4, 3, 6)))
+            (TimedBelief.event_start >= as_server_time(datetime(2015, 4, 1, 6)))
+            & (TimedBelief.event_start < as_server_time(datetime(2015, 4, 3, 6)))
         )
     )
 
@@ -52,8 +53,7 @@ def test_making_forecasts():
     click.echo("Forecasts found before : %d" % forecast_filter.count())
 
     create_forecasting_jobs(
-        asset_id=asset_id,
-        timed_value_type="Power",
+        old_sensor_id=sensor_id,
         horizons=[timedelta(hours=6)],
         start_of_roll=as_server_time(datetime(2015, 4, 1)),
         end_of_roll=as_server_time(datetime(2015, 4, 3)),
@@ -78,21 +78,29 @@ def test_making_forecasts():
 
 # un-comment to use as CLI function
 # @app.cli.command()
-@click.option("--asset-type", help="Asset type name.")
-@click.option("--asset", help="Asset name.")
+@click.option(
+    "--asset-type",
+    "generic_asset_type_names",
+    multiple=True,
+    required=True,
+    help="Name of generic asset type.",
+)
+@click.option("--sensor", "sensor_name", help="Name of sensor.")
 @click.option(
     "--from_date",
     default="2015-03-10",
     help="Forecast from date. Follow up with a date in the form yyyy-mm-dd.",
 )
 @click.option("--period", default=3, help="Forecasting period in days.")
-@click.option("--horizon", default=1, help="Forecasting horizon in hours.")
+@click.option(
+    "--horizon", "horizon_hours", default=1, help="Forecasting horizon in hours."
+)
 @click.option(
     "--training", default=30, help="Number of days in the training and testing period."
 )
 def test_generic_model(
-    asset_type: str,
-    asset: Optional[str] = None,
+    generic_asset_type_names: List[str],
+    sensor_name: Optional[str] = None,
     from_date: str = "2015-03-10",
     period: int = 3,
     horizon_hours: int = 1,
@@ -100,40 +108,21 @@ def test_generic_model(
 ):
     """Manually test integration of timetomodel for our generic model."""
 
-    asset_type_name = asset_type
-    if asset is None:
-        asset_name = Asset.query.filter_by(asset_type_name=asset_type_name).first().name
-    else:
-        asset_name = asset
     start = as_server_time(datetime.strptime(from_date, "%Y-%m-%d"))
     end = start + timedelta(days=period)
     training_and_testing_period = timedelta(days=training)
     horizon = timedelta(hours=horizon_hours)
 
     with app.app_context():
-        asset = (
-            Asset.query.filter_by(asset_type_name=asset_type_name)
-            .filter_by(name=asset_name)
-            .first()
-        )
-        market = (
-            Market.query.filter_by(market_type_name=asset_type_name)
-            .filter_by(name=asset_name)
-            .first()
-        )
-        sensor = (
-            WeatherSensor.query.filter_by(weather_sensor_type_name=asset_type_name)
-            .filter_by(name=asset_name)
-            .first()
-        )
-        if asset:
-            generic_asset = asset
-        elif market:
-            generic_asset = market
-        elif sensor:
-            generic_asset = sensor
-        else:
-            click.echo("No such assets in db, so I will not add any forecasts.")
+        sensors = query_sensor_by_name_and_generic_asset_type_name(
+            sensor_name=sensor_name,
+            generic_asset_type_names=generic_asset_type_names,
+        ).all()
+        if len(sensors) == 0:
+            click.echo("No such sensor in db, so I will not add any forecasts.")
+            return
+        elif len(sensors) > 1:
+            click.echo("No unique sensor found in db, so I will not add any forecasts.")
             return
 
         linear_model_configurator = lookup_model_specs_configurator("linear")
@@ -142,7 +131,7 @@ def test_generic_model(
             model_identifier,
             fallback_model_identifier,
         ) = linear_model_configurator(
-            generic_asset=generic_asset,
+            sensor=sensors[0],
             forecast_start=start,
             forecast_end=end,
             forecast_horizon=horizon,

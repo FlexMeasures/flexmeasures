@@ -8,13 +8,13 @@ import pandas as pd
 import pytz
 from rq import get_current_job
 from rq.job import Job
-from sqlalchemy.exc import IntegrityError
+import timely_beliefs as tb
 
 from flexmeasures.data.config import db
-from flexmeasures.data.models.assets import Asset, Power
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
-from flexmeasures.data.utils import save_to_session, get_data_source
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.utils import get_data_source, save_to_db
 
 """
 The life cycle of a scheduling job:
@@ -36,6 +36,7 @@ def create_scheduling_job(
     resolution: timedelta = DEFAULT_RESOLUTION,
     soc_at_start: Optional[float] = None,
     soc_targets: Optional[pd.Series] = None,
+    roundtrip_efficiency: Optional[float] = None,
     udi_event_ea: Optional[str] = None,
     enqueue: bool = True,
 ) -> Job:
@@ -61,6 +62,7 @@ def create_scheduling_job(
             resolution=resolution,
             soc_at_start=soc_at_start,
             soc_targets=soc_targets,
+            roundtrip_efficiency=roundtrip_efficiency,
         ),
         id=udi_event_ea,
         connection=current_app.queues["scheduling"].connection,
@@ -88,6 +90,7 @@ def make_schedule(
     resolution: timedelta,
     soc_at_start: Optional[float] = None,
     soc_targets: Optional[pd.Series] = None,
+    roundtrip_efficiency: Optional[float] = None,
 ) -> bool:
     """Preferably, a starting soc is given.
     Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
@@ -99,16 +102,19 @@ def make_schedule(
 
     rq_job = get_current_job()
 
-    # find asset
-    asset = Asset.query.filter_by(id=asset_id).one_or_none()
+    # find sensor
+    sensor = Sensor.query.filter_by(id=asset_id).one_or_none()
 
     click.echo(
-        "Running Scheduling Job %s: %s, from %s to %s" % (rq_job.id, asset, start, end)
+        "Running Scheduling Job %s: %s, from %s to %s" % (rq_job.id, sensor, start, end)
     )
 
     if soc_at_start is None:
-        if start == asset.soc_datetime and asset.soc_in_mwh is not None:
-            soc_at_start = asset.soc_in_mwh
+        if (
+            start == sensor.get_attribute("soc_datetime")
+            and sensor.get_attribute("soc_in_mwh") is not None
+        ):
+            soc_at_start = sensor.get_attribute("soc_in_mwh")
         else:
             soc_at_start = 0
 
@@ -117,20 +123,33 @@ def make_schedule(
             np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
         )
 
-    if asset.asset_type_name == "battery":
+    if sensor.generic_asset.generic_asset_type.name == "battery":
         consumption_schedule = schedule_battery(
-            asset, asset.market, start, end, resolution, soc_at_start, soc_targets
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            soc_targets,
+            roundtrip_efficiency,
         )
-    elif asset.asset_type_name in (
+    elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
         "two-way_evse",
     ):
         consumption_schedule = schedule_charging_station(
-            asset, asset.market, start, end, resolution, soc_at_start, soc_targets
+            sensor,
+            start,
+            end,
+            resolution,
+            soc_at_start,
+            soc_targets,
+            roundtrip_efficiency,
         )
     else:
         raise ValueError(
-            "Scheduling is not (yet) supported for asset type %s." % asset.asset_type
+            "Scheduling is not (yet) supported for asset type %s."
+            % sensor.generic_asset.generic_asset_type
         )
 
     data_source = get_data_source(
@@ -140,28 +159,17 @@ def make_schedule(
     click.echo("Job %s made schedule." % rq_job.id)
 
     ts_value_schedule = [
-        Power(
-            datetime=dt,
-            horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
-            value=-value,
-            asset_id=asset_id,
-            data_source_id=data_source.id,
+        TimedBelief(
+            event_start=dt,
+            belief_horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
+            event_value=-value,
+            sensor=sensor,
+            source=data_source,
         )
         for dt, value in consumption_schedule.items()
     ]  # For consumption schedules, positive values denote consumption. For the db, consumption is negative
-
-    try:
-        save_to_session(ts_value_schedule)
-    except IntegrityError as e:
-
-        current_app.logger.warning(e)
-        click.echo("Rolling back due to IntegrityError")
-        db.session.rollback()
-
-        if current_app.config.get("FLEXMEASURES_MODE", "") == "play":
-            click.echo("Saving again, with overwrite=True")
-            save_to_session(ts_value_schedule, overwrite=True)
-
+    bdf = tb.BeliefsDataFrame(ts_value_schedule)
+    save_to_db(bdf)
     db.session.commit()
 
     return True

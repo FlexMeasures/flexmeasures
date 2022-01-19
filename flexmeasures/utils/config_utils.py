@@ -63,7 +63,7 @@ def check_app_env(env: Optional[str]):
 
 
 def read_config(app: Flask, custom_path_to_config: Optional[str]):
-    """Read configuration from various expected sources, complain if not setup correctly. """
+    """Read configuration from various expected sources, complain if not setup correctly."""
 
     check_app_env(app.env)
 
@@ -147,7 +147,7 @@ def read_custom_config(
 
 
 def read_required_env_vars(app: Flask):
-    """ All required variables and the plugins can be set as env var"""
+    """All required variables and the plugins can be set as env var"""
     for var in required:
         app.config[var] = os.getenv(var, app.config.get(var, None))
 

@@ -6,6 +6,17 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
 
+v2.0-4 | 2022-01-04
+"""""""""""""""""""
+
+- Updated entity addresses in documentation, according to the fm1 scheme.
+- Changed the Introduction section:
+
+    - Rewrote the subsection on entity addresses to refer users to where they can find the entity addresses of their sensors.
+    - Rewrote the subsection on sensor identification (formerly known as asset identification) to place the fm1 scheme front and center.
+
+- Fixed the categorisation of the *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints from the User category to the Data category.
+
 v2.0-3 | 2021-06-07
 """""""""""""""""""
 
@@ -44,10 +55,11 @@ v1.3-11 | 2022-01-05
 
 *Affects all versions since v1.3*.
 
-- Changed the *postUdiEvent* endpoint:
+- Changed and extended the *postUdiEvent* endpoint:
 
     - The recording time of new schedules triggered by calling the endpoint is now the time at which the endpoint was called, rather than the datetime of the sent state of charge (SOC).
     - Introduced the "prior" field for the purpose of communicating an alternative recording time, thereby keeping support for simulations.
+    - Introduced an optional "roundtrip_efficiency" field, for use in scheduling.
 
 v1.3-10 | 2021-11-08
 """"""""""""""""""""
@@ -154,14 +166,14 @@ v1.2-1 | 2018-09-24
 
     {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.io.flexmeasures.company:7:10:203:soc",
+        "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc",
     }
 
     rather than the erroneously double-keyed:
 
     {
         "type": "PostUdiEventRequest",
-        "event": "ea1.2018-06.io.flexmeasures.company:7:10:203",
+        "event": "ea1.2021-01.io.flexmeasures.company:7:10:203",
         "type": "soc"
     }
 

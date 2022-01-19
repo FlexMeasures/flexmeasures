@@ -34,6 +34,11 @@ from flexmeasures.utils.time_utils import (
 )
 from flexmeasures.ui.utils.view_utils import set_time_range_for_session
 
+"""
+This module is by now considered legacy, as we're moving away from Bokeh and to Altair.
+See flexmeasures/data/models/charts
+"""
+
 
 def create_hover_tool(  # noqa: C901
     y_unit: str, resolution: timedelta, as_beliefs: bool = False
@@ -432,7 +437,7 @@ def create_graph(  # noqa: C901
 
 
 def make_datasource_from(data: pd.DataFrame, resolution: timedelta) -> ColumnDataSource:
-    """ Make a bokeh data source, which is for instance useful for the hover tool. """
+    """Make a bokeh data source, which is for instance useful for the hover tool."""
 
     # Set column names that our HoverTool can interpret (in case of multiple index levels, use the first one)
     data.index.names = ["x"] + data.index.names[1:]

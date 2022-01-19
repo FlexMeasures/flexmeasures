@@ -63,7 +63,7 @@ def error_handling_router(error: HTTPException):
     if hasattr(error, "code"):
         try:
             http_error_code = int(error.code)
-        except ValueError:
+        except (ValueError, TypeError):  # if code is not an int or None
             pass
 
     error_text = getattr(

@@ -48,7 +48,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @property
     def label(self):
-        """ Human-readable label (preferably not starting with a capital letter so it can be used in a sentence). """
+        """Human-readable label (preferably not starting with a capital letter so it can be used in a sentence)."""
         if self.type == "user":
             return f"data entered by user {self.user.username}"  # todo: give users a display name
         elif self.type == "forecasting script":
