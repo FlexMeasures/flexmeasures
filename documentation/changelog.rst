@@ -35,6 +35,7 @@ Infrastructure / Support
 * Internal search methods return most recent beliefs by default, also for charts, which can make them load a lot faster [see `PR #307 <http://www.github.com/FlexMeasures/flexmeasures/pull/307>`_ and `PR #312 <http://www.github.com/FlexMeasures/flexmeasures/pull/312>`_]
 * Support unit conversion for posting sensor data [see `PR #283 <http://www.github.com/FlexMeasures/flexmeasures/pull/283>`_ and `PR #293 <http://www.github.com/FlexMeasures/flexmeasures/pull/293>`_]
 * Improve the core device scheduler to support dealing with asymmetric efficiency losses of individual devices, and with asymmetric up and down prices for deviating from previous commitments (such as a different feed-in tariff) [see `PR #291 <http://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
+* Stop automatically triggering forecasting jobs when API calls save nothing new to the database, thereby saving redundant computation [see `PR #303 <http://www.github.com/FlexMeasures/flexmeasures/pull/303>`_]
 
 
 v0.7.1 | November 08, 2021
