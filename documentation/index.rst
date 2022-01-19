@@ -89,7 +89,6 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
 
     views/dashboard
-    views/control
     views/admin
 
 .. toctree::
