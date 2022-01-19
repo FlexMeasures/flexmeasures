@@ -16,6 +16,10 @@ New features
 * Schedulers take into account round-trip efficiency if set [see `PR #291 <http://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
 * Fallback policies for charging schedules of batteries and Charge Points, in cases where the solver is presented with an infeasible problem [see `PR #267 <http://www.github.com/FlexMeasures/flexmeasures/pull/267>`_ and `PR #270 <http://www.github.com/FlexMeasures/flexmeasures/pull/270>`_]
 
+Deprecations
+------------
+* The Portfolio and Analytics views are deprecated [see `PR #321 <http://www.github.com/FlexMeasures/flexmeasures/pull/321>`_]
+
 Bugfixes
 -----------
 * Fix recording time of schedules triggered by UDI events [see `PR #300 <http://www.github.com/FlexMeasures/flexmeasures/pull/300>`_]

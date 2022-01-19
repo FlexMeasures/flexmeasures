@@ -24,8 +24,10 @@
                         {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
                         <th {% if asset_groups[asset_group_name].hover_label %}
                             title="{{ asset_groups[asset_group_name].hover_label | capitalize }}" {% endif %}
-                            class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}"><a
-                                href="analytics?resource={{ asset_group_name }}">{{ asset_group_name | capitalize }}</a>
+                            class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+<!--                            <a href="analytics?resource={{ asset_group_name }}">-->
+                                {{ asset_group_name | capitalize }}
+<!--                            </a>-->
                         </th>
                         {% endfor %}
                     </tr>
@@ -142,12 +144,12 @@
                                     <div class="col-sm-5 bokeh-state-plot"></div>
                                     <div class="col-sm-7">
                                         <div class="row top-buffer">
-                                            <div class="col-sm-12">
-                                                <form action="analytics" method="get">
-                                                    <input type="hidden" name="resource" value="{{ asset.name }}">
-                                                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>
-                                                </form>
-                                            </div>
+<!--                                            <div class="col-sm-12">-->
+<!--                                                <form action="analytics" method="get">-->
+<!--                                                    <input type="hidden" name="resource" value="{{ asset.name }}">-->
+<!--                                                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
+<!--                                                </form>-->
+<!--                                            </div>-->
                                         </div>
                                         <div class="row top-buffer">
                                             <div class="col-sm-12">
