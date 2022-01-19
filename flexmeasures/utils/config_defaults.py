@@ -102,8 +102,6 @@ class Config(object):
     FLEXMEASURES_ROOT_VIEW: Union[str, List[Union[str, Tuple[str, List[str]]]]] = []
     FLEXMEASURES_MENU_LISTED_VIEWS: List[Union[str, Tuple[str, List[str]]]] = [
         "dashboard",
-        "analytics",
-        "portfolio",
         "assets",
         "users",
     ]
