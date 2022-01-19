@@ -14,6 +14,10 @@ New features
 * Mobile friendly (responsive) charts of sensor data, and such charts can be requested with a custom width and height [see `PR #313 <http://www.github.com/FlexMeasures/flexmeasures/pull/313>`_]
 * Schedulers take into account round-trip efficiency if set [see `PR #291 <http://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
 
+Deprecations
+------------
+* The Portfolio and Analytics views are deprecated [see `PR #321 <http://www.github.com/FlexMeasures/flexmeasures/pull/321>`_]
+
 Bugfixes
 -----------
 * Fix recording time of schedules triggered by UDI events [see `PR #300 <http://www.github.com/FlexMeasures/flexmeasures/pull/300>`_]
