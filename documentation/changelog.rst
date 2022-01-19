@@ -10,6 +10,7 @@ v0.8.0 | November XX, 2021
 
 New features
 -----------
+* Bar charts of sensor data for individual sensors, that can be navigated using a calendar [see `PR #99 <http://www.github.com/FlexMeasures/flexmeasures/pull/99>`_ and `PR #290 <http://www.github.com/FlexMeasures/flexmeasures/pull/290>`_]
 * Charts with sensor data can be requested in one of the supported  [`vega-lite themes <https://github.com/vega/vega-themes#included-themes>`_] (incl. a dark theme) [see `PR #221 <http://www.github.com/FlexMeasures/flexmeasures/pull/221>`_]
 * Mobile friendly (responsive) charts of sensor data, and such charts can be requested with a custom width and height [see `PR #313 <http://www.github.com/FlexMeasures/flexmeasures/pull/313>`_]
 * Schedulers take into account round-trip efficiency if set [see `PR #291 <http://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
