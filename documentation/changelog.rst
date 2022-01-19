@@ -20,6 +20,7 @@ Bugfixes
 -----------
 * Fix recording time of schedules triggered by UDI events [see `PR #300 <http://www.github.com/FlexMeasures/flexmeasures/pull/300>`_]
 * Set bar width of bar charts based on sensor resolution [see `PR #310 <http://www.github.com/FlexMeasures/flexmeasures/pull/310>`_]
+* Fix bug in sensor data charts where data from multiple sources would be stacked, which incorrectly suggested that the data should be summed, whereas the data represents alternative beliefs [see `PR #228 <http://www.github.com/FlexMeasures/flexmeasures/pull/228>`_]
 
 Infrastructure / Support
 ----------------------
