@@ -381,6 +381,11 @@ def add_initial_structure():
     help="Cumulative probability in the range [0, 1].",
 )
 @click.option(
+    "--resample/--do-not-resample",
+    default=True,
+    help="Resample the data to fit the sensor's event resolution.",
+)
+@click.option(
     "--allow-overwrite/--do-not-allow-overwrite",
     default=False,
     help="Allow overwriting possibly already existing data.\n"
@@ -446,6 +451,7 @@ def add_beliefs(
     source: str,
     horizon: Optional[int] = None,
     cp: Optional[float] = None,
+    resample: bool = True,
     allow_overwrite: bool = False,
     skiprows: int = 1,
     nrows: Optional[int] = None,
@@ -505,6 +511,7 @@ def add_beliefs(
         sensor,
         source=_source,
         cumulative_probability=cp,
+        resample=resample,
         header=None,
         skiprows=skiprows,
         nrows=nrows,
