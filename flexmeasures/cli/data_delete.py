@@ -3,10 +3,12 @@ from typing import Optional
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
+from timely_beliefs.beliefs.queries import query_unchanged_beliefs
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.scripts.data_gen import get_affected_classes
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 
@@ -14,6 +16,11 @@ from flexmeasures.data.services.users import find_user_by_email, delete_user
 @click.group("delete")
 def fm_delete_data():
     """FlexMeasures: Delete data."""
+
+
+@click.group("dev-delete")
+def fm_dev_delete_data():
+    """Developer CLI commands not yet meant for users: Delete data."""
 
 
 @fm_delete_data.command("account-role")
@@ -196,4 +203,41 @@ def delete_prognoses(
     depopulate_prognoses(app.db, sensor_id)
 
 
+@fm_dev_delete_data.command("unchanged_beliefs")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    type=int,
+    help="Delete unchanged (time series) data for a single sensor only. Follow up with the sensor's ID. ",
+)
+def delete_unchanged_beliefs(
+    sensor_id: Optional[int] = None,
+):
+    """Delete unchanged beliefs (i.e. updated beliefs with a later belief time, but with the same event value)."""
+    q = db.session.query(TimedBelief)
+    if sensor_id:
+        sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
+        if sensor is None:
+            print(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
+            return
+        q = q.filter(TimedBelief.sensor_id == sensor.id)
+    num_beliefs_before = len(q.all())
+    q_unchanged_beliefs = query_unchanged_beliefs(db.session, TimedBelief, q)
+    beliefs_up_for_deletion = q_unchanged_beliefs.all()
+    num_beliefs_up_for_deletion = len(beliefs_up_for_deletion)
+    prompt = f"Delete {num_beliefs_up_for_deletion} unchanged beliefs out of {num_beliefs_before} beliefs?"
+    if not click.confirm(prompt):
+        raise click.Abort()
+    for i, b in enumerate(beliefs_up_for_deletion, start=1):
+        batch_size = 10000
+        if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
+            print(f"{i} beliefs processed ...")
+        db.session.delete(b)
+    print(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
+    db.session.commit()
+    num_beliefs_after = len(q.all())
+    print(f"Done! {num_beliefs_after} beliefs left")
+
+
 app.cli.add_command(fm_delete_data)
+app.cli.add_command(fm_dev_delete_data)
