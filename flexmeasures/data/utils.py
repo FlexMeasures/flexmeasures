@@ -122,9 +122,9 @@ def save_to_db(
         TimedBelief.add_to_session(
             session=db.session,
             beliefs_data_frame=timed_values,
-            allow_overwrite=False
-            if current_app.config.get("FLEXMEASURES_MODE", "") != "play"
-            else True,
+            allow_overwrite=current_app.config.get(
+                "FLEXMEASURES_ALLOW_DATA_OVERWRITE", False
+            ),
         )
         values_saved += len(timed_values)
     # Flush to bring up potential unique violations (due to attempting to replace beliefs)
