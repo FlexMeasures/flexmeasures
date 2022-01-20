@@ -32,7 +32,7 @@ Big features
 - [API] The ``restoreData`` endpoint is registered, enabling database resets through the API.
 - [API] When posting weather data for a new location, a new weather sensor is automatically created, instead of returning the nearest available weather sensor to post data to.
 
-.. note:: A former feature of play mode is now a separate config setting. :ref:`overwrite-config` can be used to allow overwriting existing data when saving data to the database.
+.. note:: A former feature of play mode is now a separate config setting. To allow overwriting existing data when saving data to the database, use :ref:`overwrite-config`.
 
 Small features
 ^^^^^^^^^^^^^^^
