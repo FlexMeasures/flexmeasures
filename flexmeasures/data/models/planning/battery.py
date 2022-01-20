@@ -21,6 +21,8 @@ def schedule_battery(
     resolution: timedelta,
     soc_at_start: float,
     soc_targets: Optional[pd.Series] = None,
+    soc_min: Optional[float] = None,
+    soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
 ) -> Union[pd.Series, None]:
@@ -44,6 +46,12 @@ def schedule_battery(
         roundtrip_efficiency = sensor.get_attribute("roundtrip_efficiency", 1)
     if roundtrip_efficiency <= 0 or roundtrip_efficiency > 1:
         raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
+
+    # Check for min and max SOC, or get default from sensor
+    if soc_min is None:
+        soc_min = sensor.get_attribute("min_soc_in_mwh")
+    if soc_max is None:
+        soc_max = sensor.get_attribute("max_soc_in_mwh")
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
@@ -89,12 +97,12 @@ def schedule_battery(
         )  # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
         # while the "equals" constraint defines what the total stock should be at the end of a time slot,
         # where the time slot is indexed by its starting time)
-    device_constraints[0]["min"] = (
-        sensor.get_attribute("min_soc_in_mwh") - soc_at_start
-    ) * (timedelta(hours=1) / resolution)
-    device_constraints[0]["max"] = (
-        sensor.get_attribute("max_soc_in_mwh") - soc_at_start
-    ) * (timedelta(hours=1) / resolution)
+    device_constraints[0]["min"] = (soc_min - soc_at_start) * (
+        timedelta(hours=1) / resolution
+    )
+    device_constraints[0]["max"] = (soc_max - soc_at_start) * (
+        timedelta(hours=1) / resolution
+    )
     device_constraints[0]["derivative min"] = (
         sensor.get_attribute("capacity_in_mw") * -1
     )

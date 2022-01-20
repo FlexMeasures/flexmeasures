@@ -14,6 +14,7 @@ New features
 * Charts with sensor data can be requested in one of the supported  [`vega-lite themes <https://github.com/vega/vega-themes#included-themes>`_] (incl. a dark theme) [see `PR #221 <http://www.github.com/FlexMeasures/flexmeasures/pull/221>`_]
 * Mobile friendly (responsive) charts of sensor data, and such charts can be requested with a custom width and height [see `PR #313 <http://www.github.com/FlexMeasures/flexmeasures/pull/313>`_]
 * Schedulers take into account round-trip efficiency if set [see `PR #291 <http://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
+* Schedulers take into account min/max state of charge if set [see `PR #325 <http://www.github.com/FlexMeasures/flexmeasures/pull/325>`_]
 * Fallback policies for charging schedules of batteries and Charge Points, in cases where the solver is presented with an infeasible problem [see `PR #267 <http://www.github.com/FlexMeasures/flexmeasures/pull/267>`_ and `PR #270 <http://www.github.com/FlexMeasures/flexmeasures/pull/270>`_]
 
 Deprecations
