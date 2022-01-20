@@ -6,18 +6,18 @@ Planning ahead allows flexible assets to serve the whole system with their flexi
 e.g. by shifting or curtailing energy use.
 This can also be profitable for their owners.
 
-The *FlexMeasures Platform* is a tool for building real-time energy flexibility services, rapidly and scalable.
+The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable. 
 
 - Developing energy flexibility services (e.g. to enable demand response) is crucial, but expensive.
 - FlexMeasures reduces development costs with real-time data integrations, uncertainty models and API/UI support.
 
-The target group for FlexMeasures are energy service companies (ESCOs), who can build services and data integrations on top of FlexMeasures, fitting their use case and customers.
+As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful! 
 
 Let's take a closer look at the three core values:
 
 
-Real-time data updates & advice
-----------------------------
+Real-time data intelligence & integration
+-----------------------------------------
 
 Energy flexibility services need to interact multiple times per day or hour. We equipped FlexMeasures with:
 
