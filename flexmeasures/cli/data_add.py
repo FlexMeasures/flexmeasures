@@ -430,7 +430,7 @@ def add_initial_structure():
 @click.option(
     "--thousands",
     required=False,
-    default="",
+    default=None,
     type=str,
     help="[For csv files] thousands separator, e.g. '.' for 10.035,2",
 )
@@ -453,7 +453,7 @@ def add_beliefs(
     valuecol: int = 1,
     delimiter: str = ",",
     decimal: str = ".",
-    thousands: str = "",
+    thousands: Optional[str] = None,
     sheet_number: Optional[int] = None,
     **kwargs,  # in-code calls to this CLI command can set additional kwargs for use in pandas.read_csv or pandas.read_excel
 ):
