@@ -27,11 +27,12 @@ In this mode, the server is assumed to be used to run simulations.
 Big features
 ^^^^^^^^^^^^^
 
-- [Data] Allows overwriting existing data when saving data to the database.
 - [API] The inferred recording time of incoming data is immediately after the event took place, rather than the actual time at which the server received the data.
 - [API] Posting price or weather data does not trigger forecasting jobs.
 - [API] The ``restoreData`` endpoint is registered, enabling database resets through the API.
 - [API] When posting weather data for a new location, a new weather sensor is automatically created, instead of returning the nearest available weather sensor to post data to.
+
+.. note:: A former feature of play mode is now a separate config setting. :ref:`overwrite-config` can be used to allow overwriting existing data when saving data to the database.
 
 Small features
 ^^^^^^^^^^^^^^^
