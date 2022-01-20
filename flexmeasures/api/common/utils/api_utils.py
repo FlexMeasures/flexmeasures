@@ -439,7 +439,7 @@ def save_to_db(
         current_app.logger.warning(e)
         db.session.rollback()
 
-        # Possible allow data to be replaced depending on config setting
+        # Possibly allow data to be replaced depending on config setting
         if current_app.config.get("FLEXMEASURES_ALLOW_DATA_OVERWRITE", False):
             if isinstance(timed_values, BeliefsDataFrame):
                 TimedBelief.add_to_session(
