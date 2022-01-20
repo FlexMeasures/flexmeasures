@@ -86,6 +86,7 @@ class Config(object):
         str, List[Union[str, Tuple[str, List[str]]]]
     ] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
+    FLEXMEASURES_ALLOW_DATA_OVERWRITE: bool = False
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
     FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: Optional[Tuple] = None

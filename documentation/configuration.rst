@@ -38,6 +38,16 @@ This is used to turn on certain extra behaviours, see :ref:`modes-dev` for detai
 Default: ``""``
 
 
+.. _overwrite-config:
+
+FLEXMEASURES_ALLOW_DATA_OVERWRITE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether to allow overwriting existing data when saving data to the database.
+
+Default: ``False``
+
+
 .. _solver-config:
 
 FLEXMEASURES_LP_SOLVER
