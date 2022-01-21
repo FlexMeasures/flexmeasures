@@ -221,13 +221,13 @@ def delete_unchanged_beliefs(
             print(f"Failed to delete any beliefs: no sensor found with id {sensor_id}.")
             return
         q = q.filter(TimedBelief.sensor_id == sensor.id)
-    num_beliefs_before = len(q.all())
+    num_beliefs_before = q.count()
     q_unchanged_beliefs = query_unchanged_beliefs(db.session, TimedBelief, q)
-    beliefs_up_for_deletion = q_unchanged_beliefs.all()
-    num_beliefs_up_for_deletion = len(beliefs_up_for_deletion)
+    num_beliefs_up_for_deletion = q_unchanged_beliefs.count()
     prompt = f"Delete {num_beliefs_up_for_deletion} unchanged beliefs out of {num_beliefs_before} beliefs?"
     if not click.confirm(prompt):
         raise click.Abort()
+    beliefs_up_for_deletion = q_unchanged_beliefs.all()
     for i, b in enumerate(beliefs_up_for_deletion, start=1):
         batch_size = 10000
         if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
@@ -235,7 +235,7 @@ def delete_unchanged_beliefs(
         db.session.delete(b)
     print(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
-    num_beliefs_after = len(q.all())
+    num_beliefs_after = q.count()
     print(f"Done! {num_beliefs_after} beliefs left")
 
 
