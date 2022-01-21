@@ -73,8 +73,7 @@ def delete_account(id: int, force: bool):
                 + ",".join([ga.name for ga in generic_assets])
                 + "\n"
             )
-        if not click.confirm(prompt):
-            raise click.Abort()
+        click.confirm(prompt, abort=True)
     for user in account.users:
         print(f"Deleting user {user} (and assets & data) ...")
         delete_user(user)
@@ -108,8 +107,7 @@ def delete_user_and_data(email: str, force: bool):
     if not force:
         # TODO: later, when assets belong to accounts, remove this.
         prompt = f"Delete user '{email}', including all their assets and data?"
-        if not click.confirm(prompt):
-            raise click.Abort()
+        click.confirm(prompt, abort=True)
     the_user = find_user_by_email(email)
     if the_user is None:
         print(f"Could not find user with email address '{email}' ...")
@@ -134,8 +132,7 @@ def confirm_deletion(
     )
     if is_by_id:
         prompt = prompt.replace(" all ", " ")
-    if not click.confirm(prompt):
-        raise click.Abort()
+    click.confirm(prompt, abort=True)
 
 
 @fm_delete_data.command("structure")
@@ -225,8 +222,7 @@ def delete_unchanged_beliefs(
     q_unchanged_beliefs = query_unchanged_beliefs(db.session, TimedBelief, q)
     num_beliefs_up_for_deletion = q_unchanged_beliefs.count()
     prompt = f"Delete {num_beliefs_up_for_deletion} unchanged beliefs out of {num_beliefs_before} beliefs?"
-    if not click.confirm(prompt):
-        raise click.Abort()
+    click.confirm(prompt, abort=True)
     beliefs_up_for_deletion = q_unchanged_beliefs.all()
     batch_size = 10000
     for i, b in enumerate(beliefs_up_for_deletion, start=1):
