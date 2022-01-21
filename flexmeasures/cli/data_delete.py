@@ -228,8 +228,8 @@ def delete_unchanged_beliefs(
     if not click.confirm(prompt):
         raise click.Abort()
     beliefs_up_for_deletion = q_unchanged_beliefs.all()
+    batch_size = 10000
     for i, b in enumerate(beliefs_up_for_deletion, start=1):
-        batch_size = 10000
         if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
             print(f"{i} beliefs processed ...")
         db.session.delete(b)
