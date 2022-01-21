@@ -1,3 +1,5 @@
+from datetime import timedelta
+from itertools import chain
 from typing import Optional
 
 import click
@@ -207,8 +209,20 @@ def delete_prognoses(
     type=int,
     help="Delete unchanged (time series) data for a single sensor only. Follow up with the sensor's ID. ",
 )
+@click.option(
+    "--exclude-forecasts/--include-forecasts",
+    default=False,
+    help="Use this flag to keep unchanged beliefs with a positive belief horizon (forecasts).",
+)
+@click.option(
+    "--exclude-measurements/--include-measurements",
+    default=False,
+    help="Use this flag to keep beliefs with a zero or negative belief horizon (measurements, nowcasts and backcasts).",
+)
 def delete_unchanged_beliefs(
     sensor_id: Optional[int] = None,
+    exclude_forecasts: bool = False,
+    exclude_measurements: bool = False,
 ):
     """Delete unchanged beliefs (i.e. updated beliefs with a later belief time, but with the same event value)."""
     q = db.session.query(TimedBelief)
@@ -219,11 +233,22 @@ def delete_unchanged_beliefs(
             return
         q = q.filter(TimedBelief.sensor_id == sensor.id)
     num_beliefs_before = q.count()
-    q_unchanged_beliefs = query_unchanged_beliefs(db.session, TimedBelief, q)
-    num_beliefs_up_for_deletion = q_unchanged_beliefs.count()
+    queries = []
+    if not exclude_forecasts:
+        q_forecasts = q.filter(TimedBelief.belief_horizon > timedelta(0))
+        queries.append(q_forecasts)
+    if not exclude_measurements:
+        q_measurements = q.filter(TimedBelief.belief_horizon <= timedelta(0))
+        queries.append(q_measurements)
+    unchanged_queries = [
+        query_unchanged_beliefs(db.session, TimedBelief, q) for q in queries
+    ]
+    num_beliefs_up_for_deletion = sum([q.count() for q in unchanged_queries])
+
     prompt = f"Delete {num_beliefs_up_for_deletion} unchanged beliefs out of {num_beliefs_before} beliefs?"
     click.confirm(prompt, abort=True)
-    beliefs_up_for_deletion = q_unchanged_beliefs.all()
+
+    beliefs_up_for_deletion = list(chain(*[q.all() for q in unchanged_queries]))
     batch_size = 10000
     for i, b in enumerate(beliefs_up_for_deletion, start=1):
         if i % batch_size == 0 or i == num_beliefs_up_for_deletion:
