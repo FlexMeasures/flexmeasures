@@ -17,7 +17,7 @@ def load_requirements(use_case):
 
 setup(
     name="flexmeasures",
-    description="The *FlexMeasures Platform* - a tool for building real-time energy flexibility services, rapidly and scalable.",
+    description="The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.",
     author="Seita BV",
     author_email="nicolas@seita.nl",
     url="https://github.com/seitabv/flexmeasures",
@@ -44,22 +44,22 @@ setup(
         "Operating System :: OS Independent",
     ],
     long_description="""\
-The *FlexMeasures Platform* is a tool for building real-time energy flexibility services, rapidly and scalable.
+The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.
 
 In a world with renewable energy, flexibility is crucial and valuable.
 Planning ahead allows flexible assets to serve the whole system with their flexibility,
 e.g. by shifting or curtailing energy use. This can also be profitable for their owners.
 
-- Developing energy flexibility services (e.g. to enable demand response) is crucial, but expensive.
-- To enable rapid creation of scalable services, we offer the FlexMeasures platform. For free.
-- FlexMeasures reduces development costs with real-time data integrations, uncertainty models and API/UI support.
+- Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
+- FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and API/UI support.
 
-For this purpose, it delivers three core values:
+As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful!
 
+A closer look at FlexMeasures' three core value drivers:
 
- * Real-time updates & advice ― Support for real-time updates, forecasting for the upcoming hours & schedule optimization.
+ * Real-time data intelligence & integration ― Support for real-time updates, forecasting for the upcoming hours & schedule optimization.
  * Uncertainty models ― Dealing with uncertain forecasts and outcomes is crucial. FlexMeasures is built on [timely-beliefs](https://github.com/SeitaBV/timely-beliefs), so we model this real-world aspect accurately.
- * Service building ― Building customer-facing services is where developers make impact. We make their work easy with a well-documented API (inspired by the Universal Smart Energy Framework - USEF), plugin support & plotting support.
+ * Developer support ― Building customer-facing apps & services is where developers make impact. FlexMeasures make their work easy with a well-documented API, data visualisation and multi-tenancy, and it supports plugins to customise and extend the platform to your needs.
 
 Energy Flexibility is one of the key ingredients to reducing CO2. FlexMeasures is meant
 to facilitate the transition to a carbon-free energy system. By open-sourcing FlexMeasures,

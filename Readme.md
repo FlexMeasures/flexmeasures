@@ -10,7 +10,7 @@
 The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable. 
 
 - Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
-- FlexMeasures reduces development costs with real-time data integrations, uncertainty models and API/UI support.
+- FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and API/UI support.
 
 ![Separation of concerns ― FlexMeasures enhancing Energy Service Company services](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/SeparationOfConcerns.png)
 
@@ -22,7 +22,7 @@ FlexMeasures provides three core values:
 
 1. Real-time data intelligence and integration, with advice for the rest of the day. For example, forecasts and schedules are made available via API (designed with [the USEF framework](https://usef.energy) in mind).
 2. Energy sensor and environment data have multiple sources and their forecasts are uncertain. FlexMeasures uses the [timely-beliefs library](https://github.com/SeitaBV/timely-beliefs) to model this well.
-3. Developer support ― building customer-facing services is where energy flexibility hits the road. FlexMeasures reduces developer workload with a well-documented API, data visualisation and multi-tenancy, and supports plugins to customise and extend the platform to your needs.
+3. Developer support ― building customer-facing apps & services is where energy flexibility hits the road. FlexMeasures reduces developer workload with a well-documented API, data visualisation and multi-tenancy, and it supports plugins to customise and extend the platform to your needs.
 
 
 ![Integration view of the FlexMeasures platform architecture](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/FlexMeasures-HighLevel.png)
