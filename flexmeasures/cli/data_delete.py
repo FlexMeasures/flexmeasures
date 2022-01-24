@@ -237,6 +237,8 @@ def delete_unchanged_beliefs(
     num_beliefs_before = q.count()
 
     unchanged_queries = []
+    num_forecasts_up_for_deletion = 0
+    num_measurements_up_for_deletion = 0
     if delete_unchanged_forecasts:
         q_unchanged_forecasts = query_unchanged_beliefs(
             db.session,
@@ -247,6 +249,7 @@ def delete_unchanged_beliefs(
             include_non_positive_horizons=False,
         )
         unchanged_queries.append(q_unchanged_forecasts)
+        num_forecasts_up_for_deletion = q_unchanged_forecasts.count()
     if delete_unchanged_measurements:
         q_unchanged_measurements = query_unchanged_beliefs(
             db.session,
@@ -257,9 +260,12 @@ def delete_unchanged_beliefs(
             include_positive_horizons=False,
         )
         unchanged_queries.append(q_unchanged_measurements)
+        num_measurements_up_for_deletion = q_unchanged_measurements.count()
 
-    num_beliefs_up_for_deletion = sum([q.count() for q in unchanged_queries])
-    prompt = f"Delete {num_beliefs_up_for_deletion} unchanged beliefs out of {num_beliefs_before} beliefs?"
+    num_beliefs_up_for_deletion = (
+        num_forecasts_up_for_deletion + num_measurements_up_for_deletion
+    )
+    prompt = f"Delete {num_beliefs_up_for_deletion} unchanged beliefs ({num_measurements_up_for_deletion} measurements and {num_forecasts_up_for_deletion} forecasts) out of {num_beliefs_before} beliefs?"
     click.confirm(prompt, abort=True)
 
     beliefs_up_for_deletion = list(chain(*[q.all() for q in unchanged_queries]))
