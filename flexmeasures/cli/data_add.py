@@ -169,12 +169,28 @@ def new_user(
     type=int,
     help="Generic asset to assign this sensor to",
 )
+@click.option(
+    "--capacity-in-mw",
+    required=False,
+    type=float,
+    help="For sensors which measure power, provide their capacity in MW",
+    default=0,
+)
 def add_sensor(**args):
     """Add a sensor."""
     check_timezone(args["timezone"])
+    attributes = dict(capacity_in_mw=args["capacity_in_mw"])
+    del args["capacity_in_mw"]
     check_errors(SensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     sensor = Sensor(**args)
+    sensor.attributes = attributes
+    if sensor.measures_power:
+        if sensor.attributes["capacity_in_mw"] == 0:
+            print("A sensor which measures power needs a non-zero capacity.")
+            raise click.Abort
+    else:
+        del sensor.attributes["capacity_in_mw"]
     db.session.add(sensor)
     db.session.commit()
     print(f"Successfully created sensor with ID {sensor.id}")
