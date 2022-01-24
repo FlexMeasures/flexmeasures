@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 from typing import Dict, List, Optional
+import json
 
 import pandas as pd
 import pytz
@@ -170,27 +171,32 @@ def new_user(
     help="Generic asset to assign this sensor to",
 )
 @click.option(
-    "--capacity-in-mw",
+    "--attributes",
     required=False,
-    type=float,
-    help="For sensors which measure power, provide their capacity in MW",
-    default=0,
+    type=str,
+    default="{}",
+    help='Additional attributes. Passed as JSON string, should be a dict. Hint: Currently, for sensors that measures power, use {"capacity_in_mw": 10} to set a capacity of 10 MW',
 )
 def add_sensor(**args):
     """Add a sensor."""
     check_timezone(args["timezone"])
-    attributes = dict(capacity_in_mw=args["capacity_in_mw"])
-    del args["capacity_in_mw"]
+    try:
+        attributes = json.loads(args["attributes"])
+    except json.decoder.JSONDecodeError as jde:
+        print(f"Error decoding --attributes. Please check your JSON: {jde}")
+        raise click.Abort()
+    del args["attributes"]  # not part of schema
     check_errors(SensorSchema().validate(args))
     args["event_resolution"] = timedelta(minutes=args["event_resolution"])
     sensor = Sensor(**args)
+    if not isinstance(attributes, dict):
+        print("Attributes should be a dict.")
+        raise click.Abort()
     sensor.attributes = attributes
     if sensor.measures_power:
-        if sensor.attributes["capacity_in_mw"] == 0:
-            print("A sensor which measures power needs a non-zero capacity.")
+        if "capacity_in_mw" not in sensor.attributes:
+            print("A sensor which measures power needs a capacity (see --attributes).")
             raise click.Abort
-    else:
-        del sensor.attributes["capacity_in_mw"]
     db.session.add(sensor)
     db.session.commit()
     print(f"Successfully created sensor with ID {sensor.id}")
