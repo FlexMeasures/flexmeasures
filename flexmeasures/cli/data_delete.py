@@ -223,8 +223,8 @@ def delete_prognoses(
 )
 def delete_unchanged_beliefs(
     sensor_id: Optional[int] = None,
-    delete_unchanged_forecasts: bool = False,
-    delete_unchanged_measurements: bool = False,
+    delete_unchanged_forecasts: bool = True,
+    delete_unchanged_measurements: bool = True,
 ):
     """Delete unchanged beliefs (i.e. updated beliefs with a later belief time, but with the same event value)."""
     q = db.session.query(TimedBelief)
