@@ -104,6 +104,7 @@ def post_udi_event():
     This "PostUdiEventRequest" message posts a state of charge (soc) of 12.1 kWh at 10.00am,
     and a target state of charge of 25 kWh at 4.00pm,
     as UDI event 204 of device 10 of owner 7.
+    The minimum and maximum soc are set to 10 and 25 kWh, respectively.
     Roundtrip efficiency for use in scheduling is set to 98%.
 
     .. code-block:: json
@@ -120,6 +121,8 @@ def post_udi_event():
                     "datetime": "2015-06-02T16:00:00+00:00"
                 }
             ],
+            "soc_min": 10,
+            "soc_max": 25,
             "roundtrip_efficiency": 0.98
         }
 

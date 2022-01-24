@@ -64,12 +64,16 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_min = 0.5
+    soc_max = 4.5
     schedule = schedule_battery(
         battery,
         start,
         end,
         resolution,
         soc_at_start,
+        soc_min=soc_min,
+        soc_max=soc_max,
         roundtrip_efficiency=roundtrip_efficiency,
     )
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
@@ -81,21 +85,21 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
     assert min(schedule.values) >= battery.get_attribute("capacity_in_mw") * -1
     assert max(schedule.values) <= battery.get_attribute("capacity_in_mw") + TOLERANCE
     for soc in soc_schedule.values:
-        assert soc >= battery.get_attribute("min_soc_in_mwh")
+        assert soc >= max(soc_min, battery.get_attribute("min_soc_in_mwh"))
         assert soc <= battery.get_attribute("max_soc_in_mwh")
 
     # Check whether the resulting soc schedule follows our expectations for 8 expensive, 8 cheap and 8 expensive hours
-    assert soc_schedule.iloc[-1] == battery.get_attribute(
-        "min_soc_in_mwh"
+    assert soc_schedule.iloc[-1] == max(
+        soc_min, battery.get_attribute("min_soc_in_mwh")
     )  # Battery sold out at the end of its planning horizon
 
     # As long as the roundtrip efficiency isn't too bad (I haven't computed the actual switch point)
     if roundtrip_efficiency > 0.9:
-        assert soc_schedule.loc[start + timedelta(hours=8)] == battery.get_attribute(
-            "min_soc_in_mwh"
+        assert soc_schedule.loc[start + timedelta(hours=8)] == max(
+            soc_min, battery.get_attribute("min_soc_in_mwh")
         )  # Sell what you begin with
-        assert soc_schedule.loc[start + timedelta(hours=16)] == battery.get_attribute(
-            "max_soc_in_mwh"
+        assert soc_schedule.loc[start + timedelta(hours=16)] == min(
+            soc_max, battery.get_attribute("max_soc_in_mwh")
         )  # Buy what you can to sell later
     else:
         # If the roundtrip efficiency is poor, best to stand idle

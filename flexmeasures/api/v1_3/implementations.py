@@ -285,6 +285,14 @@ def post_udi_event_response(unit: str, prior: datetime):
     # get optional efficiency
     roundtrip_efficiency = form.get("roundtrip_efficiency", None)
 
+    # get optional min and max SOC
+    soc_min = form.get("soc_min", None)
+    soc_max = form.get("soc_max", None)
+    if soc_min is not None and unit == "kWh":
+        soc_min = soc_min / 1000.0
+    if soc_max is not None and unit == "kWh":
+        soc_max = soc_max / 1000.0
+
     # set soc targets
     start_of_schedule = datetime
     end_of_schedule = datetime + current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
@@ -354,6 +362,8 @@ def post_udi_event_response(unit: str, prior: datetime):
         belief_time=prior,  # server time if no prior time was sent
         soc_at_start=value,
         soc_targets=soc_targets,
+        soc_min=soc_min,
+        soc_max=soc_max,
         roundtrip_efficiency=roundtrip_efficiency,
         udi_event_ea=form.get("event"),
         enqueue=True,
