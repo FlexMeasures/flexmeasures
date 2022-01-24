@@ -36,6 +36,8 @@ def create_scheduling_job(
     resolution: timedelta = DEFAULT_RESOLUTION,
     soc_at_start: Optional[float] = None,
     soc_targets: Optional[pd.Series] = None,
+    soc_min: Optional[float] = None,
+    soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
     udi_event_ea: Optional[str] = None,
     enqueue: bool = True,
@@ -62,6 +64,8 @@ def create_scheduling_job(
             resolution=resolution,
             soc_at_start=soc_at_start,
             soc_targets=soc_targets,
+            soc_min=soc_min,
+            soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
         ),
         id=udi_event_ea,
@@ -90,6 +94,8 @@ def make_schedule(
     resolution: timedelta,
     soc_at_start: Optional[float] = None,
     soc_targets: Optional[pd.Series] = None,
+    soc_min: Optional[float] = None,
+    soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
 ) -> bool:
     """Preferably, a starting soc is given.
@@ -131,6 +137,8 @@ def make_schedule(
             resolution,
             soc_at_start,
             soc_targets,
+            soc_min,
+            soc_max,
             roundtrip_efficiency,
         )
     elif sensor.generic_asset.generic_asset_type.name in (
@@ -144,6 +152,8 @@ def make_schedule(
             resolution,
             soc_at_start,
             soc_targets,
+            soc_min,
+            soc_max,
             roundtrip_efficiency,
         )
     else:

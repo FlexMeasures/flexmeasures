@@ -21,6 +21,8 @@ def schedule_charging_station(
     resolution: timedelta,
     soc_at_start: float,
     soc_targets: Series,
+    soc_min: Optional[float] = None,
+    soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
 ) -> Union[Series, None]:
@@ -39,6 +41,14 @@ def schedule_charging_station(
         roundtrip_efficiency = sensor.get_attribute("roundtrip_efficiency", 1)
     if roundtrip_efficiency <= 0 or roundtrip_efficiency > 1:
         raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
+
+    # Check for min and max SOC, or get default from sensor
+    if soc_min is None:
+        # Can't drain the EV battery by more than it contains
+        soc_min = sensor.get_attribute("min_soc_in_mwh", 0)
+    if soc_max is None:
+        # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
+        soc_max = sensor.get_attribute("max_soc_in_mwh", max(soc_targets.values))
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
@@ -83,14 +93,12 @@ def schedule_charging_station(
     )  # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
     # while the "equals" constraint defines what the total stock should be at the end of a time slot,
     # where the time slot is indexed by its starting time)
-    device_constraints[0]["min"] = -soc_at_start * (
+    device_constraints[0]["min"] = (soc_min - soc_at_start) * (
         timedelta(hours=1) / resolution
-    )  # Can't drain the EV battery by more than it contains
-    device_constraints[0]["max"] = max(soc_targets.values) * (
+    )
+    device_constraints[0]["max"] = (soc_max - soc_at_start) * (
         timedelta(hours=1) / resolution
-    ) - soc_at_start * (
-        timedelta(hours=1) / resolution
-    )  # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
+    )
 
     if sensor.get_attribute("is_strictly_non_positive"):
         device_constraints[0]["derivative min"] = 0
