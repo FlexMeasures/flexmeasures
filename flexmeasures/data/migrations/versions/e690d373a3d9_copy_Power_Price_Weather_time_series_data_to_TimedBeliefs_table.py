@@ -17,8 +17,6 @@ depends_on = None
 
 
 def upgrade():
-    print("Database migration started")
-    print("- preparing to copy time series data...")
 
     # Declare ORM table views
     t_power = sa.Table(
@@ -77,7 +75,6 @@ def upgrade():
         t_weather,
         t_timed_belief,
     )
-    print("- finished copying time series data...")
 
 
 def downgrade():
@@ -103,9 +100,10 @@ def copy_time_series_data(
         sa.select([getattr(t_old_data_model.c, a) for a in mapping.keys()])
     ).fetchall()
 
-    print(
-        f"- copying {len(results)} rows from the {t_old_data_model.name} table to the {t_timed_belief.name} table..."
-    )
+    if len(results) > 0:
+        print(
+            f"- copying {len(results)} rows from the {t_old_data_model.name} table to the {t_timed_belief.name} table..."
+        )
 
     # Copy in batches and report on progress
     for i in range(len(results) // batch_size + 1):
@@ -119,4 +117,5 @@ def copy_time_series_data(
             insert_values.append(d)
         op.bulk_insert(t_timed_belief, insert_values)
 
-    print(f"  - finished copying {len(results)} rows...")
+    if len(results) > 0:
+        print(f"  - finished copying {len(results)} rows...")
