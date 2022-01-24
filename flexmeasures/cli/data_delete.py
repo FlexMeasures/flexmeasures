@@ -274,5 +274,18 @@ def delete_unchanged_beliefs(
     print(f"Done! {num_beliefs_after} beliefs left")
 
 
+@fm_dev_delete_data.command("nan_beliefs")
+@with_appcontext
+def delete_nan_beliefs():
+    """Delete NaN beliefs."""
+    q = db.session.query(TimedBelief)
+    query = q.filter(TimedBelief.event_value == float("NaN"))
+    prompt = f"Delete {query.count()} NaN beliefs out of {q.count()} beliefs?"
+    click.confirm(prompt, abort=True)
+    query.delete()
+    db.session.commit()
+    print(f"Done! {q.count()} beliefs left")
+
+
 app.cli.add_command(fm_delete_data)
 app.cli.add_command(fm_dev_delete_data)
