@@ -293,5 +293,25 @@ def delete_nan_beliefs():
     print(f"Done! {q.count()} beliefs left")
 
 
+@fm_delete_data.command("sensor")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    type=int,
+    help="Delete a single sensor and its (time series) data. Follow up with the sensor's ID.",
+)
+def delete_sensor(
+    sensor_id: Optional[int] = None,
+):
+    """Delete a sensor and all beliefs about it."""
+    sensor = Sensor.query.get(sensor_id)
+    n = TimedBelief.query.filter(TimedBelief.sensor_id == sensor_id).delete()
+    db.session.delete(sensor)
+    click.confirm(
+        f"Really delete sensor {sensor_id}, along with {n} beliefs?", abort=True
+    )
+    db.session.commit()
+
+
 app.cli.add_command(fm_delete_data)
 app.cli.add_command(fm_dev_delete_data)
