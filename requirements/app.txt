@@ -225,6 +225,8 @@ packaging==21.2
     # via
     #   bokeh
     #   pint
+    #   tables
+    #   webargs
 pandas==1.2.5
     # via
     #   -r requirements/app.in
@@ -296,8 +298,9 @@ pytz-deprecation-shim==0.1.0.post0
     # via tzlocal
 pyyaml==6.0
     # via bokeh
-redis==3.5.3
+redis==4.0.2
     # via
+    #   -r requirements/app.in
     #   rq
     #   rq-dashboard
 requests==2.26.0
@@ -326,7 +329,7 @@ scipy==1.7.1
     #   timetomodel
 selenium==4.0.0
     # via timely-beliefs
-sentry-sdk[flask]==1.4.3
+sentry-sdk[flask]==1.5.4
     # via -r requirements/app.in
 siphon==0.9
     # via -r requirements/app.in

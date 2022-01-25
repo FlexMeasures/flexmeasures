@@ -23,9 +23,10 @@ click
 email_validator
 rq
 rq-dashboard
-# the following two use environment markers (see PEP 496)
+# the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
-redis; os_name == 'nt' or os_name == 'win'
+# This limit resolves a conflict with test.in The culprit is fakeredis (check their setup.cfg)
+redis < 4.1.0
 tldextract
 pyomo>=5.6
 pvlib
