@@ -2,6 +2,19 @@
 FlexMeasures Changelog
 **********************
 
+v0.9.0 | February XX, 2022
+===========================
+
+New features
+-----------
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
 v0.8.0 | January 24, 2022
 ===========================
 
