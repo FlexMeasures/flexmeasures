@@ -12,3 +12,5 @@ requests_mock
 fakeredis
 # required with fakeredis, maybe because we use rq
 lupa
+# this is needed to resolve a conflict with app.[in|txt]
+packaging >= 21.3 
