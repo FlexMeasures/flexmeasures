@@ -151,14 +151,25 @@ Use the ``flexmeasures`` :ref:`cli`:
 
 .. code-block::
 
-    flexmeasures add asset --name "my basement battery pack" --asset-type-name battery --capacity-in-MW 30 --event-resolution 2 --latitude 65 --longitude 123.76 --owner-id 1
+    flexmeasures add generic-asset --name "my basement battery pack" --generic-asset-type-id 3 --latitude 65 --longitude 123.76 --account-id 2
 
-Here, I left out the ``--market-id`` parameter, because in this quickstart scenario I'm fine with the dummy market created with ``flexmeasures add structure`` above.
-For the ownership, I got my user ID from the output of ``flexmeasures add user`` above, or I can browse to `FlexMeasures' user listing <http://localhost:5000/users>`_ and hover over my username.
+For the ownership, I got my account ID from the output of ``flexmeasures add account`` above, or I can browse to `FlexMeasures' user listing <http://localhost:5000/users>`_ and hover over my username.
 
-Or, you could head over to ``http://localhost:5000/assets`` (after you started FlexMeasures, see next step) and add a new asset there in a web form.
+Or, you could head over to ``http://localhost:5000/assets`` (after you started FlexMeasures, see step "Run FlexMeasures" further down) and add a new asset there in a web form.
 
 Finally, you can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
+
+
+Add your first sensor
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Usually, we are here because we want to measure something with respect to our assets. Each assets can have sensors for that, so let's add a power sensor for our new battery asset, using the ``flexmeasures`` :ref:`cli`:
+
+.. code-block::
+
+   flexmeasures add sensor --name power --unit MW --event-resolution 5 --timezone Europe/Amsterdam --generic-asset-id 1 --attributes '{"capacity_in_mw": 7}'
+
+Capacity is something unique to power sensors, so it is added as an attribute.
 
 
 Run FlexMeasures
@@ -186,7 +197,15 @@ You can use the `POST /api/v2_0/postMeterData <api/v2_0.html#post--api-v2_0-post
 
 .. note::  `issue 56 <https://github.com/FlexMeasures/flexmeasures/issues/56>`_ should create a CLI function for adding a lot of data at once, from a CSV dataset.
 
-Also, you can add forecasts for your meter data with the ``flexmeasures add`` command, here is an example:
+Also, you can load in data from a file (CSV or Excel) with the ``flexmeasures`` :ref:`cli`:
+
+.. code-block::
+   
+   flexmeasures add beliefs --file my-data.csv --skiprows 2 --delimiter ";" --source OurLegacyDatabase --sensor-id 1
+
+This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
+
+Finally, you can tell FlexMeasures to create forecasts for your meter data with the ``flexmeasures add`` command, here is an example:
 
 .. code-block::
 
