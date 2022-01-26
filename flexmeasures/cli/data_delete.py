@@ -293,10 +293,11 @@ def delete_nan_beliefs():
 @click.option(
     "--sensor-id",
     type=int,
+    required=True,
     help="Delete a single sensor and its (time series) data. Follow up with the sensor's ID.",
 )
 def delete_sensor(
-    sensor_id: Optional[int] = None,
+    sensor_id: int,
 ):
     """Delete a sensor and all beliefs about it."""
     sensor = Sensor.query.get(sensor_id)
