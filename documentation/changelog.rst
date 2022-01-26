@@ -2,7 +2,20 @@
 FlexMeasures Changelog
 **********************
 
-v0.8.0 | November XX, 2021
+v0.9.0 | February XX, 2022
+===========================
+
+New features
+-----------
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
+v0.8.0 | January 24, 2022
 ===========================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
@@ -17,6 +30,8 @@ New features
 * Schedulers take into account round-trip efficiency if set [see `PR #291 <http://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
 * Schedulers take into account min/max state of charge if set [see `PR #325 <http://www.github.com/FlexMeasures/flexmeasures/pull/325>`_]
 * Fallback policies for charging schedules of batteries and Charge Points, in cases where the solver is presented with an infeasible problem [see `PR #267 <http://www.github.com/FlexMeasures/flexmeasures/pull/267>`_ and `PR #270 <http://www.github.com/FlexMeasures/flexmeasures/pull/270>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/080-better-scheduling-safer-data/>`__.
 
 Deprecations
 ------------

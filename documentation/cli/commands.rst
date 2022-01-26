@@ -25,6 +25,7 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 ``flexmeasures add structure``                    Initialize structural data like asset types, 
                                                   market types and weather sensor types.
+``flexmeasures add account-role``                 Create a FlexMeasures tenant account role.
 ``flexmeasures add account``                      Create a FlexMeasures tenant account.
 ``flexmeasures add user``                         Create a FlexMeasures user.
 ``flexmeasures add asset``                        Create a new asset.
@@ -40,6 +41,7 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 ``flexmeasures delete structure``                 Delete all structural (non time-series) data like assets (types), 
                                                   markets (types) and weather sensors (types) and users.
+``flexmeasures delete account-role``              Delete a tenant account role.
 ``flexmeasures delete account``                   Delete a tenant account & also their users (with assets and power measurements).
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
 ``flexmeasures delete measurements``              Delete measurements (with horizon <= 0).

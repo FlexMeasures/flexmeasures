@@ -18,7 +18,7 @@ As possible users, we see energy service companies (ESCOs) who want to build rea
 
 ## What does FlexMeasures provide?
 
-FlexMeasures provides three core values:
+A closer look at FlexMeasures' three core value drivers:
 
 1. Real-time data intelligence and integration, with advice for the rest of the day. For example, forecasts and schedules are made available via API (designed with [the USEF framework](https://usef.energy) in mind).
 2. Energy sensor and environment data have multiple sources and their forecasts are uncertain. FlexMeasures uses the [timely-beliefs library](https://github.com/SeitaBV/timely-beliefs) to model this well.

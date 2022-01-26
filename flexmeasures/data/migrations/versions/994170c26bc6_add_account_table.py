@@ -15,7 +15,6 @@ from sqlalchemy import orm
 import inflection
 
 from flexmeasures.data.models.user import Account, User
-from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -31,6 +30,14 @@ t_assets = sa.Table(
     sa.MetaData(),
     sa.Column("id"),
     sa.Column("owner_id"),
+)
+
+t_generic_assets = sa.Table(
+    "generic_asset",
+    sa.MetaData(),
+    sa.Column("id"),
+    sa.Column("name"),
+    sa.Column("generic_asset_type_id"),
 )
 
 
@@ -132,36 +139,45 @@ def upgrade_data():
     # For all generic assets, set the user's account
     # We query the db for old ownership directly, as the generic asset code already points to account
     asset_ownership_db = _generic_asset_ownership()
-    for generic_asset in session.query(GenericAsset).all():
-        # 1. first look into GenericAsset ownership
-        old_owner_id = _get_old_owner_id_from_db_result(
-            asset_ownership_db, generic_asset.id
+    generic_asset_results = connection.execute(
+        sa.select(
+            [
+                t_generic_assets.c.id,
+                t_generic_assets.c.name,
+                t_generic_assets.c.generic_asset_type_id,
+            ]
         )
+    ).all()
+    for ga_id, ga_name, ga_generic_asset_type_id in generic_asset_results:
+        # 1. first look into GenericAsset ownership
+        old_owner_id = _get_old_owner_id_from_db_result(asset_ownership_db, ga_id)
         user = (
             session.query(User).get(old_owner_id) if old_owner_id is not None else None
         )
         # 2. Otherwise, then try the old-style Asset's ownership (via Sensor)
         if user is None:
             sensor = (
-                session.query(Sensor)
-                .filter_by(generic_asset_id=generic_asset.id)
-                .one_or_none()
+                session.query(Sensor).filter_by(generic_asset_id=ga_id).one_or_none()
             )
             if sensor is None:
                 raise ValueError(
-                    f"GenericAsset {generic_asset.id} ({generic_asset.name}) does not have an assorted sensor. Please investigate ..."
+                    f"GenericAsset {ga_id} ({ga_name}) does not have an assorted sensor. Please investigate ..."
                 )
             asset_results = connection.execute(
                 sa.select([t_assets.c.owner_id]).where(t_assets.c.id == sensor.id)
             ).one_or_none()
             if asset_results is None:
                 print(
-                    f"Generic asset {generic_asset.name} does not have an asset associated, probably because it's of type {generic_asset.generic_asset_type.name}."
+                    f"Generic asset {ga_name} does not have an asset associated, probably because it's of type {ga_generic_asset_type_id}."
                 )
             else:
                 user = session.query(User).get(asset_results[0])
         if user is not None:
-            generic_asset.account_id = user.account.id
+            connection.execute(
+                sa.update(t_generic_assets)
+                .where(t_generic_assets.c.id == ga_id)
+                .values(account_id=user.account.id)
+            )
     session.commit()
 
 

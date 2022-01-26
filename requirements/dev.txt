@@ -84,8 +84,9 @@ tomli==1.2.2
     #   -c requirements/test.txt
     #   black
     #   setuptools-scm
-typing-extensions==3.10.0.2
+typing-extensions==4.0.1
     # via
+    #   -c requirements/app.txt
     #   black
     #   mypy
 virtualenv==20.10.0
