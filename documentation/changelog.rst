@@ -7,6 +7,7 @@ v0.9.0 | February XX, 2022
 
 New features
 -----------
+* Three new CLI commands for cleaning up your database: delete 1) unchanged beliefs, 2) NaN values or 3) a sensor and all of its time series data [see `PR #328 <http://www.github.com/FlexMeasures/flexmeasures/pull/328>`_]
 
 Bugfixes
 -----------
