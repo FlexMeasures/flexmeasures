@@ -4,9 +4,9 @@
 #
 #    pip-compile --output-file=requirements/app.txt requirements/app.in
 #
-alembic==1.7.4
+alembic==1.7.5
     # via flask-migrate
-altair==4.1.0
+altair==4.2.0
     # via
     #   -r requirements/app.in
     #   timely-beliefs
@@ -16,7 +16,7 @@ async-generator==1.10
     # via
     #   trio
     #   trio-websocket
-attrs==21.2.0
+attrs==21.4.0
     # via
     #   jsonschema
     #   outcome
@@ -50,9 +50,9 @@ cffi==1.15.0
     # via
     #   bcrypt
     #   cryptography
-cftime==1.5.1.1
+cftime==1.5.2
     # via netcdf4
-charset-normalizer==2.0.7
+charset-normalizer==2.0.10
     # via requests
 click==8.0.3
     # via
@@ -61,13 +61,17 @@ click==8.0.3
     #   rq
 colour==0.1.5
     # via -r requirements/app.in
-cryptography==35.0.0
+cryptography==36.0.1
     # via
     #   pyopenssl
     #   urllib3
 cycler==0.11.0
     # via matplotlib
-dnspython==2.1.0
+deprecated==1.2.13
+    # via redis
+dill==0.3.4
+    # via openturns
+dnspython==2.2.0
     # via email-validator
 email-validator==1.1.3
     # via
@@ -75,7 +79,7 @@ email-validator==1.1.3
     #   flask-security-too
 entrypoints==0.3
     # via altair
-filelock==3.3.2
+filelock==3.4.2
     # via tldextract
 flask==2.0.2
     # via
@@ -120,17 +124,19 @@ flask-sqlalchemy==2.5.1
     #   flask-migrate
 flask-sslify==0.1.5
     # via -r requirements/app.in
-flask-wtf==0.15.1
+flask-wtf==1.0.0
     # via
     #   -r requirements/app.in
     #   flask-security-too
+fonttools==4.29.0
+    # via matplotlib
 greenlet==1.1.2
     # via sqlalchemy
-h11==0.12.0
+h11==0.13.0
     # via wsproto
-h5py==3.5.0
+h5py==3.6.0
     # via pvlib
-humanize==3.12.0
+humanize==3.13.1
     # via -r requirements/app.in
 idna==3.3
     # via
@@ -139,20 +145,22 @@ idna==3.3
     #   tldextract
     #   trio
     #   urllib3
-importlib-metadata==4.8.1
+importlib-metadata==4.10.1
     # via
     #   -r requirements/app.in
     #   alembic
     #   timely-beliefs
 importlib-resources==5.4.0
-    # via alembic
+    # via
+    #   alembic
+    #   jsonschema
 inflect==5.3.0
     # via -r requirements/app.in
 inflection==0.5.1
     # via -r requirements/app.in
-iso8601==0.1.16
+iso8601==1.0.2
     # via -r requirements/app.in
-isodate==0.6.0
+isodate==0.6.1
     # via
     #   -r requirements/app.in
     #   timely-beliefs
@@ -161,25 +169,25 @@ itsdangerous==2.0.1
     #   flask
     #   flask-security-too
     #   flask-wtf
-jinja2==3.0.2
+jinja2==3.0.3
     # via
     #   altair
     #   bokeh
     #   flask
 joblib==1.1.0
     # via scikit-learn
-jsonschema==4.1.2
+jsonschema==4.4.0
     # via altair
 kiwisolver==1.3.2
     # via matplotlib
-mako==1.1.5
+mako==1.1.6
     # via alembic
 markupsafe==2.0.1
     # via
     #   jinja2
     #   mako
     #   wtforms
-marshmallow==3.14.0
+marshmallow==3.14.1
     # via
     #   -r requirements/app.in
     #   flask-marshmallow
@@ -188,15 +196,15 @@ marshmallow==3.14.0
     #   webargs
 marshmallow-polyfield==5.10
     # via -r requirements/app.in
-marshmallow-sqlalchemy==0.26.1
+marshmallow-sqlalchemy==0.27.0
     # via -r requirements/app.in
-matplotlib==3.4.3
+matplotlib==3.5.1
     # via timetomodel
 netcdf4==1.5.8
     # via -r requirements/app.in
-numexpr==2.7.3
+numexpr==2.8.1
     # via tables
-numpy==1.21.3
+numpy==1.22.1
     # via
     #   -r requirements/app.in
     #   altair
@@ -217,13 +225,15 @@ numpy==1.21.3
     #   tables
     #   timely-beliefs
     #   timetomodel
-openturns==1.17
+openturns==1.18
     # via timely-beliefs
 outcome==1.1.0
     # via trio
-packaging==21.2
+packaging==21.3
     # via
     #   bokeh
+    #   matplotlib
+    #   numexpr
     #   pint
     #   tables
     #   webargs
@@ -243,7 +253,7 @@ passlib==1.7.4
     # via flask-security-too
 patsy==0.5.2
     # via statsmodels
-pillow==8.4.0
+pillow==9.0.0
     # via
     #   bokeh
     #   matplotlib
@@ -253,11 +263,13 @@ ply==3.11
     # via pyomo
 properscoring==0.1
     # via timely-beliefs
-protobuf==3.19.1
+protobuf==3.19.3
     # via siphon
-pscript==0.7.6
+pscript==0.7.7
     # via -r requirements/app.in
-psycopg2-binary==2.9.1
+psutil==5.9.0
+    # via openturns
+psycopg2-binary==2.9.3
     # via
     #   -r requirements/app.in
     #   timely-beliefs
@@ -265,17 +277,17 @@ pvlib==0.9.0
     # via -r requirements/app.in
 py-moneyed==2.0
     # via -r requirements/app.in
-pycparser==2.20
+pycparser==2.21
     # via cffi
-pyomo==6.1.2
+pyomo==6.2
     # via -r requirements/app.in
 pyopenssl==21.0.0
     # via urllib3
-pyparsing==2.4.7
+pyparsing==3.0.7
     # via
     #   matplotlib
     #   packaging
-pyrsistent==0.18.0
+pyrsistent==0.18.1
     # via jsonschema
 python-dateutil==2.8.2
     # via
@@ -284,7 +296,7 @@ python-dateutil==2.8.2
     #   matplotlib
     #   pandas
     #   timetomodel
-python-dotenv==0.19.1
+python-dotenv==0.19.2
     # via -r requirements/app.in
 pytz==2021.3
     # via
@@ -303,7 +315,7 @@ redis==4.0.2
     #   -r requirements/app.in
     #   rq
     #   rq-dashboard
-requests==2.26.0
+requests==2.27.1
     # via
     #   pvlib
     #   requests-file
@@ -311,15 +323,15 @@ requests==2.26.0
     #   tldextract
 requests-file==1.5.1
     # via tldextract
-rq==1.10.0
+rq==1.10.1
     # via
     #   -r requirements/app.in
     #   rq-dashboard
 rq-dashboard==0.6.1
     # via -r requirements/app.in
-scikit-learn==1.0.1
+scikit-learn==1.0.2
     # via sklearn
-scipy==1.7.1
+scipy==1.7.3
     # via
     #   properscoring
     #   pvlib
@@ -327,7 +339,7 @@ scipy==1.7.1
     #   statsmodels
     #   timely-beliefs
     #   timetomodel
-selenium==4.0.0
+selenium==4.1.0
     # via timely-beliefs
 sentry-sdk[flask]==1.5.4
     # via -r requirements/app.in
@@ -350,9 +362,9 @@ sniffio==1.2.0
     # via trio
 sortedcontainers==2.4.0
     # via trio
-soupsieve==2.2.1
+soupsieve==2.3.1
     # via beautifulsoup4
-sqlalchemy==1.4.26
+sqlalchemy==1.4.31
     # via
     #   -r requirements/app.in
     #   alembic
@@ -360,9 +372,9 @@ sqlalchemy==1.4.26
     #   marshmallow-sqlalchemy
     #   timely-beliefs
     #   timetomodel
-statsmodels==0.13.0
+statsmodels==0.13.1
     # via timetomodel
-tables==3.6.1
+tables==3.7.0
     # via -r requirements/app.in
 threadpoolctl==3.0.0
     # via scikit-learn
@@ -372,7 +384,7 @@ timetomodel==0.7.1
     # via -r requirements/app.in
 tldextract==3.1.2
     # via -r requirements/app.in
-toolz==0.11.1
+toolz==0.11.2
     # via altair
 tornado==6.1
     # via bokeh
@@ -388,25 +400,24 @@ tzdata==2021.5
     # via pytz-deprecation-shim
 tzlocal==4.1
     # via -r requirements/app.in
-urllib3[secure]==1.26.7
+urllib3[secure]==1.26.8
     # via
     #   requests
     #   selenium
     #   sentry-sdk
-webargs==8.0.1
+webargs==8.1.0
     # via -r requirements/app.in
 werkzeug==2.0.2
     # via flask
+wrapt==1.13.3
+    # via deprecated
 wsproto==1.0.0
     # via trio-websocket
-wtforms==2.3.3
+wtforms==3.0.1
     # via flask-wtf
 xlrd==2.0.1
     # via -r requirements/app.in
-zipp==3.6.0
+zipp==3.7.0
     # via
     #   importlib-metadata
     #   importlib-resources
-
-# The following packages are considered to be unsafe in a requirements file:
-# setuptools
