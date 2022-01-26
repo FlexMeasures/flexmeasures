@@ -23,10 +23,7 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.schemas.assets import AssetSchema
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.schemas.weather import WeatherSensorSchema
 from flexmeasures.data.models.data_sources import (
@@ -39,11 +36,6 @@ from flexmeasures.utils.time_utils import server_now
 @click.group("add")
 def fm_add_data():
     """FlexMeasures: Add data."""
-
-
-@click.group("dev-add")
-def fm_dev_add_data():
-    """Developer CLI commands not yet meant for users: Add data."""
 
 
 @fm_add_data.command("account-role")
@@ -149,7 +141,7 @@ def new_user(
     print(f"Successfully created user {created_user}")
 
 
-@fm_dev_add_data.command("sensor")
+@fm_add_data.command("sensor")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
@@ -203,7 +195,7 @@ def add_sensor(**args):
     print(f"You can access it at its entity address {sensor.entity_address}")
 
 
-@fm_dev_add_data.command("generic-asset-type")
+@fm_add_data.command("generic-asset-type")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option(
@@ -221,7 +213,7 @@ def add_generic_asset_type(**args):
     print("You can now assign generic assets to it")
 
 
-@fm_dev_add_data.command("generic-asset")
+@fm_add_data.command("generic-asset")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option(
@@ -249,77 +241,6 @@ def add_generic_asset(**args):
     db.session.commit()
     print(f"Successfully created generic asset with ID {generic_asset.id}")
     print("You can now assign sensors to it")
-
-
-@fm_add_data.command("asset")
-@with_appcontext
-@click.option("--name", required=True)
-@click.option("--asset-type-name", required=True)
-@click.option(
-    "--unit",
-    help="unit of rate, just MW (default) for now",
-    type=click.Choice(["MW"]),
-    default="MW",
-)  # TODO: enable others
-@click.option(
-    "--capacity-in-MW",
-    required=True,
-    type=float,
-    help="Maximum rate of this asset in MW",
-)
-@click.option(
-    "--event-resolution",
-    required=True,
-    type=int,
-    help="Expected resolution of the data in minutes",
-)
-@click.option(
-    "--latitude",
-    required=True,
-    type=float,
-    help="Latitude of the asset's location",
-)
-@click.option(
-    "--longitude",
-    required=True,
-    type=float,
-    help="Longitude of the asset's location",
-)
-@click.option(
-    "--owner-id", required=True, type=int, help="Id of the user who owns this asset."
-)
-@click.option(
-    "--market-id",
-    type=int,
-    help="Id of the market used to price this asset. Defaults to a dummy TOU market.",
-)
-@click.option(
-    "--timezone",
-    default="UTC",
-    help="timezone as string, e.g. 'UTC' (default) or 'Europe/Amsterdam'.",
-)
-def new_asset(**args):
-    """
-    Create a new asset.
-    This is legacy, with the new data model we only want to add GenericAssets.
-    """
-    check_timezone(args["timezone"])
-    # if no market given, select dummy market
-    if args["market_id"] is None:
-        dummy_market = Market.query.filter(Market.name == "dummy-tou").one_or_none()
-        if not dummy_market:
-            print(
-                "No market ID given and also no dummy TOU market available. Maybe add structure first."
-            )
-            raise click.Abort()
-        args["market_id"] = dummy_market.id
-    check_errors(AssetSchema().validate(args))
-    args["event_resolution"] = timedelta(minutes=args["event_resolution"])
-    asset = Asset(**args)
-    db.session.add(asset)
-    db.session.commit()
-    print(f"Successfully created asset with ID {asset.id}")
-    print(f"You can access it at its entity address {asset.entity_address}")
 
 
 @fm_add_data.command("weather-sensor")
@@ -375,7 +296,7 @@ def add_initial_structure():
     populate_structure(db)
 
 
-@fm_dev_add_data.command("beliefs")
+@fm_add_data.command("beliefs")
 @with_appcontext
 @click.argument("file", type=click.Path(exists=True))
 @click.option(
@@ -711,7 +632,6 @@ def collect_weather_data(region, location, num_cells, method, store_in_db):
 
 
 app.cli.add_command(fm_add_data)
-app.cli.add_command(fm_dev_add_data)
 
 
 def check_timezone(timezone):
