@@ -20,11 +20,6 @@ def fm_delete_data():
     """FlexMeasures: Delete data."""
 
 
-@click.group("dev-delete")
-def fm_dev_delete_data():
-    """Developer CLI commands not yet meant for users: Delete data."""
-
-
 @fm_delete_data.command("account-role")
 @with_appcontext
 @click.option("--name", required=True)
@@ -202,7 +197,7 @@ def delete_prognoses(
     depopulate_prognoses(app.db, sensor_id)
 
 
-@fm_dev_delete_data.command("unchanged_beliefs")
+@fm_delete_data.command("unchanged_beliefs")
 @with_appcontext
 @click.option(
     "--sensor-id",
@@ -280,7 +275,7 @@ def delete_unchanged_beliefs(
     print(f"Done! {num_beliefs_after} beliefs left")
 
 
-@fm_dev_delete_data.command("nan_beliefs")
+@fm_delete_data.command("nan_beliefs")
 @with_appcontext
 def delete_nan_beliefs():
     """Delete NaN beliefs."""
@@ -314,4 +309,3 @@ def delete_sensor(
 
 
 app.cli.add_command(fm_delete_data)
-app.cli.add_command(fm_dev_delete_data)
