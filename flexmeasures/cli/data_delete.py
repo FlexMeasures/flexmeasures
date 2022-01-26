@@ -277,9 +277,16 @@ def delete_unchanged_beliefs(
 
 @fm_delete_data.command("nan_beliefs")
 @with_appcontext
-def delete_nan_beliefs():
+@click.option(
+    "--sensor-id",
+    type=int,
+    help="Delete NaN time series data for a single sensor only. Follow up with the sensor's ID.",
+)
+def delete_nan_beliefs(sensor_id: Optional[int] = None):
     """Delete NaN beliefs."""
     q = db.session.query(TimedBelief)
+    if sensor_id is not None:
+        q = q.filter(TimedBelief.sensor_id == sensor_id)
     query = q.filter(TimedBelief.event_value == float("NaN"))
     prompt = f"Delete {query.count()} NaN beliefs out of {q.count()} beliefs?"
     click.confirm(prompt, abort=True)
