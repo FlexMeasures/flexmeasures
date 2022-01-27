@@ -6,6 +6,7 @@ from flask.cli import with_appcontext
 from tabulate import tabulate
 
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
 
@@ -21,7 +22,7 @@ def list_accounts():
     """
     List all accounts on this FlexMeasures instance.
     """
-    accounts = Account.query.all()
+    accounts = Account.query.order_by(Account.id).all()
     if not accounts:
         click.echo("No accounts created yet.")
         return
@@ -43,7 +44,7 @@ def list_roles():
     """
     Show available account an user roles
     """
-    account_roles = AccountRole.query.all()
+    account_roles = AccountRole.query.order_by(AccountRole.id).all()
     if not account_roles:
         click.echo("No account roles created yet.")
         return
@@ -55,7 +56,7 @@ def list_roles():
         )
     )
     click.echo()
-    user_roles = Role.query.all()
+    user_roles = Role.query.order_by(Role.id).all()
     if not user_roles:
         click.echo("No user roles created yet, not even admin.")
         return
@@ -92,7 +93,7 @@ def show_account(account_id):
         click.echo("Account has no roles.")
     click.echo()
 
-    users = User.query.filter_by(account_id=account_id).all()
+    users = User.query.filter_by(account_id=account_id).order_by(User.id).all()
     if not users:
         click.echo("No users in account ...")
     else:
@@ -112,7 +113,11 @@ def show_account(account_id):
         )
 
     click.echo()
-    assets = GenericAsset.query.filter_by(account_id=account_id).all()
+    assets = (
+        GenericAsset.query.filter_by(account_id=account_id)
+        .order_by(GenericAsset.id)
+        .all()
+    )
     if not assets:
         click.echo("No assets in account ...")
     else:
@@ -130,7 +135,7 @@ def list_asset_types():
     """
     Show available asset types
     """
-    asset_types = GenericAssetType.query.all()
+    asset_types = GenericAssetType.query.order_by(GenericAssetType.id).all()
     if not asset_types:
         click.echo("No asset types created yet.")
         return
@@ -168,7 +173,9 @@ def show_generic_asset(asset_id):
     click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
 
     click.echo()
-    sensors = Sensor.query.filter_by(generic_asset_id=asset_id).all()
+    sensors = (
+        Sensor.query.filter_by(generic_asset_id=asset_id).order_by(Sensor.id).all()
+    )
     if not sensors:
         click.echo("No sensors in asset ...")
         return
@@ -188,6 +195,24 @@ def show_generic_asset(asset_id):
         tabulate(
             sensor_data,
             headers=["Id", "Name", "Unit", "Resolution", "Timezone", "Attributes"],
+        )
+    )
+
+
+@fm_show_data.command("data-sources")
+@with_appcontext
+def list_data_sources():
+    """
+    Show available data sources
+    """
+    sources = DataSource.query.order_by(DataSource.id).all()
+    if not sources:
+        click.echo("No data sources created yet.")
+        return
+    click.echo(
+        tabulate(
+            [(s.id, s.name, s.type, s.user_id, s.model, s.version) for s in sources],
+            headers=["Id", "Name", "Type", "User Id", "Model", "Version"],
         )
     )
 
