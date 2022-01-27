@@ -8,8 +8,12 @@ FlexMeasures CLI Changelog
 since v0.9.0 | January 26, 2022
 =====================
 
+<<<<<<< Updated upstream
 * add ``flexmeasures add sensor``, ''flexmeasures add asset-type``, ```flexmeasures add beliefs``. These were previously experimental features (under the `dev-add` command group).
 * ``flexmeasures add asset`` now directly creates an asset in the new data model.
+=======
+* add ``flexmeasures delete sensor``, ``flexmeasures delete nan_beliefs`` and ``flexmeasures delete unchanged_beliefs``. 
+>>>>>>> Stashed changes
 
 
 since v0.6.0 | April 2, 2021
