@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.9.0 | January 26, 2022
+=====================
+
+* add ``flexmeasures show accounts``, ``flexmeasures show account``, and ``flexmeasures show generic-asset``.
+
 
 since v0.6.0 | April 2, 2021
 =====================

@@ -1,4 +1,4 @@
-"""CLI Tasks for (de)populating the database - most useful in development"""
+"""CLI Tasks for populating the database - most useful in development"""
 
 from datetime import timedelta
 from typing import Dict, List, Optional
