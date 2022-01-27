@@ -93,7 +93,7 @@ def show_account(account_id):
         print(tabulate(asset_data, headers=["Id", "Name", "Type", "Location"]))
 
 
-@fm_show_data.command("generic-asset")
+@fm_show_data.command("asset")
 @with_appcontext
 @click.option("--asset-id", type=int, required=True)
 def show_generic_asset(asset_id):
