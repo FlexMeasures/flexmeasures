@@ -5,8 +5,8 @@ from flask import current_app as app
 from flask.cli import with_appcontext
 from tabulate import tabulate
 
-from flexmeasures.data.models.user import Account, User
-from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.user import Account, AccountRole, User, Role
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
 
 
@@ -24,7 +24,7 @@ def list_accounts():
     accounts = Account.query.all()
     if not accounts:
         click.echo("No accounts created yet.")
-        raise click.Abort
+        return
     click.echo("All accounts on this FlexMeasures instance:\n ")
     account_data = [
         (
@@ -34,7 +34,38 @@ def list_accounts():
         )
         for account in accounts
     ]
-    print(tabulate(account_data, headers=["Id", "Name", "Assets"]))
+    click.echo(tabulate(account_data, headers=["Id", "Name", "Assets"]))
+
+
+@fm_show_data.command("roles")
+@with_appcontext
+def list_roles():
+    """
+    Show available account an user roles
+    """
+    account_roles = AccountRole.query.all()
+    if not account_roles:
+        click.echo("No account roles created yet.")
+        return
+    click.echo("Account roles:\n")
+    click.echo(
+        tabulate(
+            [(r.id, r.name, r.description) for r in account_roles],
+            headers=["Id", "Name", "Description"],
+        )
+    )
+    click.echo()
+    user_roles = Role.query.all()
+    if not user_roles:
+        click.echo("No user roles created yet, not even admin.")
+        return
+    click.echo("User roles:\n")
+    click.echo(
+        tabulate(
+            [(r.id, r.name, r.description) for r in user_roles],
+            headers=["Id", "Name", "Description"],
+        )
+    )
 
 
 @fm_show_data.command("account")
@@ -76,7 +107,7 @@ def show_account(account_id):
             )
             for user in users
         ]
-        print(
+        click.echo(
             tabulate(user_data, headers=["Id", "Name", "Email", "Last Login", "Roles"])
         )
 
@@ -90,7 +121,25 @@ def show_account(account_id):
             (asset.id, asset.name, asset.generic_asset_type.name, asset.location)
             for asset in assets
         ]
-        print(tabulate(asset_data, headers=["Id", "Name", "Type", "Location"]))
+        click.echo(tabulate(asset_data, headers=["Id", "Name", "Type", "Location"]))
+
+
+@fm_show_data.command("asset-types")
+@with_appcontext
+def list_asset_types():
+    """
+    Show available asset types
+    """
+    asset_types = GenericAssetType.query.all()
+    if not asset_types:
+        click.echo("No asset types created yet.")
+        return
+    click.echo(
+        tabulate(
+            [(t.id, t.name, t.description) for t in asset_types],
+            headers=["Id", "Name", "Description"],
+        )
+    )
 
 
 @fm_show_data.command("asset")
@@ -116,13 +165,13 @@ def show_generic_asset(asset_id):
             "".join([f"{k}:{v}\n" for k, v in asset.attributes.items()]),
         )
     ]
-    print(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
+    click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
 
     click.echo()
     sensors = Sensor.query.filter_by(generic_asset_id=asset_id).all()
     if not sensors:
         click.echo("No sensors in asset ...")
-        raise click.Abort
+        return
     click.echo("All sensors in asset:\n ")
     sensor_data = [
         (
@@ -135,7 +184,7 @@ def show_generic_asset(asset_id):
         )
         for sensor in sensors
     ]
-    print(
+    click.echo(
         tabulate(
             sensor_data,
             headers=["Id", "Name", "Unit", "Resolution", "Timezone", "Attributes"],

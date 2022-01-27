@@ -8,6 +8,8 @@ v0.9.0 | February XX, 2022
 New features
 -----------
 
+* add CLI comands for showing data [see `PR #339 <http://www.github.com/FlexMeasures/flexmeasures/pull/339>`_]
+
 Bugfixes
 -----------
 

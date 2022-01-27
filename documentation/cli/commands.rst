@@ -41,7 +41,9 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 ``flexmeasures show accounts``                    List accounts.
 ``flexmeasures show account``                     Show an account, its users and assets.
+``flexmeasures show asset-types`                  List available asset types.
 ``flexmeasures show asset``                       Show an asset and its sensors.
+``flexmeasures show roles``                       List available account- and user roles.
 ================================================= =======================================
 
 
