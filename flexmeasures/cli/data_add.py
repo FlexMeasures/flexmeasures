@@ -157,7 +157,8 @@ def new_user(
     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
-    "--generic-asset-id",
+    "--asset-id",
+    "generic_asset_id",
     required=True,
     type=int,
     help="Generic asset to assign this sensor to",
@@ -195,7 +196,7 @@ def add_sensor(**args):
     print(f"You can access it at its entity address {sensor.entity_address}")
 
 
-@fm_add_data.command("generic-asset-type")
+@fm_add_data.command("asset-type")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option(
@@ -203,17 +204,17 @@ def add_sensor(**args):
     type=str,
     help="Description (useful to explain acronyms, for example).",
 )
-def add_generic_asset_type(**args):
-    """Add a generic asset type."""
+def add_asset_type(**args):
+    """Add an asset type."""
     check_errors(GenericAssetTypeSchema().validate(args))
     generic_asset_type = GenericAssetType(**args)
     db.session.add(generic_asset_type)
     db.session.commit()
-    print(f"Successfully created generic asset type with ID {generic_asset_type.id}")
-    print("You can now assign generic assets to it")
+    print(f"Successfully created asset type with ID {generic_asset_type.id}.")
+    print("You can now assign assets to it.")
 
 
-@fm_add_data.command("generic-asset")
+@fm_add_data.command("asset")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option(
@@ -228,19 +229,20 @@ def add_generic_asset_type(**args):
 )
 @click.option("--account-id", type=int, required=True)
 @click.option(
-    "--generic-asset-type-id",
+    "--asset-type-id",
+    "generic_asset_type_id",
     required=True,
     type=int,
-    help="Generic asset type to assign to this asset",
+    help="Asset type to assign to this asset",
 )
-def add_generic_asset(**args):
-    """Add a generic asset."""
+def add_asset(**args):
+    """Add an asset."""
     check_errors(GenericAssetSchema().validate(args))
     generic_asset = GenericAsset(**args)
     db.session.add(generic_asset)
     db.session.commit()
-    print(f"Successfully created generic asset with ID {generic_asset.id}")
-    print("You can now assign sensors to it")
+    print(f"Successfully created asset with ID {generic_asset.id}.")
+    print("You can now assign sensors to it.")
 
 
 @fm_add_data.command("weather-sensor")
