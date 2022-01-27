@@ -28,8 +28,9 @@ of which some are referred to in this documentation.
 ``flexmeasures add account-role``                 Create a FlexMeasures tenant account role.
 ``flexmeasures add account``                      Create a FlexMeasures tenant account.
 ``flexmeasures add user``                         Create a FlexMeasures user.
-``flexmeasures add asset``                        Create a new asset type.
-``flexmeasures add asset-type``                   Create a new asset.
+``flexmeasures add asset-type``                   Create a new asset type.
+``flexmeasures add asset``                        Create a new asset.
+``flexmeasures add sensor``                       Add a new sensor.
 ``flexmeasures add weather-sensor``               Add a weather sensor.
 ``flexmeasures add external-weather-forecasts``   Collect weather forecasts from the DarkSky API.
 ``flexmeasures add beliefs``                      Load beliefs from file.
