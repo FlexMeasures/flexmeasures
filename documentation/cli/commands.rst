@@ -50,7 +50,7 @@ of which some are referred to in this documentation.
 ``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
 ``flexmeasures delete measurements``              Delete measurements (with horizon <= 0).
 ``flexmeasures delete prognoses``                 Delete forecasts and schedules (forecasts > 0).
-``flexmeasures delete unchanged-beliefs``         Delete unchanged beliefs
+``flexmeasures delete unchanged-beliefs``         Delete unchanged beliefs.
 ``flexmeasures delete nan-beliefs``               Delete NaN beliefs.
 ================================================= =======================================
 
