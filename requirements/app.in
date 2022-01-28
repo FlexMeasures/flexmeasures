@@ -34,7 +34,7 @@ netCDF4
 siphon
 tables
 timetomodel>=0.7.1
-timely-beliefs>=1.10.0
+timely-beliefs>=1.11.0
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
