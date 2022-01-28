@@ -153,7 +153,7 @@ First, you can use the ``flexmeasures`` :ref:`cli`:
 
     flexmeasures add asset --name "my basement battery pack" --asset-type-id 3 --latitude 65 --longitude 123.76 --account-id 2
 
-For the account ID, I consult ``flexmeasures show asset-types``.
+For the asset type ID, I consult ``flexmeasures show asset-types``.
 
 For the account ID, I looked at the output of ``flexmeasures add account`` (the command we issued above) ― I could also have consulted ``flexmeasures show accounts``.
 
@@ -165,7 +165,7 @@ Finally, you can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2
 Add your first sensor
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Usually, we are here because we want to measure something with respect to our assets. Each assets can have sensors for that, so let's add a power sensor for our new battery asset, using the ``flexmeasures`` :ref:`cli`:
+Usually, we are here because we want to measure something with respect to our assets. Each assets can have sensors for that, so let's add a power sensor to our new battery asset, using the ``flexmeasures`` :ref:`cli`:
 
 .. code-block::
 
