@@ -22,7 +22,7 @@ def list_accounts():
     """
     List all accounts on this FlexMeasures instance.
     """
-    accounts = Account.query.order_by(Account.id).all()
+    accounts = Account.query.order_by(Account.name).all()
     if not accounts:
         click.echo("No accounts created yet.")
         return
@@ -44,7 +44,7 @@ def list_roles():
     """
     Show available account an user roles
     """
-    account_roles = AccountRole.query.order_by(AccountRole.id).all()
+    account_roles = AccountRole.query.order_by(AccountRole.name).all()
     if not account_roles:
         click.echo("No account roles created yet.")
         return
@@ -56,7 +56,7 @@ def list_roles():
         )
     )
     click.echo()
-    user_roles = Role.query.order_by(Role.id).all()
+    user_roles = Role.query.order_by(Role.name).all()
     if not user_roles:
         click.echo("No user roles created yet, not even admin.")
         return
@@ -93,7 +93,7 @@ def show_account(account_id):
         click.echo("Account has no roles.")
     click.echo()
 
-    users = User.query.filter_by(account_id=account_id).order_by(User.id).all()
+    users = User.query.filter_by(account_id=account_id).order_by(User.username).all()
     if not users:
         click.echo("No users in account ...")
     else:
@@ -115,7 +115,7 @@ def show_account(account_id):
     click.echo()
     assets = (
         GenericAsset.query.filter_by(account_id=account_id)
-        .order_by(GenericAsset.id)
+        .order_by(GenericAsset.name)
         .all()
     )
     if not assets:
@@ -135,7 +135,7 @@ def list_asset_types():
     """
     Show available asset types
     """
-    asset_types = GenericAssetType.query.order_by(GenericAssetType.id).all()
+    asset_types = GenericAssetType.query.order_by(GenericAssetType.name).all()
     if not asset_types:
         click.echo("No asset types created yet.")
         return
@@ -174,7 +174,7 @@ def show_generic_asset(asset_id):
 
     click.echo()
     sensors = (
-        Sensor.query.filter_by(generic_asset_id=asset_id).order_by(Sensor.id).all()
+        Sensor.query.filter_by(generic_asset_id=asset_id).order_by(Sensor.name).all()
     )
     if not sensors:
         click.echo("No sensors in asset ...")
@@ -205,7 +205,7 @@ def list_data_sources():
     """
     Show available data sources
     """
-    sources = DataSource.query.order_by(DataSource.id).all()
+    sources = DataSource.query.order_by(DataSource.name).all()
     if not sources:
         click.echo("No data sources created yet.")
         return
