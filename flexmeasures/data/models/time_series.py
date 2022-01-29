@@ -6,6 +6,7 @@ from flask import current_app
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
+from sqlalchemy import UniqueConstraint
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
@@ -695,19 +696,18 @@ class Annotation(db.Model):
         - national, school or public holiday: annotation.type == "holiday" and annotation.source.type == "holiday script"
     """
 
-    id = db.Column(db.Integer, nullable=False, primary_key=True)
+    id = db.Column(db.Integer, nullable=False, autoincrement=True, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     start = db.Column(db.DateTime(timezone=True), nullable=False)
     end = db.Column(db.DateTime(timezone=True), nullable=False)
-    source_id = db.Column(
-        db.Integer, db.ForeignKey(DataSource.__tablename__ + ".id"), primary_key=True
-    )
+    source_id = db.Column(db.Integer, db.ForeignKey(DataSource.__tablename__ + ".id"))
     source = db.relationship(
         "DataSource",
         foreign_keys=[source_id],
         backref=db.backref("annotations", lazy=True),
     )
     type = db.Column(db.Enum("alert", "holiday", "label"))
+    UniqueConstraint("name", "start", "source_id", "type")
 
     @property
     def duration(self) -> timedelta:
