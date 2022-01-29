@@ -12,12 +12,13 @@ import click
 import getpass
 from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
+from workalendar.registry import registry
 
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import Sensor, TimedBelief, Annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
@@ -478,6 +479,45 @@ def add_beliefs(
         print(f"Failed to create beliefs due to the following error: {e.orig}")
         if not allow_overwrite:
             print("As a possible workaround, use the --allow-overwrite flag.")
+
+
+@fm_add_data.command("holidays")
+@with_appcontext
+@click.option(
+    "--year",
+    type=click.INT,
+    help="The year for which to look up holidays",
+)
+@click.option(
+    "--country",
+    "countries",
+    type=click.STRING,
+    multiple=True,
+    help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE)",
+)
+def add_holidays(
+    year: int,
+    countries: List[str],
+):
+    calendars = registry.get_calendars(countries)
+    _source = get_or_create_source("workalendar", source_type="CLI script")
+    num_holidays = {}
+    for country, calendar in calendars.items():
+        holidays = calendar().holidays(year)
+        for holiday in holidays:
+            start = pd.Timestamp(holiday[0])
+            end = start + pd.offsets.DateOffset(days=1)
+            annotation = Annotation(
+                name=holiday[1],
+                start=start,
+                end=end,
+                source=_source,
+                type="holiday",
+            )
+            db.session.add(annotation)
+        num_holidays[country] = len(holidays)
+    db.session.commit()
+    print(f"Successfully added holidays:\n{num_holidays}")
 
 
 @fm_add_data.command("forecasts")
