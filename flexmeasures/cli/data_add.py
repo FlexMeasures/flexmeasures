@@ -500,9 +500,11 @@ def add_holidays(
     countries: List[str],
 ):
     calendars = registry.get_calendars(countries)
-    _source = get_or_create_source("workalendar", source_type="CLI script")
     num_holidays = {}
     for country, calendar in calendars.items():
+        _source = get_or_create_source(
+            "workalendar", model=country, source_type="CLI script"
+        )
         holidays = calendar().holidays(year)
         for holiday in holidays:
             start = pd.Timestamp(holiday[0])

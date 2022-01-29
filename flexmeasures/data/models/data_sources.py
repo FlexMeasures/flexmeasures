@@ -87,11 +87,16 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
 
 def get_or_create_source(
-    source: Union[User, str], source_type: Optional[str] = None, flush: bool = True
+    source: Union[User, str],
+    source_type: Optional[str] = None,
+    model: Optional[str] = None,
+    flush: bool = True,
 ) -> DataSource:
     if is_user(source):
         source_type = "user"
     query = DataSource.query.filter(DataSource.type == source_type)
+    if model is not None:
+        query = query.filter(DataSource.model == model)
     if is_user(source):
         query = query.filter(DataSource.user == source)
     elif isinstance(source, str):
@@ -102,11 +107,11 @@ def get_or_create_source(
     if not _source:
         current_app.logger.info(f"Setting up '{source}' as new data source...")
         if is_user(source):
-            _source = DataSource(user=source)
+            _source = DataSource(user=source, model=model)
         else:
             if source_type is None:
                 raise TypeError("Please specify a source type")
-            _source = DataSource(name=source, type=source_type)
+            _source = DataSource(name=source, model=model, type=source_type)
         db.session.add(_source)
         if flush:
             # assigns id so that we can reference the new object in the current db session
