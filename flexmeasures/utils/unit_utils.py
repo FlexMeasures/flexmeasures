@@ -1,8 +1,9 @@
 from datetime import timedelta
-from typing import Optional
+from typing import List, Optional, Union
 
 from moneyed import list_all_currencies
 import importlib.resources as pkg_resources
+import pandas as pd
 import pint
 
 # Edit constants template to stop using h to represent planck_constant
@@ -151,3 +152,22 @@ def is_energy_unit(unit: str) -> bool:
     if not is_valid_unit(unit):
         return False
     return ur.Quantity(unit).dimensionality == ur.Quantity("Wh").dimensionality
+
+
+def convert_units(
+    data: Union[pd.Series, List[Union[int, float]]],
+    from_unit: str,
+    to_unit: str,
+    event_resolution: Optional[timedelta],
+) -> List[Union[int, float]]:
+    """Updates data values to reflect the given unit conversion."""
+
+    if from_unit != to_unit:
+        multiplier = determine_unit_conversion_multiplier(
+            from_unit, to_unit, event_resolution
+        )
+        if isinstance(data, pd.Series):
+            data = multiplier * data
+        else:
+            data = [multiplier * value for value in data]
+    return data
