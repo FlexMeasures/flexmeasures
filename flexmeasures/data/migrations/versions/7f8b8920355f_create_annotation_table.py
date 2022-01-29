@@ -17,6 +17,18 @@ depends_on = None
 
 
 def upgrade():
+    create_annotation_table()
+    # create_annotation_asset_relationship()
+    # create_annotation_sensor_relationship()
+
+
+def downgrade():
+    op.drop_constraint(op.f("annotation_name_key"), "annotation", type_="unique")
+    op.drop_table("annotation")
+    op.execute("DROP TYPE annotation_type;")
+
+
+def create_annotation_table():
     op.create_table(
         "annotation",
         sa.Column(
@@ -38,9 +50,3 @@ def upgrade():
         "annotation",
         ["name", "start", "source_id", "type"],
     )
-
-
-def downgrade():
-    op.drop_constraint(op.f("annotation_name_key"), "annotation", type_="unique")
-    op.drop_table("annotation")
-    op.execute("DROP TYPE annotation_type;")
