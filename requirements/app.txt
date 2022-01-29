@@ -361,6 +361,8 @@ statsmodels==0.13.0
     # via timetomodel
 tables==3.6.1
     # via -r requirements/app.in
+tabulate==0.8.9
+    # via -r requirements/app.in
 threadpoolctl==3.0.0
     # via scikit-learn
 timely-beliefs==1.11.0

@@ -38,6 +38,19 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 
 
+``show`` - Show data
+--------------
+
+================================================= =======================================
+``flexmeasures show accounts``                    List accounts.
+``flexmeasures show account``                     Show an account, its users and assets.
+``flexmeasures show asset-types`                  List available asset types.
+``flexmeasures show asset``                       Show an asset and its sensors.
+``flexmeasures show roles``                       List available account- and user roles.
+``flexmeasures show data-sources``                List available data sources.
+================================================= =======================================
+
+
 ``delete`` - Delete data
 --------------
 

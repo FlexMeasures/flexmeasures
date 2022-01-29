@@ -11,6 +11,8 @@ New features
 
 * Add CLI-commands ``flexmeasures add sensor``, ``flexmeasures add asset-type``, ``flexmeasures add beliefs`` (which were experimental features before). [see `PR #337 <http://www.github.com/FlexMeasures/flexmeasures/pull/337>`_]
 
+* add CLI comands for showing data [see `PR #339 <http://www.github.com/FlexMeasures/flexmeasures/pull/339>`_]
+
 Bugfixes
 -----------
 

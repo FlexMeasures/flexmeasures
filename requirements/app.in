@@ -33,6 +33,7 @@ pvlib
 netCDF4
 siphon
 tables
+tabulate
 timetomodel>=0.7.1
 timely-beliefs>=1.11.0
 python-dotenv
