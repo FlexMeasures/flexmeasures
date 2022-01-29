@@ -197,7 +197,7 @@ def delete_prognoses(
     depopulate_prognoses(app.db, sensor_id)
 
 
-@fm_delete_data.command("unchanged_beliefs")
+@fm_delete_data.command("unchanged-beliefs")
 @with_appcontext
 @click.option(
     "--sensor-id",
@@ -275,7 +275,7 @@ def delete_unchanged_beliefs(
     print(f"Done! {num_beliefs_after} beliefs left")
 
 
-@fm_delete_data.command("nan_beliefs")
+@fm_delete_data.command("nan-beliefs")
 @with_appcontext
 @click.option(
     "--sensor-id",

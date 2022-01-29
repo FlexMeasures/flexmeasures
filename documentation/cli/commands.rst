@@ -28,9 +28,12 @@ of which some are referred to in this documentation.
 ``flexmeasures add account-role``                 Create a FlexMeasures tenant account role.
 ``flexmeasures add account``                      Create a FlexMeasures tenant account.
 ``flexmeasures add user``                         Create a FlexMeasures user.
+``flexmeasures add asset-type``                   Create a new asset type.
 ``flexmeasures add asset``                        Create a new asset.
+``flexmeasures add sensor``                       Add a new sensor.
 ``flexmeasures add weather-sensor``               Add a weather sensor.
 ``flexmeasures add external-weather-forecasts``   Collect weather forecasts from the DarkSky API.
+``flexmeasures add beliefs``                      Load beliefs from file.
 ``flexmeasures add forecasts``                    Create forecasts.
 ================================================= =======================================
 
@@ -44,8 +47,11 @@ of which some are referred to in this documentation.
 ``flexmeasures delete account-role``              Delete a tenant account role.
 ``flexmeasures delete account``                   Delete a tenant account & also their users (with assets and power measurements).
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
+``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
 ``flexmeasures delete measurements``              Delete measurements (with horizon <= 0).
 ``flexmeasures delete prognoses``                 Delete forecasts and schedules (forecasts > 0).
+``flexmeasures delete unchanged-beliefs``         Delete unchanged beliefs.
+``flexmeasures delete nan-beliefs``               Delete NaN beliefs.
 ================================================= =======================================
 
 
