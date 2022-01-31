@@ -693,7 +693,7 @@ class Annotation(db.Model):
         - unresolved alert: annotation.type == "alert"
         - resolved alert: annotation.type == "label" and annotation.source.type == "alerting script"
         - organisation holiday: annotation.type == "holiday" and annotation.source.type == "user"
-        - national, school or public holiday: annotation.type == "holiday" and annotation.source.type == "holiday script"
+        - public holiday: annotation.type == "holiday" and annotation.source.name == "workalendar"
     """
 
     id = db.Column(db.Integer, nullable=False, autoincrement=True, primary_key=True)
