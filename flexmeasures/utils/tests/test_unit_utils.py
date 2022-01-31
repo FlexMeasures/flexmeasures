@@ -99,7 +99,9 @@ def test_determine_unit_conversion_multiplier():
     assert determine_unit_conversion_multiplier("J/s", "W") == 1
     assert determine_unit_conversion_multiplier("Wh", "W", timedelta(minutes=10)) == 6
     assert determine_unit_conversion_multiplier("kWh", "MJ") == 3.6
-    assert determine_unit_conversion_multiplier("°C", "K") == 274.15
+    with pytest.raises(pint.errors.OffsetUnitCalculusError):
+        # Not a conversion that can be specified as a multiplication
+        determine_unit_conversion_multiplier("°C", "K")
 
 
 def test_h_denotes_hour_and_not_planck_constant():

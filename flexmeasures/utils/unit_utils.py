@@ -78,9 +78,7 @@ def determine_unit_conversion_multiplier(
     """Determine the value multiplier for a given unit conversion.
     If needed, requires a duration to convert from units of stock change to units of flow.
     """
-    scalar = (
-        ur.Quantity(from_unit).to_base_units() / ur.Quantity(to_unit).to_base_units()
-    )
+    scalar = ur.Quantity(from_unit) / ur.Quantity(to_unit)
     if scalar.dimensionality == ur.Quantity("h").dimensionality:
         if duration is None:
             raise ValueError(
@@ -163,11 +161,25 @@ def convert_units(
     """Updates data values to reflect the given unit conversion."""
 
     if from_unit != to_unit:
-        multiplier = determine_unit_conversion_multiplier(
-            from_unit, to_unit, event_resolution
-        )
-        if isinstance(data, pd.Series):
-            data = multiplier * data
-        else:
-            data = [multiplier * value for value in data]
+        try:
+            if isinstance(data, pd.Series):
+                data = pd.Series(
+                    pint.Quantity(data.values, from_unit)
+                    .to(pint.Quantity(to_unit))
+                    .magnitude,
+                    index=data.index,
+                    name=data.name,
+                )
+            else:
+                data = list(
+                    pint.Quantity(data, from_unit).to(pint.Quantity(to_unit)).magnitude
+                )
+        except pint.errors.DimensionalityError:
+            multiplier = determine_unit_conversion_multiplier(
+                from_unit, to_unit, event_resolution
+            )
+            if isinstance(data, pd.Series):
+                data = multiplier * data
+            else:
+                data = [multiplier * value for value in data]
     return data
