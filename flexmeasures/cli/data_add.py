@@ -508,19 +508,28 @@ def add_beliefs(
     multiple=True,
     help="Add annotations to this asset. Follow up with the asset's ID.",
 )
+@click.option(
+    "--account-id",
+    "account_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotations to all assets of this account. Follow up with the account's ID.",
+)
 def add_holidays(
     year: int,
     countries: List[str],
     generic_asset_ids: List[int],
+    account_ids: List[int],
 ):
     """Add holiday annotations to assets."""
     calendars = registry.get_calendars(countries)
     num_holidays = {}
-    assets = (
-        db.session.query(GenericAsset)
-        .filter(GenericAsset.id.in_(generic_asset_ids))
-        .all()
-    )
+    asset_query = db.session.query(GenericAsset)
+    if generic_asset_ids:
+        asset_query = asset_query.filter(GenericAsset.id.in_(generic_asset_ids))
+    if account_ids:
+        asset_query = asset_query.filter(GenericAsset.account_id.in_(account_ids))
+    assets = asset_query.all()
     for country, calendar in calendars.items():
         _source = get_or_create_source(
             "workalendar", model=country, source_type="CLI script"
