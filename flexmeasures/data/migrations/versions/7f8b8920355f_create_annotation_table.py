@@ -32,7 +32,7 @@ def downgrade():
 
 def create_annotation_sensor_relationship_table():
     op.create_table(
-        "annotations_sensor",
+        "annotations_sensors",
         sa.Column("sensor_id", sa.Integer(), nullable=False, primary_key=True),
         sa.Column("annotation_id", sa.Integer(), nullable=False, primary_key=True),
         sa.ForeignKeyConstraint(("sensor_id",), ["sensor.id"]),
