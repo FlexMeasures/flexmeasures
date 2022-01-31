@@ -3,6 +3,7 @@ from typing import List, Optional, Union
 
 from moneyed import list_all_currencies
 import importlib.resources as pkg_resources
+import numpy as np
 import pandas as pd
 import pint
 
@@ -161,30 +162,31 @@ def convert_units(
     """Updates data values to reflect the given unit conversion."""
 
     if from_unit != to_unit:
-        magnitudes = data.values if isinstance(data, pd.Series) else data
+        from_magnitudes = (
+            data.to_numpy() if isinstance(data, pd.Series) else np.asarray(data)
+        )
         try:
-            from_quantities = ur.Quantity(magnitudes, from_unit)
+            from_quantities = ur.Quantity(from_magnitudes, from_unit)
         except ValueError as e:
             # Catch units like "-W" and "100km"
             if str(e) == "Unit expression cannot have a scaling factor.":
-                from_quantities = ur.Quantity(from_unit) * magnitudes
+                from_quantities = ur.Quantity(from_unit) * from_magnitudes
             else:
                 raise e  # reraise
         try:
-            if isinstance(data, pd.Series):
-                data = pd.Series(
-                    from_quantities.to(ur.Quantity(to_unit)).magnitude,
-                    index=data.index,
-                    name=data.name,
-                )
-            else:
-                data = list(from_quantities.to(ur.Quantity(to_unit)).magnitude)
+            to_magnitudes = from_quantities.to(ur.Quantity(to_unit)).magnitude
         except pint.errors.DimensionalityError:
+            # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
             multiplier = determine_unit_conversion_multiplier(
                 from_unit, to_unit, event_resolution
             )
-            if isinstance(data, pd.Series):
-                data = multiplier * data
-            else:
-                data = [multiplier * value for value in data]
+            to_magnitudes = from_magnitudes * multiplier
+        if isinstance(data, pd.Series):
+            data = pd.Series(
+                to_magnitudes,
+                index=data.index,
+                name=data.name,
+            )
+        else:
+            data = list(to_magnitudes)
     return data
