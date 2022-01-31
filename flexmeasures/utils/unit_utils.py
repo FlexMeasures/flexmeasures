@@ -164,15 +164,15 @@ def convert_units(
         try:
             if isinstance(data, pd.Series):
                 data = pd.Series(
-                    pint.Quantity(data.values, from_unit)
-                    .to(pint.Quantity(to_unit))
+                    ur.Quantity(data.values, from_unit)
+                    .to(ur.Quantity(to_unit))
                     .magnitude,
                     index=data.index,
                     name=data.name,
                 )
             else:
                 data = list(
-                    pint.Quantity(data, from_unit).to(pint.Quantity(to_unit)).magnitude
+                    ur.Quantity(data, from_unit).to(ur.Quantity(to_unit)).magnitude
                 )
         except pint.errors.DimensionalityError:
             multiplier = determine_unit_conversion_multiplier(
