@@ -483,15 +483,9 @@ def add_beliefs(
 @fm_add_data.command("forecasts")
 @with_appcontext
 @click.option(
-    "--asset-type",
-    type=click.Choice(["Asset", "Market", "WeatherSensor"]),
-    help="The generic asset type for which to generate forecasts."
-    " Follow up with Asset, Market or WeatherSensor.",
-)
-@click.option(
-    "--asset-id",
-    help="Populate (time series) data for a single asset only. Follow up with the asset's ID. "
-    "We still need --asset-type, as well, so we know where to look this ID up.",
+    "--sensor-id",
+    "sensor_id",
+    help="Populate (time series) data for a single sensor only. Follow up with the sensor's ID.",
 )
 @click.option(
     "--from-date",
@@ -508,7 +502,7 @@ def add_beliefs(
 @click.option(
     "--resolution",
     type=int,
-    help="Resolution of forecast in minutes. If not set, resolution is determined from the asset to be forecasted",
+    help="Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
 )
 @click.option(
     "--horizon",
@@ -526,8 +520,7 @@ def add_beliefs(
     " config settings to that of the remote server. To process the job, run a worker to process the forecasting queue. Defaults to False.",
 )
 def create_forecasts(
-    asset_type: str = None,
-    asset_id: int = None,
+    sensor_id: int = None,
     from_date_str: str = "2015-02-08",
     to_date_str: str = "2015-12-31",
     horizons_as_hours: List[str] = ["1"],
@@ -542,7 +535,7 @@ def create_forecasts(
         --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6
 
         This will create forecast values from 0am on May 2nd to 0am on May 5th,
-        based on a 6 hour horizon.
+        based on a 6-hour horizon.
 
     """
     # make horizons
@@ -566,7 +559,7 @@ def create_forecasts(
             # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
             # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
             create_forecasting_jobs(
-                old_sensor_id=asset_id,
+                sensor_id=sensor_id,
                 horizons=[horizon],
                 start_of_roll=forecast_start - horizon,
                 end_of_roll=forecast_end - horizon,
@@ -580,8 +573,7 @@ def create_forecasts(
             forecast_start=forecast_start,
             forecast_end=forecast_end,
             event_resolution=event_resolution,
-            old_sensor_class_name=asset_type,
-            old_sensor_id=asset_id,
+            sensor_id=sensor_id,
         )
 
 

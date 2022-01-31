@@ -43,7 +43,7 @@ class MisconfiguredForecastingJobException(Exception):
 
 
 def create_forecasting_jobs(
-    old_sensor_id: int,
+    sensor_id: int,
     start_of_roll: datetime,
     end_of_roll: datetime,
     resolution: timedelta = None,
@@ -96,7 +96,7 @@ def create_forecasting_jobs(
         job = Job.create(
             make_rolling_viewpoint_forecasts,
             kwargs=dict(
-                old_sensor_id=old_sensor_id,
+                old_sensor_id=sensor_id,
                 horizon=horizon,
                 start=start_of_roll + horizon,
                 end=end_of_roll + horizon,
