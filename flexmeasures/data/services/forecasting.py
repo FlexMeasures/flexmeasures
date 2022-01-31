@@ -43,7 +43,7 @@ class MisconfiguredForecastingJobException(Exception):
 
 
 def create_forecasting_jobs(
-    old_sensor_id: int,
+    sensor_id: int,
     start_of_roll: datetime,
     end_of_roll: datetime,
     resolution: timedelta = None,
@@ -96,7 +96,7 @@ def create_forecasting_jobs(
         job = Job.create(
             make_rolling_viewpoint_forecasts,
             kwargs=dict(
-                old_sensor_id=old_sensor_id,
+                sensor_id=sensor_id,
                 horizon=horizon,
                 start=start_of_roll + horizon,
                 end=end_of_roll + horizon,
@@ -118,7 +118,7 @@ def create_forecasting_jobs(
 
 
 def make_fixed_viewpoint_forecasts(
-    old_sensor_id: int,
+    sensor_id: int,
     horizon: timedelta,
     start: datetime,
     end: datetime,
@@ -135,7 +135,7 @@ def make_fixed_viewpoint_forecasts(
 
 
 def make_rolling_viewpoint_forecasts(
-    old_sensor_id: int,
+    sensor_id: int,
     horizon: timedelta,
     start: datetime,
     end: datetime,
@@ -150,8 +150,8 @@ def make_rolling_viewpoint_forecasts(
 
     Parameters
     ----------
-    :param old_sensor_id: int
-        To identify which old sensor to forecast (note: old_sensor_id == sensor_id)
+    :param sensor_id: int
+        To identify which sensor to forecast
     :param horizon: timedelta
         duration between the end of each interval and the time at which the belief about that interval is formed
     :param start: datetime
@@ -173,7 +173,7 @@ def make_rolling_viewpoint_forecasts(
     model_search_term = rq_job.meta.get("model_search_term", "linear-OLS")
 
     # find sensor
-    sensor = Sensor.query.filter_by(id=old_sensor_id).one_or_none()
+    sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
 
     click.echo(
         "Running Forecasting Job %s: %s for %s on model '%s', from %s to %s"
