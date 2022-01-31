@@ -25,7 +25,12 @@ from flexmeasures.utils.unit_utils import (
         ("m³", "m³/h", 4, None),
         ("MW", "kW", 1000, None),
         ("kWh", "kW", 4, None),
+        ("-W", "W", -1, None),
+        ("l/(100km)", "l/km", 0.01, None),
         ("°C", "K", None, [273.15, 283.15, 284.15]),
+        # no support for combining an offset unit with a scaling factor, but this is also overly specific
+        # ("-°C", "K", None, [273.15, 263.15, 262.15]),
+        # ("l/(10°C)", "l/(°C)", 0.1, None),
     ],
 )
 def test_convert_unit(

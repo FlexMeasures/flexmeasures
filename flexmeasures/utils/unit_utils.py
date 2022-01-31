@@ -161,19 +161,24 @@ def convert_units(
     """Updates data values to reflect the given unit conversion."""
 
     if from_unit != to_unit:
+        magnitudes = data.values if isinstance(data, pd.Series) else data
+        try:
+            from_quantities = ur.Quantity(magnitudes, from_unit)
+        except ValueError as e:
+            # Catch units like "-W" and "100km"
+            if str(e) == "Unit expression cannot have a scaling factor.":
+                from_quantities = ur.Quantity(from_unit) * magnitudes
+            else:
+                raise e  # reraise
         try:
             if isinstance(data, pd.Series):
                 data = pd.Series(
-                    ur.Quantity(data.values, from_unit)
-                    .to(ur.Quantity(to_unit))
-                    .magnitude,
+                    from_quantities.to(ur.Quantity(to_unit)).magnitude,
                     index=data.index,
                     name=data.name,
                 )
             else:
-                data = list(
-                    ur.Quantity(data, from_unit).to(ur.Quantity(to_unit)).magnitude
-                )
+                data = list(from_quantities.to(ur.Quantity(to_unit)).magnitude)
         except pint.errors.DimensionalityError:
             multiplier = determine_unit_conversion_multiplier(
                 from_unit, to_unit, event_resolution
