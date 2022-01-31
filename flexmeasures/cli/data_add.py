@@ -487,7 +487,7 @@ def add_beliefs(
     "sensor_ids",
     multiple=True,
     required=True,
-    help="Populate (time series) data for a single sensor only. Follow up with the sensor's ID.",
+    help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--from-date",
@@ -534,10 +534,10 @@ def create_forecasts(
 
     For example:
 
-        --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6
+        --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6 --sensor-id 12 --sensor-id 14
 
         This will create forecast values from 0am on May 2nd to 0am on May 5th,
-        based on a 6-hour horizon.
+        based on a 6-hour horizon, for sensors 12 and 14.
 
     """
     # make horizons
