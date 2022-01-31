@@ -31,24 +31,20 @@ def downgrade():
 def create_annotation_sensor_relationship_table():
     op.create_table(
         "annotations_sensor",
-        sa.Column(
-            "sensor_id", sa.Integer(), nullable=False, primary_key=True
-        ),
+        sa.Column("sensor_id", sa.Integer(), nullable=False, primary_key=True),
         sa.Column("annotation_id", sa.Integer(), nullable=False, primary_key=True),
-        sa.ForeignKeyConstraint(["sensor_id"], ["sensor.id"]),
-        sa.ForeignKeyConstraint(["annotation_id"], ["annotation.id"]),
+        sa.ForeignKeyConstraint(("sensor_id",), ["sensor.id"]),
+        sa.ForeignKeyConstraint(("annotation_id",), ["annotation.id"]),
     )
 
 
 def create_annotation_asset_relationship_table():
     op.create_table(
         "annotations_assets",
-        sa.Column(
-            "generic_asset_id", sa.Integer(), nullable=False, primary_key=True
-        ),
+        sa.Column("generic_asset_id", sa.Integer(), nullable=False, primary_key=True),
         sa.Column("annotation_id", sa.Integer(), nullable=False, primary_key=True),
-        sa.ForeignKeyConstraint(["generic_asset_id"], ["generic_asset.id"]),
-        sa.ForeignKeyConstraint(["annotation_id"], ["annotation.id"]),
+        sa.ForeignKeyConstraint(("generic_asset_id",), ["generic_asset.id"]),
+        sa.ForeignKeyConstraint(("annotation_id",), ["annotation.id"]),
     )
 
 
@@ -67,7 +63,7 @@ def create_annotation_table():
             sa.Enum("alert", "holiday", "label", name="annotation_type"),
             nullable=False,
         ),
-        sa.ForeignKeyConstraint(["source_id"], ["data_source.id"]),
+        sa.ForeignKeyConstraint(("source_id",), ["data_source.id"]),
     )
     op.create_unique_constraint(
         op.f("annotation_name_key"),
