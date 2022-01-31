@@ -19,13 +19,25 @@ depends_on = None
 def upgrade():
     create_annotation_table()
     create_annotation_asset_relationship_table()
-    # create_annotation_sensor_relationship()
+    create_annotation_sensor_relationship_table()
 
 
 def downgrade():
     op.drop_constraint(op.f("annotation_name_key"), "annotation", type_="unique")
     op.drop_table("annotation")
     op.execute("DROP TYPE annotation_type;")
+
+
+def create_annotation_sensor_relationship_table():
+    op.create_table(
+        "annotations_sensor",
+        sa.Column(
+            "sensor_id", sa.Integer(), nullable=False, primary_key=True
+        ),
+        sa.Column("annotation_id", sa.Integer(), nullable=False, primary_key=True),
+        sa.ForeignKeyConstraint(["sensor_id"], ["sensor.id"]),
+        sa.ForeignKeyConstraint(["annotation_id"], ["annotation.id"]),
+    )
 
 
 def create_annotation_asset_relationship_table():
