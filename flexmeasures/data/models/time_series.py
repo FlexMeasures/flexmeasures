@@ -706,7 +706,7 @@ class Annotation(db.Model):
         foreign_keys=[source_id],
         backref=db.backref("annotations", lazy=True),
     )
-    type = db.Column(db.Enum("alert", "holiday", "label"))
+    type = db.Column(db.Enum("alert", "holiday", "label", name="annotation_type"))
     UniqueConstraint("name", "start", "source_id", "type")
 
     @property
