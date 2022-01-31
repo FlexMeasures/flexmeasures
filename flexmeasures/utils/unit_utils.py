@@ -159,7 +159,7 @@ def convert_units(
     from_unit: str,
     to_unit: str,
     event_resolution: Optional[timedelta],
-) -> List[Union[int, float]]:
+) -> Union[pd.Series, List[Union[int, float]]]:
     """Updates data values to reflect the given unit conversion."""
 
     if from_unit != to_unit:
