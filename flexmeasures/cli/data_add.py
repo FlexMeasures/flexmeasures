@@ -499,21 +499,21 @@ def add_beliefs(
     "countries",
     type=click.STRING,
     multiple=True,
-    help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE)",
+    help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times.",
 )
 @click.option(
     "--asset-id",
     "generic_asset_ids",
     type=click.INT,
     multiple=True,
-    help="Add annotations to this asset. Follow up with the asset's ID.",
+    help="Add annotations to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--account-id",
     "account_ids",
     type=click.INT,
     multiple=True,
-    help="Add annotations to all assets of this account. Follow up with the account's ID.",
+    help="Add annotations to all assets of this account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 def add_holidays(
     year: int,
