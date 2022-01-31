@@ -23,6 +23,8 @@ def upgrade():
 
 
 def downgrade():
+    op.drop_table("annotations_assets")
+    op.drop_table("annotations_sensors")
     op.drop_constraint(op.f("annotation_name_key"), "annotation", type_="unique")
     op.drop_table("annotation")
     op.execute("DROP TYPE annotation_type;")
