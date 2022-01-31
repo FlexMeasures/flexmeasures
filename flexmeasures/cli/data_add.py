@@ -31,6 +31,7 @@ from flexmeasures.data.models.data_sources import (
     get_source_or_none,
 )
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.unit_utils import convert_units
 
 
 @click.group("add")
@@ -314,6 +315,14 @@ def add_initial_structure():
     help="Source of the beliefs (an existing source id or name, or a new name).",
 )
 @click.option(
+    "--unit",
+    required=False,
+    type=str,
+    help="Unit of the data, for conversion to the sensor unit, if possible (a string unit such as 'kW' or 'm³/h').\n"
+    "Hint: to switch the sign of the data, prepend a minus sign.\n"
+    "For example, when assigning kW consumption data to a kW production sensor, use '-kW'.",
+)
+@click.option(
     "--horizon",
     required=False,
     type=int,
@@ -394,6 +403,7 @@ def add_beliefs(
     file: str,
     sensor_id: int,
     source: str,
+    unit: Optional[str] = None,
     horizon: Optional[int] = None,
     cp: Optional[float] = None,
     resample: bool = True,
@@ -464,6 +474,13 @@ def add_beliefs(
         parse_dates=True,
         **kwargs,
     )
+    if unit is not None:
+        bdf["event_value"] = convert_units(
+            bdf["event_value"],
+            from_unit=unit,
+            to_unit=sensor.unit,
+            event_resolution=sensor.event_resolution,
+        )
     try:
         TimedBelief.add(
             bdf,

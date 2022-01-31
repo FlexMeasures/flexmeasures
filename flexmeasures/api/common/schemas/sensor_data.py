@@ -14,7 +14,7 @@ from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.utils.unit_utils import (
-    determine_unit_conversion_multiplier,
+    convert_units,
     units_are_convertible,
 )
 
@@ -139,14 +139,12 @@ class SensorDataSchema(SensorDataDescriptionSchema):
         Convert values if needed, to fit the sensor's unit.
         Marshmallow runs this after validation.
         """
-        posted_unit = data["unit"]
-        required_unit = data["sensor"].unit
-
-        if posted_unit != required_unit:
-            multiplier = determine_unit_conversion_multiplier(
-                posted_unit, required_unit, data["sensor"].event_resolution
-            )
-            data["values"] = [multiplier * value for value in data["values"]]
+        data["values"] = convert_units(
+            data["values"],
+            from_unit=data["unit"],
+            to_unit=data["sensor"].unit,
+            event_resolution=data["sensor"].event_resolution,
+        )
         return data
 
     @post_load()
