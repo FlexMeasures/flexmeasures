@@ -6,6 +6,7 @@ Create Date: 2022-01-29 20:23:29.996133
 
 """
 from alembic import op
+import click
 import sqlalchemy as sa
 
 
@@ -23,6 +24,10 @@ def upgrade():
 
 
 def downgrade():
+    click.confirm(
+        "This downgrade drops the tables 'annotations_assets', 'annotations_sensors' and 'annotation'. Continue?",
+        abort=True,
+    )
     op.drop_table("annotations_assets")
     op.drop_table("annotations_sensors")
     op.drop_constraint(op.f("annotation_name_key"), "annotation", type_="unique")
