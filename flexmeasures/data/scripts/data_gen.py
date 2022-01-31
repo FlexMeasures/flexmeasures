@@ -202,11 +202,11 @@ def populate_structure(db: SQLAlchemy):
 @as_transaction  # noqa: C901
 def populate_time_series_forecasts(  # noqa: C901
     db: SQLAlchemy,
+    sensor_ids: List[int],
     horizons: List[timedelta],
     forecast_start: datetime,
     forecast_end: datetime,
     event_resolution: Optional[timedelta] = None,
-    sensor_id: Optional[int] = None,
 ):
     training_and_testing_period = timedelta(days=30)
 
@@ -221,10 +221,7 @@ def populate_time_series_forecasts(  # noqa: C901
     ).one_or_none()
 
     # List all sensors for which to forecast.
-    if sensor_id is None:
-        sensors = Sensor.query.all()
-    else:
-        sensors = [Sensor.query.filter(Sensor.id == sensor_id).one_or_none()]
+    sensors = [Sensor.query.filter(Sensor.id.in_(sensor_ids)).one_or_none()]
     if not sensors:
         click.echo("No such sensors in db, so I will not add any forecasts.")
         return

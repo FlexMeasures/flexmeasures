@@ -484,7 +484,9 @@ def add_beliefs(
 @with_appcontext
 @click.option(
     "--sensor-id",
-    "sensor_id",
+    "sensor_ids",
+    multiple=True,
+    required=True,
     help="Populate (time series) data for a single sensor only. Follow up with the sensor's ID.",
 )
 @click.option(
@@ -520,7 +522,7 @@ def add_beliefs(
     " config settings to that of the remote server. To process the job, run a worker to process the forecasting queue. Defaults to False.",
 )
 def create_forecasts(
-    sensor_id: int = None,
+    sensor_ids: List[int],
     from_date_str: str = "2015-02-08",
     to_date_str: str = "2015-12-31",
     horizons_as_hours: List[str] = ["1"],
@@ -555,25 +557,26 @@ def create_forecasts(
         event_resolution = None
 
     if as_job:
-        for horizon in horizons:
-            # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
-            # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
-            create_forecasting_jobs(
-                sensor_id=sensor_id,
-                horizons=[horizon],
-                start_of_roll=forecast_start - horizon,
-                end_of_roll=forecast_end - horizon,
-            )
+        for sensor_id in sensor_ids:
+            for horizon in horizons:
+                # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
+                # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
+                create_forecasting_jobs(
+                    sensor_id=sensor_id,
+                    horizons=[horizon],
+                    start_of_roll=forecast_start - horizon,
+                    end_of_roll=forecast_end - horizon,
+                )
     else:
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
 
         populate_time_series_forecasts(
             db=app.db,
+            sensor_ids=sensor_ids,
             horizons=horizons,
             forecast_start=forecast_start,
             forecast_end=forecast_end,
             event_resolution=event_resolution,
-            sensor_id=sensor_id,
         )
 
 
