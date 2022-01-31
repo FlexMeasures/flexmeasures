@@ -18,7 +18,12 @@ from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
-from flexmeasures.data.models.time_series import Sensor, TimedBelief, Annotation
+from flexmeasures.data.models.time_series import (
+    Sensor,
+    TimedBelief,
+    Annotation,
+    GenericAssetAnnotationRelationship,
+)
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
@@ -31,6 +36,7 @@ from flexmeasures.data.models.data_sources import (
     get_or_create_source,
     get_source_or_none,
 )
+from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
 
 
@@ -495,12 +501,26 @@ def add_beliefs(
     multiple=True,
     help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE)",
 )
+@click.option(
+    "--asset-id",
+    "generic_asset_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotations to this asset. Follow up with the asset's ID.",
+)
 def add_holidays(
     year: int,
     countries: List[str],
+    generic_asset_ids: List[int],
 ):
+    """Add holiday annotations to assets."""
     calendars = registry.get_calendars(countries)
     num_holidays = {}
+    assets = (
+        db.session.query(GenericAsset)
+        .filter(GenericAsset.id.in_(generic_asset_ids))
+        .all()
+    )
     for country, calendar in calendars.items():
         _source = get_or_create_source(
             "workalendar", model=country, source_type="CLI script"
@@ -517,9 +537,18 @@ def add_holidays(
                 type="holiday",
             )
             db.session.add(annotation)
+            db.session.flush()
+            for asset in assets:
+                relation = GenericAssetAnnotationRelationship(
+                    annotation=annotation,
+                    asset=asset,
+                )
+                db.session.add(relation)
         num_holidays[country] = len(holidays)
     db.session.commit()
-    print(f"Successfully added holidays:\n{num_holidays}")
+    print(
+        f"Successfully added holidays to {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
+    )
 
 
 @fm_add_data.command("forecasts")
