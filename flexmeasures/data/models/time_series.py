@@ -719,6 +719,7 @@ class Annotation(db.Model):
 
 class GenericAssetAnnotationRelationship(db.Model):
     """Links annotations to generic assets."""
+    __tablename__ = "annotations_assets"
 
     generic_asset_id = db.Column(
         db.Integer, db.ForeignKey("generic_asset.id"), nullable=False, primary_key=True
@@ -741,6 +742,7 @@ class GenericAssetAnnotationRelationship(db.Model):
 
 class SensorAnnotationRelationship(db.Model):
     """Links annotations to sensors."""
+    __tablename__ = "annotations_sensors"
 
     sensor_id = db.Column(
         db.Integer, db.ForeignKey("sensor.id"), nullable=False, primary_key=True
