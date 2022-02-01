@@ -293,7 +293,7 @@ def add_weather_sensor(**args):
 @fm_add_data.command("structure")
 @with_appcontext
 def add_initial_structure():
-    """Initialize structural data like asset types and roles."""
+    """Initialize useful structural data."""
     from flexmeasures.data.scripts.data_gen import populate_structure
 
     populate_structure(db)
