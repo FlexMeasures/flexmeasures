@@ -12,7 +12,7 @@ import click
 import getpass
 from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
-from workalendar.registry import registry
+from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
@@ -522,7 +522,7 @@ def add_holidays(
     account_ids: List[int],
 ):
     """Add holiday annotations to assets."""
-    calendars = registry.get_calendars(countries)
+    calendars = workalendar_registry.get_calendars(countries)
     num_holidays = {}
     asset_query = db.session.query(GenericAsset)
     if generic_asset_ids:
