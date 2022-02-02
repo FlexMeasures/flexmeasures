@@ -22,7 +22,6 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
     Annotation,
-    GenericAssetAnnotationRelationship,
 )
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
