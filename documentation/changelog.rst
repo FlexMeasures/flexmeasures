@@ -21,6 +21,8 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 
+* Adapt CLI command for entering some initial structure (``flexmeasures add structure``) to new datamodel [see `PR #349 <http://www.github.com/FlexMeasures/flexmeasures/pull/349>`_]
+
 
 v0.8.0 | January 24, 2022
 ===========================

@@ -15,16 +15,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.serializer import loads, dumps
 from timetomodel.forecasting import make_rolling_forecasts
 from timetomodel.exceptions import MissingData, NaNData
-import pytz
 from humanize import naturaldelta
 import inflect
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.models.markets import MarketType, Market
-from flexmeasures.data.models.assets import AssetType, Asset
+from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor
-from flexmeasures.data.models.user import User, Role, RolesUsers
+from flexmeasures.data.models.user import User, Role, RolesUsers, AccountRole
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.utils.time_utils import ensure_local_timezone
@@ -39,137 +36,73 @@ infl_eng = inflect.engine()
 
 def add_data_sources(db: SQLAlchemy):
     db.session.add(DataSource(name="Seita", type="demo script"))
+    db.session.add(DataSource(name="Seita", type="forecasting script"))
+    db.session.add(DataSource(name="Seita", type="scheduling script"))
 
 
 def add_asset_types(db: SQLAlchemy):
+    """
+    Add a few useful asset types.
+    """
     db.session.add(
-        AssetType(
+        GenericAssetType(
             name="solar",
-            display_name="solar panel",
-            is_producer=True,
-            daily_seasonality=True,
-            yearly_seasonality=True,
+            description="solar panel(s)",
         )
     )
     db.session.add(
-        AssetType(
+        GenericAssetType(
             name="wind",
-            display_name="wind turbine",
-            is_producer=True,
-            can_curtail=True,
-            daily_seasonality=True,
-            yearly_seasonality=True,
+            description="wind turbine",
         )
     )
     db.session.add(
-        AssetType(
+        GenericAssetType(
             name="one-way_evse",
-            display_name="one-way EVSE",
-            hover_label="uni-directional Electric Vehicle Supply Equipment",
-            is_consumer=True,
-            can_shift=True,
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
+            description="uni-directional Electric Vehicle Supply Equipment",
         )
     )
     db.session.add(
-        AssetType(
+        GenericAssetType(
             name="two-way_evse",
-            display_name="two-way EVSE",
-            hover_label="bi-directional Electric Vehicle Supply Equipment",
-            is_consumer=True,
-            is_producer=True,
-            can_shift=True,
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
+            description="bi-directional Electric Vehicle Supply Equipment",
         )
     )
     db.session.add(
-        AssetType(
+        GenericAssetType(
             name="battery",
-            display_name="stationary battery",
-            is_consumer=True,
-            is_producer=True,
-            can_curtail=True,
-            can_shift=True,
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
+            description="stationary battery",
         )
     )
     db.session.add(
-        AssetType(
+        GenericAssetType(
             name="building",
-            display_name="building",
-            is_consumer=True,
-            is_producer=True,
-            can_shift=True,
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
+            description="building",
         )
     )
 
 
-def add_weather_sensor_types(db: SQLAlchemy):
-    db.session.add(WeatherSensorType(name="temperature"))
-    db.session.add(WeatherSensorType(name="wind_speed"))
-    db.session.add(WeatherSensorType(name="radiation"))
-
-
-def add_market_types(db: SQLAlchemy):
-    db.session.add(
-        MarketType(
-            name="day_ahead",
-            display_name="day-ahead market",
-            daily_seasonality=True,
-            weekly_seasonality=True,
-            yearly_seasonality=True,
-        )
-    )
-    db.session.add(
-        MarketType(
-            name="tou_tariff",
-            display_name="time-of use tariff",
-            daily_seasonality=True,
-            weekly_seasonality=False,
-            yearly_seasonality=True,
-        )
-    )
-
-
-def add_dummy_tou_market(db: SQLAlchemy):
+def add_user_roles(db: SQLAlchemy):
     """
-    Add a dummy time-of-use market with a 1-year resolution.
-    Also add a few price points, each covering a whole year.
-
-    Note that for this market, the leap years will not have a price on
-    December 31st. To fix that, we should use 366 days as resolution,
-    but test what that involves on that day, or we need timely-beliefs to switch
-    to defining sensor event resolutions as nominal durations.
+    Add a few useful user roles.
     """
-    market = Market(
-        name="dummy-tou",
-        event_resolution=timedelta(days=365),
-        market_type_name="tou_tariff",
-        unit="EUR/MWh",
+    db.session.add(Role(name="admin", description="Super user"))
+    db.session.add(Role(name="admin-reader", description="Can read everything"))
+
+
+def add_account_roles(db: SQLAlchemy):
+    """
+    Add a few useful account roles, inspired by USEF.
+    """
+    db.session.add(
+        AccountRole(name="Prosumer", description="A consumer who might also produce")
     )
-    db.session.add(market)
-    source = DataSource.query.filter(
-        DataSource.name == "Seita", DataSource.type == "demo script"
-    ).one_or_none()
-    for year in range(2015, 2025):
-        db.session.add(
-            TimedBelief(
-                event_value=50,
-                event_start=datetime(year, 1, 1, tzinfo=pytz.utc),
-                belief_horizon=timedelta(0),
-                source=source,
-                sensor=market.corresponding_sensor,
-            )
-        )
+    db.session.add(AccountRole(name="MDC", description="Metering Data Company"))
+    db.session.add(AccountRole(name="Supplier", description="Supplier of energy"))
+    db.session.add(
+        AccountRole(name="Aggregator", description="Aggregator of energy flexibility")
+    )
+    db.session.add(AccountRole(name="ESCO", description="Energy Service Company"))
 
 
 # ------------ Main functions --------------------------------
@@ -186,17 +119,15 @@ def populate_structure(db: SQLAlchemy):
     """
     click.echo("Populating the database %s with structural data ..." % db.engine)
     add_data_sources(db)
+    add_user_roles(db)
+    add_account_roles(db)
     add_asset_types(db)
-    add_weather_sensor_types(db)
-    add_market_types(db)
-    add_dummy_tou_market(db)
-    click.echo("DB now has %d AssetType(s)" % db.session.query(AssetType).count())
+    click.echo("DB now has %d DataSource(s)" % db.session.query(DataSource).count())
     click.echo(
-        "DB now has %d WeatherSensorType(s)"
-        % db.session.query(WeatherSensorType).count()
+        "DB now has %d AssetType(s)" % db.session.query(GenericAssetType).count()
     )
-    click.echo("DB now has %d MarketType(s)" % db.session.query(MarketType).count())
-    click.echo("DB now has %d Market(s)" % db.session.query(Market).count())
+    click.echo("DB now has %d Role(s) for users" % db.session.query(Role).count())
+    click.echo("DB now has %d AccountRole(s)" % db.session.query(AccountRole).count())
 
 
 @as_transaction  # noqa: C901
@@ -268,18 +199,6 @@ def populate_time_series_forecasts(  # noqa: C901
             except (NotEnoughDataException, MissingData, NaNData) as e:
                 click.echo("Skipping forecasts for sensor %s: %s" % (sensor, str(e)))
                 continue
-            """
-            import matplotlib.pyplot as plt
-            plt.plot(
-                model_state.specs.outcome_var.load_series().loc[
-                    pd.date_range(start, end=end, freq="15T")
-                ],
-                label="y",
-            )
-            plt.plot(forecasts, label="y^hat")
-            plt.legend()
-            plt.show()
-            """
 
             beliefs = [
                 TimedBelief(
@@ -310,12 +229,8 @@ def populate_time_series_forecasts(  # noqa: C901
 @as_transaction
 def depopulate_structure(db: SQLAlchemy):
     click.echo("Depopulating structural data from the database %s ..." % db.engine)
-    num_assets_deleted = db.session.query(Asset).delete()
-    num_asset_types_deleted = db.session.query(AssetType).delete()
-    num_markets_deleted = db.session.query(Market).delete()
-    num_market_types_deleted = db.session.query(MarketType).delete()
-    num_sensors_deleted = db.session.query(WeatherSensor).delete()
-    num_sensor_types_deleted = db.session.query(WeatherSensorType).delete()
+    num_assets_deleted = db.session.query(GenericAsset).delete()
+    num_asset_types_deleted = db.session.query(GenericAssetType).delete()
     num_data_sources_deleted = db.session.query(DataSource).delete()
     roles = db.session.query(Role).all()
     num_roles_deleted = 0
@@ -327,10 +242,6 @@ def depopulate_structure(db: SQLAlchemy):
     for user in users:
         db.session.delete(user)
         num_users_deleted += 1
-    click.echo("Deleted %d MarketTypes" % num_market_types_deleted)
-    click.echo("Deleted %d Markets" % num_markets_deleted)
-    click.echo("Deleted %d WeatherSensorTypes" % num_sensor_types_deleted)
-    click.echo("Deleted %d WeatherSensors" % num_sensors_deleted)
     click.echo("Deleted %d AssetTypes" % num_asset_types_deleted)
     click.echo("Deleted %d Assets" % num_assets_deleted)
     click.echo("Deleted %d DataSources" % num_data_sources_deleted)
@@ -486,12 +397,8 @@ def get_affected_classes(structure: bool = True, data: bool = False) -> List:
             User,
             RolesUsers,
             Sensor,
-            MarketType,
-            Market,
-            AssetType,
-            Asset,
-            WeatherSensorType,
-            WeatherSensor,
+            GenericAssetType,
+            GenericAsset,
             DataSource,
         ]
     if data:
