@@ -52,6 +52,13 @@ class AccountAnnotationRelationship(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
     account_id = db.Column(db.Integer, db.ForeignKey("account.id"))
     annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    __table_args__ = (
+        db.UniqueConstraint(
+            "annotation_id",
+            "account_id",
+            name="annotations_accounts_annotation_id_key",
+        ),
+    )
 
 
 class GenericAssetAnnotationRelationship(db.Model):
@@ -62,6 +69,13 @@ class GenericAssetAnnotationRelationship(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
     generic_asset_id = db.Column(db.Integer, db.ForeignKey("generic_asset.id"))
     annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    __table_args__ = (
+        db.UniqueConstraint(
+            "annotation_id",
+            "generic_asset_id",
+            name="annotations_assets_annotation_id_key",
+        ),
+    )
 
 
 class SensorAnnotationRelationship(db.Model):
@@ -72,3 +86,10 @@ class SensorAnnotationRelationship(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
     sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id"))
     annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+    __table_args__ = (
+        db.UniqueConstraint(
+            "annotation_id",
+            "sensor_id",
+            name="annotations_sensors_annotation_id_key",
+        ),
+    )

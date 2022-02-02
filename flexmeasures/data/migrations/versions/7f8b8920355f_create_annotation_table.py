@@ -29,6 +29,9 @@ def downgrade():
         "This downgrade drops the tables 'annotations_accounts', 'annotations_assets', 'annotations_sensors' and 'annotation'. Continue?",
         abort=True,
     )
+    op.drop_constraint(op.f("annotations_accounts_annotation_id_key"), "annotations_accounts", type_="unique")
+    op.drop_constraint(op.f("annotations_assets_annotation_id_key"), "annotations_assets", type_="unique")
+    op.drop_constraint(op.f("annotations_sensors_annotation_id_key"), "annotations_sensors", type_="unique")
     op.drop_table("annotations_accounts")
     op.drop_table("annotations_assets")
     op.drop_table("annotations_sensors")
@@ -46,6 +49,11 @@ def create_annotation_sensor_relationship_table():
         sa.ForeignKeyConstraint(("sensor_id",), ["sensor.id"]),
         sa.ForeignKeyConstraint(("annotation_id",), ["annotation.id"]),
     )
+    op.create_unique_constraint(
+        op.f("annotations_sensors_annotation_id_key"),
+        "annotations_sensors",
+        ["annotation_id", "sensor_id"],
+    )
 
 
 def create_annotation_asset_relationship_table():
@@ -57,6 +65,11 @@ def create_annotation_asset_relationship_table():
         sa.ForeignKeyConstraint(("generic_asset_id",), ["generic_asset.id"]),
         sa.ForeignKeyConstraint(("annotation_id",), ["annotation.id"]),
     )
+    op.create_unique_constraint(
+        op.f("annotations_assets_annotation_id_key"),
+        "annotations_assets",
+        ["annotation_id", "generic_asset_id"],
+    )
 
 
 def create_annotation_account_relationship_table():
@@ -67,6 +80,11 @@ def create_annotation_account_relationship_table():
         sa.Column("annotation_id", sa.Integer()),
         sa.ForeignKeyConstraint(("account_id",), ["account.id"]),
         sa.ForeignKeyConstraint(("annotation_id",), ["annotation.id"]),
+    )
+    op.create_unique_constraint(
+        op.f("annotations_accounts_annotation_id_key"),
+        "annotations_accounts",
+        ["annotation_id", "account_id"],
     )
 
 
