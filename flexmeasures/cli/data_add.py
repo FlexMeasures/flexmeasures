@@ -508,7 +508,6 @@ def add_beliefs(
 @with_appcontext
 @click.option(
     "--content",
-    "name",
     required=True,
     prompt="Enter annotation",
 )
@@ -552,7 +551,7 @@ def add_beliefs(
     help="Attribute annotation to this user. Follow up with the user's ID.",
 )
 def add_annotation(
-    name: str,
+    content: str,
     start_str: str,
     end_str: Optional[str],
     account_ids: List[int],
@@ -589,7 +588,7 @@ def add_annotation(
 
     # Create annotation
     annotation = Annotation(
-        name=name,
+        content=content,
         start=start,
         end=end,
         source=_source,
@@ -663,7 +662,7 @@ def add_holidays(
             end = start + pd.offsets.DateOffset(days=1)
             annotations.append(
                 Annotation(
-                    name=holiday[1],
+                    content=holiday[1],
                     start=start,
                     end=end,
                     source=_source,

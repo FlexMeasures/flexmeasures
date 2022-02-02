@@ -75,7 +75,7 @@ def create_annotation_table():
         sa.Column(
             "id", sa.Integer(), nullable=False, autoincrement=True, primary_key=True
         ),
-        sa.Column("name", sa.String(255), nullable=False),
+        sa.Column("content", sa.String(255), nullable=False),
         sa.Column("start", sa.DateTime(timezone=True), nullable=False),
         sa.Column("end", sa.DateTime(timezone=True), nullable=False),
         sa.Column("source_id", sa.Integer(), nullable=False),
@@ -89,5 +89,5 @@ def create_annotation_table():
     op.create_unique_constraint(
         op.f("annotation_name_key"),
         "annotation",
-        ["name", "start", "source_id", "type"],
+        ["content", "start", "source_id", "type"],
     )
