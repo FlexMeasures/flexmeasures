@@ -47,6 +47,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             "sensors", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
+    annotations = db.relationship(
+        "Annotation",
+        secondary="annotations_sensors",
+        backref=db.backref("sensors", lazy="dynamic"),
+    )
 
     def __init__(
         self,

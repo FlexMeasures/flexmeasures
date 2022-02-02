@@ -12,12 +12,17 @@ import click
 import getpass
 from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
+from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import (
+    Sensor,
+    TimedBelief,
+)
+from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
@@ -30,6 +35,7 @@ from flexmeasures.data.models.data_sources import (
     get_or_create_source,
     get_source_or_none,
 )
+from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units
 
@@ -495,6 +501,77 @@ def add_beliefs(
         print(f"Failed to create beliefs due to the following error: {e.orig}")
         if not allow_overwrite:
             print("As a possible workaround, use the --allow-overwrite flag.")
+
+
+@fm_add_data.command("holidays")
+@with_appcontext
+@click.option(
+    "--year",
+    type=click.INT,
+    help="The year for which to look up holidays",
+)
+@click.option(
+    "--country",
+    "countries",
+    type=click.STRING,
+    multiple=True,
+    help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times.",
+)
+@click.option(
+    "--asset-id",
+    "generic_asset_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotations to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--account-id",
+    "account_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotations to all assets of this account. Follow up with the account's ID. This argument can be given multiple times.",
+)
+def add_holidays(
+    year: int,
+    countries: List[str],
+    generic_asset_ids: List[int],
+    account_ids: List[int],
+):
+    """Add holiday annotations to assets."""
+    calendars = workalendar_registry.get_calendars(countries)
+    num_holidays = {}
+    asset_query = db.session.query(GenericAsset)
+    if generic_asset_ids:
+        asset_query = asset_query.filter(GenericAsset.id.in_(generic_asset_ids))
+    if account_ids:
+        asset_query = asset_query.filter(GenericAsset.account_id.in_(account_ids))
+    assets = asset_query.all()
+    annotations = []
+    for country, calendar in calendars.items():
+        _source = get_or_create_source(
+            "workalendar", model=country, source_type="CLI script"
+        )
+        holidays = calendar().holidays(year)
+        for holiday in holidays:
+            start = pd.Timestamp(holiday[0])
+            end = start + pd.offsets.DateOffset(days=1)
+            annotations.append(
+                Annotation(
+                    name=holiday[1],
+                    start=start,
+                    end=end,
+                    source=_source,
+                    type="holiday",
+                )
+            )
+        num_holidays[country] = len(holidays)
+    db.session.add_all(annotations)
+    for asset in assets:
+        asset.annotations += annotations
+    db.session.commit()
+    print(
+        f"Successfully added holidays to {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
+    )
 
 
 @fm_add_data.command("forecasts")

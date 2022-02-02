@@ -10,6 +10,7 @@ pint
 py-moneyed
 iso8601
 xlrd
+workalendar
 inflection
 inflect
 humanize
