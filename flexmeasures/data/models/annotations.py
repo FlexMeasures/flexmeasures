@@ -93,3 +93,23 @@ class SensorAnnotationRelationship(db.Model):
             name="annotations_sensors_annotation_id_key",
         ),
     )
+
+
+def get_or_create_annotation(
+    annotation: Annotation,
+) -> Annotation:
+    with db.session.no_autoflush:
+        existing_annotation = (
+            db.session.query(Annotation)
+            .filter(
+                Annotation.content == annotation.content,
+                Annotation.start == annotation.start,
+                Annotation.type == annotation.type,
+            )
+            .one_or_none()
+        )
+    if existing_annotation is None:
+        db.session.add(annotation)
+        return annotation
+    db.session.expunge(annotation)
+    return existing_annotation

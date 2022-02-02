@@ -22,7 +22,7 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
-from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
@@ -587,12 +587,14 @@ def add_annotation(
     _source = get_or_create_source(user)
 
     # Create annotation
-    annotation = Annotation(
-        content=content,
-        start=start,
-        end=end,
-        source=_source,
-        type="label",
+    annotation = get_or_create_annotation(
+        Annotation(
+            content=content,
+            start=start,
+            end=end,
+            source=_source,
+            type="label",
+        )
     )
     for account in accounts:
         account.annotations.append(annotation)
@@ -661,12 +663,14 @@ def add_holidays(
             start = pd.Timestamp(holiday[0])
             end = start + pd.offsets.DateOffset(days=1)
             annotations.append(
-                Annotation(
-                    content=holiday[1],
-                    start=start,
-                    end=end,
-                    source=_source,
-                    type="holiday",
+                get_or_create_annotation(
+                    Annotation(
+                        content=holiday[1],
+                        start=start,
+                        end=end,
+                        source=_source,
+                        type="holiday",
+                    )
                 )
             )
         num_holidays[country] = len(holidays)
