@@ -530,6 +530,7 @@ def add_holidays(
     if account_ids:
         asset_query = asset_query.filter(GenericAsset.account_id.in_(account_ids))
     assets = asset_query.all()
+    annotations = []
     for country, calendar in calendars.items():
         _source = get_or_create_source(
             "workalendar", model=country, source_type="CLI script"
@@ -538,17 +539,19 @@ def add_holidays(
         for holiday in holidays:
             start = pd.Timestamp(holiday[0])
             end = start + pd.offsets.DateOffset(days=1)
-            annotation = Annotation(
-                name=holiday[1],
-                start=start,
-                end=end,
-                source=_source,
-                type="holiday",
+            annotations.append(
+                Annotation(
+                    name=holiday[1],
+                    start=start,
+                    end=end,
+                    source=_source,
+                    type="holiday",
+                )
             )
-            db.session.add(annotation)
-            for asset in assets:
-                asset.annotations.append(annotation)
         num_holidays[country] = len(holidays)
+    db.session.add_all(annotations)
+    for asset in assets:
+        asset.annotations += annotations
     db.session.commit()
     print(
         f"Successfully added holidays to {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
