@@ -47,6 +47,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         foreign_keys=[generic_asset_type_id],
         backref=db.backref("generic_assets", lazy=True),
     )
+    annotations = db.relationship(
+        "Annotation",
+        secondary="annotations_assets",
+        backref=db.backref("assets", lazy="dynamic"),
+    )
 
     __table_args__ = (
         UniqueConstraint(
