@@ -41,7 +41,7 @@ class Annotation(db.Model):
         return self.end - self.start
 
     def __repr__(self) -> str:
-        return f"<Annotation {self.id}: {self.name} ({self.type}), start: {self.start} end: {self.end}, source: {self.source}>"
+        return f"<Annotation {self.id}: {self.content} ({self.type}), start: {self.start} end: {self.end}, source: {self.source}>"
 
 
 class AccountAnnotationRelationship(db.Model):
