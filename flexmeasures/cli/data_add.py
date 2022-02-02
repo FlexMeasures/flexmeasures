@@ -35,6 +35,7 @@ from flexmeasures.data.models.data_sources import (
     get_or_create_source,
     get_source_or_none,
 )
+from flexmeasures.data.models.user import User
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units
@@ -501,6 +502,106 @@ def add_beliefs(
         print(f"Failed to create beliefs due to the following error: {e.orig}")
         if not allow_overwrite:
             print("As a possible workaround, use the --allow-overwrite flag.")
+
+
+@fm_add_data.command("annotation")
+@with_appcontext
+@click.option(
+    "--content",
+    "name",
+    required=True,
+    prompt="Enter annotation",
+)
+@click.option(
+    "--at",
+    "start_str",
+    required=True,
+    help="Annotation is set (or starts) at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--until",
+    "end_str",
+    required=False,
+    help="Annotation ends at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format. Defaults to one (nominal) day after the start of the annotation.",
+)
+@click.option(
+    "--account-id",
+    "account_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--asset-id",
+    "generic_asset_ids",
+    type=int,
+    multiple=True,
+    help="Add annotation to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--sensor-id",
+    "sensor_ids",
+    type=int,
+    multiple=True,
+    help="Add annotation to this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--user-id",
+    type=int,
+    required=True,
+    help="Attribute annotation to this user. Follow up with the user's ID.",
+)
+def add_annotation(
+    name: str,
+    start_str: str,
+    end_str: Optional[str],
+    account_ids: List[int],
+    generic_asset_ids: List[int],
+    sensor_ids: List[int],
+    user_id: int,
+):
+    """Add annotation to accounts, assets and/or sensors."""
+
+    # Parse input
+    start = pd.Timestamp(start_str)
+    end = (
+        pd.Timestamp(end_str)
+        if end_str is not None
+        else start + pd.offsets.DateOffset(days=1)
+    )
+    accounts = (
+        db.session.query(Account).filter(Account.id.in_(account_ids))
+        if account_ids
+        else []
+    )
+    assets = (
+        db.session.query(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        if generic_asset_ids
+        else []
+    )
+    sensors = (
+        db.session.query(Sensor).filter(Sensor.id.in_(sensor_ids)).all()
+        if sensor_ids
+        else []
+    )
+    user = db.session.query(User).get(user_id)
+    _source = get_or_create_source(user)
+
+    # Create annotation
+    annotation = Annotation(
+        name=name,
+        start=start,
+        end=end,
+        source=_source,
+        type="label",
+    )
+    for account in accounts:
+        account.annotations.append(annotation)
+    for asset in assets:
+        asset.annotations.append(annotation)
+    for sensor in sensors:
+        sensor.annotations.append(annotation)
+    db.session.commit()
 
 
 @fm_add_data.command("holidays")
