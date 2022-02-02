@@ -26,7 +26,7 @@ def upgrade():
 
 def downgrade():
     click.confirm(
-        "This downgrade drops the tables 'annotations_assets', 'annotations_sensors' and 'annotation'. Continue?",
+        "This downgrade drops the tables 'annotations_accounts', 'annotations_assets', 'annotations_sensors' and 'annotation'. Continue?",
         abort=True,
     )
     op.drop_table("annotations_accounts")
