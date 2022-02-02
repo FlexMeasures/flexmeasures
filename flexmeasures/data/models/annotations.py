@@ -98,12 +98,18 @@ class SensorAnnotationRelationship(db.Model):
 def get_or_create_annotation(
     annotation: Annotation,
 ) -> Annotation:
+    """Add annotation to db session if it doesn't exist in the session already.
+
+    Return the old annotation object if it exists (and expunge the new one). Otherwise, return the new one.
+    """
     with db.session.no_autoflush:
         existing_annotation = (
             db.session.query(Annotation)
             .filter(
                 Annotation.content == annotation.content,
                 Annotation.start == annotation.start,
+                Annotation.end == annotation.end,
+                Annotation.source == annotation.source,
                 Annotation.type == annotation.type,
             )
             .one_or_none()
@@ -111,5 +117,6 @@ def get_or_create_annotation(
     if existing_annotation is None:
         db.session.add(annotation)
         return annotation
-    db.session.expunge(annotation)
+    if annotation in db.session:
+        db.session.expunge(annotation)
     return existing_annotation
