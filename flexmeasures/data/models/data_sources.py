@@ -105,13 +105,13 @@ def get_or_create_source(
         raise TypeError("source should be of type User or str")
     _source = query.one_or_none()
     if not _source:
-        current_app.logger.info(f"Setting up '{source}' as new data source...")
         if is_user(source):
             _source = DataSource(user=source, model=model)
         else:
             if source_type is None:
                 raise TypeError("Please specify a source type")
             _source = DataSource(name=source, model=model, type=source_type)
+        current_app.logger.info(f"Setting up {_source} as new data source...")
         db.session.add(_source)
         if flush:
             # assigns id so that we can reference the new object in the current db session
