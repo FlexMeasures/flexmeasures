@@ -179,10 +179,7 @@ def add_dummy_tou_market(db: SQLAlchemy):
 @as_transaction
 def populate_structure(db: SQLAlchemy):
     """
-    Add initial structural data for assets, markets, data sources
-
-    TODO: add user roles (they can get created on-the-fly, but we should be
-          more pro-active)
+    Add initially useful structural data.
     """
     click.echo("Populating the database %s with structural data ..." % db.engine)
     add_data_sources(db)
