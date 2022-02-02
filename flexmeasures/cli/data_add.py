@@ -546,13 +546,8 @@ def add_holidays(
                 type="holiday",
             )
             db.session.add(annotation)
-            db.session.flush()
             for asset in assets:
-                relation = GenericAssetAnnotationRelationship(
-                    annotation=annotation,
-                    asset=asset,
-                )
-                db.session.add(relation)
+                asset.annotations.append(annotation)
         num_holidays[country] = len(holidays)
     db.session.commit()
     print(

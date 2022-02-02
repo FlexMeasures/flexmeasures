@@ -48,6 +48,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             "sensors", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
     )
+    annotations = db.relationship(
+        "Annotation",
+        secondary="annotations_sensors",
+        backref=db.backref("sensors", lazy="dynamic"),
+    )
 
     def __init__(
         self,
@@ -730,23 +735,9 @@ class GenericAssetAnnotationRelationship(db.Model):
 
     __tablename__ = "annotations_assets"
 
-    generic_asset_id = db.Column(
-        db.Integer, db.ForeignKey("generic_asset.id"), nullable=False, primary_key=True
-    )
-    asset = db.relationship(
-        "GenericAsset",
-        foreign_keys=[generic_asset_id],
-        backref=db.backref("annotations", lazy=True),
-    )
-
-    annotation_id = db.Column(
-        db.Integer, db.ForeignKey("annotation.id"), nullable=False
-    )
-    annotation = db.relationship(
-        "Annotation",
-        foreign_keys=[annotation_id],
-        backref=db.backref("generic_assets", lazy=True),
-    )
+    id = db.Column(db.Integer(), primary_key=True)
+    generic_asset_id = db.Column(db.Integer, db.ForeignKey("generic_asset.id"))
+    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
 
 
 class SensorAnnotationRelationship(db.Model):
@@ -754,20 +745,6 @@ class SensorAnnotationRelationship(db.Model):
 
     __tablename__ = "annotations_sensors"
 
-    sensor_id = db.Column(
-        db.Integer, db.ForeignKey("sensor.id"), nullable=False, primary_key=True
-    )
-    sensor = db.relationship(
-        "Sensor",
-        foreign_keys=[sensor_id],
-        backref=db.backref("annotations", lazy=True),
-    )
-
-    annotation_id = db.Column(
-        db.Integer, db.ForeignKey("annotation.id"), nullable=False
-    )
-    annotation = db.relationship(
-        "Annotation",
-        foreign_keys=[annotation_id],
-        backref=db.backref("sensors", lazy=True),
-    )
+    id = db.Column(db.Integer(), primary_key=True)
+    sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id"))
+    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
