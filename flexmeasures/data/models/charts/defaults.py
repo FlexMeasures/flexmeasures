@@ -27,7 +27,7 @@ FIELD_DEFINITIONS = {
     ),
     "source": dict(
         field="source",
-        type="ordinal",
+        type="nominal",
         title="Source",
     ),
     "full_date": dict(

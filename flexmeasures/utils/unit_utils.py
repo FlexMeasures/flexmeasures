@@ -1,8 +1,10 @@
 from datetime import timedelta
-from typing import Optional
+from typing import List, Optional, Union
 
 from moneyed import list_all_currencies
 import importlib.resources as pkg_resources
+import numpy as np
+import pandas as pd
 import pint
 
 # Edit constants template to stop using h to represent planck_constant
@@ -77,9 +79,7 @@ def determine_unit_conversion_multiplier(
     """Determine the value multiplier for a given unit conversion.
     If needed, requires a duration to convert from units of stock change to units of flow.
     """
-    scalar = (
-        ur.Quantity(from_unit).to_base_units() / ur.Quantity(to_unit).to_base_units()
-    )
+    scalar = ur.Quantity(from_unit) / ur.Quantity(to_unit)
     if scalar.dimensionality == ur.Quantity("h").dimensionality:
         if duration is None:
             raise ValueError(
@@ -151,3 +151,42 @@ def is_energy_unit(unit: str) -> bool:
     if not is_valid_unit(unit):
         return False
     return ur.Quantity(unit).dimensionality == ur.Quantity("Wh").dimensionality
+
+
+def convert_units(
+    data: Union[pd.Series, List[Union[int, float]]],
+    from_unit: str,
+    to_unit: str,
+    event_resolution: Optional[timedelta],
+) -> Union[pd.Series, List[Union[int, float]]]:
+    """Updates data values to reflect the given unit conversion."""
+
+    if from_unit != to_unit:
+        from_magnitudes = (
+            data.to_numpy() if isinstance(data, pd.Series) else np.asarray(data)
+        )
+        try:
+            from_quantities = ur.Quantity(from_magnitudes, from_unit)
+        except ValueError as e:
+            # Catch units like "-W" and "100km"
+            if str(e) == "Unit expression cannot have a scaling factor.":
+                from_quantities = ur.Quantity(from_unit) * from_magnitudes
+            else:
+                raise e  # reraise
+        try:
+            to_magnitudes = from_quantities.to(ur.Quantity(to_unit)).magnitude
+        except pint.errors.DimensionalityError:
+            # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
+            multiplier = determine_unit_conversion_multiplier(
+                from_unit, to_unit, event_resolution
+            )
+            to_magnitudes = from_magnitudes * multiplier
+        if isinstance(data, pd.Series):
+            data = pd.Series(
+                to_magnitudes,
+                index=data.index,
+                name=data.name,
+            )
+        else:
+            data = list(to_magnitudes)
+    return data

@@ -202,12 +202,11 @@ def populate_structure(db: SQLAlchemy):
 @as_transaction  # noqa: C901
 def populate_time_series_forecasts(  # noqa: C901
     db: SQLAlchemy,
+    sensor_ids: List[int],
     horizons: List[timedelta],
     forecast_start: datetime,
     forecast_end: datetime,
     event_resolution: Optional[timedelta] = None,
-    old_sensor_class_name: Optional[str] = None,
-    old_sensor_id: Optional[int] = None,
 ):
     training_and_testing_period = timedelta(days=30)
 
@@ -221,51 +220,20 @@ def populate_time_series_forecasts(  # noqa: C901
         name="Seita", type="demo script"
     ).one_or_none()
 
-    # List all old sensors for which to forecast.
-    # Look into their type if no name is given. If a name is given,
-    old_sensors = []
-    if old_sensor_id is None:
-        if old_sensor_class_name is None or old_sensor_class_name == "WeatherSensor":
-            sensors = WeatherSensor.query.all()
-            old_sensors.extend(sensors)
-        if old_sensor_class_name is None or old_sensor_class_name == "Asset":
-            assets = Asset.query.all()
-            old_sensors.extend(assets)
-        if old_sensor_class_name is None or old_sensor_class_name == "Market":
-            markets = Market.query.all()
-            old_sensors.extend(markets)
-    else:
-        if old_sensor_class_name is None:
-            click.echo(
-                "If you specify --asset-name, please also specify --asset-type, so we can look it up."
-            )
-            return
-        if old_sensor_class_name == "WeatherSensor":
-            sensors = WeatherSensor.query.filter(
-                WeatherSensor.id == old_sensor_id
-            ).one_or_none()
-            if sensors is not None:
-                old_sensors.append(sensors)
-        if old_sensor_class_name == "Asset":
-            assets = Asset.query.filter(Asset.id == old_sensor_id).one_or_none()
-            if assets is not None:
-                old_sensors.append(assets)
-        if old_sensor_class_name == "Market":
-            markets = Market.query.filter(Market.id == old_sensor_id).one_or_none()
-            if markets is not None:
-                old_sensors.append(markets)
-    if not old_sensors:
-        click.echo("No such assets in db, so I will not add any forecasts.")
+    # List all sensors for which to forecast.
+    sensors = [Sensor.query.filter(Sensor.id.in_(sensor_ids)).one_or_none()]
+    if not sensors:
+        click.echo("No such sensors in db, so I will not add any forecasts.")
         return
 
-    # Make a model for each old sensor and horizon, make rolling forecasts and save to database.
+    # Make a model for each sensor and horizon, make rolling forecasts and save to database.
     # We cannot use (faster) bulk save, as forecasts might become regressors in other forecasts.
-    for old_sensor in old_sensors:
+    for sensor in sensors:
         for horizon in horizons:
             try:
                 default_model = lookup_model_specs_configurator()
                 model_specs, model_identifier, model_fallback = default_model(
-                    sensor=old_sensor.corresponding_sensor,
+                    sensor=sensor,
                     forecast_start=forecast_start,
                     forecast_end=forecast_end,
                     forecast_horizon=horizon,
@@ -275,11 +243,11 @@ def populate_time_series_forecasts(  # noqa: C901
                     ),
                 )
                 click.echo(
-                    "Computing forecasts of %s ahead for %s, "
+                    "Computing forecasts of %s ahead for sensor %s, "
                     "from %s to %s with a training and testing period of %s, using %s ..."
                     % (
                         naturaldelta(horizon),
-                        old_sensor.name,
+                        sensor.id,
                         forecast_start,
                         forecast_end,
                         naturaldelta(training_and_testing_period),
@@ -291,16 +259,14 @@ def populate_time_series_forecasts(  # noqa: C901
                     start=forecast_start, end=forecast_end, model_specs=model_specs
                 )
                 # Upsample to sensor resolution if needed
-                if forecasts.index.freq > pd.Timedelta(old_sensor.event_resolution):
+                if forecasts.index.freq > pd.Timedelta(sensor.event_resolution):
                     forecasts = model_specs.outcome_var.resample_data(
                         forecasts,
                         time_window=(forecasts.index.min(), forecasts.index.max()),
-                        expected_frequency=old_sensor.event_resolution,
+                        expected_frequency=sensor.event_resolution,
                     )
             except (NotEnoughDataException, MissingData, NaNData) as e:
-                click.echo(
-                    "Skipping forecasts for old sensor %s: %s" % (old_sensor, str(e))
-                )
+                click.echo("Skipping forecasts for sensor %s: %s" % (sensor, str(e)))
                 continue
             """
             import matplotlib.pyplot as plt
@@ -320,7 +286,7 @@ def populate_time_series_forecasts(  # noqa: C901
                     event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
                     belief_horizon=horizon,
                     event_value=value,
-                    sensor=old_sensor.corresponding_sensor,
+                    sensor=sensor,
                     source=data_source,
                 )
                 for dt, value in forecasts.items()
@@ -328,7 +294,7 @@ def populate_time_series_forecasts(  # noqa: C901
 
             print(
                 "Saving %s %s-forecasts for %s..."
-                % (len(beliefs), naturaldelta(horizon), old_sensor.name)
+                % (len(beliefs), naturaldelta(horizon), sensor.id)
             )
             for belief in beliefs:
                 db.session.add(belief)
