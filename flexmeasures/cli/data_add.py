@@ -677,7 +677,7 @@ def add_holidays(
         asset.annotations += annotations
     db.session.commit()
     print(
-        f"Successfully added holidays to {len(accounts)} {flexmeasures_inflection.pluralize('account', len(account))} and {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
+        f"Successfully added holidays to {len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
     )
 
 
