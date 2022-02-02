@@ -574,7 +574,9 @@ def add_annotation(
         else []
     )
     assets = (
-        db.session.query(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids)).all()
+        db.session.query(GenericAsset)
+        .filter(GenericAsset.id.in_(generic_asset_ids))
+        .all()
         if generic_asset_ids
         else []
     )
@@ -650,7 +652,9 @@ def add_holidays(
         else []
     )
     assets = (
-        db.session.query(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids)).all()
+        db.session.query(GenericAsset)
+        .filter(GenericAsset.id.in_(generic_asset_ids))
+        .all()
         if generic_asset_ids
         else []
     )
