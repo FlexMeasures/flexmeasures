@@ -21,8 +21,8 @@ from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
-    Annotation,
 )
+from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
