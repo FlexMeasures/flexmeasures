@@ -32,7 +32,7 @@ def downgrade():
     op.drop_table("annotations_accounts")
     op.drop_table("annotations_assets")
     op.drop_table("annotations_sensors")
-    op.drop_constraint(op.f("annotation_name_key"), "annotation", type_="unique")
+    op.drop_constraint(op.f("annotation_content_key"), "annotation", type_="unique")
     op.drop_table("annotation")
     op.execute("DROP TYPE annotation_type;")
 
@@ -88,7 +88,7 @@ def create_annotation_table():
         sa.ForeignKeyConstraint(("source_id",), ["data_source.id"]),
     )
     op.create_unique_constraint(
-        op.f("annotation_name_key"),
+        op.f("annotation_content_key"),
         "annotation",
         ["content", "start", "source_id", "type"],
     )

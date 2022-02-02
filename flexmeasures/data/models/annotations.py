@@ -32,7 +32,7 @@ class Annotation(db.Model):
             "start",
             "source_id",
             "type",
-            name="annotation_name_key",
+            name="annotation_content_key",
         ),
     )
 
