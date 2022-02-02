@@ -603,6 +603,7 @@ def add_annotation(
     for sensor in sensors:
         sensor.annotations.append(annotation)
     db.session.commit()
+    print("Successfully added annotation.")
 
 
 @fm_add_data.command("holidays")
