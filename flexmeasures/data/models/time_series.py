@@ -707,7 +707,15 @@ class Annotation(db.Model):
         backref=db.backref("annotations", lazy=True),
     )
     type = db.Column(db.Enum("alert", "holiday", "label", name="annotation_type"))
-    UniqueConstraint("name", "start", "source_id", "type")
+    __table_args__ = (
+        UniqueConstraint(
+            "name",
+            "start",
+            "source_id",
+            "type",
+            name="annotation_name_key",
+        ),
+    )
 
     @property
     def duration(self) -> timedelta:
