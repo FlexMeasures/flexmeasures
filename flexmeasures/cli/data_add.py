@@ -529,7 +529,7 @@ def add_beliefs(
     "account_ids",
     type=click.INT,
     multiple=True,
-    help="Add annotations to all assets of this account. Follow up with the account's ID. This argument can be given multiple times.",
+    help="Add annotations to this account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 def add_holidays(
     year: int,
@@ -537,15 +537,20 @@ def add_holidays(
     generic_asset_ids: List[int],
     account_ids: List[int],
 ):
-    """Add holiday annotations to assets."""
+    """Add holiday annotations to accounts and/or assets."""
     calendars = workalendar_registry.get_calendars(countries)
     num_holidays = {}
-    asset_query = db.session.query(GenericAsset)
-    if generic_asset_ids:
-        asset_query = asset_query.filter(GenericAsset.id.in_(generic_asset_ids))
-    if account_ids:
-        asset_query = asset_query.filter(GenericAsset.account_id.in_(account_ids))
-    assets = asset_query.all()
+
+    accounts = (
+        db.session.query(Account).filter(Account.id.in_(account_ids))
+        if account_ids
+        else []
+    )
+    assets = (
+        db.session.query(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        if generic_asset_ids
+        else []
+    )
     annotations = []
     for country, calendar in calendars.items():
         _source = get_or_create_source(
@@ -566,11 +571,13 @@ def add_holidays(
             )
         num_holidays[country] = len(holidays)
     db.session.add_all(annotations)
+    for account in accounts:
+        account.annotations += annotations
     for asset in assets:
         asset.annotations += annotations
     db.session.commit()
     print(
-        f"Successfully added holidays to {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
+        f"Successfully added holidays to {len(accounts)} {flexmeasures_inflection.pluralize('account', len(account))} and {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
     )
 
 

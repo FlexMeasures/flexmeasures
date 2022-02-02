@@ -19,6 +19,7 @@ depends_on = None
 
 def upgrade():
     create_annotation_table()
+    create_annotation_account_relationship_table()
     create_annotation_asset_relationship_table()
     create_annotation_sensor_relationship_table()
 
@@ -53,6 +54,17 @@ def create_annotation_asset_relationship_table():
         sa.Column("generic_asset_id", sa.Integer()),
         sa.Column("annotation_id", sa.Integer()),
         sa.ForeignKeyConstraint(("generic_asset_id",), ["generic_asset.id"]),
+        sa.ForeignKeyConstraint(("annotation_id",), ["annotation.id"]),
+    )
+
+
+def create_annotation_account_relationship_table():
+    op.create_table(
+        "annotations_accounts",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("account_id", sa.Integer()),
+        sa.Column("annotation_id", sa.Integer()),
+        sa.ForeignKeyConstraint(("account_id",), ["account.id"]),
         sa.ForeignKeyConstraint(("annotation_id",), ["annotation.id"]),
     )
 

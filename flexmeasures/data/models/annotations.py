@@ -44,6 +44,16 @@ class Annotation(db.Model):
         return f"<Annotation {self.id}: {self.name} ({self.type}), start: {self.start} end: {self.end}, source: {self.source}>"
 
 
+class AccountAnnotationRelationship(db.Model):
+    """Links annotations to accounts."""
+
+    __tablename__ = "annotations_accounts"
+
+    id = db.Column(db.Integer(), primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("account.id"))
+    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
+
+
 class GenericAssetAnnotationRelationship(db.Model):
     """Links annotations to generic assets."""
 
