@@ -1,7 +1,5 @@
 from datetime import timedelta
 
-from sqlalchemy import UniqueConstraint
-
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 
@@ -29,7 +27,7 @@ class Annotation(db.Model):
     )
     type = db.Column(db.Enum("alert", "holiday", "label", name="annotation_type"))
     __table_args__ = (
-        UniqueConstraint(
+        db.UniqueConstraint(
             "name",
             "start",
             "source_id",
