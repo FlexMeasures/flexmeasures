@@ -569,12 +569,12 @@ def add_annotation(
         else start + pd.offsets.DateOffset(days=1)
     )
     accounts = (
-        db.session.query(Account).filter(Account.id.in_(account_ids))
+        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
         if account_ids
         else []
     )
     assets = (
-        db.session.query(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        db.session.query(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids)).all()
         if generic_asset_ids
         else []
     )
@@ -642,12 +642,12 @@ def add_holidays(
     num_holidays = {}
 
     accounts = (
-        db.session.query(Account).filter(Account.id.in_(account_ids))
+        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
         if account_ids
         else []
     )
     assets = (
-        db.session.query(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        db.session.query(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids)).all()
         if generic_asset_ids
         else []
     )
