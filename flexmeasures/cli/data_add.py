@@ -359,6 +359,12 @@ def add_initial_structure():
     help="Number of rows to skip from the top. Set to >1 to skip additional headers.",
 )
 @click.option(
+    "--na-values",
+    required=False,
+    multiple=True,
+    help="Additional strings to recognize as NaN values. This argument can be given multiple times.",
+)
+@click.option(
     "--nrows",
     required=False,
     type=int,
@@ -415,6 +421,7 @@ def add_beliefs(
     resample: bool = True,
     allow_overwrite: bool = False,
     skiprows: int = 1,
+    na_values: List[str] = None,
     nrows: Optional[int] = None,
     datecol: int = 0,
     valuecol: int = 1,
@@ -478,6 +485,7 @@ def add_beliefs(
         nrows=nrows,
         usecols=[datecol, valuecol],
         parse_dates=True,
+        na_values=na_values,
         **kwargs,
     )
     if unit is not None:
