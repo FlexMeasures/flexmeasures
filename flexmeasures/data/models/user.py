@@ -1,4 +1,5 @@
-from typing import List, Optional, Union
+from __future__ import annotations
+from typing import List, Optional, Union, TYPE_CHECKING
 from datetime import datetime
 
 from flask_security import UserMixin, RoleMixin
@@ -13,6 +14,8 @@ from flexmeasures.data.models.annotations import (
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.auth.policy import AuthModelMixin
+if TYPE_CHECKING:
+    from flexmeasures.data.models.data_sources import DataSource
 
 
 class RolesAccounts(db.Model):

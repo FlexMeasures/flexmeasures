@@ -1,14 +1,17 @@
-from typing import Optional, Union, List
+from __future__ import annotations
+from typing import Optional, Union, List, TYPE_CHECKING
 
 from flask import current_app
 from flexmeasures.data import db
+if TYPE_CHECKING:
+    from flexmeasures.data.models.data_sources import DataSource
 
 
 def parse_source_arg(
     source: Optional[
-        Union["DataSource", List["DataSource"], int, List[int], str, List[str]]
+        Union[DataSource, List[DataSource], int, List[int], str, List[str]]
     ]
-) -> Optional[List["DataSource"]]:
+) -> Optional[List[DataSource]]:
     """Parse the "source" argument by looking up DataSources corresponding to any given ids or names."""
     if source is None:
         return source
