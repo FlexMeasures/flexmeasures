@@ -1,4 +1,4 @@
-def test_add_annotation(app):
+def test_add_annotation(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_annotation
 
     runner = app.test_cli_runner()
@@ -16,7 +16,7 @@ def test_add_annotation(app):
     # todo: Check database
 
 
-def test_add_holidays(app):
+def test_add_holidays(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_holidays
 
     runner = app.test_cli_runner()
