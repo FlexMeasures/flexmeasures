@@ -20,6 +20,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Plugins can import common FlexMeasures classes (like ``Asset`` and ``Sensor``) from a central place, using ``from flexmeasures import Asset, Sensor`` [see `PR #354 <http://www.github.com/FlexMeasures/flexmeasures/pull/354>`_]
 
 
 v0.8.0 | January 24, 2022
