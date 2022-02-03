@@ -3,7 +3,6 @@ from flask import request, current_app
 from flask_security import login_required
 from flask_security.core import current_user
 
-from flexmeasures.data import db
 from flexmeasures.ui.views import flexmeasures_ui
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, clear_session
 from flexmeasures.data.services.resources import (
@@ -53,7 +52,7 @@ def dashboard_view():
         message=msg,
         bokeh_html_embedded=bokeh_html_embedded,
         mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-        map_center=get_center_location(db, user=current_user),
+        map_center=get_center_location(user=current_user),
         asset_groups=map_asset_groups,
         aggregate_groups=aggregate_groups,
     )
