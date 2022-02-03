@@ -6,7 +6,7 @@ from flask import request, current_app
 from flask_json import as_json
 from sqlalchemy import exc as sqla_exc
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.models.task_runs import LatestTaskRun
 from flexmeasures.auth.error_handling import UNAUTH_STATUS_CODE, FORBIDDEN_STATUS_CODE
 

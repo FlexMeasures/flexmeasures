@@ -9,7 +9,7 @@ from wtforms.validators import DataRequired
 from flask_security import roles_required, login_required
 
 from flexmeasures.auth.policy import ADMIN_ROLE
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
     get_user,

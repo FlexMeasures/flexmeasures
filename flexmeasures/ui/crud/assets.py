@@ -9,7 +9,7 @@ from wtforms import StringField, DecimalField, SelectField
 from wtforms.validators import DataRequired
 from flexmeasures.auth.policy import ADMIN_ROLE
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.services.resources import get_center_location
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
@@ -195,7 +195,7 @@ class AssetCrudUI(FlaskView):
                 "crud/asset_new.html",
                 asset_form=asset_form,
                 msg="",
-                map_center=get_center_location(db, user=current_user),
+                map_center=get_center_location(user=current_user),
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             )
 
@@ -272,7 +272,7 @@ class AssetCrudUI(FlaskView):
                     "crud/asset_new.html",
                     asset_form=asset_form,
                     msg=msg,
-                    map_center=get_center_location(db, user=current_user),
+                    map_center=get_center_location(user=current_user),
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
 

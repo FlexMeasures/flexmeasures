@@ -6,7 +6,7 @@ from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.auth.policy import AuthModelMixin
 
 
