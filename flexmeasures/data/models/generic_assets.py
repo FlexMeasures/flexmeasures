@@ -1,4 +1,5 @@
-from typing import Optional, Tuple, List
+from datetime import datetime
+from typing import Optional, Tuple, List, Union
 
 from flask_security import current_user
 from sqlalchemy.engine import Row
@@ -9,6 +10,12 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data import db
+from flexmeasures.data.models.annotations import (
+    Annotation,
+    GenericAssetAnnotationRelationship,
+)
+from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
@@ -170,6 +177,41 @@ class GenericAsset(db.Model, AuthModelMixin):
     def has_energy_sensors(self) -> bool:
         """True if at least one power energy is attached"""
         return any([s.measures_energy for s in self.sensors])
+
+    def search_annotations(
+        self,
+        annotation_starts_after: Optional[datetime] = None,
+        annotation_ends_before: Optional[datetime] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
+        include_account_annotations: bool = False,
+    ):
+        parsed_sources = parse_source_arg(source)
+        query = Annotation.query.join(GenericAssetAnnotationRelationship).filter(
+            GenericAssetAnnotationRelationship.generic_asset_id == self.id,
+            GenericAssetAnnotationRelationship.annotation_id == Annotation.id,
+        )
+        if annotation_starts_after is not None:
+            query = query.filter(
+                Annotation.start >= annotation_starts_after,
+            )
+        if annotation_ends_before is not None:
+            query = query.filter(
+                Annotation.end <= annotation_ends_before,
+            )
+        if parsed_sources:
+            query = query.filter(
+                Annotation.source.in_(parsed_sources),
+            )
+        annotations = query.all()
+        if include_account_annotations:
+            annotations += self.owner.search_annotations(
+                annotation_starts_before=annotation_starts_after,
+                annotation_ends_before=annotation_ends_before,
+                source=source,
+            )
+        return annotations
 
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:

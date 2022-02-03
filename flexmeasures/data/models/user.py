@@ -1,4 +1,4 @@
-from typing import Union
+from typing import List, Optional, Union
 from datetime import datetime
 
 from flask_security import UserMixin, RoleMixin
@@ -7,6 +7,11 @@ from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from flexmeasures.data import db
+from flexmeasures.data.models.annotations import (
+    Annotation,
+    AccountAnnotationRelationship,
+)
+from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.auth.policy import AuthModelMixin
 
 
@@ -77,6 +82,34 @@ class Account(db.Model, AuthModelMixin):
             return role in (role.name for role in self.account_roles)
         else:
             return role in self.account_roles
+
+    def search_annotations(
+        self,
+        annotation_starts_after: Optional[datetime] = None,
+        annotation_ends_before: Optional[datetime] = None,
+        source: Optional[
+            Union["DataSource", List["DataSource"], int, List[int], str, List[str]]
+        ] = None,
+    ):
+        parsed_sources = parse_source_arg(source)
+        query = Annotation.query.join(AccountAnnotationRelationship).filter(
+            AccountAnnotationRelationship.account_id == self.id,
+            AccountAnnotationRelationship.annotation_id == Annotation.id,
+        )
+        if annotation_starts_after is not None:
+            query = query.filter(
+                Annotation.start >= annotation_starts_after,
+            )
+        if annotation_ends_before is not None:
+            query = query.filter(
+                Annotation.end <= annotation_ends_before,
+            )
+        if parsed_sources:
+            query = query.filter(
+                Annotation.source.in_(parsed_sources),
+            )
+        annotations = query.all()
+        return annotations
 
 
 class RolesUsers(db.Model):
