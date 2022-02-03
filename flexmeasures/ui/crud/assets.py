@@ -195,7 +195,7 @@ class AssetCrudUI(FlaskView):
                 "crud/asset_new.html",
                 asset_form=asset_form,
                 msg="",
-                map_center=get_center_location(db, user=current_user),
+                map_center=get_center_location(user=current_user),
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             )
 
@@ -272,7 +272,7 @@ class AssetCrudUI(FlaskView):
                     "crud/asset_new.html",
                     asset_form=asset_form,
                     msg=msg,
-                    map_center=get_center_location(db, user=current_user),
+                    map_center=get_center_location(user=current_user),
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
 
