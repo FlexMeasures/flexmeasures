@@ -24,7 +24,7 @@ class AccountRole(db.Model):
     description = Column(String(255))
 
     def __repr__(self):
-        return "<AccountRole:%s (ID:%d)>" % (self.name, self.id)
+        return "<AccountRole:%s (ID:%s)>" % (self.name, self.id)
 
 
 class Account(db.Model, AuthModelMixin):
@@ -43,7 +43,7 @@ class Account(db.Model, AuthModelMixin):
     )
 
     def __repr__(self):
-        return "<Account %s (ID:%d)" % (self.name, self.id)
+        return "<Account %s (ID:%s)" % (self.name, self.id)
 
     def __acl__(self):
         """
@@ -81,7 +81,7 @@ class Role(db.Model, RoleMixin):
     description = Column(String(255))
 
     def __repr__(self):
-        return "<Role:%s (ID:%d)>" % (self.name, self.id)
+        return "<Role:%s (ID:%s)>" % (self.name, self.id)
 
 
 class User(db.Model, UserMixin, AuthModelMixin):
@@ -116,7 +116,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
     )
 
     def __repr__(self):
-        return "<User %s (ID:%d)>" % (self.username, self.id)
+        return "<User %s (ID:%s)>" % (self.username, self.id)
 
     def __acl__(self):
         """
