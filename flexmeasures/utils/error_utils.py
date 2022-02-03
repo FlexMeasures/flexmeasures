@@ -112,7 +112,7 @@ def print_query(query: Query) -> str:
     regex = re.compile(r":(?P<name>\w+)")
     params = query.statement.compile().params
     sql = regex.sub(r"'{\g<name>}'", str(query.statement)).format(**params)
-    from flexmeasures.data.config import db
+    from flexmeasures.data import db
 
     print(f"\nPrinting SQLAlchemy query to database {db.engine.url.database}:\n\n")
     print(sql)

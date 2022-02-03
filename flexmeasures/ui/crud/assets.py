@@ -9,7 +9,7 @@ from wtforms import StringField, DecimalField, SelectField
 from wtforms.validators import DataRequired
 from flexmeasures.auth.policy import ADMIN_ROLE
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
 from flexmeasures.data.services.resources import get_center_location
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset

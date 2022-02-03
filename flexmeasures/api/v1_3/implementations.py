@@ -38,7 +38,7 @@ from flexmeasures.api.common.utils.validators import (
     units_accepted,
     parse_isodate_str,
 )
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index

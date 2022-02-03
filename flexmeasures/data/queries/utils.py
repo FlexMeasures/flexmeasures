@@ -7,7 +7,7 @@ import timely_beliefs as tb
 from sqlalchemy.orm import Query, Session
 from sqlalchemy.sql.elements import BinaryExpression
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils import flexmeasures_inflection
 import flexmeasures.data.models.time_series as ts  # noqa: F401

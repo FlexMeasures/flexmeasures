@@ -5,7 +5,7 @@ from timely_beliefs.sensors.func_store import knowledge_horizons
 import timely_beliefs.utils as tb_utils
 from sqlalchemy.orm import Query
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import (
     create_generic_asset,
     GenericAsset,

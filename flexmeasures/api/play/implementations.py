@@ -8,7 +8,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_backup,
 )
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
     depopulate_measurements,
     depopulate_prognoses,

@@ -13,8 +13,8 @@ from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures.utils.time_utils import as_server_time, get_timezone
 from flexmeasures.utils.geo_utils import compute_irradiance
+from flexmeasures.data import db
 from flexmeasures.data.services.resources import find_closest_sensor
-from flexmeasures.data.config import db
 from flexmeasures.data.transactional import task_with_status_report
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief

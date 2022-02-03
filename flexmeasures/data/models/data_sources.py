@@ -3,7 +3,7 @@ from typing import Optional, Union
 import timely_beliefs as tb
 from flask import current_app
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.models.user import User, is_user
 
 

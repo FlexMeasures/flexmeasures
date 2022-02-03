@@ -3,7 +3,7 @@ from flask import request, current_app
 from flask_security import login_required
 from flask_security.core import current_user
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.ui.views import flexmeasures_ui
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, clear_session
 from flexmeasures.data.services.resources import (

@@ -277,7 +277,7 @@ if __name__ == "__main__":
         )
     if args.uml:
         try:
-            from flexmeasures.data.config import db as flexmeasures_db
+            from flexmeasures.data import db as flexmeasures_db
         except ImportError as ie:
             print(
                 f"We need flexmeasures.data to be in the path, so we can read the data model. Error: '{ie}''."

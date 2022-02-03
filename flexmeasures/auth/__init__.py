@@ -3,7 +3,7 @@ from flask_security import Security, SQLAlchemySessionUserDatastore
 from flask_login import user_logged_in
 from werkzeug.exceptions import Forbidden, Unauthorized
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 
 
 """

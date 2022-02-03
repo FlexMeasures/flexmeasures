@@ -4,12 +4,12 @@ from flask_json import as_json
 from webargs.flaskparser import use_kwargs, use_args
 
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset as AssetModel
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.data.config import db
 
 
 asset_schema = AssetSchema()

@@ -96,7 +96,7 @@ def create_test_db(app):
     """
     print("DB FIXTURE")
     # app is an instance of a flask app, _db a SQLAlchemy DB
-    from flexmeasures.data.config import db as _db
+    from flexmeasures.data import db as _db
 
     _db.app = app
     with app.app_context():
