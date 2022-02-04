@@ -31,8 +31,16 @@ full_template = (
 )
 
 # Set up UnitRegistry with abbreviated scientific format
-ur = pint.UnitRegistry(full_template)
+ur = pint.UnitRegistry(
+    full_template,
+    preprocessors=[
+        lambda s: s.replace("%", " percent "),
+        lambda s: s.replace("‰", " permille "),
+    ],
+)
 ur.default_format = "~P"  # short pretty
+ur.define("percent = 1 / 100 = %")
+ur.define("permille = 1 / 1000 = ‰")
 
 
 PREFERRED_UNITS = [
