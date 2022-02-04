@@ -6,6 +6,7 @@ from flexmeasures.data.models.data_sources import DataSource
 
 def test_get_or_create_annotation(db):
     """Save an annotation, then get_or_create a new annotation with the same contents."""
+    num_annotations_before = Annotation.query.count()
     source = DataSource.query.first()
     first_annotation = Annotation(
         content="Dutch new year",
@@ -15,7 +16,18 @@ def test_get_or_create_annotation(db):
         type="holiday",
     )
     assert first_annotation == get_or_create_annotation(first_annotation)
-    db.session.flush()
+    num_annotations_intermediate = Annotation.query.count()
+    assert num_annotations_intermediate == num_annotations_before + 1
+    assert (
+        Annotation.query.filter(
+            Annotation.content == first_annotation.content,
+            Annotation.start == first_annotation.start,
+            Annotation.end == first_annotation.end,
+            Annotation.source == first_annotation.source,
+            Annotation.type == first_annotation.type,
+        ).one_or_none()
+    ) == first_annotation
+    assert first_annotation.id is not None
     second_annotation = Annotation(
         content="Dutch new year",
         start=pd.Timestamp("2020-01-01 00:00+01"),
@@ -24,3 +36,6 @@ def test_get_or_create_annotation(db):
         type="holiday",
     )
     assert first_annotation == get_or_create_annotation(second_annotation)
+    num_annotations_after = Annotation.query.count()
+    assert num_annotations_after == num_annotations_intermediate
+    assert second_annotation.id is None
