@@ -14,7 +14,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.utils import save_to_db
 
 
-BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
+BACKUP_PATH: str = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
 
 
 @click.group("db-ops")
