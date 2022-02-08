@@ -22,19 +22,17 @@ jobs:
       matrix:
         py_version: [ '3.8', '3.9' ]
     name: "Test (on Python ${{ matrix.py_version }})"
-      - name: Cache packages
-        id: cache-packages
-        - uses: actions/cache@v2
-          with:
-            path: ~/.cache/pip
-            key: ${{ runner.os }}-pip-${{ secrets.CACHE_DATE }}-${{ hashFiles('**/requirements/**.txt') }}
-            restore-keys: |
-              ${{ runner.os }}-pip-
     steps:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py_version }}
       - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ secrets.CACHE_DATE }}-${{ hashFiles('**/requirements/**.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: ci/SETUP.sh
       - run: make test
     env:
