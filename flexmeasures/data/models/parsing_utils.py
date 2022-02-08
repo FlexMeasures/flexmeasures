@@ -3,6 +3,7 @@ from typing import Optional, Union, List, TYPE_CHECKING
 
 from flask import current_app
 from flexmeasures.data import db
+
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
 

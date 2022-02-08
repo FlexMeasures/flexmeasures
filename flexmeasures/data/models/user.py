@@ -14,6 +14,7 @@ from flexmeasures.data.models.annotations import (
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.auth.policy import AuthModelMixin
+
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
 
