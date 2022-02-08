@@ -20,6 +20,7 @@ from flexmeasures.utils.unit_utils import (
 @pytest.mark.parametrize(
     "from_unit, to_unit, expected_multiplier, expected_values",
     [
+        ("%", "‰", 10, None),
         ("m/s", "km/h", 3.6, None),
         ("m³/h", "l/h", 1000, None),
         ("m³", "m³/h", 4, None),
