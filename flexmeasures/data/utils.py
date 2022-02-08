@@ -51,6 +51,7 @@ def get_data_source(
 
 def save_to_db(
     data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
+    bulk_save_objects: bool = False,
     save_changed_beliefs_only: bool = True,
 ) -> str:
     """Save the timed beliefs to the database.
@@ -75,6 +76,9 @@ def save_to_db(
     Servers in 'play' mode are exempt from this rule, to facilitate replaying simulations.
 
     :param data: BeliefsDataFrame (or a list thereof) to be saved
+    :param bulk_save_objects: if True, objects are bulk saved with session.bulk_save_objects(),
+                              which is quite fast but has several caveats, see:
+                              https://docs.sqlalchemy.org/orm/persistence_techniques.html#bulk-operations-caveats
     :param save_changed_beliefs_only: if True, unchanged beliefs are skipped (updated beliefs are only stored if they represent changed beliefs)
                                       if False, all updated beliefs are stored
     :returns: status string, one of the following:
@@ -122,6 +126,7 @@ def save_to_db(
         TimedBelief.add_to_session(
             session=db.session,
             beliefs_data_frame=timed_values,
+            bulk_save_objects=bulk_save_objects,
             allow_overwrite=current_app.config.get(
                 "FLEXMEASURES_ALLOW_DATA_OVERWRITE", False
             ),
