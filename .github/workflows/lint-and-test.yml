@@ -17,6 +17,7 @@ jobs:
   test:
     needs: check
     runs-on: ubuntu-latest
+    key: ${{ runner.os }}-mycache-${{ secrets.CACHE_VERSION }}-${{ hashFiles(...) }}  # make sure cache is renewable (by updating CACHE_SECRET)
     strategy:
       fail-fast: false
       matrix:
