@@ -14,7 +14,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.utils import save_to_db
 
 
-BACKUP_PATH: str = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
+BACKUP_PATH: str = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")  # type: ignore
 
 
 @click.group("db-ops")
@@ -126,7 +126,7 @@ def restore(file: str):
 
     """
 
-    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    db_uri: str = app.config.get("SQLALCHEMY_DATABASE_URI")  # type: ignore
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
     command_for_restoring = f"pg_restore -d {db_uri} {file}"
