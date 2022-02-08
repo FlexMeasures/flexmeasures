@@ -22,14 +22,14 @@ jobs:
       matrix:
         py_version: [ '3.8', '3.9' ]
     name: "Test (on Python ${{ matrix.py_version }})"
-    - name: Cache packages
-      id: cache-packages
-      - uses: actions/cache@v2
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ secrets.CACHE_DATE }}-${{ hashFiles('**/requirements/**.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+      - name: Cache packages
+        id: cache-packages
+        - uses: actions/cache@v2
+          with:
+            path: ~/.cache/pip
+            key: ${{ runner.os }}-pip-${{ secrets.CACHE_DATE }}-${{ hashFiles('**/requirements/**.txt') }}
+            restore-keys: |
+              ${{ runner.os }}-pip-
     steps:
       - uses: actions/setup-python@v2
         with:
