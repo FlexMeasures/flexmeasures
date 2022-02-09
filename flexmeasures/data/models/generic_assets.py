@@ -174,6 +174,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     """Create a GenericAsset and assigns it an id.
+    TEST
 
     :param generic_asset_type: "asset", "market" or "weather_sensor"
     :param kwargs:              should have values for keys "name", and:
