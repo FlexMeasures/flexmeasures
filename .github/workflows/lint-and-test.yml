@@ -12,7 +12,6 @@ jobs:
         with:
           python-version: 3.8
       - uses: actions/checkout@v2
-      - uses: pre-commit/action@v2.0.0
 
   test:
     needs: check
