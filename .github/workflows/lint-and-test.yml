@@ -4,23 +4,13 @@ on: push
 
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    name: Check (on Python3.8)
-    steps:
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-      - uses: actions/checkout@v2
-      - uses: pre-commit/action@v2.0.0
-
   test:
     needs: check
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ '3.8', '3.9' ]
+        py_version: [ '3.9' ]
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
       - uses: actions/setup-python@v2
