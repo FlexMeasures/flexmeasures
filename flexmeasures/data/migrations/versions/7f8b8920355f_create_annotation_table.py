@@ -22,8 +22,8 @@ def upgrade():
     create_annotation_account_relationship_table()
     create_annotation_asset_relationship_table()
     create_annotation_sensor_relationship_table()
-    create_user_roles_unique_constraints()
-    create_account_roles_unique_constraints()
+    # create_user_roles_unique_constraints()
+    # create_account_roles_unique_constraints()
 
 
 def downgrade():

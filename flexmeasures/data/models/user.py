@@ -15,13 +15,6 @@ class RolesAccounts(db.Model):
     id = Column(Integer(), primary_key=True)
     account_id = Column("account_id", Integer(), ForeignKey("account.id"))
     role_id = Column("role_id", Integer(), ForeignKey("account_role.id"))
-    __table_args__ = (
-        db.UniqueConstraint(
-            "role_id",
-            "account_id",
-            name="roles_accounts_role_id_key",
-        ),
-    )
 
 
 class AccountRole(db.Model):
@@ -84,13 +77,6 @@ class RolesUsers(db.Model):
     id = Column(Integer(), primary_key=True)
     user_id = Column("user_id", Integer(), ForeignKey("fm_user.id"))
     role_id = Column("role_id", Integer(), ForeignKey("role.id"))
-    __table_args__ = (
-        db.UniqueConstraint(
-            "role_id",
-            "user_id",
-            name="roles_users_role_id_key",
-        ),
-    )
 
 
 class Role(db.Model, RoleMixin):
