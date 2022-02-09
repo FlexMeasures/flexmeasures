@@ -10,6 +10,7 @@ apt-get update
 sudo apt-get -y install postgresql-client coinor-cbc
 make install-deps
 
+pip install --upgrade setuptools
 
 # Wait for the DB service to be up.
 
