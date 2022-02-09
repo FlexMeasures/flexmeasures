@@ -9,11 +9,14 @@ from flexmeasures.data.models.data_sources import DataSource
 def test_add_annotation(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_annotation
 
+    user = setup_roles_users["Test Prosumer User"]
+    account = user.account
+
     cli_input = {
         "content": "Company founding day",
         "at": "2016-05-11T00:00+02:00",
-        "account-id": 1,
-        "user-id": 1,
+        "account-id": account.id,
+        "user-id": user.id,
     }
     runner = app.test_cli_runner()
     result = runner.invoke(add_annotation, to_flags(cli_input))
