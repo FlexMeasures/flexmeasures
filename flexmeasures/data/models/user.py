@@ -41,11 +41,11 @@ class Account(db.Model, AuthModelMixin):
         secondary="roles_accounts",
         backref=backref("accounts", lazy="dynamic"),
     )
-    annotations = db.relationship(
-        "Annotation",
-        secondary="annotations_accounts",
-        backref=db.backref("accounts", lazy="dynamic"),
-    )
+    # annotations = db.relationship(
+    #     "Annotation",
+    #     secondary="annotations_accounts",
+    #     backref=db.backref("accounts", lazy="dynamic"),
+    # )
 
     def __repr__(self):
         return "<Account %s (ID:%s)" % (self.name, self.id)
