@@ -9,7 +9,7 @@ from flexmeasures.data.models.data_sources import DataSource
 def test_add_annotation(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_annotation
 
-    user = setup_roles_users["Test Prosumer User"]
+    user = setup_roles_users["Test Admin User"]
     account = user.account
 
     cli_input = {
