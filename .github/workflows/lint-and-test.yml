@@ -27,8 +27,11 @@ jobs:
         with:
           python-version: ${{ matrix.py_version }}
       - uses: actions/checkout@v2
-      - run: ci/SETUP.sh
-      - run: make test
+      - run: |
+        git fetch --prune --unshallow
+        git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+        ci/SETUP.sh
+        make test
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5432
