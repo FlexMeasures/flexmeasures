@@ -26,9 +26,12 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py_version }}
-      - uses: actions/checkout@v2
-      - run: git fetch --prune --unshallow
-      - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - name: Check out src from Git
+        uses: actions/checkout@v2
+      - name: Get history and tags for SCM versioning to work
+        run: |
+          git fetch --prune --unshallow
+          git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - run: ci/SETUP.sh
       - run: make test
     env:
