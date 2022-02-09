@@ -16,7 +16,7 @@ class Annotation(db.Model):
     """
 
     id = db.Column(db.Integer, nullable=False, autoincrement=True, primary_key=True)
-    content = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
     start = db.Column(db.DateTime(timezone=True), nullable=False)
     end = db.Column(db.DateTime(timezone=True), nullable=False)
     source_id = db.Column(db.Integer, db.ForeignKey(DataSource.__tablename__ + ".id"))
@@ -28,11 +28,11 @@ class Annotation(db.Model):
     type = db.Column(db.Enum("alert", "holiday", "label", name="annotation_type"))
     __table_args__ = (
         db.UniqueConstraint(
-            "content",
+            "name",
             "start",
             "source_id",
             "type",
-            name="annotation_content_key",
+            name="annotation_name_key",
         ),
     )
 
@@ -41,24 +41,7 @@ class Annotation(db.Model):
         return self.end - self.start
 
     def __repr__(self) -> str:
-        return f"<Annotation {self.id}: {self.content} ({self.type}), start: {self.start} end: {self.end}, source: {self.source}>"
-
-
-class AccountAnnotationRelationship(db.Model):
-    """Links annotations to accounts."""
-
-    __tablename__ = "annotations_accounts"
-
-    id = db.Column(db.Integer(), primary_key=True)
-    account_id = db.Column(db.Integer, db.ForeignKey("account.id"))
-    annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
-    __table_args__ = (
-        db.UniqueConstraint(
-            "annotation_id",
-            "account_id",
-            name="annotations_accounts_annotation_id_key",
-        ),
-    )
+        return f"<Annotation {self.id}: {self.name} ({self.type}), start: {self.start} end: {self.end}, source: {self.source}>"
 
 
 class GenericAssetAnnotationRelationship(db.Model):
@@ -69,13 +52,6 @@ class GenericAssetAnnotationRelationship(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
     generic_asset_id = db.Column(db.Integer, db.ForeignKey("generic_asset.id"))
     annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
-    __table_args__ = (
-        db.UniqueConstraint(
-            "annotation_id",
-            "generic_asset_id",
-            name="annotations_assets_annotation_id_key",
-        ),
-    )
 
 
 class SensorAnnotationRelationship(db.Model):
@@ -86,37 +62,3 @@ class SensorAnnotationRelationship(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
     sensor_id = db.Column(db.Integer, db.ForeignKey("sensor.id"))
     annotation_id = db.Column(db.Integer, db.ForeignKey("annotation.id"))
-    __table_args__ = (
-        db.UniqueConstraint(
-            "annotation_id",
-            "sensor_id",
-            name="annotations_sensors_annotation_id_key",
-        ),
-    )
-
-
-def get_or_create_annotation(
-    annotation: Annotation,
-) -> Annotation:
-    """Add annotation to db session if it doesn't exist in the session already.
-
-    Return the old annotation object if it exists (and expunge the new one). Otherwise, return the new one.
-    """
-    with db.session.no_autoflush:
-        existing_annotation = (
-            db.session.query(Annotation)
-            .filter(
-                Annotation.content == annotation.content,
-                Annotation.start == annotation.start,
-                Annotation.end == annotation.end,
-                Annotation.source == annotation.source,
-                Annotation.type == annotation.type,
-            )
-            .one_or_none()
-        )
-    if existing_annotation is None:
-        db.session.add(annotation)
-        return annotation
-    if annotation in db.session:
-        db.session.expunge(annotation)
-    return existing_annotation
