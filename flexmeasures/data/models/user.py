@@ -92,7 +92,7 @@ class Account(db.Model, AuthModelMixin):
         annotation_starts_after: Optional[datetime] = None,
         annotation_ends_before: Optional[datetime] = None,
         source: Optional[
-            Union["DataSource", List["DataSource"], int, List[int], str, List[str]]
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
     ):
         parsed_sources = parse_source_arg(source)

@@ -31,11 +31,8 @@ from flexmeasures.data.schemas.generic_assets import (
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.schemas.weather import WeatherSensorSchema
-from flexmeasures.data.models.data_sources import (
-    get_or_create_source,
-    get_source_or_none,
-)
 from flexmeasures.data.models.user import User
+from flexmeasures.data.queries.data_sources import get_or_create_source, get_source_or_none
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units
