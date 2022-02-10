@@ -35,6 +35,14 @@ def test_error_handling(
     Try json as well as html content types.
     """
     res = client.get(raising_url, headers={"Content-Type": "application/json"})
+    print(f"res = {res}")
+    if hasattr(res, "data"):
+        print(f"res.data = {res.data}")
+        try:
+            print(json.loads(res.data))
+            print(json.loads(res.data)["message"])
+        except Exception:
+            pass
     assert res.status_code == status_code
     assert "application/json" in res.content_type
     if expected_message:
