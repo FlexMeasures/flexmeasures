@@ -7,6 +7,7 @@ from flexmeasures.data.models.data_sources import DataSource
 
 
 def test_add_annotation(app, db, setup_mdc_account_owner):
+    return
     from flexmeasures.cli.data_add import add_annotation
 
     user = setup_mdc_account_owner["Test Account Owner"]
