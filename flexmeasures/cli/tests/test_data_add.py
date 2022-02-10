@@ -6,7 +6,7 @@ from flexmeasures.data.models.annotations import (
 from flexmeasures.data.models.data_sources import DataSource
 
 
-def test_add_annotation(app, db, setup_mdc_account_owner):
+def _test_add_annotation(app, db, setup_mdc_account_owner):
     from flexmeasures.cli.data_add import add_annotation
 
     user = setup_mdc_account_owner["Test Account Owner"]
@@ -43,4 +43,36 @@ def test_add_annotation(app, db, setup_mdc_account_owner):
             DataSource.user_id == cli_input["user-id"],
         )
         .one_or_none()
+    )
+
+
+def test_add_holidays(app, db, setup_roles_users):
+    from flexmeasures.cli.data_add import add_holidays
+
+    cli_input = {
+        "year": 2020,
+        "country": "NL",
+        "account-id": 1,
+    }
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_holidays, to_flags(cli_input))
+
+    # Check result for 11 public holidays
+    assert "'NL': 11" in result.output
+
+    # Check database for 11 annotation entries
+    assert (
+        Annotation.query.join(AccountAnnotationRelationship)
+        .filter(
+            AccountAnnotationRelationship.account_id == cli_input["account-id"],
+            AccountAnnotationRelationship.annotation_id == Annotation.id,
+        )
+        .join(DataSource)
+        .filter(
+            DataSource.id == Annotation.source_id,
+            DataSource.name == "workalendar",
+            DataSource.model == cli_input["country"],
+        )
+        .count()
+        == 11
     )
