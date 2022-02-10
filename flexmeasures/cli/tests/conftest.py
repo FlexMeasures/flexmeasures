@@ -26,4 +26,5 @@ def setup_mdc_account_owner(db, setup_mdc_account) -> Dict[str, User]:
             name=ADMIN_ROLE, description="A user who can do everything."
         ),
     )
+    print(account_owner.account)
     return {account_owner.username: account_owner}

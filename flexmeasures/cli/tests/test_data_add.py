@@ -19,7 +19,6 @@ def test_add_annotation(app, db, setup_mdc_account_owner):
         "user-id": user.id,
     }
     runner = app.test_cli_runner()
-    return
     result = runner.invoke(add_annotation, to_flags(cli_input))
 
     # Check result for success
