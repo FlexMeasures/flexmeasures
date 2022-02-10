@@ -6,20 +6,20 @@ from flexmeasures.data.services.users import Account, create_user, User
 
 
 @pytest.fixture(scope="module")
-def setup_one_account(db) -> Dict[str, Account]:
-    prosumer_account = Account(
+def setup_mdc_account(db) -> Dict[str, Account]:
+    mdc_account = Account(
         name="Test MDC Account",
     )
-    db.session.add(prosumer_account)
-    return {prosumer_account.name: prosumer_account}
+    db.session.add(mdc_account)
+    return {mdc_account.name: mdc_account}
 
 
 @pytest.fixture(scope="module")
-def setup_account_owner(db, setup_one_account) -> Dict[str, User]:
+def setup_mdc_account_owner(db, setup_mdc_account) -> Dict[str, User]:
     account_owner = create_user(
         username="Test Account Owner",
         email="test_account_owner@seita.nl",
-        account_name=setup_one_account["Test MDC Account"].name,
+        account_name=setup_mdc_account["Test MDC Account"].name,
         password="testtest",
         # TODO: change ADMIN_ROLE to ACCOUNT_ADMIN
         user_roles=dict(
