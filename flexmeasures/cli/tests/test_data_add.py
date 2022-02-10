@@ -46,13 +46,13 @@ def _test_add_annotation(app, db, setup_mdc_account_owner):
     )
 
 
-def test_add_holidays(app, db, setup_roles_users):
+def test_add_holidays(app, db, setup_mdc_account):
     from flexmeasures.cli.data_add import add_holidays
 
     cli_input = {
         "year": 2020,
         "country": "NL",
-        "account-id": 1,
+        "account-id": setup_mdc_account["Test MDC Account"].id,
     }
     runner = app.test_cli_runner()
     result = runner.invoke(add_holidays, to_flags(cli_input))

@@ -11,6 +11,7 @@ def setup_mdc_account(db) -> Dict[str, Account]:
         name="Test MDC Account",
     )
     db.session.add(mdc_account)
+    db.session.commit()
     return {mdc_account.name: mdc_account}
 
 
