@@ -11,6 +11,8 @@ def test_add_annotation(app, db, setup_mdc_account_owner):
 
     user = setup_mdc_account_owner["Test Account Owner"]
     account = user.account
+    print(user.id)
+    print(account.id)
 
     cli_input = {
         "content": "Company founding day",
@@ -20,7 +22,7 @@ def test_add_annotation(app, db, setup_mdc_account_owner):
     }
     runner = app.test_cli_runner()
     result = runner.invoke(add_annotation, to_flags(cli_input))
-    return
+    raise
     # Check result for success
     assert "Successfully added annotation" in result.output
 
