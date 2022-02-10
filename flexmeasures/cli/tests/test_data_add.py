@@ -6,7 +6,7 @@ from flexmeasures.data.models.annotations import (
 from flexmeasures.data.models.data_sources import DataSource
 
 
-def test_add_annotation(cli_app, cli_db, setup_mdc_account_owner):
+def test_add_annotation(app, db, setup_mdc_account_owner):
     from flexmeasures.cli.data_add import add_annotation
 
     user = setup_mdc_account_owner["Test Account Owner"]
@@ -20,7 +20,7 @@ def test_add_annotation(cli_app, cli_db, setup_mdc_account_owner):
         "account-id": account.id,
         "user-id": user.id,
     }
-    runner = cli_app.test_cli_runner()
+    runner = app.test_cli_runner()
     result = runner.invoke(add_annotation, to_flags(cli_input))
     raise
     # Check result for success
