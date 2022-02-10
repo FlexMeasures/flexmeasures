@@ -1,16 +1,20 @@
 from typing import List, Optional, Type, Tuple, Union
 from datetime import datetime, timedelta
 
+from flask import current_app
+from flask_security import current_user
+from werkzeug.exceptions import Forbidden
 import pandas as pd
 import timely_beliefs as tb
-
 from sqlalchemy.orm import Query, Session
 from sqlalchemy.sql.elements import BinaryExpression
 
 from flexmeasures.data.config import db
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils import flexmeasures_inflection
 import flexmeasures.data.models.time_series as ts  # noqa: F401
+from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 
 
 def create_beliefs_query(
@@ -35,6 +39,43 @@ def create_beliefs_query(
     if end is not None:
         query = query.filter((cls.datetime < end))
     return query
+
+
+def potentially_limit_query_to_account_assets(
+    query: Query, account_id: Optional[int]
+) -> Query:
+    """
+    Filter out any assets that are not in this account, or not in the current
+    user's account (for non-admins or non-CLI users).
+    Note: Your query needs include/join GenericAsset for this to work.
+
+    Admins can set account_id to None, which for this function means that no filter limit is added.
+    (For querying public assets in particular, don't use this function).
+    """
+    if not hasattr(current_user, "account_id") and not current_app.cli:
+        raise Forbidden("Unauthenticated user cannot list assets.")
+    user_is_admin = (
+        current_app.cli
+        or current_user.has_role(ADMIN_ROLE)
+        or current_user.has_role(ADMIN_READER_ROLE)
+    )
+    if account_id is None and user_is_admin:
+        return query  # allow admins to query assets across all accounts
+    if (
+        account_id is not None
+        and account_id != current_user.account_id
+        and not user_is_admin
+    ):
+        raise Forbidden("Non-admin cannot access assets from other accounts.")
+    account_id_to_filter = (
+        account_id if account_id is not None else current_user.account_id
+    )
+    return query.filter(
+        (
+            GenericAsset.account_id == account_id_to_filter
+            or GenericAsset.account_id is None
+        )
+    )
 
 
 def get_source_criteria(

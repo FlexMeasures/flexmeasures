@@ -12,7 +12,7 @@ from statsmodels.api import OLS
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor
+from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.forecasting import model_map
 from flexmeasures.data.models.forecasting.model_spec_factory import (
     create_initial_model_specs,

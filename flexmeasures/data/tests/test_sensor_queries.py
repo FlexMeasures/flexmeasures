@@ -1,4 +1,4 @@
-from flexmeasures.data.services.resources import find_closest_sensor
+from flexmeasures.data.models.time_series import Sensor
 
 
 def test_closest_sensor(add_nearby_weather_sensors):
@@ -8,10 +8,10 @@ def test_closest_sensor(add_nearby_weather_sensors):
     And check that the 2nd and 3rd closest are the farther temperature sensors we set up.
     """
     wind_sensor = add_nearby_weather_sensors["wind"]
-    generic_asset_type_name = "temperature"
-    closest_sensors = find_closest_sensor(
-        generic_asset_type_name,
+    closest_sensors = Sensor.find_closest(
+        generic_asset_type_name=wind_sensor.generic_asset.name,
         n=3,
+        sensor_name="temperature",
         latitude=wind_sensor.latitude,
         longitude=wind_sensor.longitude,
     )
@@ -25,4 +25,7 @@ def test_closest_sensor(add_nearby_weather_sensors):
         == add_nearby_weather_sensors["even_farther_temperature"].corresponding_sensor
     )
     for sensor in closest_sensors:
-        assert sensor.generic_asset.generic_asset_type.name == generic_asset_type_name
+        assert (
+            sensor.generic_asset.generic_asset_type.name
+            == wind_sensor.generic_asset.name
+        )

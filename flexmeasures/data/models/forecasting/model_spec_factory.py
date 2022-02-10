@@ -26,7 +26,6 @@ from flexmeasures.data.models.forecasting.utils import (
     set_training_and_testing_dates,
     get_query_window,
 )
-from flexmeasures.data.services.resources import find_closest_sensor
 
 """
 Here we generate an initial version of timetomodel specs, given what asset and what timing
@@ -272,7 +271,9 @@ def configure_regressors_for_nearest_weather_sensor(
         for sensor_type in sensor_types:
 
             # Find nearest weather sensor
-            closest_sensor = find_closest_sensor(sensor_type, object=sensor)
+            closest_sensor = Sensor.find_closest(
+                sensor_type, object=sensor.generic_asset
+            )
             if closest_sensor is None:
                 current_app.logger.warning(
                     "No sensor found of sensor type %s to use as regressor for %s."
