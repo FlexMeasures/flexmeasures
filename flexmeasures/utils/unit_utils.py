@@ -31,8 +31,16 @@ full_template = (
 )
 
 # Set up UnitRegistry with abbreviated scientific format
-ur = pint.UnitRegistry(full_template)
+ur = pint.UnitRegistry(
+    full_template,
+    preprocessors=[
+        lambda s: s.replace("%", " percent "),
+        lambda s: s.replace("‰", " permille "),
+    ],
+)
 ur.default_format = "~P"  # short pretty
+ur.define("percent = 1 / 100 = %")
+ur.define("permille = 1 / 1000 = ‰")
 
 
 PREFERRED_UNITS = [
@@ -77,15 +85,27 @@ def determine_unit_conversion_multiplier(
     from_unit: str, to_unit: str, duration: Optional[timedelta] = None
 ):
     """Determine the value multiplier for a given unit conversion.
-    If needed, requires a duration to convert from units of stock change to units of flow.
+    If needed, requires a duration to convert from units of stock change to units of flow, or vice versa.
     """
     scalar = ur.Quantity(from_unit) / ur.Quantity(to_unit)
     if scalar.dimensionality == ur.Quantity("h").dimensionality:
+        # Convert a stock change to a flow
         if duration is None:
             raise ValueError(
                 f"Cannot convert units from {from_unit} to {to_unit} without known duration."
             )
         return scalar.to_timedelta() / duration
+    elif scalar.dimensionality == ur.Quantity("1/h").dimensionality:
+        # Convert a flow to a stock change
+        if duration is None:
+            raise ValueError(
+                f"Cannot convert units from {from_unit} to {to_unit} without known duration."
+            )
+        return duration / (1 / scalar).to_timedelta()
+    elif scalar.dimensionality != ur.Quantity("dimensionless").dimensionality:
+        raise ValueError(
+            f"Unit conversion from {from_unit} to {to_unit} doesn't seem possible."
+        )
     return scalar.to_reduced_units().magnitude
 
 

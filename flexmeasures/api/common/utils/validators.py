@@ -40,8 +40,8 @@ from flexmeasures.api.common.utils.api_utils import (
     contains_empty_items,
     upsample_values,
 )
+from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.config import db
 from flexmeasures.data.services.users import get_users
 from flexmeasures.utils.time_utils import server_now
 

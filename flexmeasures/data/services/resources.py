@@ -12,13 +12,14 @@ from functools import cached_property, wraps
 from typing import List, Dict, Tuple, Type, TypeVar, Union, Optional
 from datetime import datetime
 
+from flexmeasures.data import db
 from flexmeasures.utils.flexmeasures_inflection import parameterize, pluralize
 from itertools import groupby
 
 from flask_security.core import current_user
 import inflect
 import pandas as pd
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Query
 from sqlalchemy.engine import Row
 import timely_beliefs as tb
 
@@ -244,7 +245,7 @@ def mask_inaccessible_assets(
     return asset_queries
 
 
-def get_center_location(db: Session, user: Optional[User]) -> Tuple[float, float]:
+def get_center_location(user: Optional[User]) -> Tuple[float, float]:
     """
     Find the center position between all assets.
     If user is passed and not admin then we only consider assets

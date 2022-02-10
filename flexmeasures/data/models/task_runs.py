@@ -1,7 +1,7 @@
 from datetime import datetime
 import pytz
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 
 
 class LatestTaskRun(db.Model):

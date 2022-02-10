@@ -8,7 +8,7 @@ from rq.job import Job
 from timetomodel.forecasting import make_rolling_forecasts
 import timely_beliefs as tb
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
 from flexmeasures.data.models.forecasting.exceptions import InvalidHorizonException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief

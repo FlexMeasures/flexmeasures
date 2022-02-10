@@ -1,7 +1,10 @@
+from __future__ import annotations
 import re
 
+import inflect
 import inflection
 
+p = inflect.engine()
 
 # Give the inflection module some help for our domain
 inflection.UNCOUNTABLES.add("solar")
@@ -30,10 +33,10 @@ def parameterize(word):
     return inflection.parameterize(word).replace("-", "_")
 
 
-def pluralize(word):
+def pluralize(word, count: str | int | None = None):
     if word.lower().split()[-1] in inflection.UNCOUNTABLES:
         return word
-    return inflection.pluralize(word)
+    return p.plural(word, count)
 
 
 def titleize(word):

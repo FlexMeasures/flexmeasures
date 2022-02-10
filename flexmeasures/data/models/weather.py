@@ -6,7 +6,7 @@ from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.schema import UniqueConstraint
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.models.legacy_migration_utils import (
     copy_old_sensor_attributes,
     get_old_model_type,
