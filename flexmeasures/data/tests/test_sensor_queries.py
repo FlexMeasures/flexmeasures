@@ -9,23 +9,17 @@ def test_closest_sensor(add_nearby_weather_sensors):
     """
     wind_sensor = add_nearby_weather_sensors["wind"]
     closest_sensors = Sensor.find_closest(
-        generic_asset_type_name=wind_sensor.generic_asset.name,
+        generic_asset_type_name=wind_sensor.generic_asset.generic_asset_type.name,
         n=3,
         sensor_name="temperature",
-        latitude=wind_sensor.latitude,
-        longitude=wind_sensor.longitude,
+        latitude=wind_sensor.generic_asset.latitude,
+        longitude=wind_sensor.generic_asset.longitude,
     )
-    assert closest_sensors[0].location == wind_sensor.location
-    assert (
-        closest_sensors[1]
-        == add_nearby_weather_sensors["farther_temperature"].corresponding_sensor
-    )
-    assert (
-        closest_sensors[2]
-        == add_nearby_weather_sensors["even_farther_temperature"].corresponding_sensor
-    )
+    assert closest_sensors[0].location == wind_sensor.generic_asset.location
+    assert closest_sensors[1] == add_nearby_weather_sensors["farther_temperature"]
+    assert closest_sensors[2] == add_nearby_weather_sensors["even_farther_temperature"]
     for sensor in closest_sensors:
         assert (
             sensor.generic_asset.generic_asset_type.name
-            == wind_sensor.generic_asset.name
+            == wind_sensor.generic_asset.generic_asset_type.name
         )

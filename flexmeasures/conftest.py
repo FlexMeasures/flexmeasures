@@ -25,7 +25,6 @@ from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.markets import Market, MarketType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import User, Account, AccountRole
@@ -329,9 +328,21 @@ def create_generic_asset_types(db):
     db.session.add(solar)
     wind = GenericAssetType(name="wind turbine")
     db.session.add(wind)
-    battery = GenericAssetType(name="battery")
+    battery = GenericAssetType.query.filter_by(name="battery").one_or_none()
+    if (
+        not battery
+    ):  # legacy if because create_test_battery_assets might created it already - refactor!
+        battery = GenericAssetType(name="battery")
     db.session.add(battery)
-    return dict(public_good=public_good, solar=solar, wind=wind, battery=battery)
+    weather_station = GenericAssetType(name="Weather station")
+    db.session.add(weather_station)
+    return dict(
+        public_good=public_good,
+        solar=solar,
+        wind=wind,
+        battery=battery,
+        weather_station=weather_station,
+    )
 
 
 def create_test_asset_types(db) -> Dict[str, AssetType]:
@@ -507,7 +518,9 @@ def add_battery_assets_fresh_db(
 def create_test_battery_assets(
     db: SQLAlchemy, setup_roles_users, setup_markets
 ) -> Dict[str, Asset]:
-    """Add two battery assets, set their capacity values and their initial SOC."""
+    """
+    Add two battery assets, set their capacity values and their initial SOC.
+    """
     db.session.add(
         AssetType(
             name="battery",
@@ -634,38 +647,40 @@ def add_charging_station_assets(
 
 
 @pytest.fixture(scope="module")
-def add_weather_sensors(db) -> Dict[str, WeatherSensor]:
-    return create_weather_sensors(db)
+def add_weather_sensors(db, setup_generic_asset_types) -> Dict[str, Sensor]:
+    return create_weather_sensors(db, setup_generic_asset_types)
 
 
 @pytest.fixture(scope="function")
-def add_weather_sensors_fresh_db(fresh_db) -> Dict[str, WeatherSensor]:
-    return create_weather_sensors(fresh_db)
+def add_weather_sensors_fresh_db(
+    fresh_db, setup_generic_asset_types_fresh_db
+) -> Dict[str, Sensor]:
+    return create_weather_sensors(fresh_db, setup_generic_asset_types_fresh_db)
 
 
-def create_weather_sensors(db: SQLAlchemy):
-    """Add some weather sensors and weather sensor types."""
+def create_weather_sensors(db: SQLAlchemy, generic_asset_types):
+    """Add a weather station asset with two weather sensors."""
 
-    test_sensor_type = WeatherSensorType(name="wind_speed")
-    db.session.add(test_sensor_type)
-    wind_sensor = WeatherSensor(
-        name="wind_speed_sensor",
-        weather_sensor_type_name="wind_speed",
-        event_resolution=timedelta(minutes=5),
+    weather_station = GenericAsset(
+        name="Test weather station",
+        generic_asset_type=generic_asset_types["weather_station"],
         latitude=33.4843866,
         longitude=126,
+    )
+    db.session.add(weather_station)
+
+    wind_sensor = Sensor(
+        name="wind_speed",
+        generic_asset=weather_station,
+        event_resolution=timedelta(minutes=5),
         unit="m/s",
     )
     db.session.add(wind_sensor)
 
-    test_sensor_type = WeatherSensorType(name="temperature")
-    db.session.add(test_sensor_type)
-    temp_sensor = WeatherSensor(
-        name="temperature_sensor",
-        weather_sensor_type_name="temperature",
+    temp_sensor = Sensor(
+        name="temperature",
+        generic_asset=weather_station,
         event_resolution=timedelta(minutes=5),
-        latitude=33.4843866,
-        longitude=126.0,
         unit="°C",
     )
     db.session.add(temp_sensor)

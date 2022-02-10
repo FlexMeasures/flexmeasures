@@ -258,7 +258,12 @@ def get_weather_data(
     if sensor_type:
         # Find the 50 closest weather sensors
         sensor_type_name = sensor_type.name
-        closest_sensors = Sensor.find_closest(sensor_type_name, n=50, object=asset)
+        closest_sensors = Sensor.find_closest(
+            generic_asset_type_name=asset.generic_asset.generic_asset_type.name,
+            sensor_name=sensor_type_name,
+            n=50,
+            object=asset,
+        )
         if closest_sensors:
             closest_sensor = closest_sensors[0]
 

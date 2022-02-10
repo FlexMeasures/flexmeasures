@@ -8,6 +8,7 @@ from flask_security.utils import hash_password
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 
 
 @pytest.fixture(scope="module")
@@ -90,6 +91,7 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
     ]
     db.session.add_all(cs1_beliefs + cs2_beliefs + cs3_beliefs)
 
+    add_legacy_weather_sensor(db)
     print("Done setting up data for API v1.1 tests")
 
 
@@ -97,4 +99,18 @@ def setup_api_test_data(db, setup_accounts, setup_roles_users, add_market_prices
 def setup_fresh_api_v1_1_test_data(
     fresh_db, setup_roles_users_fresh_db, setup_markets_fresh_db
 ):
+    add_legacy_weather_sensor(fresh_db)
     return fresh_db
+
+
+def add_legacy_weather_sensor(db):
+    test_sensor_type = WeatherSensorType(name="wind_speed")
+    db.session.add(test_sensor_type)
+    wind_sensor = WeatherSensor(
+        name="wind_speed_sensor",
+        weather_sensor_type_name="wind_speed",
+        event_resolution=timedelta(minutes=5),
+        latitude=33.4843866,
+        longitude=126,
+    )
+    db.session.add(wind_sensor)

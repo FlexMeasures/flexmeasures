@@ -272,7 +272,9 @@ def configure_regressors_for_nearest_weather_sensor(
 
             # Find nearest weather sensor
             closest_sensor = Sensor.find_closest(
-                sensor_type, object=sensor.generic_asset
+                generic_asset_type_name=sensor.generic_asset.generic_asset_type.name,
+                sensor_name=sensor_type,
+                object=sensor.generic_asset,
             )
             if closest_sensor is None:
                 current_app.logger.warning(
