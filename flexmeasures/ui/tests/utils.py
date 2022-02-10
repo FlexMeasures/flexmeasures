@@ -1,4 +1,5 @@
 import copy
+import json
 
 from flask import url_for
 
@@ -8,6 +9,14 @@ def login(the_client, email, password):
     login_response = the_client.post(
         url_for("security.login"), data=auth_data, follow_redirects=True
     )
+    print(f"login_response = {login_response}")
+    if hasattr(login_response, "data"):
+        print(f"login_response.data = {login_response.data}")
+        try:
+            print(json.loads(login_response.data))
+            print(json.loads(login_response.data)["message"])
+        except Exception:
+            pass
     assert login_response.status_code == 200
     assert b"Please log in" not in login_response.data
     return login_response
