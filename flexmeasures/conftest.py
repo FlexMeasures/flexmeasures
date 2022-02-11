@@ -331,7 +331,7 @@ def create_generic_asset_types(db):
     battery = GenericAssetType.query.filter_by(name="battery").one_or_none()
     if (
         not battery
-    ):  # legacy if because create_test_battery_assets might created it already - refactor!
+    ):  # legacy if-block, because create_test_battery_assets might have created it already - refactor!
         battery = GenericAssetType(name="battery")
     db.session.add(battery)
     weather_station = GenericAssetType(name="Weather station")
