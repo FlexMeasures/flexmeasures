@@ -11,7 +11,7 @@ def setup_mdc_account(db) -> Dict[str, Account]:
         name="Test MDC Account",
     )
     db.session.add(mdc_account)
-    db.session.commit()
+    db.session.commit()  # todo: flush might be enough
     return {mdc_account.name: mdc_account}
 
 
@@ -20,7 +20,7 @@ def setup_mdc_account_owner(db, setup_mdc_account) -> Dict[str, User]:
     account_owner = create_user(
         username="Test Account Owner",
         email="test_account_owner@seita.nl",
-        account_name=setup_mdc_account["Test MDC Account"].name,
+        account=setup_mdc_account["Test MDC Account"],
         password="testtest",
         # TODO: change ADMIN_ROLE to ACCOUNT_ADMIN
         user_roles=dict(

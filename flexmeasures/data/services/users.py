@@ -78,6 +78,7 @@ def create_user(  # noqa: C901
     password: str = None,
     user_roles: Union[Dict[str, str], List[Dict[str, str]], str, List[str]] = None,
     check_email_deliverability: bool = True,
+    account: Optional[Account] = None,
     account_name: Optional[str] = None,
     **kwargs,
 ) -> User:
@@ -134,22 +135,24 @@ def create_user(  # noqa: C901
         )
 
     # check if we can link/create an account
-    if account_name is None:
+    if account is None and account_name is None:
         raise InvalidFlexMeasuresUser(
             "Cannot create user without knowing the name of the account which this user is associated with."
         )
-    account = db.session.query(Account).filter_by(name=account_name).one_or_none()
     if account is None:
-        print(f"Creating account {account_name} ...")
-        account = Account(name=account_name)
-        db.session.add(account)
-        db.session.flush()
+        account = db.session.query(Account).filter_by(name=account_name).one_or_none()
+        if account is None:
+            print(f"Creating account {account_name} ...")
+            account = Account(name=account_name)
+            db.session.add(account)
+            db.session.flush()
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     kwargs.update(password=hash_password(password), email=email, username=username)
+    kwargs["account"] = account
     user = user_datastore.create_user(**kwargs)
 
-    user.account_id = account.id
+    # user.account = account
 
     # add roles to user (creating new roles if necessary)
     if user_roles:
