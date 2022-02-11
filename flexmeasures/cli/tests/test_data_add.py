@@ -8,7 +8,7 @@ from flexmeasures.data.models.annotations import (
 from flexmeasures.data.models.data_sources import DataSource
 
 
-@pytest.mark.skip(reason="test passes, but breaks test suite on GH Actions")
+@pytest.mark.skip_github
 def test_add_annotation(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_annotation
 
@@ -44,7 +44,7 @@ def test_add_annotation(app, db, setup_roles_users):
     )
 
 
-@pytest.mark.skip(reason="test passes, but breaks test suite on GH Actions")
+@pytest.mark.skip_github
 def test_add_holidays(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_holidays
 
