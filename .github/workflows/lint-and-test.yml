@@ -36,7 +36,7 @@ jobs:
       - name: Install FlexMeasures for tests and run all tests except those marked to be skipped by GitHub
         run: |
           make install-for-test
-	      pytest -m "not skip_github"
+          pytest -m "not skip_github"
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5432
