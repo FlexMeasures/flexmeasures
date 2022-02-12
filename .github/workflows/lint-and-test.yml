@@ -20,15 +20,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ '3.8', '3.9' ]
+        py_version: [ '3.9' ]
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py_version }}
-      - uses: actions/checkout@v2
+      - name: Check out src from Git
+        uses: actions/checkout@v2
+      - name: Get history and tags for SCM versioning to work
+        run: |
+          git fetch --prune --unshallow
+          git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - run: ci/SETUP.sh
-      - run: make test
+      - name: Install FlexMeasures for tests and run all tests except those marked to be skipped by GitHub
+        run: |
+          make install-for-test
+          pytest -m "not skip_github"
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5432

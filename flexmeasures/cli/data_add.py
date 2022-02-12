@@ -22,7 +22,7 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
-from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
@@ -35,6 +35,7 @@ from flexmeasures.data.models.data_sources import (
     get_or_create_source,
     get_source_or_none,
 )
+from flexmeasures.data.models.user import User
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import convert_units
@@ -511,6 +512,110 @@ def add_beliefs(
             print("As a possible workaround, use the --allow-overwrite flag.")
 
 
+@fm_add_data.command("annotation")
+@with_appcontext
+@click.option(
+    "--content",
+    required=True,
+    prompt="Enter annotation",
+)
+@click.option(
+    "--at",
+    "start_str",
+    required=True,
+    help="Annotation is set (or starts) at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--until",
+    "end_str",
+    required=False,
+    help="Annotation ends at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format. Defaults to one (nominal) day after the start of the annotation.",
+)
+@click.option(
+    "--account-id",
+    "account_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--asset-id",
+    "generic_asset_ids",
+    type=int,
+    multiple=True,
+    help="Add annotation to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--sensor-id",
+    "sensor_ids",
+    type=int,
+    multiple=True,
+    help="Add annotation to this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--user-id",
+    type=int,
+    required=True,
+    help="Attribute annotation to this user. Follow up with the user's ID.",
+)
+def add_annotation(
+    content: str,
+    start_str: str,
+    end_str: Optional[str],
+    account_ids: List[int],
+    generic_asset_ids: List[int],
+    sensor_ids: List[int],
+    user_id: int,
+):
+    """Add annotation to accounts, assets and/or sensors."""
+
+    # Parse input
+    start = pd.Timestamp(start_str)
+    end = (
+        pd.Timestamp(end_str)
+        if end_str is not None
+        else start + pd.offsets.DateOffset(days=1)
+    )
+    accounts = (
+        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        if account_ids
+        else []
+    )
+    assets = (
+        db.session.query(GenericAsset)
+        .filter(GenericAsset.id.in_(generic_asset_ids))
+        .all()
+        if generic_asset_ids
+        else []
+    )
+    sensors = (
+        db.session.query(Sensor).filter(Sensor.id.in_(sensor_ids)).all()
+        if sensor_ids
+        else []
+    )
+    user = db.session.query(User).get(user_id)
+    _source = get_or_create_source(user)
+
+    # Create annotation
+    annotation = get_or_create_annotation(
+        Annotation(
+            content=content,
+            start=start,
+            end=end,
+            source=_source,
+            type="label",
+        )
+    )
+    for account in accounts:
+        account.annotations.append(annotation)
+    for asset in assets:
+        asset.annotations.append(annotation)
+    for sensor in sensors:
+        sensor.annotations.append(annotation)
+    db.session.commit()
+    print("Successfully added annotation.")
+
+
 @fm_add_data.command("holidays")
 @with_appcontext
 @click.option(
@@ -537,7 +642,7 @@ def add_beliefs(
     "account_ids",
     type=click.INT,
     multiple=True,
-    help="Add annotations to all assets of this account. Follow up with the account's ID. This argument can be given multiple times.",
+    help="Add annotations to this account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 def add_holidays(
     year: int,
@@ -545,15 +650,22 @@ def add_holidays(
     generic_asset_ids: List[int],
     account_ids: List[int],
 ):
-    """Add holiday annotations to assets."""
+    """Add holiday annotations to accounts and/or assets."""
     calendars = workalendar_registry.get_calendars(countries)
     num_holidays = {}
-    asset_query = db.session.query(GenericAsset)
-    if generic_asset_ids:
-        asset_query = asset_query.filter(GenericAsset.id.in_(generic_asset_ids))
-    if account_ids:
-        asset_query = asset_query.filter(GenericAsset.account_id.in_(account_ids))
-    assets = asset_query.all()
+
+    accounts = (
+        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        if account_ids
+        else []
+    )
+    assets = (
+        db.session.query(GenericAsset)
+        .filter(GenericAsset.id.in_(generic_asset_ids))
+        .all()
+        if generic_asset_ids
+        else []
+    )
     annotations = []
     for country, calendar in calendars.items():
         _source = get_or_create_source(
@@ -564,21 +676,25 @@ def add_holidays(
             start = pd.Timestamp(holiday[0])
             end = start + pd.offsets.DateOffset(days=1)
             annotations.append(
-                Annotation(
-                    name=holiday[1],
-                    start=start,
-                    end=end,
-                    source=_source,
-                    type="holiday",
+                get_or_create_annotation(
+                    Annotation(
+                        content=holiday[1],
+                        start=start,
+                        end=end,
+                        source=_source,
+                        type="holiday",
+                    )
                 )
             )
         num_holidays[country] = len(holidays)
     db.session.add_all(annotations)
+    for account in accounts:
+        account.annotations += annotations
     for asset in assets:
         asset.annotations += annotations
     db.session.commit()
     print(
-        f"Successfully added holidays to {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
+        f"Successfully added holidays to {len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
     )
 
 
