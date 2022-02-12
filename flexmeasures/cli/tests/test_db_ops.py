@@ -27,10 +27,6 @@ def test_resample_sensor_data(
     event_ends_before = pd.Timestamp(event_ends_before)
     beliefs_before = sensor.search_beliefs(
         most_recent_beliefs_only=False,
-    )
-    print(beliefs_before)
-    beliefs_before = sensor.search_beliefs(
-        most_recent_beliefs_only=False,
         event_starts_after=event_starts_after,
         event_ends_before=event_ends_before,
     )
