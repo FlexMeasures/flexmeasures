@@ -7,6 +7,7 @@ from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
+@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "event_starts_after, event_ends_before",
     (
