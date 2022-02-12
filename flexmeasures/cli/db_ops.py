@@ -177,7 +177,9 @@ def resample_sensor_data(
         if sensor.event_resolution == event_resolution:
             print(f"{sensor} already has the desired event resolution.")
             continue
-        df_original = sensor.search_beliefs().sort_values("event_start")
+        df_original = sensor.search_beliefs(
+            most_recent_beliefs_only=False,
+        ).sort_values("event_start")
         df_resampled = df_original.resample_events(event_resolution).sort_values(
             "event_start"
         )
@@ -199,6 +201,7 @@ def resample_sensor_data(
         TimedBelief.query.filter(TimedBelief.sensor == sensor).delete()
         save_to_db(df_resampled, bulk_save_objects=True)
     db.session.commit()
+    print("Successfully resampled sensor data.")
 
 
 app.cli.add_command(fm_db_ops)
