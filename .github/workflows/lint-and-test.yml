@@ -46,7 +46,7 @@ jobs:
         run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch
         if: ${{ matrix.coverage == 'yes' }}
       - run: coveralls --service=github
-        with:
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         if: ${{ matrix.coverage == 'yes' }}
     env:
