@@ -6,6 +6,7 @@
 [![](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Documentation Status](https://readthedocs.org/projects/flexmeasures/badge/?version=latest)](https://flexmeasures.readthedocs.io/en/latest/?badge=latest)
+[![Coverage](https://coveralls.io/repos/github/FlexMeasures/flexmeasures/badge.svg?branch=coverage-in-ci)](https://coveralls.io/github/FlexMeasures/flexmeasures?branch=coverage-in-ci)
 
 The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable. 
 
