@@ -23,6 +23,7 @@ def register_plugins(app: Flask):
     If you load a plugin via a file path, we'll refer to the plugin with the name of your plugin folder
     (last part of the path).
     """
+    app.logger.info("Staring to load plugins ...")
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
     if not plugins:
         # this is deprecated behaviour which we should remove in version 1.0
