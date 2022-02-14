@@ -39,7 +39,7 @@ jobs:
       - name: Install FlexMeasures & dependencies for tests
         run: |
           make install-for-test
-          pip installl coveralls
+          pip install coveralls
       - name: Run all tests except those marked to be skipped by GitHub
         run: pytest -m "not skip_github"
         if: ${{ matrix.coverage != 'yes' }}
