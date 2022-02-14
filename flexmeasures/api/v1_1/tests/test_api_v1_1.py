@@ -154,7 +154,7 @@ def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message
     for job, horizon in zip(jobs, horizons):
         assert job.kwargs["horizon"] == horizon
         assert job.kwargs["start"] == parse_date(post_message["start"]) + horizon
-        assert job.kwargs["old_sensor_id"] == market.id
+        assert job.kwargs["sensor_id"] == market.id
 
 
 @pytest.mark.parametrize(

@@ -3,7 +3,6 @@ from flask_security import login_required
 from flask_security.core import current_user
 from bokeh.resources import CDN
 
-from flexmeasures.data.config import db
 from flexmeasures.ui.views import flexmeasures_ui
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, clear_session
 from flexmeasures.data.models.generic_assets import get_center_location_of_assets
@@ -59,7 +58,7 @@ def new_dashboard_view():
         message=msg,
         bokeh_html_embedded=bokeh_html_embedded,
         mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-        map_center=get_center_location_of_assets(db, user=current_user),
+        map_center=get_center_location_of_assets(user=current_user),
         asset_groups=map_asset_groups,
         aggregate_groups=aggregate_groups,
     )

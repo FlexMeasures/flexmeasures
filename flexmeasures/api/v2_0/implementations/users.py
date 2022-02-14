@@ -15,7 +15,7 @@ from flexmeasures.data.services.users import (
     remove_cookie_and_token_access,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 
 """
 API endpoints to manage users.

@@ -1,7 +1,12 @@
 from datetime import timedelta
+
+import pint.errors
 import pytest
 
+import pandas as pd
+
 from flexmeasures.utils.unit_utils import (
+    convert_units,
     determine_flow_unit,
     determine_stock_unit,
     determine_unit_conversion_multiplier,
@@ -10,6 +15,50 @@ from flexmeasures.utils.unit_utils import (
     is_power_unit,
     ur,
 )
+
+
+@pytest.mark.parametrize(
+    "from_unit, to_unit, expected_multiplier, expected_values",
+    [
+        ("%", "‰", 10, None),
+        ("m/s", "km/h", 3.6, None),
+        ("m³/h", "l/h", 1000, None),
+        ("m³", "m³/h", 4, None),
+        ("MW", "kW", 1000, None),
+        ("kWh", "kW", 4, None),
+        ("kW", "kWh", 1 / 4, None),
+        ("-W", "W", -1, None),
+        ("l/(100km)", "l/km", 0.01, None),
+        ("°C", "K", None, [273.15, 283.15, 284.15]),
+        # no support for combining an offset unit with a scaling factor, but this is also overly specific
+        # ("-°C", "K", None, [273.15, 263.15, 262.15]),
+        # ("l/(10°C)", "l/(°C)", 0.1, None),
+    ],
+)
+def test_convert_unit(
+    from_unit,
+    to_unit,
+    expected_multiplier,
+    expected_values,
+):
+    """Check some common unit conversions.
+
+    Note that for the above expectations:
+    - conversion from kWh to kW, and from m³ to m³/h, both depend on the event resolution set below
+    - conversion from °C to K depends on the data values set below
+    """
+    data = pd.Series([0, 10.0, 11.0])
+    converted_data: pd.Series = convert_units(
+        data=data,
+        from_unit=from_unit,
+        to_unit=to_unit,
+        event_resolution=timedelta(minutes=15),
+    )
+    if expected_multiplier is not None:
+        expected_data = data * expected_multiplier
+    else:
+        expected_data = pd.Series(expected_values)
+    pd.testing.assert_series_equal(converted_data, expected_data)
 
 
 @pytest.mark.parametrize(
@@ -57,7 +106,9 @@ def test_determine_unit_conversion_multiplier():
     assert determine_unit_conversion_multiplier("J/s", "W") == 1
     assert determine_unit_conversion_multiplier("Wh", "W", timedelta(minutes=10)) == 6
     assert determine_unit_conversion_multiplier("kWh", "MJ") == 3.6
-    assert determine_unit_conversion_multiplier("°C", "K") == 274.15
+    with pytest.raises(pint.errors.OffsetUnitCalculusError):
+        # Not a conversion that can be specified as a multiplication
+        determine_unit_conversion_multiplier("°C", "K")
 
 
 def test_h_denotes_hour_and_not_planck_constant():

@@ -6,7 +6,7 @@ from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.auth.policy import AuthModelMixin
 
 
@@ -15,6 +15,13 @@ class RolesAccounts(db.Model):
     id = Column(Integer(), primary_key=True)
     account_id = Column("account_id", Integer(), ForeignKey("account.id"))
     role_id = Column("role_id", Integer(), ForeignKey("account_role.id"))
+    __table_args__ = (
+        db.UniqueConstraint(
+            "role_id",
+            "account_id",
+            name="roles_accounts_role_id_key",
+        ),
+    )
 
 
 class AccountRole(db.Model):
@@ -24,7 +31,7 @@ class AccountRole(db.Model):
     description = Column(String(255))
 
     def __repr__(self):
-        return "<AccountRole:%s (ID:%d)>" % (self.name, self.id)
+        return "<AccountRole:%s (ID:%s)>" % (self.name, self.id)
 
 
 class Account(db.Model, AuthModelMixin):
@@ -41,9 +48,14 @@ class Account(db.Model, AuthModelMixin):
         secondary="roles_accounts",
         backref=backref("accounts", lazy="dynamic"),
     )
+    annotations = db.relationship(
+        "Annotation",
+        secondary="annotations_accounts",
+        backref=db.backref("accounts", lazy="dynamic"),
+    )
 
     def __repr__(self):
-        return "<Account %s (ID:%d)" % (self.name, self.id)
+        return "<Account %s (ID:%s)" % (self.name, self.id)
 
     def __acl__(self):
         """
@@ -72,6 +84,13 @@ class RolesUsers(db.Model):
     id = Column(Integer(), primary_key=True)
     user_id = Column("user_id", Integer(), ForeignKey("fm_user.id"))
     role_id = Column("role_id", Integer(), ForeignKey("role.id"))
+    __table_args__ = (
+        db.UniqueConstraint(
+            "role_id",
+            "user_id",
+            name="roles_users_role_id_key",
+        ),
+    )
 
 
 class Role(db.Model, RoleMixin):
@@ -81,7 +100,7 @@ class Role(db.Model, RoleMixin):
     description = Column(String(255))
 
     def __repr__(self):
-        return "<Role:%s (ID:%d)>" % (self.name, self.id)
+        return "<Role:%s (ID:%s)>" % (self.name, self.id)
 
 
 class User(db.Model, UserMixin, AuthModelMixin):
@@ -116,7 +135,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
     )
 
     def __repr__(self):
-        return "<User %s (ID:%d)>" % (self.username, self.id)
+        return "<User %s (ID:%s)>" % (self.username, self.id)
 
     def __acl__(self):
         """

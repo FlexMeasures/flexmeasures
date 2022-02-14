@@ -1,8 +1,10 @@
 from datetime import timedelta
-from typing import Optional
+from typing import List, Optional, Union
 
 from moneyed import list_all_currencies
 import importlib.resources as pkg_resources
+import numpy as np
+import pandas as pd
 import pint
 
 # Edit constants template to stop using h to represent planck_constant
@@ -29,8 +31,16 @@ full_template = (
 )
 
 # Set up UnitRegistry with abbreviated scientific format
-ur = pint.UnitRegistry(full_template)
+ur = pint.UnitRegistry(
+    full_template,
+    preprocessors=[
+        lambda s: s.replace("%", " percent "),
+        lambda s: s.replace("‰", " permille "),
+    ],
+)
 ur.default_format = "~P"  # short pretty
+ur.define("percent = 1 / 100 = %")
+ur.define("permille = 1 / 1000 = ‰")
 
 
 PREFERRED_UNITS = [
@@ -75,17 +85,27 @@ def determine_unit_conversion_multiplier(
     from_unit: str, to_unit: str, duration: Optional[timedelta] = None
 ):
     """Determine the value multiplier for a given unit conversion.
-    If needed, requires a duration to convert from units of stock change to units of flow.
+    If needed, requires a duration to convert from units of stock change to units of flow, or vice versa.
     """
-    scalar = (
-        ur.Quantity(from_unit).to_base_units() / ur.Quantity(to_unit).to_base_units()
-    )
+    scalar = ur.Quantity(from_unit) / ur.Quantity(to_unit)
     if scalar.dimensionality == ur.Quantity("h").dimensionality:
+        # Convert a stock change to a flow
         if duration is None:
             raise ValueError(
                 f"Cannot convert units from {from_unit} to {to_unit} without known duration."
             )
         return scalar.to_timedelta() / duration
+    elif scalar.dimensionality == ur.Quantity("1/h").dimensionality:
+        # Convert a flow to a stock change
+        if duration is None:
+            raise ValueError(
+                f"Cannot convert units from {from_unit} to {to_unit} without known duration."
+            )
+        return duration / (1 / scalar).to_timedelta()
+    elif scalar.dimensionality != ur.Quantity("dimensionless").dimensionality:
+        raise ValueError(
+            f"Unit conversion from {from_unit} to {to_unit} doesn't seem possible."
+        )
     return scalar.to_reduced_units().magnitude
 
 
@@ -151,3 +171,42 @@ def is_energy_unit(unit: str) -> bool:
     if not is_valid_unit(unit):
         return False
     return ur.Quantity(unit).dimensionality == ur.Quantity("Wh").dimensionality
+
+
+def convert_units(
+    data: Union[pd.Series, List[Union[int, float]]],
+    from_unit: str,
+    to_unit: str,
+    event_resolution: Optional[timedelta],
+) -> Union[pd.Series, List[Union[int, float]]]:
+    """Updates data values to reflect the given unit conversion."""
+
+    if from_unit != to_unit:
+        from_magnitudes = (
+            data.to_numpy() if isinstance(data, pd.Series) else np.asarray(data)
+        )
+        try:
+            from_quantities = ur.Quantity(from_magnitudes, from_unit)
+        except ValueError as e:
+            # Catch units like "-W" and "100km"
+            if str(e) == "Unit expression cannot have a scaling factor.":
+                from_quantities = ur.Quantity(from_unit) * from_magnitudes
+            else:
+                raise e  # reraise
+        try:
+            to_magnitudes = from_quantities.to(ur.Quantity(to_unit)).magnitude
+        except pint.errors.DimensionalityError:
+            # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
+            multiplier = determine_unit_conversion_multiplier(
+                from_unit, to_unit, event_resolution
+            )
+            to_magnitudes = from_magnitudes * multiplier
+        if isinstance(data, pd.Series):
+            data = pd.Series(
+                to_magnitudes,
+                index=data.index,
+                name=data.name,
+            )
+        else:
+            data = list(to_magnitudes)
+    return data

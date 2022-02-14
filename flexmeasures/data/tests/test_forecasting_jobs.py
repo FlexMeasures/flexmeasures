@@ -61,7 +61,7 @@ def test_forecasting_an_hour_of_wind(db, app, setup_test_data):
         start_of_roll=as_server_time(datetime(2015, 1, 1, 6)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 7)),
         horizons=[horizon],
-        old_sensor_id=wind_device_1.id,
+        sensor_id=wind_device_1.id,
         custom_model_params=custom_model_params(),
     )
 
@@ -109,7 +109,7 @@ def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app, setup_test_
         horizons=[
             timedelta(hours=6)
         ],  # so we want forecasts for 11.15pm (Jan 1st) to 0.15am (Jan 2nd)
-        old_sensor_id=solar_device1.id,
+        sensor_id=solar_device1.id,
         custom_model_params=custom_model_params(),
     )
     print("Job: %s" % job[0].id)
@@ -176,7 +176,7 @@ def test_failed_forecasting_insufficient_data(app, clean_redis, setup_test_data)
         start_of_roll=as_server_time(datetime(2016, 1, 1, 20)),
         end_of_roll=as_server_time(datetime(2016, 1, 1, 22)),
         horizons=[timedelta(hours=1)],
-        old_sensor_id=solar_device1.id,
+        sensor_id=solar_device1.id,
         custom_model_params=custom_model_params(),
     )
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
@@ -190,7 +190,7 @@ def test_failed_forecasting_invalid_horizon(app, clean_redis, setup_test_data):
         start_of_roll=as_server_time(datetime(2015, 1, 1, 21)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 23)),
         horizons=[timedelta(hours=18)],
-        old_sensor_id=solar_device1.id,
+        sensor_id=solar_device1.id,
         custom_model_params=custom_model_params(),
     )
     work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
@@ -209,7 +209,7 @@ def test_failed_unknown_model(app, clean_redis, setup_test_data):
         start_of_roll=as_server_time(datetime(2015, 1, 1, 12)),
         end_of_roll=as_server_time(datetime(2015, 1, 1, 14)),
         horizons=[horizon],
-        old_sensor_id=solar_device1.id,
+        sensor_id=solar_device1.id,
         model_search_term="no-one-knows-this",
         custom_model_params=cmp,
     )

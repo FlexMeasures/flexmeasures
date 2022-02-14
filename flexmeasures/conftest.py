@@ -96,7 +96,7 @@ def create_test_db(app):
     """
     print("DB FIXTURE")
     # app is an instance of a flask app, _db a SQLAlchemy DB
-    from flexmeasures.data.config import db as _db
+    from flexmeasures.data import db as _db
 
     _db.app = app
     with app.app_context():
@@ -289,15 +289,15 @@ def create_generic_assets(db, setup_generic_asset_types, setup_accounts):
     )
     db.session.add(troposphere)
     test_battery = GenericAsset(
-        name="Test battery",
+        name="Test grid connected battery storage",
         generic_asset_type=setup_generic_asset_types["battery"],
-        account_id=setup_accounts["Prosumer"].id,
+        owner=setup_accounts["Prosumer"],
     )
     db.session.add(test_battery)
     test_wind_turbine = GenericAsset(
         name="Test wind turbine",
         generic_asset_type=setup_generic_asset_types["wind"],
-        account_id=setup_accounts["Supplier"].id,
+        owner=setup_accounts["Supplier"],
     )
     db.session.add(test_wind_turbine)
 
@@ -325,9 +325,9 @@ def create_generic_asset_types(db):
         name="public good",
     )
     db.session.add(public_good)
-    solar = GenericAssetType(name="solar")
+    solar = GenericAssetType(name="solar panel")
     db.session.add(solar)
-    wind = GenericAssetType(name="wind")
+    wind = GenericAssetType(name="wind turbine")
     db.session.add(wind)
     battery = GenericAssetType(name="battery")
     db.session.add(battery)

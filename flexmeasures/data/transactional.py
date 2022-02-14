@@ -9,7 +9,7 @@ import click
 from flask import current_app
 from flask_sqlalchemy import SQLAlchemy
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.utils.error_utils import get_err_source_info
 from flexmeasures.utils.coding_utils import optional_arg_decorator
 from flexmeasures.data.models.task_runs import LatestTaskRun

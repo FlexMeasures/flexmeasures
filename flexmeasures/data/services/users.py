@@ -14,7 +14,7 @@ from email_validator import (
 from flask_security.utils import hash_password
 from werkzeug.exceptions import NotFound
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import User, Role, Account
 

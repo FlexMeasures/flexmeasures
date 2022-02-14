@@ -11,7 +11,7 @@ from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.queries.utils import (
     create_beliefs_query,
     get_belief_timing_criteria,
@@ -46,6 +46,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         backref=db.backref(
             "sensors", lazy=True, cascade="all, delete-orphan", passive_deletes=True
         ),
+    )
+    annotations = db.relationship(
+        "Annotation",
+        secondary="annotations_sensors",
+        backref=db.backref("sensors", lazy="dynamic"),
     )
 
     def __init__(

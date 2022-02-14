@@ -147,18 +147,33 @@ Add your first asset
 
 There are three ways to add assets:
 
-Use the ``flexmeasures`` :ref:`cli`:
+First, you can use the ``flexmeasures`` :ref:`cli`:
 
 .. code-block::
 
-    flexmeasures add asset --name "my basement battery pack" --asset-type-name battery --capacity-in-MW 30 --event-resolution 2 --latitude 65 --longitude 123.76 --owner-id 1
+    flexmeasures add asset --name "my basement battery pack" --asset-type-id 3 --latitude 65 --longitude 123.76 --account-id 2
 
-Here, I left out the ``--market-id`` parameter, because in this quickstart scenario I'm fine with the dummy market created with ``flexmeasures add structure`` above.
-For the ownership, I got my user ID from the output of ``flexmeasures add user`` above, or I can browse to `FlexMeasures' user listing <http://localhost:5000/users>`_ and hover over my username.
+For the asset type ID, I consult ``flexmeasures show asset-types``.
 
-Or, you could head over to ``http://localhost:5000/assets`` (after you started FlexMeasures, see next step) and add a new asset there in a web form.
+For the account ID, I looked at the output of ``flexmeasures add account`` (the command we issued above) ― I could also have consulted ``flexmeasures show accounts``.
+
+The second way to add an asset is the UI ― head over to ``https://localhost:5000/assets`` (after you started FlexMeasures, see step "Run FlexMeasures" further down) and add a new asset there in a web form.
 
 Finally, you can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
+
+
+Add your first sensor
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Usually, we are here because we want to measure something with respect to our assets. Each assets can have sensors for that, so let's add a power sensor to our new battery asset, using the ``flexmeasures`` :ref:`cli`:
+
+.. code-block::
+
+   flexmeasures add sensor --name power --unit MW --event-resolution 5 --timezone Europe/Amsterdam --asset-id 1 --attributes '{"capacity_in_mw": 7}'
+
+The asset ID I got from the last CLI command, or I could consult ``flexmeasures show account --account-id <my-account-id>``.
+
+.. note: The event resolution is given in minutes. Capacity is something unique to power sensors, so it is added as an attribute.
 
 
 Run FlexMeasures
@@ -182,11 +197,19 @@ When you see the dashboard, the map will not work. For that, you'll need to get 
 Add data
 ^^^^^^^^
 
-You can use the `POST /api/v2_0/postMeterData <api/v2_0.html#post--api-v2_0-postMeterData>`_ endpoint in the FlexMeasures API to send meter data.
+There are three ways to add data:
 
-.. note::  `issue 56 <https://github.com/FlexMeasures/flexmeasures/issues/56>`_ should create a CLI function for adding a lot of data at once, from a CSV dataset.
+First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` :ref:`cli`:
 
-Also, you can add forecasts for your meter data with the ``flexmeasures add`` command, here is an example:
+.. code-block::
+   
+   flexmeasures add beliefs --file my-data.csv --skiprows 2 --delimiter ";" --source OurLegacyDatabase --sensor-id 1
+
+This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
+
+Second, you can use the `POST /api/v2_0/postMeterData <api/v2_0.html#post--api-v2_0-postMeterData>`_ endpoint in the FlexMeasures API to send meter data.
+
+Finally, you can tell FlexMeasures to create forecasts for your meter data with the ``flexmeasures add forecasts`` command, here is an example:
 
 .. code-block::
 
@@ -226,3 +249,11 @@ Install and configure Redis
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 To let FlexMeasures queue forecasting and scheduling jobs, install a `Redis <https://redis.io/>`_ server (or rent one) and configure access to it within FlexMeasures' config file (see above). You can find the necessary settings in :ref:`redis-config`.
+
+
+Where to go from here?
+------------------------
+
+If your data structure is good, you should think about (continually) adding measurement data. This tutorial mentioned how to add data, but :ref:`_tut_posting_data` goes deeper with examples and terms & definitions.
+
+Then, you probably want to use FlexMeasures to generate forecasts and schedules! For this, read further in :ref:`_tut_forecasting_scheduling`. 

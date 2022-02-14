@@ -1,4 +1,4 @@
-"""CLI Tasks for (de)populating the database - most useful in development"""
+"""CLI Tasks for populating the database - most useful in development"""
 
 from datetime import timedelta
 from typing import Dict, List, Optional
@@ -12,38 +12,38 @@ import click
 import getpass
 from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
+from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import (
+    Sensor,
+    TimedBelief,
+)
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
-from flexmeasures.data.models.assets import Asset
-from flexmeasures.data.schemas.assets import AssetSchema
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.markets import Market
 from flexmeasures.data.models.weather import WeatherSensor
 from flexmeasures.data.schemas.weather import WeatherSensorSchema
 from flexmeasures.data.models.data_sources import (
     get_or_create_source,
     get_source_or_none,
 )
+from flexmeasures.data.models.user import User
+from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.unit_utils import convert_units
 
 
 @click.group("add")
 def fm_add_data():
     """FlexMeasures: Add data."""
-
-
-@click.group("dev-add")
-def fm_dev_add_data():
-    """Developer CLI commands not yet meant for users: Add data."""
 
 
 @fm_add_data.command("account-role")
@@ -149,7 +149,7 @@ def new_user(
     print(f"Successfully created user {created_user}")
 
 
-@fm_dev_add_data.command("sensor")
+@fm_add_data.command("sensor")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
@@ -165,7 +165,8 @@ def new_user(
     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
-    "--generic-asset-id",
+    "--asset-id",
+    "generic_asset_id",
     required=True,
     type=int,
     help="Generic asset to assign this sensor to",
@@ -203,7 +204,7 @@ def add_sensor(**args):
     print(f"You can access it at its entity address {sensor.entity_address}")
 
 
-@fm_dev_add_data.command("generic-asset-type")
+@fm_add_data.command("asset-type")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option(
@@ -211,17 +212,17 @@ def add_sensor(**args):
     type=str,
     help="Description (useful to explain acronyms, for example).",
 )
-def add_generic_asset_type(**args):
-    """Add a generic asset type."""
+def add_asset_type(**args):
+    """Add an asset type."""
     check_errors(GenericAssetTypeSchema().validate(args))
     generic_asset_type = GenericAssetType(**args)
     db.session.add(generic_asset_type)
     db.session.commit()
-    print(f"Successfully created generic asset type with ID {generic_asset_type.id}")
-    print("You can now assign generic assets to it")
+    print(f"Successfully created asset type with ID {generic_asset_type.id}.")
+    print("You can now assign assets to it.")
 
 
-@fm_dev_add_data.command("generic-asset")
+@fm_add_data.command("asset")
 @with_appcontext
 @click.option("--name", required=True)
 @click.option(
@@ -236,90 +237,20 @@ def add_generic_asset_type(**args):
 )
 @click.option("--account-id", type=int, required=True)
 @click.option(
-    "--generic-asset-type-id",
+    "--asset-type-id",
+    "generic_asset_type_id",
     required=True,
     type=int,
-    help="Generic asset type to assign to this asset",
+    help="Asset type to assign to this asset",
 )
-def add_generic_asset(**args):
-    """Add a generic asset."""
+def add_asset(**args):
+    """Add an asset."""
     check_errors(GenericAssetSchema().validate(args))
     generic_asset = GenericAsset(**args)
     db.session.add(generic_asset)
     db.session.commit()
-    print(f"Successfully created generic asset with ID {generic_asset.id}")
-    print("You can now assign sensors to it")
-
-
-@fm_add_data.command("asset")
-@with_appcontext
-@click.option("--name", required=True)
-@click.option("--asset-type-name", required=True)
-@click.option(
-    "--unit",
-    help="unit of rate, just MW (default) for now",
-    type=click.Choice(["MW"]),
-    default="MW",
-)  # TODO: enable others
-@click.option(
-    "--capacity-in-MW",
-    required=True,
-    type=float,
-    help="Maximum rate of this asset in MW",
-)
-@click.option(
-    "--event-resolution",
-    required=True,
-    type=int,
-    help="Expected resolution of the data in minutes",
-)
-@click.option(
-    "--latitude",
-    required=True,
-    type=float,
-    help="Latitude of the asset's location",
-)
-@click.option(
-    "--longitude",
-    required=True,
-    type=float,
-    help="Longitude of the asset's location",
-)
-@click.option(
-    "--owner-id", required=True, type=int, help="Id of the user who owns this asset."
-)
-@click.option(
-    "--market-id",
-    type=int,
-    help="Id of the market used to price this asset. Defaults to a dummy TOU market.",
-)
-@click.option(
-    "--timezone",
-    default="UTC",
-    help="timezone as string, e.g. 'UTC' (default) or 'Europe/Amsterdam'.",
-)
-def new_asset(**args):
-    """
-    Create a new asset.
-    This is legacy, with the new data model we only want to add GenericAssets.
-    """
-    check_timezone(args["timezone"])
-    # if no market given, select dummy market
-    if args["market_id"] is None:
-        dummy_market = Market.query.filter(Market.name == "dummy-tou").one_or_none()
-        if not dummy_market:
-            print(
-                "No market ID given and also no dummy TOU market available. Maybe add structure first."
-            )
-            raise click.Abort()
-        args["market_id"] = dummy_market.id
-    check_errors(AssetSchema().validate(args))
-    args["event_resolution"] = timedelta(minutes=args["event_resolution"])
-    asset = Asset(**args)
-    db.session.add(asset)
-    db.session.commit()
-    print(f"Successfully created asset with ID {asset.id}")
-    print(f"You can access it at its entity address {asset.entity_address}")
+    print(f"Successfully created asset with ID {generic_asset.id}.")
+    print("You can now assign sensors to it.")
 
 
 @fm_add_data.command("weather-sensor")
@@ -369,13 +300,13 @@ def add_weather_sensor(**args):
 @fm_add_data.command("structure")
 @with_appcontext
 def add_initial_structure():
-    """Initialize structural data like asset types, market types and weather sensor types."""
+    """Initialize useful structural data."""
     from flexmeasures.data.scripts.data_gen import populate_structure
 
     populate_structure(db)
 
 
-@fm_dev_add_data.command("beliefs")
+@fm_add_data.command("beliefs")
 @with_appcontext
 @click.argument("file", type=click.Path(exists=True))
 @click.option(
@@ -389,6 +320,14 @@ def add_initial_structure():
     required=True,
     type=str,
     help="Source of the beliefs (an existing source id or name, or a new name).",
+)
+@click.option(
+    "--unit",
+    required=False,
+    type=str,
+    help="Unit of the data, for conversion to the sensor unit, if possible (a string unit such as 'kW' or 'm³/h').\n"
+    "Hint: to switch the sign of the data, prepend a minus sign.\n"
+    "For example, when assigning kW consumption data to a kW production sensor, use '-kW'.",
 )
 @click.option(
     "--horizon",
@@ -419,6 +358,12 @@ def add_initial_structure():
     default=1,
     type=int,
     help="Number of rows to skip from the top. Set to >1 to skip additional headers.",
+)
+@click.option(
+    "--na-values",
+    required=False,
+    multiple=True,
+    help="Additional strings to recognize as NaN values. This argument can be given multiple times.",
 )
 @click.option(
     "--nrows",
@@ -471,11 +416,13 @@ def add_beliefs(
     file: str,
     sensor_id: int,
     source: str,
+    unit: Optional[str] = None,
     horizon: Optional[int] = None,
     cp: Optional[float] = None,
     resample: bool = True,
     allow_overwrite: bool = False,
     skiprows: int = 1,
+    na_values: List[str] = None,
     nrows: Optional[int] = None,
     datecol: int = 0,
     valuecol: int = 1,
@@ -539,8 +486,16 @@ def add_beliefs(
         nrows=nrows,
         usecols=[datecol, valuecol],
         parse_dates=True,
+        na_values=na_values,
         **kwargs,
     )
+    if unit is not None:
+        bdf["event_value"] = convert_units(
+            bdf["event_value"],
+            from_unit=unit,
+            to_unit=sensor.unit,
+            event_resolution=sensor.event_resolution,
+        )
     try:
         TimedBelief.add(
             bdf,
@@ -557,18 +512,200 @@ def add_beliefs(
             print("As a possible workaround, use the --allow-overwrite flag.")
 
 
-@fm_add_data.command("forecasts")
+@fm_add_data.command("annotation")
 @with_appcontext
 @click.option(
-    "--asset-type",
-    type=click.Choice(["Asset", "Market", "WeatherSensor"]),
-    help="The generic asset type for which to generate forecasts."
-    " Follow up with Asset, Market or WeatherSensor.",
+    "--content",
+    required=True,
+    prompt="Enter annotation",
+)
+@click.option(
+    "--at",
+    "start_str",
+    required=True,
+    help="Annotation is set (or starts) at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--until",
+    "end_str",
+    required=False,
+    help="Annotation ends at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format. Defaults to one (nominal) day after the start of the annotation.",
+)
+@click.option(
+    "--account-id",
+    "account_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--asset-id",
-    help="Populate (time series) data for a single asset only. Follow up with the asset's ID. "
-    "We still need --asset-type, as well, so we know where to look this ID up.",
+    "generic_asset_ids",
+    type=int,
+    multiple=True,
+    help="Add annotation to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--sensor-id",
+    "sensor_ids",
+    type=int,
+    multiple=True,
+    help="Add annotation to this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--user-id",
+    type=int,
+    required=True,
+    help="Attribute annotation to this user. Follow up with the user's ID.",
+)
+def add_annotation(
+    content: str,
+    start_str: str,
+    end_str: Optional[str],
+    account_ids: List[int],
+    generic_asset_ids: List[int],
+    sensor_ids: List[int],
+    user_id: int,
+):
+    """Add annotation to accounts, assets and/or sensors."""
+
+    # Parse input
+    start = pd.Timestamp(start_str)
+    end = (
+        pd.Timestamp(end_str)
+        if end_str is not None
+        else start + pd.offsets.DateOffset(days=1)
+    )
+    accounts = (
+        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        if account_ids
+        else []
+    )
+    assets = (
+        db.session.query(GenericAsset)
+        .filter(GenericAsset.id.in_(generic_asset_ids))
+        .all()
+        if generic_asset_ids
+        else []
+    )
+    sensors = (
+        db.session.query(Sensor).filter(Sensor.id.in_(sensor_ids)).all()
+        if sensor_ids
+        else []
+    )
+    user = db.session.query(User).get(user_id)
+    _source = get_or_create_source(user)
+
+    # Create annotation
+    annotation = get_or_create_annotation(
+        Annotation(
+            content=content,
+            start=start,
+            end=end,
+            source=_source,
+            type="label",
+        )
+    )
+    for account in accounts:
+        account.annotations.append(annotation)
+    for asset in assets:
+        asset.annotations.append(annotation)
+    for sensor in sensors:
+        sensor.annotations.append(annotation)
+    db.session.commit()
+    print("Successfully added annotation.")
+
+
+@fm_add_data.command("holidays")
+@with_appcontext
+@click.option(
+    "--year",
+    type=click.INT,
+    help="The year for which to look up holidays",
+)
+@click.option(
+    "--country",
+    "countries",
+    type=click.STRING,
+    multiple=True,
+    help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times.",
+)
+@click.option(
+    "--asset-id",
+    "generic_asset_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotations to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--account-id",
+    "account_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotations to this account. Follow up with the account's ID. This argument can be given multiple times.",
+)
+def add_holidays(
+    year: int,
+    countries: List[str],
+    generic_asset_ids: List[int],
+    account_ids: List[int],
+):
+    """Add holiday annotations to accounts and/or assets."""
+    calendars = workalendar_registry.get_calendars(countries)
+    num_holidays = {}
+
+    accounts = (
+        db.session.query(Account).filter(Account.id.in_(account_ids)).all()
+        if account_ids
+        else []
+    )
+    assets = (
+        db.session.query(GenericAsset)
+        .filter(GenericAsset.id.in_(generic_asset_ids))
+        .all()
+        if generic_asset_ids
+        else []
+    )
+    annotations = []
+    for country, calendar in calendars.items():
+        _source = get_or_create_source(
+            "workalendar", model=country, source_type="CLI script"
+        )
+        holidays = calendar().holidays(year)
+        for holiday in holidays:
+            start = pd.Timestamp(holiday[0])
+            end = start + pd.offsets.DateOffset(days=1)
+            annotations.append(
+                get_or_create_annotation(
+                    Annotation(
+                        content=holiday[1],
+                        start=start,
+                        end=end,
+                        source=_source,
+                        type="holiday",
+                    )
+                )
+            )
+        num_holidays[country] = len(holidays)
+    db.session.add_all(annotations)
+    for account in accounts:
+        account.annotations += annotations
+    for asset in assets:
+        asset.annotations += annotations
+    db.session.commit()
+    print(
+        f"Successfully added holidays to {len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}"
+    )
+
+
+@fm_add_data.command("forecasts")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "sensor_ids",
+    multiple=True,
+    required=True,
+    help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--from-date",
@@ -585,7 +722,7 @@ def add_beliefs(
 @click.option(
     "--resolution",
     type=int,
-    help="Resolution of forecast in minutes. If not set, resolution is determined from the asset to be forecasted",
+    help="Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
 )
 @click.option(
     "--horizon",
@@ -603,8 +740,7 @@ def add_beliefs(
     " config settings to that of the remote server. To process the job, run a worker to process the forecasting queue. Defaults to False.",
 )
 def create_forecasts(
-    asset_type: str = None,
-    asset_id: int = None,
+    sensor_ids: List[int],
     from_date_str: str = "2015-02-08",
     to_date_str: str = "2015-12-31",
     horizons_as_hours: List[str] = ["1"],
@@ -616,10 +752,10 @@ def create_forecasts(
 
     For example:
 
-        --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6
+        --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6 --sensor-id 12 --sensor-id 14
 
         This will create forecast values from 0am on May 2nd to 0am on May 5th,
-        based on a 6 hour horizon.
+        based on a 6-hour horizon, for sensors 12 and 14.
 
     """
     # make horizons
@@ -639,26 +775,26 @@ def create_forecasts(
         event_resolution = None
 
     if as_job:
-        for horizon in horizons:
-            # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
-            # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
-            create_forecasting_jobs(
-                old_sensor_id=asset_id,
-                horizons=[horizon],
-                start_of_roll=forecast_start - horizon,
-                end_of_roll=forecast_end - horizon,
-            )
+        for sensor_id in sensor_ids:
+            for horizon in horizons:
+                # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
+                # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
+                create_forecasting_jobs(
+                    sensor_id=sensor_id,
+                    horizons=[horizon],
+                    start_of_roll=forecast_start - horizon,
+                    end_of_roll=forecast_end - horizon,
+                )
     else:
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
 
         populate_time_series_forecasts(
             db=app.db,
+            sensor_ids=sensor_ids,
             horizons=horizons,
             forecast_start=forecast_start,
             forecast_end=forecast_end,
             event_resolution=event_resolution,
-            old_sensor_class_name=asset_type,
-            old_sensor_id=asset_id,
         )
 
 
@@ -711,7 +847,6 @@ def collect_weather_data(region, location, num_cells, method, store_in_db):
 
 
 app.cli.add_command(fm_add_data)
-app.cli.add_command(fm_dev_add_data)
 
 
 def check_timezone(timezone):

@@ -1,7 +1,6 @@
 from typing import Optional, Tuple, List
 
 from flask_security import current_user
-from sqlalchemy.orm import Session
 from sqlalchemy.engine import Row
 
 from sqlalchemy.ext.hybrid import hybrid_method
@@ -46,6 +45,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         "GenericAssetType",
         foreign_keys=[generic_asset_type_id],
         backref=db.backref("generic_assets", lazy=True),
+    )
+    annotations = db.relationship(
+        "Annotation",
+        secondary="annotations_assets",
+        backref=db.backref("assets", lazy="dynamic"),
     )
 
     __table_args__ = (
@@ -213,9 +217,7 @@ def assets_share_location(assets: List[GenericAsset]) -> bool:
     return all([a.location == assets[0].location for a in assets])
 
 
-def get_center_location_of_assets(
-    db: Session, user: Optional[User]
-) -> Tuple[float, float]:
+def get_center_location_of_assets(user: Optional[User]) -> Tuple[float, float]:
     """
     Find the center position between all generic assets of the user's account.
     """

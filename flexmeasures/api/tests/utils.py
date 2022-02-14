@@ -2,7 +2,7 @@ import json
 
 from flask import url_for, current_app
 
-from flexmeasures.data.config import db
+from flexmeasures.data import db
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.user import Account
 

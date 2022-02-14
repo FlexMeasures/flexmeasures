@@ -5,14 +5,27 @@ FlexMeasures Changelog
 v0.9.0 | February XX, 2022
 ===========================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -----------
+* Three new CLI commands for cleaning up your database: delete 1) unchanged beliefs, 2) NaN values or 3) a sensor and all of its time series data [see `PR #328 <http://www.github.com/FlexMeasures/flexmeasures/pull/328>`_]
+* Add CLI option to pass a data unit when reading in time series data from CSV, so data can automatically be converted to the sensor unit [see `PR #341 <http://www.github.com/FlexMeasures/flexmeasures/pull/341>`_]
+* Add CLI option to specify custom strings that should be interpreted as NaN values when reading in time series data from CSV [see `PR #357 <http://www.github.com/FlexMeasures/flexmeasures/pull/357>`_]
+* Add CLI commands ``flexmeasures add sensor``, ``flexmeasures add asset-type``, ``flexmeasures add beliefs`` (which were experimental features before). [see `PR #337 <http://www.github.com/FlexMeasures/flexmeasures/pull/337>`_]
+* Add CLI commands for showing data [see `PR #339 <http://www.github.com/FlexMeasures/flexmeasures/pull/339>`_]
+* Add CLI command for attaching annotations to assets: ``flexmeasures add holidays`` adds public holidays [see `PR #343 <http://www.github.com/FlexMeasures/flexmeasures/pull/343>`_]
+* Add CLI command for resampling existing sensor data to new resolution [see `PR #360 <http://www.github.com/FlexMeasures/flexmeasures/pull/360>`_]
+* Support for percent (%) and permille (‰) sensor units [see `PR #359 <http://www.github.com/FlexMeasures/flexmeasures/pull/359>`_]
 
 Bugfixes
 -----------
 
 Infrastructure / Support
 ----------------------
+* Plugins can import common FlexMeasures classes (like ``Asset`` and ``Sensor``) from a central place, using ``from flexmeasures import Asset, Sensor`` [see `PR #354 <http://www.github.com/FlexMeasures/flexmeasures/pull/354>`_]
+
+* Adapt CLI command for entering some initial structure (``flexmeasures add structure``) to new datamodel [see `PR #349 <http://www.github.com/FlexMeasures/flexmeasures/pull/349>`_]
 
 
 v0.8.0 | January 24, 2022
