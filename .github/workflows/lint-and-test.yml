@@ -1,7 +1,6 @@
 name: lint-and-test
 
-on: ["push", "pull_request"]
-
+on: push
 
 jobs:
   check:
@@ -46,10 +45,9 @@ jobs:
       - name: Run all tests except those marked to be skipped by GitHub AND record coverage
         run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch
         if: ${{ matrix.coverage == 'yes' }}
-      - name: Coveralls
-        uses: coverallsapp/github-action@master
+      - run: coveralls --service=github
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         if: ${{ matrix.coverage == 'yes' }}
     env:
       PGHOST: 127.0.0.1
