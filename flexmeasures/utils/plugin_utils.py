@@ -23,7 +23,7 @@ def register_plugins(app: Flask):
     If you load a plugin via a file path, we'll refer to the plugin with the name of your plugin folder
     (last part of the path).
     """
-    app.logger.info("Staring to load plugins ...")
+    app.logger.info("Starting to load plugins ...")
     plugins = app.config.get("FLEXMEASURES_PLUGINS", [])
     if not plugins:
         # this is deprecated behaviour which we should remove in version 1.0
@@ -126,6 +126,7 @@ def check_config_settings(app, settings: Dict[str, dict]):
 
     """
 
+    app.logger.info("Starting to check plugin settings ...")
     # Check config settings are in dict form, after possibly converting them from module variables
     if isinstance(settings, ModuleType):
         settings = {
