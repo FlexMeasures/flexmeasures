@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=requirements/dev.txt requirements/dev.in
 #
-black==21.12b0
+black==22.1.0
     # via -r requirements/dev.in
 cfgv==3.3.1
     # via pre-commit
@@ -23,7 +23,7 @@ flake8==4.0.1
     # via -r requirements/dev.in
 flake8-blind-except==0.2.0
     # via -r requirements/dev.in
-identify==2.4.5
+identify==2.4.10
     # via pre-commit
 mccabe==0.6.1
     # via flake8
@@ -42,7 +42,7 @@ packaging==21.3
     #   setuptools-scm
 pathspec==0.9.0
     # via black
-platformdirs==2.4.1
+platformdirs==2.5.0
     # via
     #   black
     #   virtualenv
@@ -71,21 +71,19 @@ six==1.16.0
     #   -c requirements/test.txt
     #   virtualenv
 toml==0.10.2
-    # via
-    #   -c requirements/test.txt
-    #   pre-commit
+    # via pre-commit
 tomli==1.2.3
     # via
     #   -c requirements/test.txt
     #   black
     #   mypy
     #   setuptools-scm
-typing-extensions==4.0.1
+typing-extensions==4.1.1
     # via
     #   -c requirements/app.txt
     #   black
     #   mypy
-virtualenv==20.13.0
+virtualenv==20.13.1
     # via pre-commit
 watchdog==2.1.6
     # via -r requirements/dev.in

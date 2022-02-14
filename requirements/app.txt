@@ -4,13 +4,13 @@
 #
 #    pip-compile --output-file=requirements/app.txt requirements/app.in
 #
-alembic==1.7.5
+alembic==1.7.6
     # via flask-migrate
 altair==4.2.0
     # via
     #   -r requirements/app.in
     #   timely-beliefs
-arrow==1.2.1
+arrow==1.2.2
     # via rq-dashboard
 async-generator==1.10
     # via
@@ -23,6 +23,11 @@ attrs==21.4.0
     #   trio
 babel==2.9.1
     # via py-moneyed
+backports.zoneinfo==0.2.1
+    # via
+    #   pytz-deprecation-shim
+    #   tzlocal
+    #   workalendar
 bcrypt==3.2.0
     # via -r requirements/app.in
 beautifulsoup4==4.10.0
@@ -48,7 +53,7 @@ cffi==1.15.0
     #   cryptography
 cftime==1.5.2
     # via netcdf4
-charset-normalizer==2.0.10
+charset-normalizer==2.0.12
     # via requests
 click==8.0.3
     # via
@@ -59,7 +64,7 @@ colour==0.1.5
     # via -r requirements/app.in
 convertdate==2.4.0
     # via workalendar
-cryptography==35.0.0
+cryptography==36.0.1
     # via
     #   pyopenssl
     #   urllib3
@@ -75,7 +80,7 @@ email-validator==1.1.3
     # via
     #   -r requirements/app.in
     #   flask-security-too
-entrypoints==0.3
+entrypoints==0.4
     # via altair
 filelock==3.4.2
     # via tldextract
@@ -126,7 +131,7 @@ flask-wtf==1.0.0
     # via
     #   -r requirements/app.in
     #   flask-security-too
-fonttools==4.29.0
+fonttools==4.29.1
     # via matplotlib
 greenlet==1.1.2
     # via sqlalchemy
@@ -134,7 +139,7 @@ h11==0.13.0
     # via wsproto
 h5py==3.6.0
     # via pvlib
-humanize==3.13.1
+humanize==4.0.0
     # via -r requirements/app.in
 idna==3.3
     # via
@@ -143,15 +148,16 @@ idna==3.3
     #   tldextract
     #   trio
     #   urllib3
-importlib-metadata==4.10.1
+importlib-metadata==4.11.0
     # via
     #   -r requirements/app.in
+    #   alembic
     #   timely-beliefs
 importlib-resources==5.4.0
     # via
     #   alembic
     #   jsonschema
-inflect==5.3.0
+inflect==5.4.0
     # via -r requirements/app.in
 inflection==0.5.1
     # via -r requirements/app.in
@@ -203,7 +209,7 @@ netcdf4==1.5.8
     # via -r requirements/app.in
 numexpr==2.8.1
     # via tables
-numpy==1.22.1
+numpy==1.22.2
     # via
     #   -r requirements/app.in
     #   altair
@@ -234,6 +240,8 @@ packaging==21.3
     #   matplotlib
     #   numexpr
     #   pint
+    #   redis
+    #   statsmodels
     #   tables
     #   webargs
 pandas==1.2.5
@@ -252,7 +260,7 @@ passlib==1.7.4
     # via flask-security-too
 patsy==0.5.2
     # via statsmodels
-pillow==9.0.0
+pillow==9.0.1
     # via
     #   bokeh
     #   matplotlib
@@ -262,7 +270,7 @@ ply==3.11
     # via pyomo
 properscoring==0.1
     # via timely-beliefs
-protobuf==3.19.3
+protobuf==3.19.4
     # via siphon
 pscript==0.7.7
     # via -r requirements/app.in
@@ -284,7 +292,7 @@ pymeeus==0.5.11
     # via convertdate
 pyomo==6.2
     # via -r requirements/app.in
-pyopenssl==21.0.0
+pyopenssl==22.0.0
     # via urllib3
 pyparsing==3.0.7
     # via
@@ -314,7 +322,7 @@ pytz-deprecation-shim==0.1.0.post0
     # via tzlocal
 pyyaml==6.0
     # via bokeh
-redis==4.0.2
+redis==4.1.3
     # via
     #   -r requirements/app.in
     #   rq
@@ -335,7 +343,7 @@ rq-dashboard==0.6.1
     # via -r requirements/app.in
 scikit-learn==1.0.2
     # via sklearn
-scipy==1.7.3
+scipy==1.8.0
     # via
     #   properscoring
     #   pvlib
@@ -345,7 +353,7 @@ scipy==1.7.3
     #   timetomodel
 selenium==4.1.0
     # via timely-beliefs
-sentry-sdk[flask]==1.5.4
+sentry-sdk[flask]==1.5.5
     # via -r requirements/app.in
 siphon==0.9
     # via -r requirements/app.in
@@ -357,7 +365,6 @@ six==1.16.0
     #   flask-marshmallow
     #   isodate
     #   patsy
-    #   pyopenssl
     #   python-dateutil
     #   requests-file
 sklearn==0.0
@@ -376,13 +383,13 @@ sqlalchemy==1.4.31
     #   marshmallow-sqlalchemy
     #   timely-beliefs
     #   timetomodel
-statsmodels==0.13.1
+statsmodels==0.13.2
     # via timetomodel
 tables==3.7.0
     # via -r requirements/app.in
 tabulate==0.8.9
     # via -r requirements/app.in
-threadpoolctl==3.0.0
+threadpoolctl==3.1.0
     # via scikit-learn
 timely-beliefs==1.11.2
     # via -r requirements/app.in
@@ -400,7 +407,7 @@ trio==0.19.0
     #   trio-websocket
 trio-websocket==0.9.2
     # via selenium
-typing-extensions==4.0.1
+typing-extensions==4.1.1
     # via py-moneyed
 tzdata==2021.5
     # via pytz-deprecation-shim
@@ -413,12 +420,12 @@ urllib3[secure]==1.26.8
     #   sentry-sdk
 webargs==8.1.0
     # via -r requirements/app.in
-werkzeug==2.0.2
+werkzeug==2.0.3
     # via flask
-wrapt==1.13.3
-    # via deprecated
 workalendar==16.2.0
     # via -r requirements/app.in
+wrapt==1.13.3
+    # via deprecated
 wsproto==1.0.0
     # via trio-websocket
 wtforms==3.0.1
