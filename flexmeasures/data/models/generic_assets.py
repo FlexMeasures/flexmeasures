@@ -175,7 +175,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     @property
     def has_energy_sensors(self) -> bool:
-        """True if at least one power energy is attached"""
+        """True if at least one energy sensor is attached"""
         return any([s.measures_energy for s in self.sensors])
 
     def search_annotations(
