@@ -12,8 +12,8 @@ from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
 )
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.queries.data_sources import get_or_create_source
 from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.api.common.responses import (
