@@ -169,7 +169,7 @@ def add_failing_test_model(db):
 def add_nearby_weather_sensors(db, add_weather_sensors) -> Dict[str, Sensor]:
     temp_sensor_location = add_weather_sensors["temperature"].generic_asset.location
     weather_station_type = GenericAssetType.query.filter(
-        GenericAssetType.name == "Weather station"
+        GenericAssetType.name == "weather station"
     ).one_or_none()
     farther_weather_station = GenericAsset(
         name="Test weather station farther away",
