@@ -5,6 +5,7 @@ import json
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
+from sqlalchemy.schema import UniqueConstraint
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
@@ -79,6 +80,14 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         if attributes is not None:
             kwargs["attributes"] = attributes
         db.Model.__init__(self, **kwargs)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "name",
+            "generic_asset_id",
+            name="sensor_name_generic_asset_id_key",
+        ),
+    )
 
     def __acl__(self):
         """
