@@ -186,7 +186,7 @@ def test_post_price_data_invalid_unit(setup_api_test_data, client, post_message)
 
 @pytest.mark.parametrize(
     "post_message",
-    [message_for_post_weather_data(), message_for_post_weather_data()],
+    [message_for_post_weather_data(), message_for_post_weather_data(temperature=True)],
 )
 def test_post_weather_forecasts(
     setup_api_test_data, add_weather_sensors, app, client, post_message
