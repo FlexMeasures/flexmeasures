@@ -334,7 +334,7 @@ def create_generic_asset_types(db):
     ):  # legacy if-block, because create_test_battery_assets might have created it already - refactor!
         battery = GenericAssetType(name="battery")
     db.session.add(battery)
-    weather_station = GenericAssetType(name="Weather station")
+    weather_station = GenericAssetType(name="weather station")
     db.session.add(weather_station)
     return dict(
         public_good=public_good,
