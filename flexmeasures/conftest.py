@@ -697,6 +697,18 @@ def add_sensors(db: SQLAlchemy, setup_generic_assets):
     return height_sensor
 
 
+@pytest.fixture(scope="module")
+def battery_soc_sensor(db: SQLAlchemy, setup_generic_assets):
+    """Add a battery SOC sensor."""
+    soc_sensor = Sensor(
+        name="state of charge",
+        unit="%",
+        generic_asset=setup_generic_assets["test_battery"],
+    )
+    db.session.add(soc_sensor)
+    return soc_sensor
+
+
 @pytest.fixture(scope="function")
 def clean_redis(app):
     failed = app.queues["forecasting"].failed_job_registry

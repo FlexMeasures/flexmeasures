@@ -8,6 +8,7 @@ since v0.9.0 | January 26, 2022
 =====================
 
 * add CLI comands for showing data ``flexmeasures show accounts``, ``flexmeasures show account``, ``flexmeasures show roles``, ``flexmeasures show asset-types``, ``flexmeasures show asset`` and ``flexmeasures show data-sources``.
+* Add ``flexmeasures db-ops resample-data`` CLI command to resample sensor data to a different resolution.
 
 
 since v0.9.0 | January 26, 2022

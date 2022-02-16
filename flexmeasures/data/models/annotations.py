@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import DataSource
 
 
 class Annotation(db.Model):
@@ -19,7 +18,7 @@ class Annotation(db.Model):
     content = db.Column(db.String(255), nullable=False)
     start = db.Column(db.DateTime(timezone=True), nullable=False)
     end = db.Column(db.DateTime(timezone=True), nullable=False)
-    source_id = db.Column(db.Integer, db.ForeignKey(DataSource.__tablename__ + ".id"))
+    source_id = db.Column(db.Integer, db.ForeignKey("data_source.id"))
     source = db.relationship(
         "DataSource",
         foreign_keys=[source_id],

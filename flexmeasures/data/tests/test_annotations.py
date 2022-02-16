@@ -39,3 +39,13 @@ def test_get_or_create_annotation(db):
     num_annotations_after = Annotation.query.count()
     assert num_annotations_after == num_annotations_intermediate
     assert second_annotation.id is None
+
+
+def test_search_annotations(db, setup_annotations):
+    account = setup_annotations["account"]
+    asset = setup_annotations["asset"]
+    sensor = setup_annotations["sensor"]
+    for obj in (account, asset, sensor):
+        annotations = getattr(obj, "search_annotations")()
+        assert len(annotations) == 1
+        assert annotations[0].content == "Dutch new year"

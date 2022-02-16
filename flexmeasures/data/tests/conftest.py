@@ -9,6 +9,7 @@ import numpy as np
 from flask_sqlalchemy import SQLAlchemy
 from statsmodels.api import OLS
 
+from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
@@ -201,3 +202,34 @@ def add_nearby_weather_sensors(db, add_weather_sensors) -> Dict[str, Sensor]:
     add_weather_sensors["farther_temperature"] = farther_temp_sensor
     add_weather_sensors["even_farther_temperature"] = even_farther_temp_sensor
     return add_weather_sensors
+
+
+@pytest.fixture(scope="module")
+def setup_annotations(
+    db,
+    battery_soc_sensor,
+    setup_sources,
+    app,
+):
+    """Set up an annotation for an account, an asset and a sensor."""
+    sensor = battery_soc_sensor
+    asset = sensor.generic_asset
+    account = asset.owner
+    source = setup_sources["Seita"]
+    annotation = Annotation(
+        content="Dutch new year",
+        start=pd.Timestamp("2020-01-01 00:00+01"),
+        end=pd.Timestamp("2020-01-02 00:00+01"),
+        source=source,
+        type="holiday",
+    )
+    account.annotations.append(annotation)
+    asset.annotations.append(annotation)
+    sensor.annotations.append(annotation)
+    db.session.flush()
+    return dict(
+        annotation=annotation,
+        account=account,
+        asset=asset,
+        sensor=sensor,
+    )
