@@ -44,15 +44,12 @@ def create_beliefs_query(
 def potentially_limit_query_to_account_assets(
     query: Query, account_id: Optional[int]
 ) -> Query:
-    """
-    Filter out any assets that are not in this account, or not in the current
-    user's account (for non-admins or non-CLI users).
-    Note: Your query needs include/join GenericAsset for this to work.
+    """Filter out all assets that are not in the current user's account.
+    For admins and CLI users, no assets are filtered out, unless an account_id is set.
 
-    Admins can set account_id to None, which for this function means that no filter limit is added.
-    (For querying public assets in particular, don't use this function).
+    :param account_id: if set, all assets that are not in the given account will be filtered out (only works for admins and CLI users). For querying public assets in particular, don't use this function.
     """
-    if not hasattr(current_user, "account_id") and not current_app.cli:
+    if not current_user.is_authenticated and not current_app.cli:
         raise Forbidden("Unauthenticated user cannot list assets.")
     user_is_admin = (
         current_app.cli

@@ -54,7 +54,7 @@ def query_sensors_by_proximity(
             GenericAsset.generic_asset_type_id == GenericAssetType.id,
             GenericAssetType.name == generic_asset_type_name,
         )
-    if sensor_name:
+    if sensor_name is not None:
         closest_sensor_query = closest_sensor_query.filter(Sensor.name == sensor_name)
     closest_sensor_query = closest_sensor_query.order_by(
         GenericAsset.great_circle_distance(lat=latitude, lng=longitude).asc()

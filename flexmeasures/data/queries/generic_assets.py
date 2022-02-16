@@ -14,8 +14,10 @@ def query_assets_by_type(
 ) -> Query:
     """
     Return a query which looks for GenericAssets by their type.
-    Pass in a list of type names or only one type name.
-    Pass in an account ID if you want to query an account other than your own. This only works for admins. Public assets are always queried.
+
+    :param type_names: Pass in a list of type names or only one type name.
+    :param account_id: Pass in an account ID if you want to query an account other than your own. This only works for admins. Public assets are always queried.
+    :param query: Pass in an existing Query object if you have one.
     """
     if not query:
         query = GenericAsset.query
@@ -47,7 +49,7 @@ def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
     A Charge Point is a special case. If all assets on a location are of type EVSE,
     we can call the location a "Charge Point".
 
-    Pass in an account ID if you want to query an account other than your own. This only works for admins. Public assets are always queried.
+    :param account_id: Pass in an account ID if you want to query an account other than your own. This only works for admins. Public assets are always queried.
     """
     asset_queries = {}
     all_assets = potentially_limit_query_to_account_assets(
