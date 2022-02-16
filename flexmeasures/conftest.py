@@ -658,7 +658,7 @@ def add_weather_sensors_fresh_db(
     return create_weather_sensors(fresh_db, setup_generic_asset_types_fresh_db)
 
 
-def create_weather_sensors(db: SQLAlchemy, generic_asset_types):
+def create_weather_sensors(db: SQLAlchemy, generic_asset_types) -> Dict[str, Sensor]:
     """Add a weather station asset with two weather sensors."""
 
     weather_station = GenericAsset(
