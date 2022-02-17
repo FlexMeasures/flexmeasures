@@ -19,8 +19,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ '3.9' ]
+        py_version: ['3.8', '3.9' ]
         include:
+          - python-version: "3.8"
           - python-version: "3.9"
             coverage: yes
     name: "Test (on Python ${{ matrix.py_version }})"
