@@ -1,5 +1,6 @@
 from importlib_metadata import version, PackageNotFoundError
 
+"""
 from flexmeasures.data.models.annotations import Annotation  # noqa F401
 from flexmeasures.data.models.user import Account, AccountRole, User  # noqa F401
 from flexmeasures.data.models.data_sources import DataSource as Source  # noqa F401
@@ -8,7 +9,7 @@ from flexmeasures.data.models.generic_assets import (  # noqa F401
     GenericAssetType as AssetType,
 )
 from flexmeasures.data.models.time_series import Sensor  # noqa F401
-
+"""
 
 __version__ = "Unknown"
 
