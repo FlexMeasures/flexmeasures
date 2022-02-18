@@ -297,7 +297,7 @@ def add_weather_sensor(**args):
     print(f" You can access it at its entity address {sensor.entity_address}")
 
 
-@fm_add_data.command("structure")
+@fm_add_data.command("initial-structure")
 @with_appcontext
 def add_initial_structure():
     """Initialize useful structural data."""
