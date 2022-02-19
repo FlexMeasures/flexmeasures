@@ -1,7 +1,7 @@
 """
 Populate the database with data we know or read in.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pathlib import Path
 from shutil import rmtree
 from datetime import datetime, timedelta
@@ -49,10 +49,11 @@ def add_default_data_sources(db: SQLAlchemy):
             db.session.add(DataSource(name=source_name, type=source_type))
 
 
-def add_default_asset_types(db: SQLAlchemy):
+def add_default_asset_types(db: SQLAlchemy) -> Dict[str, GenericAssetType]:
     """
     Add a few useful asset types.
     """
+    types = {}
     for type_name, type_description in (
         ("solar", "solar panel(s)"),
         ("wind", "wind turbine"),
@@ -67,9 +68,10 @@ def add_default_asset_types(db: SQLAlchemy):
         if _type:
             click.echo(f"Asset type {type_name} already exists.")
         else:
-            db.session.add(
-                GenericAssetType(name=type_name, description=type_description)
-            )
+            _type = GenericAssetType(name=type_name, description=type_description)
+            db.session.add(_type)
+        types[type_name] = _type
+    return types
 
 
 def add_default_user_roles(db: SQLAlchemy):
@@ -105,17 +107,42 @@ def add_default_account_roles(db: SQLAlchemy):
             db.session.add(AccountRole(name=role_name, description=role_description))
 
 
+def add_transmission_zone_asset(country_code: str, db: SQLAlchemy) -> GenericAsset:
+    """
+    Ensure a GenericAsset exists to model a transmission zone for a country.
+    """
+    transmission_zone_type = GenericAssetType.query.filter(
+        GenericAssetType.name == "transmission zone"
+    ).one_or_none()
+    if not transmission_zone_type:
+        click.echo("Adding transmission zone type ...")
+        transmission_zone_type = GenericAssetType(
+            name="transmission zone",
+            description="A grid regulated & balanced as a whole, usually a national grid.",
+        )
+        db.session.add(transmission_zone_type)
+    ga_name = f"{country_code} transmission zone"
+    transmission_zone = GenericAsset.query.filter(
+        GenericAsset.name == ga_name
+    ).one_or_none()
+    if not transmission_zone:
+        click.echo(f"Adding {ga_name} ...")
+        transmission_zone = GenericAsset(
+            name=ga_name,
+            generic_asset_type=transmission_zone_type,
+            account_id=None,  # public
+        )
+    return transmission_zone
+
+
 # ------------ Main functions --------------------------------
 # These can registered at the app object as cli functions
 
 
 @as_transaction
-def populate_structure(db: SQLAlchemy):
+def populate_initial_structure(db: SQLAlchemy):
     """
     Add initial structural data for assets, markets, data sources
-
-    TODO: add user roles (they can get created on-the-fly, but we should be
-          more pro-active)
     """
     click.echo("Populating the database %s with structural data ..." % db.engine)
     add_default_data_sources(db)
