@@ -41,7 +41,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         if user is not None:
             name = user.username
             type = "user"
-            self.user_id = user.id
+            self.user = user
         elif user is None and type == "user":
             raise TypeError("A data source cannot have type 'user' but no user set.")
         self.type = type
