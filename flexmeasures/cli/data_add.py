@@ -811,6 +811,9 @@ def create_forecasts(
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
 def add_toy_account(kind: str, name: str):
+    """
+    Create a toy account, for tutorials and trying things.
+    """
     asset_types = add_default_asset_types(db=db)
     location = (52.374, 4.88969)  # Amsterdam
     if kind == "battery":
