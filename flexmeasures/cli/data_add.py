@@ -821,7 +821,7 @@ def add_toy_account(kind: str, name: str):
             raise click.Abort()
         # make an account user (account-admin?)
         user = create_user(
-            email="toy-user@toy-account.co",
+            email="toy-user@flexmeasures.io",
             check_email_deliverability=False,
             password="toy-password",
             user_roles=["account-admin"],
@@ -866,7 +866,7 @@ def add_toy_account(kind: str, name: str):
     db.session.commit()
 
     click.echo(
-        f"Toy account {name} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
+        f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
     )
 
 
