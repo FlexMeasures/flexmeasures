@@ -838,6 +838,7 @@ def add_toy_account(kind: str, name: str):
             )
             db.session.add(asset)
             if asset_type == "battery":
+                asset.attributes = dict(capacity_in_mw=0.005)
                 # add charging sensor to battery
                 charging_sensor = Sensor(
                     name="charging",
