@@ -298,6 +298,7 @@ def delete_nan_beliefs(sensor_id: Optional[int] = None):
 @fm_delete_data.command("sensor")
 @with_appcontext
 @click.option(
+    "--id",
     "--sensor-id",
     type=int,
     required=True,
