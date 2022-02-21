@@ -344,7 +344,8 @@ def add_initial_structure():
 @click.option(
     "--resample/--do-not-resample",
     default=True,
-    help="Resample the data to fit the sensor's event resolution.",
+    help="Resample the data to fit the sensor's event resolution. "
+         " Only downsampling is currently supported (for example, from hourly to daily data).",
 )
 @click.option(
     "--allow-overwrite/--do-not-allow-overwrite",
