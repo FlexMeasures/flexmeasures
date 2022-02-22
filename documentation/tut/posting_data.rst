@@ -18,83 +18,12 @@ Of course, these endpoints can also be used to load historic data into FlexMeasu
 Prerequisites
 --------------
 
-- FlexMeasures needs some structural meta data for data to be understood. For example, for adding weather data we need to define a weather sensor, and what kind of weather sensors there are. You also need a user account. If you host FlexMeasures yourself, you need to add this info first. Head over to :ref:`getting_started`, where these steps are covered, or study our :ref:`cli`.
+- FlexMeasures needs some structural meta data for data to be understood. For example, for adding weather data we need to define a weather sensor, and what kind of weather sensors there are. You also need a user account. If you host FlexMeasures yourself, you need to add this info first. Head over to :ref:`getting_started`, where these steps are covered, study our :ref:`cli` or look into plugins which do this like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `flexmeasures-openweathermap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_.
 - You should be familiar with where to find your API endpoints (see :ref:`api_versions`) and how to authenticate against the API (see :ref:`api_auth`).
 
-.. note:: For deeper explanations of the data and the meta fields we'll send here, You can always read the :ref:`api_introduction` , e.g. :ref:`signs`, :ref:`resolutions`, :ref:`prognoses` and :ref:`units`.
+.. note:: For deeper explanations of the data and the meta fields we'll send here, You can always read the :ref:`api_introduction` , to the FlexMeasures API, e.g. :ref:`signs`, :ref:`resolutions`, :ref:`prognoses` and :ref:`units`.
 
-.. note:: To address assets and sensors, these tutorials assume entity addresses valid in the namespace ``fm0``. See :ref:`api_introduction` for more explanations. 
-
-
-Posting weather data
---------------------
-
-Weather data (both observations and forecasts) can be posted to `POST  /api/v2_0/postWeatherData <../api/v2_0.html#post--api-v2_0-postWeatherData>`_. The URL might look like this:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/<version>/postWeatherData
-
-Weather data can be posted for different types of sensors, such as:
-
-- "radiation" (with kW/m² as unit)
-- "temperature" (with °C as unit)
-- "wind speed" (with m/s as unit)
-
-The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
-
-This "PostWeatherDataRequest" message posts temperature forecasts for 15-minute intervals between 3.00pm and 4.30pm for a weather sensor with id 602.
-As this sensor is located in Korea's timezone ― we also reflect that in the datetimes.
-The forecasts were made at noon, as the ``prior`` field indicates.
-
-.. code-block:: json
-
-        {
-            "type": "PostWeatherDataRequest",
-            "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.602",
-            "values": [
-                20.04,
-                20.23,
-                20.41,
-                20.51,
-                20.55,
-                20.57
-            ],
-            "start": "2015-01-01T15:00:00+09:00",
-            "duration": "PT1H30M",
-            "prior": "2015-01-01T12:00:00+09:00",
-            "unit": "°C"
-        }
-
-Note how the resolution of the data comes out at 15 minutes when you divide the duration by the number of data points.
-If this resolution does not match the sensor's resolution, FlexMeasures will try to upsample the data to make the match or, if that is not possible, complain.
-
-
-Observations vs forecasts
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To post an observation rather than a forecast, simply set the prior to the moment at which the observations were made, e.g. at "2015-01-01T16:30:00+09:00".
-This denotes that the observation was made exactly after realisation of this list of temperature readings, i.e. at 4.30pm.
-
-Alternatively, to indicate that each individual observation was made directly after the end of its 15-minute interval (i.e. at 3.15pm, 3.30pm and so on), set a horizon to "PT0H" instead of a prior.
-
-Finally, delays in reading out sensor data can be simulated by setting the horizon field to a negative value.
-For example, a horizon of "-PT1H" would denote that each temperature reading was observed one hour after the fact (i.e. at 4.15pm, 4.30pm and so on).
-
-See :ref:`prognoses` for more information regarding the prior and horizon fields.
-
-
-Collecting weather data from OpenWeatherMap
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-For convenience for organisations who host FlexMeasures themselves, we built in a CLI task which collects weather measurements and forecasts from the OpenWeatherMap API.
-You have to add your own token in the OPENWEATHERMAP_API_KEY setting first. Then you could run this task periodically, probably once per hour. Here is how:
-
-.. code-block::
-
-   flexmeasures add external-weather-forecasts --location 33.4366,126.5269 --store-in-db
-
-Consult the ``--help`` for this command to learn more about what you can do with it.
+.. note:: To address assets and sensors, these tutorials assume entity addresses valid in the namespace ``fm1``. See :ref:`api_introduction` for more explanations. 
 
 
 Posting price data
@@ -143,17 +72,12 @@ The ``prior`` indicates that the prices were published at 3pm on December 31st 2
         ],
         "start": "2015-01-01T00:00:00+09:00",
         "duration": "PT24H",
-        "prior": "2014-12-03T15:00:00+09:00",
+        "prior": "2014-12-31T15:00:00+09:00",
         "unit": "KRW/kWh"
     }
 
-Observations vs forecasts
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-For markets, the time at which the market is cleared (i.e. when contracts are signed) determines the difference between an ex-post observation and an ex-ante forecast.
-For example, at the KPX day-ahead auction this is every day at 3pm.
-To post a forecast rather than an observation, simply increase the horizon.
-For example, a horizon of "PT57H" would denote a forecast of 24 hours ahead of clearing.
+Note how the resolution of the data comes out at 60 minutes when you divide the duration by the number of data points.
+If this resolution does not match the sensor's resolution, FlexMeasures will try to upsample the data to make the match or, if that is not possible, complain.
 
 
 Posting power data
@@ -296,6 +220,31 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
         "horizon": "-PT5M",
         "unit": "MW"
     }
+
+
+.. _observations_vs_forecasts
+
+Observations vs forecasts
+--------------------------
+
+To correctly tell FlexMeasures when a meter reading or forecast was known is crucial, as it determines which data is being used to compute schedules or to make other forecasts.
+
+Usually, the time of posting is assumed to be the time when the data was known. But you can also explicitly tell FlexMeasures what these times are. This either works with one fixed time (for the whole set of data being sent) or with a horizon (which applies to each data point separately).
+
+E.g. to post a forecast rather than an observation after the fact, simply set the ``prior`` to the moment at which the forecasts were made, e.g. at "2015-01-01T16:30:00+09:00". Assuming your data starts at 5.00pm, this denotes that the data are forecasts, made half an hour before realisation.
+
+Alternatively, to indicate that each individual observation was made directly after the end of its 15-minute interval (i.e. at 3.15pm, 3.30pm and so on), set a ``horizon`` to "PT0H" instead of a ``prior``.
+
+Finally, delays in reading out sensor data can be simulated by setting the ``horizon`` field to a negative value.
+For example, a horizon of "-PT1H" would denote that each temperature reading was observed one hour after the fact (i.e. at 4.15pm, 4.30pm and so on).
+
+See :ref:`prognoses` for more information regarding the ``prior`` and ``horizon`` fields.
+
+A good example for the use of the ``prior`` field are markets, which have clearing times.
+For example, at the KPX day-ahead auction this is every day at 3pm.
+This point in time (i.e. when contracts are signed) determines the difference between an ex-post observation and an ex-ante forecast.
+
+Another example for the ``prior`` field is running simulations with FlexMeasures. It gives you control over the timing so that you could run a month in the past as-if it happened right now.
 
 
 .. _posting_flex_states:
