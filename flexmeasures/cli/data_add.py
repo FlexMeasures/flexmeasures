@@ -848,12 +848,12 @@ def add_toy_account(kind: str, name: str):
                     generic_asset=asset,
                     unit="kW",
                     timezone="Europe/Amsterdam",
-                    event_resolution=timedelta(minutes=5),
+                    event_resolution=timedelta(minutes=15),
                 )
                 db.session.add(charging_sensor)
 
         # add public day-ahead market (as sensor of transmission zone asset?)
-        nl_zone = add_transmission_zone_asset("nl", db=db)
+        nl_zone = add_transmission_zone_asset("NL", db=db)
         day_ahead_sensor = Sensor.query.filter(
             Sensor.generic_asset == nl_zone, Sensor.name == "Day ahead prices"
         ).one_or_none()
@@ -863,7 +863,7 @@ def add_toy_account(kind: str, name: str):
                 generic_asset=nl_zone,
                 unit="EUR/MWh",
                 timezone="Europe/Amsterdam",
-                event_resolution=timedelta(minutes=15),
+                event_resolution=timedelta(minutes=60),
             )
         db.session.add(day_ahead_sensor)
 
@@ -872,6 +872,7 @@ def add_toy_account(kind: str, name: str):
     click.echo(
         f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
     )
+    click.echo(f"The sensor for Day ahead prices is {day_ahead_sensor}.")
 
 
 @fm_add_data.command("external-weather-forecasts")
