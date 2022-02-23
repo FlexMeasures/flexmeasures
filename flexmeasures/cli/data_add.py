@@ -898,7 +898,6 @@ def create_schedule(
         soc_target_value = float(soc_target_value_str)
         soc_target_datetime = pd.Timestamp(soc_target_dt_str)
         soc_targets.loc[soc_target_datetime] = soc_target_value
-    print(soc_targets)
 
     success = make_schedule(
         sensor_id=power_sensor_id,
