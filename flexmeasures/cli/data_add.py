@@ -1,7 +1,7 @@
 """CLI Tasks for populating the database - most useful in development"""
 
 from datetime import timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import json
 
 import numpy as np
@@ -837,12 +837,12 @@ def create_forecasts(
 @click.option(
     "--soc-target",
     "soc_target_strings",
-    type=float,
+    type=click.Tuple(types=[float, str]),
     multiple=True,
     required=False,
-    help="Target state of charge at some datetime. Follow up with a string in the form '(<float value>, <timezone-aware datetime in ISO 6081 format>)'."
+    help="Target state of charge at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
     " This argument can be given multiple times."
-    " For example: --soc-target '(32.8, 2022-02-23T13:40:52+00:00)'",
+    " For example: --soc-target 32.8 2022-02-23T13:40:52+00:00",
 )
 @click.option(
     "--soc-min",
@@ -871,7 +871,7 @@ def create_schedule(
     start_str: str,
     end_str: str,
     soc_at_start: float,
-    soc_target_strings: List[str],
+    soc_target_strings: List[Tuple[float, str]],
     soc_min: float,
     soc_max: float,
     roundtrip_efficiency: float,
@@ -891,8 +891,8 @@ def create_schedule(
             start, end, freq=factor_sensor.event_resolution, closed="right"
         ),  # note that target values are indexed by their due date (i.e. closed="right")
     )
-    for soc_target_str in soc_target_strings:
-        soc_target_value_str, soc_target_dt_str = soc_target_str.split(", ")
+    for soc_target_tuple in soc_target_strings:
+        soc_target_value_str, soc_target_dt_str = soc_target_tuple
         soc_target_value = float(soc_target_value_str)
         soc_target_datetime = pd.Timestamp(soc_target_dt_str)
         soc_targets.loc[soc_target_datetime] = soc_target_value
