@@ -112,9 +112,11 @@ def make_schedule(
     # find sensor
     sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
 
-    click.echo(
-        "Running Scheduling Job %s: %s, from %s to %s" % (rq_job.id, sensor, start, end)
-    )
+    if rq_job:
+        click.echo(
+            "Running Scheduling Job %s: %s, from %s to %s"
+            % (rq_job.id, sensor, start, end)
+        )
 
     if soc_at_start is None:
         if (
@@ -169,7 +171,8 @@ def make_schedule(
         data_source_name="Seita",
         data_source_type="scheduling script",
     )
-    click.echo("Job %s made schedule." % rq_job.id)
+    if rq_job:
+        click.echo("Job %s made schedule." % rq_job.id)
 
     ts_value_schedule = [
         TimedBelief(
