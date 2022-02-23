@@ -29,7 +29,7 @@ DEFAULT_RESOLUTION = timedelta(minutes=15)
 
 
 def create_scheduling_job(
-    asset_id: int,
+    sensor_id: int,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     belief_time: datetime,
@@ -57,7 +57,7 @@ def create_scheduling_job(
     job = Job.create(
         make_schedule,
         kwargs=dict(
-            asset_id=asset_id,
+            sensor_id=sensor_id,
             start=start_of_schedule,
             end=end_of_schedule,
             belief_time=belief_time,
@@ -87,7 +87,7 @@ def create_scheduling_job(
 
 
 def make_schedule(
-    asset_id: int,
+    sensor_id: int,
     start: datetime,
     end: datetime,
     belief_time: datetime,
@@ -109,7 +109,7 @@ def make_schedule(
     rq_job = get_current_job()
 
     # find sensor
-    sensor = Sensor.query.filter_by(id=asset_id).one_or_none()
+    sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
 
     click.echo(
         "Running Scheduling Job %s: %s, from %s to %s" % (rq_job.id, sensor, start, end)
