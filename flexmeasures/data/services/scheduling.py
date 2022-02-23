@@ -97,6 +97,7 @@ def make_schedule(
     soc_min: Optional[float] = None,
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
+    price_sensor: Optional[Sensor] = None,
 ) -> bool:
     """Preferably, a starting soc is given.
     Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
@@ -140,6 +141,7 @@ def make_schedule(
             soc_min,
             soc_max,
             roundtrip_efficiency,
+            price_sensor=price_sensor,
         )
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
@@ -155,6 +157,7 @@ def make_schedule(
             soc_min,
             soc_max,
             roundtrip_efficiency,
+            price_sensor=price_sensor,
         )
     else:
         raise ValueError(

@@ -25,6 +25,7 @@ def schedule_battery(
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
+    price_sensor: Optional[Sensor] = None,
 ) -> Union[pd.Series, None]:
     """Schedule a battery asset based directly on the latest beliefs regarding market prices within the specified time
     window.
@@ -55,7 +56,11 @@ def schedule_battery(
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
-        sensor, (start, end), resolution, allow_trimmed_query_window=True
+        (start, end),
+        resolution,
+        price_sensor=price_sensor,
+        sensor=sensor,
+        allow_trimmed_query_window=True,
     )
     if soc_targets is not None:
         # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
