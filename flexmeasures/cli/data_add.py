@@ -884,13 +884,14 @@ def create_schedule(
     """
 
     # Parse input
+    power_sensor = Sensor.query.filter(Sensor.id == power_sensor_id).one_or_none()
     factor_sensor = Sensor.query.filter(Sensor.id == factor_sensor_id).one_or_none()
     start = pd.Timestamp(start_str)
     end = pd.Timestamp(end_str)
     soc_targets = pd.Series(
         np.nan,
         index=pd.date_range(
-            start, end, freq=factor_sensor.event_resolution, closed="right"
+            start, end, freq=power_sensor.event_resolution, closed="right"
         ),  # note that target values are indexed by their due date (i.e. closed="right")
     )
     for soc_target_tuple in soc_target_strings:
@@ -904,7 +905,7 @@ def create_schedule(
         start=start,
         end=end,
         belief_time=server_now(),
-        resolution=factor_sensor.event_resolution,
+        resolution=power_sensor.event_resolution,
         soc_at_start=soc_at_start,
         soc_targets=soc_targets,
         soc_min=soc_min,
