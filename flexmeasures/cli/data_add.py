@@ -833,12 +833,36 @@ def create_forecasts(
     required=True,
     help="State of charge at the start of the schedule.",
 )
+@click.option(
+    "--soc-min",
+    "soc_min",
+    type=float,
+    required=False,
+    help="Minimum state of charge for the schedule.",
+)
+@click.option(
+    "--soc-max",
+    "soc_max",
+    type=float,
+    required=False,
+    help="Maximum state of charge for the schedule.",
+)
+@click.option(
+    "--roundtrip-efficiency",
+    "roundtrip_efficiency",
+    type=float,
+    required=False,
+    help="Round-trip efficiency to use for the schedule.",
+)
 def create_schedule(
     power_sensor_id: int,
     factor_sensor_id: int,
     start_str: str,
     end_str: str,
     soc_at_start: float,
+    soc_min: float,
+    soc_max: float,
+    roundtrip_efficiency: float,
 ):
     """Create a new schedule for a given power sensor.
 
@@ -857,6 +881,9 @@ def create_schedule(
         belief_time=server_now(),
         resolution=factor_sensor.resolution,
         soc_at_start=soc_at_start,
+        soc_min=soc_min,
+        soc_max=soc_max,
+        roundtrip_efficiency=roundtrip_efficiency,
         price_sensor=factor_sensor,
     )
     if success:
