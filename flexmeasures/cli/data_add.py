@@ -840,6 +840,11 @@ def create_schedule(
     end_str: str,
     soc_at_start: float,
 ):
+    """Create a new schedule for a given power sensor.
+
+    Currently supports batteries and Charge Points.
+    """
+
     # Parse input
     factor_sensor = Sensor.query.filter(Sensor.id == factor_sensor_id).one_or_none()
     start = pd.Timestamp(start_str)
