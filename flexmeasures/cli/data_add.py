@@ -16,6 +16,7 @@ from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures.data import db
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
+from flexmeasures.data.services.scheduling import make_schedule
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
@@ -797,6 +798,64 @@ def create_forecasts(
             forecast_end=forecast_end,
             event_resolution=event_resolution,
         )
+
+
+@fm_add_data.command("schedule")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "power_sensor_id",
+    required=True,
+    help="Create schedule for this sensor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--factor-id",
+    "factor_sensor_id",
+    required=True,
+    help="Optimize against this sensor, which measures a price factor or CO₂ intensity factor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--from",
+    "start_str",
+    required=True,
+    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--until",
+    "end_str",
+    required=True,
+    help="Schedule ends at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--soc-at-start",
+    "soc_at_start",
+    type=float,
+    required=True,
+    help="State of charge at the start of the schedule.",
+)
+def create_schedule(
+    power_sensor_id: int,
+    factor_sensor_id: int,
+    start_str: str,
+    end_str: str,
+    soc_at_start: float,
+):
+    # Parse input
+    factor_sensor = Sensor.query.filter(Sensor.id == factor_sensor_id).one_or_none()
+    start = pd.Timestamp(start_str)
+    end = pd.Timestamp(end_str)
+
+    success = make_schedule(
+        sensor_id=power_sensor_id,
+        start=start,
+        end=end,
+        belief_time=server_now(),
+        resolution=factor_sensor.resolution,
+        soc_at_start=soc_at_start,
+        price_sensor=factor_sensor,
+    )
+    if success:
+        print("New schedule is stored.")
 
 
 @fm_add_data.command("external-weather-forecasts")
