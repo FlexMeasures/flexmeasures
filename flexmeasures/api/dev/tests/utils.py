@@ -14,6 +14,7 @@ def make_sensor_data_request_for_gas_sensor(
         "values": num_values * [-11.28],
         "start": "2021-06-07T00:00:00+02:00",
         "duration": duration,
+        "horizon": "PT0H",
         "unit": unit,
     }
     if num_values == 1:
