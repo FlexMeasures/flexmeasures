@@ -832,7 +832,7 @@ def create_forecasts(
     "soc_at_start",
     type=float,
     required=True,
-    help="State of charge at the start of the schedule.",
+    help="State of charge (in MWh) at the start of the schedule.",
 )
 @click.option(
     "--soc-target",
@@ -840,7 +840,7 @@ def create_forecasts(
     type=click.Tuple(types=[float, str]),
     multiple=True,
     required=False,
-    help="Target state of charge at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    help="Target state of charge (in MWh) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
     " This argument can be given multiple times."
     " For example: --soc-target 32.8 2022-02-23T13:40:52+00:00",
 )
@@ -849,21 +849,21 @@ def create_forecasts(
     "soc_min",
     type=float,
     required=False,
-    help="Minimum state of charge for the schedule.",
+    help="Minimum state of charge (in MWh) for the schedule.",
 )
 @click.option(
     "--soc-max",
     "soc_max",
     type=float,
     required=False,
-    help="Maximum state of charge for the schedule.",
+    help="Maximum state of charge (in MWh) for the schedule.",
 )
 @click.option(
     "--roundtrip-efficiency",
     "roundtrip_efficiency",
     type=float,
     required=False,
-    help="Round-trip efficiency to use for the schedule.",
+    help="Round-trip efficiency (e.g. 0.85) to use for the schedule.",
 )
 def create_schedule(
     power_sensor_id: int,
