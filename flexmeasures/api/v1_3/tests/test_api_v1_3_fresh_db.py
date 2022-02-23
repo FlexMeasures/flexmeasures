@@ -38,7 +38,7 @@ def test_post_udi_event_and_get_device_message_with_unknown_prices(
             len(app.queues["scheduling"]) == 1
         )  # only 1 schedule should be made for 1 asset
         job = app.queues["scheduling"].jobs[0]
-        assert job.kwargs["asset_id"] == sensor.id
+        assert job.kwargs["sensor_id"] == sensor.id
         assert job.kwargs["start"] == parse_datetime(message["datetime"])
         assert job.id == message["event"]
         assert (
