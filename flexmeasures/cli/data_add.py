@@ -888,7 +888,7 @@ def create_schedule(
     soc_targets = pd.Series(
         np.nan,
         index=pd.date_range(
-            start, end, freq=factor_sensor.resolution, closed="right"
+            start, end, freq=factor_sensor.event_resolution, closed="right"
         ),  # note that target values are indexed by their due date (i.e. closed="right")
     )
     for soc_target_str in soc_target_strings:
@@ -896,13 +896,14 @@ def create_schedule(
         soc_target_value = float(soc_target_value_str)
         soc_target_datetime = pd.Timestamp(soc_target_dt_str)
         soc_targets.loc[soc_target_datetime] = soc_target_value
+    print(soc_targets)
 
     success = make_schedule(
         sensor_id=power_sensor_id,
         start=start,
         end=end,
         belief_time=server_now(),
-        resolution=factor_sensor.resolution,
+        resolution=factor_sensor.event_resolution,
         soc_at_start=soc_at_start,
         soc_targets=soc_targets,
         soc_min=soc_min,
