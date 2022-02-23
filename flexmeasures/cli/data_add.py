@@ -4,6 +4,7 @@ from datetime import timedelta
 from typing import Dict, List, Optional
 import json
 
+import numpy as np
 import pandas as pd
 import pytz
 from flask import current_app as app
@@ -834,6 +835,16 @@ def create_forecasts(
     help="State of charge at the start of the schedule.",
 )
 @click.option(
+    "--soc-target",
+    "soc_target_strings",
+    type=float,
+    multiple=True,
+    required=False,
+    help="Target state of charge at some datetime. Follow up with a string in the form '(<float value>, <timezone-aware datetime in ISO 6081 format>)'."
+    " This argument can be given multiple times."
+    " For example: --soc-target '(32.8, 2022-02-23T13:40:52+00:00)'",
+)
+@click.option(
     "--soc-min",
     "soc_min",
     type=float,
@@ -860,6 +871,7 @@ def create_schedule(
     start_str: str,
     end_str: str,
     soc_at_start: float,
+    soc_target_strings: List[str],
     soc_min: float,
     soc_max: float,
     roundtrip_efficiency: float,
@@ -873,6 +885,17 @@ def create_schedule(
     factor_sensor = Sensor.query.filter(Sensor.id == factor_sensor_id).one_or_none()
     start = pd.Timestamp(start_str)
     end = pd.Timestamp(end_str)
+    soc_targets = pd.Series(
+        np.nan,
+        index=pd.date_range(
+            start, end, freq=factor_sensor.resolution, closed="right"
+        ),  # note that target values are indexed by their due date (i.e. closed="right")
+    )
+    for soc_target_str in soc_target_strings:
+        soc_target_value_str, soc_target_dt_str = soc_target_str.split(", ")
+        soc_target_value = float(soc_target_value_str)
+        soc_target_datetime = pd.Timestamp(soc_target_dt_str)
+        soc_targets.loc[soc_target_datetime] = soc_target_value
 
     success = make_schedule(
         sensor_id=power_sensor_id,
@@ -881,6 +904,7 @@ def create_schedule(
         belief_time=server_now(),
         resolution=factor_sensor.resolution,
         soc_at_start=soc_at_start,
+        soc_targets=soc_targets,
         soc_min=soc_min,
         soc_max=soc_max,
         roundtrip_efficiency=roundtrip_efficiency,
