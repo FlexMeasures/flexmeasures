@@ -18,6 +18,7 @@ class Annotation(db.Model):
     content = db.Column(db.String(255), nullable=False)
     start = db.Column(db.DateTime(timezone=True), nullable=False)
     end = db.Column(db.DateTime(timezone=True), nullable=False)
+    belief_time = db.Column(db.DateTime(timezone=True), nullable=True)
     source_id = db.Column(db.Integer, db.ForeignKey("data_source.id"))
     source = db.relationship(
         "DataSource",
