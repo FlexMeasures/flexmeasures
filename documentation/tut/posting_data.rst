@@ -21,7 +21,7 @@ Prerequisites
 - FlexMeasures needs some structural meta data for data to be understood. For example, for adding weather data we need to define a weather sensor, and what kind of weather sensors there are. You also need a user account. If you host FlexMeasures yourself, you need to add this info first. Head over to :ref:`getting_started`, where these steps are covered, study our :ref:`cli` or look into plugins which do this like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `flexmeasures-openweathermap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_.
 - You should be familiar with where to find your API endpoints (see :ref:`api_versions`) and how to authenticate against the API (see :ref:`api_auth`).
 
-.. note:: For deeper explanations of the data and the meta fields we'll send here, You can always read the :ref:`api_introduction` , to the FlexMeasures API, e.g. :ref:`signs`, :ref:`resolutions`, :ref:`prognoses` and :ref:`units`.
+.. note:: For deeper explanations of the data and the meta fields we'll send here, You can always read the :ref:`api_introduction`, to the FlexMeasures API, e.g. :ref:`signs`, :ref:`resolutions`, :ref:`prognoses` and :ref:`units`.
 
 .. note:: To address assets and sensors, these tutorials assume entity addresses valid in the namespace ``fm1``. See :ref:`api_introduction` for more explanations. 
 
@@ -244,7 +244,7 @@ A good example for the use of the ``prior`` field are markets, which have cleari
 For example, at the KPX day-ahead auction this is every day at 3pm.
 This point in time (i.e. when contracts are signed) determines the difference between an ex-post observation and an ex-ante forecast.
 
-Another example for the ``prior`` field is running simulations with FlexMeasures. It gives you control over the timing so that you could run a month in the past as-if it happened right now.
+Another example for the ``prior`` field is running simulations with FlexMeasures. It gives you control over the timing so that you could run a month in the past as if it happened right now.
 
 
 .. _posting_flex_states:
