@@ -40,7 +40,6 @@ class WeatherSensorType(db.Model):
         )
         db.session.add(generic_asset_type)
         super(WeatherSensorType, self).__init__(**kwargs)
-        self.name = self.name.replace(" ", "_").lower()
         if "display_name" not in kwargs:
             self.display_name = humanize(self.name)
 
@@ -51,7 +50,7 @@ class WeatherSensorType(db.Model):
 class WeatherSensor(db.Model, tb.SensorDBMixin):
     """
     A weather sensor has a location on Earth and measures weather values of a certain weather sensor type, such as
-    temperature, wind speed and radiation.
+    temperature, wind speed and irradiance.
 
     This model is now considered legacy. See GenericAsset and Sensor.
     """
@@ -80,7 +79,6 @@ class WeatherSensor(db.Model, tb.SensorDBMixin):
     )
 
     def __init__(self, **kwargs):
-        kwargs["name"] = kwargs["name"].replace(" ", "_").lower()
 
         super(WeatherSensor, self).__init__(**kwargs)
 

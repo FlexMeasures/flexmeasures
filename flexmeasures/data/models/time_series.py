@@ -396,7 +396,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
         Can be called with an object that has latitude and longitude properties, for example:
 
-            sensor = Sensor.find_closest("weather_station", "wind_speed", object=generic_asset)
+            sensor = Sensor.find_closest("weather_station", "wind speed", object=generic_asset)
 
         Can also be called with latitude and longitude parameters, for example:
 

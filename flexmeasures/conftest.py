@@ -670,7 +670,7 @@ def create_weather_sensors(db: SQLAlchemy, generic_asset_types) -> Dict[str, Sen
     db.session.add(weather_station)
 
     wind_sensor = Sensor(
-        name="wind_speed",
+        name="wind speed",
         generic_asset=weather_station,
         event_resolution=timedelta(minutes=5),
         unit="m/s",

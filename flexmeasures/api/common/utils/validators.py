@@ -173,9 +173,9 @@ def valid_sensor_units(sensor: str) -> List[str]:
     """
     if sensor == "temperature":
         return ["°C", "0C"]
-    elif sensor == "radiation":
+    elif sensor == "irradiance":
         return ["kW/m²", "kW/m2"]
-    elif sensor == "wind_speed":
+    elif sensor == "wind speed":
         return ["m/s"]
     else:
         raise NotImplementedError(

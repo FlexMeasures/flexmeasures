@@ -104,11 +104,11 @@ def setup_fresh_api_v1_1_test_data(
 
 
 def add_legacy_weather_sensors(db):
-    test_sensor_type = WeatherSensorType(name="wind_speed")
+    test_sensor_type = WeatherSensorType(name="wind speed")
     db.session.add(test_sensor_type)
     wind_sensor = WeatherSensor(
         name="wind_speed_sensor",
-        weather_sensor_type_name="wind_speed",
+        weather_sensor_type_name="wind speed",
         event_resolution=timedelta(minutes=5),
         latitude=33.4843866,
         longitude=126,
@@ -117,7 +117,7 @@ def add_legacy_weather_sensors(db):
     test_sensor_type2 = WeatherSensorType(name="temperature")
     db.session.add(test_sensor_type2)
     temperature_sensor = WeatherSensor(
-        name="teperature_sensor",
+        name="temperature_sensor",
         weather_sensor_type_name="temperature",
         event_resolution=timedelta(minutes=5),
         latitude=33.4843866,

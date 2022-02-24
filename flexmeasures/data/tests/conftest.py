@@ -122,7 +122,7 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_ty
         latitude=100,
         longitude=100,
     )
-    for sensor_name, unit in (("radiation", "kW/m²"), ("wind_speed", "m/s")):
+    for sensor_name, unit in (("irradiance", "kW/m²"), ("wind speed", "m/s")):
         sensor = Sensor(name=sensor_name, generic_asset=weather_station, unit=unit)
         db.session.add(sensor)
         time_slots = pd.date_range(
@@ -131,9 +131,9 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_ty
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
         if sensor_name == "temperature":
             values = [value * 17 for value in values]
-        if sensor_name == "wind_speed":
+        if sensor_name == "wind speed":
             values = [value * 45 for value in values]
-        if sensor_name == "radiation":
+        if sensor_name == "irradiance":
             values = [value * 600 for value in values]
         for dt, val in zip(time_slots, values):
             db.session.add(

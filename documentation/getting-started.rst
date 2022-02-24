@@ -123,23 +123,11 @@ FlexMeasures is also a web-based platform, so we need to create a user to authen
 Add structure
 ^^^^^^^^^^^^^
 
-Populate the database with some standard energy asset types, weather sensor types and a dummy market:
+Populate the database with some standard asset types, user roles etc.: 
 
 .. code-block::
 
    flexmeasures add structure
-
-
-Add your first weather sensor
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Weather plays a role for almost all use cases.
-FlexMeasures supports a few weather sensor types out of the box ("temperature", "wind_speed" and "radiation"), but you need to decide which ones you need and where they are located.
-Let's use the ``flexmeasures`` :ref:`cli` to add one:
-
-.. code-block::
-
-   flexmeasures add weather-sensor --name "my rooftop thermometer" --weather-sensor-type-name temperature --unit °C --event-resolution 15 --latitude 33 --longitude 2.4
 
 
 Add your first asset
