@@ -242,8 +242,8 @@ def get_normalization_transformation_from_sensor_attributes(
     ):
         return BoxCoxTransformation(lambda2=0.1)
     elif sensor.generic_asset.generic_asset_type.name in [
-        "wind_speed",
-        "radiation",
+        "wind speed",
+        "irradiance",
     ]:
         # Values cannot be negative and are often zero
         return BoxCoxTransformation(lambda2=0.1)
