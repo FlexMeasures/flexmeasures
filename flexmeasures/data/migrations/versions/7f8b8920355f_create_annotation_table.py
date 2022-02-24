@@ -145,6 +145,7 @@ def create_annotation_table():
         sa.Column("content", sa.String(255), nullable=False),
         sa.Column("start", sa.DateTime(timezone=True), nullable=False),
         sa.Column("end", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("belief_time", sa.DateTime(timezone=True), nullable=True),
         sa.Column("source_id", sa.Integer(), nullable=False),
         sa.Column(
             "type",
