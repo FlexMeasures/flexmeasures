@@ -30,6 +30,7 @@ class Annotation(db.Model):
         db.UniqueConstraint(
             "content",
             "start",
+            "belief_time",
             "source_id",
             "type",
             name="annotation_content_key",

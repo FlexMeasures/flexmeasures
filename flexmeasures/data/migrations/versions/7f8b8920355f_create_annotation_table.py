@@ -157,5 +157,5 @@ def create_annotation_table():
     op.create_unique_constraint(
         op.f("annotation_content_key"),
         "annotation",
-        ["content", "start", "source_id", "type"],
+        ["content", "start", "belief_time", "source_id", "type"],
     )
