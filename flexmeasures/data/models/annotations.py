@@ -1,4 +1,7 @@
 from datetime import timedelta
+from typing import List
+
+import pandas as pd
 
 from flexmeasures.data import db
 
@@ -42,6 +45,50 @@ class Annotation(db.Model):
     @property
     def duration(self) -> timedelta:
         return self.end - self.start
+
+    @classmethod
+    def save(
+        cls, df: pd.DataFrame, annotation_type: str, commit_session: bool = False
+    ) -> List["Annotation"]:
+        """Save a data frame with annotations.
+
+        Expects the following columns (or multi-index levels):
+        - start
+        - end or duration
+        - content
+        - belief_time
+        - source
+        """
+        df = df.reset_index()
+        starts = df["start"]
+        if "end" in df.columns:
+            ends = df["end"]
+        elif "start" in df.columns and "duration" in df.columns:
+            ends = df["start"] + df["duration"]
+        else:
+            raise ValueError(
+                "Missing 'end' column cannot be derived from columns 'start' and 'duration'."
+            )
+        values = df["content"]
+        belief_times = df["belief_time"]
+        sources = df["source"]
+        annotations = [
+            cls(
+                content=row[0],
+                start=row[1],
+                end=row[2],
+                belief_time=row[3],
+                source=row[4],
+                type=annotation_type,
+            )
+            for row in zip(values, starts, ends, belief_times, sources)
+        ]
+        db.session.add_all(annotations)
+
+        if commit_session:
+            db.session.commit()
+
+        return annotations
 
     def __repr__(self) -> str:
         return f"<Annotation {self.id}: {self.content} ({self.type}), start: {self.start} end: {self.end}, source: {self.source}>"
