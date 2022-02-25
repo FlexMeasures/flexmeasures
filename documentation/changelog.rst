@@ -17,7 +17,7 @@ New features
 
 * Add CLI command for attaching annotations to assets: ``flexmeasures add holidays`` adds public holidays [see `PR #343 <http://www.github.com/FlexMeasures/flexmeasures/pull/343>`_]
 * Add CLI command for resampling existing sensor data to new resolution [see `PR #360 <http://www.github.com/FlexMeasures/flexmeasures/pull/360>`_]
-* Add CLI command to add a toy-account for tutorials and trying things [see `PR #368 <http://www.github.com/FlexMeasures/flexmeasures/pull/368>`_].
+* Add CLI command to add a toy account for tutorials and trying things [see `PR #368 <http://www.github.com/FlexMeasures/flexmeasures/pull/368>`_].
 * Support for percent (%) and permille (‰) sensor units [see `PR #359 <http://www.github.com/FlexMeasures/flexmeasures/pull/359>`_]
 
 Bugfixes

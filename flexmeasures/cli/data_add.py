@@ -830,7 +830,7 @@ def add_toy_account(kind: str, name: str):
             user_roles=["account-admin"],
             account_name=name,
         )
-        # make solar asset
+        # make assets
         for asset_type in ("solar", "building", "battery"):
             asset = GenericAsset(
                 name=f"toy-{asset_type}",
@@ -841,7 +841,9 @@ def add_toy_account(kind: str, name: str):
             )
             db.session.add(asset)
             if asset_type == "battery":
-                asset.attributes = dict(capacity_in_mw=0.005)
+                asset.attributes = dict(
+                    capacity_in_mw=0.005, min_soc_in_mwh=0.0005, max_soc_in_mwh=0.0045
+                )
                 # add charging sensor to battery
                 charging_sensor = Sensor(
                     name="charging",
@@ -852,7 +854,7 @@ def add_toy_account(kind: str, name: str):
                 )
                 db.session.add(charging_sensor)
 
-        # add public day-ahead market (as sensor of transmission zone asset?)
+        # add public day-ahead market (as sensor of transmission zone asset)
         nl_zone = add_transmission_zone_asset("NL", db=db)
         day_ahead_sensor = Sensor.query.filter(
             Sensor.generic_asset == nl_zone, Sensor.name == "Day ahead prices"
