@@ -10,10 +10,7 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data import db
-from flexmeasures.data.models.annotations import (
-    Annotation,
-    GenericAssetAnnotationRelationship,
-)
+from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User

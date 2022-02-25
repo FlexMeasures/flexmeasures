@@ -1,2 +1,2 @@
-from .generic_assets import GenericAssetField as AssetField
-from .times import AwareDateTimeField, DurationField
+from .generic_assets import GenericAssetField as AssetField  # noqa F401
+from .times import AwareDateTimeField, DurationField  # noqa F401
