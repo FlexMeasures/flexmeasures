@@ -229,6 +229,25 @@ class GenericAsset(db.Model, AuthModelMixin):
             )
         return annotations
 
+    def count_annotations(
+        self,
+        annotation_starts_after: Optional[datetime] = None,
+        annotation_ends_before: Optional[datetime] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
+        annotation_type: str = None,
+    ) -> int:
+        """Count the number of annotations assigned to this asset."""
+        parsed_sources = parse_source_arg(source)
+        return query_asset_annotations(
+            asset_id=self.id,
+            annotation_starts_after=annotation_starts_after,
+            annotation_ends_before=annotation_ends_before,
+            sources=parsed_sources,
+            annotation_type=annotation_type,
+        ).count()
+
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
     """Create a GenericAsset and assigns it an id.
