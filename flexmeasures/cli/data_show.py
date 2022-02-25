@@ -4,6 +4,7 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from tabulate import tabulate
+from humanize import naturaldelta, naturaltime
 
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
@@ -71,7 +72,7 @@ def list_roles():
 
 @fm_show_data.command("account")
 @with_appcontext
-@click.option("--account-id", type=int, required=True)
+@click.option("--id", "account_id", type=int, required=True)
 def show_account(account_id):
     """
     Show information about an account, including users and assets.
@@ -103,7 +104,7 @@ def show_account(account_id):
                 user.id,
                 user.username,
                 user.email,
-                user.last_login_at,
+                naturaltime(user.last_login_at),
                 "".join([role.name for role in user.roles]),
             )
             for user in users
@@ -149,7 +150,7 @@ def list_asset_types():
 
 @fm_show_data.command("asset")
 @with_appcontext
-@click.option("--asset-id", type=int, required=True)
+@click.option("--id", "asset_id", type=int, required=True)
 def show_generic_asset(asset_id):
     """
     Show asset info and list sensors
@@ -185,7 +186,7 @@ def show_generic_asset(asset_id):
             sensor.id,
             sensor.name,
             sensor.unit,
-            sensor.event_resolution,
+            naturaldelta(sensor.event_resolution),
             sensor.timezone,
             "".join([f"{k}:{v}\n" for k, v in sensor.attributes.items()]),
         )

@@ -143,13 +143,12 @@ def create_user(  # noqa: C901
         print(f"Creating account {account_name} ...")
         account = Account(name=account_name)
         db.session.add(account)
-        db.session.flush()
 
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
     kwargs.update(password=hash_password(password), email=email, username=username)
     user = user_datastore.create_user(**kwargs)
 
-    user.account_id = account.id
+    user.account = account
 
     # add roles to user (creating new roles if necessary)
     if user_roles:
@@ -168,7 +167,6 @@ def create_user(  # noqa: C901
             user_datastore.add_role_to_user(user, role)
 
     # create data source
-    db.session.flush()
     db.session.add(DataSource(user=user))
 
     return user
