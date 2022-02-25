@@ -24,7 +24,9 @@ class Annotation(db.Model):
         foreign_keys=[source_id],
         backref=db.backref("annotations", lazy=True),
     )
-    type = db.Column(db.Enum("alert", "holiday", "label", name="annotation_type"))
+    type = db.Column(
+        db.Enum("alert", "holiday", "label", "feedback", name="annotation_type")
+    )
     content = db.Column(db.String(1024), nullable=False)
     __table_args__ = (
         db.UniqueConstraint(
