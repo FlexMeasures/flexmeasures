@@ -24,6 +24,10 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
+from flexmeasures.data.models.validation_utils import (
+    check_required_attributes,
+    MissingAttributeException,
+)
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.generic_assets import (
@@ -901,13 +905,12 @@ def create_schedule(
         raise click.Abort()
     start = pd.Timestamp(start_str)
     end = pd.Timestamp(end_str)
-    # check required attributes
-    if power_sensor.get_attribute("min_soc_in_mwh") is None:
-        click.echo(f"{power_sensor} has no 'min_soc_in_mwh' attribute.")
-        raise click.Abort()
-    if power_sensor.get_attribute("max_soc_in_mwh") is None:
-        click.echo(f"{power_sensor} has no 'max_soc_in_mwh' attribute.")
-        raise click.Abort()
+    for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
+        try:
+            check_required_attributes(power_sensor, [(attribute, float)])
+        except MissingAttributeException:
+            click.echo(f"{power_sensor} has no {attribute} attribute.")
+            raise click.Abort()
     soc_targets = pd.Series(
         np.nan,
         index=pd.date_range(
