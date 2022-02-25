@@ -901,21 +901,12 @@ def create_schedule(
         raise click.Abort()
     start = pd.Timestamp(start_str)
     end = pd.Timestamp(end_str)
-    if (
-        soc_min is None
-        and power_sensor.generic_asset.get_attribute("min_soc_in_mwh") is None
-    ):
-        click.echo(
-            f"No --soc-min given and sensor {power_sensor.generic_asset} has no 'min_soc_in_mwh' attribute."
-        )
+    # check required attributes
+    if power_sensor.get_attribute("min_soc_in_mwh") is None:
+        click.echo(f"{power_sensor} has no 'min_soc_in_mwh' attribute.")
         raise click.Abort()
-    if (
-        soc_max is None
-        and power_sensor.generic_asset.get_attribute("max_soc_in_mwh") is None
-    ):
-        click.echo(
-            f"No --soc-max given and sensor {power_sensor.generic_asset} has no 'max_soc_in_mwh' attribute."
-        )
+    if power_sensor.get_attribute("max_soc_in_mwh") is None:
+        click.echo(f"{power_sensor} has no 'max_soc_in_mwh' attribute.")
         raise click.Abort()
     soc_targets = pd.Series(
         np.nan,
