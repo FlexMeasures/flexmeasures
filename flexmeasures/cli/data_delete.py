@@ -299,7 +299,7 @@ def delete_nan_beliefs(sensor_id: Optional[int] = None):
 @with_appcontext
 @click.option(
     "--id",
-    "--sensor-id",
+    "sensor_id",
     type=int,
     required=True,
     help="Delete a single sensor and its (time series) data. Follow up with the sensor's ID.",
