@@ -863,7 +863,7 @@ def create_forecasts(
     "roundtrip_efficiency",
     type=float,
     required=False,
-    help="Round-trip efficiency (e.g. 0.85) to use for the schedule.",
+    help="Round-trip efficiency (e.g. 0.85) to use for the schedule. Defaults to 1 (no losses).",
 )
 def create_schedule(
     power_sensor_id: int,
@@ -872,9 +872,9 @@ def create_schedule(
     end_str: str,
     soc_at_start: float,
     soc_target_strings: List[Tuple[float, str]],
-    soc_min: float,
-    soc_max: float,
-    roundtrip_efficiency: float,
+    soc_min: Optional[float],
+    soc_max: Optional[float],
+    roundtrip_efficiency: Optional[float],
 ):
     """Create a new schedule for a given power sensor.
 
@@ -884,10 +884,39 @@ def create_schedule(
     """
 
     # Parse input
-    power_sensor = Sensor.query.filter(Sensor.id == power_sensor_id).one_or_none()
-    factor_sensor = Sensor.query.filter(Sensor.id == factor_sensor_id).one_or_none()
+    power_sensor: Sensor = Sensor.query.filter(
+        Sensor.id == power_sensor_id
+    ).one_or_none()
+    if power_sensor is None:
+        click.echo(f"No sensor found with Id {power_sensor_id}.")
+        raise click.Abort()
+    if not power_sensor.measures_power:
+        click.echo(f"Sensor with Id {power_sensor_id} is not a power sensor.")
+        raise click.Abort()
+    factor_sensor: Sensor = Sensor.query.filter(
+        Sensor.id == factor_sensor_id
+    ).one_or_none()
+    if factor_sensor is None:
+        click.echo(f"No sensor found with Id {factor_sensor_id}.")
+        raise click.Abort()
     start = pd.Timestamp(start_str)
     end = pd.Timestamp(end_str)
+    if (
+        soc_min is None
+        and power_sensor.generic_asset.get_attribute("min_soc_in_mwh") is None
+    ):
+        click.echo(
+            f"No --soc-min given and sensor {power_sensor.generic_asset} has no 'min_soc_in_mwh' attribute."
+        )
+        raise click.Abort()
+    if (
+        soc_max is None
+        and power_sensor.generic_asset.get_attribute("max_soc_in_mwh") is None
+    ):
+        click.echo(
+            f"No --soc-max given and sensor {power_sensor.generic_asset} has no 'max_soc_in_mwh' attribute."
+        )
+        raise click.Abort()
     soc_targets = pd.Series(
         np.nan,
         index=pd.date_range(
