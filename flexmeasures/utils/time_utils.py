@@ -7,7 +7,6 @@ from humanize import naturaldate, naturaltime
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 import pytz
-import tzlocal
 from dateutil import tz
 
 
@@ -105,19 +104,24 @@ def naturalized_datetime_str(
         return "never"
     if now is None:
         now = datetime.utcnow()
-    # humanize uses the local now internally, so let's make dt local
+    naive_utc_now = naive_utc_from(now)
+
+    # Convert or localize to utc
     if dt.tzinfo is None:
-        local_dt = (
-            dt.replace(tzinfo=pytz.utc)
-            .astimezone(tzlocal.get_localzone())
-            .replace(tzinfo=None)
+        dt = pd.Timestamp(dt).tz_localize("utc")
+    else:
+        dt = pd.Timestamp(dt).tz_convert("utc")
+
+    # decide which humanize call to use for naturalization
+    if naive_utc_from(dt) >= naive_utc_now - timedelta(hours=24):
+        # return natural time (naive utc dt with respect to naive utc now)
+        return naturaltime(
+            dt.replace(tzinfo=None),
+            when=naive_utc_now,
         )
     else:
-        local_dt = dt.astimezone(tzlocal.get_localzone()).replace(tzinfo=None)
-    # decide which humanize call to use for naturalization
-    if naive_utc_from(dt) >= naive_utc_from(now) - timedelta(hours=24):
-        return naturaltime(local_dt)
-    else:
+        # return natural date in the user's timezone
+        local_dt = dt.tz_convert(get_timezone(of_user=True))
         return naturaldate(local_dt)
 
 
