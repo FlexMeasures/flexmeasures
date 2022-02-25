@@ -140,7 +140,7 @@ def new_user(
         raise click.Abort
     account = db.session.query(Account).get(account_id)
     if account is None:
-        print(f"No account with id {account_id} found!")
+        print(f"No account with ID {account_id} found!")
         raise click.Abort
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
@@ -462,7 +462,7 @@ def add_beliefs(
     """
     sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
     if sensor is None:
-        print(f"Failed to create beliefs: no sensor found with id {sensor_id}.")
+        print(f"Failed to create beliefs: no sensor found with ID {sensor_id}.")
         return
     if source.isdigit():
         _source = get_source_or_none(int(source), source_type="CLI script")
@@ -895,16 +895,16 @@ def create_schedule(
         Sensor.id == power_sensor_id
     ).one_or_none()
     if power_sensor is None:
-        click.echo(f"No sensor found with Id {power_sensor_id}.")
+        click.echo(f"No sensor found with ID {power_sensor_id}.")
         raise click.Abort()
     if not power_sensor.measures_power:
-        click.echo(f"Sensor with Id {power_sensor_id} is not a power sensor.")
+        click.echo(f"Sensor with ID {power_sensor_id} is not a power sensor.")
         raise click.Abort()
     factor_sensor: Sensor = Sensor.query.filter(
         Sensor.id == factor_sensor_id
     ).one_or_none()
     if factor_sensor is None:
-        click.echo(f"No sensor found with Id {factor_sensor_id}.")
+        click.echo(f"No sensor found with ID {factor_sensor_id}.")
         raise click.Abort()
     start = pd.Timestamp(start_str)
     end = pd.Timestamp(end_str)
