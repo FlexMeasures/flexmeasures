@@ -15,9 +15,9 @@ class Annotation(db.Model):
     """
 
     id = db.Column(db.Integer, nullable=False, autoincrement=True, primary_key=True)
-    content = db.Column(db.String(255), nullable=False)
     start = db.Column(db.DateTime(timezone=True), nullable=False)
     end = db.Column(db.DateTime(timezone=True), nullable=False)
+    belief_time = db.Column(db.DateTime(timezone=True), nullable=True)
     source_id = db.Column(db.Integer, db.ForeignKey("data_source.id"))
     source = db.relationship(
         "DataSource",
@@ -25,10 +25,12 @@ class Annotation(db.Model):
         backref=db.backref("annotations", lazy=True),
     )
     type = db.Column(db.Enum("alert", "holiday", "label", name="annotation_type"))
+    content = db.Column(db.String(1024), nullable=False)
     __table_args__ = (
         db.UniqueConstraint(
             "content",
             "start",
+            "belief_time",
             "source_id",
             "type",
             name="annotation_content_key",

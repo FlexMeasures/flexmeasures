@@ -115,7 +115,7 @@ class AssetGroup:
 
     def is_eligible_for_comparing_individual_traces(self, max_traces: int = 7) -> bool:
         """
-        Decide whether comparing individual traces for assets in this resource
+        Decide whether comparing individual traces for assets in this asset group
         is a useful feature.
         The number of assets that can be compared is parametrizable with max_traces.
         Plot colors are reused if max_traces > 7, and run out if max_traces > 105.
