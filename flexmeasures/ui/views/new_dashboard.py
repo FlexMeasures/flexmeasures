@@ -36,12 +36,7 @@ def new_dashboard_view():
     map_asset_groups = {}
     for asset_group_name, asset_group_query in asset_groups.items():
         asset_group = AssetGroup(asset_group_name, asset_query=asset_group_query)
-        if any(
-            [
-                a.location and (a.has_power_sensors or a.has_energy_sensors)
-                for a in asset_group.assets
-            ]
-        ):
+        if any([a.location for a in asset_group.assets]):
             map_asset_groups[asset_group_name] = asset_group
 
     # Pack CDN resources (from pandas_bokeh/base.py)

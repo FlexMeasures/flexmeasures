@@ -16,6 +16,11 @@ import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures.data import db
+from flexmeasures.data.scripts.data_gen import (
+    add_transmission_zone_asset,
+    populate_initial_structure,
+    add_default_asset_types,
+)
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule
 from flexmeasures.data.services.users import create_user
@@ -303,13 +308,11 @@ def add_weather_sensor(**args):
     print(f" You can access it at its entity address {sensor.entity_address}")
 
 
-@fm_add_data.command("structure")
+@fm_add_data.command("initial-structure")
 @with_appcontext
 def add_initial_structure():
     """Initialize useful structural data."""
-    from flexmeasures.data.scripts.data_gen import populate_structure
-
-    populate_structure(db)
+    populate_initial_structure(db)
 
 
 @fm_add_data.command("beliefs")
@@ -938,6 +941,82 @@ def create_schedule(
     )
     if success:
         print("New schedule is stored.")
+
+
+@fm_add_data.command("toy-account")
+@with_appcontext
+@click.option(
+    "--kind",
+    default="battery",
+    type=click.Choice(["battery"]),
+    help="What kind of toy account. Defaults to a battery.",
+)
+@click.option("--name", type=str, default="Toy Account", help="Name of the account")
+def add_toy_account(kind: str, name: str):
+    """
+    Create a toy account, for tutorials and trying things.
+    """
+    asset_types = add_default_asset_types(db=db)
+    location = (52.374, 4.88969)  # Amsterdam
+    if kind == "battery":
+        # make an account (if not exist)
+        account = Account.query.filter(Account.name == name).one_or_none()
+        if account:
+            click.echo(f"Account {name} already exists. Aborting ...")
+            raise click.Abort()
+        # make an account user (account-admin?)
+        user = create_user(
+            email="toy-user@flexmeasures.io",
+            check_email_deliverability=False,
+            password="toy-password",
+            user_roles=["account-admin"],
+            account_name=name,
+        )
+        # make assets
+        for asset_type in ("solar", "building", "battery"):
+            asset = GenericAsset(
+                name=f"toy-{asset_type}",
+                generic_asset_type=asset_types[asset_type],
+                owner=user.account,
+                latitude=location[0],
+                longitude=location[1],
+            )
+            db.session.add(asset)
+            if asset_type == "battery":
+                asset.attributes = dict(
+                    capacity_in_mw=0.005, min_soc_in_mwh=0.0005, max_soc_in_mwh=0.0045
+                )
+                # add charging sensor to battery
+                charging_sensor = Sensor(
+                    name="charging",
+                    generic_asset=asset,
+                    unit="kW",
+                    timezone="Europe/Amsterdam",
+                    event_resolution=timedelta(minutes=15),
+                )
+                db.session.add(charging_sensor)
+
+        # add public day-ahead market (as sensor of transmission zone asset)
+        nl_zone = add_transmission_zone_asset("NL", db=db)
+        day_ahead_sensor = Sensor.query.filter(
+            Sensor.generic_asset == nl_zone, Sensor.name == "Day ahead prices"
+        ).one_or_none()
+        if not day_ahead_sensor:
+            day_ahead_sensor = Sensor(
+                name="Day ahead prices",
+                generic_asset=nl_zone,
+                unit="EUR/MWh",
+                timezone="Europe/Amsterdam",
+                event_resolution=timedelta(minutes=60),
+            )
+        db.session.add(day_ahead_sensor)
+
+    db.session.commit()
+
+    click.echo(
+        f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
+    )
+    click.echo(f"The sensor for Day ahead prices is {day_ahead_sensor}.")
 
 
 @fm_add_data.command("external-weather-forecasts")

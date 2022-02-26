@@ -144,7 +144,7 @@ def delete_structure(force):
 
     TODO: This could in our future data model (currently in development) be replaced by
     `flexmeasures delete generic-asset-type`, `flexmeasures delete generic-asset`
-    and `flexmeasures delete sensor`.
+    and so on.
     """
     if not force:
         confirm_deletion(structure=True)
@@ -298,7 +298,8 @@ def delete_nan_beliefs(sensor_id: Optional[int] = None):
 @fm_delete_data.command("sensor")
 @with_appcontext
 @click.option(
-    "--sensor-id",
+    "--id",
+    "sensor_id",
     type=int,
     required=True,
     help="Delete a single sensor and its (time series) data. Follow up with the sensor's ID.",

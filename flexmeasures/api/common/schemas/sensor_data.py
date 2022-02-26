@@ -13,6 +13,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import (
     convert_units,
     units_are_convertible,
@@ -69,9 +70,8 @@ class SensorDataDescriptionSchema(ma.Schema):
     sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
     start = AwareDateTimeField(required=True, format="iso")
     duration = DurationField(required=True)
-    horizon = DurationField(
-        required=False, load_default=timedelta(hours=0), dump_default=timedelta(hours=0)
-    )
+    horizon = DurationField(required=False)
+    prior = AwareDateTimeField(required=False, format="iso")
     unit = fields.Str(required=True)
 
     @validates_schema
@@ -189,9 +189,18 @@ class SensorDataSchema(SensorDataDescriptionSchema):
             freq=event_resolution,
         )
         s = pd.Series(sensor_data["values"], index=dt_index)
+
+        # Work out what the recording time should be
+        belief_timing = {}
+        if "prior" in sensor_data:
+            belief_timing["belief_time"] = sensor_data["prior"]
+        elif "horizon" in sensor_data:
+            belief_timing["belief_horizon"] = sensor_data["horizon"]
+        else:
+            belief_timing["belief_time"] = server_now()
         return BeliefsDataFrame(
             s,
             source=source,
             sensor=sensor_data["sensor"],
-            belief_horizon=sensor_data["horizon"],
+            **belief_timing,
         )
