@@ -756,7 +756,6 @@ def create_forecasts(
         )
 
 
-
 @fm_add_data.command("toy-account")
 @with_appcontext
 @click.option(
