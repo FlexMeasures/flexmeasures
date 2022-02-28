@@ -937,12 +937,12 @@ def create_schedule(
     # Convert SoC units if needed
     if soc_unit != "MWh":
         capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
-        soc_at_start = convert_units(
-            soc_at_start, soc_unit, "MWh", capacity=capacity_str
-        )
+        soc_at_start = convert_units(soc_at_start, soc_unit, "MWh", capacity=capacity_str)  # type: ignore
         soc_targets = convert_units(soc_targets, soc_unit, "MWh", capacity=capacity_str)
-        soc_min = convert_units(soc_min, soc_unit, "MWh", capacity=capacity_str)
-        soc_max = convert_units(soc_max, soc_unit, "MWh", capacity=capacity_str)
+        if soc_min is not None:
+            soc_min = convert_units(soc_min, soc_unit, "MWh", capacity=capacity_str)  # type: ignore
+        if soc_max is not None:
+            soc_max = convert_units(soc_max, soc_unit, "MWh", capacity=capacity_str)  # type: ignore
 
     success = make_schedule(
         sensor_id=power_sensor_id,
