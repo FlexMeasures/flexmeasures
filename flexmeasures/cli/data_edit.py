@@ -20,89 +20,19 @@ def fm_edit_data():
     """FlexMeasures: Edit data."""
 
 
-@fm_edit_data.command("asset-attribute")
+@fm_edit_data.command("attribute")
 @with_appcontext
 @click.option(
     "--asset-id",
     "asset",
-    required=True,
+    required=False,
     type=GenericAssetField(),
     help="Add/edit attribute to this asset. Follow up with the asset's ID.",
 )
 @click.option(
-    "--attribute",
-    "attribute_key",
-    required=True,
-    help="Add/edit this attribute. Follow up with the name of the asset attribute.",
-)
-@click.option(
-    "--float",
-    "attribute_float_value",
-    required=False,
-    type=float,
-    help="Set the asset attribute to this float value.",
-)
-@click.option(
-    "--bool",
-    "attribute_bool_value",
-    required=False,
-    type=bool,
-    help="Set the asset attribute to this bool value.",
-)
-@click.option(
-    "--str",
-    "attribute_str_value",
-    required=False,
-    type=str,
-    help="Set the asset attribute to this string value.",
-)
-@click.option(
-    "--int",
-    "attribute_int_value",
-    required=False,
-    type=int,
-    help="Set the asset attribute to this integer value.",
-)
-@click.option(
-    "--null",
-    "attribute_null_value",
-    required=False,
-    is_flag=True,
-    default=False,
-    help="Set the asset attribute to a null value.",
-)
-def edit_asset_attribute(
-    asset: GenericAsset,
-    attribute_key: str,
-    attribute_float_value: float,
-    attribute_bool_value: bool,
-    attribute_str_value: str,
-    attribute_int_value: int,
-    attribute_null_value: bool,
-):
-    """Edit (or add) an asset attribute."""
-
-    # Parse attribute value
-    attribute_value = parse_attribute_value(
-        attribute_float_value=attribute_float_value,
-        attribute_bool_value=attribute_bool_value,
-        attribute_str_value=attribute_str_value,
-        attribute_int_value=attribute_int_value,
-        attribute_null_value=attribute_null_value,
-    )
-
-    # Set attribute
-    asset.attributes[attribute_key] = attribute_value
-    db.session.add(asset)
-    db.session.commit()
-
-
-@fm_edit_data.command("sensor-attribute")
-@with_appcontext
-@click.option(
     "--sensor-id",
     "sensor",
-    required=True,
+    required=False,
     type=SensorField(),
     help="Add/edit attribute to this sensor. Follow up with the sensor's ID.",
 )
@@ -110,35 +40,35 @@ def edit_asset_attribute(
     "--attribute",
     "attribute_key",
     required=True,
-    help="Add/edit this attribute. Follow up with the name of the sensor attribute.",
+    help="Add/edit this attribute. Follow up with the name of the attribute.",
 )
 @click.option(
     "--float",
     "attribute_float_value",
     required=False,
     type=float,
-    help="Set the sensor attribute to this float value.",
+    help="Set the attribute to this float value.",
 )
 @click.option(
     "--bool",
     "attribute_bool_value",
     required=False,
     type=bool,
-    help="Set the sensor attribute to this bool value.",
+    help="Set the attribute to this bool value.",
 )
 @click.option(
     "--str",
     "attribute_str_value",
     required=False,
     type=str,
-    help="Set the sensor attribute to this string value.",
+    help="Set the attribute to this string value.",
 )
 @click.option(
     "--int",
     "attribute_int_value",
     required=False,
     type=int,
-    help="Set the sensor attribute to this integer value.",
+    help="Set the attribute to this integer value.",
 )
 @click.option(
     "--null",
@@ -146,18 +76,22 @@ def edit_asset_attribute(
     required=False,
     is_flag=True,
     default=False,
-    help="Set the sensor attribute to a null value.",
+    help="Set the attribute to a null value.",
 )
-def edit_sensor_attribute(
-    sensor: Sensor,
+def edit_asset_attribute(
     attribute_key: str,
-    attribute_float_value: float,
-    attribute_bool_value: bool,
-    attribute_str_value: str,
-    attribute_int_value: int,
     attribute_null_value: bool,
+    asset: Optional[GenericAsset] = None,
+    sensor: Optional[Sensor] = None,
+    attribute_float_value: Optional[float] = None,
+    attribute_bool_value: Optional[bool] = None,
+    attribute_str_value: Optional[str] = None,
+    attribute_int_value: Optional[int] = None,
 ):
-    """Edit (or add) a sensor attribute."""
+    """Edit (or add) an asset attribute or sensor attribute."""
+
+    if asset is None and sensor is None:
+        raise ValueError("Missing flag: pass an --asset-id or --sensor-id.")
 
     # Parse attribute value
     attribute_value = parse_attribute_value(
@@ -169,8 +103,12 @@ def edit_sensor_attribute(
     )
 
     # Set attribute
-    sensor.attributes[attribute_key] = attribute_value
-    db.session.add(sensor)
+    if asset is not None:
+        asset.attributes[attribute_key] = attribute_value
+        db.session.add(asset)
+    if sensor is not None:
+        sensor.attributes[attribute_key] = attribute_value
+        db.session.add(sensor)
     db.session.commit()
 
 
