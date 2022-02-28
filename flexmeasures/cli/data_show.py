@@ -244,10 +244,10 @@ def list_data_sources():
     help="Duration of the plot, after start_str. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
 @click.option(
-    "--horizon",
-    "horizon_str",
+    "--belief-time-before",
+    "belief_time_before_str",
     required=False,
-    help="Horizon of the beliefs to be shown. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes). If not given, and there are multiple in the data, this command will not work.",
+    help="Time at which beliefs had been known. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--source-id",
@@ -260,7 +260,7 @@ def plot_beliefs(
     sensor_ids: List[int],
     start_str: str,
     duration_str: str,
-    horizon_str: Optional[str],
+    belief_time_before_str: Optional[str],
     source_id: Optional[int],
 ):
     """
@@ -276,10 +276,10 @@ def plot_beliefs(
         sensor_names.append(sensor.name)
     start = isodate.parse_datetime(start_str)  # TODO: make sure it has a tz
     duration = isodate.parse_duration(duration_str)
-    # handle horizon
-    horizon = None
-    if horizon_str:
-        horizon = isodate.parse_duration(horizon_str)
+    # handle belief time
+    belief_time_before = None
+    if belief_time_before_str:
+        belief_time_before = isodate.parse_datetime(belief_time_before_str)
     # handle source
     source: DataSource = None
     if source_id:
@@ -292,7 +292,7 @@ def plot_beliefs(
         sensors=list(sensor_ids),
         event_starts_after=start,
         event_ends_before=start + duration,
-        # TODO: reflect horizon here
+        beliefs_before=belief_time_before,
         source=source,
         sum_multiple=False,
     )
@@ -308,16 +308,14 @@ def plot_beliefs(
     sensor_names = beliefs_by_sensor.keys()
     first_df = list(beliefs_by_sensor.values())[0]
 
-    # TODO: if horizon=None, check if multiple horizons are in data, complain
-
     # Build title
     if len(sensor_ids) == 1:
         title = f"Beliefs for Sensor '{sensor_names[0]}' (Id {sensor_ids[0]}).\n"
     else:
         title = f"Beliefs for Sensor(s) [{','.join(sensor_names)}], (Id(s): [{','.join([str(sid) for sid in sensor_ids])}]).\n"
     title += f"Data spans {naturaldelta(duration)} and starts at {start}."
-    if horizon:
-        title += f"\n Horizon: {horizon.name}"
+    if belief_time_before:
+        title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.name}"
     if len(beliefs_by_sensor.values()) == 1:
