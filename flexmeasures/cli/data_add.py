@@ -839,7 +839,7 @@ def create_forecasts(
     "soc_at_start",
     type=float,
     required=True,
-    help="State of charge (in MWh) at the start of the schedule.",
+    help="State of charge (in %) at the start of the schedule. Use --soc-unit to set a different unit.",
 )
 @click.option(
     "--soc-target",
@@ -847,7 +847,8 @@ def create_forecasts(
     type=click.Tuple(types=[float, str]),
     multiple=True,
     required=False,
-    help="Target state of charge (in MWh) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    help="Target state of charge (in %) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    " Use --soc-unit to set a different unit."
     " This argument can be given multiple times."
     " For example: --soc-target 32.8 2022-02-23T13:40:52+00:00",
 )
@@ -856,14 +857,14 @@ def create_forecasts(
     "soc_min",
     type=float,
     required=False,
-    help="Minimum state of charge (in MWh) for the schedule.",
+    help="Minimum state of charge (in %) for the schedule. Use --soc-unit to set a different unit.",
 )
 @click.option(
     "--soc-max",
     "soc_max",
     type=float,
     required=False,
-    help="Maximum state of charge (in MWh) for the schedule.",
+    help="Maximum state of charge (in %) for the schedule. Use --soc-unit to set a different unit.",
 )
 @click.option(
     "--roundtrip-efficiency",
@@ -871,6 +872,12 @@ def create_forecasts(
     type=float,
     required=False,
     help="Round-trip efficiency (e.g. 0.85) to use for the schedule. Defaults to 1 (no losses).",
+)
+@click.option(
+    "--soc-unit",
+    "soc_unit",
+    default="%",
+    help="Unit of the passed SoC values, such as 'MWh', 'kWh' or '%' (the default).",
 )
 def create_schedule(
     power_sensor_id: int,
@@ -882,6 +889,7 @@ def create_schedule(
     soc_min: Optional[float],
     soc_max: Optional[float],
     roundtrip_efficiency: Optional[float],
+    soc_unit: str = "%",
 ):
     """Create a new schedule for a given power sensor.
 
@@ -925,6 +933,16 @@ def create_schedule(
         soc_target_value = float(soc_target_value_str)
         soc_target_datetime = pd.Timestamp(soc_target_dt_str)
         soc_targets.loc[soc_target_datetime] = soc_target_value
+
+    # Convert SoC units if needed
+    if soc_unit != "MWh":
+        capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
+        soc_at_start = convert_units(
+            soc_at_start, soc_unit, "MWh", capacity=capacity_str
+        )
+        soc_targets = convert_units(soc_targets, soc_unit, "MWh", capacity=capacity_str)
+        soc_min = convert_units(soc_min, soc_unit, "MWh", capacity=capacity_str)
+        soc_max = convert_units(soc_max, soc_unit, "MWh", capacity=capacity_str)
 
     success = make_schedule(
         sensor_id=power_sensor_id,
