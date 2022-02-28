@@ -5,7 +5,6 @@ from flask import current_app
 import click
 import numpy as np
 import pandas as pd
-import pytz
 from rq import get_current_job
 from rq.job import Job
 import timely_beliefs as tb
