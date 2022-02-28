@@ -26,6 +26,7 @@ def schedule_charging_station(
     roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
     price_sensor: Optional[Sensor] = None,
+    round_to_decimals: Optional[int] = 6,
 ) -> Union[Series, None]:
     """Schedule a charging station asset based directly on the latest beliefs regarding market prices within the specified time
     window.
@@ -138,5 +139,9 @@ def schedule_charging_station(
         )
     else:
         charging_station_schedule = ems_schedule[0]
+
+    # Round schedule
+    if round_to_decimals:
+        charging_station_schedule = charging_station_schedule.round(round_to_decimals)
 
     return charging_station_schedule

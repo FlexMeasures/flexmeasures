@@ -26,6 +26,7 @@ def schedule_battery(
     roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
     price_sensor: Optional[Sensor] = None,
+    round_to_decimals: Optional[int] = 6,
 ) -> Union[pd.Series, None]:
     """Schedule a battery asset based directly on the latest beliefs regarding market prices within the specified time
     window.
@@ -135,5 +136,9 @@ def schedule_battery(
         )
     else:
         battery_schedule = ems_schedule[0]
+
+    # Round schedule
+    if round_to_decimals:
+        battery_schedule = battery_schedule.round(round_to_decimals)
 
     return battery_schedule
