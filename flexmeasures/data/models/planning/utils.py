@@ -103,7 +103,7 @@ def get_prices(
         nan_prices.any()
         or pd.Timestamp(price_df.index[0]).tz_convert("UTC")
         != pd.Timestamp(query_window[0]).tz_convert("UTC")
-        or pd.Timestamp(price_df.index[-1]).tz_convert("UTC")
+        or pd.Timestamp(price_df.index[-1]).tz_convert("UTC") + resolution
         != pd.Timestamp(query_window[-1]).tz_convert("UTC")
     ):
         if allow_trimmed_query_window:

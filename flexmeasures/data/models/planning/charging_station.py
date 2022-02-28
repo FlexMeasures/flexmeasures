@@ -1,7 +1,7 @@
 from typing import Optional, Union
 from datetime import datetime, timedelta
 
-from pandas import Series, Timestamp
+import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.solver import device_scheduler
@@ -20,14 +20,14 @@ def schedule_charging_station(
     end: datetime,
     resolution: timedelta,
     soc_at_start: float,
-    soc_targets: Series,
+    soc_targets: pd.Series,
     soc_min: Optional[float] = None,
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
     price_sensor: Optional[Sensor] = None,
     round_to_decimals: Optional[int] = 6,
-) -> Union[Series, None]:
+) -> Union[pd.Series, None]:
     """Schedule a charging station asset based directly on the latest beliefs regarding market prices within the specified time
     window.
     For the resulting consumption schedule, consumption is defined as positive values.
@@ -62,8 +62,8 @@ def schedule_charging_station(
     )
     # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
     soc_targets = soc_targets.tz_convert("UTC")
-    start = Timestamp(start).tz_convert("UTC")
-    end = Timestamp(end).tz_convert("UTC")
+    start = pd.Timestamp(start).tz_convert("UTC")
+    end = pd.Timestamp(end).tz_convert("UTC")
     soc_targets = soc_targets[start + resolution : end]
 
     # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
