@@ -247,6 +247,15 @@ def create_test_markets(db) -> Dict[str, Market]:
 
 @pytest.fixture(scope="module")
 def setup_sources(db) -> Dict[str, DataSource]:
+    return create_sources(db)
+
+
+@pytest.fixture(scope="function")
+def setup_sources_fresh_db(fresh_db) -> Dict[str, DataSource]:
+    return create_sources(fresh_db)
+
+
+def create_sources(db) -> Dict[str, DataSource]:
     seita_source = DataSource(name="Seita", type="demo script")
     db.session.add(seita_source)
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
@@ -417,7 +426,20 @@ def setup_assets(
 
 
 @pytest.fixture(scope="module")
-def setup_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
+def setup_beliefs(db, setup_markets, ssetup_sources) -> int:
+    """Make some beliefs."""
+    return create_beliefs(db, setup_markets, ssetup_sources)
+
+
+@pytest.fixture(scope="function")
+def setup_beliefs_fresh_db(
+    fresh_db, setup_markets_fresh_db, setup_sources_fresh_db
+) -> int:
+    """Make some beliefs."""
+    return create_beliefs(fresh_db, setup_markets_fresh_db, setup_sources_fresh_db)
+
+
+def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
     """
     :returns: the number of beliefs set up
     """

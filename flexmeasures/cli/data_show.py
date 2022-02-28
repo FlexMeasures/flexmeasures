@@ -305,7 +305,7 @@ def plot_beliefs(
     if len(beliefs_by_sensor.keys()) == 0:
         click.echo("No data found!")
         raise click.Abort()
-    sensor_names = beliefs_by_sensor.keys()
+    sensor_names = list(beliefs_by_sensor.keys())
     first_df = list(beliefs_by_sensor.values())[0]
 
     # Build title
