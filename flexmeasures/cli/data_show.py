@@ -276,16 +276,10 @@ def plot_beliefs(
         sensor_names.append(sensor.name)
     start = isodate.parse_datetime(start_str)  # TODO: make sure it has a tz
     duration = isodate.parse_duration(duration_str)
-    if len(sensor_ids) == 1:
-        title = f"Beliefs for Sensor '{sensor_names[0]}' (Id {sensor_ids[0]}).\n"
-    else:
-        title = f"Beliefs for Sensor(s) [{','.join(sensor_names)}], (Id(s): [{','.join([str(sid) for sid in sensor_ids])}]).\n"
-    title += f"Data spans {naturaldelta(duration)} and starts at {start}."
     # handle horizon
     horizon = None
     if horizon_str:
         horizon = isodate.parse_duration(horizon_str)
-        title += f"\n Horizon: {horizon.name}"
     # handle source
     source: DataSource = None
     if source_id:
@@ -293,7 +287,6 @@ def plot_beliefs(
         if not source:
             click.echo(f"No source with id {source_id} known.")
             raise click.Abort
-        title += f"\nSource: {source.name}"
     # query data
     beliefs_by_sensor = TimedBelief.search(
         sensors=list(sensor_ids),
@@ -313,12 +306,23 @@ def plot_beliefs(
         click.echo("No data found!")
         raise click.Abort()
     sensor_names = beliefs_by_sensor.keys()
+    first_df = list(beliefs_by_sensor.values())[0]
 
     # TODO: if horizon=None, check if multiple horizons are in data, complain
 
-    first_df = list(beliefs_by_sensor.values())[0]
+    # Build title
+    if len(sensor_ids) == 1:
+        title = f"Beliefs for Sensor '{sensor_names[0]}' (Id {sensor_ids[0]}).\n"
+    else:
+        title = f"Beliefs for Sensor(s) [{','.join(sensor_names)}], (Id(s): [{','.join([str(sid) for sid in sensor_ids])}]).\n"
+    title += f"Data spans {naturaldelta(duration)} and starts at {start}."
+    if horizon:
+        title += f"\n Horizon: {horizon.name}"
+    if source:
+        title += f"\nSource: {source.name}"
     if len(beliefs_by_sensor.values()) == 1:
-        title += f"\nThe time resolution is {naturaldelta(first_df.sensor.event_resolution)}."
+        title += f"\nThe time resolution (x-axis) is {naturaldelta(first_df.sensor.event_resolution)}."
+
     uniplot.plot(
         [
             beliefs.event_value
