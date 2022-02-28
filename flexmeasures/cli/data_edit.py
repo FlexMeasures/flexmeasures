@@ -24,15 +24,17 @@ def fm_edit_data():
 @with_appcontext
 @click.option(
     "--asset-id",
-    "asset",
+    "assets",
     required=False,
+    multiple=True,
     type=GenericAssetField(),
     help="Add/edit attribute to this asset. Follow up with the asset's ID.",
 )
 @click.option(
     "--sensor-id",
-    "sensor",
+    "sensors",
     required=False,
+    multiple=True,
     type=SensorField(),
     help="Add/edit attribute to this sensor. Follow up with the sensor's ID.",
 )
@@ -80,9 +82,9 @@ def fm_edit_data():
 )
 def edit_asset_attribute(
     attribute_key: str,
+    assets: List[GenericAsset],
+    sensors: List[Sensor],
     attribute_null_value: bool,
-    asset: Optional[GenericAsset] = None,
-    sensor: Optional[Sensor] = None,
     attribute_float_value: Optional[float] = None,
     attribute_bool_value: Optional[bool] = None,
     attribute_str_value: Optional[str] = None,
@@ -90,8 +92,8 @@ def edit_asset_attribute(
 ):
     """Edit (or add) an asset attribute or sensor attribute."""
 
-    if asset is None and sensor is None:
-        raise ValueError("Missing flag: pass an --asset-id or --sensor-id.")
+    if not assets and not sensors:
+        raise ValueError("Missing flag: pass at least one --asset-id or --sensor-id.")
 
     # Parse attribute value
     attribute_value = parse_attribute_value(
@@ -103,10 +105,10 @@ def edit_asset_attribute(
     )
 
     # Set attribute
-    if asset is not None:
+    for asset in assets:
         asset.attributes[attribute_key] = attribute_value
         db.session.add(asset)
-    if sensor is not None:
+    for sensor in sensors:
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)
     db.session.commit()
@@ -234,6 +236,6 @@ def parse_attribute_value(
     return attribute_str_value
 
 
-def single_true(iterable):
+def single_true(iterable) -> bool:
     i = iter(iterable)
     return any(i) and not any(i)
