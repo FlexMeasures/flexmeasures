@@ -73,11 +73,11 @@ def setup_ui_test_data(
     asset.owner = test_user_ui
 
     # Create 1 weather sensor
-    test_sensor_type = WeatherSensorType(name="radiation")
+    test_sensor_type = WeatherSensorType(name="irradiance")
     db.session.add(test_sensor_type)
     sensor = WeatherSensor(
-        name="radiation_sensor",
-        weather_sensor_type_name="radiation",
+        name="irradiance_sensor",
+        weather_sensor_type_name="irradiance",
         latitude=33.4843866,
         longitude=126,
         unit="kW/m²",

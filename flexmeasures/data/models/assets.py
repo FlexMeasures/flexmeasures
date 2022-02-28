@@ -75,9 +75,9 @@ class AssetType(db.Model):
         """Known correlations of weather sensor type and asset type."""
         correlations = []
         if self.name == "solar":
-            correlations.append("radiation")
+            correlations.append("irradiance")
         if self.name == "wind":
-            correlations.append("wind_speed")
+            correlations.append("wind speed")
         if self.name in (
             "one-way_evse",
             "two-way_evse",

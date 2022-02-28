@@ -26,7 +26,6 @@ from flexmeasures.data.models.forecasting.utils import (
     set_training_and_testing_dates,
     get_query_window,
 )
-from flexmeasures.data.services.resources import find_closest_sensor
 
 """
 Here we generate an initial version of timetomodel specs, given what asset and what timing
@@ -243,8 +242,8 @@ def get_normalization_transformation_from_sensor_attributes(
     ):
         return BoxCoxTransformation(lambda2=0.1)
     elif sensor.generic_asset.generic_asset_type.name in [
-        "wind_speed",
-        "radiation",
+        "wind speed",
+        "irradiance",
     ]:
         # Values cannot be negative and are often zero
         return BoxCoxTransformation(lambda2=0.1)
@@ -264,26 +263,30 @@ def configure_regressors_for_nearest_weather_sensor(
 ) -> List[TBSeriesSpecs]:
     """For Assets, we use weather data as regressors. Here, we configure them."""
     regressor_specs = []
-    sensor_types = sensor.get_attribute("weather_correlations")
-    if sensor_types:
+    correlated_sensor_names = sensor.get_attribute("weather_correlations")
+    if correlated_sensor_names:
         current_app.logger.info(
-            "For %s, I need sensors: %s" % (sensor.name, sensor_types)
+            "For %s, I need sensors: %s" % (sensor.name, correlated_sensor_names)
         )
-        for sensor_type in sensor_types:
+        for sensor_name in correlated_sensor_names:
 
             # Find nearest weather sensor
-            closest_sensor = find_closest_sensor(sensor_type, object=sensor)
+            closest_sensor = Sensor.find_closest(
+                generic_asset_type_name=sensor.generic_asset.generic_asset_type.name,
+                sensor_name=sensor_name,
+                object=sensor,
+            )
             if closest_sensor is None:
                 current_app.logger.warning(
                     "No sensor found of sensor type %s to use as regressor for %s."
-                    % (sensor_type, sensor.name)
+                    % (sensor_name, sensor.name)
                 )
             else:
                 current_app.logger.info(
-                    "Using sensor %s as regressor for %s." % (sensor_type, sensor.name)
+                    "Using sensor %s as regressor for %s." % (sensor_name, sensor.name)
                 )
                 # Collect the weather data for the requested time window
-                regressor_specs_name = "%s_l0" % sensor_type
+                regressor_specs_name = "%s_l0" % sensor_name
                 if len(regressor_transformation.keys()) == 0 and transform_to_normal:
                     regressor_transformation = (
                         get_normalization_transformation_from_sensor_attributes(

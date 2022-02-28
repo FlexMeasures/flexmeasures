@@ -13,7 +13,6 @@ from typing import List, Dict, Tuple, Type, TypeVar, Union, Optional
 from datetime import datetime
 
 from flexmeasures.data import db
-from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.flexmeasures_inflection import parameterize, pluralize
 from itertools import groupby
 
@@ -37,7 +36,6 @@ from flexmeasures.data.models.weather import Weather, WeatherSensorType
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.services.time_series import aggregate_values
-from flexmeasures.utils.geo_utils import parse_lat_lng
 from flexmeasures.utils import coding_utils, time_utils
 
 """
@@ -665,36 +663,6 @@ def get_sensor_types(resource: Resource) -> List[WeatherSensorType]:
             sensor_types.append(sensor_type)
 
     return sensor_types
-
-
-def find_closest_sensor(
-    generic_asset_type_name: str, n: int = 1, **kwargs
-) -> Union[Sensor, List[Sensor], None]:
-    """Returns the closest n sensors of a given type (as a list if n > 1).
-    Parses latitude and longitude values stated in kwargs.
-
-    Can be called with an object that has latitude and longitude properties, for example:
-
-        sensor = find_closest_weather_sensor("wind_speed", object=generic_asset)
-
-    Can also be called with latitude and longitude parameters, for example:
-
-        sensor = find_closest_weather_sensor("temperature", latitude=32, longitude=54)
-        sensor = find_closest_weather_sensor("temperature", lat=32, lng=54)
-
-    """
-
-    latitude, longitude = parse_lat_lng(kwargs)
-    if n == 1:
-        return query_sensors_by_proximity(
-            generic_asset_type_name, latitude, longitude
-        ).first()
-    else:
-        return (
-            query_sensors_by_proximity(generic_asset_type_name, latitude, longitude)
-            .limit(n)
-            .all()
-        )
 
 
 def group_assets_by_location(asset_list: List[Asset]) -> List[List[Asset]]:
