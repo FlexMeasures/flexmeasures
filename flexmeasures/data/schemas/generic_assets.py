@@ -1,5 +1,6 @@
 from typing import Optional
 
+from flask.cli import with_appcontext
 from marshmallow import validates, validates_schema, ValidationError, fields
 
 from flexmeasures.data import ma
@@ -95,6 +96,7 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 class GenericAssetField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to a GenericAsset and serializes back to an integer."""
 
+    @with_appcontext
     def _deserialize(self, value, attr, obj, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
         generic_asset = GenericAsset.query.get(value)

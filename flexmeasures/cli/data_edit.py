@@ -8,6 +8,7 @@ from flask.cli import with_appcontext
 
 from flexmeasures import Sensor
 from flexmeasures.data import db
+from flexmeasures.data.schemas.generic_assets import GenericAssetField
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
@@ -22,8 +23,9 @@ def fm_edit_data():
 @with_appcontext
 @click.option(
     "--asset-id",
-    "generic_asset_id",
+    "asset",
     required=True,
+    type=GenericAssetField(),
     help="Add/edit attribute to this asset. Follow up with the asset's ID.",
 )
 @click.option(
@@ -47,7 +49,7 @@ def fm_edit_data():
     help="Parse the asset attribute value as this type.",
 )
 def edit_asset_attribute(
-    generic_asset_id: int,
+    asset: GenericAsset,
     attribute_key: str,
     attribute_value: Union[bool, str, int, float, None],
     attribute_value_type: str,
@@ -61,7 +63,6 @@ def edit_asset_attribute(
     )
 
     # Set attribute
-    asset = GenericAsset.query.get(generic_asset_id)
     asset.attributes[attribute_key] = attribute_value
     db.session.add(asset)
     db.session.commit()
@@ -70,7 +71,7 @@ def edit_asset_attribute(
 @fm_edit_data.command("sensor-attribute")
 @with_appcontext
 @click.option(
-    "--sensor-id",
+    "--sensor-id",  # todo: use SensorField
     "sensor_id",
     required=True,
     help="Add/edit attribute to this sensor. Follow up with the sensor's ID.",
