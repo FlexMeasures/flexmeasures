@@ -925,7 +925,10 @@ def create_schedule(
     soc_targets = pd.Series(
         np.nan,
         index=pd.date_range(
-            start, end, freq=power_sensor.event_resolution, closed="right"
+            pd.Timestamp(start).tz_convert(power_sensor.timezone),
+            pd.Timestamp(end).tz_convert(power_sensor.timezone),
+            freq=power_sensor.event_resolution,
+            closed="right",
         ),  # note that target values are indexed by their due date (i.e. closed="right")
     )
     for soc_target_tuple in soc_target_strings:
