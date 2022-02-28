@@ -126,7 +126,7 @@ def message_for_post_weather_data(
         "type": "PostWeatherDataRequest",
         "groups": [
             {
-                "sensor": "ea1.2018-06.localhost:wind_speed:33.4843866:126",
+                "sensor": "ea1.2018-06.localhost:wind speed:33.4843866:126",
                 "values": [20.04, 20.23, 20.41, 20.51, 20.55, 20.57],
             }
         ],

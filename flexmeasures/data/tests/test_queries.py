@@ -90,7 +90,7 @@ def test_collect_power(db, app, query_start, query_end, num_values, setup_test_d
         ),
     ],
 )
-def tesfijfijft_collect_power_resampled(
+def test_collect_power_resampled(
     db, app, query_start, query_end, resolution, num_values, setup_test_data
 ):
     wind_device_1 = Sensor.query.filter_by(name="wind-asset-1").one_or_none()

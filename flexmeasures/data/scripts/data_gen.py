@@ -142,7 +142,7 @@ def add_transmission_zone_asset(country_code: str, db: SQLAlchemy) -> GenericAss
 @as_transaction
 def populate_initial_structure(db: SQLAlchemy):
     """
-    Add initial structural data for assets, markets, data sources
+    Add initially useful structural data.
     """
     click.echo("Populating the database %s with structural data ..." % db.engine)
     add_default_data_sources(db)

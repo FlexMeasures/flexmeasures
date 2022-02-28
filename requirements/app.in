@@ -17,7 +17,6 @@ humanize
 psycopg2-binary
 bcrypt
 pytz
-tzlocal
 numpy
 isodate
 click
@@ -30,11 +29,6 @@ rq-win; os_name == 'nt' or os_name == 'win'
 redis < 4.2.0
 tldextract
 pyomo>=5.6
-pvlib
-# the following three are optional in pvlib, but we use them
-netCDF4
-siphon
-tables
 tabulate
 timetomodel>=0.7.1
 timely-beliefs>=1.11.2
