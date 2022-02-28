@@ -1,12 +1,16 @@
-from typing import Union
+from datetime import timedelta
+from typing import Union, List, Optional
 
 import click
+import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 
 from flexmeasures import Sensor
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.utils import save_to_db
 
 
 @click.group("edit")
@@ -110,6 +114,93 @@ def edit_sensor_attribute(
     sensor.attributes[attribute_key] = attribute_value
     db.session.add(sensor)
     db.session.commit()
+
+
+@fm_edit_data.command("resample-data")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "sensor_ids",
+    multiple=True,
+    required=True,
+    help="Resample data for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--event-resolution",
+    "event_resolution_in_minutes",
+    type=int,
+    required=True,
+    help="New event resolution as an integer number of minutes.",
+)
+@click.option(
+    "--from",
+    "start_str",
+    required=False,
+    help="Resample only data from this datetime onwards. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--until",
+    "end_str",
+    required=False,
+    help="Resample only data until this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--skip-integrity-check",
+    is_flag=True,
+    help="Whether to skip checking the resampled time series data for each sensor."
+    " By default, an excerpt and the mean value of the original"
+    " and resampled data will be shown for manual approval.",
+)
+def resample_sensor_data(
+    sensor_ids: List[int],
+    event_resolution_in_minutes: int,
+    start_str: Optional[str] = None,
+    end_str: Optional[str] = None,
+    skip_integrity_check: bool = False,
+):
+    """Assign a new event resolution to an existing sensor and resample its data accordingly."""
+    event_resolution = timedelta(minutes=event_resolution_in_minutes)
+    event_starts_after = pd.Timestamp(start_str)  # note that "" or None becomes NaT
+    event_ends_before = pd.Timestamp(end_str)
+    for sensor_id in sensor_ids:
+        sensor = Sensor.query.get(sensor_id)
+        if sensor.event_resolution == event_resolution:
+            print(f"{sensor} already has the desired event resolution.")
+            continue
+        df_original = sensor.search_beliefs(
+            most_recent_beliefs_only=False,
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+        ).sort_values("event_start")
+        df_resampled = df_original.resample_events(event_resolution).sort_values(
+            "event_start"
+        )
+        if not skip_integrity_check:
+            message = ""
+            if sensor.event_resolution < event_resolution:
+                message += f"Downsampling {sensor} to {event_resolution} will result in a loss of data. "
+            click.confirm(
+                message
+                + f"Data before:\n{df_original}\nData after:\n{df_resampled}\nMean before: {df_original['event_value'].mean()}\nMean after: {df_resampled['event_value'].mean()}\nContinue?",
+                abort=True,
+            )
+
+        # Update sensor
+        sensor.event_resolution = event_resolution
+        db.session.add(sensor)
+
+        # Update sensor data
+        query = TimedBelief.query.filter(TimedBelief.sensor == sensor)
+        if not pd.isnull(event_starts_after):
+            query = query.filter(TimedBelief.event_start >= event_starts_after)
+        if not pd.isnull(event_ends_before):
+            query = query.filter(
+                TimedBelief.event_start + sensor.event_resolution <= event_ends_before
+            )
+        query.delete()
+        save_to_db(df_resampled, bulk_save_objects=True)
+    db.session.commit()
+    print("Successfully resampled sensor data.")
 
 
 app.cli.add_command(fm_edit_data)

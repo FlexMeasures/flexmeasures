@@ -20,7 +20,7 @@ def test_resample_sensor_data(
 ):
     """Check resampling market data from hourly to 30 minute resolution and back."""
 
-    from flexmeasures.cli.db_ops import resample_sensor_data
+    from flexmeasures.cli.data_edit import resample_sensor_data
 
     sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     event_starts_after = pd.Timestamp(event_starts_after)
