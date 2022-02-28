@@ -230,6 +230,7 @@ numpy==1.22.2
     #   tables
     #   timely-beliefs
     #   timetomodel
+    #   uniplot
 openturns==1.18
     # via timely-beliefs
 outcome==1.1.0
@@ -412,6 +413,8 @@ typing-extensions==4.1.1
 tzdata==2021.5
     # via pytz-deprecation-shim
 tzlocal==4.1
+    # via -r requirements/app.in
+uniplot==0.5.0
     # via -r requirements/app.in
 urllib3[secure]==1.26.8
     # via

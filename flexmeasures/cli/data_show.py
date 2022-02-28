@@ -1,15 +1,18 @@
 """CLI Tasks for listing database contents - most useful in development"""
 
+from typing import Optional, List
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from tabulate import tabulate
 from humanize import naturaldelta, naturaltime
+import isodate
+import uniplot
 
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
 @click.group("show")
@@ -215,6 +218,117 @@ def list_data_sources():
             [(s.id, s.name, s.type, s.user_id, s.model, s.version) for s in sources],
             headers=["Id", "Name", "Type", "User Id", "Model", "Version"],
         )
+    )
+
+
+@fm_show_data.command("beliefs")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "sensor_ids",
+    type=int,
+    required=True,
+    multiple=True,
+    help="ID of sensor(s). This argument can be given multiple times.",
+)
+@click.option(
+    "--from",
+    "start_str",
+    required=True,
+    help="Plot starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--duration",
+    "duration_str",
+    required=True,
+    help="Duration of the plot, after start_str. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--horizon",
+    "horizon_str",
+    required=False,
+    help="Horizon of the beliefs to be shown. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes). If not given, and there are multiple in the data, this command will not work.",
+)
+@click.option(
+    "--source-id",
+    "source_id",
+    required=False,
+    type=int,
+    help="Source of the beliefs (an existing source id).",
+)
+def plot_beliefs(
+    sensor_ids: List[int],
+    start_str: str,
+    duration_str: str,
+    horizon_str: Optional[str],
+    source_id: Optional[int],
+):
+    """
+    Show a simple plot of belief data directly in the terminal.
+    """
+    # handle required params: sensor, start, duration
+    sensor_names: List[str] = []
+    for sensor_id in sensor_ids:
+        sensor: Sensor = Sensor.query.get(sensor_id)
+        if not sensor:
+            click.echo(f"No sensor with id {sensor_id} known.")
+            raise click.Abort
+        sensor_names.append(sensor.name)
+    start = isodate.parse_datetime(start_str)  # TODO: make sure it has a tz
+    duration = isodate.parse_duration(duration_str)
+    if len(sensor_ids) == 1:
+        title = f"Beliefs for Sensor '{sensor_names[0]}' (Id {sensor_ids[0]}).\n"
+    else:
+        title = f"Beliefs for Sensor(s) [{','.join(sensor_names)}], (Id(s): [{','.join([str(sid) for sid in sensor_ids])}]).\n"
+    title += f"Data spans {naturaldelta(duration)} and starts at {start}."
+    # handle horizon
+    horizon = None
+    if horizon_str:
+        horizon = isodate.parse_duration(horizon_str)
+        title += f"\n Horizon: {horizon.name}"
+    # handle source
+    source: DataSource = None
+    if source_id:
+        source = DataSource.query.get(source_id)
+        if not source:
+            click.echo(f"No source with id {source_id} known.")
+            raise click.Abort
+        title += f"\nSource: {source.name}"
+    # query data
+    beliefs_by_sensor = TimedBelief.search(
+        sensors=list(sensor_ids),
+        event_starts_after=start,
+        event_ends_before=start + duration,
+        # TODO: reflect horizon here
+        source=source,
+        sum_multiple=False,
+    )
+    # only keep non-empty
+    beliefs_by_sensor = {
+        sensor_name: beliefs
+        for (sensor_name, beliefs) in beliefs_by_sensor.items()
+        if not beliefs.empty
+    }
+    if len(beliefs_by_sensor.keys()) == 0:
+        click.echo("No data found!")
+        raise click.Abort()
+    sensor_names = beliefs_by_sensor.keys()
+
+    # TODO: if horizon=None, check if multiple horizons are in data, complain
+
+    first_df = list(beliefs_by_sensor.values())[0]
+    if len(beliefs_by_sensor.values()) == 1:
+        title += f"\nThe time resolution is {naturaldelta(first_df.sensor.event_resolution)}."
+    uniplot.plot(
+        [
+            beliefs.event_value
+            for beliefs in [beliefs_by_sensor[sn] for sn in sensor_names]
+        ],
+        title=title,
+        color=True,
+        lines=True,
+        y_unit=first_df.sensor.unit if len(beliefs_by_sensor.values()) == 1 else "",
+        legend_labels=sensor_names,
     )
 
 
