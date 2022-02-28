@@ -7,7 +7,7 @@ FlexMeasures CLI Changelog
 since v0.9.0 | January 26, 2022
 =====================
 
-* Add CLI commands for showing data ``flexmeasures show accounts``, ``flexmeasures show account``, ``flexmeasures show roles``, ``flexmeasures show asset-types``, ``flexmeasures show asset`` and ``flexmeasures show data-sources``.
+* Add CLI commands for showing data ``flexmeasures show accounts``, ``flexmeasures show account``, ``flexmeasures show roles``, ``flexmeasures show asset-types``, ``flexmeasures show asset``, ``flexmeasures show data-sources``, and ``flexmeasures show beliefs``.
 * Add ``flexmeasures db-ops resample-data`` CLI command to resample sensor data to a different resolution.
 * Add ``flexmeasures add toy-account`` for tutorials and trying things.
 * Rename ``flexmeasures add structure`` to ``flexmeasures add initial-structure``. 
