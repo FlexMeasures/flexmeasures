@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+import pandas as pd
 import pytz
 import pytest
 
@@ -11,10 +12,12 @@ from flexmeasures.utils.time_utils import (
 
 
 @pytest.mark.parametrize(
-    "dt_tz,now,server_tz,delta_in_h,exp_result",
+    "dt_tz, now, server_tz, delta_in_h, exp_result",
     # there can be two results depending of today's date, due to humanize.
     # Monekypatching was too hard.
     [
+        (None, pd.Timestamp.utcnow(), "UTC", 3, "3 hours ago"),
+        (None, pd.Timestamp.utcnow().tz_convert("Asia/Seoul"), "UTC", 3, "3 hours ago"),
         (None, datetime.utcnow(), "UTC", 3, "3 hours ago"),
         (
             None,
@@ -61,7 +64,7 @@ def test_naturalized_datetime_str(
 
 
 @pytest.mark.parametrize(
-    "window_size,now,exp_start,exp_end",
+    "window_size, now, exp_start, exp_end",
     [
         (
             5,

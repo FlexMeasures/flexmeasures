@@ -17,7 +17,6 @@ humanize
 psycopg2-binary
 bcrypt
 pytz
-tzlocal
 numpy
 isodate
 click
