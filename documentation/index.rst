@@ -6,10 +6,10 @@ Planning ahead allows flexible assets to serve the whole system with their flexi
 e.g. by shifting or curtailing energy use.
 This can also be profitable for their owners.
 
-The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable. 
+> The *FlexMeasures EMS* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable. 
 
 - Developing energy flexibility services (e.g. to enable demand response) is crucial, but expensive.
-- FlexMeasures reduces development costs with real-time data integrations, uncertainty models and API/UI support.
+- FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and API/UI support.
 
 As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful! 
 
