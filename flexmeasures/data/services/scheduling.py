@@ -177,7 +177,7 @@ def make_schedule(
     ts_value_schedule = [
         TimedBelief(
             event_start=dt,
-            belief_horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
+            belief_time=belief_time,
             event_value=-value,
             sensor=sensor,
             source=data_source,
