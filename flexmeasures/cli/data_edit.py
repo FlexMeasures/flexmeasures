@@ -36,31 +36,59 @@ def fm_edit_data():
     help="Add/edit this attribute. Follow up with the name of the asset attribute.",
 )
 @click.option(
-    "--value",
-    "attribute_value",
-    required=True,
-    help="Set the asset attribute to this float value. Use --type to set a type other than a float. Use 'None' to set a null value.",
+    "--float",
+    "attribute_float_value",
+    required=False,
+    type=float,
+    help="Set the asset attribute to this float value.",
 )
 @click.option(
-    "--type",
-    "attribute_value_type",
+    "--bool",
+    "attribute_bool_value",
     required=False,
-    default="float",
-    type=click.Choice(["bool", "str", "int", "float"]),
-    help="Parse the asset attribute value as this type.",
+    type=bool,
+    help="Set the asset attribute to this bool value.",
+)
+@click.option(
+    "--str",
+    "attribute_str_value",
+    required=False,
+    type=str,
+    help="Set the asset attribute to this string value.",
+)
+@click.option(
+    "--int",
+    "attribute_int_value",
+    required=False,
+    type=int,
+    help="Set the asset attribute to this integer value.",
+)
+@click.option(
+    "--null",
+    "attribute_null_value",
+    required=False,
+    is_flag=True,
+    default=False,
+    help="Set the asset attribute to a null value.",
 )
 def edit_asset_attribute(
     asset: GenericAsset,
     attribute_key: str,
-    attribute_value: Union[bool, str, int, float, None],
-    attribute_value_type: str,
+    attribute_float_value: float,
+    attribute_bool_value: bool,
+    attribute_str_value: str,
+    attribute_int_value: int,
+    attribute_null_value: bool,
 ):
     """Edit (or add) an asset attribute."""
 
     # Parse attribute value
     attribute_value = parse_attribute_value(
-        attribute_value=attribute_value,
-        attribute_value_type=attribute_value_type,
+        attribute_float_value=attribute_float_value,
+        attribute_bool_value=attribute_bool_value,
+        attribute_str_value=attribute_str_value,
+        attribute_int_value=attribute_int_value,
+        attribute_null_value=attribute_null_value,
     )
 
     # Set attribute
@@ -85,31 +113,59 @@ def edit_asset_attribute(
     help="Add/edit this attribute. Follow up with the name of the sensor attribute.",
 )
 @click.option(
-    "--value",
-    "attribute_value",
-    required=True,
-    help="Set the sensor attribute to this float value. Use --type to set a type other than a float. Use 'None' to set a null value.",
+    "--float",
+    "attribute_float_value",
+    required=False,
+    type=float,
+    help="Set the sensor attribute to this float value.",
 )
 @click.option(
-    "--type",
-    "attribute_value_type",
+    "--bool",
+    "attribute_bool_value",
     required=False,
-    default="float",
-    type=click.Choice(["bool", "str", "int", "float"]),
-    help="Parse the asset attribute value as this type.",
+    type=bool,
+    help="Set the sensor attribute to this bool value.",
+)
+@click.option(
+    "--str",
+    "attribute_str_value",
+    required=False,
+    type=str,
+    help="Set the sensor attribute to this string value.",
+)
+@click.option(
+    "--int",
+    "attribute_int_value",
+    required=False,
+    type=int,
+    help="Set the sensor attribute to this integer value.",
+)
+@click.option(
+    "--null",
+    "attribute_null_value",
+    required=False,
+    is_flag=True,
+    default=False,
+    help="Set the sensor attribute to a null value.",
 )
 def edit_sensor_attribute(
     sensor: Sensor,
     attribute_key: str,
-    attribute_value: Union[bool, str, int, float, None],
-    attribute_value_type: str,
+    attribute_float_value: float,
+    attribute_bool_value: bool,
+    attribute_str_value: str,
+    attribute_int_value: int,
+    attribute_null_value: bool,
 ):
     """Edit (or add) a sensor attribute."""
 
     # Parse attribute value
     attribute_value = parse_attribute_value(
-        attribute_value=attribute_value,
-        attribute_value_type=attribute_value_type,
+        attribute_float_value=attribute_float_value,
+        attribute_bool_value=attribute_bool_value,
+        attribute_str_value=attribute_str_value,
+        attribute_int_value=attribute_int_value,
+        attribute_null_value=attribute_null_value,
     )
 
     # Set attribute
@@ -209,19 +265,37 @@ app.cli.add_command(fm_edit_data)
 
 
 def parse_attribute_value(
-    attribute_value: str, attribute_value_type: str
+    attribute_null_value: bool,
+    attribute_float_value: Optional[float] = None,
+    attribute_bool_value: Optional[bool] = None,
+    attribute_str_value: Optional[str] = None,
+    attribute_int_value: Optional[int] = None,
 ) -> Union[float, int, bool, str, None]:
     """Parse attribute value."""
-    if attribute_value == "None":
-        attribute_value = None
-    elif attribute_value_type == "float":
-        attribute_value = float(attribute_value)
-    elif attribute_value_type == "int":
-        attribute_value = int(attribute_value)
-    elif attribute_value_type == "bool":
-        attribute_value = bool(attribute_value)
-    elif attribute_value_type == "str":
-        pass
-    else:
-        raise ValueError(f"Unrecognized --type '{attribute_value_type}'.")
-    return attribute_value
+    if not single_true(
+        [attribute_null_value]
+        + [
+            v is not None
+            for v in [
+                attribute_float_value,
+                attribute_bool_value,
+                attribute_str_value,
+                attribute_int_value,
+            ]
+        ]
+    ):
+        raise ValueError("Cannot set multiple values simultaneously.")
+    if attribute_null_value:
+        return None
+    elif attribute_float_value is not None:
+        return float(attribute_float_value)
+    elif attribute_bool_value is not None:
+        return bool(attribute_bool_value)
+    elif attribute_int_value is not None:
+        return int(attribute_int_value)
+    return attribute_str_value
+
+
+def single_true(iterable):
+    i = iter(iterable)
+    return any(i) and not any(i)
