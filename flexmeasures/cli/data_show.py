@@ -241,7 +241,7 @@ def list_data_sources():
     "--duration",
     "duration_str",
     required=True,
-    help="Duration of the plot, after start_str. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+    help="Duration of the plot, after --from. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
 @click.option(
     "--belief-time-before",
