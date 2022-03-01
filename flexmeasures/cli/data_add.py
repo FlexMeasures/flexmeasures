@@ -14,6 +14,7 @@ import getpass
 from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
+import isodate
 
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
@@ -829,10 +830,10 @@ def create_forecasts(
     help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
-    "--until",
-    "end_str",
+    "--duration",
+    "duration_str",
     required=True,
-    help="Schedule ends at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+    help="Duration of schedule, after --from. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
 @click.option(
     "--soc-at-start",
@@ -883,7 +884,7 @@ def create_schedule(
     power_sensor_id: int,
     factor_sensor_id: int,
     start_str: str,
-    end_str: str,
+    duration_str: str,
     soc_at_start: float,
     soc_target_strings: List[Tuple[float, str]],
     soc_min: Optional[float],
@@ -915,7 +916,7 @@ def create_schedule(
         click.echo(f"No sensor found with ID {factor_sensor_id}.")
         raise click.Abort()
     start = pd.Timestamp(start_str)
-    end = pd.Timestamp(end_str)
+    end = start + isodate.parse_duration(duration_str)
     for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
         try:
             check_required_attributes(power_sensor, [(attribute, float)])
