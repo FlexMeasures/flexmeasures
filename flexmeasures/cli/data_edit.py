@@ -8,8 +8,8 @@ from flask.cli import with_appcontext
 
 from flexmeasures import Sensor
 from flexmeasures.data import db
-from flexmeasures.data.schemas.generic_assets import GenericAssetField
-from flexmeasures.data.schemas.sensors import SensorField
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
@@ -27,7 +27,7 @@ def fm_edit_data():
     "assets",
     required=False,
     multiple=True,
-    type=GenericAssetField(),
+    type=GenericAssetIdField(),
     help="Add/edit attribute to this asset. Follow up with the asset's ID.",
 )
 @click.option(
@@ -35,7 +35,7 @@ def fm_edit_data():
     "sensors",
     required=False,
     multiple=True,
-    type=SensorField(),
+    type=SensorIdField(),
     help="Add/edit attribute to this sensor. Follow up with the sensor's ID.",
 )
 @click.option(

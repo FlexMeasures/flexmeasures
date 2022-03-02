@@ -93,7 +93,7 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
         model = GenericAssetType
 
 
-class GenericAssetField(fields.Int, MarshmallowClickMixin):
+class GenericAssetIdField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to a GenericAsset and serializes back to an integer."""
 
     @with_appcontext
