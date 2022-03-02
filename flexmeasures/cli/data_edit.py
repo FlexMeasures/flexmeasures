@@ -80,7 +80,7 @@ def fm_edit_data():
     default=False,
     help="Set the attribute to a null value.",
 )
-def edit_asset_attribute(
+def edit_attribute(
     attribute_key: str,
     assets: List[GenericAsset],
     sensors: List[Sensor],
