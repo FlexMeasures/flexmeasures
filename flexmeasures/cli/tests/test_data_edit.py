@@ -7,6 +7,30 @@ from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
+@pytest.mark.skip
+def test_add_one_sensor_attribute(app, db, setup_markets):
+    from flexmeasures.cli.data_edit import edit_attribute
+
+    # Load sensor from database and count attributes
+    sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    n_attributes_before = len(sensor.attributes)
+
+    cli_input = {
+        "sensor-id": sensor.id,
+        "attribute": "some new attribute",
+        "float": 3,
+    }
+    runner = app.test_cli_runner()
+    result = runner.invoke(edit_attribute, to_flags(cli_input))
+    assert result.exit_code == 0 and "Success" in result.output, result.exception
+
+    # Reload sensor from database and count attributes
+    sensor = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    n_attributes_after = len(sensor.attributes)
+
+    assert n_attributes_after == n_attributes_before + 1
+
+
 @pytest.mark.skip_github
 @pytest.mark.parametrize(
     "event_starts_after, event_ends_before",

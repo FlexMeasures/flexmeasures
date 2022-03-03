@@ -112,6 +112,7 @@ def edit_attribute(
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)
     db.session.commit()
+    print("Successfully edited/added attribute.")
 
 
 @fm_edit_data.command("resample-data")
