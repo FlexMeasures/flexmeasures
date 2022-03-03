@@ -56,7 +56,7 @@ class Annotation(db.Model):
         bulk_save_objects: bool = False,
         commit_transaction: bool = False,
     ) -> List["Annotation"]:
-        """Add a data frame describing annotations as Annotations in the database.
+        """Add a data frame describing annotations to the database and return the Annotation objects.
 
         :param df:                  Data frame describing annotations.
                                     Expects the following columns (or multi-index levels):

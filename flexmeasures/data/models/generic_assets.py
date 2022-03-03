@@ -182,7 +182,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         annotation_type: str,
         commit_transaction: bool = False,
     ):
-        """Add a data frame describing annotations as Annotations in the database, and assign them to this asset."""
+        """Add a data frame describing annotations to the database, and assign the annotations to this asset."""
         annotations = Annotation.add(df, annotation_type=annotation_type)
         self.annotations += annotations
         db.session.add(self)
