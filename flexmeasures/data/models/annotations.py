@@ -47,10 +47,10 @@ class Annotation(db.Model):
         return self.end - self.start
 
     @classmethod
-    def save(
-        cls, df: pd.DataFrame, annotation_type: str, commit_session: bool = False
+    def add(
+        cls, df: pd.DataFrame, annotation_type: str, commit_transaction: bool = False
     ) -> List["Annotation"]:
-        """Save a data frame with annotations.
+        """Add a data frame describing annotations as Annotations in the database.
 
         Expects the following columns (or multi-index levels):
         - start
@@ -85,7 +85,7 @@ class Annotation(db.Model):
         ]
         db.session.add_all(annotations)
 
-        if commit_session:
+        if commit_transaction:
             db.session.commit()
 
         return annotations

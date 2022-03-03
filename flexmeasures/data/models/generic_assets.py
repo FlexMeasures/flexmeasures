@@ -176,17 +176,17 @@ class GenericAsset(db.Model, AuthModelMixin):
         """True if at least one energy sensor is attached"""
         return any([s.measures_energy for s in self.sensors])
 
-    def save_annotations(
+    def add_annotations(
         self,
         df: pd.DataFrame,
         annotation_type: str,
-        commit_session: bool = False,
+        commit_transaction: bool = False,
     ):
-        """Save a data frame with annotations and assign them to this asset."""
-        annotations = Annotation.save(df, annotation_type=annotation_type)
+        """Add a data frame describing annotations as Annotations in the database, and assign them to this asset."""
+        annotations = Annotation.add(df, annotation_type=annotation_type)
         self.annotations += annotations
         db.session.add(self)
-        if commit_session:
+        if commit_transaction:
             db.session.commit()
 
     def search_annotations(
