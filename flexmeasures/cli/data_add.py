@@ -36,6 +36,7 @@ from flexmeasures.data.models.validation_utils import (
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.schemas.units import NonNegativeFloat, PercentageFloat
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
@@ -838,41 +839,42 @@ def create_forecasts(
 @click.option(
     "--soc-at-start",
     "soc_at_start",
-    type=float,
+    type=NonNegativeFloat(),
     required=True,
-    help="State of charge (in %) at the start of the schedule. Use --soc-unit to set a different unit.",
+    help="State of charge (in %, e.g. 32.8) at the start of the schedule. Use --soc-unit to set a different unit.",
 )
 @click.option(
     "--soc-target",
     "soc_target_strings",
-    type=click.Tuple(types=[float, str]),
+    type=click.Tuple(types=[NonNegativeFloat(), str]),
     multiple=True,
     required=False,
-    help="Target state of charge (in %) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    help="Target state of charge (in %, e.g. 100) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
     " Use --soc-unit to set a different unit."
     " This argument can be given multiple times."
-    " For example: --soc-target 32.8 2022-02-23T13:40:52+00:00",
+    " For example: --soc-target 100 2022-02-23T13:40:52+00:00",
 )
 @click.option(
     "--soc-min",
     "soc_min",
-    type=float,
+    type=NonNegativeFloat(),
     required=False,
-    help="Minimum state of charge (in %) for the schedule. Use --soc-unit to set a different unit.",
+    help="Minimum state of charge (in %, e.g. 20) for the schedule. Use --soc-unit to set a different unit.",
 )
 @click.option(
     "--soc-max",
     "soc_max",
-    type=float,
+    type=NonNegativeFloat(),
     required=False,
-    help="Maximum state of charge (in %) for the schedule. Use --soc-unit to set a different unit.",
+    help="Maximum state of charge (in %, e.g. 80) for the schedule. Use --soc-unit to set a different unit.",
 )
 @click.option(
     "--roundtrip-efficiency",
-    "roundtrip_efficiency",
-    type=float,
+    "roundtrip_efficiency_as_percentage",
+    type=PercentageFloat(),
     required=False,
-    help="Round-trip efficiency (e.g. 0.85) to use for the schedule. Defaults to 1 (no losses).",
+    default=100,
+    help="Round-trip efficiency (in %, e.g. 85) to use for the schedule. Defaults to 100 (no losses).",
 )
 @click.option(
     "--soc-unit",
@@ -889,7 +891,7 @@ def create_schedule(
     soc_target_strings: List[Tuple[float, str]],
     soc_min: Optional[float],
     soc_max: Optional[float],
-    roundtrip_efficiency: Optional[float],
+    roundtrip_efficiency_as_percentage: Optional[float] = 100,
     soc_unit: str = "%",
 ):
     """Create a new schedule for a given power sensor.
@@ -958,7 +960,7 @@ def create_schedule(
         soc_targets=soc_targets,
         soc_min=soc_min,
         soc_max=soc_max,
-        roundtrip_efficiency=roundtrip_efficiency,
+        roundtrip_efficiency=roundtrip_efficiency_as_percentage / 100,
         price_sensor=factor_sensor,
     )
     if success:
