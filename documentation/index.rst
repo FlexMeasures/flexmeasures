@@ -1,11 +1,11 @@
 Welcome to the FlexMeasures documentation!
 ===================================================================
 
+*FlexMeasures is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.*
+
 In a world with renewable energy, flexibility is crucial and valuable, e.g. for demand response.
 Planning ahead allows flexible assets to serve the whole system with their flexibility,
 e.g. by shifting or curtailing energy use.
-
-> The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable. 
 
 Developing energy flexibility services is expensive work. FlexMeasures reduces software development costs with:
 
@@ -17,7 +17,7 @@ Developing energy flexibility services is expensive work. FlexMeasures reduces s
 A quick glance at usage
 ------------------------
 
-A tiny, but full example: Let's install FlexMeasures from scratch, load hourly prices and optimize a 12h-schedule for a battery that is half full at the beginning.
+A tiny, but complete example: Let's install FlexMeasures from scratch. Then, using only the terminal, load hourly prices and optimize a 12h-schedule for a battery that is half full at the beginning.
 
 .. code-block:: bash
 
@@ -28,9 +28,9 @@ A tiny, but full example: Let's install FlexMeasures from scratch, load hourly p
     flexmeasures add toy-account --kind battery  # setup account & a user, a battery (Id 2) and a market (Id 3)
     flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv  # load prices, also possible per API
     flexmeasures add schedule --sensor-id 2 --factor-id 3 \
-        --from $(date '+%Y-%m-%d')T06:00+02:00 --duration PT12H \
-        --soc-at-start 50 --roundtrip-efficiency .9  # this is also possible per API
-    flexmeasures show beliefs --sensor-id 2 --from $(date '+%Y-%m-%d')T06:00:00+02:00 --duration PT12H  # also visible per UI, of course
+        --from ${TOMORROW}T07:00+01:00 --duration PT12H \
+        --soc-at-start 50 --roundtrip-efficiency 90  # this is also possible per API
+    flexmeasures show beliefs --sensor-id 2 --from ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
 
 We discuss this in more depth at :ref:`tut_toy_schedule`.
 

@@ -1,6 +1,6 @@
 .. _tut_toy_schedule:
 
-Toy example: Schedule a battery, from scratch
+Toy example: Scheduling a battery, from scratch
 ===============================================
 
 Let's walk through an example from scratch! We'll 
@@ -21,7 +21,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     # make the schedule
     $ flexmeasures add schedule --sensor-id 2 --factor-id 3 \
         --from $(date '+%Y-%m-%d')T06:00+02:00 --duration PT12H \
-        --soc-at-start 50 --roundtrip-efficiency .9
+        --soc-at-start 50 --roundtrip-efficiency 90
 
 
 Okay, let's get started!
@@ -38,7 +38,7 @@ We install the FlexMeasures platform, use Docker to run a postgres database and 
 
     $ pip install flexmeasures
     $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
-    $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret 
+    $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="WARNING" DEBUG=0 
     $ flexmeasures db upgrade
 
 
@@ -56,12 +56,12 @@ FlexMeasures offers a command to create a toy account with a battery:
     $ flexmeasures add toy-account --kind battery
 
     Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
-    The sensor for battery charging is <Sensor 2: charging, unit: kW res.: 0:15:00>.
+    The sensor for battery charging is <Sensor 2: charging, unit: MW res.: 0:15:00>.
     The sensor for Day ahead prices is <Sensor 3: Day ahead prices, unit: EUR/MWh res.: 1:00:00>.
 
 And with that, we're done with the structural data for this tutorial! 
 
-We can inspect what we created:
+If you want, you can inspect what you created:
 
 .. code-block:: bash
 
@@ -95,20 +95,22 @@ We can inspect what we created:
 
     Type     Location           Attributes
     -------  -----------------  ---------------------
-    battery  (52.374, 4.88969)  capacity_in_mw:0.005
-                                min_soc_in_mwh:0.0005
-                                max_soc_in_mwh:0.0045
+    battery  (52.374, 4.88969)  capacity_in_mw:0.5
+                                min_soc_in_mwh:0.05
+                                max_soc_in_mwh:0.45
 
     All sensors in asset:
     
       Id  Name      Unit    Resolution    Timezone          Attributes
     ----  --------  ------  ------------  ----------------  ------------
-       2  charging  kW      15 minutes    Europe/Amsterdam
+       2  charging  MW      15 minutes    Europe/Amsterdam
 
+
+Yes, that is quite a large battery :)
 
 .. note:: Obviously, you can use the `flexmeasures` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v2_0`.
 
-We can also look at the battery asset in the UI of FlexMeasures (start FlexMeasures with ``flexmeasures run``):
+We can also look at the battery asset in the UI of FlexMeasures (start FlexMeasures with ``flexmeasures run``, username is "toy-user@flexmeasures.io", password is "toy-password"):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view.png
     :align: center
@@ -196,7 +198,7 @@ Again, we can also view these sensor data in the FlexMeasures UI:
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
 
-.. note:: Technically, these prices for tomorrow are forecasts. You can use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.
+.. note:: Technically, these prices for tomorrow are forecasts. You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.
 
 
 Make a schedule
@@ -211,7 +213,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
     $ flexmeasures add schedule --sensor-id 2 --factor-id 3 \
         --from ${TOMORROW}T07:00+01:00 --duration PT12H \
-        --soc-at-start 50 --roundtrip-efficiency .9
+        --soc-at-start 50 --roundtrip-efficiency 90
     New schedule is stored.
 
 Great. Let's see what we made:
@@ -220,25 +222,25 @@ Great. Let's see what we made:
 
     $ flexmeasures show beliefs --sensor-id 2 --from ${TOMORROW}T07:00:00+01:00 --duration PT12H
     Beliefs for Sensor 'charging' (Id 2).
-    Data spans 12 hours and starts at 2022-03-03 07:00:00+01:00.
+    Data spans 12 hours and starts at 2022-03-04 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
     │   ▐                      ▐▀▀▌                           ▛▀▀│ 
-    │   ▞▌                     ▞  ▐                           ▌  │ 
+    │   ▞▌                     ▞  ▐                           ▌  │ 0.4MW
     │   ▌▌                     ▌  ▐                          ▐   │ 
     │  ▗▘▌                     ▌  ▐                          ▐   │ 
     │  ▐ ▐                    ▗▘  ▝▖                         ▐   │ 
-    │  ▞ ▐                    ▐    ▌                         ▌   │ 
+    │  ▞ ▐                    ▐    ▌                         ▌   │ 0.2MW
     │ ▗▘ ▐                    ▐    ▌                         ▌   │ 
     │ ▐  ▝▖                   ▌    ▚                        ▞    │ 
-    │▀▘───▀▀▀▀▀▀▀▀▀▀▀▀▀▀▌────▐─────▝▀▀▀▀▀▀▀▀▜─────▐▀▀▀▀▀▀▀▀▀─────│ 
+    │▀▘───▀▀▀▀▀▀▀▀▀▀▀▀▀▀▌────▐─────▝▀▀▀▀▀▀▀▀▜─────▐▀▀▀▀▀▀▀▀▀─────│ 0MW
     │                   ▌    ▞              ▐    ▗▘              │ 
     │                   ▚    ▌              ▐    ▐               │ 
-    │                   ▐   ▗▘              ▝▖   ▌               │ 
+    │                   ▐   ▗▘              ▝▖   ▌               │ -0.2MW
     │                   ▐   ▐                ▌   ▌               │ 
     │                   ▐   ▐                ▌  ▗▘               │ 
     │                    ▌  ▞                ▌  ▐                │ 
-    │                    ▌  ▌                ▐  ▐                │ 
+    │                    ▌  ▌                ▐  ▐                │ -0.4MW
     │                    ▙▄▄▌                ▐▄▄▞                │ 
     └────────────────────────────────────────────────────────────┘
             10           20           30          40
