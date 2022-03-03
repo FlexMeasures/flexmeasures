@@ -58,13 +58,14 @@ class Annotation(db.Model):
     ) -> List["Annotation"]:
         """Add a data frame describing annotations as Annotations in the database.
 
-        Expects the following columns (or multi-index levels):
-        - start
-        - end or duration
-        - content
-        - belief_time
-        - source
-
+        :param df:                  Data frame describing annotations.
+                                    Expects the following columns (or multi-index levels):
+                                    - start
+                                    - end or duration
+                                    - content
+                                    - belief_time
+                                    - source
+        :param annotation_type:     One of the possible Enum values for annotation.type
         :param expunge_session:     if True, all non-flushed instances are removed from the session before adding annotations.
                                     Expunging can resolve problems you might encounter with states of objects in your session.
                                     When using this option, you might want to flush newly-created objects which are not annotations
