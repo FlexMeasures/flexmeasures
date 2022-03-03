@@ -2,21 +2,19 @@ from datetime import datetime
 from typing import Optional, Tuple, List, Union
 
 from flask_security import current_user
+import pandas as pd
 from sqlalchemy.engine import Row
-
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data import db
-from flexmeasures.data.models.annotations import (
-    Annotation,
-    GenericAssetAnnotationRelationship,
-)
+from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
+from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
 
@@ -83,7 +81,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         }
 
     def __repr__(self):
-        return "<GenericAsset %s:%r (%s)>" % (
+        return "<GenericAsset %s: %r (%s)>" % (
             self.id,
             self.name,
             self.generic_asset_type.name,
@@ -178,6 +176,19 @@ class GenericAsset(db.Model, AuthModelMixin):
         """True if at least one energy sensor is attached"""
         return any([s.measures_energy for s in self.sensors])
 
+    def add_annotations(
+        self,
+        df: pd.DataFrame,
+        annotation_type: str,
+        commit_transaction: bool = False,
+    ):
+        """Add a data frame describing annotations to the database, and assign the annotations to this asset."""
+        annotations = Annotation.add(df, annotation_type=annotation_type)
+        self.annotations += annotations
+        db.session.add(self)
+        if commit_transaction:
+            db.session.commit()
+
     def search_annotations(
         self,
         annotation_starts_after: Optional[datetime] = None,
@@ -185,33 +196,54 @@ class GenericAsset(db.Model, AuthModelMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
+        annotation_type: str = None,
         include_account_annotations: bool = False,
-    ):
+        as_frame: bool = False,
+    ) -> Union[List[Annotation], pd.DataFrame]:
+        """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account."""
         parsed_sources = parse_source_arg(source)
-        query = Annotation.query.join(GenericAssetAnnotationRelationship).filter(
-            GenericAssetAnnotationRelationship.generic_asset_id == self.id,
-            GenericAssetAnnotationRelationship.annotation_id == Annotation.id,
-        )
-        if annotation_starts_after is not None:
-            query = query.filter(
-                Annotation.start >= annotation_starts_after,
-            )
-        if annotation_ends_before is not None:
-            query = query.filter(
-                Annotation.end <= annotation_ends_before,
-            )
-        if parsed_sources:
-            query = query.filter(
-                Annotation.source.in_(parsed_sources),
-            )
-        annotations = query.all()
+        annotations = query_asset_annotations(
+            asset_id=self.id,
+            annotation_starts_after=annotation_starts_after,
+            annotation_ends_before=annotation_ends_before,
+            sources=parsed_sources,
+            annotation_type=annotation_type,
+        ).all()
         if include_account_annotations:
             annotations += self.owner.search_annotations(
                 annotation_starts_before=annotation_starts_after,
                 annotation_ends_before=annotation_ends_before,
                 source=source,
             )
+
+        if as_frame:
+            return pd.DataFrame(
+                [
+                    [a.start, a.end, a.belief_time, a.source, a.type, a.content]
+                    for a in annotations
+                ],
+                columns=["start", "end", "belief_time", "source", "type", "content"],
+            )
         return annotations
+
+    def count_annotations(
+        self,
+        annotation_starts_after: Optional[datetime] = None,
+        annotation_ends_before: Optional[datetime] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
+        annotation_type: str = None,
+    ) -> int:
+        """Count the number of annotations assigned to this asset."""
+        parsed_sources = parse_source_arg(source)
+        return query_asset_annotations(
+            asset_id=self.id,
+            annotation_starts_after=annotation_starts_after,
+            annotation_ends_before=annotation_ends_before,
+            sources=parsed_sources,
+            annotation_type=annotation_type,
+        ).count()
 
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:

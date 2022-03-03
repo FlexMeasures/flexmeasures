@@ -5,6 +5,7 @@ from marshmallow import validates, validates_schema, ValidationError, fields
 from flexmeasures.data import ma
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
 
 
 class GenericAssetSchema(ma.SQLAlchemySchema):
@@ -89,3 +90,18 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 
     class Meta:
         model = GenericAssetType
+
+
+class GenericAssetField(fields.Int, MarshmallowClickMixin):
+    """Field that deserializes to a GenericAsset and serializes back to an integer."""
+
+    def _deserialize(self, value, attr, obj, **kwargs) -> GenericAsset:
+        """Turn a generic asset id into a GenericAsset."""
+        generic_asset = GenericAsset.query.get(value)
+        if generic_asset is None:
+            raise FMValidationError(f"No asset found with id {value}.")
+        return generic_asset
+
+    def _serialize(self, value, attr, data, **kwargs):
+        """Turn a GenericAsset into a generic asset id."""
+        return value.id
