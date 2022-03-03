@@ -1,17 +1,17 @@
 Welcome to the FlexMeasures documentation!
 ===================================================================
 
-*FlexMeasures is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable.*
+*FlexMeasures is the intelligent & developer-friendly backend to support real-time energy flexibility apps, rapidly and scalable.*
 
 In a world with renewable energy, flexibility is crucial and valuable, e.g. for demand response.
 Planning ahead allows flexible assets to serve the whole system with their flexibility,
 e.g. by shifting or curtailing energy use.
 
-Developing energy flexibility services is expensive work. FlexMeasures reduces software development costs with:
+Developing energy flexibility services is expensive work. FlexMeasures is designed to be developer-friendly, which helps you to go to market quickly, while keeping the costs of software development at bay. FlexMeasures delivers:
 
 - Real-time data intelligence & integration
 - Uncertainty models
-- API/UI support
+- App-building (API/UI/CLI & plugin support)
 
 
 A quick glance at usage
@@ -43,8 +43,8 @@ As possible users, we see energy service companies (ESCOs) who want to build rea
 However, even small companies and hobby projects might find FlexMeasures useful! 
 
 
-The three core values:
------------------------
+The three ways in which FlexMeasures supports developers:
+---------------------------------------------------------
 
 Real-time data intelligence & integration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -54,6 +54,7 @@ Energy flexibility services need to interact multiple times per day or hour. We 
 - Support for real-time updates
 - Forecasting for the upcoming hours
 - Schedule optimization
+- Extensions for integrating data, e.g. from `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_
 
 
 Uncertainty models
@@ -64,13 +65,13 @@ Dealing with uncertain forecasts and outcomes is crucial.
 FlexMeasures is therefore built on the `timely-beliefs framework <https://github.com/SeitaBV/timely-beliefs>`_, so we model this real-world aspect accurately.
 
 
-Service building
+App building
 ^^^^^^^^^^^^^^^^^^
 Building customer-facing apps & services is where developers make impact. We make their work easy.
 
-- Well-documented API
-- Plugin support
-- Plotting support
+- Well-documented API and CLI
+- Plugin support (add your own logic)
+- Backend UI and support for plotting
 - Multi-tenancy
 
 
@@ -110,6 +111,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     :caption: Tutorials
     :maxdepth: 1
     
+    tut/toy-example-from-scratch
     tut/posting_data
     tut/forecasting_scheduling
     tut/building_uis

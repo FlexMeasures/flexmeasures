@@ -6,9 +6,9 @@ Getting started
 Quickstart
 ----------
 
-This section walks you through getting FlexMeasures to run with the least effort. We'll cover making a secret key, connecting a database and creating one user & one asset.
+This section walks you through getting FlexMeasures to run. For an example with the least effort, see :ref:`tut_toy_schedule`. Here, we'll cover getting started with an installation you run continuously ― making a secret key, connecting a database and creating one user & one asset.
 
-.. note:: Are you not hosting FlexMeasures, but want to learn how to use it? Head over to our tutorials, starting with :ref:`tut_posting_data`.
+.. note:: Are you not hosting FlexMeasures, but want to learn how to interact with it? Start with :ref:`tut_posting_data`.
 
 .. warning:: Are you implementing code based on FlexMeasures, please read :ref:`note_on_datamodel_transition`.
 
@@ -127,7 +127,7 @@ Populate the database with some standard asset types, user roles etc.:
 
 .. code-block::
 
-   flexmeasures add structure
+   flexmeasures add initial-structure
 
 
 Add your first asset

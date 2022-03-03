@@ -3,7 +3,7 @@
 Toy example: Scheduling a battery, from scratch
 ===============================================
 
-Let's walk through an example from scratch! We'll 
+Let's walk through an example from scratch! We'll ... 
 
 - install FlexMeasures
 - create an account with a battery asset
@@ -108,7 +108,7 @@ If you want, you can inspect what you created:
 
 Yes, that is quite a large battery :)
 
-.. note:: Obviously, you can use the `flexmeasures` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v2_0`.
+.. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v2_0`.
 
 We can also look at the battery asset in the UI of FlexMeasures (start FlexMeasures with ``flexmeasures run``, username is "toy-user@flexmeasures.io", password is "toy-password"):
 
@@ -150,7 +150,7 @@ Now to add price data. First, we'll create the csv file with prices (EUR/MWh, se
     ${TOMORROW}T22:00:00,10
     ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 
-Note that time series data (which we call "beliefs" in FlexMeasures) can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
+This is time series data, in FlexMeasures we call "beliefs". Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
 
 .. code-block:: bash
 
@@ -193,7 +193,7 @@ Let's look at the price data we just loaded:
 
 
 
-Again, we can also view these sensor data in the FlexMeasures UI:
+Again, we can also view these prices in the FlexMeasures UI:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
@@ -207,7 +207,7 @@ Make a schedule
 Finally, we can create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
 We'll ask FlexMeasures for a schedule for our charging sensor (Id 2). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
-To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (0.9).
+To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
 .. code-block:: bash
 
@@ -257,4 +257,4 @@ We can also look at the charging schedule in the FlexMeasures UI (reachable via 
 Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 5am) and it also had to end *before* the second price peak fully realised (at 9pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (around 3pm) and sells it off when prices start rising again (around 6pm).
 
 
-.. note:: The ``flexmeasures add schedule`` command also accepts state of charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. 
+.. note:: The ``flexmeasures add schedule`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule --help``. 
