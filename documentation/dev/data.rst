@@ -1,6 +1,6 @@
 .. _dev-data:
 
-Handling data
+Handling databases
 =============================
 
 This document describes how to get the postgres database ready to use and maintain it (do migrations / changes to the structure).
@@ -210,17 +210,18 @@ You can create some pre-determined asset types and data sources with this comman
 
 .. code-block:: bash
 
-   flexmeasures add structure
+   flexmeasures add initial-structure
+
+You can also create assets in the FlexMeasures UI.
+
+On the command line, you can add many things. Check what data you can add yourself:
+
+.. code-block:: bash
+
+   flexmeasures add --help
 
 
-.. todo:: We should instead offer CLI commands to be able to create asset types as needed.
-
-You can create assets in the FlexMeasures UI.
-
-.. todo:: Maybe a CLI command would help to script all data creation.
-.. todo:: We still need a decent way to load in metering data, e.g. from CSV - often, a custom loading script will be necessary anyways.
-
-You can create forecasts for your existing metered data with this command:
+For instance, you can create forecasts for your existing metered data with this command:
 
 .. code-block:: bash
 
@@ -230,13 +231,11 @@ You can create forecasts for your existing metered data with this command:
 Check out it's ``--help`` content to learn more. You can set which assets and which time window you want to forecast. Of course, making forecasts takes a while for a larger dataset.
 You can also simply queue a job with this command (and run a worker to process the :ref:`redis-queue`).
 
-Just to note, there are also commands to get rid of data, such as:
+Just to note, there are also commands to get rid of data. Check:
 
 .. code-block:: bash
 
-   flexmeasures delete structure
-   flexmeasures delete measurements
-   flexmeasures delete forecasts
+   flexmeasures delete --help
 
 Check out the :ref:`cli` documentation for more details.
 
