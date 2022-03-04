@@ -25,6 +25,8 @@ from flexmeasures.utils.unit_utils import (
         ("m³/h", "l/h", 1000, None),
         ("m³", "m³/h", 4, None),
         ("MW", "kW", 1000, None),
+        ("%", "kWh", 0.5, None),  # i.e. 1% of 50 kWh (the capacity used in the test)
+        ("kWh", "%", 2, None),  # i.e. 1 kWh = 2% of 50 kWh
         ("kWh", "kW", 4, None),
         ("kW", "kWh", 1 / 4, None),
         ("-W", "W", -1, None),
@@ -53,6 +55,7 @@ def test_convert_unit(
         from_unit=from_unit,
         to_unit=to_unit,
         event_resolution=timedelta(minutes=15),
+        capacity="50 kWh",
     )
     if expected_multiplier is not None:
         expected_data = data * expected_multiplier

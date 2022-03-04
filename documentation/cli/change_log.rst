@@ -11,6 +11,7 @@ since v0.9.0 | January 26, 2022
 * Add ``flexmeasures edit resample-data`` CLI command to resample sensor data to a different resolution.
 * Add ``flexmeasures edit attribute`` CLI command to edit/add an attribute on an asset or sensor.
 * Add ``flexmeasures add toy-account`` for tutorials and trying things.
+* Add ``flexmeasures add schedule`` to create a new schedule for a given power sensor.
 * Rename ``flexmeasures add structure`` to ``flexmeasures add initial-structure``. 
 
 

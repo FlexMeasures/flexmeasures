@@ -1,9 +1,11 @@
 """CLI Tasks for populating the database - most useful in development"""
 
 from datetime import timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import json
 
+from marshmallow import validate
+import numpy as np
 import pandas as pd
 import pytz
 from flask import current_app as app
@@ -13,6 +15,7 @@ import getpass
 from sqlalchemy.exc import IntegrityError
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
+import isodate
 
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
@@ -21,14 +24,20 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
+from flexmeasures.data.services.scheduling import make_schedule
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
+from flexmeasures.data.models.validation_utils import (
+    check_required_attributes,
+    MissingAttributeException,
+)
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
@@ -41,7 +50,7 @@ from flexmeasures.data.queries.data_sources import (
 )
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.utils.unit_utils import convert_units
+from flexmeasures.utils.unit_utils import convert_units, ur
 
 
 @click.group("add")
@@ -132,7 +141,7 @@ def new_user(
         raise click.Abort
     account = db.session.query(Account).get(account_id)
     if account is None:
-        print(f"No account with id {account_id} found!")
+        print(f"No account with ID {account_id} found!")
         raise click.Abort
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
@@ -410,7 +419,7 @@ def add_beliefs(
     """
     sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
     if sensor is None:
-        print(f"Failed to create beliefs: no sensor found with id {sensor_id}.")
+        print(f"Failed to create beliefs: no sensor found with ID {sensor_id}.")
         return
     if source.isdigit():
         _source = get_source_or_none(int(source), source_type="CLI script")
@@ -754,6 +763,167 @@ def create_forecasts(
             forecast_end=forecast_end,
             event_resolution=event_resolution,
         )
+
+
+@fm_add_data.command("schedule")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "power_sensor_id",
+    required=True,
+    help="Create schedule for this sensor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--optimization-context-id",
+    "optimization_context_sensor_id",
+    required=True,
+    help="Optimize against this sensor, which measures a price factor or CO₂ intensity factor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--from",
+    "start_str",
+    required=True,
+    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--duration",
+    "duration_str",
+    required=True,
+    help="Duration of schedule, after --from. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--soc-at-start",
+    "soc_at_start",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=True,
+    help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule. Use --soc-unit to set a different unit.",
+)
+@click.option(
+    "--soc-target",
+    "soc_target_strings",
+    type=click.Tuple(
+        types=[QuantityField("%", validate=validate.Range(min=0, max=1)), str]
+    ),
+    multiple=True,
+    required=False,
+    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    " Use --soc-unit to set a different unit."
+    " This argument can be given multiple times."
+    " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
+)
+@click.option(
+    "--soc-min",
+    "soc_min",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=False,
+    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule. Use --soc-unit to set a different unit.",
+)
+@click.option(
+    "--soc-max",
+    "soc_max",
+    type=QuantityField("%", validate=validate.Range(min=0, max=100)),
+    required=False,
+    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule. Use --soc-unit to set a different unit.",
+)
+@click.option(
+    "--roundtrip-efficiency",
+    "roundtrip_efficiency",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=False,
+    default=1,
+    help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
+)
+def create_schedule(
+    power_sensor_id: int,
+    optimization_context_sensor_id: int,
+    start_str: str,
+    duration_str: str,
+    soc_at_start: ur.Quantity,
+    soc_target_strings: List[Tuple[ur.Quantity, str]],
+    soc_min: Optional[ur.Quantity] = None,
+    soc_max: Optional[ur.Quantity] = None,
+    roundtrip_efficiency: Optional[ur.Quantity] = None,
+):
+    """Create a new schedule for a given power sensor.
+
+    Current limitations:
+    - only supports battery assets and Charge Points
+    - only supports datetimes on the hour or a multiple of the sensor resolution thereafter
+    """
+
+    # Parse input
+    power_sensor: Sensor = Sensor.query.filter(
+        Sensor.id == power_sensor_id
+    ).one_or_none()
+    if power_sensor is None:
+        click.echo(f"No sensor found with ID {power_sensor_id}.")
+        raise click.Abort()
+    if not power_sensor.measures_power:
+        click.echo(f"Sensor with ID {power_sensor_id} is not a power sensor.")
+        raise click.Abort()
+    optimization_context_sensor: Sensor = Sensor.query.filter(
+        Sensor.id == optimization_context_sensor_id
+    ).one_or_none()
+    if optimization_context_sensor is None:
+        click.echo(f"No sensor found with ID {optimization_context_sensor_id}.")
+        raise click.Abort()
+    start = pd.Timestamp(start_str)
+    end = start + isodate.parse_duration(duration_str)
+    for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
+        try:
+            check_required_attributes(power_sensor, [(attribute, float)])
+        except MissingAttributeException:
+            click.echo(f"{power_sensor} has no {attribute} attribute.")
+            raise click.Abort()
+    soc_targets = pd.Series(
+        np.nan,
+        index=pd.date_range(
+            pd.Timestamp(start).tz_convert(power_sensor.timezone),
+            pd.Timestamp(end).tz_convert(power_sensor.timezone),
+            freq=power_sensor.event_resolution,
+            closed="right",
+        ),  # note that target values are indexed by their due date (i.e. closed="right")
+    )
+
+    # Convert round-trip efficiency to dimensionless
+    if roundtrip_efficiency is not None:
+        roundtrip_efficiency = roundtrip_efficiency.to(
+            ur.Quantity("dimensionless")
+        ).magnitude
+
+    # Convert SoC units to MWh, given the storage capacity
+    capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
+    soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
+    for soc_target_tuple in soc_target_strings:
+        soc_target_value_str, soc_target_dt_str = soc_target_tuple
+        soc_target_value = convert_units(
+            soc_target_value_str.magnitude,
+            str(soc_target_value_str.units),
+            "MWh",
+            capacity=capacity_str,
+        )
+        soc_target_datetime = pd.Timestamp(soc_target_dt_str)
+        soc_targets.loc[soc_target_datetime] = soc_target_value
+    if soc_min is not None:
+        soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
+    if soc_max is not None:
+        soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
+
+    success = make_schedule(
+        sensor_id=power_sensor_id,
+        start=start,
+        end=end,
+        belief_time=server_now(),
+        resolution=power_sensor.event_resolution,
+        soc_at_start=soc_at_start,
+        soc_targets=soc_targets,
+        soc_min=soc_min,
+        soc_max=soc_max,
+        roundtrip_efficiency=roundtrip_efficiency,
+        price_sensor=optimization_context_sensor,
+    )
+    if success:
+        print("New schedule is stored.")
 
 
 @fm_add_data.command("toy-account")
