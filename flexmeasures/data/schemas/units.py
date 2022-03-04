@@ -7,7 +7,7 @@ from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.unit_utils import is_valid_unit, ur
 
 
-class Quantity(Validator):
+class QuantityValidator(Validator):
     """Validator which succeeds if the value passed to it is a valid quantity."""
 
     def __init__(self, *, error: Optional[str] = None):
@@ -38,7 +38,7 @@ class QuantityField(fields.Str, MarshmallowClickMixin):
     def __init__(self, to_unit: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Insert validation into self.validators so that multiple errors can be stored.
-        validator = Quantity()
+        validator = QuantityValidator()
         self.validators.insert(0, validator)
         self.to_unit = ur.Quantity(to_unit)
 
