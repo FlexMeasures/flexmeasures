@@ -5,6 +5,7 @@ import json
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
+from sqlalchemy.schema import UniqueConstraint
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
@@ -31,7 +32,9 @@ from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
+from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.geo_utils import parse_lat_lng
 
 
 class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
@@ -77,6 +80,14 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         if attributes is not None:
             kwargs["attributes"] = attributes
         db.Model.__init__(self, **kwargs)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "name",
+            "generic_asset_id",
+            name="sensor_name_generic_asset_id_key",
+        ),
+    )
 
     def __acl__(self):
         """
@@ -375,6 +386,39 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
+
+    @classmethod
+    def find_closest(
+        cls, generic_asset_type_name: str, sensor_name: str, n: int = 1, **kwargs
+    ) -> Union["Sensor", List["Sensor"], None]:
+        """Returns the closest n sensors within a given asset type (as a list if n > 1).
+        Parses latitude and longitude values stated in kwargs.
+
+        Can be called with an object that has latitude and longitude properties, for example:
+
+            sensor = Sensor.find_closest("weather_station", "wind speed", object=generic_asset)
+
+        Can also be called with latitude and longitude parameters, for example:
+
+            sensor = Sensor.find_closest("weather_station", "temperature", latitude=32, longitude=54)
+            sensor = Sensor.find_closest("weather_station", "temperature", lat=32, lng=54)
+
+        Finally, pass in an account_id parameter if you want to query an account other than your own. This only works for admins. Public assets are always queried.
+        """
+
+        latitude, longitude = parse_lat_lng(kwargs)
+        account_id_filter = kwargs["account_id"] if "account_id" in kwargs else None
+        query = query_sensors_by_proximity(
+            latitude=latitude,
+            longitude=longitude,
+            generic_asset_type_name=generic_asset_type_name,
+            sensor_name=sensor_name,
+            account_id=account_id_filter,
+        )
+        if n == 1:
+            return query.first()
+        else:
+            return query.limit(n).all()
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):

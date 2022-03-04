@@ -30,7 +30,6 @@ Big features
 - [API] The inferred recording time of incoming data is immediately after the event took place, rather than the actual time at which the server received the data.
 - [API] Posting price or weather data does not trigger forecasting jobs.
 - [API] The ``restoreData`` endpoint is registered, enabling database resets through the API.
-- [API] When posting weather data for a new location, a new weather sensor is automatically created, instead of returning the nearest available weather sensor to post data to.
 
 .. note:: A former feature of play mode is now a separate config setting. To allow overwriting existing data when saving data to the database, use :ref:`overwrite-config`.
 

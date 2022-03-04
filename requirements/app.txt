@@ -25,13 +25,9 @@ babel==2.9.1
     # via py-moneyed
 backports.zoneinfo==0.2.1
     # via
-    #   pytz-deprecation-shim
-    #   tzlocal
     #   workalendar
 bcrypt==3.2.0
     # via -r requirements/app.in
-beautifulsoup4==4.10.0
-    # via siphon
 blinker==1.4
     # via
     #   flask-mail
@@ -51,8 +47,6 @@ cffi==1.15.0
     # via
     #   bcrypt
     #   cryptography
-cftime==1.5.2
-    # via netcdf4
 charset-normalizer==2.0.12
     # via requests
 click==8.0.3
@@ -137,8 +131,6 @@ greenlet==1.1.2
     # via sqlalchemy
 h11==0.13.0
     # via wsproto
-h5py==3.6.0
-    # via pvlib
 humanize==4.0.0
     # via -r requirements/app.in
 idna==3.3
@@ -205,29 +197,18 @@ marshmallow-sqlalchemy==0.27.0
     # via -r requirements/app.in
 matplotlib==3.5.1
     # via timetomodel
-netcdf4==1.5.8
-    # via -r requirements/app.in
-numexpr==2.8.1
-    # via tables
 numpy==1.22.2
     # via
     #   -r requirements/app.in
     #   altair
     #   bokeh
-    #   cftime
-    #   h5py
     #   matplotlib
-    #   netcdf4
-    #   numexpr
     #   pandas
     #   patsy
     #   properscoring
-    #   pvlib
     #   scikit-learn
     #   scipy
-    #   siphon
     #   statsmodels
-    #   tables
     #   timely-beliefs
     #   timetomodel
 openturns==1.18
@@ -238,19 +219,15 @@ packaging==21.3
     # via
     #   bokeh
     #   matplotlib
-    #   numexpr
     #   pint
     #   redis
     #   statsmodels
-    #   tables
     #   webargs
 pandas==1.2.5
     # via
     #   -r requirements/app.in
     #   altair
     #   pandas-bokeh
-    #   pvlib
-    #   siphon
     #   statsmodels
     #   timely-beliefs
     #   timetomodel
@@ -270,8 +247,6 @@ ply==3.11
     # via pyomo
 properscoring==0.1
     # via timely-beliefs
-protobuf==3.19.4
-    # via siphon
 pscript==0.7.7
     # via -r requirements/app.in
 psutil==5.9.0
@@ -280,8 +255,6 @@ psycopg2-binary==2.9.3
     # via
     #   -r requirements/app.in
     #   timely-beliefs
-pvlib==0.9.0
-    # via -r requirements/app.in
 py-moneyed==2.0
     # via -r requirements/app.in
 pycparser==2.21
@@ -315,11 +288,8 @@ pytz==2021.3
     #   -r requirements/app.in
     #   babel
     #   pandas
-    #   pvlib
     #   timely-beliefs
     #   timetomodel
-pytz-deprecation-shim==0.1.0.post0
-    # via tzlocal
 pyyaml==6.0
     # via bokeh
 redis==4.1.3
@@ -329,9 +299,7 @@ redis==4.1.3
     #   rq-dashboard
 requests==2.27.1
     # via
-    #   pvlib
     #   requests-file
-    #   siphon
     #   tldextract
 requests-file==1.5.1
     # via tldextract
@@ -346,7 +314,6 @@ scikit-learn==1.0.2
 scipy==1.8.0
     # via
     #   properscoring
-    #   pvlib
     #   scikit-learn
     #   statsmodels
     #   timely-beliefs
@@ -354,8 +321,6 @@ scipy==1.8.0
 selenium==4.1.0
     # via timely-beliefs
 sentry-sdk[flask]==1.5.5
-    # via -r requirements/app.in
-siphon==0.9
     # via -r requirements/app.in
 six==1.16.0
     # via
@@ -373,8 +338,6 @@ sniffio==1.2.0
     # via trio
 sortedcontainers==2.4.0
     # via trio
-soupsieve==2.3.1
-    # via beautifulsoup4
 sqlalchemy==1.4.31
     # via
     #   -r requirements/app.in
@@ -385,8 +348,6 @@ sqlalchemy==1.4.31
     #   timetomodel
 statsmodels==0.13.2
     # via timetomodel
-tables==3.7.0
-    # via -r requirements/app.in
 tabulate==0.8.9
     # via -r requirements/app.in
 threadpoolctl==3.1.0
@@ -409,10 +370,6 @@ trio-websocket==0.9.2
     # via selenium
 typing-extensions==4.1.1
     # via py-moneyed
-tzdata==2021.5
-    # via pytz-deprecation-shim
-tzlocal==4.1
-    # via -r requirements/app.in
 urllib3[secure]==1.26.8
     # via
     #   requests

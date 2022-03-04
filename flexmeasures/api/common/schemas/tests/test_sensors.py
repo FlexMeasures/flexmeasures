@@ -32,27 +32,12 @@ from flexmeasures.utils.entity_address_utils import build_entity_address
             "fm0",
             "Test battery with no known prices",
         ),
-        (
-            build_entity_address(
-                dict(
-                    weather_sensor_type_name="temperature",
-                    latitude=33.4843866,
-                    longitude=126.0,
-                ),
-                "weather_sensor",
-                fm_scheme="fm0",
-            ),
-            "weather_sensor",
-            "fm0",
-            "temperature_sensor",
-        ),
     ],
 )
 def test_sensor_field_straightforward(
     add_sensors,
     setup_markets,
     add_battery_assets,
-    add_weather_sensors,
     entity_address,
     entity_type,
     fm_scheme,

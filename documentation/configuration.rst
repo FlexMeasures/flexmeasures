@@ -253,13 +253,6 @@ Default: ``timedelta(hours=2 * 24)``
 Access Tokens
 ---------------
 
-OPENWEATHERMAP_API_KEY
-^^^^^^^^^^^^^^^^
-
-Token for accessing the OpenWeatherMap weather forecasting service.
-
-Default: ``None``
-
 .. _mapbox_access_token:
 
 MAPBOX_ACCESS_TOKEN

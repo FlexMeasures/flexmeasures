@@ -12,8 +12,8 @@ from statsmodels.api import OLS
 from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.models.weather import WeatherSensorType, WeatherSensor
+from flexmeasures.data.models.time_series import TimedBelief, Sensor
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.forecasting import model_map
 from flexmeasures.data.models.forecasting.model_spec_factory import (
     create_initial_model_specs,
@@ -27,6 +27,7 @@ def setup_test_data(
     app,
     add_market_prices,
     setup_assets,
+    setup_generic_asset_types,
     remove_seasonality_for_power_forecasts,
 ):
     """
@@ -34,7 +35,7 @@ def setup_test_data(
     """
     print("Setting up data for data tests on %s" % db.engine)
 
-    add_test_weather_sensor_and_forecasts(db)
+    add_test_weather_sensor_and_forecasts(db, setup_generic_asset_types)
 
     print("Done setting up data for data tests")
 
@@ -44,6 +45,7 @@ def setup_fresh_test_data(
     fresh_db,
     setup_markets_fresh_db,
     setup_roles_users_fresh_db,
+    setup_generic_asset_types_fresh_db,
     app,
     fresh_remove_seasonality_for_power_forecasts,
 ):
@@ -87,7 +89,7 @@ def setup_fresh_test_data(
             for dt, val in zip(time_slots, values)
         ]
         db.session.add_all(beliefs)
-    add_test_weather_sensor_and_forecasts(fresh_db)
+    add_test_weather_sensor_and_forecasts(fresh_db, setup_generic_asset_types_fresh_db)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -109,18 +111,19 @@ def fresh_remove_seasonality_for_power_forecasts(db, setup_asset_types_fresh_db)
         setup_asset_types[asset_type].yearly_seasonality = False
 
 
-def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
+def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_types):
     """one day of test data (one complete sine curve) for two sensors"""
     data_source = DataSource.query.filter_by(
         name="Seita", type="demo script"
     ).one_or_none()
-    for sensor_name in ("radiation", "wind_speed"):
-        sensor_type = WeatherSensorType.query.filter_by(name=sensor_name).one_or_none()
-        if sensor_type is None:
-            sensor_type = WeatherSensorType(name=sensor_name)
-        sensor = WeatherSensor(
-            name=sensor_name, sensor_type=sensor_type, latitude=100, longitude=100
-        )
+    weather_station = GenericAsset(
+        name="Test weather station farther away",
+        generic_asset_type=setup_generic_asset_types["weather_station"],
+        latitude=100,
+        longitude=100,
+    )
+    for sensor_name, unit in (("irradiance", "kW/m²"), ("wind speed", "m/s")):
+        sensor = Sensor(name=sensor_name, generic_asset=weather_station, unit=unit)
         db.session.add(sensor)
         time_slots = pd.date_range(
             datetime(2015, 1, 1), datetime(2015, 1, 2, 23, 45), freq="15T"
@@ -128,14 +131,14 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy):
         values = [random() * (1 + np.sin(x / 15)) for x in range(len(time_slots))]
         if sensor_name == "temperature":
             values = [value * 17 for value in values]
-        if sensor_name == "wind_speed":
+        if sensor_name == "wind speed":
             values = [value * 45 for value in values]
-        if sensor_name == "radiation":
+        if sensor_name == "irradiance":
             values = [value * 600 for value in values]
         for dt, val in zip(time_slots, values):
             db.session.add(
                 TimedBelief(
-                    sensor=sensor.corresponding_sensor,
+                    sensor=sensor,
                     event_start=as_server_time(dt),
                     event_value=val,
                     belief_horizon=timedelta(hours=6),
@@ -163,25 +166,38 @@ def add_failing_test_model(db):
 
 
 @pytest.fixture(scope="module")
-def add_nearby_weather_sensors(db, add_weather_sensors) -> Dict[str, WeatherSensor]:
-    temp_sensor_location = add_weather_sensors["temperature"].location
-    farther_temp_sensor = WeatherSensor(
-        name="farther_temperature_sensor",
-        weather_sensor_type_name="temperature",
-        event_resolution=timedelta(minutes=5),
+def add_nearby_weather_sensors(db, add_weather_sensors) -> Dict[str, Sensor]:
+    temp_sensor_location = add_weather_sensors["temperature"].generic_asset.location
+    weather_station_type = GenericAssetType.query.filter(
+        GenericAssetType.name == "weather station"
+    ).one_or_none()
+    farther_weather_station = GenericAsset(
+        name="Test weather station farther away",
+        generic_asset_type=weather_station_type,
         latitude=temp_sensor_location[0],
         longitude=temp_sensor_location[1] + 0.1,
-        unit="°C",
     )
-    even_farther_temp_sensor = WeatherSensor(
-        name="even_farther_temperature_sensor",
-        weather_sensor_type_name="temperature",
+    db.session.add(farther_weather_station)
+    farther_temp_sensor = Sensor(
+        name="temperature",
+        generic_asset=farther_weather_station,
         event_resolution=timedelta(minutes=5),
-        latitude=temp_sensor_location[0],
-        longitude=temp_sensor_location[1] + 0.2,
         unit="°C",
     )
     db.session.add(farther_temp_sensor)
+    even_farther_weather_station = GenericAsset(
+        name="Test weather station even farther away",
+        generic_asset_type=weather_station_type,
+        latitude=temp_sensor_location[0],
+        longitude=temp_sensor_location[1] + 0.2,
+    )
+    db.session.add(even_farther_weather_station)
+    even_farther_temp_sensor = Sensor(
+        name="temperature",
+        generic_asset=even_farther_weather_station,
+        event_resolution=timedelta(minutes=5),
+        unit="°C",
+    )
     db.session.add(even_farther_temp_sensor)
     add_weather_sensors["farther_temperature"] = farther_temp_sensor
     add_weather_sensors["even_farther_temperature"] = even_farther_temp_sensor

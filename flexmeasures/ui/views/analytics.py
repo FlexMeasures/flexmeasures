@@ -463,10 +463,10 @@ def get_data_and_metrics(
         if weather_type == "temperature":
             error_margin_upper = 0.7 * decay_factor
             error_margin_lower = error_margin_upper
-        elif weather_type == "wind_speed":
+        elif weather_type == "wind speed":
             error_margin_upper = 1.5 * decay_factor
             error_margin_lower = 0.8 * decay_factor
-        elif weather_type == "radiation":
+        elif weather_type == "irradiance":
             error_margin_upper = 1.8 * decay_factor
             error_margin_lower = 0.5 * decay_factor
         if data["weather_forecast"].empty:
@@ -612,7 +612,7 @@ def make_weather_figure(
     sizing_mode="scale_width",
 ) -> Figure:
     """Make a bokeh figure for weather data"""
-    # Todo: plot average temperature/total_radiation/wind_speed for asset groups, and update title accordingly
+    # Todo: plot average temperature/irradiance/wind speed for asset groups, and update title accordingly
     if weather_sensor is None:
         return create_graph(
             pd.DataFrame(columns=["event_value"]),

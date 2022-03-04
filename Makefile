@@ -55,8 +55,8 @@ install-sphinx-tools:
 freeze-deps:
 	make install-pip-tools
 	pip-compile -o requirements/app.txt requirements/app.in
-	pip-compile -o requirements/dev.txt requirements/dev.in
 	pip-compile -o requirements/test.txt requirements/test.in
+	pip-compile -o requirements/dev.txt requirements/dev.in
 
 upgrade-deps:
 	make install-pip-tools

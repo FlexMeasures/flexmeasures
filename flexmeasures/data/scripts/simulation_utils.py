@@ -111,7 +111,7 @@ def post_weather_data(
         "sensor": "%s:%s:%s:%s"
         % (
             build_ea_scheme_and_naming_authority(host, host_auth_start_month),
-            "radiation",
+            "irradiance",
             lat,
             lng,
         ),
