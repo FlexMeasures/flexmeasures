@@ -37,10 +37,7 @@ from flexmeasures.data.models.validation_utils import (
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
-from flexmeasures.data.schemas.units import (
-    NonNegativeFloat,
-    QuantityField,
-)
+from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
@@ -843,34 +840,36 @@ def create_forecasts(
 @click.option(
     "--soc-at-start",
     "soc_at_start",
-    type=NonNegativeFloat(),
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=True,
-    help="State of charge (in %, e.g. 32.8) at the start of the schedule. Use --soc-unit to set a different unit.",
+    help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule. Use --soc-unit to set a different unit.",
 )
 @click.option(
     "--soc-target",
     "soc_target_strings",
-    type=click.Tuple(types=[NonNegativeFloat(), str]),
+    type=click.Tuple(
+        types=[QuantityField("%", validate=validate.Range(min=0, max=1)), str]
+    ),
     multiple=True,
     required=False,
-    help="Target state of charge (in %, e.g. 100) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
     " Use --soc-unit to set a different unit."
     " This argument can be given multiple times."
-    " For example: --soc-target 100 2022-02-23T13:40:52+00:00",
+    " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
 )
 @click.option(
     "--soc-min",
     "soc_min",
-    type=NonNegativeFloat(),
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=False,
-    help="Minimum state of charge (in %, e.g. 20) for the schedule. Use --soc-unit to set a different unit.",
+    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule. Use --soc-unit to set a different unit.",
 )
 @click.option(
     "--soc-max",
     "soc_max",
-    type=NonNegativeFloat(),
+    type=QuantityField("%", validate=validate.Range(min=0, max=100)),
     required=False,
-    help="Maximum state of charge (in %, e.g. 80) for the schedule. Use --soc-unit to set a different unit.",
+    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule. Use --soc-unit to set a different unit.",
 )
 @click.option(
     "--roundtrip-efficiency",
@@ -880,23 +879,16 @@ def create_forecasts(
     default=1,
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
 )
-@click.option(
-    "--soc-unit",
-    "soc_unit",
-    default="%",
-    help="Unit of the passed SoC values, such as 'MWh', 'kWh' or '%' (the default).",
-)
 def create_schedule(
     power_sensor_id: int,
     factor_sensor_id: int,
     start_str: str,
     duration_str: str,
-    soc_at_start: float,
-    soc_target_strings: List[Tuple[float, str]],
-    soc_min: Optional[float],
-    soc_max: Optional[float],
-    roundtrip_efficiency: Optional[float] = 1,
-    soc_unit: str = "%",
+    soc_at_start: ur.Quantity,
+    soc_target_strings: List[Tuple[ur.Quantity, str]],
+    soc_min: Optional[ur.Quantity] = None,
+    soc_max: Optional[ur.Quantity] = None,
+    roundtrip_efficiency: Optional[ur.Quantity] = None,
 ):
     """Create a new schedule for a given power sensor.
 
@@ -944,21 +936,23 @@ def create_schedule(
         ur.Quantity("dimensionless")
     ).magnitude
 
+    # Convert SoC units to MWh, given the storage capacity
+    capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
+    soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
     for soc_target_tuple in soc_target_strings:
         soc_target_value_str, soc_target_dt_str = soc_target_tuple
-        soc_target_value = float(soc_target_value_str)
+        soc_target_value = convert_units(
+            soc_target_value_str.magnitude,
+            str(soc_target_value_str.units),
+            "MWh",
+            capacity=capacity_str,
+        )
         soc_target_datetime = pd.Timestamp(soc_target_dt_str)
         soc_targets.loc[soc_target_datetime] = soc_target_value
-
-    # Convert SoC units if needed
-    if soc_unit != "MWh":
-        capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
-        soc_at_start = convert_units(soc_at_start, soc_unit, "MWh", capacity=capacity_str)  # type: ignore
-        soc_targets = convert_units(soc_targets, soc_unit, "MWh", capacity=capacity_str)
-        if soc_min is not None:
-            soc_min = convert_units(soc_min, soc_unit, "MWh", capacity=capacity_str)  # type: ignore
-        if soc_max is not None:
-            soc_max = convert_units(soc_max, soc_unit, "MWh", capacity=capacity_str)  # type: ignore
+    if soc_min is not None:
+        soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
+    if soc_max is not None:
+        soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
 
     success = make_schedule(
         sensor_id=power_sensor_id,
