@@ -932,9 +932,10 @@ def create_schedule(
     )
 
     # Convert round-trip efficiency to dimensionless
-    roundtrip_efficiency = roundtrip_efficiency.to(
-        ur.Quantity("dimensionless")
-    ).magnitude
+    if roundtrip_efficiency is not None:
+        roundtrip_efficiency = roundtrip_efficiency.to(
+            ur.Quantity("dimensionless")
+        ).magnitude
 
     # Convert SoC units to MWh, given the storage capacity
     capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"

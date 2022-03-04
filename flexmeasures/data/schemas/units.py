@@ -1,13 +1,12 @@
 from typing import Optional
 
 from marshmallow import fields, validate, ValidationError
-from marshmallow.validate import Validator
 
 from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.unit_utils import is_valid_unit, ur
 
 
-class QuantityValidator(Validator):
+class QuantityValidator(validate.Validator):
     """Validator which succeeds if the value passed to it is a valid quantity."""
 
     def __init__(self, *, error: Optional[str] = None):
