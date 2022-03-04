@@ -179,7 +179,7 @@ def new_user(
     required=False,
     type=str,
     default="{}",
-    help='Additional attributes. Passed as JSON string, should be a dict. Hint: Currently, for sensors that measures power, use {"capacity_in_mw": 10} to set a capacity of 10 MW',
+    help='Additional attributes. Passed as JSON string, should be a dict. Hint: Currently, for sensors that measure power, use {"capacity_in_mw": 10} to set a capacity of 10 MW',
 )
 def add_sensor(**args):
     """Add a sensor."""
