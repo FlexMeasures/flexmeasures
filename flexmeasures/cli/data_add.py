@@ -820,8 +820,8 @@ def create_forecasts(
     help="Create schedule for this sensor. Follow up with the sensor's ID.",
 )
 @click.option(
-    "--factor-id",
-    "factor_sensor_id",
+    "--optimization-context-id",
+    "optimization_context_sensor_id",
     required=True,
     help="Optimize against this sensor, which measures a price factor or CO₂ intensity factor. Follow up with the sensor's ID.",
 )
@@ -881,7 +881,7 @@ def create_forecasts(
 )
 def create_schedule(
     power_sensor_id: int,
-    factor_sensor_id: int,
+    optimization_context_sensor_id: int,
     start_str: str,
     duration_str: str,
     soc_at_start: ur.Quantity,
@@ -907,11 +907,11 @@ def create_schedule(
     if not power_sensor.measures_power:
         click.echo(f"Sensor with ID {power_sensor_id} is not a power sensor.")
         raise click.Abort()
-    factor_sensor: Sensor = Sensor.query.filter(
-        Sensor.id == factor_sensor_id
+    optimization_context_sensor: Sensor = Sensor.query.filter(
+        Sensor.id == optimization_context_sensor_id
     ).one_or_none()
-    if factor_sensor is None:
-        click.echo(f"No sensor found with ID {factor_sensor_id}.")
+    if optimization_context_sensor is None:
+        click.echo(f"No sensor found with ID {optimization_context_sensor_id}.")
         raise click.Abort()
     start = pd.Timestamp(start_str)
     end = start + isodate.parse_duration(duration_str)
@@ -965,7 +965,7 @@ def create_schedule(
         soc_min=soc_min,
         soc_max=soc_max,
         roundtrip_efficiency=roundtrip_efficiency,
-        price_sensor=factor_sensor,
+        price_sensor=optimization_context_sensor,
     )
     if success:
         print("New schedule is stored.")
