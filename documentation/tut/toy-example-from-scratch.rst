@@ -159,7 +159,7 @@ This is time series data, in FlexMeasures we call "beliefs". Beliefs can also be
 
 In FlexMeasures, all beliefs have a data source. Here, we use the username of the user we created earlier. We could also pass a user ID, or the name of a new data source we want to use for CLI scripts.
 
-.. note:: Attention: We created and imported prices where the times have no time zone component! That happens a lot. FlexMeasures will then interpret them as UTC time. So if you are in Amsterdam time, the the start time for the first price, when expressed in your time zone, is actually `2022-03-03 01:00:00+01:00`.
+.. note:: Attention: We created and imported prices where the times have no time zone component! That happens a lot. FlexMeasures will then interpret them as UTC time. So if you are in Amsterdam time, the start time for the first price, when expressed in your time zone, is actually `2022-03-03 01:00:00+01:00`.
 
 Let's look at the price data we just loaded:
 
