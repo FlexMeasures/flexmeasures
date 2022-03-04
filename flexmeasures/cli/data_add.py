@@ -55,7 +55,7 @@ from flexmeasures.data.queries.data_sources import (
 )
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.utils.unit_utils import convert_units
+from flexmeasures.utils.unit_utils import convert_units, ur
 
 
 @click.group("add")
@@ -938,6 +938,12 @@ def create_schedule(
             closed="right",
         ),  # note that target values are indexed by their due date (i.e. closed="right")
     )
+
+    # Convert round-trip efficiency to dimensionless
+    roundtrip_efficiency = roundtrip_efficiency.to(
+        ur.Quantity("dimensionless")
+    ).magnitude
+
     for soc_target_tuple in soc_target_strings:
         soc_target_value_str, soc_target_dt_str = soc_target_tuple
         soc_target_value = float(soc_target_value_str)
