@@ -4,6 +4,7 @@ from datetime import timedelta
 from typing import Dict, List, Optional, Tuple
 import json
 
+from marshmallow import validate
 import numpy as np
 import pandas as pd
 import pytz
@@ -36,7 +37,10 @@ from flexmeasures.data.models.validation_utils import (
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas.sensors import SensorSchema
-from flexmeasures.data.schemas.units import NonNegativeFloat, PercentageFloat
+from flexmeasures.data.schemas.units import (
+    NonNegativeFloat,
+    QuantityField,
+)
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
@@ -870,11 +874,11 @@ def create_forecasts(
 )
 @click.option(
     "--roundtrip-efficiency",
-    "roundtrip_efficiency_as_percentage",
-    type=PercentageFloat(),
+    "roundtrip_efficiency",
+    type=QuantityField("dimensionless", validate=validate.Range(min=0, max=1)),
     required=False,
-    default=100,
-    help="Round-trip efficiency (in %, e.g. 85) to use for the schedule. Defaults to 100 (no losses).",
+    default=1,
+    help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
 )
 @click.option(
     "--soc-unit",
@@ -891,7 +895,7 @@ def create_schedule(
     soc_target_strings: List[Tuple[float, str]],
     soc_min: Optional[float],
     soc_max: Optional[float],
-    roundtrip_efficiency_as_percentage: Optional[float] = 100,
+    roundtrip_efficiency: Optional[float] = 1,
     soc_unit: str = "%",
 ):
     """Create a new schedule for a given power sensor.
@@ -960,7 +964,7 @@ def create_schedule(
         soc_targets=soc_targets,
         soc_min=soc_min,
         soc_max=soc_max,
-        roundtrip_efficiency=roundtrip_efficiency_as_percentage / 100,
+        roundtrip_efficiency=roundtrip_efficiency,
         price_sensor=factor_sensor,
     )
     if success:
