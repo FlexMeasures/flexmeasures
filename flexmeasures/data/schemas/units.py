@@ -7,14 +7,6 @@ from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.unit_utils import is_valid_unit, ur
 
 
-class NonNegativeFloat(fields.Float, MarshmallowClickMixin):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Insert validation into self.validators so that multiple errors can be stored.
-        validator = validate.Range(min=0)
-        self.validators.insert(0, validator)
-
-
 class Quantity(Validator):
     """Validator which succeeds if the value passed to it is a valid quantity."""
 
