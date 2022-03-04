@@ -148,7 +148,7 @@ def create_annotation_table():
         sa.Column("source_id", sa.Integer(), nullable=False),
         sa.Column(
             "type",
-            sa.Enum("alert", "holiday", "label", name="annotation_type"),
+            sa.Enum("alert", "holiday", "label", "feedback", name="annotation_type"),
             nullable=False,
         ),
         sa.Column("content", sa.String(1024), nullable=False),
