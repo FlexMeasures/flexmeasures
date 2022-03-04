@@ -34,6 +34,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add external-weather-forecasts``   Collect weather forecasts from the DarkSky API.
 ``flexmeasures add beliefs``                      Load beliefs from file.
 ``flexmeasures add forecasts``                    Create forecasts.
+``flexmeasures add schedule``                     Create a charging schedule.
 ``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.
 ================================================= =======================================
 
