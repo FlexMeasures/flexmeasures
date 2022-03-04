@@ -12,12 +12,13 @@ New features
 * Three new CLI commands for cleaning up your database: delete 1) unchanged beliefs, 2) NaN values or 3) a sensor and all of its time series data [see `PR #328 <http://www.github.com/FlexMeasures/flexmeasures/pull/328>`_]
 * Add CLI option to pass a data unit when reading in time series data from CSV, so data can automatically be converted to the sensor unit [see `PR #341 <http://www.github.com/FlexMeasures/flexmeasures/pull/341>`_]
 * Add CLI option to specify custom strings that should be interpreted as NaN values when reading in time series data from CSV [see `PR #357 <http://www.github.com/FlexMeasures/flexmeasures/pull/357>`_]
-* Add CLI commands ``flexmeasures add sensor``, ``flexmeasures add asset-type``, ``flexmeasures add beliefs`` (which were experimental features before). [see `PR #337 <http://www.github.com/FlexMeasures/flexmeasures/pull/337>`_]
+* Add CLI commands ``flexmeasures add sensor``, ``flexmeasures add asset-type``, ``flexmeasures add beliefs`` (which were experimental features before) [see `PR #337 <http://www.github.com/FlexMeasures/flexmeasures/pull/337>`_]
 * Add CLI commands for showing data [see `PR #339 <http://www.github.com/FlexMeasures/flexmeasures/pull/339>`_]
 
 * Add CLI command for attaching annotations to assets: ``flexmeasures add holidays`` adds public holidays [see `PR #343 <http://www.github.com/FlexMeasures/flexmeasures/pull/343>`_]
 * Add CLI command for resampling existing sensor data to new resolution [see `PR #360 <http://www.github.com/FlexMeasures/flexmeasures/pull/360>`_]
-* Add CLI command to add a toy account for tutorials and trying things [see `PR #368 <http://www.github.com/FlexMeasures/flexmeasures/pull/368>`_].
+* Add CLI command to add a toy account for tutorials and trying things [see `PR #368 <http://www.github.com/FlexMeasures/flexmeasures/pull/368>`_]
+* Add CLI command to create a charging schedule [see `PR #372 <http://www.github.com/FlexMeasures/flexmeasures/pull/372>`_]
 * Support for percent (%) and permille (‰) sensor units [see `PR #359 <http://www.github.com/FlexMeasures/flexmeasures/pull/359>`_]
 
 Bugfixes
