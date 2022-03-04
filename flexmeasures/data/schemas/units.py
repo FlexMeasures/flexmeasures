@@ -33,12 +33,12 @@ class QuantityField(fields.Str, MarshmallowClickMixin):
     The FlexMeasures unit registry is based on the pint library.
 
     For example:
-        >>> percentage_field = QuantityField("dimensionless", validate=validate.Range(min=0, max=1))
-        >>> percentage_field.deserialize("10%")
-        0.1
-        >>> percentage_field.deserialize(0.1)
-        0.1
-        >>> power_field = QuantityField("kW")
+        >>> percentage_field = QuantityField("%", validate=validate.Range(min=0, max=1))
+        >>> percentage_field.deserialize("2.5%")
+        2.5
+        >>> percentage_field.deserialize(0.025)
+        2.5
+        >>> power_field = QuantityField("kW", validate=validate.Range(max=ur.Quantity("1 kW")))
         >>> power_field.deserialize("120 W")
         0.12
     """

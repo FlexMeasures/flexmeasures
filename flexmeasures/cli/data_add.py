@@ -875,7 +875,7 @@ def create_forecasts(
 @click.option(
     "--roundtrip-efficiency",
     "roundtrip_efficiency",
-    type=QuantityField("dimensionless", validate=validate.Range(min=0, max=1)),
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=False,
     default=1,
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
