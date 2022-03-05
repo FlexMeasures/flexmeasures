@@ -29,7 +29,7 @@ A tiny, but complete example: Let's install FlexMeasures from scratch. Then, usi
     flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv  # load prices, also possible per API
     flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
         --from ${TOMORROW}T07:00+01:00 --duration PT12H \
-        --soc-at-start 50 --roundtrip-efficiency 90  # this is also possible per API
+        --soc-at-start 50% --roundtrip-efficiency 90%  # this is also possible per API
     flexmeasures show beliefs --sensor-id 2 --from ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
 
 We discuss this in more depth at :ref:`tut_toy_schedule`.
