@@ -198,7 +198,7 @@ Again, we can also view these prices in the FlexMeasures UI:
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
 
-.. note:: Technically, these prices for tomorrow are forecasts. You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.
+.. note:: Technically, these prices for tomorrow may be forecasts (depending on whether you are running through this tutorial before or after the day-ahead market's gate closure). You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.
 
 
 Make a schedule
