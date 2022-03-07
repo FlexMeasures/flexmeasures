@@ -1,0 +1,7 @@
+-c app.txt
+
+sphinx
+sphinx-rtd-theme 
+sphinxcontrib.httpdomain
+sphinx_fontawesome
+sphinx_copybutton

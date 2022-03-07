@@ -11,7 +11,7 @@ Each command has more extensive documentation if you call it with ``--help``.
 We keep track of changes to these commands in :ref:`cli-changelog`.
 You can also get the current overview over the commands you have available by:
 
-.. code-block::
+.. code-block:: console
 
     flexmeasures --help
 

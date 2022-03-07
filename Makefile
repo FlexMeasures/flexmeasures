@@ -15,7 +15,9 @@ test:
 # ---- Documentation ---
 
 update-docs:
-	make install-sphinx-tools
+	@echo "Creating docs environment ..."
+	make install-docs-dependencies
+	@echo "Creating documentation ..."
 	cd documentation; make clean; make html; cd ..
 
 update-docs-pdf:
@@ -49,20 +51,22 @@ install-flexmeasures:
 install-pip-tools:
 	pip3 install -q "pip-tools>=6.4"
 
-install-sphinx-tools:
-	pip3 install "sphinx>=4.0.3" sphinxcontrib.httpdomain sphinx-rtd-theme sphinx_fontawesome
+install-docs-dependencies:
+	pip install -r requirements/docs.txt
 
 freeze-deps:
 	make install-pip-tools
 	pip-compile -o requirements/app.txt requirements/app.in
 	pip-compile -o requirements/test.txt requirements/test.in
 	pip-compile -o requirements/dev.txt requirements/dev.in
+	pip-compile -o requirements/docs.txt requirements/docs.in
 
 upgrade-deps:
 	make install-pip-tools
 	pip-compile --upgrade -o requirements/app.txt requirements/app.in
 	pip-compile --upgrade -o requirements/test.txt requirements/test.in
 	pip-compile --upgrade -o requirements/dev.txt requirements/dev.in
+	pip-compile --upgrade -o requirements/docs.txt requirements/docs.in
 	make test
 
 

@@ -10,7 +10,7 @@ When you run a FlexMeasures server, you want to stay on top of things going wron
 
 For illustration of the latter monitoring, here is one example of how we monitor tasks on a server ― the below is run in a cron script every hour and checks if every listed task ran 60, 6 or 1440 minutes ago, respectively:
 
-.. code-block:: bash
+.. code-block:: console
 
     flexmeasures monitor tasks --task get_weather_forecasts 60 --task get_recent_meter_data 6  --task import_epex_prices 1440
 
