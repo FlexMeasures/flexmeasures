@@ -1,6 +1,6 @@
 """CLI Tasks for listing database contents - most useful in development"""
 
-from typing import Optional, List, Dict
+from typing import Optional, List
 from datetime import datetime, timedelta
 
 import click
@@ -14,6 +14,7 @@ from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 
@@ -228,10 +229,10 @@ def list_data_sources():
 @with_appcontext
 @click.option(
     "--sensor-id",
-    "sensor_ids",
-    type=int,
+    "sensors",
     required=True,
     multiple=True,
+    type=SensorIdField(),
     help="ID of sensor(s). This argument can be given multiple times.",
 )
 @click.option(
@@ -263,7 +264,7 @@ def list_data_sources():
     help="Source of the beliefs (an existing source id).",
 )
 def plot_beliefs(
-    sensor_ids: List[int],
+    sensors: List[Sensor],
     start: datetime,
     duration: timedelta,
     belief_time_before: Optional[datetime],
@@ -272,17 +273,9 @@ def plot_beliefs(
     """
     Show a simple plot of belief data directly in the terminal.
     """
-    # handle required params: sensor, start, duration
-    sensors_by_name: Dict[str, Sensor] = {}
-    for sensor_id in sensor_ids:
-        sensor: Sensor = Sensor.query.get(sensor_id)
-        if not sensor:
-            click.echo(f"No sensor with id {sensor_id} known.")
-            raise click.Abort
-        sensors_by_name[sensor.name] = sensor
     # query data
     beliefs_by_sensor = TimedBelief.search(
-        sensors=list(sensor_ids),
+        sensors=list(sensors),
         event_starts_after=start,
         event_ends_before=start + duration,
         beliefs_before=belief_time_before,
@@ -298,14 +291,13 @@ def plot_beliefs(
     if len(beliefs_by_sensor.keys()) == 0:
         click.echo("No data found!")
         raise click.Abort()
-    sensor_names = list(sensors_by_name.keys())
-    first_df = beliefs_by_sensor[sensor_names[0]]
+    first_df = beliefs_by_sensor[sensors[0].name]
 
     # Build title
-    if len(sensor_ids) == 1:
-        title = f"Beliefs for Sensor '{sensor_names[0]}' (Id {sensor_ids[0]}).\n"
+    if len(sensors) == 1:
+        title = f"Beliefs for Sensor '{sensors[0].name}' (Id {sensors[0].id}).\n"
     else:
-        title = f"Beliefs for Sensor(s) [{','.join(sensor_names)}], (Id(s): [{','.join([str(sid) for sid in sensor_ids])}]).\n"
+        title = f"Beliefs for Sensor(s) [{','.join([s.name for s in sensors])}], (Id(s): [{','.join([str(s.id) for s in sensors])}]).\n"
     title += f"Data spans {naturaldelta(duration)} and starts at {start}."
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."
@@ -317,18 +309,16 @@ def plot_beliefs(
     uniplot.plot(
         [
             beliefs.event_value
-            for beliefs in [beliefs_by_sensor[sn] for sn in sensor_names]
+            for beliefs in [beliefs_by_sensor[sn] for sn in [s.name for s in sensors]]
         ],
         title=title,
         color=True,
         lines=True,
         y_unit=first_df.sensor.unit
         if len(beliefs_by_sensor) == 1
-        or all(
-            sensor.unit == first_df.sensor.unit for sensor in sensors_by_name.values()
-        )
+        or all(sensor.unit == first_df.sensor.unit for sensor in sensors)
         else "",
-        legend_labels=sensor_names,
+        legend_labels=[s.name for s in sensors],
     )
 
 
