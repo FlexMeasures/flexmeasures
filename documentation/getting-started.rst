@@ -6,9 +6,9 @@ Getting started
 Quickstart
 ----------
 
-This section walks you through getting FlexMeasures to run with the least effort. We'll cover making a secret key, connecting a database and creating one user & one asset.
+This section walks you through getting FlexMeasures to run. For an example with the least effort, see :ref:`tut_toy_schedule`. Here, we'll cover getting started with an installation you run continuously ― making a secret key, connecting a database and creating one user & one asset.
 
-.. note:: Are you not hosting FlexMeasures, but want to learn how to use it? Head over to our tutorials, starting with :ref:`tut_posting_data`.
+.. note:: Are you not hosting FlexMeasures, but want to learn how to interact with it? Start with :ref:`tut_posting_data`.
 
 .. warning:: Are you implementing code based on FlexMeasures, please read :ref:`note_on_datamodel_transition`.
 
@@ -18,7 +18,7 @@ Install FlexMeasures
 
 Install dependencies and the ``flexmeasures`` platform itself:
 
-.. code-block::
+.. code-block:: console
 
    pip install flexmeasures
 
@@ -30,7 +30,7 @@ Make a secret key for sessions and password salts
 
 Set a secret key which is used to sign user sessions and re-salt their passwords. The quickest way is with an environment variable, like this:
 
-.. code-block::
+.. code-block:: console
 
    export SECRET_KEY=something-secret
 
@@ -40,7 +40,7 @@ This suffices for a quick start.
 
 If you want to consistently use FlexMeasures, we recommend you add this setting to your config file at ``~/.flexmeasures.cfg`` and use a truly random string. Here is a Pythonic way to generate a good secret key:
 
-.. code-block::
+.. code-block:: console
 
    python -c "import secrets; print(secrets.token_urlsafe())"
 
@@ -51,7 +51,7 @@ Configure environment
 
 Set an environment variable to indicate in which environment you are operating (one out of development|testing|staging|production). We'll go with ``development`` here:
 
-.. code-block::
+.. code-block:: console
 
    export FLASK_ENV=development
 
@@ -59,7 +59,7 @@ Set an environment variable to indicate in which environment you are operating (
 
 or:
 
-.. code-block::
+.. code-block:: console
 
    echo "FLASK_ENV=development" >> .env
 
@@ -74,7 +74,7 @@ Preparing the time series database
 * 
   Tell ``flexmeasures`` about it:
 
-   .. code-block::
+   .. code-block:: console
 
        export SQLALCHEMY_DATABASE_URI="postgresql://<user>:<password>@<host-address>[:<port>]/<db>"
 
@@ -84,7 +84,7 @@ Preparing the time series database
 * 
   Create the Postgres DB structure for FlexMeasures:
 
-   .. code-block::
+   .. code-block:: console
 
        flexmeasures db upgrade
 
@@ -92,7 +92,7 @@ This suffices for a quick start.
 
 .. note:: For a more permanent configuration, you can create your FlexMeasures configuration file at ``~/.flexmeasures.cfg`` and add this:
 
-    .. code-block::
+    .. code-block:: console
 
         SQLALCHEMY_DATABASE_URI="postgresql://<user>:<password>@<host-address>[:<port>]/<db>"
 
@@ -103,7 +103,7 @@ Add an account & user
 
 FlexMeasures is a tenant-based platform ― multiple clients can enjoy its services on one server. Let's create a tenant account first: 
 
-.. code-block::
+.. code-block:: console
 
    flexmeasures add account --name  "Some company"
 
@@ -111,7 +111,7 @@ This command will tell us the ID of this account. Let's assume it was ``2``.
 
 FlexMeasures is also a web-based platform, so we need to create a user to authenticate:
 
-.. code-block::
+.. code-block:: console
 
    flexmeasures add user --username <your-username> --email <your-email-address> --account-id 2 --roles=admin
 
@@ -125,9 +125,9 @@ Add structure
 
 Populate the database with some standard asset types, user roles etc.: 
 
-.. code-block::
+.. code-block:: console
 
-   flexmeasures add structure
+   flexmeasures add initial-structure
 
 
 Add your first asset
@@ -137,7 +137,7 @@ There are three ways to add assets:
 
 First, you can use the ``flexmeasures`` :ref:`cli`:
 
-.. code-block::
+.. code-block:: console
 
     flexmeasures add asset --name "my basement battery pack" --asset-type-id 3 --latitude 65 --longitude 123.76 --account-id 2
 
@@ -155,7 +155,7 @@ Add your first sensor
 
 Usually, we are here because we want to measure something with respect to our assets. Each assets can have sensors for that, so let's add a power sensor to our new battery asset, using the ``flexmeasures`` :ref:`cli`:
 
-.. code-block::
+.. code-block:: console
 
    flexmeasures add sensor --name power --unit MW --event-resolution 5 --timezone Europe/Amsterdam --asset-id 1 --attributes '{"capacity_in_mw": 7}'
 
@@ -169,7 +169,7 @@ Run FlexMeasures
 
 It's finally time to start running FlexMeasures:
 
-.. code-block::
+.. code-block:: console
 
    flexmeasures run
 
@@ -189,7 +189,7 @@ There are three ways to add data:
 
 First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` :ref:`cli`:
 
-.. code-block::
+.. code-block:: console
    
    flexmeasures add beliefs --file my-data.csv --skiprows 2 --delimiter ";" --source OurLegacyDatabase --sensor-id 1
 
@@ -199,7 +199,7 @@ Second, you can use the `POST /api/v2_0/postMeterData <api/v2_0.html#post--api-v
 
 Finally, you can tell FlexMeasures to create forecasts for your meter data with the ``flexmeasures add forecasts`` command, here is an example:
 
-.. code-block::
+.. code-block:: console
 
    flexmeasures add forecasts --from-date 2020-03-08 --to-date 2020-04-08 --asset-type Asset --asset my-solar-panel
 
@@ -222,7 +222,7 @@ For planning balancing actions, the FlexMeasures platform uses a linear program 
 
 Installing Cbc can be done on Unix via:
 
-.. code-block::
+.. code-block:: console
 
    apt-get install coinor-cbc
 

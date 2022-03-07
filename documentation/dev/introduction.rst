@@ -30,7 +30,7 @@ Dependencies
 
 Install all dependencies including the ones needed for development:
 
-.. code-block:: bash
+.. code-block:: console
 
    make install-for-dev
 
@@ -46,7 +46,7 @@ Loading data
 
 If you have a SQL Dump file, you can load that:
 
-.. code-block:: bash
+.. code-block:: console
 
    psql -U {user_name} -h {host_name} -d {database_name} -f {file_path}
 
@@ -56,14 +56,14 @@ Run locally
 
 Now, to start the web application, you can run:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures run
 
 
 Or:
 
-.. code-block:: bash
+.. code-block:: console
 
    python run-local.py
 
@@ -86,7 +86,7 @@ Tests
 
 You can run automated tests with:
 
-.. code-block:: bash
+.. code-block:: console
 
    make test
 
@@ -95,7 +95,7 @@ which behind the curtains installs dependencies and calls pytest.
 
 A coverage report can be created like this:
 
-.. code-block:: bash
+.. code-block:: console
 
    pytest --cov=flexmeasures --cov-config .coveragerc
 
@@ -104,7 +104,7 @@ You can add --cov-report=html after which a htmlcov/index.html is generated.
 
 It's also possible to use:
 
-.. code-block:: bash
+.. code-block:: console
 
    python setup.py test
 
@@ -133,7 +133,7 @@ We also run `mypy <http://mypy-lang.org/>`_ on many files to do some static type
 We do this so real problems are found faster and the discussion about formatting is limited.
 All of these can be installed by using ``pip``, but we recommend using them as a pre-commit hook. To activate that behaviour, do:
 
-.. code-block:: bash
+.. code-block:: console
 
    pip install pre-commit
    pre-commit install
@@ -156,7 +156,7 @@ A hint about using notebooks
 
 If you edit notebooks, make sure results do not end up in git:
 
-.. code-block:: bash
+.. code-block:: console
 
    conda install -c conda-forge nbstripout
    nbstripout --install

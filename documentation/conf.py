@@ -47,6 +47,7 @@ extensions = [
     "sphinx.ext.imgmath",
     "sphinx.ext.ifconfig",
     "sphinx.ext.todo",
+    "sphinx_copybutton",
     "sphinx_fontawesome",
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",
@@ -190,6 +191,11 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {"https://docs.python.org/": None}
+
+# -- Options for copybytton extension ---------------------------------------
+copybutton_prompt_is_regexp = True
+copybutton_prompt_text = r">>> |\.\.\. |\$ "  # Python Repl + continuation + Bash
+copybutton_line_continuation_character = "\\"
 
 # -- Options for ifconfig extension ---------------------------------------
 

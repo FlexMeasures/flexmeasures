@@ -1,6 +1,6 @@
 .. _dev-data:
 
-Handling data
+Handling databases
 =============================
 
 This document describes how to get the postgres database ready to use and maintain it (do migrations / changes to the structure).
@@ -29,7 +29,7 @@ Install
 
 On Unix:
 
-.. code-block:: bash
+.. code-block:: console
 
    sudo apt-get install postgresql
    pip install psycopg2-binary
@@ -61,7 +61,7 @@ Find the ``timezone`` setting and set it to 'UTC'.
 
 Then restart the postgres server.
 
-.. code-block:: bash
+.. code-block:: console
 
     service postgresql restart
 
@@ -71,7 +71,7 @@ Setup the "flexmeasures" Unix user
 
 This may in fact not be needed:
 
-.. code-block:: bash
+.. code-block:: console
 
    sudo /usr/sbin/adduser flexmeasures
 
@@ -84,7 +84,7 @@ From the terminal:
 Open a console (use your Windows key and type ``cmd``\ ).
 Proceed to create a database as the postgres superuser (using your postgres user password):
 
-.. code-block:: bash
+.. code-block:: console
 
    sudo -i -u postgres
    createdb -U postgres flexmeasures
@@ -106,7 +106,7 @@ Or, from within Postgres console:
 
 Finally, test if you can log in as the flexmeasures user:
 
-.. code-block:: bash
+.. code-block:: console
 
    psql -U flexmeasures --password -h 127.0.0.1 -d flexmeasures
 
@@ -121,7 +121,7 @@ Add Postgres Extensions to your database(s)
 To find the nearest sensors, FlexMeasures needs some extra Postgres support.
 Add the following extensions while logged in as the postgres superuser:
 
-.. code-block:: bash
+.. code-block:: console
 
    sudo -u postgres psql
 
@@ -161,7 +161,7 @@ Here is a short recipe to import data from a FlexMeasures database (e.g. a demo 
 
 On the to-be-exported database:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures db-ops dump
 
@@ -170,14 +170,14 @@ On the to-be-exported database:
 
 Then, we create the structure in our database anew, based on the data model given by the local codebase:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures db-ops reset
 
 
 Then we import the data dump we made earlier:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures db-ops restore <DATABASE DUMP FILENAME>
 
@@ -192,7 +192,7 @@ Create data manually
 
 First, you can get the database structure with:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures db upgrade
 
@@ -201,28 +201,29 @@ First, you can get the database structure with:
 
 You can create users with the ``new-user`` command. Check it out:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures add user --help
 
 
 You can create some pre-determined asset types and data sources with this command:
 
-.. code-block:: bash
+.. code-block:: console
 
-   flexmeasures add structure
+   flexmeasures add initial-structure
+
+You can also create assets in the FlexMeasures UI.
+
+On the command line, you can add many things. Check what data you can add yourself:
+
+.. code-block:: console
+
+   flexmeasures add --help
 
 
-.. todo:: We should instead offer CLI commands to be able to create asset types as needed.
+For instance, you can create forecasts for your existing metered data with this command:
 
-You can create assets in the FlexMeasures UI.
-
-.. todo:: Maybe a CLI command would help to script all data creation.
-.. todo:: We still need a decent way to load in metering data, e.g. from CSV - often, a custom loading script will be necessary anyways.
-
-You can create forecasts for your existing metered data with this command:
-
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures add forecasts
 
@@ -230,13 +231,11 @@ You can create forecasts for your existing metered data with this command:
 Check out it's ``--help`` content to learn more. You can set which assets and which time window you want to forecast. Of course, making forecasts takes a while for a larger dataset.
 You can also simply queue a job with this command (and run a worker to process the :ref:`redis-queue`).
 
-Just to note, there are also commands to get rid of data, such as:
+Just to note, there are also commands to get rid of data. Check:
 
-.. code-block:: bash
+.. code-block:: console
 
-   flexmeasures delete structure
-   flexmeasures delete measurements
-   flexmeasures delete forecasts
+   flexmeasures delete --help
 
 Check out the :ref:`cli` documentation for more details.
 
@@ -247,7 +246,7 @@ Visualize the data model
 
 You can visualise the data model like this:
 
-.. code-block:: bash
+.. code-block:: console
 
    make show-data-model
 
@@ -268,7 +267,7 @@ Make first migration
 
 Run these commands from the repository root directory (read below comments first):
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures db init
    flexmeasures db migrate
@@ -288,7 +287,7 @@ Make another migration
 
 Just to be clear that the ``db init`` command is needed only at the beginning - you usually do, if your model changed:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures db migrate --message "Please explain what you did, it helps for later"
    flexmeasures db upgrade
@@ -299,7 +298,7 @@ Get database structure updated
 
 The goal is that on any other computer, you can always execute
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures db upgrade
 
@@ -311,7 +310,7 @@ Working with the migration history
 
 The history of migrations is at your fingertips:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures db current
    flexmeasures db history
@@ -319,7 +318,7 @@ The history of migrations is at your fingertips:
 
 You can move back and forth through the history:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures db downgrade
    flexmeasures db upgrade
@@ -332,7 +331,7 @@ Check out database status
 
 Log in into the database:
 
-.. code-block:: bash
+.. code-block:: console
 
    psql -U flexmeasures --password -h 127.0.0.1 -d flexmeasures
 
@@ -371,7 +370,7 @@ It relies on a Redis server, which is has to be installed locally, or used on a 
 
 Forecasting jobs are usually created (and enqueued) when new data comes in via the API. To asynchronously work on these forecasting jobs, run this in a console:
 
-.. code-block:: bash
+.. code-block:: console
 
    flexmeasures jobs run_worker --queue forecasting
 
@@ -386,7 +385,7 @@ Inspect the queue and jobs
 
 The first option to inspect the state of the ``forecasting`` queue should be via the formidable `RQ dashboard <https://github.com/Parallels/rq-dashboard>`_. If you have admin rights, you can access it at ``your-flexmeasures-url/rq/``\ , so for instance ``http://localhost:5000/rq/``. You can also start RQ dashboard yourself (but you need to know the redis server credentials):
 
-.. code-block:: bash
+.. code-block:: console
 
    pip install rq-dashboard
    rq-dashboard --redis-host my.ip.addr.ess --redis-password secret --redis-database 0

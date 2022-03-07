@@ -364,6 +364,6 @@ Place this template file in the template folder of your plugin blueprint (see ab
 
 Finally, add this config setting to your FlexMeasures config file (using the template filename you chose, obviously):
 
- .. code-block:: bash
+ .. code-block:: python
 
     SECURITY_LOGIN_USER_TEMPLATE = "my_user_login.html"
