@@ -19,18 +19,18 @@ A quick glance at usage
 
 A tiny, but complete example: Let's install FlexMeasures from scratch. Then, using only the terminal, load hourly prices and optimize a 12h-schedule for a battery that is half full at the beginning.
 
-.. code-block:: bash
+.. code-block:: console
 
-    pip install flexmeasures
-    docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
-    export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret 
-    flexmeasures db upgrade  # create tables
-    flexmeasures add toy-account --kind battery  # setup account & a user, a battery (Id 2) and a market (Id 3)
-    flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv  # load prices, also possible per API
-    flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
+    $ pip install flexmeasures
+    $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
+    $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret 
+    $ flexmeasures db upgrade  # create tables
+    $ flexmeasures add toy-account --kind battery  # setup account & a user, a battery (Id 2) and a market (Id 3)
+    $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv  # load prices, also possible per API
+    $ flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
         --from ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%  # this is also possible per API
-    flexmeasures show beliefs --sensor-id 2 --from ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
+    $ flexmeasures show beliefs --sensor-id 2 --from ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
 
 We discuss this in more depth at :ref:`tut_toy_schedule`.
 

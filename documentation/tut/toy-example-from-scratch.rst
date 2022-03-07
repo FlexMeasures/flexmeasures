@@ -20,7 +20,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv
     # make the schedule
     $ flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
-        --from $(date '+%Y-%m-%d')T06:00+02:00 --duration PT12H \
+        --from ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
 
 
