@@ -12,7 +12,7 @@ Let's walk through an example from scratch! We'll ...
 
 Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain step by step. There are some other crucial steps for installation and setup, so this becomes a complete example from scratch, but this is the meat:
 
-.. code-block:: bash
+.. code-block:: console
 
     # setup an account with a user, a battery (Id 2) and a market (Id 3)
     $ flexmeasures add toy-account --kind battery
@@ -34,7 +34,7 @@ This example is from scratch, so we'll assume you have nothing prepared but a (U
 
 We install the FlexMeasures platform, use Docker to run a postgres database and tell FlexMeasures to create all tables.
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pip install flexmeasures
     $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
@@ -51,7 +51,7 @@ Let's create the structural data first.
 
 FlexMeasures offers a command to create a toy account with a battery:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ flexmeasures add toy-account --kind battery
 
@@ -63,7 +63,7 @@ And with that, we're done with the structural data for this tutorial!
 
 If you want, you can inspect what you created:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ flexmeasures show account --id 1                       
     
@@ -121,7 +121,7 @@ Add some price data
 
 Now to add price data. First, we'll create the csv file with prices (EUR/MWh, see the setup for sensor 3 above) for tomorrow.
 
-.. code-block:: bash
+.. code-block:: console
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ echo "Hour,Price                                      
@@ -152,7 +152,7 @@ Now to add price data. First, we'll create the csv file with prices (EUR/MWh, se
 
 This is time series data, in FlexMeasures we call "beliefs". Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
 
-.. code-block:: bash
+.. code-block:: console
 
     $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv
     Successfully created beliefs
@@ -163,7 +163,7 @@ In FlexMeasures, all beliefs have a data source. Here, we use the username of th
 
 Let's look at the price data we just loaded:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ flexmeasures show beliefs --sensor-id 3 --from ${TOMORROW}T01:00:00+01:00 --duration PT24H
     Beliefs for Sensor 'Day ahead prices' (Id 3).
@@ -209,7 +209,7 @@ Finally, we can create the schedule, which is the main benefit of FlexMeasures (
 We'll ask FlexMeasures for a schedule for our charging sensor (Id 2). We also need to specify what to optimise against. Here we pass the Id of our market price sensor (3).
 To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and what its roundtrip efficiency is (90%).
 
-.. code-block:: bash
+.. code-block:: console
 
     $ flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
         --from ${TOMORROW}T07:00+01:00 --duration PT12H \
@@ -218,7 +218,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
 Great. Let's see what we made:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ flexmeasures show beliefs --sensor-id 2 --from ${TOMORROW}T07:00:00+01:00 --duration PT12H
     Beliefs for Sensor 'charging' (Id 2).
