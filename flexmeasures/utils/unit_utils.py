@@ -174,16 +174,21 @@ def is_energy_unit(unit: str) -> bool:
 
 
 def convert_units(
-    data: Union[pd.Series, List[Union[int, float]]],
+    data: Union[pd.Series, List[Union[int, float]], int, float],
     from_unit: str,
     to_unit: str,
-    event_resolution: Optional[timedelta],
-) -> Union[pd.Series, List[Union[int, float]]]:
+    event_resolution: Optional[timedelta] = None,
+    capacity: Optional[str] = None,
+) -> Union[pd.Series, List[Union[int, float]], int, float]:
     """Updates data values to reflect the given unit conversion."""
 
     if from_unit != to_unit:
         from_magnitudes = (
-            data.to_numpy() if isinstance(data, pd.Series) else np.asarray(data)
+            data.to_numpy()
+            if isinstance(data, pd.Series)
+            else np.asarray(data)
+            if isinstance(data, list)
+            else np.array([data])
         )
         try:
             from_quantities = ur.Quantity(from_magnitudes, from_unit)
@@ -195,18 +200,39 @@ def convert_units(
                 raise e  # reraise
         try:
             to_magnitudes = from_quantities.to(ur.Quantity(to_unit)).magnitude
-        except pint.errors.DimensionalityError:
-            # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
-            multiplier = determine_unit_conversion_multiplier(
-                from_unit, to_unit, event_resolution
-            )
-            to_magnitudes = from_magnitudes * multiplier
+        except pint.errors.DimensionalityError as e:
+            # Catch multiplicative conversions that rely on a capacity, like "%" to "kWh" and vice versa
+            if "from 'percent'" in str(e):
+                to_magnitudes = (
+                    (from_quantities * ur.Quantity(capacity))
+                    .to(ur.Quantity(to_unit))
+                    .magnitude
+                )
+            elif "to 'percent'" in str(e):
+                to_magnitudes = (
+                    (from_quantities / ur.Quantity(capacity))
+                    .to(ur.Quantity(to_unit))
+                    .magnitude
+                )
+            else:
+                # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
+                multiplier = determine_unit_conversion_multiplier(
+                    from_unit, to_unit, event_resolution
+                )
+                to_magnitudes = from_magnitudes * multiplier
+
+        # Output type should match input type
         if isinstance(data, pd.Series):
+            # Pandas Series
             data = pd.Series(
                 to_magnitudes,
                 index=data.index,
                 name=data.name,
             )
-        else:
+        elif isinstance(data, list):
+            # list
             data = list(to_magnitudes)
+        else:
+            # int or float
+            data = to_magnitudes[0]
     return data

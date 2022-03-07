@@ -5,7 +5,6 @@ from flask import current_app
 import click
 import numpy as np
 import pandas as pd
-import pytz
 from rq import get_current_job
 from rq.job import Job
 import timely_beliefs as tb
@@ -29,7 +28,7 @@ DEFAULT_RESOLUTION = timedelta(minutes=15)
 
 
 def create_scheduling_job(
-    asset_id: int,
+    sensor_id: int,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     belief_time: datetime,
@@ -57,7 +56,7 @@ def create_scheduling_job(
     job = Job.create(
         make_schedule,
         kwargs=dict(
-            asset_id=asset_id,
+            sensor_id=sensor_id,
             start=start_of_schedule,
             end=end_of_schedule,
             belief_time=belief_time,
@@ -87,7 +86,7 @@ def create_scheduling_job(
 
 
 def make_schedule(
-    asset_id: int,
+    sensor_id: int,
     start: datetime,
     end: datetime,
     belief_time: datetime,
@@ -97,6 +96,7 @@ def make_schedule(
     soc_min: Optional[float] = None,
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
+    price_sensor: Optional[Sensor] = None,
 ) -> bool:
     """Preferably, a starting soc is given.
     Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
@@ -109,11 +109,13 @@ def make_schedule(
     rq_job = get_current_job()
 
     # find sensor
-    sensor = Sensor.query.filter_by(id=asset_id).one_or_none()
+    sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
 
-    click.echo(
-        "Running Scheduling Job %s: %s, from %s to %s" % (rq_job.id, sensor, start, end)
-    )
+    if rq_job:
+        click.echo(
+            "Running Scheduling Job %s: %s, from %s to %s"
+            % (rq_job.id, sensor, start, end)
+        )
 
     if soc_at_start is None:
         if (
@@ -140,6 +142,7 @@ def make_schedule(
             soc_min,
             soc_max,
             roundtrip_efficiency,
+            price_sensor=price_sensor,
         )
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
@@ -155,6 +158,7 @@ def make_schedule(
             soc_min,
             soc_max,
             roundtrip_efficiency,
+            price_sensor=price_sensor,
         )
     else:
         raise ValueError(
@@ -166,12 +170,13 @@ def make_schedule(
         data_source_name="Seita",
         data_source_type="scheduling script",
     )
-    click.echo("Job %s made schedule." % rq_job.id)
+    if rq_job:
+        click.echo("Job %s made schedule." % rq_job.id)
 
     ts_value_schedule = [
         TimedBelief(
             event_start=dt,
-            belief_horizon=dt.astimezone(pytz.utc) - belief_time.astimezone(pytz.utc),
+            belief_time=belief_time,
             event_value=-value,
             sensor=sensor,
             source=data_source,

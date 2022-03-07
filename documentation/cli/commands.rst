@@ -34,6 +34,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add external-weather-forecasts``   Collect weather forecasts from the DarkSky API.
 ``flexmeasures add beliefs``                      Load beliefs from file.
 ``flexmeasures add forecasts``                    Create forecasts.
+``flexmeasures add schedule``                     Create a charging schedule.
 ``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.
 ================================================= =======================================
 
@@ -49,6 +50,16 @@ of which some are referred to in this documentation.
 ``flexmeasures show roles``                       List available account- and user roles.
 ``flexmeasures show data-sources``                List available data sources.
 ``flexmeasures show beliefs``                     Plot time series data.
+================================================= =======================================
+
+
+
+``edit`` - Edit data
+--------------
+
+================================================= =======================================
+``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
+``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ================================================= =======================================
 
 
