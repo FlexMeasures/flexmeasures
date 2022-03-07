@@ -1,6 +1,6 @@
 """CLI Tasks for listing database contents - most useful in development"""
 
-from typing import Optional, List
+from typing import Optional, List, Dict
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
@@ -13,6 +13,7 @@ from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.schemas.sources import DataSourceIdField
 
 
 @click.group("show")
@@ -251,9 +252,9 @@ def list_data_sources():
 )
 @click.option(
     "--source-id",
-    "source_id",
+    "source",
     required=False,
-    type=int,
+    type=DataSourceIdField(),
     help="Source of the beliefs (an existing source id).",
 )
 def plot_beliefs(
@@ -261,32 +262,25 @@ def plot_beliefs(
     start_str: str,
     duration_str: str,
     belief_time_before_str: Optional[str],
-    source_id: Optional[int],
+    source: Optional[DataSource],
 ):
     """
     Show a simple plot of belief data directly in the terminal.
     """
     # handle required params: sensor, start, duration
-    sensor_names: List[str] = []
+    sensors_by_name: Dict[str, Sensor] = {}
     for sensor_id in sensor_ids:
         sensor: Sensor = Sensor.query.get(sensor_id)
         if not sensor:
             click.echo(f"No sensor with id {sensor_id} known.")
             raise click.Abort
-        sensor_names.append(sensor.name)
+        sensors_by_name[sensor.name] = sensor
     start = isodate.parse_datetime(start_str)  # TODO: make sure it has a tz
     duration = isodate.parse_duration(duration_str)
     # handle belief time
     belief_time_before = None
     if belief_time_before_str:
         belief_time_before = isodate.parse_datetime(belief_time_before_str)
-    # handle source
-    source: DataSource = None
-    if source_id:
-        source = DataSource.query.get(source_id)
-        if not source:
-            click.echo(f"No source with id {source_id} known.")
-            raise click.Abort
     # query data
     beliefs_by_sensor = TimedBelief.search(
         sensors=list(sensor_ids),
@@ -305,8 +299,8 @@ def plot_beliefs(
     if len(beliefs_by_sensor.keys()) == 0:
         click.echo("No data found!")
         raise click.Abort()
-    sensor_names = list(beliefs_by_sensor.keys())
-    first_df = list(beliefs_by_sensor.values())[0]
+    sensor_names = list(sensors_by_name.keys())
+    first_df = beliefs_by_sensor[sensor_names[0]]
 
     # Build title
     if len(sensor_ids) == 1:
@@ -318,7 +312,7 @@ def plot_beliefs(
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.name}"
-    if len(beliefs_by_sensor.values()) == 1:
+    if len(beliefs_by_sensor) == 1:
         title += f"\nThe time resolution (x-axis) is {naturaldelta(first_df.sensor.event_resolution)}."
 
     uniplot.plot(
@@ -329,7 +323,12 @@ def plot_beliefs(
         title=title,
         color=True,
         lines=True,
-        y_unit=first_df.sensor.unit if len(beliefs_by_sensor.values()) == 1 else "",
+        y_unit=first_df.sensor.unit
+        if len(beliefs_by_sensor) == 1
+        or all(
+            sensor.unit == first_df.sensor.unit for sensor in sensors_by_name.values()
+        )
+        else "",
         legend_labels=sensor_names,
     )
 
