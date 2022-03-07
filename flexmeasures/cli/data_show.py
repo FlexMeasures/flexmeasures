@@ -295,7 +295,7 @@ def plot_beliefs(
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
-        title += f"\nSource: {source.name}"
+        title += f"\nSource: {source.description}"
     if len(beliefs_by_sensor) == 1:
         title += f"\nThe time resolution (x-axis) is {naturaldelta(first_df.sensor.event_resolution)}."
 
