@@ -39,7 +39,7 @@ def test_post_sensor_data(
 
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     response = client.post(
-        url_for("post_sensor_data"),
+        url_for("SensorDataAPI:post"),
         json=post_data,
         headers={"Authorization": auth_token},
     )
