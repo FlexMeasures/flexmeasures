@@ -427,7 +427,11 @@ def setup_assets(
 
 @pytest.fixture(scope="module")
 def setup_beliefs(db, setup_markets, setup_sources) -> int:
-    """Make some beliefs."""
+    """
+    Make some beliefs.
+
+    :returns: the number of beliefs set up
+    """
     return create_beliefs(db, setup_markets, setup_sources)
 
 
@@ -435,7 +439,11 @@ def setup_beliefs(db, setup_markets, setup_sources) -> int:
 def setup_beliefs_fresh_db(
     fresh_db, setup_markets_fresh_db, setup_sources_fresh_db
 ) -> int:
-    """Make some beliefs."""
+    """
+    Make some beliefs.
+
+    :returns: the number of beliefs set up
+    """
     return create_beliefs(fresh_db, setup_markets_fresh_db, setup_sources_fresh_db)
 
 
