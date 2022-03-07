@@ -11,6 +11,7 @@ from flask.cli import with_appcontext
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
+from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
 
@@ -821,6 +822,10 @@ def add_toy_account(kind: str, name: str):
                 unit="EUR/MWh",
                 timezone="Europe/Amsterdam",
                 event_resolution=timedelta(minutes=60),
+                knowledge_horizon=(
+                    x_days_ago_at_y_oclock,
+                    {"x": 1, "y": 12, "z": "Europe/Paris"},
+                ),
             )
         db.session.add(day_ahead_sensor)
 
