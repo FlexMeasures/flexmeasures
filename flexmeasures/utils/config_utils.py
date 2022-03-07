@@ -153,8 +153,9 @@ def read_env_vars(app: Flask):
     - Logging settings
     - plugins (handled in plugin utils)
     """
-    for var in required + ["LOGGING_LEVEL", "DEBUG"]:
+    for var in required + ["LOGGING_LEVEL"]:
         app.config[var] = os.getenv(var, app.config.get(var, None))
+    app.config["DEBUG"] = int(bool(os.getenv("DEBUG", app.config.get("DEBUG", False))))
 
 
 def are_required_settings_complete(app) -> bool:
