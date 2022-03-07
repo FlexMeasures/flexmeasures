@@ -1,14 +1,13 @@
 """CLI Tasks for listing database contents - most useful in development"""
 
 from typing import Optional, List, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from tabulate import tabulate
 from humanize import naturaldelta, naturaltime
-import isodate
 import uniplot
 
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
@@ -16,7 +15,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.sources import DataSourceIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField
+from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 
 
 @click.group("show")
@@ -244,13 +243,15 @@ def list_data_sources():
 )
 @click.option(
     "--duration",
-    "duration_str",
+    "duration",
+    type=DurationField(),
     required=True,
     help="Duration of the plot, after --from. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
 @click.option(
     "--belief-time-before",
-    "belief_time_before_str",
+    "belief_time_before",
+    type=AwareDateTimeField(),
     required=False,
     help="Time at which beliefs had been known. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
@@ -264,8 +265,8 @@ def list_data_sources():
 def plot_beliefs(
     sensor_ids: List[int],
     start: datetime,
-    duration_str: str,
-    belief_time_before_str: Optional[str],
+    duration: timedelta,
+    belief_time_before: Optional[datetime],
     source: Optional[DataSource],
 ):
     """
@@ -279,11 +280,6 @@ def plot_beliefs(
             click.echo(f"No sensor with id {sensor_id} known.")
             raise click.Abort
         sensors_by_name[sensor.name] = sensor
-    duration = isodate.parse_duration(duration_str)
-    # handle belief time
-    belief_time_before = None
-    if belief_time_before_str:
-        belief_time_before = isodate.parse_datetime(belief_time_before_str)
     # query data
     beliefs_by_sensor = TimedBelief.search(
         sensors=list(sensor_ids),
