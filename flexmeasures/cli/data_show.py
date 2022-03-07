@@ -272,6 +272,7 @@ def plot_beliefs(
         event_ends_before=start + duration,
         beliefs_before=belief_time_before,
         source=source,
+        one_deterministic_belief_per_event=True,
         sum_multiple=False,
     )
     # only keep non-empty
