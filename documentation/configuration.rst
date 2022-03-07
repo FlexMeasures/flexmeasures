@@ -293,7 +293,7 @@ Configuration of the SQLAlchemy engine.
 
 Default: 
 
-.. code-block::
+.. code-block:: python
 
        {
            "pool_recycle": 299,
@@ -427,7 +427,7 @@ Tuple of shown name of sender and their email address.
 
 Default:
 
-.. code-block::
+.. code-block:: python
 
    (
        "FlexMeasures",

@@ -63,7 +63,7 @@ There might be reasons to add forecasts of past time ranges. For instance, for v
 
 If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
 
-.. code-block:: bash
+.. code-block:: console
 
      flexmeasures add forecasts --from_date 2020-01-02 --to_date 2020-6-30 --horizon_hours 6  --resolution 60 --asset-id 2
 
