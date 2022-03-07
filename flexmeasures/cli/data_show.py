@@ -1,6 +1,8 @@
 """CLI Tasks for listing database contents - most useful in development"""
 
 from typing import Optional, List, Dict
+from datetime import datetime
+
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
@@ -14,6 +16,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.times import AwareDateTimeField
 
 
 @click.group("show")
@@ -234,7 +237,8 @@ def list_data_sources():
 )
 @click.option(
     "--from",
-    "start_str",
+    "start",
+    type=AwareDateTimeField(),
     required=True,
     help="Plot starting at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
@@ -259,7 +263,7 @@ def list_data_sources():
 )
 def plot_beliefs(
     sensor_ids: List[int],
-    start_str: str,
+    start: datetime,
     duration_str: str,
     belief_time_before_str: Optional[str],
     source: Optional[DataSource],
@@ -275,7 +279,6 @@ def plot_beliefs(
             click.echo(f"No sensor with id {sensor_id} known.")
             raise click.Abort
         sensors_by_name[sensor.name] = sensor
-    start = isodate.parse_datetime(start_str)  # TODO: make sure it has a tz
     duration = isodate.parse_duration(duration_str)
     # handle belief time
     belief_time_before = None
