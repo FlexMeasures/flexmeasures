@@ -13,6 +13,7 @@ from flask.cli import with_appcontext
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
+from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
 import isodate
@@ -967,13 +968,13 @@ def add_toy_account(kind: str, name: str):
             db.session.add(asset)
             if asset_type == "battery":
                 asset.attributes = dict(
-                    capacity_in_mw=0.005, min_soc_in_mwh=0.0005, max_soc_in_mwh=0.0045
+                    capacity_in_mw=0.5, min_soc_in_mwh=0.05, max_soc_in_mwh=0.45
                 )
                 # add charging sensor to battery
                 charging_sensor = Sensor(
                     name="charging",
                     generic_asset=asset,
-                    unit="kW",
+                    unit="MW",
                     timezone="Europe/Amsterdam",
                     event_resolution=timedelta(minutes=15),
                 )
@@ -991,6 +992,10 @@ def add_toy_account(kind: str, name: str):
                 unit="EUR/MWh",
                 timezone="Europe/Amsterdam",
                 event_resolution=timedelta(minutes=60),
+                knowledge_horizon=(
+                    x_days_ago_at_y_oclock,
+                    {"x": 1, "y": 12, "z": "Europe/Paris"},
+                ),
             )
         db.session.add(day_ahead_sensor)
 
@@ -999,6 +1004,7 @@ def add_toy_account(kind: str, name: str):
     click.echo(
         f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
     )
+    click.echo(f"The sensor for battery charging is {charging_sensor}.")
     click.echo(f"The sensor for Day ahead prices is {day_ahead_sensor}.")
 
 

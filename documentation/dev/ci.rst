@@ -44,7 +44,7 @@ Cbc needs to be present on the server where FlexMeasures runs, under the ``cbc``
 
 You can install it on Debian like this:
 
-.. code-block:: bash
+.. code-block:: console
 
    apt-get install coinor-cbc
 
