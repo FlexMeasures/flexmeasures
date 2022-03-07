@@ -14,7 +14,9 @@ from flexmeasures.data.models.user import Account, AccountRole, User, Role
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
+from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 
@@ -79,16 +81,11 @@ def list_roles():
 
 @fm_show_data.command("account")
 @with_appcontext
-@click.option("--id", "account_id", type=int, required=True)
-def show_account(account_id):
+@click.option("--id", "account", type=AccountIdField(), required=True)
+def show_account(account):
     """
     Show information about an account, including users and assets.
     """
-    account: Account = Account.query.get(account_id)
-    if not account:
-        click.echo(f"No account with id {account_id} known.")
-        raise click.Abort
-
     click.echo(f"========{len(account.name) * '='}==========")
     click.echo(f"Account {account.name} (ID:{account.id}):")
     click.echo(f"========{len(account.name) * '='}==========\n")
@@ -101,7 +98,7 @@ def show_account(account_id):
         click.echo("Account has no roles.")
     click.echo()
 
-    users = User.query.filter_by(account_id=account_id).order_by(User.username).all()
+    users = User.query.filter_by(account_id=account.id).order_by(User.username).all()
     if not users:
         click.echo("No users in account ...")
     else:
@@ -122,7 +119,7 @@ def show_account(account_id):
 
     click.echo()
     assets = (
-        GenericAsset.query.filter_by(account_id=account_id)
+        GenericAsset.query.filter_by(account_id=account.id)
         .order_by(GenericAsset.name)
         .all()
     )
@@ -157,16 +154,11 @@ def list_asset_types():
 
 @fm_show_data.command("asset")
 @with_appcontext
-@click.option("--id", "asset_id", type=int, required=True)
-def show_generic_asset(asset_id):
+@click.option("--id", "asset", type=GenericAssetIdField(), required=True)
+def show_generic_asset(asset):
     """
     Show asset info and list sensors
     """
-    asset = GenericAsset.query.get(asset_id)
-    if not asset:
-        click.echo(f"No asset with id {asset_id} known.")
-        raise click.Abort
-
     click.echo(f"======{len(asset.name) * '='}==========")
     click.echo(f"Asset {asset.name} (ID:{asset.id}):")
     click.echo(f"======{len(asset.name) * '='}==========\n")
@@ -182,7 +174,7 @@ def show_generic_asset(asset_id):
 
     click.echo()
     sensors = (
-        Sensor.query.filter_by(generic_asset_id=asset_id).order_by(Sensor.name).all()
+        Sensor.query.filter_by(generic_asset_id=asset.id).order_by(Sensor.name).all()
     )
     if not sensors:
         click.echo("No sensors in asset ...")

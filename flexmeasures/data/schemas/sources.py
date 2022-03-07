@@ -16,6 +16,6 @@ class DataSourceIdField(fields.Int, MarshmallowClickMixin):
             raise FMValidationError(f"No data source found with id {value}.")
         return source
 
-    def _serialize(self, value, attr, data, **kwargs):
+    def _serialize(self, source, attr, data, **kwargs):
         """Turn a DataSource into a source id."""
-        return value.id
+        return source.id

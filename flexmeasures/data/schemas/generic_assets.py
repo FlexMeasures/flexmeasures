@@ -94,16 +94,17 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 
 
 class GenericAssetIdField(fields.Int, MarshmallowClickMixin):
-    """Field that deserializes to a GenericAsset and serializes back to an integer."""
+    """Field that de-serializes to a GenericAsset and serializes back to an integer."""
 
     @with_appcontext
     def _deserialize(self, value, attr, obj, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
         generic_asset = GenericAsset.query.get(value)
+        generic_asset.generic_asset_type  # lazy loading now
         if generic_asset is None:
             raise FMValidationError(f"No asset found with id {value}.")
         return generic_asset
 
-    def _serialize(self, value, attr, data, **kwargs):
+    def _serialize(self, asset, attr, data, **kwargs):
         """Turn a GenericAsset into a generic asset id."""
-        return value.id
+        return asset.id
