@@ -18,8 +18,8 @@ class SensorAPI(FlaskView):
     """
 
     route_base = "/sensor"
+    decorators = [auth_required()]
 
-    @auth_required()
     @route("/<id>/chart/")
     @use_kwargs(
         {
@@ -42,7 +42,6 @@ class SensorAPI(FlaskView):
         sensor = get_sensor_or_abort(id)
         return json.dumps(sensor.chart(**kwargs))
 
-    @auth_required()
     @route("/<id>/chart_data/")
     @use_kwargs(
         {
@@ -63,7 +62,6 @@ class SensorAPI(FlaskView):
         sensor = get_sensor_or_abort(id)
         return sensor.search_beliefs(as_json=True, **kwargs)
 
-    @auth_required()
     def get(self, id: int):
         """GET from /sensor/<id>
 
