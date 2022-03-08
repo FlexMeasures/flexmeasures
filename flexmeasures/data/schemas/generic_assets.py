@@ -102,8 +102,10 @@ class GenericAssetIdField(fields.Int, MarshmallowClickMixin):
         generic_asset = GenericAsset.query.get(value)
         if generic_asset is None:
             raise FMValidationError(f"No asset found with id {value}.")
+        # lazy loading now (asset is somehow not in session after this)
+        generic_asset.generic_asset_type
         return generic_asset
 
-    def _serialize(self, value, attr, data, **kwargs):
+    def _serialize(self, asset, attr, data, **kwargs):
         """Turn a GenericAsset into a generic asset id."""
-        return value.id
+        return asset.id
