@@ -265,9 +265,10 @@ def plot_beliefs(
     """
     Show a simple plot of belief data directly in the terminal.
     """
+    sensors = list(sensors)
     # query data
     beliefs_by_sensor = TimedBelief.search(
-        sensors=list(sensors),
+        sensors=sensors,
         event_starts_after=start,
         event_ends_before=start + duration,
         beliefs_before=belief_time_before,
@@ -276,15 +277,30 @@ def plot_beliefs(
         sum_multiple=False,
     )
     # only keep non-empty
-    beliefs_by_sensor = {
-        sensor_name: beliefs
-        for (sensor_name, beliefs) in beliefs_by_sensor.items()
-        if not beliefs.empty
-    }
+    for s in sensors:
+        if beliefs_by_sensor[s.name].empty:
+            click.echo(f"No data found for sensor '{s.name}' (Id: {s.id})")
+            beliefs_by_sensor.pop(s.name)
+            sensors.remove(s)
     if len(beliefs_by_sensor.keys()) == 0:
         click.echo("No data found!")
         raise click.Abort()
     first_df = beliefs_by_sensor[sensors[0].name]
+
+    # resample if necessary
+    resolutions = [bdf.event_resolution for bdf in beliefs_by_sensor.values()]
+    min_resolution = min(resolutions)
+    if not (all(resolution == min_resolution for resolution in resolutions)):
+        for bdf in beliefs_by_sensor.values():
+            if bdf.event_resolution / min_resolution % 1 > 0:
+                click.echo(
+                    f"Incompatible resolutions: {bdf.event_resolution} and {min_resolution}."
+                )
+                raise click.Abort
+        for sensor, bdf in beliefs_by_sensor.items():
+            beliefs_by_sensor[sensor] = bdf.resample_events(
+                min_resolution, keep_only_most_recent_belief=True
+            )
 
     # Build title
     if len(sensors) == 1:
@@ -296,8 +312,7 @@ def plot_beliefs(
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.description}"
-    if len(beliefs_by_sensor) == 1:
-        title += f"\nThe time resolution (x-axis) is {naturaldelta(first_df.sensor.event_resolution)}."
+    title += f"\nThe time resolution (x-axis) is {naturaldelta(min_resolution)}."
 
     uniplot.plot(
         [
