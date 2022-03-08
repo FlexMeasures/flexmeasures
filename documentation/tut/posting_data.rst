@@ -31,13 +31,20 @@ Posting sensor data
 
 Sensor data (both observations and forecasts) can be posted to `POST  /api/v2_0/postSensorData <../api/v2_0.html#post--api-v2_0-postSensorData>`_.
 This endpoint represents the basic method of getting time series data into FlexMeasures via API.
-It is agnostic to the type of sensor and can be used to POST data for both physical and economical events that happened in the past or in the future.
-Some examples: readings from electricity meters, gas meters, temperature sensors and pressure sensors, the availability of parking spots, and price forecasts.
+It is agnostic to the type of sensor and can be used to POST data for both physical and economical events that have happened in the past or will happen in the future.
+Some examples:
+
+- readings from electricity and gas meters
+- readings from temperature and pressure sensors
+- state of charge of a battery
+- estimated availability of parking spots
+- price forecasts
+
 The exact URL will depend on your domain name, and will look approximately like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/postSensorData
+    [POST] https://company.flexmeasures.io/api/<version>/sensorData
 
 This example "PostSensorDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
 for the Korean Power Exchange (KPX) day-ahead auction, registered under sensor 16.
