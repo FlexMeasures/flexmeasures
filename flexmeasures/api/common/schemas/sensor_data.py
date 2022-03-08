@@ -20,6 +20,7 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import (
     convert_units,
     units_are_convertible,
+    is_energy_price_unit,
 )
 
 
@@ -161,13 +162,41 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
     """
 
     type = fields.Str(
-        validate=OneOf(["PostSensorDataRequest", "GetSensorDataResponse"])
+        validate=OneOf(
+            [
+                "PostSensorDataRequest",
+                "PostMeterDataRequest",
+                "PostPrognosisRequest",
+                "PostPriceDataRequest",
+                "PostWeatherDataRequest",
+            ]
+        )
     )
     values = PolyField(
         deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
         serialization_schema_selector=select_schema_to_ensure_list_of_floats,
         many=False,
     )
+
+    @validates_schema
+    def check_schema_unit_against_type(self, data, **kwargs):
+        posted_unit = data["unit"]
+        _type = data["type"]
+        if (
+            _type
+            in (
+                "PostMeterDataRequest",
+                "PostPrognosisRequest",
+            )
+            and not units_are_convertible(posted_unit, "MW")
+        ):
+            raise ValidationError(
+                f"The unit required for this message type should be convertible to MW, got incompatible unit: {posted_unit}"
+            )
+        elif _type == "PostPriceDataRequest" and not is_energy_price_unit(posted_unit):
+            raise ValidationError(
+                f"The unit required for this message type should be convertible to an energy price unit, got incompatible unit: {posted_unit}"
+            )
 
     @validates_schema
     def check_resolution_compatibility_of_values(self, data, **kwargs):
@@ -186,7 +215,18 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         """If needed, upsample and convert units, then deserialize to a BeliefsDataFrame."""
         data = self.possibly_upsample_values(data)
         data = self.possibly_convert_units(data)
-        return self.load_bdf(data)
+        bdf = self.load_bdf(data)
+
+        # Post-load validation against message type
+        _type = data["type"]
+        if _type == "PostMeterDataRequest":
+            if any(h > timedelta(0) for h in bdf.belief_horizons):
+                raise ValidationError("Meter data must lie in the past.")
+        elif _type == "PostPrognosisRequest":
+            if any(h < timedelta(0) for h in bdf.belief_horizons):
+                raise ValidationError("Prognoses must lie in the future.")
+
+        return bdf
 
     @staticmethod
     def possibly_convert_units(data):
