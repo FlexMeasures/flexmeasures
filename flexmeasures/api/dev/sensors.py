@@ -34,7 +34,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    def get_chart(self, id, **kwargs):
+    def get_chart(self, id: int, **kwargs):
         """GET from /sensor/<id>/chart
 
         .. :quickref: Chart; Download a chart with time series
@@ -53,7 +53,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    def get_chart_data(self, id, **kwargs):
+    def get_chart_data(self, id: int, **kwargs):
         """GET from /sensor/<id>/chart_data
 
         .. :quickref: Chart; Download time series for use in charts
