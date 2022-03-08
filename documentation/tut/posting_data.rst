@@ -153,85 +153,88 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
         "unit": "MW"
     }
 
-Single identical value, multiple connections
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..
+    todo: uncomment whenever the new sensor data API supports sending data for multiple sensors in one message
 
-Single identical value for a 15-minute time interval for two connections, posted 5 minutes after realisation.
-Please note that both connections consumed at 10 MW, i.e. the value does not represent the total of the two connections.
-We recommend to use this notation for zero values only.
+    Single identical value, multiple sensors
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: json
+    Single identical value for a 15-minute time interval for two sensors, posted 5 minutes after realisation.
+    Please note that both sensors consumed at 10 MW, i.e. the value does not represent the total of the two sensors.
+    We recommend to use this notation for zero values only.
 
-    {
-        "type": "PostMeterDataRequest",
-        "connections": [
-            "ea1.2021-01.io.flexmeasures.company:fm1.1",
-            "ea1.2021-01.io.flexmeasures.company:fm1.2"
-        ],
-        "value": 10,
-        "start": "2015-01-01T00:00:00+00:00",
-        "duration": "PT0H15M",
-        "horizon": "-PT5M",
-        "unit": "MW"
-    }
+    .. code-block:: json
 
-Single different values, multiple connections
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        {
+            "type": "PostSensorDataRequest",
+            "sensors": [
+                "ea1.2021-01.io.flexmeasures.company:fm1.1",
+                "ea1.2021-01.io.flexmeasures.company:fm1.2"
+            ],
+            "value": 10,
+            "start": "2015-01-01T00:00:00+00:00",
+            "duration": "PT0H15M",
+            "horizon": "-PT5M",
+            "unit": "MW"
+        }
 
-Single different values for a 15-minute time interval for two connections, posted 5 minutes after realisation.
+    Single different values, multiple sensors
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: json
+    Single different values for a 15-minute time interval for two sensors, posted 5 minutes after realisation.
 
-    {
-        "type": "PostMeterDataRequest",
-        "groups": [
-            {
-                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
-                "value": 220
-            },
-            {
-                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.2",
-                "value": 300
-            }
-        ],
-        "start": "2015-01-01T00:00:00+00:00",
-        "duration": "PT0H15M",
-        "horizon": "-PT5M",
-        "unit": "MW"
-    }
+    .. code-block:: json
 
-Multiple values, multiple connections
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        {
+            "type": "PostSensorDataRequest",
+            "groups": [
+                {
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
+                    "value": 220
+                },
+                {
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.2",
+                    "value": 300
+                }
+            ],
+            "start": "2015-01-01T00:00:00+00:00",
+            "duration": "PT0H15M",
+            "horizon": "-PT5M",
+            "unit": "MW"
+        }
 
-Multiple values (indicating a univariate timeseries) for 15-minute time intervals for two connections, posted 5 minutes after each realisation.
+    Multiple values, multiple sensors
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: json
+    Multiple values (indicating a univariate timeseries) for 15-minute time intervals for two sensors, posted 5 minutes after each realisation.
 
-    {
-        "type": "PostMeterDataRequest",
-        "groups": [
-            {
-                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
-                "values": [
-                    220,
-                    210,
-                    200
-                ]
-            },
-            {
-                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.2",
-                "values": [
-                    300,
-                    303,
-                    306
-                ]
-            }
-        ],
-        "start": "2015-01-01T00:00:00+00:00",
-        "duration": "PT0H45M",
-        "horizon": "-PT5M",
-        "unit": "MW"
-    }
+    .. code-block:: json
+
+        {
+            "type": "PostSensorDataRequest",
+            "groups": [
+                {
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
+                    "values": [
+                        220,
+                        210,
+                        200
+                    ]
+                },
+                {
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.2",
+                    "values": [
+                        300,
+                        303,
+                        306
+                    ]
+                }
+            ],
+            "start": "2015-01-01T00:00:00+00:00",
+            "duration": "PT0H45M",
+            "horizon": "-PT5M",
+            "unit": "MW"
+        }
 
 
 .. _observations_vs_forecasts
