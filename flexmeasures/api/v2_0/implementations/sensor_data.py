@@ -69,6 +69,18 @@ class SensorDataAPI(FlaskView):
         """Get sensor data from FlexMeasures.
 
         .. :quickref: Data; Download sensor data
+
+        **Example request**
+
+        .. code-block:: json
+
+            {
+                "type": "GetSensorDataRequest",
+                "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
+                "start": "2021-06-07T00:00:00+02:00",
+                "duration": "PT1H",
+                "unit": "m³/h"
+            }
         """
         # todo: respect passed horizon and prior
         # todo: move some of the below logic to the dump_bdf (serialize) method on the schema
