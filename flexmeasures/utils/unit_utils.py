@@ -6,6 +6,7 @@ import importlib.resources as pkg_resources
 import numpy as np
 import pandas as pd
 import pint
+import timely_beliefs as tb
 
 # Edit constants template to stop using h to represent planck_constant
 constants_template = (
@@ -174,7 +175,7 @@ def is_energy_unit(unit: str) -> bool:
 
 
 def convert_units(
-    data: Union[pd.Series, List[Union[int, float]], int, float],
+    data: Union[tb.BeliefsSeries, pd.Series, List[Union[int, float]], int, float],
     from_unit: str,
     to_unit: str,
     event_resolution: Optional[timedelta] = None,
@@ -216,6 +217,8 @@ def convert_units(
                 )
             else:
                 # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
+                if event_resolution is None and hasattr(data, "event_resolution"):
+                    event_resolution = data.event_resolution
                 multiplier = determine_unit_conversion_multiplier(
                     from_unit, to_unit, event_resolution
                 )

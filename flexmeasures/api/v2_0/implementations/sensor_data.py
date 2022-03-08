@@ -113,7 +113,6 @@ class SensorDataAPI(FlaskView):
             df["event_value"],
             from_unit=sensor.unit,
             to_unit=unit,
-            event_resolution=sensor.event_resolution,
         )
 
         # Convert NaN to null
