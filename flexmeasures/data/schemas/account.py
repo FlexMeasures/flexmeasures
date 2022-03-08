@@ -6,17 +6,18 @@ from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickM
 
 
 class AccountIdField(fields.Int, MarshmallowClickMixin):
-    """Field that de-serializes to a Sensor and serializes back to an integer."""
+    """Field that deserializes to an Account and serializes back to an integer."""
 
     @with_appcontext
     def _deserialize(self, value, attr, obj, **kwargs) -> Account:
-        """Turn a source id into a DataSource."""
+        """Turn an account id into an Account."""
         account = Account.query.get(value)
-        account.account_roles  # lazy loading now
         if account is None:
             raise FMValidationError(f"No account found with id {value}.")
+        # lazy loading now (account somehow is not in the session after this)
+        account.account_roles
         return account
 
     def _serialize(self, account, attr, data, **kwargs):
-        """Turn a DataSource into a source id."""
+        """Turn an Account into a source id."""
         return account.id

@@ -6,7 +6,7 @@ from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickM
 
 
 class DataSourceIdField(fields.Int, MarshmallowClickMixin):
-    """Field that de-serializes to a Sensor and serializes back to an integer."""
+    """Field that deserializes to a Sensor and serializes back to an integer."""
 
     @with_appcontext
     def _deserialize(self, value, attr, obj, **kwargs) -> DataSource:

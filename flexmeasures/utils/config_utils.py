@@ -155,6 +155,7 @@ def read_env_vars(app: Flask):
     """
     for var in required + ["LOGGING_LEVEL"]:
         app.config[var] = os.getenv(var, app.config.get(var, None))
+    # DEBUG in env can come in as a string ("True") so make sure we don't trip here
     app.config["DEBUG"] = int(bool(os.getenv("DEBUG", app.config.get("DEBUG", False))))
 
 
