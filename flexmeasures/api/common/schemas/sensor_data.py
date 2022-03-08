@@ -105,6 +105,38 @@ class SensorDataDescriptionSchema(ma.Schema):
 
 
 class GetSensorDataSchema(SensorDataDescriptionSchema):
+    type = fields.Str(
+        validate=OneOf(
+            [
+                "GetSensorDataRequest",
+                "GetMeterDataRequest",
+                "GetPrognosisRequest",
+                "GetPriceDataRequest",
+            ]
+        )
+    )
+
+    @validates_schema
+    def check_schema_unit_against_type(self, data, **kwargs):
+        requested_unit = data["unit"]
+        _type = data["type"]
+        if (
+            _type
+            in (
+                "GetMeterDataRequest",
+                "GetPrognosisRequest",
+            )
+            and not units_are_convertible(requested_unit, "MW")
+        ):
+            raise ValidationError(
+                f"The unit requested for this message type should be convertible from MW, got incompatible unit: {requested_unit}"
+            )
+        elif _type == "GetPriceDataRequest" and not is_energy_price_unit(
+            requested_unit
+        ):
+            raise ValidationError(
+                f"The unit requested for this message type should be convertible from an energy price unit, got incompatible unit: {requested_unit}"
+            )
 
     @post_load
     def dump_bdf(self, sensor_data_description: dict, **kwargs) -> dict:
@@ -114,11 +146,25 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         end = sensor_data_description["start"] + duration
         unit = sensor_data_description["unit"]
 
+        # Post-load configuration of belief timing against message type
+        horizons_at_least = sensor_data_description.get("horizon", None)
+        horizons_at_most = None
+        _type = sensor_data_description["type"]
+        if _type == "PostMeterDataRequest":
+            horizons_at_most = timedelta(0)
+        elif _type == "PostPrognosisRequest":
+            if horizons_at_least is None:
+                horizons_at_least = timedelta(0)
+            else:
+                # If the horizon field is used, ensure we still respect the minimum horizon for prognoses
+                horizons_at_least = max(horizons_at_least, timedelta(0))
+
         df = simplify_index(
             sensor.search_beliefs(
                 event_starts_after=start,
                 event_ends_before=end,
-                horizons_at_least=sensor_data_description.get("horizon", None),
+                horizons_at_least=horizons_at_least,
+                horizons_at_most=horizons_at_most,
                 beliefs_before=sensor_data_description.get("prior", None),
                 one_deterministic_belief_per_event=True,
                 as_json=False,
