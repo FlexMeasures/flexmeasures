@@ -84,7 +84,6 @@ class SensorDataAPI(FlaskView):
 
         The unit has to be convertible from the sensor's unit.
         """
-        # todo: respect passed horizon and prior
         # todo: move some of the below logic to the dump_bdf (serialize) method on the schema
         sensor: Sensor = sensor_data_description["sensor"]
         start = sensor_data_description["start"]
@@ -96,6 +95,8 @@ class SensorDataAPI(FlaskView):
             sensor.search_beliefs(
                 event_starts_after=start,
                 event_ends_before=end,
+                horizons_at_least=sensor_data_description.get("horizon", None),
+                beliefs_before=sensor_data_description.get("prior", None),
                 one_deterministic_belief_per_event=True,
                 as_json=False,
             )
