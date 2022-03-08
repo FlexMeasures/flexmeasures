@@ -26,6 +26,8 @@ Prerequisites
 .. note:: To address assets and sensors, these tutorials assume entity addresses valid in the namespace ``fm1``. See :ref:`api_introduction` for more explanations. 
 
 
+.. _posting_sensor_data:
+
 Posting sensor data
 -------------------
 
@@ -54,7 +56,7 @@ The ``prior`` indicates that the prices were published at 3pm on December 31st 2
 
     {
         "type": "PostSensorDataRequest",
-        "market": "ea1.2021-01.io.flexmeasures.company:fm1.16",
+        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.16",
         "values": [
             52.37,
             51.14,
@@ -96,35 +98,33 @@ Posting power data
 ------------------
 
 For power data, USEF specifies separate message types for observations and forecasts.
-Correspondingly, FlexMeasures uses separate endpoints to communicate these messages.
-Observations of power data can be posted to `POST /api/v2_0/postMeterData <../api/v2_0.html#post--api-v2_0-postMeterData>`_. The URL might look like this:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/<version>/postMeterData
-
-while forecasts of power data can be posted to `POST /api/v2_0/postPrognosis <../api/v2_0.html#post--api-v2_0-postPrognosis>`_. The URL might look like this:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/<version>/postPrognosis
-
-For both endpoints, power data can be posted in various ways.
-The following examples assume that the endpoint for power data observations (i.e. meter data) is used.
-
-.. todo:: For the time being, only one rate unit (MW) can be used to post power values.
-
-
-Single value, single connection
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A single average power value for a 15-minute time interval for a single connection, posted 5 minutes after realisation.
+Correspondingly, we allow the following message types to be used with the [POST] /sensorData endpoint (see :ref:`posting_sensor_data`):
 
 .. code-block:: json
 
     {
-        "type": "PostMeterDataRequest",
-        "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
+        "type": "PostMeterDataRequest"
+    }
+
+.. code-block:: json
+
+    {
+        "type": "PostPrognosisRequest"
+    }
+
+For these message types, FlexMeasures validates whether the data unit is suitable for communicating power data.
+Additionally, we validate whether meter data lies in the past, and prognoses lie in the future.
+
+Single value, single sensor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A single average power value for a 15-minute time interval for a single sensor, posted 5 minutes after realisation.
+
+.. code-block:: json
+
+    {
+        "type": "PostSensorDataRequest",
+        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "value": 220,
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT0H15M",
@@ -132,16 +132,16 @@ A single average power value for a 15-minute time interval for a single connecti
         "unit": "MW"
     }
 
-Multiple values, single connection
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Multiple values, single sensor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Multiple values (indicating a univariate timeseries) for 15-minute time intervals for a single connection, posted 5 minutes after each realisation.
+Multiple values (indicating a univariate timeseries) for 15-minute time intervals for a single sensor, posted 5 minutes after each realisation.
 
 .. code-block:: json
 
     {
-        "type": "PostMeterDataRequest",
-        "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
+        "type": "PostSensorDataRequest",
+        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "values": [
             220,
             210,
