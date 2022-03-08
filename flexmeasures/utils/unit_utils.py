@@ -152,10 +152,14 @@ def units_are_convertible(
 
 def is_power_unit(unit: str) -> bool:
     """For example:
-    >>> is_power_unit("kW")  # True
-    >>> is_power_unit("°C")  # False
-    >>> is_power_unit("kWh")  # False
-    >>> is_power_unit("EUR/MWh")  # False
+    >>> is_power_unit("kW")
+    True
+    >>> is_power_unit("°C")
+    False
+    >>> is_power_unit("kWh")
+    False
+    >>> is_power_unit("EUR/MWh")
+    False
     """
     if not is_valid_unit(unit):
         return False
@@ -164,14 +168,38 @@ def is_power_unit(unit: str) -> bool:
 
 def is_energy_unit(unit: str) -> bool:
     """For example:
-    >>> is_energy_unit("kW")  # False
-    >>> is_energy_unit("°C")  # False
-    >>> is_energy_unit("kWh")  # True
-    >>> is_energy_unit("EUR/MWh")  # False
+    >>> is_energy_unit("kW")
+    False
+    >>> is_energy_unit("°C")
+    False
+    >>> is_energy_unit("kWh")
+    True
+    >>> is_energy_unit("EUR/MWh")
+    False
     """
     if not is_valid_unit(unit):
         return False
     return ur.Quantity(unit).dimensionality == ur.Quantity("Wh").dimensionality
+
+
+def is_energy_price_unit(unit: str) -> bool:
+    """For example:
+    >>> is_energy_price_unit("EUR/MWh")
+    True
+    >>> is_energy_price_unit("KRW/MWh")
+    True
+    >>> is_energy_price_unit("KRW/MW")
+    False
+    >>> is_energy_price_unit("beans/MW")
+    False
+    """
+    if (
+        unit[:3] in [str(c) for c in list_all_currencies()]
+        and unit[3] == "/"
+        and is_energy_unit(unit[4:])
+    ):
+        return True
+    return False
 
 
 def convert_units(
