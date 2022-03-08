@@ -3,7 +3,7 @@ import json
 from isodate import datetime_isoformat, duration_isoformat
 import pandas as pd
 from flask_classful import FlaskView, route
-from flask_security import login_required
+from flask_security import auth_token_required
 from webargs.flaskparser import use_args
 
 from flexmeasures.api.common.schemas.sensor_data import (
