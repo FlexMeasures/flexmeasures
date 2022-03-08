@@ -106,21 +106,24 @@ class SensorDataAPI(FlaskView):
         index = pd.date_range(
             start=start, end=end, freq=sensor.event_resolution, closed="left"
         )
-        df = df.reindex(index).reset_index()
+        df = df.reindex(index)
 
         # Convert to desired unit
         values = convert_units(
             df["event_value"],
             from_unit=sensor.unit,
             to_unit=unit,
-        ).to_list()
+        )
 
+        # Convert NaN to null
+        values = values.where(pd.notnull(values), None)
+
+        # Form the response
         response = dict(
-            values=values,
+            values=values.tolist(),
             start=datetime_isoformat(start),
             duration=duration_isoformat(duration),
             unit=unit,
         )
-
         response.update(type="GetSensorDataResponse")
         return json.dumps(response)
