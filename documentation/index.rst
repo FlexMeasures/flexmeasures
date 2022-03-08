@@ -133,6 +133,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     api/v1_2
     api/v1_1
     api/v1
+    api/dev
     api/change_log
 
 .. toctree::
