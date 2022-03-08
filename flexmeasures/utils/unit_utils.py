@@ -245,7 +245,7 @@ def convert_units(
                 )
             else:
                 # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
-                if event_resolution is None and hasattr(data, "event_resolution"):
+                if event_resolution is None and isinstance(data, tb.BeliefsSeries):
                     event_resolution = data.event_resolution
                 multiplier = determine_unit_conversion_multiplier(
                     from_unit, to_unit, event_resolution

@@ -178,7 +178,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         df = df.reindex(index)
 
         # Convert to desired unit
-        values = convert_units(
+        values: pd.Series = convert_units(  # type: ignore
             df["event_value"],
             from_unit=sensor.unit,
             to_unit=unit,
