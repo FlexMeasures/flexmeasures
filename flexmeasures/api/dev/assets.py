@@ -45,7 +45,10 @@ class AssetAPI(FlaskView):
     )
     @use_args(AssetSchema())
     def post(self, asset_data):
-        """Create new asset"""
+        """Create new asset.
+
+        .. :quickref: Asset; Create a new asset
+        """
         asset = AssetModel(**asset_data)
         db.session.add(asset)
         db.session.commit()
@@ -56,7 +59,10 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", arg_name="asset")
     @as_json
     def fetch_one(self, id, asset):
-        """Fetch a given asset"""
+        """Fetch a given asset.
+
+        .. :quickref: Asset; Get an asset
+        """
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
@@ -65,7 +71,10 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("update", arg_name="db_asset")
     @as_json
     def patch(self, asset_data, id, db_asset):
-        """Update an asset given its identifier"""
+        """Update an asset given its identifier.
+
+        .. :quickref: Asset; Update an asset
+        """
         ignored_fields = ["id", "account_id"]
         for k, v in [(k, v) for k, v in asset_data.items() if k not in ignored_fields]:
             setattr(db_asset, k, v)
@@ -78,7 +87,10 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("delete", arg_name="asset")
     @as_json
     def delete(self, id, asset):
-        """Delete an asset given its identifier"""
+        """Delete an asset given its identifier.
+
+        .. :quickref: Asset; Delete an asset
+        """
         asset_name = asset.name
         db.session.delete(asset)
         db.session.commit()
