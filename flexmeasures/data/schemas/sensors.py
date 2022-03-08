@@ -56,13 +56,13 @@ class SensorIdField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to a Sensor and serializes back to an integer."""
 
     @with_appcontext
-    def _deserialize(self, value, attr, obj, **kwargs) -> Sensor:
+    def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
         sensor = Sensor.query.get(value)
         if sensor is None:
             raise FMValidationError(f"No sensor found with id {value}.")
         return sensor
 
-    def _serialize(self, value, attr, data, **kwargs):
+    def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
         """Turn a Sensor into a sensor id."""
-        return value.id
+        return sensor.id
