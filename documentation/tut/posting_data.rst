@@ -26,23 +26,27 @@ Prerequisites
 .. note:: To address assets and sensors, these tutorials assume entity addresses valid in the namespace ``fm1``. See :ref:`api_introduction` for more explanations. 
 
 
-Posting price data
-------------------
+Posting sensor data
+-------------------
 
-Price data (both observations and forecasts) can be posted to `POST  /api/v2_0/postPriceData <../api/v2_0.html#post--api-v2_0-postPriceData>`_. The URL might look like this:
+Sensor data (both observations and forecasts) can be posted to `POST  /api/v2_0/postSensorData <../api/v2_0.html#post--api-v2_0-postSensorData>`_.
+This endpoint represents the basic method of getting time series data into FlexMeasures via API.
+It is agnostic to the type of sensor and can be used to POST data for both physical and economical events that happened in the past or in the future.
+Some examples: readings from electricity meters, gas meters, temperature sensors and pressure sensors, the availability of parking spots, and price forecasts.
+The exact URL will depend on your domain name, and will look approximately like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/postPriceData
+    https://company.flexmeasures.io/api/<version>/postSensorData
 
-This example "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
+This example "PostSensorDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
 for the Korean Power Exchange (KPX) day-ahead auction, registered under sensor 16.
 The ``prior`` indicates that the prices were published at 3pm on December 31st 2014 (i.e. the clearing time of the KPX day-ahead market, which is at 3 PM on the previous day ― see below for a deeper explanation).
 
 .. code-block:: json
 
     {
-        "type": "PostPriceDataRequest",
+        "type": "PostSensorDataRequest",
         "market": "ea1.2021-01.io.flexmeasures.company:fm1.16",
         "values": [
             52.37,
@@ -78,6 +82,7 @@ The ``prior`` indicates that the prices were published at 3pm on December 31st 2
 
 Note how the resolution of the data comes out at 60 minutes when you divide the duration by the number of data points.
 If this resolution does not match the sensor's resolution, FlexMeasures will try to upsample the data to make the match or, if that is not possible, complain.
+Likewise, if the data unit does not match the sensor’s unit, FlexMeasures will attempt to convert the data or, if that is not possible, complain.
 
 
 Posting power data
