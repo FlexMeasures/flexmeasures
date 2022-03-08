@@ -22,6 +22,8 @@ class SensorDataAPI(FlaskView):
         """
         Post sensor data to FlexMeasures.
 
+        .. :quickref: Data; Upload sensor data
+
         For example:
 
         {
@@ -48,7 +50,10 @@ class SensorDataAPI(FlaskView):
 
     @route("/", methods=["GET"])
     def get(self):
-        """GET from /sensorData"""
+        """Get sensor data from FlexMeasures.
+
+        .. :quickref: Data; Download sensor data
+        """
         # - use data.models.time_series.Sensor::search_beliefs() - might need to add a belief_horizon parameter
         # - create the serialize method on the schema, to turn the resulting BeliefsDataFrame
         #   to the JSON the API should respond with.

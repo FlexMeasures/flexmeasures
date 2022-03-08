@@ -36,7 +36,10 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", arg_name="account")
     @as_json
     def index(self, account: Account):
-        """List all assets owned by a certain account."""
+        """List all assets owned by a certain account.
+
+        .. :quickref: Asset; Download asset list
+        """
         return assets_schema.dump(account.generic_assets), 200
 
     @route("/", methods=["POST"])
