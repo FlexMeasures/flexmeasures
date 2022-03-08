@@ -7,12 +7,22 @@ Summary
 -------
 
 .. qrefflask:: flexmeasures.app:create(env="documentation")
+    :modules: flexmeasures.api.v2_0.implementations.sensor_data
+    :order: path
+    :include-empty-docstring:
+
+.. qrefflask:: flexmeasures.app:create(env="documentation")
     :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v2_0
     :order: path
     :include-empty-docstring:
 
 API Details
 -----------
+
+.. autoflask:: flexmeasures.app:create(env="documentation")
+    :modules: flexmeasures.api.v2_0.implementations.sensor_data
+    :order: path
+    :include-empty-docstring:
 
 .. autoflask:: flexmeasures.app:create(env="documentation")
     :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v2_0
