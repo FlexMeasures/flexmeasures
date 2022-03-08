@@ -26,14 +26,14 @@ class SensorDataAPI(FlaskView):
 
         For example:
 
-        {
-            "type": "PostSensorDataRequest",
-            "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
-            "values": [-11.28, -11.28, -11.28, -11.28],
-            "start": "2021-06-07T00:00:00+02:00",
-            "duration": "PT1H",
-            "unit": "m³/h",
-        }
+            {
+                "type": "PostSensorDataRequest",
+                "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
+                "values": [-11.28, -11.28, -11.28, -11.28],
+                "start": "2021-06-07T00:00:00+02:00",
+                "duration": "PT1H",
+                "unit": "m³/h",
+            }
 
         The above request posts four values for a duration of one hour, where the first
         event start is at the given start time, and subsequent values start in 15 minute intervals throughout the one hour duration.
