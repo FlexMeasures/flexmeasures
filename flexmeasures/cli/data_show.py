@@ -266,6 +266,8 @@ def plot_beliefs(
     Show a simple plot of belief data directly in the terminal.
     """
     sensors = list(sensors)
+    min_resolution = min([s.event_resolution for s in sensors])
+
     # query data
     beliefs_by_sensor = TimedBelief.search(
         sensors=sensors,
@@ -274,6 +276,7 @@ def plot_beliefs(
         beliefs_before=belief_time_before,
         source=source,
         one_deterministic_belief_per_event=True,
+        resolution=min_resolution,
         sum_multiple=False,
     )
     # only keep non-empty
@@ -286,21 +289,6 @@ def plot_beliefs(
         click.echo("No data found!")
         raise click.Abort()
     first_df = beliefs_by_sensor[sensors[0].name]
-
-    # resample if necessary
-    resolutions = [bdf.event_resolution for bdf in beliefs_by_sensor.values()]
-    min_resolution = min(resolutions)
-    if not (all(resolution == min_resolution for resolution in resolutions)):
-        for bdf in beliefs_by_sensor.values():
-            if bdf.event_resolution / min_resolution % 1 > 0:
-                click.echo(
-                    f"Incompatible resolutions: {bdf.event_resolution} and {min_resolution}."
-                )
-                raise click.Abort
-        for sensor, bdf in beliefs_by_sensor.items():
-            beliefs_by_sensor[sensor] = bdf.resample_events(
-                min_resolution, keep_only_most_recent_belief=True
-            )
 
     # Build title
     if len(sensors) == 1:
