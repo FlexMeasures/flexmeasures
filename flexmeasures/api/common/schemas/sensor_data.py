@@ -2,6 +2,7 @@ from datetime import timedelta
 from typing import List, Union
 
 from flask_login import current_user
+from isodate import datetime_isoformat, duration_isoformat
 from marshmallow import fields, post_load, validates_schema, ValidationError
 from marshmallow.validate import Equal, OneOf
 from marshmallow_polyfield import PolyField
@@ -10,9 +11,11 @@ import pandas as pd
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import (
     convert_units,
@@ -60,10 +63,7 @@ def select_schema_to_ensure_list_of_floats(
 
 class SensorDataDescriptionSchema(ma.Schema):
     """
-    Describing sensor data (i.e. in a GET request).
-
-    TODO: when we want to support other entity types with this
-          schema (assets/weather/markets or actuators), we'll need some re-design.
+    Describing sensor data request (i.e. in a GET request).
     """
 
     type = fields.Str(required=True, validate=Equal("GetSensorDataRequest"))
@@ -103,7 +103,55 @@ class SensorDataDescriptionSchema(ma.Schema):
             )
 
 
-class SensorDataSchema(SensorDataDescriptionSchema):
+class GetSensorDataSchema(SensorDataDescriptionSchema):
+
+    @post_load
+    def dump_bdf(self, sensor_data_description: dict, **kwargs) -> dict:
+        sensor: Sensor = sensor_data_description["sensor"]
+        start = sensor_data_description["start"]
+        duration = sensor_data_description["duration"]
+        end = sensor_data_description["start"] + duration
+        unit = sensor_data_description["unit"]
+
+        df = simplify_index(
+            sensor.search_beliefs(
+                event_starts_after=start,
+                event_ends_before=end,
+                horizons_at_least=sensor_data_description.get("horizon", None),
+                beliefs_before=sensor_data_description.get("prior", None),
+                one_deterministic_belief_per_event=True,
+                as_json=False,
+            )
+        )
+
+        # Convert to desired time range
+        index = pd.date_range(
+            start=start, end=end, freq=sensor.event_resolution, closed="left"
+        )
+        df = df.reindex(index)
+
+        # Convert to desired unit
+        values = convert_units(
+            df["event_value"],
+            from_unit=sensor.unit,
+            to_unit=unit,
+        )
+
+        # Convert NaN to null
+        values = values.where(pd.notnull(values), None)
+
+        # Form the response
+        response = dict(
+            values=values.tolist(),
+            start=datetime_isoformat(start),
+            duration=duration_isoformat(duration),
+            unit=unit,
+        )
+
+        return response
+
+
+class PostSensorDataSchema(SensorDataDescriptionSchema):
     """
     This schema includes data, so it can be used for POST requests
     or GET responses.
