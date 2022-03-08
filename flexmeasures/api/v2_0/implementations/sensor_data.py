@@ -51,7 +51,7 @@ class SensorDataAPI(FlaskView):
         event start is at the given start time, and subsequent values start in 15 minute intervals throughout the one hour duration.
 
         The sensor is the one with ID=1.
-        The unit has to match the sensor's required unit.
+        The unit has to be convertible to the sensor's unit.
         The resolution of the data has to match the sensor's required resolution, but
         FlexMeasures will attempt to upsample lower resolutions.
         """
@@ -81,6 +81,8 @@ class SensorDataAPI(FlaskView):
                 "duration": "PT1H",
                 "unit": "m³/h"
             }
+
+        The unit has to be convertible from the sensor's unit.
         """
         # todo: respect passed horizon and prior
         # todo: move some of the below logic to the dump_bdf (serialize) method on the schema
