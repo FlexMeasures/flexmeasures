@@ -134,7 +134,14 @@ class SensorDataSchema(SensorDataDescriptionSchema):
             )
 
     @post_load()
-    def possibly_convert_units(self, data, **kwargs):
+    def post_load_sequence(self, data: dict, **kwargs) -> BeliefsDataFrame:
+        """If needed, upsample and convert units, then deserialize to a BeliefsDataFrame."""
+        data = self.possibly_upsample_values(data)
+        data = self.possibly_convert_units(data)
+        return self.load_bdf(data)
+
+    @staticmethod
+    def possibly_convert_units(data):
         """
         Convert values if needed, to fit the sensor's unit.
         Marshmallow runs this after validation.
@@ -147,8 +154,8 @@ class SensorDataSchema(SensorDataDescriptionSchema):
         )
         return data
 
-    @post_load()
-    def possibly_upsample_values(self, data, **kwargs):
+    @staticmethod
+    def possibly_upsample_values(data):
         """
         Upsample the data if needed, to fit to the sensor's resolution.
         Marshmallow runs this after validation.
@@ -169,7 +176,8 @@ class SensorDataSchema(SensorDataDescriptionSchema):
             )
         return data
 
-    def load_bdf(sensor_data) -> BeliefsDataFrame:
+    @staticmethod
+    def load_bdf(sensor_data: dict) -> BeliefsDataFrame:
         """
         Turn the de-serialized and validated data into a BeliefsDataFrame.
         """

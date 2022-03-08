@@ -4,6 +4,7 @@ from isodate import datetime_isoformat, duration_isoformat
 import pandas as pd
 from flask_classful import FlaskView, route
 from flask_security import auth_token_required
+from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args
 
 from flexmeasures.api.common.schemas.sensor_data import (
@@ -20,7 +21,7 @@ from flexmeasures.utils.unit_utils import convert_units
 class SensorDataAPI(FlaskView):
 
     route_base = "/sensorData"
-    decorators = [login_required]
+    decorators = [auth_token_required]
 
     @account_roles_accepted("MDC", "Prosumer")
     @use_args(
@@ -28,7 +29,7 @@ class SensorDataAPI(FlaskView):
         location="json",
     )
     @route("/", methods=["POST"])
-    def post(self, sensor_data):
+    def post(self, bdf: BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
 
@@ -55,8 +56,7 @@ class SensorDataAPI(FlaskView):
         The resolution of the data has to match the sensor's required resolution, but
         FlexMeasures will attempt to upsample lower resolutions.
         """
-        beliefs = SensorDataSchema.load_bdf(sensor_data)
-        response, code = save_and_enqueue(beliefs)
+        response, code = save_and_enqueue(bdf)
         response.update(type="PostSensorDataResponse")
         return response, code
 
