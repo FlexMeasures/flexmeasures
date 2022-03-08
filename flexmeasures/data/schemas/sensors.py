@@ -1,10 +1,13 @@
-from flask.cli import with_appcontext
 from marshmallow import Schema, fields, validates, ValidationError
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
+from flexmeasures.data.schemas.utils import (
+    FMValidationError,
+    MarshmallowClickMixin,
+    with_appcontext,
+)
 from flexmeasures.utils.unit_utils import is_valid_unit
 
 
@@ -55,7 +58,7 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 class SensorIdField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to a Sensor and serializes back to an integer."""
 
-    @with_appcontext
+    @with_appcontext()
     def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
         sensor = Sensor.query.get(value)
