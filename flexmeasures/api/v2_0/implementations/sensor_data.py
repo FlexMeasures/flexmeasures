@@ -24,7 +24,9 @@ class SensorDataAPI(FlaskView):
 
         .. :quickref: Data; Upload sensor data
 
-        For example:
+        **Example request**
+
+        .. code-block:: json
 
             {
                 "type": "PostSensorDataRequest",
@@ -32,7 +34,7 @@ class SensorDataAPI(FlaskView):
                 "values": [-11.28, -11.28, -11.28, -11.28],
                 "start": "2021-06-07T00:00:00+02:00",
                 "duration": "PT1H",
-                "unit": "m³/h",
+                "unit": "m³/h"
             }
 
         The above request posts four values for a duration of one hour, where the first
