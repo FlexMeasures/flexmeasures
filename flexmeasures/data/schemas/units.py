@@ -40,6 +40,7 @@ class QuantityField(fields.Str, MarshmallowClickMixin):
         validator = QuantityValidator()
         self.validators.insert(0, validator)
         self.to_unit = ur.Quantity(to_unit)
+        self.name = "quantity"
 
     def _deserialize(self, value, attr, obj, **kwargs) -> ur.Quantity:
         """Turn a quantity describing string into a Quantity."""
