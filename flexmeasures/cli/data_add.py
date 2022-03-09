@@ -848,6 +848,7 @@ def create_schedule(
     """Create a new schedule for a given power sensor.
 
     Current limitations:
+
     - only supports battery assets and Charge Points
     - only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """

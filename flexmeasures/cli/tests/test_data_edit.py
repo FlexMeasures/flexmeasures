@@ -101,3 +101,14 @@ def test_resample_sensor_data(
         resample_sensor_data, to_flags(cli_input) + ["--skip-integrity-check"]
     )
     assert "Successfully resampled" in result.output
+
+
+def test_cli_help(app):
+    """Test that showing help does not throw an error."""
+    from flexmeasures.cli.data_edit import edit_attribute, resample_sensor_data
+
+    runner = app.test_cli_runner()
+    for cmd in (edit_attribute, resample_sensor_data):
+        result = runner.invoke(cmd, ["--help"])
+        assert result.exit_code == 0
+        assert "Usage" in result.output

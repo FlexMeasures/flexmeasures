@@ -75,3 +75,40 @@ def test_add_holidays(app, db, setup_roles_users):
         .count()
         == 11
     )
+
+
+def test_cli_help(app):
+    """Test that showing help does not throw an error."""
+    from flexmeasures.cli.data_add import (
+        new_account,
+        new_account_role,
+        new_user,
+        add_annotation,
+        add_asset_type,
+        add_holidays,
+        add_beliefs,
+        add_initial_structure,
+        add_sensor,
+        add_toy_account,
+        create_schedule,
+        create_forecasts,
+    )
+
+    runner = app.test_cli_runner()
+    for cmd in (
+        new_account,
+        new_account_role,
+        new_user,
+        add_annotation,
+        add_asset_type,
+        add_holidays,
+        add_beliefs,
+        add_initial_structure,
+        add_sensor,
+        add_toy_account,
+        create_schedule,
+        create_forecasts,
+    ):
+        result = runner.invoke(cmd, ["--help"])
+        assert result.exit_code == 0
+        assert "Usage" in result.output
