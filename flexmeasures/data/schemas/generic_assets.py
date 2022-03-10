@@ -8,7 +8,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetTy
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
-    with_appcontext,
+    with_appcontext_if_needed,
 )
 
 
@@ -99,7 +99,7 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 class GenericAssetIdField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to a GenericAsset and serializes back to an integer."""
 
-    @with_appcontext()
+    @with_appcontext_if_needed()
     def _deserialize(self, value, attr, obj, **kwargs) -> GenericAsset:
         """Turn a generic asset id into a GenericAsset."""
         generic_asset = GenericAsset.query.get(value)

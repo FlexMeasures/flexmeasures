@@ -28,7 +28,7 @@ class FMValidationError(ValidationError):
     status = "UNPROCESSABLE_ENTITY"
 
 
-def with_appcontext():
+def with_appcontext_if_needed():
     """Execute within the script's application context, in case there is one."""
 
     def decorator(f):
