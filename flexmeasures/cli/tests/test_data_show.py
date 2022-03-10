@@ -1,6 +1,7 @@
 import pytest
 
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.cli.tests.utils import get_click_commands
 
 
 @pytest.mark.skip_github
@@ -114,26 +115,10 @@ def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
 
 def test_cli_help(app):
     """Test that showing help does not throw an error."""
-    from flexmeasures.cli.data_show import (
-        show_account,
-        show_generic_asset,
-        list_accounts,
-        list_roles,
-        list_asset_types,
-        list_data_sources,
-        plot_beliefs,
-    )
+    from flexmeasures.cli import data_show
 
     runner = app.test_cli_runner()
-    for cmd in (
-        show_account,
-        show_generic_asset,
-        list_accounts,
-        list_roles,
-        list_asset_types,
-        list_data_sources,
-        plot_beliefs,
-    ):
+    for cmd in get_click_commands(data_show):
         result = runner.invoke(cmd, ["--help"])
         assert "Usage" in result.output
         assert cmd.__doc__.strip() in result.output
