@@ -13,7 +13,7 @@ class DurationValidationError(FMValidationError):
     status = "INVALID_PERIOD"  # USEF error status
 
 
-class DurationField(fields.Str, MarshmallowClickMixin):
+class DurationField(MarshmallowClickMixin, fields.Str):
     """Field that deserializes to a ISO8601 Duration
     and serializes back to a string."""
 
@@ -64,7 +64,7 @@ class DurationField(fields.Str, MarshmallowClickMixin):
         return duration
 
 
-class AwareDateTimeField(fields.AwareDateTime, MarshmallowClickMixin):
+class AwareDateTimeField(MarshmallowClickMixin, fields.AwareDateTime):
     """Field that de-serializes to a timezone aware datetime
     and serializes back to a string."""
 
