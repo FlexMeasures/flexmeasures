@@ -5,6 +5,7 @@ import timely_beliefs as tb
 
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.cli.tests.utils import get_click_commands
 
 
 @pytest.mark.skip
@@ -101,3 +102,14 @@ def test_resample_sensor_data(
         resample_sensor_data, to_flags(cli_input) + ["--skip-integrity-check"]
     )
     assert "Successfully resampled" in result.output
+
+
+def test_cli_help(app):
+    """Test that showing help does not throw an error."""
+    from flexmeasures.cli import data_edit
+
+    runner = app.test_cli_runner()
+    for cmd in get_click_commands(data_edit):
+        result = runner.invoke(cmd, ["--help"])
+        assert result.exit_code == 0
+        assert "Usage" in result.output

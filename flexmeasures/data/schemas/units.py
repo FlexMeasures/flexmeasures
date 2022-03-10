@@ -18,7 +18,7 @@ class QuantityValidator(validate.Validator):
         return value
 
 
-class QuantityField(fields.Str, MarshmallowClickMixin):
+class QuantityField(MarshmallowClickMixin, fields.Str):
     """Marshmallow/Click field for validating quantities against a unit registry.
 
     The FlexMeasures unit registry is based on the pint library.

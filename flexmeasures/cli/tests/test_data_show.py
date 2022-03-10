@@ -1,6 +1,7 @@
 import pytest
 
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.cli.tests.utils import get_click_commands
 
 
 @pytest.mark.skip_github
@@ -110,3 +111,15 @@ def test_plot_beliefs(app, fresh_db, setup_beliefs_fresh_db):
     assert "Data spans an hour" in result.output
 
     assert result.exit_code == 0
+
+
+def test_cli_help(app):
+    """Test that showing help does not throw an error."""
+    from flexmeasures.cli import data_show
+
+    runner = app.test_cli_runner()
+    for cmd in get_click_commands(data_show):
+        result = runner.invoke(cmd, ["--help"])
+        assert "Usage" in result.output
+        assert cmd.__doc__.strip() in result.output
+        assert result.exit_code == 0

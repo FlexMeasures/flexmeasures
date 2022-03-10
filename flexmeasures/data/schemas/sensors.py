@@ -52,7 +52,7 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
         model = Sensor
 
 
-class SensorIdField(fields.Int, MarshmallowClickMixin):
+class SensorIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a Sensor and serializes back to an integer."""
 
     @with_appcontext
