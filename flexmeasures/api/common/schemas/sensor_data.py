@@ -136,6 +136,14 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
 
     @post_load
     def dump_bdf(self, sensor_data_description: dict, **kwargs) -> dict:
+        """Turn the de-serialized and validated data description into a response.
+
+        Specifically, this function:
+        - queries data according to the given description
+        - converts to a single deterministic belief per event
+        - ensures the response respects the requested time frame
+        - converts values to the requested unit
+        """
         sensor: Sensor = sensor_data_description["sensor"]
         start = sensor_data_description["start"]
         duration = sensor_data_description["duration"]
