@@ -98,6 +98,7 @@ class SensorDataDescriptionSchema(ma.Schema):
 
 class GetSensorDataSchema(SensorDataDescriptionSchema):
     type = fields.Str(
+        required=True,
         validate=OneOf(
             [
                 "GetSensorDataRequest",
