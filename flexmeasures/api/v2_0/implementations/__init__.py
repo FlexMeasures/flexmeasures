@@ -1,1 +1,1 @@
-from . import assets, sensor_data, sensors, users  # noqa F401
+from . import assets, sensors, users  # noqa F401
