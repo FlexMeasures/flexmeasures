@@ -1,7 +1,7 @@
 import json
 
 from flask_classful import FlaskView, route
-from flask_security import auth_token_required
+from flask_security import auth_required
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args
 
@@ -15,7 +15,7 @@ from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 class SensorDataAPI(FlaskView):
 
     route_base = "/sensorData"
-    decorators = [auth_token_required]
+    decorators = [auth_required()]
 
     @use_args(
         PostSensorDataSchema(),
