@@ -12,7 +12,7 @@ def setup_api_test_data(db, setup_roles_users, setup_generic_assets):
     Set up data for API dev tests.
     """
     print("Setting up data for API dev tests on %s" % db.engine)
-    add_gas_sensor(db, setup_roles_users["Test Prosumer User 2"])
+    add_gas_sensor(db, setup_roles_users["Test Supplier User"])
 
 
 @pytest.fixture(scope="function")
@@ -25,10 +25,10 @@ def setup_api_fresh_test_data(
     print("Setting up fresh data for API dev tests on %s" % fresh_db.engine)
     for sensor in Sensor.query.all():
         fresh_db.delete(sensor)
-    add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test Prosumer User 2"])
+    add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test Supplier User"])
 
 
-def add_gas_sensor(db, test_supplier):
+def add_gas_sensor(db, test_supplier_user):
     incineration_type = GenericAssetType(
         name="waste incinerator",
     )
@@ -37,7 +37,7 @@ def add_gas_sensor(db, test_supplier):
     incineration_asset = GenericAsset(
         name="incineration line",
         generic_asset_type=incineration_type,
-        account_id=test_supplier.account_id,
+        account_id=test_supplier_user.account_id,
     )
     db.session.add(incineration_asset)
     db.session.flush()
@@ -48,4 +48,4 @@ def add_gas_sensor(db, test_supplier):
         generic_asset=incineration_asset,
     )
     db.session.add(gas_sensor)
-    gas_sensor.owner = test_supplier
+    gas_sensor.owner = test_supplier_user.account

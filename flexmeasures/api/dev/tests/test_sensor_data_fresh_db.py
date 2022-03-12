@@ -37,7 +37,7 @@ def test_post_sensor_data(
     print(f"BELIEFS BEFORE: {beliefs_before}")
     assert len(beliefs_before) == 0
 
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     response = client.post(
         url_for("SensorDataAPI:post"),
         json=post_data,
