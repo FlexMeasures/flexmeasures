@@ -22,6 +22,7 @@ from flexmeasures.utils.unit_utils import (
     units_are_convertible,
     is_energy_price_unit,
 )
+from flexmeasures.auth.policy import check_access
 
 
 class SingleValueField(fields.Float):
@@ -76,15 +77,6 @@ class SensorDataDescriptionSchema(ma.Schema):
     unit = fields.Str(required=True)
 
     @validates_schema
-    def check_user_rights_against_sensor(self, data, **kwargs):
-        """If the user is a Prosumer and the sensor belongs to an asset
-        over which the Prosumer has no ownership, raise a ValidationError.
-        """
-        # todo: implement check once sensors can belong to an asset
-        #       https://github.com/FlexMeasures/flexmeasures/issues/155
-        pass
-
-    @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
         """Allows units compatible with that of the sensor.
         For example, a sensor with W units allows data to be posted with units:
@@ -115,6 +107,10 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
             ]
         )
     )
+
+    @validates_schema
+    def check_user_may_read(self, data, **kwargs):
+        check_access(data["sensor"], "read")
 
     @validates_schema
     def check_schema_unit_against_type(self, data, **kwargs):
@@ -223,6 +219,10 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         serialization_schema_selector=select_schema_to_ensure_list_of_floats,
         many=False,
     )
+
+    @validates_schema
+    def check_user_may_create(self, data, **kwargs):
+        check_access(data["sensor"], "create-children")
 
     @validates_schema
     def check_schema_unit_against_type(self, data, **kwargs):

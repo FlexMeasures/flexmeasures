@@ -10,7 +10,6 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
 )
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
-from flexmeasures.auth.decorators import account_roles_accepted
 
 
 class SensorDataAPI(FlaskView):
@@ -18,7 +17,6 @@ class SensorDataAPI(FlaskView):
     route_base = "/sensorData"
     decorators = [auth_token_required]
 
-    @account_roles_accepted("MDC", "Prosumer")
     @use_args(
         PostSensorDataSchema(),
         location="json",
