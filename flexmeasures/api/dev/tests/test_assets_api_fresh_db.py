@@ -34,8 +34,8 @@ def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, admin_kind):
 
 
 def test_edit_an_asset(client, setup_api_fresh_test_data):
-    with AccountContext("Test Prosumer Account") as prosumer:
-        existing_asset = prosumer.generic_assets[1]
+    with AccountContext("Test Supplier Account") as supplier:
+        existing_asset = supplier.generic_assets[1]
 
     post_data = dict(latitude=10, id=999)  # id will be ignored
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")

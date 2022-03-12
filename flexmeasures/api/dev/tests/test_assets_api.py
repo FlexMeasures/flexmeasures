@@ -70,7 +70,7 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data):
     assert "not found" in asset_response.json["message"]
 
 
-@pytest.mark.parametrize("account_name, num_assets", [("Prosumer", 2), ("Supplier", 1)])
+@pytest.mark.parametrize("account_name, num_assets", [("Prosumer", 1), ("Supplier", 2)])
 def test_get_assets(
     client, setup_api_test_data, setup_accounts, account_name, num_assets
 ):
