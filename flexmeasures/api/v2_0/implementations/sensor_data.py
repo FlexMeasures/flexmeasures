@@ -17,11 +17,11 @@ class SensorDataAPI(FlaskView):
     route_base = "/sensorData"
     decorators = [auth_required()]
 
+    @route("/", methods=["POST"])
     @use_args(
         PostSensorDataSchema(),
         location="json",
     )
-    @route("/", methods=["POST"])
     def post(self, bdf: BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
