@@ -23,7 +23,7 @@ def test_user_crud_as_non_admin(client, as_prosumer_user1, view):
 
 def test_user_list(client, as_admin, requests_mock):
     requests_mock.get(
-        "http://localhost//api/v3_0/user",
+        "http://localhost//api/v3_0/users",
         status_code=200,
         json=mock_user_response(multiple=True),
     )
