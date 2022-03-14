@@ -4,7 +4,7 @@ from typing import List, Union
 from flask_login import current_user
 from isodate import datetime_isoformat, duration_isoformat
 from marshmallow import fields, post_load, validates_schema, ValidationError
-from marshmallow.validate import Equal, OneOf
+from marshmallow.validate import OneOf
 from marshmallow_polyfield import PolyField
 from timely_beliefs import BeliefsDataFrame
 import pandas as pd

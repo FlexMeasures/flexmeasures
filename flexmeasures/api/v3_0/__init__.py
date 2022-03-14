@@ -1,4 +1,4 @@
-from flask import Flask, Blueprint
+from flask import Flask
 
 from flexmeasures.api.v3_0.implementations.sensor_data import SensorDataAPI
 from flexmeasures.api.v3_0.implementations.users import UserAPI, UsersAPI
