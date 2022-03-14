@@ -93,7 +93,7 @@ def reset_password(user_id: int, user: UserModel):
 
 
 class UserAPI(FlaskView):
-    route_base = "/user"
+    route_base = "/users"
     trailing_slash = False
 
     def index(self):
