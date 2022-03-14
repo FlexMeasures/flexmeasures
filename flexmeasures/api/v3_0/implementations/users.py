@@ -92,8 +92,8 @@ def reset_password(user_id: int, user: UserModel):
     db.session.commit()
 
 
-class UsersAPI(FlaskView):
-    route_base = "/users"
+class UserAPI(FlaskView):
+    route_base = "/user"
     trailing_slash = False
 
     def index(self):
@@ -135,11 +135,6 @@ class UsersAPI(FlaskView):
         :status 403: INVALID_SENDER
         """
         return get()
-
-
-class UserAPI(FlaskView):
-    route_base = "/user"
-    trailing_slash = False
 
     def get(self, id: int):
         """API endpoint to get a user.

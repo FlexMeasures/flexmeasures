@@ -22,7 +22,7 @@ def test_get_users_bad_auth(client, use_auth):
         query = {"account_id": 2}
 
     get_users_response = client.get(
-        url_for("UsersAPI:index"), headers=headers, query_string=query
+        url_for("UserAPI:index"), headers=headers, query_string=query
     )
     print("Server responded with:\n%s" % get_users_response.data)
     if use_auth:
@@ -43,7 +43,7 @@ def test_get_users_inactive(client, setup_inactive_user, include_inactive):
     if include_inactive in (True, False):
         query["include_inactive"] = include_inactive
     get_users_response = client.get(
-        url_for("UsersAPI:index"), query_string=query, headers=headers
+        url_for("UserAPI:index"), query_string=query, headers=headers
     )
     print("Server responded with:\n%s" % get_users_response.json)
     assert get_users_response.status_code == 200

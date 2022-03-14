@@ -1,7 +1,7 @@
 from flask import Flask
 
 from flexmeasures.api.v3_0.implementations.sensor_data import SensorDataAPI
-from flexmeasures.api.v3_0.implementations.users import UserAPI, UsersAPI
+from flexmeasures.api.v3_0.implementations.users import UserAPI
 
 
 def register_at(app: Flask):
@@ -11,4 +11,3 @@ def register_at(app: Flask):
 
     SensorDataAPI.register(app, route_prefix=v3_0_api_prefix)
     UserAPI.register(app, route_prefix=v3_0_api_prefix)
-    UsersAPI.register(app, route_prefix=v3_0_api_prefix)

@@ -84,7 +84,7 @@ class UserCrudUI(FlaskView):
         for account in Account.query.all():
             get_users_response = InternalApi().get(
                 url_for(
-                    "UsersAPI:index",
+                    "UserAPI:index",
                     account_id=account.id,
                     include_inactive=include_inactive,
                 )
