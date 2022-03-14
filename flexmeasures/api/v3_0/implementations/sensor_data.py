@@ -34,7 +34,6 @@ class SensorDataAPI(FlaskView):
         .. code-block:: json
 
             {
-                "type": "PostSensorDataRequest",
                 "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
                 "values": [-11.28, -11.28, -11.28, -11.28],
                 "start": "2021-06-07T00:00:00+02:00",
@@ -51,7 +50,6 @@ class SensorDataAPI(FlaskView):
         FlexMeasures will attempt to upsample lower resolutions.
         """
         response, code = save_and_enqueue(bdf)
-        response.update(type="PostSensorDataResponse")
         return response, code
 
     @route("/", methods=["GET"])
@@ -69,7 +67,6 @@ class SensorDataAPI(FlaskView):
         .. code-block:: json
 
             {
-                "type": "GetSensorDataRequest",
                 "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
                 "start": "2021-06-07T00:00:00+02:00",
                 "duration": "PT1H",
@@ -78,5 +75,4 @@ class SensorDataAPI(FlaskView):
 
         The unit has to be convertible from the sensor's unit.
         """
-        response.update(type="GetSensorDataResponse")
         return json.dumps(response)

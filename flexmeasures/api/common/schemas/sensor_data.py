@@ -96,8 +96,10 @@ class SensorDataDescriptionSchema(ma.Schema):
 
 
 class GetSensorDataSchema(SensorDataDescriptionSchema):
+
+    # Optional field that can be used for extra validation
     type = fields.Str(
-        required=True,
+        required=False,
         validate=OneOf(
             [
                 "GetSensorDataRequest",
@@ -115,7 +117,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
     @validates_schema
     def check_schema_unit_against_type(self, data, **kwargs):
         requested_unit = data["unit"]
-        _type = data["type"]
+        _type = data.get("type", None)
         if (
             _type
             in (
@@ -153,7 +155,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         # Post-load configuration of belief timing against message type
         horizons_at_least = sensor_data_description.get("horizon", None)
         horizons_at_most = None
-        _type = sensor_data_description["type"]
+        _type = sensor_data_description.get("type", None)
         if _type == "PostMeterDataRequest":
             horizons_at_most = timedelta(0)
         elif _type == "PostPrognosisRequest":
@@ -211,7 +213,9 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
           (sets a resolution parameter which we can pass to the data collection function).
     """
 
+    # Optional field that can be used for extra validation
     type = fields.Str(
+        required=False,
         validate=OneOf(
             [
                 "PostSensorDataRequest",
@@ -235,7 +239,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
     @validates_schema
     def check_schema_unit_against_type(self, data, **kwargs):
         posted_unit = data["unit"]
-        _type = data["type"]
+        _type = data.get("type", None)
         if (
             _type
             in (
@@ -272,7 +276,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         bdf = self.load_bdf(data)
 
         # Post-load validation against message type
-        _type = data["type"]
+        _type = data.get("type", None)
         if _type == "PostMeterDataRequest":
             if any(h > timedelta(0) for h in bdf.belief_horizons):
                 raise ValidationError("Meter data must lie in the past.")
