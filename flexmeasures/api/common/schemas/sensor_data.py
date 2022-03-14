@@ -118,10 +118,14 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
     def check_schema_unit_against_type(self, data, **kwargs):
         requested_unit = data["unit"]
         _type = data.get("type", None)
-        if _type in (
-            "GetMeterDataRequest",
-            "GetPrognosisRequest",
-        ) and not units_are_convertible(requested_unit, "MW"):
+        if (
+            _type
+            in (
+                "GetMeterDataRequest",
+                "GetPrognosisRequest",
+            )
+            and not units_are_convertible(requested_unit, "MW")
+        ):
             raise ValidationError(
                 f"The unit requested for this message type should be convertible from MW, got incompatible unit: {requested_unit}"
             )
@@ -236,10 +240,14 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
     def check_schema_unit_against_type(self, data, **kwargs):
         posted_unit = data["unit"]
         _type = data.get("type", None)
-        if _type in (
-            "PostMeterDataRequest",
-            "PostPrognosisRequest",
-        ) and not units_are_convertible(posted_unit, "MW"):
+        if (
+            _type
+            in (
+                "PostMeterDataRequest",
+                "PostPrognosisRequest",
+            )
+            and not units_are_convertible(posted_unit, "MW")
+        ):
             raise ValidationError(
                 f"The unit required for this message type should be convertible to MW, got incompatible unit: {posted_unit}"
             )
