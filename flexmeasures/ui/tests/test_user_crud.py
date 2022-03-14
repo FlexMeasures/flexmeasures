@@ -23,7 +23,7 @@ def test_user_crud_as_non_admin(client, as_prosumer_user1, view):
 
 def test_user_list(client, as_admin, requests_mock):
     requests_mock.get(
-        "http://localhost//api/v2_0/users",
+        "http://localhost//api/v3_0/user",
         status_code=200,
         json=mock_user_response(multiple=True),
     )
@@ -37,7 +37,7 @@ def test_user_list(client, as_admin, requests_mock):
 def test_user_page(client, as_admin, requests_mock):
     mock_user = mock_user_response(as_list=False)
     requests_mock.get(
-        "http://localhost//api/v2_0/user/2", status_code=200, json=mock_user
+        "http://localhost//api/v3_0/user/2", status_code=200, json=mock_user
     )
     requests_mock.get(
         "http://localhost//api/v2_0/assets",
@@ -55,7 +55,7 @@ def test_deactivate_user(client, as_admin, requests_mock):
     """Test it does not fail (logic is tested in API tests) and displays an answer."""
     user2 = find_user_by_email("test_prosumer_user_2@seita.nl", keep_in_session=False)
     requests_mock.patch(
-        f"http://localhost//api/v2_0/user/{user2.id}",
+        f"http://localhost//api/v3_0/user/{user2.id}",
         status_code=200,
         json={"active": False},
     )
@@ -72,7 +72,7 @@ def test_reset_password(client, as_admin, requests_mock):
     """Test it does not fail (logic is tested in API tests) and displays an answer."""
     user2 = find_user_by_email("test_prosumer_user_2@seita.nl", keep_in_session=False)
     requests_mock.patch(
-        f"http://localhost//api/v2_0/user/{user2.id}/password-reset",
+        f"http://localhost//api/v3_0/user/{user2.id}/password-reset",
         status_code=200,
     )
     user_page = client.get(
