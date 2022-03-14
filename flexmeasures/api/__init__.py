@@ -110,6 +110,7 @@ def register_at(app: Flask):
     from flexmeasures.api.v1_2 import register_at as v1_2_register_at
     from flexmeasures.api.v1_3 import register_at as v1_3_register_at
     from flexmeasures.api.v2_0 import register_at as v2_0_register_at
+    from flexmeasures.api.v3_0 import register_at as v3_0_register_at
     from flexmeasures.api.dev import register_at as dev_register_at
 
     v1_register_at(app)
@@ -117,4 +118,5 @@ def register_at(app: Flask):
     v1_2_register_at(app)
     v1_3_register_at(app)
     v2_0_register_at(app)
+    v3_0_register_at(app)
     dev_register_at(app)
