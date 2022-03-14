@@ -1,13 +1,13 @@
-.. _v2_0:
+.. _v3_0:
 
-Version 2.0
+Version 3.0
 ===========
 
 Summary
 -------
 
 .. qrefflask:: flexmeasures.app:create(env="documentation")
-    :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v2_0
+    :modules: flexmeasures.api.v3_0.implementations.sensor_data
     :order: path
     :include-empty-docstring:
 
@@ -15,6 +15,6 @@ API Details
 -----------
 
 .. autoflask:: flexmeasures.app:create(env="documentation")
-    :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v2_0
+    :modules: flexmeasures.api.v3_0.implementations.sensor_data
     :order: path
     :include-empty-docstring:
