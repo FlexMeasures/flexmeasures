@@ -40,10 +40,10 @@ Let's see what the ``/api`` endpoint returns:
     >>> import requests
     >>> res = requests.get("https://company.flexmeasures.io/api")
     >>> res.json()
-    {'flexmeasures_version': '0.4.0',
-     'message': 'For these API versions a public endpoint is available, listing its service. For example: /api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: /api/requestAuthToken',
+    {'flexmeasures_version': '0.9.0',
+     'message': 'For these API versions a public endpoint is available, listing its service. For example: /api/v2_0/getService and /api/v3_0/getService. An authentication token can be requested at: /api/requestAuthToken',
      'status': 200,
-     'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0']
+     'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0', 'v3_0']
     }
 
 So this tells us which API versions exist. For instance, we know that the latest API version is available at
