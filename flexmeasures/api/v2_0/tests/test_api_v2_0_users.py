@@ -22,7 +22,7 @@ def test_get_users_bad_auth(client, use_auth):
         query = {"account_id": 2}
 
     get_users_response = client.get(
-        url_for("flexmeasures_api_v2_0.get_users"), headers=headers, query_string=query
+        url_for("UserAPI:get_users"), headers=headers, query_string=query
     )
     print("Server responded with:\n%s" % get_users_response.data)
     if use_auth:
@@ -43,7 +43,7 @@ def test_get_users_inactive(client, setup_inactive_user, include_inactive):
     if include_inactive in (True, False):
         query["include_inactive"] = include_inactive
     get_users_response = client.get(
-        url_for("flexmeasures_api_v2_0.get_users"), query_string=query, headers=headers
+        url_for("UserAPI:get_users"), query_string=query, headers=headers
     )
     print("Server responded with:\n%s" % get_users_response.json)
     assert get_users_response.status_code == 200
@@ -71,7 +71,7 @@ def test_get_one_user(client, requesting_user, status_code):
         headers["Authorization"] = get_auth_token(client, requesting_user, "testtest")
 
     get_user_response = client.get(
-        url_for("flexmeasures_api_v2_0.get_user", id=test_user2_id),
+        url_for("UserAPI:get_user", id=test_user2_id),
         headers=headers,
     )
     print("Server responded with:\n%s" % get_user_response.data)
@@ -89,7 +89,7 @@ def test_edit_user(client):
         admin_id = admin.id
     # without being the user themselves or an admin, the user cannot be edited
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=admin_id),
+        url_for("UserAPI:patch_user", id=admin_id),
         headers={
             "content-type": "application/json",
             "Authorization": user2_auth_token,
@@ -98,7 +98,7 @@ def test_edit_user(client):
     )
     assert user_edit_response.status_code == 403
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=user2_id),
+        url_for("UserAPI:patch_user", id=user2_id),
         headers={"content-type": "application/json"},
         json={},
     )
@@ -107,7 +107,7 @@ def test_edit_user(client):
     # (id is in the User schema of the API, but we ignore it)
     headers = {"content-type": "application/json", "Authorization": admin_auth_token}
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=user2_id),
+        url_for("UserAPI:patch_user", id=user2_id),
         headers=headers,
         json={"active": False, "id": 888},
     )
@@ -120,7 +120,7 @@ def test_edit_user(client):
     # admin can edit themselves but not sensitive fields
     headers = {"content-type": "application/json", "Authorization": admin_auth_token}
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=admin_id),
+        url_for("UserAPI:patch_user", id=admin_id),
         headers=headers,
         json={"active": False},
     )
@@ -135,7 +135,7 @@ def test_edit_user_with_unexpected_fields(client):
     with UserContext("test_admin_user@seita.nl") as admin:
         admin_auth_token = admin.get_auth_token()
     user_edit_response = client.patch(
-        url_for("flexmeasures_api_v2_0.patch_user", id=user2_id),
+        url_for("UserAPI:patch_user", id=user2_id),
         headers={
             "content-type": "application/json",
             "Authorization": admin_auth_token,

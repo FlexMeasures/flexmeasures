@@ -28,7 +28,7 @@ def test_user_reset_password(app, client, setup_inactive_user, sender):
         headers["Authorization"] = (get_auth_token(client, sender, "testtest"),)
     with app.mail.record_messages() as outbox:
         pwd_reset_response = client.patch(
-            url_for("flexmeasures_api_v2_0.reset_user_password", id=user2_id),
+            url_for("UserAPI:reset_user_password", id=user2_id),
             query_string={},
             headers=headers,
         )
