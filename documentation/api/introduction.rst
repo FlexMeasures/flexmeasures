@@ -23,13 +23,13 @@ So if you are running FlexMeasures on your computer, it would be:
 
     https://localhost:5000/api
 
-At Seita, we run servers for our clients at:
+Let's assume we are running a server for a client at:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api
 
-where `company` is a hosting customer of ours. All their accounts' data lives on that server.
+where `company` is a client of ours. All their accounts' data lives on that server.
 
 We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
 
@@ -46,11 +46,11 @@ Let's see what the ``/api`` endpoint returns:
      'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0', 'v3_0']
     }
 
-So this tells us which API versions exist. For instance, we know that the latest API version is available at
+So this tells us which API versions exist. For instance, we know that the latest API version is available at:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/v2_0
+    https://company.flexmeasures.io/api/v3_0
 
 
 Also, we can see that a list of endpoints which are available at (a version of) the FlexMeasures web service can be obtained by sending a ``getService`` request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
