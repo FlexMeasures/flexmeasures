@@ -84,7 +84,7 @@ class UserCrudUI(FlaskView):
         for account in Account.query.all():
             get_users_response = InternalApi().get(
                 url_for(
-                    "UserAPI:get_users",
+                    "UsersAPI:index",
                     account_id=account.id,
                     include_inactive=include_inactive,
                 )
@@ -100,7 +100,7 @@ class UserCrudUI(FlaskView):
     @roles_required(ADMIN_ROLE)
     def get(self, id: str):
         """GET from /users/<id>"""
-        get_user_response = InternalApi().get(url_for("UserAPI:get_user", id=id))
+        get_user_response = InternalApi().get(url_for("UserAPI:get", id=id))
         user: User = process_internal_api_response(
             get_user_response.json(), make_obj=True
         )
@@ -117,7 +117,7 @@ class UserCrudUI(FlaskView):
         """Toggle activation status via /users/toggle_active/<id>"""
         user: User = get_user(id)
         user_response = InternalApi().patch(
-            url_for("UserAPI:patch_user", id=id),
+            url_for("UserAPI:patch", id=id),
             args={"active": not user.active},
         )
         patched_user: User = process_internal_api_response(

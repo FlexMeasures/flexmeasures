@@ -92,11 +92,11 @@ def reset_password(user_id: int, user: UserModel):
     db.session.commit()
 
 
-class UserAPI(FlaskView):
-    route_base = "/user"
+class UsersAPI(FlaskView):
+    route_base = "/users"
+    trailing_slash = False
 
-    @route("", methods=["GET"])
-    def get_users(self):
+    def index(self):
         """API endpoint to get users.
 
         .. :quickref: User; Download user list
@@ -136,8 +136,12 @@ class UserAPI(FlaskView):
         """
         return get()
 
-    @route("/<id>", methods=["GET"])
-    def get_user(self, id: int):
+
+class UserAPI(FlaskView):
+    route_base = "/user"
+    trailing_slash = False
+
+    def get(self, id: int):
         """API endpoint to get a user.
 
         .. :quickref: User; Get a user
@@ -169,8 +173,7 @@ class UserAPI(FlaskView):
         """
         return fetch_one(id)
 
-    @route("/<id>", methods=["PATCH"])
-    def patch_user(self, id: int):
+    def patch(self, id: int):
         """API endpoint to patch user data.
 
         .. :quickref: User; Patch data for an existing user
