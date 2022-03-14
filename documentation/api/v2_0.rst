@@ -15,7 +15,6 @@ Summary
     :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v2_0
     :order: path
     :include-empty-docstring:
-    :undoc-endpoints: flexmeasures_api_v2_0.get_meter_data, flexmeasures_api_v2_0.get_prognosis, flexmeasures_api_v2_0.post_meter_data, flexmeasures_api_v2_0.post_price_data, flexmeasures_api_v2_0.post_prognosis, flexmeasures_api_v2_0.post_weather_data
 
 API Details
 -----------
@@ -29,4 +28,3 @@ API Details
     :blueprints: flexmeasures_api, flexmeasures_api_play, flexmeasures_api_v2_0
     :order: path
     :include-empty-docstring:
-    :undoc-endpoints: flexmeasures_api_v2_0.get_meter_data, flexmeasures_api_v2_0.get_prognosis, flexmeasures_api_v2_0.post_meter_data, flexmeasures_api_v2_0.post_price_data, flexmeasures_api_v2_0.post_prognosis, flexmeasures_api_v2_0.post_weather_data
