@@ -15,6 +15,7 @@ from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 class SensorDataAPI(FlaskView):
 
     route_base = "/sensorData"
+    trailing_slash = False
     decorators = [auth_required()]
 
     @route("/", methods=["POST"])
