@@ -147,7 +147,7 @@ For the account ID, I looked at the output of ``flexmeasures add account`` (the 
 
 The second way to add an asset is the UI ― head over to ``https://localhost:5000/assets`` (after you started FlexMeasures, see step "Run FlexMeasures" further down) and add a new asset there in a web form.
 
-Finally, you can also use the `POST /api/v2_0/assets <api/v2_0.html#post--api-v2_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
+Finally, you can also use the `POST /api/v3_0/assets <api/v3_0.html#post--api-v3_0-assets>`_ endpoint in the FlexMeasures API to create an asset.
 
 
 Add your first sensor
@@ -195,7 +195,7 @@ First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` 
 
 This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
 
-Second, you can use the `POST /api/v2_0/postSensorData <api/v2_0.html#post--api-v2_0-postSensorData>`_ endpoint in the FlexMeasures API to send meter data.
+Second, you can use the `POST /api/v3_0/sensorData <api/v3_0.html#post--api-v3_0-sensorData>`_ endpoint in the FlexMeasures API to send meter data.
 
 Finally, you can tell FlexMeasures to create forecasts for your meter data with the ``flexmeasures add forecasts`` command, here is an example:
 

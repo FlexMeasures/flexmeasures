@@ -31,7 +31,7 @@ Prerequisites
 Posting sensor data
 -------------------
 
-Sensor data (both observations and forecasts) can be posted to `POST  /api/v2_0/postSensorData <../api/v2_0.html#post--api-v2_0-postSensorData>`_.
+Sensor data (both observations and forecasts) can be posted to `POST  /api/v3_0/sensorData <../api/v3_0.html#post--api-v3_0-sensorData>`_.
 This endpoint represents the basic method of getting time series data into FlexMeasures via API.
 It is agnostic to the type of sensor and can be used to POST data for both physical and economical events that have happened in the past or will happen in the future.
 Some examples:
@@ -270,7 +270,7 @@ Posting flexibility states
 There is one more crucial kind of data that FlexMeasures needs to know about: What are the current states of flexible devices? For example, a battery has a state of charge.
 
 The USEF framework defines a so-called "UDI-Event" (UDI stands for Universal Device Interface) to communicate settings for devices with Active Demand & Supply (ADS).
-Owners of such devices can post these states to `POST /api/v2_0/postUdiEvent <../api/v2_0.html#post--api-v2_0-postUdiEvent>`_. The URL might look like this:
+Owners of such devices can post these states to `POST /api/v3_0/postUdiEvent <../api/v3_0.html#post--api-v3_0-postUdiEvent>`_. The URL might look like this:
 
 .. code-block:: html
 

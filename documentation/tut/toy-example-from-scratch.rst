@@ -108,7 +108,7 @@ If you want, you can inspect what you created:
 
 Yes, that is quite a large battery :)
 
-.. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v2_0`.
+.. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 
 We can also look at the battery asset in the UI of FlexMeasures (start FlexMeasures with ``flexmeasures run``, username is "toy-user@flexmeasures.io", password is "toy-password"):
 
