@@ -65,10 +65,9 @@ def select_schema_to_ensure_list_of_floats(
 
 class SensorDataDescriptionSchema(ma.Schema):
     """
-    Describing sensor data request (i.e. in a GET request).
+    Schema describing sensor data (specifically, the sensor and the timing of the data).
     """
 
-    type = fields.Str(required=True, validate=Equal("GetSensorDataRequest"))
     sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
     start = AwareDateTimeField(required=True, format="iso")
     duration = DurationField(required=True)
