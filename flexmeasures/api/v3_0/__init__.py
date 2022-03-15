@@ -1,6 +1,6 @@
 from flask import Flask
 
-from flexmeasures.api.v3_0.implementations.sensor_data import SensorAPI
+from flexmeasures.api.v3_0.implementations.sensors import SensorAPI
 from flexmeasures.api.v3_0.implementations.users import UserAPI
 
 
