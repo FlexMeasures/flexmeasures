@@ -15,12 +15,12 @@ v3.0-0 | 2022-03-15
 - [**Breaking change**] Deprecated the following endpoints:
 
     - *getConnection* -> use `/sensors` (GET) instead
-    - *getMeterData* -> use `/sensors/data` (GET) instead
-    - *getPrognosis* -> use `/sensors/data` (GET) instead
+    - *getMeterData* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
+    - *getPrognosis* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
     - *getService*
-    - *postMeterData* -> use `/sensors/data` (POST) instead
-    - *postPriceData* -> use `/sensors/data` (POST) instead
-    - *postPrognosis* -> use `/sensors/data` (POST) instead
+    - *postMeterData* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
+    - *postPriceData* -> use `/sensors/data` (POST) instead, replacing the "market" field with "sensor"
+    - *postPrognosis* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
     - *postWeatherData* -> use `/sensors/data` (POST) instead
     - *restoreData*
 
