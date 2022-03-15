@@ -156,9 +156,9 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         horizons_at_least = sensor_data_description.get("horizon", None)
         horizons_at_most = None
         _type = sensor_data_description.get("type", None)
-        if _type == "PostMeterDataRequest":
+        if _type == "GetMeterDataRequest":
             horizons_at_most = timedelta(0)
-        elif _type == "PostPrognosisRequest":
+        elif _type == "GetPrognosisRequest":
             if horizons_at_least is None:
                 horizons_at_least = timedelta(0)
             else:
