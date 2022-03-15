@@ -80,7 +80,7 @@ v1.3-8 | 2020-04-02
 
 *Affects all versions since v1.0*.
 
-- [**Breaking change**, partially reverted in v1.3-9] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API version below v2.0.
+- [**Breaking change**, partially reverted in v1.3-9] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API versions below v2.0.
 
 v1.3-7 | 2020-12-16
 """""""""""""""""""
@@ -107,7 +107,7 @@ v1.3-5 | 2020-10-29
 - Endpoints to POST meter data will now check incoming data to see if the required asset's resolution is being used ― upsampling is done if possible.
   These endpoints can now return the REQUIRED_INFO_MISSING status 400 response.
 - Endpoints to GET meter data will return data in the asset's resolution ― downsampling to the "resolution" field is done if possible.
-- As they need to determine the asset, all of the mentioned POST and GET endpoints can now return the UNRECOGNIZED_ASSET status 4000 response.
+- As they need to determine the asset, all of the mentioned POST and GET endpoints can now return the UNRECOGNIZED_ASSET status 400 response.
 
 v1.3-4 | 2020-06-18
 """""""""""""""""""
