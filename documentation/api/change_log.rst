@@ -9,11 +9,12 @@ API change log
 v3.0-0 | 2022-03-15
 """""""""""""""""""
 
+- Added REST endpoint for listing sensors: `/sensors` (GET).
 - Added REST endpoint for managing sensor data: `/sensors/data` (GET, POST).
 - [**Breaking change**] Switched to plural resource names for REST endpoints:  `/users/<id>` (GET, PATCH) and `/users/<id>/password-reset` (PATCH).
 - [**Breaking change**] Deprecated the following endpoints:
 
-    - *getConnection*
+    - *getConnection* -> use `/sensors` (GET) instead
     - *getMeterData* -> use `/sensors/data` (GET) instead
     - *getPrognosis* -> use `/sensors/data` (GET) instead
     - *getService*

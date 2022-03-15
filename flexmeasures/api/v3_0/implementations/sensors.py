@@ -1,15 +1,39 @@
 import json
 
 from flask_classful import FlaskView, route
+from flask_json import as_json
 from flask_security import auth_required
 from timely_beliefs import BeliefsDataFrame
-from webargs.flaskparser import use_args
+from webargs.flaskparser import use_args, use_kwargs
 
 from flexmeasures.api.common.schemas.sensor_data import (
     GetSensorDataSchema,
     PostSensorDataSchema,
 )
+from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
+from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.data.models.user import Account
+from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.services.sensors import get_sensors
+
+sensors_schema = SensorSchema(many=True)
+
+
+@use_kwargs(
+    {
+        "account": AccountIdField(
+            data_key="account_id", load_default=AccountIdField.load_current
+        ),
+    },
+    location="query",
+)
+@permission_required_for_context("read", arg_name="account")
+@as_json
+def get(account: Account):
+    """List sensors of an account."""
+    sensors = get_sensors(account_name=account.name)
+    return sensors_schema.dump(sensors), 200
 
 
 class SensorAPI(FlaskView):
@@ -17,6 +41,13 @@ class SensorAPI(FlaskView):
     route_base = "/sensors"
     trailing_slash = False
     decorators = [auth_required()]
+
+    def index(self):
+        """API endpoint to get sensors.
+
+        .. :quickref: Sensor; Download sensor list
+        """
+        return get()
 
     @route("/data", methods=["POST"])
     @use_args(

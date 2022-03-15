@@ -29,6 +29,7 @@ class SensorSchemaMixin(Schema):
     unit = ma.auto_field(required=True)
     timezone = ma.auto_field()
     event_resolution = fields.TimeDelta(required=True, precision="minutes")
+    entity_address = fields.String(dump_only=True)
 
     @validates("unit")
     def validate_unit(self, unit: str):
