@@ -31,7 +31,7 @@ Prerequisites
 Posting sensor data
 -------------------
 
-Sensor data (both observations and forecasts) can be posted to `POST  /api/v3_0/sensorData <../api/v3_0.html#post--api-v3_0-sensorData>`_.
+Sensor data (both observations and forecasts) can be posted to `POST  /api/v3_0/sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_.
 This endpoint represents the basic method of getting time series data into FlexMeasures via API.
 It is agnostic to the type of sensor and can be used to POST data for both physical and economical events that have happened in the past or will happen in the future.
 Some examples:
@@ -46,7 +46,7 @@ The exact URL will depend on your domain name, and will look approximately like 
 
 .. code-block:: html
 
-    [POST] https://company.flexmeasures.io/api/<version>/sensorData
+    [POST] https://company.flexmeasures.io/api/<version>/sensors/data
 
 This example "PostSensorDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
 for the Korean Power Exchange (KPX) day-ahead auction, registered under sensor 16.
@@ -98,7 +98,7 @@ Posting power data
 ------------------
 
 For power data, USEF specifies separate message types for observations and forecasts.
-Correspondingly, we allow the following message types to be used with the [POST] /sensorData endpoint (see :ref:`posting_sensor_data`):
+Correspondingly, we allow the following message types to be used with the [POST] /sensors/data endpoint (see :ref:`posting_sensor_data`):
 
 .. code-block:: json
 
