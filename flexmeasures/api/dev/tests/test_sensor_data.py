@@ -21,7 +21,7 @@ def test_post_sensor_data_bad_auth(client, setup_api_test_data, use_auth):
 
     post_data = make_sensor_data_request_for_gas_sensor()
     post_data_response = client.post(
-        url_for("SensorDataAPI:post"),
+        url_for("SensorAPI:post_data"),
         headers=headers,
         json=post_data,
     )
@@ -55,7 +55,7 @@ def test_post_invalid_sensor_data(
     # this guy is allowed to post sensorData
     auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     response = client.post(
-        url_for("SensorDataAPI:post"),
+        url_for("SensorAPI:post_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )
@@ -70,7 +70,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data):
 
     # Check that 1st time posting the data succeeds
     response = client.post(
-        url_for("SensorDataAPI:post"),
+        url_for("SensorAPI:post_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )
@@ -79,7 +79,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data):
 
     # Check that 2nd time posting the same data succeeds informatively
     response = client.post(
-        url_for("SensorDataAPI:post"),
+        url_for("SensorAPI:post_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )
@@ -90,7 +90,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data):
     # Check that replacing data fails informatively
     post_data["values"][0] = 100
     response = client.post(
-        url_for("SensorDataAPI:post"),
+        url_for("SensorAPI:post_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )

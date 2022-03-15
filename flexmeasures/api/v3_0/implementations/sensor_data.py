@@ -12,18 +12,18 @@ from flexmeasures.api.common.schemas.sensor_data import (
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 
 
-class SensorDataAPI(FlaskView):
+class SensorAPI(FlaskView):
 
-    route_base = "/sensorData"
+    route_base = "/sensors"
     trailing_slash = False
     decorators = [auth_required()]
 
-    @route("/", methods=["POST"])
+    @route("/data", methods=["POST"])
     @use_args(
         PostSensorDataSchema(),
         location="json",
     )
-    def post(self, bdf: BeliefsDataFrame):
+    def post_data(self, bdf: BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
 
@@ -52,12 +52,12 @@ class SensorDataAPI(FlaskView):
         response, code = save_and_enqueue(bdf)
         return response, code
 
-    @route("/", methods=["GET"])
+    @route("/data", methods=["GET"])
     @use_args(
         GetSensorDataSchema(),
         location="query",
     )
-    def get(self, response: dict):
+    def get_data(self, response: dict):
         """Get sensor data from FlexMeasures.
 
         .. :quickref: Data; Download sensor data
