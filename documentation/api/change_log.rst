@@ -6,6 +6,23 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
 
+v3.0-0 | 2022-03-15
+"""""""""""""""""""
+
+- Added REST endpoint for managing sensor data: `/sensors/data` (GET, POST).
+- [**Breaking change**] Switched to plural resource names for REST endpoints:  `/users/<id>` (GET, PATCH) and `/users/<id>/password-reset` (PATCH).
+- [**Breaking change**] Deprecated the following endpoints:
+
+    - *getConnection*
+    - *getMeterData* -> use `/sensors/data` (GET) instead
+    - *getPrognosis* -> use `/sensors/data` (GET) instead
+    - *getService*
+    - *postMeterData* -> use `/sensors/data` (POST) instead
+    - *postPriceData* -> use `/sensors/data` (POST) instead
+    - *postPrognosis* -> use `/sensors/data` (POST) instead
+    - *postWeatherData* -> use `/sensors/data` (POST) instead
+    - *restoreData*
+
 v2.0-4 | 2022-01-04
 """""""""""""""""""
 
@@ -42,12 +59,12 @@ v2.0-2 | 2021-04-02
 v2.0-1 | 2021-02-19
 """""""""""""""""""
 
-- REST endpoints for managing users: `/users/` (GET), `/user/<id>` (GET, PATCH) and `/user/<id>/password-reset` (PATCH).
+- Added REST endpoints for managing users: `/users/` (GET), `/user/<id>` (GET, PATCH) and `/user/<id>/password-reset` (PATCH).
 
 v2.0-0 | 2020-11-14
 """""""""""""""""""
 
-- REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
+- Added REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
 
 
 v1.3-11 | 2022-01-05
