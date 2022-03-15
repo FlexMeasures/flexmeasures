@@ -46,6 +46,35 @@ class SensorAPI(FlaskView):
         """API endpoint to get sensors.
 
         .. :quickref: Sensor; Download sensor list
+
+        This endpoint returns all accessible sensors.
+        Accessible sensors  are sensors in the same account as the current user.
+        Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
+
+        **Example response**
+
+        An example of one sensor being returned:
+
+        .. sourcecode:: json
+
+            [
+                {
+                    "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42",
+                    "event_resolution": 15,
+                    "generic_asset_id": 1,
+                    "name": "Gas demand",
+                    "timezone": "Europe/Amsterdam",
+                    "unit": "m\u00b3/h"
+                }
+            ]
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
         """
         return get()
 
