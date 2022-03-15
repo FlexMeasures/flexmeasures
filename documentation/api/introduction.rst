@@ -374,10 +374,10 @@ Technically, this is equal to:
 
 This intuitive convention allows us to reduce communication by sending univariate timeseries as arrays.
 
-Notation for v1
-"""""""""""""""
+Notation for v1, v2 and v3
+""""""""""""""""""""""""""
 
-For version 1 and 2 of the API, only equidistant timeseries data is expected to be communicated. Therefore:
+For version 1, 2 and 3 of the API, only equidistant timeseries data is expected to be communicated. Therefore:
 
 - only the array notation should be used (first notation from above),
 - "start" should be a timestamp on the hour or a multiple of the sensor resolution thereafter (e.g. "16:10" works if the resolution is 5 minutes), and
@@ -496,19 +496,25 @@ Resolutions
 
 Specifying a resolution is redundant for POST requests that contain both "values" and a "duration" ― FlexMeasures computes the resolution by dividing the duration by the number of values.
 
-When POSTing data, FlexMeasures checks this computed resolution against the required resolution of the assets which are posted to. If these can't be matched (through upsampling), an error will occur.
+When POSTing data, FlexMeasures checks this computed resolution against the required resolution of the sensors which are posted to. If these can't be matched (through upsampling), an error will occur.
 
 GET requests (such as *getMeterData*) return data in the resolution which the sensor is configured for.
 A "resolution" may be specified explicitly to obtain the data in downsampled form, 
 which can be very beneficial for download speed. The specified resolution needs to be a multiple
-of the asset's resolution, e.g. hourly or daily values if the asset's resolution is 15 minutes.
+of the sensor's resolution, e.g. hourly or daily values if the sensor's resolution is 15 minutes.
 
 .. _units:
 
 Units
 ^^^^^
 
-Valid units for timeseries data in version 1 of the API are "MW" only.
+From API version 3 onwards, we are much more flexible with sent units.
+A valid unit for timeseries data is any unit that is convertible to the configured sensor unit registered in FlexMeasures.
+So, for example, you can send timeseries data with "W" unit to a "kW" sensor.
+And if you wish to do so, you can even send a timeseries with "kWh" unit to a "kW" sensor.
+In this case, FlexMeasures will convert the data using the resolution of the timeseries.
+
+For API versions 1 and 2, the unit sent needs to be an exact match with the sensor unit, and only "MW" is allowed for power sensors.
 
 .. _signs:
 
