@@ -28,31 +28,6 @@ user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 
 
-@use_kwargs(
-    {
-        "account": AccountIdField(
-            data_key="account_id", load_default=AccountIdField.load_current
-        ),
-        "include_inactive": fields.Bool(load_default=False),
-    },
-    location="query",
-)
-@permission_required_for_context("read", arg_name="account")
-@as_json
-def get(account: Account, include_inactive: bool = False):
-    """List users of an account."""
-    users = get_users(account_name=account.name, only_active=not include_inactive)
-    return users_schema.dump(users), 200
-
-
-@use_kwargs({"user": UserIdField(data_key="id")}, location="path")
-@permission_required_for_context("read", arg_name="user")
-@as_json
-def fetch_one(user_id: int, user: UserModel):
-    """Fetch a given user"""
-    return user_schema.dump(user), 200
-
-
 @use_args(UserSchema(partial=True))
 @use_kwargs({"db_user": UserIdField(data_key="id")}, location="path")
 @permission_required_for_context("update", arg_name="db_user")
@@ -76,28 +51,24 @@ def patch(id: int, user_data: dict, db_user: UserModel):
     return user_schema.dump(db_user), 200
 
 
-@use_kwargs({"user": UserIdField(data_key="id")}, location="path")
-@permission_required_for_context("update", arg_name="user")
-@as_json
-def reset_password(user_id: int, user: UserModel):
-    """
-    Reset the user's current password, cookies and auth tokens.
-    Send a password reset link to the user.
-    """
-    set_random_password(user)
-    remove_cookie_and_token_access(user)
-    send_reset_password_instructions(user)
-
-    # commit only if sending instructions worked, as well
-    db.session.commit()
-
-
 class UserAPI(FlaskView):
     route_base = "/users"
     trailing_slash = False
 
-    def index(self):
-        """API endpoint to get users.
+    @route("", methods=["GET"])
+    @use_kwargs(
+        {
+            "account": AccountIdField(
+                data_key="account_id", load_default=AccountIdField.load_current
+            ),
+            "include_inactive": fields.Bool(load_default=False),
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", arg_name="account")
+    @as_json
+    def index(self, account: Account, include_inactive: bool = False):
+        """API endpoint to list all users of an account.
 
         .. :quickref: User; Download user list
 
@@ -134,9 +105,14 @@ class UserAPI(FlaskView):
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
         """
-        return get()
+        users = get_users(account_name=account.name, only_active=not include_inactive)
+        return users_schema.dump(users), 200
 
-    def get(self, id: int):
+    @route("/<id>")
+    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @permission_required_for_context("read", arg_name="user")
+    @as_json
+    def get(self, id: int, user: UserModel):
         """API endpoint to get a user.
 
         .. :quickref: User; Get a user
@@ -166,7 +142,7 @@ class UserAPI(FlaskView):
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
         """
-        return fetch_one(id)
+        return user_schema.dump(user), 200
 
     def patch(self, id: int):
         """API endpoint to patch user data.
@@ -216,8 +192,11 @@ class UserAPI(FlaskView):
         return patch(id)
 
     @route("/<id>/password-reset", methods=["PATCH"])
-    def reset_user_password(self, id: int):
-        """API endpoint to reset the user password. They'll get an email to choose a new password.
+    @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
+    @permission_required_for_context("update", arg_name="user")
+    @as_json
+    def reset_user_password(self, id: int, user: UserModel):
+        """API endpoint to reset the user's current password, cookies and auth tokens, and to email a password reset link to the user.
 
         .. :quickref: User; Password reset
 
@@ -236,4 +215,9 @@ class UserAPI(FlaskView):
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
         """
-        return reset_password(id)
+        set_random_password(user)
+        remove_cookie_and_token_access(user)
+        send_reset_password_instructions(user)
+
+        # commit only if sending instructions worked, as well
+        db.session.commit()
