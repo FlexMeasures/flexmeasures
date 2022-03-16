@@ -20,35 +20,30 @@ from flexmeasures.data.services.sensors import get_sensors
 sensors_schema = SensorSchema(many=True)
 
 
-@use_kwargs(
-    {
-        "account": AccountIdField(
-            data_key="account_id", load_default=AccountIdField.load_current
-        ),
-    },
-    location="query",
-)
-@permission_required_for_context("read", arg_name="account")
-@as_json
-def get(account: Account):
-    """List sensors of an account."""
-    sensors = get_sensors(account_name=account.name)
-    return sensors_schema.dump(sensors), 200
-
-
 class SensorAPI(FlaskView):
 
     route_base = "/sensors"
     trailing_slash = False
     decorators = [auth_required()]
 
-    def index(self):
-        """API endpoint to get sensors.
+    @route("/", methods=["GET"])
+    @use_kwargs(
+        {
+            "account": AccountIdField(
+                data_key="account_id", load_default=AccountIdField.load_current
+            ),
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", arg_name="account")
+    @as_json
+    def index(self, account: Account):
+        """API endpoint to list all sensors of an account.
 
         .. :quickref: Sensor; Download sensor list
 
         This endpoint returns all accessible sensors.
-        Accessible sensors  are sensors in the same account as the current user.
+        Accessible sensors are sensors in the same account as the current user.
         Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
         **Example response**
@@ -76,7 +71,8 @@ class SensorAPI(FlaskView):
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
         """
-        return get()
+        sensors = get_sensors(account_name=account.name)
+        return sensors_schema.dump(sensors), 200
 
     @route("/data", methods=["POST"])
     @use_args(
