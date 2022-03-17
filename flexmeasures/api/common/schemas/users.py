@@ -7,7 +7,7 @@ from flexmeasures.data.models.user import User, Account
 
 class AccountIdField(fields.Integer):
     """
-    Field that represents an account ID. It de-serializes from the account id to an account instance.
+    Field that represents an account ID. It deserializes from the account id to an account instance.
     """
 
     def _deserialize(self, account_id: str, attr, obj, **kwargs) -> Account:
@@ -30,7 +30,7 @@ class AccountIdField(fields.Integer):
 
 class UserIdField(fields.Integer):
     """
-    Field that represents a user ID. It de-serializes from the user id to a user instance.
+    Field that represents a user ID. It deserializes from the user id to a user instance.
     """
 
     def __init__(self, *args, **kwargs):
