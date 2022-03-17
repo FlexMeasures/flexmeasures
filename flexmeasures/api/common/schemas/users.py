@@ -42,7 +42,7 @@ class UserIdField(fields.Integer):
     def _deserialize(self, user_id: int, attr, obj, **kwargs) -> User:
         user: User = User.query.filter_by(id=int(user_id)).one_or_none()
         if user is None:
-            raise abort(404, f"User {id} not found")
+            raise abort(404, f"User {user_id} not found")
         return user
 
     def _serialize(self, user: User, attr, data, **kwargs) -> int:
