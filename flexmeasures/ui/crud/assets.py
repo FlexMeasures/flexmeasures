@@ -344,7 +344,6 @@ class AssetCrudUI(FlaskView):
 def _set_account(asset_form: NewAssetForm) -> Tuple[Optional[Account], Optional[str]]:
     """Set an account for the to-be-created asset.
     Return the account (if available) and an error message"""
-    account = None
     account_error = None
 
     if asset_form.account_id.data == -1:
