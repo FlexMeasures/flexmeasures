@@ -151,7 +151,7 @@ class UserAPI(FlaskView):
         Only the user themselves or admins are allowed to update its data,
         while a non-admin can only edit a few of their own fields.
 
-        Several fields are not allowed to be updated, e.g. id and account_id. They are ignored.
+        Several fields are not allowed to be updated, e.g. id and account_id.
 
         **Example request**
 
@@ -163,7 +163,7 @@ class UserAPI(FlaskView):
 
         **Example response**
 
-        The whole user is returned in the response:
+        The following user fields are returned:
 
         .. sourcecode:: json
 

@@ -103,8 +103,7 @@ def test_edit_user(client):
         json={},
     )
     assert user_edit_response.status_code == 401
-    # admin can deactivate user2, other changes will be ignored
-    # (id is in the User schema of the API, but we ignore it)
+    # admin can deactivate user2
     admin_headers = {
         "content-type": "application/json",
         "Authorization": admin_auth_token,
@@ -112,7 +111,7 @@ def test_edit_user(client):
     user_edit_response = client.patch(
         url_for("UserAPI:patch", id=user2_id),
         headers=admin_headers,
-        json={"active": False, "id": 888},
+        json={"active": False},
     )
     print("Server responded with:\n%s" % user_edit_response.json)
     assert user_edit_response.status_code == 200
