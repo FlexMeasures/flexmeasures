@@ -17,8 +17,6 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.services.sensors import get_sensors
 
-sensors_schema = SensorSchema(many=True)
-
 
 class SensorAPI(FlaskView):
 
@@ -72,7 +70,7 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         """
         sensors = get_sensors(account_name=account.name)
-        return sensors_schema.dump(sensors), 200
+        return SensorSchema(many=True).dump(sensors), 200
 
     @route("/data", methods=["POST"])
     @use_args(

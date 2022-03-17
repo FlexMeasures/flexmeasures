@@ -24,9 +24,6 @@ API endpoints to manage users.
 Both POST (to create) and DELETE are not accessible via the API, but as CLI functions.
 """
 
-user_schema = UserSchema()
-users_schema = UserSchema(many=True)
-
 
 @use_args(UserSchema(partial=True))
 @use_kwargs({"db_user": UserIdField(data_key="id")}, location="path")
@@ -48,7 +45,7 @@ def patch(id: int, user_data: dict, db_user: UserModel):
         db.session.commit()
     except IntegrityError as ie:
         return dict(message="Duplicate user already exists", detail=ie._message()), 400
-    return user_schema.dump(db_user), 200
+    return UserSchema().dump(db_user), 200
 
 
 class UserAPI(FlaskView):
@@ -106,7 +103,7 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         """
         users = get_users(account_name=account.name, only_active=not include_inactive)
-        return users_schema.dump(users), 200
+        return UserSchema(many=True).dump(users), 200
 
     @route("/<id>")
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
@@ -142,7 +139,7 @@ class UserAPI(FlaskView):
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
         """
-        return user_schema.dump(user), 200
+        return UserSchema().dump(user), 200
 
     def patch(self, id: int):
         """API endpoint to patch user data.
