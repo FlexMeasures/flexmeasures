@@ -99,7 +99,10 @@ class Asset(db.Model, tb.SensorDBMixin):
     """
 
     id = db.Column(
-        db.Integer, db.ForeignKey("sensor.id"), primary_key=True, autoincrement=True
+        db.Integer,
+        db.ForeignKey("sensor.id", ondelete="CASCADE"),
+        primary_key=True,
+        autoincrement=True,
     )
     # The name
     name = db.Column(db.String(80), default="", unique=True)
