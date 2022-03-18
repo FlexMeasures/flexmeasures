@@ -29,6 +29,16 @@ def setup_api_fresh_test_data(
     add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test Supplier User"])
 
 
+@pytest.fixture(scope="function")
+def setup_api_fresh_test_data(
+    fresh_db, setup_roles_users_fresh_db, setup_generic_assets_fresh_db
+):
+    """
+    Set up fresh data for API v3.0 tests.
+    """
+    print("Setting up fresh data for API v3.0 tests on %s" % fresh_db.engine)
+
+
 @pytest.fixture(scope="module")
 def setup_inactive_user(db, setup_accounts, setup_roles_users):
     """
