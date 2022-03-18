@@ -31,6 +31,7 @@ Infrastructure / Support
 * Plugins can import common FlexMeasures classes (like ``Asset`` and ``Sensor``) from a central place, using ``from flexmeasures import Asset, Sensor`` [see `PR #354 <http://www.github.com/FlexMeasures/flexmeasures/pull/354>`_]
 * Adapt CLI command for entering some initial structure (``flexmeasures add structure``) to new datamodel [see `PR #349 <http://www.github.com/FlexMeasures/flexmeasures/pull/349>`_]
 * Align documentation requirements with pip-tools [see `PR #384 <http://www.github.com/FlexMeasures/flexmeasures/pull/384>`_]
+* Beginning API v3.0 - more REST-like, supporting assets, users and sensor data [see `PR #390 <http://www.github.com/FlexMeasures/flexmeasures/pull/390>`_ and `PR #392 <http://www.github.com/FlexMeasures/flexmeasures/pull/392>`_]
 
 
 v0.8.0 | January 24, 2022
