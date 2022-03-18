@@ -48,7 +48,7 @@
 
                     <h3>Edit asset {{ asset.name }}</h3>
 
-                    <small>(Owned by account: {{ asset.account_id | accountname }})</small>
+                    <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id }})</small>
                     
                     <div class="form-group">
                         {{ asset_form.name.label(class="col-sm-6 control-label") }}
@@ -84,21 +84,6 @@
                                 value="{{ asset.generic_asset_type.name }}" disabled></input>
                          </div>
                     </div>
-                    <div class="form-group">
-                        <label for="account-id" class="col-sm-6 control-label">Owner account id</label>
-                         <div class="col-sm-6">
-                            <input class="form-control" id="owner-id" name="account-id" type="text"
-                                value="{{ asset.account_id }}" disabled></input>
-                         </div>
-                     </div>
-
-                    <div class="col-sm-6"></div>
-                    <div class="col-sm-6"></div>
-                    <div class="col-sm-6">
-                        <button class="btn btn-sm btn-responsive btn-success" type="submit" value="Save">Save</button>
-                    </div>
-
-                    <h3>API info for this asset</h3>
 
                     <div class="form-group">
                         <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
@@ -107,14 +92,12 @@
                                 disabled></input>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label for="account-id" class="col-sm-6 control-label">Owner account id</label>
-                        <div class="col-sm-6">
-                            <input class="form-control" id="account-id" name="account-id" type="text"
-                                value="{{ asset.account_id }}" disabled></input>
-                        </div>
-                    </div>
 
+                    <div class="col-sm-6"></div>
+                    <div class="col-sm-6"></div>
+                    <div class="col-sm-6">
+                        <button class="btn btn-sm btn-responsive btn-success" type="submit" value="Save">Save</button>
+                    </div>
 
                 </div>
                 <div class="col-sm-2">
