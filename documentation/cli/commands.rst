@@ -30,11 +30,11 @@ of which some are referred to in this documentation.
 ``flexmeasures add asset-type``                   Create a new asset type.
 ``flexmeasures add asset``                        Create a new asset.
 ``flexmeasures add sensor``                       Add a new sensor.
-``flexmeasures add weather-sensor``               Add a weather sensor.
-``flexmeasures add external-weather-forecasts``   Collect weather forecasts from the DarkSky API.
 ``flexmeasures add beliefs``                      Load beliefs from file.
 ``flexmeasures add forecasts``                    Create forecasts.
 ``flexmeasures add schedule``                     Create a charging schedule.
+``flexmeasures add holidays``                     Add holiday annotations to accounts and/or assets.
+``flexmeasures add annotation``                   Add annotation to accounts, assets and/or sensors.
 ``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.
 ================================================= =======================================
 
