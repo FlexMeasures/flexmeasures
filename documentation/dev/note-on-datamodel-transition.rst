@@ -70,11 +70,11 @@ Here is a brief list:
 - |uncheck_| `Deprecate old database models <https://github.com/FlexMeasures/flexmeasures/projects/11>`_: We are deprecating the Power, Price and Weather tables in favour of the TimedBelief table, and deprecating the Asset, Market and WeatherSensor tables in favour of the Sensor and GeneralizedAsset tables. We are doing this to clean up the code and database structure.
 
 
-The state of the transition (January 2022, v0.8.0)
+The state of the transition (March 2022, v0.9.0)
 ---------------------------------------------------
 
-Project 9 was implemented, which moved a lot of structure over, as well as actual data and some UI (dashboard, assets). We believe that was the hardest part.
+Project 9 was implemented with the release of v0.8.0. This work moved a lot of structure over, as well as actual data and some UI (dashboard, assets). We believe that was the hardest part.
 
-We are now close to being able to deprecate the old database models and route the API to the new model (see project 11). The API for assets is still in place, but the new one is already working (at /api/dev/generic_assets) and is powering what is shown in the UI.
+We are now working on deprecating the old database models (see project 11). As part of that move, we decided to begin the work on a new API version (v3) which supports only the new data model (and is more REST-like). The new APIs for assets and sensor data had already been working before (at /api/dev) and had been powering what is shown in the UI since v0.8.0.
 
 We take care to support people on the old data model so the transition will be as smooth as possible, as we said above. One part of this is that the ``flexmeasures db upgrade`` command copies your data to the new model. Also, creating new data (e.g. old-style assets) creates new-style data (e.g. assets/sensors) automatically. However, some edge cases are not supported in this way. For instance, edited asset meta data might have to be re-entered later. Feel free to contact us to discuss the transition if needed.
