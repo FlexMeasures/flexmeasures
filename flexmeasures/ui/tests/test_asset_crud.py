@@ -11,7 +11,7 @@ Here, we mock the API responses (we have to, as our UI layer contacts FlexMeasur
 The real logic tests are done in the api package, which is also the better place for that.
 """
 
-api_path_assets = "http://localhost//api/dev/generic_assets/"
+api_path_assets = "http://localhost//api/v3_0/assets/"
 
 
 def test_assets_page_empty(db, client, requests_mock, as_prosumer_user1):
