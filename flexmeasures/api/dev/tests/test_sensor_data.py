@@ -2,7 +2,7 @@ from flask import url_for
 import pytest
 
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.dev.tests.utils import make_sensor_data_request_for_gas_sensor
+from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 
 
 @pytest.mark.parametrize("use_auth", [False, True])

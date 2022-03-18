@@ -2,7 +2,7 @@ import pytest
 from flask import url_for
 
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.dev.tests.utils import make_sensor_data_request_for_gas_sensor
+from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
 
 
