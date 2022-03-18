@@ -129,7 +129,15 @@ def test_edit_user(client):
     assert user_edit_response.status_code == 403
 
 
-def test_edit_user_with_unexpected_fields(client):
+@pytest.mark.parametrize(
+    "unexpected_fields",
+    [
+        dict(password="I-should-not-be-sending-this"),  # not part of the schema
+        dict(id=10),  # id is a dump_only field
+        dict(account_id=10),  # account_id is a dump_only field
+    ],
+)
+def test_edit_user_with_unexpected_fields(client, unexpected_fields: dict):
     """Sending unexpected fields (not in Schema) is an Unprocessable Entity error."""
     with UserContext("test_prosumer_user_2@seita.nl") as user2:
         user2_id = user2.id
@@ -141,7 +149,7 @@ def test_edit_user_with_unexpected_fields(client):
             "content-type": "application/json",
             "Authorization": admin_auth_token,
         },
-        json={"active": False, "password": "I-should-not-be-sending-this"},
+        json={**{"active": False}, **unexpected_fields},
     )
     print("Server responded with:\n%s" % user_edit_response.json)
     assert user_edit_response.status_code == 422
