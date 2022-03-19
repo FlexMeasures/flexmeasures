@@ -1,6 +1,6 @@
 """CLI Tasks for populating the database - most useful in development"""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
 
@@ -16,7 +16,6 @@ from sqlalchemy.exc import IntegrityError
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
-import isodate
 
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
@@ -37,6 +36,7 @@ from flexmeasures.data.models.validation_utils import (
     MissingAttributeException,
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SensorIdField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -770,25 +770,29 @@ def create_forecasts(
 @with_appcontext
 @click.option(
     "--sensor-id",
-    "power_sensor_id",
+    "power_sensor",
+    type=SensorIdField(),
     required=True,
     help="Create schedule for this sensor. Follow up with the sensor's ID.",
 )
 @click.option(
     "--optimization-context-id",
-    "optimization_context_sensor_id",
+    "optimization_context_sensor",
+    type=SensorIdField(),
     required=True,
     help="Optimize against this sensor, which measures a price factor or CO₂ intensity factor. Follow up with the sensor's ID.",
 )
 @click.option(
     "--from",
-    "start_str",
+    "start",
+    type=AwareDateTimeField(format="iso"),
     required=True,
     help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--duration",
-    "duration_str",
+    "duration",
+    type=DurationField(),
     required=True,
     help="Duration of schedule, after --from. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
@@ -797,7 +801,7 @@ def create_forecasts(
     "soc_at_start",
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=True,
-    help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule. Use --soc-unit to set a different unit.",
+    help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
 )
 @click.option(
     "--soc-target",
@@ -808,7 +812,6 @@ def create_forecasts(
     multiple=True,
     required=False,
     help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
-    " Use --soc-unit to set a different unit."
     " This argument can be given multiple times."
     " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
 )
@@ -817,14 +820,14 @@ def create_forecasts(
     "soc_min",
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=False,
-    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule. Use --soc-unit to set a different unit.",
+    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule.",
 )
 @click.option(
     "--soc-max",
     "soc_max",
-    type=QuantityField("%", validate=validate.Range(min=0, max=100)),
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=False,
-    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule. Use --soc-unit to set a different unit.",
+    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule.",
 )
 @click.option(
     "--roundtrip-efficiency",
@@ -835,10 +838,10 @@ def create_forecasts(
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
 )
 def create_schedule(
-    power_sensor_id: int,
-    optimization_context_sensor_id: int,
-    start_str: str,
-    duration_str: str,
+    power_sensor: Sensor,
+    optimization_context_sensor: Sensor,
+    start: datetime,
+    duration: timedelta,
     soc_at_start: ur.Quantity,
     soc_target_strings: List[Tuple[ur.Quantity, str]],
     soc_min: Optional[ur.Quantity] = None,
@@ -854,23 +857,10 @@ def create_schedule(
     """
 
     # Parse input
-    power_sensor: Sensor = Sensor.query.filter(
-        Sensor.id == power_sensor_id
-    ).one_or_none()
-    if power_sensor is None:
-        click.echo(f"No sensor found with ID {power_sensor_id}.")
-        raise click.Abort()
     if not power_sensor.measures_power:
-        click.echo(f"Sensor with ID {power_sensor_id} is not a power sensor.")
+        click.echo(f"Sensor with ID {power_sensor.id} is not a power sensor.")
         raise click.Abort()
-    optimization_context_sensor: Sensor = Sensor.query.filter(
-        Sensor.id == optimization_context_sensor_id
-    ).one_or_none()
-    if optimization_context_sensor is None:
-        click.echo(f"No sensor found with ID {optimization_context_sensor_id}.")
-        raise click.Abort()
-    start = pd.Timestamp(start_str)
-    end = start + isodate.parse_duration(duration_str)
+    end = start + duration
     for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
         try:
             check_required_attributes(power_sensor, [(attribute, float)])
@@ -912,7 +902,7 @@ def create_schedule(
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
 
     success = make_schedule(
-        sensor_id=power_sensor_id,
+        sensor_id=power_sensor.id,
         start=start,
         end=end,
         belief_time=server_now(),
