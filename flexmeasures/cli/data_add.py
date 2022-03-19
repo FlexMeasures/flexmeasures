@@ -16,7 +16,6 @@ from sqlalchemy.exc import IntegrityError
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
-import isodate
 
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
@@ -37,7 +36,7 @@ from flexmeasures.data.models.validation_utils import (
     MissingAttributeException,
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.schemas import AwareDateTimeField
+from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -790,7 +789,8 @@ def create_forecasts(
 )
 @click.option(
     "--duration",
-    "duration_str",
+    "duration",
+    type=DurationField(),
     required=True,
     help="Duration of schedule, after --from. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
@@ -839,7 +839,7 @@ def create_schedule(
     power_sensor_id: int,
     optimization_context_sensor_id: int,
     start: datetime,
-    duration_str: str,
+    duration: timedelta,
     soc_at_start: ur.Quantity,
     soc_target_strings: List[Tuple[ur.Quantity, str]],
     soc_min: Optional[ur.Quantity] = None,
@@ -870,7 +870,7 @@ def create_schedule(
     if optimization_context_sensor is None:
         click.echo(f"No sensor found with ID {optimization_context_sensor_id}.")
         raise click.Abort()
-    end = start + isodate.parse_duration(duration_str)
+    end = start + duration
     for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
         try:
             check_required_attributes(power_sensor, [(attribute, float)])
