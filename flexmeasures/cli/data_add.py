@@ -36,7 +36,7 @@ from flexmeasures.data.models.validation_utils import (
     MissingAttributeException,
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.schemas import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SensorIdField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -770,13 +770,15 @@ def create_forecasts(
 @with_appcontext
 @click.option(
     "--sensor-id",
-    "power_sensor_id",
+    "power_sensor",
+    type=SensorIdField(),
     required=True,
     help="Create schedule for this sensor. Follow up with the sensor's ID.",
 )
 @click.option(
     "--optimization-context-id",
-    "optimization_context_sensor_id",
+    "optimization_context_sensor",
+    type=SensorIdField(),
     required=True,
     help="Optimize against this sensor, which measures a price factor or CO₂ intensity factor. Follow up with the sensor's ID.",
 )
@@ -836,8 +838,8 @@ def create_forecasts(
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
 )
 def create_schedule(
-    power_sensor_id: int,
-    optimization_context_sensor_id: int,
+    power_sensor: Sensor,
+    optimization_context_sensor: Sensor,
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
@@ -855,20 +857,8 @@ def create_schedule(
     """
 
     # Parse input
-    power_sensor: Sensor = Sensor.query.filter(
-        Sensor.id == power_sensor_id
-    ).one_or_none()
-    if power_sensor is None:
-        click.echo(f"No sensor found with ID {power_sensor_id}.")
-        raise click.Abort()
     if not power_sensor.measures_power:
-        click.echo(f"Sensor with ID {power_sensor_id} is not a power sensor.")
-        raise click.Abort()
-    optimization_context_sensor: Sensor = Sensor.query.filter(
-        Sensor.id == optimization_context_sensor_id
-    ).one_or_none()
-    if optimization_context_sensor is None:
-        click.echo(f"No sensor found with ID {optimization_context_sensor_id}.")
+        click.echo(f"Sensor with ID {power_sensor.id} is not a power sensor.")
         raise click.Abort()
     end = start + duration
     for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
@@ -912,7 +902,7 @@ def create_schedule(
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
 
     success = make_schedule(
-        sensor_id=power_sensor_id,
+        sensor_id=power_sensor.id,
         start=start,
         end=end,
         belief_time=server_now(),
