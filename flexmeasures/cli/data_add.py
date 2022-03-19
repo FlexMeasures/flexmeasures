@@ -797,7 +797,7 @@ def create_forecasts(
     "soc_at_start",
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=True,
-    help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule. Use --soc-unit to set a different unit.",
+    help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
 )
 @click.option(
     "--soc-target",
@@ -808,7 +808,6 @@ def create_forecasts(
     multiple=True,
     required=False,
     help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
-    " Use --soc-unit to set a different unit."
     " This argument can be given multiple times."
     " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
 )
@@ -817,14 +816,14 @@ def create_forecasts(
     "soc_min",
     type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=False,
-    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule. Use --soc-unit to set a different unit.",
+    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule.",
 )
 @click.option(
     "--soc-max",
     "soc_max",
-    type=QuantityField("%", validate=validate.Range(min=0, max=100)),
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
     required=False,
-    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule. Use --soc-unit to set a different unit.",
+    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule.",
 )
 @click.option(
     "--roundtrip-efficiency",
