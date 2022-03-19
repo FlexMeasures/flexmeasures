@@ -120,7 +120,7 @@ def delete_a_user(email: str, force: bool):
 )
 def delete_asset_and_data(asset: GenericAsset, force: bool):
     """
-    Delete an asset & also their sensors and data.
+    Delete an asset & also its sensors and data.
     """
     if not force:
         prompt = f"Delete {asset}, including all its sensors and data?"
