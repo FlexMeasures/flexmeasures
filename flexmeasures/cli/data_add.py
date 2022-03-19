@@ -1,6 +1,6 @@
 """CLI Tasks for populating the database - most useful in development"""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
 
@@ -37,6 +37,7 @@ from flexmeasures.data.models.validation_utils import (
     MissingAttributeException,
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -782,7 +783,8 @@ def create_forecasts(
 )
 @click.option(
     "--from",
-    "start_str",
+    "start",
+    type=AwareDateTimeField(format="iso"),
     required=True,
     help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
@@ -836,7 +838,7 @@ def create_forecasts(
 def create_schedule(
     power_sensor_id: int,
     optimization_context_sensor_id: int,
-    start_str: str,
+    start: datetime,
     duration_str: str,
     soc_at_start: ur.Quantity,
     soc_target_strings: List[Tuple[ur.Quantity, str]],
@@ -868,7 +870,6 @@ def create_schedule(
     if optimization_context_sensor is None:
         click.echo(f"No sensor found with ID {optimization_context_sensor_id}.")
         raise click.Abort()
-    start = pd.Timestamp(start_str)
     end = start + isodate.parse_duration(duration_str)
     for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
         try:
