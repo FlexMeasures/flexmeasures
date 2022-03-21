@@ -11,7 +11,7 @@ from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.scripts.data_gen import get_affected_classes
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 
 
@@ -72,7 +72,7 @@ def delete_account(id: int, force: bool):
             )
         click.confirm(prompt, abort=True)
     for user in account.users:
-        print(f"Deleting user {user} (and assets & data) ...")
+        print(f"Deleting user {user} ...")
         delete_user(user)
     for role_account_association in RolesAccounts.query.filter_by(
         account_id=account.id
@@ -97,39 +97,36 @@ def delete_account(id: int, force: bool):
 @click.option(
     "--force/--no-force", default=False, help="Skip warning about consequences."
 )
-def delete_user_and_data(email: str, force: bool):
+def delete_a_user(email: str, force: bool):
     """
     Delete a user & also their assets and data.
     """
     if not force:
-        # TODO: later, when assets belong to accounts, remove this.
-        prompt = f"Delete user '{email}', including all their assets and data?"
+        prompt = f"Delete user '{email}'?"
         click.confirm(prompt, abort=True)
     the_user = find_user_by_email(email)
     if the_user is None:
         print(f"Could not find user with email address '{email}' ...")
         return
     delete_user(the_user)
-    app.db.session.commit()
+    db.session.commit()
 
 
-def confirm_deletion(
-    structure: bool = False,
-    data: bool = False,
-    is_by_id: bool = False,
-):
-    affected_classes = get_affected_classes(structure, data)
-    prompt = "This deletes all %s entries from %s.\nDo you want to continue?" % (
-        " and ".join(
-            ", ".join(
-                [affected_class.__tablename__ for affected_class in affected_classes]
-            ).rsplit(", ", 1)
-        ),
-        app.db.engine,
-    )
-    if is_by_id:
-        prompt = prompt.replace(" all ", " ")
-    click.confirm(prompt, abort=True)
+@fm_delete_data.command("asset")
+@with_appcontext
+@click.option("--id", "asset", type=GenericAssetIdField())
+@click.option(
+    "--force/--no-force", default=False, help="Skip warning about consequences."
+)
+def delete_asset_and_data(asset: GenericAsset, force: bool):
+    """
+    Delete an asset & also its sensors and data.
+    """
+    if not force:
+        prompt = f"Delete {asset}, including all its sensors and data?"
+        click.confirm(prompt, abort=True)
+    db.session.delete(asset)
+    db.session.commit()
 
 
 @fm_delete_data.command("structure")
@@ -140,17 +137,16 @@ def confirm_deletion(
 def delete_structure(force):
     """
     Delete all structural (non time-series) data like assets (types),
-    markets (types) and weather sensors (types) and users.
-
-    TODO: This could in our future data model (currently in development) be replaced by
-    `flexmeasures delete generic-asset-type`, `flexmeasures delete generic-asset`
-    and so on.
+    sources, roles and users.
     """
     if not force:
-        confirm_deletion(structure=True)
+        click.confirm(
+            f"Sure to delete all asset(type)s, sources, roles and users from {db.engine}?",
+            abort=True,
+        )
     from flexmeasures.data.scripts.data_gen import depopulate_structure
 
-    depopulate_structure(app.db)
+    depopulate_structure(db)
 
 
 @fm_delete_data.command("measurements")
@@ -169,10 +165,10 @@ def delete_measurements(
 ):
     """Delete measurements (ex-post beliefs, i.e. with belief_horizon <= 0)."""
     if not force:
-        confirm_deletion(data=True, is_by_id=sensor_id is not None)
+        click.confirm(f"Sure to delete all measurements from {db.engine}?", abort=True)
     from flexmeasures.data.scripts.data_gen import depopulate_measurements
 
-    depopulate_measurements(app.db, sensor_id)
+    depopulate_measurements(db, sensor_id)
 
 
 @fm_delete_data.command("prognoses")
@@ -191,10 +187,10 @@ def delete_prognoses(
 ):
     """Delete forecasts and schedules (ex-ante beliefs, i.e. with belief_horizon > 0)."""
     if not force:
-        confirm_deletion(data=True, is_by_id=sensor_id is not None)
+        click.confirm(f"Sure to delete all prognoses from {db.engine}?", abort=True)
     from flexmeasures.data.scripts.data_gen import depopulate_prognoses
 
-    depopulate_prognoses(app.db, sensor_id)
+    depopulate_prognoses(db, sensor_id)
 
 
 @fm_delete_data.command("unchanged-beliefs")

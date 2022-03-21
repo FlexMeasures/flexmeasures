@@ -17,6 +17,7 @@ New features
 * Add a CLI command for showing time series data [see `PR #379 <http://www.github.com/FlexMeasures/flexmeasures/pull/379>`_]
 * Add CLI command for attaching annotations to assets: ``flexmeasures add holidays`` adds public holidays [see `PR #343 <http://www.github.com/FlexMeasures/flexmeasures/pull/343>`_]
 * Add CLI command for resampling existing sensor data to new resolution [see `PR #360 <http://www.github.com/FlexMeasures/flexmeasures/pull/360>`_]
+* Add CLI command to delete an asset, with its sensors and data. [see `PR #395 <http://www.github.com/FlexMeasures/flexmeasures/pull/395>`_]
 * Add CLI command to edit/add an attribute on an asset or sensor. [see `PR #380 <http://www.github.com/FlexMeasures/flexmeasures/pull/380>`_]
 * Add CLI command to add a toy account for tutorials and trying things [see `PR #368 <http://www.github.com/FlexMeasures/flexmeasures/pull/368>`_]
 * Add CLI command to create a charging schedule [see `PR #372 <http://www.github.com/FlexMeasures/flexmeasures/pull/372>`_]
