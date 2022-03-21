@@ -72,7 +72,7 @@ def delete_account(id: int, force: bool):
             )
         click.confirm(prompt, abort=True)
     for user in account.users:
-        print(f"Deleting user {user} (and assets & data) ...")
+        print(f"Deleting user {user} ...")
         delete_user(user)
     for role_account_association in RolesAccounts.query.filter_by(
         account_id=account.id
