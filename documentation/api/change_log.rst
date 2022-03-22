@@ -24,6 +24,13 @@ v3.0-0 | 2022-03-15
     - *postWeatherData* -> use `/sensors/data` (POST) instead
     - *restoreData*
 
+- Changed the Introduction section:
+
+    - Rewrote the section on service listing for API versions to refer to the public documentation.
+    - Rewrote the section on entity addresses to refer to *sensors* instead of *connections*.
+    - Rewrote the sections on roles and sources into a combined section that refers to account roles rather than USEF roles.
+    - Deprecated the section on group notation.
+
 v2.0-4 | 2022-01-04
 """""""""""""""""""
 
