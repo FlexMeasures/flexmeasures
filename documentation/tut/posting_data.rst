@@ -31,7 +31,7 @@ Prerequisites
 Posting sensor data
 -------------------
 
-Sensor data (both observations and forecasts) can be posted to `POST  /api/v3_0/sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_.
+Sensor data (both observations and forecasts) can be posted to `POST  /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_.
 This endpoint represents the basic method of getting time series data into FlexMeasures via API.
 It is agnostic to the type of sensor and can be used to POST data for both physical and economical events that have happened in the past or will happen in the future.
 Some examples:
@@ -270,7 +270,7 @@ Posting flexibility states
 There is one more crucial kind of data that FlexMeasures needs to know about: What are the current states of flexible devices?
 For example, a battery has a certain state of charge, which is relevant to describe the flexibility that the battery currently has.
 
-Owners of such devices can post these states along with triggering the creation of a new schedule, to `POST /api/v3_0/sensors/<id>/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
+Owners of such devices can post these states along with triggering the creation of a new schedule, to `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
 The URL might look like this:
 
 .. code-block:: html
@@ -291,6 +291,6 @@ From this, FlexMeasures derives the energy flexibility this battery has in the n
 .. note:: At the moment, FlexMeasures only supports flexibility models suitable for batteries and car chargers here (asset types "battery", "one-way_evse" or "two-way_evse").
           This will be expanded to other flexible assets as needed.
 
-.. note:: Flexibility states are not persisted. To record a history of the state of charge, set up a separate sensor and post data to it using `POST /sensors/data`.
+.. note:: Flexibility states are not persisted. To record a history of the state of charge, set up a separate sensor and post data to it using `POST  /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
 
 In :ref:`how_queue_scheduling`, we'll cover what happens when FlexMeasurers is triggered to create a new schedule, and how those schedules can be retrieved via the API, so they can be used to steer assets.

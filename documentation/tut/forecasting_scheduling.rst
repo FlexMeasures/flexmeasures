@@ -79,7 +79,7 @@ How scheduling jobs are queued
 In FlexMeasures, a scheduling job is an order to plan optimised actions for flexible devices.
 It usually involves a linear program that combines a state of energy flexibility with forecasted data to draw up a consumption or production plan ahead of time.
 
-We already learned about the ``/schedules/trigger`` endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
+We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
 
 Here, we extend that example with an additional target value, representing a desired future state of charge.
 
@@ -112,7 +112,7 @@ Getting power forecasts (prognoses)
 
 Prognoses (the USEF term used for power forecasts) are used by FlexMeasures to determine the best control signals to valorise on balancing opportunities.
 
-You can access forecasts via the FlexMeasures API at `GET  /api/v2_0/getPrognosis <../api/v2_0.html#get--api-v2_0-getPrognosis>`_.
+You can access forecasts via the FlexMeasures API at `[GET] /getPrognosis <../api/v2_0.html#get--api-v2_0-getPrognosis>`_.
 Getting them might be useful if you want to use prognoses in your own system, or to check their accuracy against meter data, i.e. the realised power measurements.
 The FlexMeasures UI also lists forecast accuracy, and visualises prognoses and meter data next to each other.
 
@@ -142,13 +142,13 @@ This example requests a prognosis for 24 hours, with a rolling horizon of 6 hour
 Getting schedules (control signals)
 -----------------------
 
-We saw above how FlexMeasures can create optimised schedules with control signals for flexible devices (see :ref:`posting_flex_states`). You can access the schedules via the `GET  /api/v3_0/sensors/<id>/schedules/<uuid> <../api/v3_0.html#get--api-v3_0-sensors-(id)-schedules-(uuid)>`_ endpoint. The URL then looks like this:
+We saw above how FlexMeasures can create optimised schedules with control signals for flexible devices (see :ref:`posting_flex_states`). You can access the schedules via the `[GET] /schedules/<uuid> <../api/v3_0.html#get--api-v3_0-sensors-(id)-schedules-(uuid)>`_ endpoint. The URL then looks like this:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api/<version>/sensors/<id>/schedules/<uuid>
 
-Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `POST /schedules/trigger` response.
+Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger` response.
 Schedules can be queried by their UUID for up to 1 week after they were triggered (ask your host if you need to keep them around longer).
 
 The following example response indicates that FlexMeasures planned ahead 45 minutes for the requested battery power sensor.
