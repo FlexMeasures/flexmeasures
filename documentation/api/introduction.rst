@@ -41,7 +41,7 @@ Let's see what the ``/api`` endpoint returns:
     >>> res = requests.get("https://company.flexmeasures.io/api")
     >>> res.json()
     {'flexmeasures_version': '0.9.0',
-     'message': 'For these API versions a public endpoint is available, listing its service. For example: /api/v2_0/getService and /api/v3_0/getService. An authentication token can be requested at: /api/requestAuthToken',
+     'message': 'For these API versions endpoints are available. An authentication token can be requested at: /api/requestAuthToken. For a list of services, see https://flexmeasures.readthedocs.io',
      'status': 200,
      'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0', 'v3_0']
     }
@@ -53,37 +53,7 @@ So this tells us which API versions exist. For instance, we know that the latest
     https://company.flexmeasures.io/api/v3_0
 
 
-Also, we can see that a list of endpoints which are available at (a version of) the FlexMeasures web service can be obtained by sending a ``getService`` request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
-
-**Example request**
-
-Let's ask which endpoints are available for meter data companies (MDC):
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/v2_0/getService?access=MDC
-
-
-**Example response**
-
-.. code-block:: json
-
-    {
-        "type": "GetServiceResponse",
-        "version": "1.0",
-        "services": [
-            {
-                "name": "getMeterData",
-                "access": ["Aggregator", "Supplier", "MDC", "DSO", "Prosumer", "ESCo"],
-                "description": "Request meter reading"
-            },
-            {
-                "name": "postMeterData",
-                "access": ["MDC"],
-                "description": "Send meter reading"
-            }
-        ]
-    }
+Also, we can see that a list of endpoints is available on https://flexmeasures.readthedocs.io for each of these versions.
 
 .. _api_auth:
 
