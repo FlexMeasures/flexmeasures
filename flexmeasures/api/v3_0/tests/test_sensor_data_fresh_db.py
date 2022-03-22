@@ -2,7 +2,7 @@ import pytest
 from flask import url_for
 
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.dev.tests.utils import make_sensor_data_request_for_gas_sensor
+from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
 
 
@@ -37,9 +37,9 @@ def test_post_sensor_data(
     print(f"BELIEFS BEFORE: {beliefs_before}")
     assert len(beliefs_before) == 0
 
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     response = client.post(
-        url_for("post_sensor_data"),
+        url_for("SensorAPI:post_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )

@@ -26,24 +26,37 @@ Prerequisites
 .. note:: To address assets and sensors, these tutorials assume entity addresses valid in the namespace ``fm1``. See :ref:`api_introduction` for more explanations. 
 
 
-Posting price data
-------------------
+.. _posting_sensor_data:
 
-Price data (both observations and forecasts) can be posted to `POST  /api/v2_0/postPriceData <../api/v2_0.html#post--api-v2_0-postPriceData>`_. The URL might look like this:
+Posting sensor data
+-------------------
+
+Sensor data (both observations and forecasts) can be posted to `POST  /api/v3_0/sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_.
+This endpoint represents the basic method of getting time series data into FlexMeasures via API.
+It is agnostic to the type of sensor and can be used to POST data for both physical and economical events that have happened in the past or will happen in the future.
+Some examples:
+
+- readings from electricity and gas meters
+- readings from temperature and pressure sensors
+- state of charge of a battery
+- estimated availability of parking spots
+- price forecasts
+
+The exact URL will depend on your domain name, and will look approximately like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/postPriceData
+    [POST] https://company.flexmeasures.io/api/<version>/sensors/data
 
-This example "PostPriceDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
+This example "PostSensorDataRequest" message posts prices for hourly intervals between midnight and midnight the next day
 for the Korean Power Exchange (KPX) day-ahead auction, registered under sensor 16.
 The ``prior`` indicates that the prices were published at 3pm on December 31st 2014 (i.e. the clearing time of the KPX day-ahead market, which is at 3 PM on the previous day ― see below for a deeper explanation).
 
 .. code-block:: json
 
     {
-        "type": "PostPriceDataRequest",
-        "market": "ea1.2021-01.io.flexmeasures.company:fm1.16",
+        "type": "PostSensorDataRequest",
+        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.16",
         "values": [
             52.37,
             51.14,
@@ -78,41 +91,40 @@ The ``prior`` indicates that the prices were published at 3pm on December 31st 2
 
 Note how the resolution of the data comes out at 60 minutes when you divide the duration by the number of data points.
 If this resolution does not match the sensor's resolution, FlexMeasures will try to upsample the data to make the match or, if that is not possible, complain.
+Likewise, if the data unit does not match the sensor’s unit, FlexMeasures will attempt to convert the data or, if that is not possible, complain.
 
 
 Posting power data
 ------------------
 
 For power data, USEF specifies separate message types for observations and forecasts.
-Correspondingly, FlexMeasures uses separate endpoints to communicate these messages.
-Observations of power data can be posted to `POST /api/v2_0/postMeterData <../api/v2_0.html#post--api-v2_0-postMeterData>`_. The URL might look like this:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/<version>/postMeterData
-
-while forecasts of power data can be posted to `POST /api/v2_0/postPrognosis <../api/v2_0.html#post--api-v2_0-postPrognosis>`_. The URL might look like this:
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/<version>/postPrognosis
-
-For both endpoints, power data can be posted in various ways.
-The following examples assume that the endpoint for power data observations (i.e. meter data) is used.
-
-.. todo:: For the time being, only one rate unit (MW) can be used to post power values.
-
-
-Single value, single connection
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A single average power value for a 15-minute time interval for a single connection, posted 5 minutes after realisation.
+Correspondingly, we allow the following message types to be used with the [POST] /sensors/data endpoint (see :ref:`posting_sensor_data`):
 
 .. code-block:: json
 
     {
-        "type": "PostMeterDataRequest",
-        "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
+        "type": "PostMeterDataRequest"
+    }
+
+.. code-block:: json
+
+    {
+        "type": "PostPrognosisRequest"
+    }
+
+For these message types, FlexMeasures validates whether the data unit is suitable for communicating power data.
+Additionally, we validate whether meter data lies in the past, and prognoses lie in the future.
+
+Single value, single sensor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A single average power value for a 15-minute time interval for a single sensor, posted 5 minutes after realisation.
+
+.. code-block:: json
+
+    {
+        "type": "PostSensorDataRequest",
+        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "value": 220,
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT0H15M",
@@ -120,16 +132,16 @@ A single average power value for a 15-minute time interval for a single connecti
         "unit": "MW"
     }
 
-Multiple values, single connection
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Multiple values, single sensor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Multiple values (indicating a univariate timeseries) for 15-minute time intervals for a single connection, posted 5 minutes after each realisation.
+Multiple values (indicating a univariate timeseries) for 15-minute time intervals for a single sensor, posted 5 minutes after each realisation.
 
 .. code-block:: json
 
     {
-        "type": "PostMeterDataRequest",
-        "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
+        "type": "PostSensorDataRequest",
+        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "values": [
             220,
             210,
@@ -141,85 +153,88 @@ Multiple values (indicating a univariate timeseries) for 15-minute time interval
         "unit": "MW"
     }
 
-Single identical value, multiple connections
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..
+    todo: uncomment whenever the new sensor data API supports sending data for multiple sensors in one message
 
-Single identical value for a 15-minute time interval for two connections, posted 5 minutes after realisation.
-Please note that both connections consumed at 10 MW, i.e. the value does not represent the total of the two connections.
-We recommend to use this notation for zero values only.
+    Single identical value, multiple sensors
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: json
+    Single identical value for a 15-minute time interval for two sensors, posted 5 minutes after realisation.
+    Please note that both sensors consumed at 10 MW, i.e. the value does not represent the total of the two sensors.
+    We recommend to use this notation for zero values only.
 
-    {
-        "type": "PostMeterDataRequest",
-        "connections": [
-            "ea1.2021-01.io.flexmeasures.company:fm1.1",
-            "ea1.2021-01.io.flexmeasures.company:fm1.2"
-        ],
-        "value": 10,
-        "start": "2015-01-01T00:00:00+00:00",
-        "duration": "PT0H15M",
-        "horizon": "-PT5M",
-        "unit": "MW"
-    }
+    .. code-block:: json
 
-Single different values, multiple connections
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        {
+            "type": "PostSensorDataRequest",
+            "sensors": [
+                "ea1.2021-01.io.flexmeasures.company:fm1.1",
+                "ea1.2021-01.io.flexmeasures.company:fm1.2"
+            ],
+            "value": 10,
+            "start": "2015-01-01T00:00:00+00:00",
+            "duration": "PT0H15M",
+            "horizon": "-PT5M",
+            "unit": "MW"
+        }
 
-Single different values for a 15-minute time interval for two connections, posted 5 minutes after realisation.
+    Single different values, multiple sensors
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: json
+    Single different values for a 15-minute time interval for two sensors, posted 5 minutes after realisation.
 
-    {
-        "type": "PostMeterDataRequest",
-        "groups": [
-            {
-                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
-                "value": 220
-            },
-            {
-                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.2",
-                "value": 300
-            }
-        ],
-        "start": "2015-01-01T00:00:00+00:00",
-        "duration": "PT0H15M",
-        "horizon": "-PT5M",
-        "unit": "MW"
-    }
+    .. code-block:: json
 
-Multiple values, multiple connections
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        {
+            "type": "PostSensorDataRequest",
+            "groups": [
+                {
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
+                    "value": 220
+                },
+                {
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.2",
+                    "value": 300
+                }
+            ],
+            "start": "2015-01-01T00:00:00+00:00",
+            "duration": "PT0H15M",
+            "horizon": "-PT5M",
+            "unit": "MW"
+        }
 
-Multiple values (indicating a univariate timeseries) for 15-minute time intervals for two connections, posted 5 minutes after each realisation.
+    Multiple values, multiple sensors
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: json
+    Multiple values (indicating a univariate timeseries) for 15-minute time intervals for two sensors, posted 5 minutes after each realisation.
 
-    {
-        "type": "PostMeterDataRequest",
-        "groups": [
-            {
-                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
-                "values": [
-                    220,
-                    210,
-                    200
-                ]
-            },
-            {
-                "connection": "ea1.2021-01.io.flexmeasures.company:fm1.2",
-                "values": [
-                    300,
-                    303,
-                    306
-                ]
-            }
-        ],
-        "start": "2015-01-01T00:00:00+00:00",
-        "duration": "PT0H45M",
-        "horizon": "-PT5M",
-        "unit": "MW"
-    }
+    .. code-block:: json
+
+        {
+            "type": "PostSensorDataRequest",
+            "groups": [
+                {
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
+                    "values": [
+                        220,
+                        210,
+                        200
+                    ]
+                },
+                {
+                    "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.2",
+                    "values": [
+                        300,
+                        303,
+                        306
+                    ]
+                }
+            ],
+            "start": "2015-01-01T00:00:00+00:00",
+            "duration": "PT0H45M",
+            "horizon": "-PT5M",
+            "unit": "MW"
+        }
 
 
 .. _observations_vs_forecasts

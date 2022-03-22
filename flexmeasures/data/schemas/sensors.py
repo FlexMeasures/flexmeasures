@@ -1,10 +1,13 @@
-from flask.cli import with_appcontext
 from marshmallow import Schema, fields, validates, ValidationError
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
+from flexmeasures.data.schemas.utils import (
+    FMValidationError,
+    MarshmallowClickMixin,
+    with_appcontext_if_needed,
+)
 from flexmeasures.utils.unit_utils import is_valid_unit
 
 
@@ -26,6 +29,7 @@ class SensorSchemaMixin(Schema):
     unit = ma.auto_field(required=True)
     timezone = ma.auto_field()
     event_resolution = fields.TimeDelta(required=True, precision="minutes")
+    entity_address = fields.String(dump_only=True)
 
     @validates("unit")
     def validate_unit(self, unit: str):
@@ -55,14 +59,14 @@ class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
 class SensorIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a Sensor and serializes back to an integer."""
 
-    @with_appcontext
-    def _deserialize(self, value, attr, obj, **kwargs) -> Sensor:
+    @with_appcontext_if_needed()
+    def _deserialize(self, value: int, attr, obj, **kwargs) -> Sensor:
         """Turn a sensor id into a Sensor."""
         sensor = Sensor.query.get(value)
         if sensor is None:
             raise FMValidationError(f"No sensor found with id {value}.")
         return sensor
 
-    def _serialize(self, value, attr, data, **kwargs):
+    def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
         """Turn a Sensor into a sensor id."""
-        return value.id
+        return sensor.id

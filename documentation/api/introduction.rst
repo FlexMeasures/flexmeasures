@@ -23,13 +23,13 @@ So if you are running FlexMeasures on your computer, it would be:
 
     https://localhost:5000/api
 
-At Seita, we run servers for our clients at:
+Let's assume we are running a server for a client at:
 
 .. code-block:: html
 
     https://company.flexmeasures.io/api
 
-where `company` is a hosting customer of ours. All their accounts' data lives on that server.
+where `company` is a client of ours. All their accounts' data lives on that server.
 
 We assume in this document that the FlexMeasures instance you want to connect to is hosted at https://company.flexmeasures.io.
 
@@ -40,50 +40,20 @@ Let's see what the ``/api`` endpoint returns:
     >>> import requests
     >>> res = requests.get("https://company.flexmeasures.io/api")
     >>> res.json()
-    {'flexmeasures_version': '0.4.0',
-     'message': 'For these API versions a public endpoint is available, listing its service. For example: /api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: /api/requestAuthToken',
+    {'flexmeasures_version': '0.9.0',
+     'message': 'For these API versions endpoints are available. An authentication token can be requested at: /api/requestAuthToken. For a list of services, see https://flexmeasures.readthedocs.io',
      'status': 200,
-     'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0']
+     'versions': ['v1', 'v1_1', 'v1_2', 'v1_3', 'v2_0', 'v3_0']
     }
 
-So this tells us which API versions exist. For instance, we know that the latest API version is available at
+So this tells us which API versions exist. For instance, we know that the latest API version is available at:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/v2_0
+    https://company.flexmeasures.io/api/v3_0
 
 
-Also, we can see that a list of endpoints which are available at (a version of) the FlexMeasures web service can be obtained by sending a ``getService`` request. An optional field "access" can be used to specify a user role for which to obtain only the relevant services.
-
-**Example request**
-
-Let's ask which endpoints are available for meter data companies (MDC):
-
-.. code-block:: html
-
-    https://company.flexmeasures.io/api/v2_0/getService?access=MDC
-
-
-**Example response**
-
-.. code-block:: json
-
-    {
-        "type": "GetServiceResponse",
-        "version": "1.0",
-        "services": [
-            {
-                "name": "getMeterData",
-                "access": ["Aggregator", "Supplier", "MDC", "DSO", "Prosumer", "ESCo"],
-                "description": "Request meter reading"
-            },
-            {
-                "name": "postMeterData",
-                "access": ["MDC"],
-                "description": "Send meter reading"
-            }
-        ]
-    }
+Also, we can see that a list of endpoints is available on https://flexmeasures.readthedocs.io for each of these versions.
 
 .. _api_auth:
 
@@ -131,28 +101,13 @@ which gives a response like this if the credentials are correct:
 .. note:: Each access token has a limited lifetime, see :ref:`auth`.
 
 
-Roles
------
-
-We distinguish the following roles with different access rights to the individual services. Capitalised roles are defined by USEF:
-
-- public
-- user
-- admin
-- Aggregator
-- Supplier: an energy retailer (see :ref:`supplier`)
-- Prosumer: owner of a grid connection (see :ref:`prosumer`)
-- ESCo: an energy service company (see :ref:`esco`)
-- MDC: a meter data company (see :ref:`mdc`)
-- DSO: a distribution system operator (see :ref:`dso`)
-
 .. _sources:
 
 Sources
 -------
 
 Requests for data may limit the data selection by specifying a source, for example, a specific user.
-USEF roles are also valid source selectors.
+Account roles are also valid source selectors.
 For example, to obtain data originating from either a meter data company or user 42, include the following:
 
 .. code-block:: json
@@ -160,6 +115,8 @@ For example, to obtain data originating from either a meter data company or user
     {
         "sources": ["MDC", "42"],
     }
+
+Here, "MDC" is the name of the account role for meter data companies.
 
 Notation
 --------
@@ -179,27 +136,26 @@ Throughout this document, keys are written in singular if a single value is list
 
 The API, however, does not distinguish between singular and plural key notation.
 
-Connections and entity addresses
+Sensors and entity addresses
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A connection represents an end point of the grid, at which an electricity sensor (power meter) is located.
-Connections should be identified with an entity address following the EA1 addressing scheme prescribed by USEF[1],
-which is mostly taken from IETF RFC 3720 [2]:
+All sensors are identified with an entity address following the EA1 addressing scheme prescribed by USEF[1],
+which is mostly taken from IETF RFC 3720 [2].
 
 This is the complete structure of an EA1 address:
 
 .. code-block:: json
 
     {
-        "connection": "ea1.{date code}.{reversed domain name}:{locally unique string}"
+        "sensor": "ea1.{date code}.{reversed domain name}:{locally unique string}"
     }
 
-Here is a full example for a FlexMeasures connection address: 
+Here is a full example for an entity address of a sensor in FlexMeasures:
 
 .. code-block:: json
 
     {
-        "connection": "ea1.2021-02.io.flexmeasures.company:fm1.73"
+        "sensor": "ea1.2021-02.io.flexmeasures.company:fm1.73"
     }
 
 where FlexMeasures runs at `company.flexmeasures.io` (which the current domain owner started using in February 2021), and the locally unique string uses the `fm1` scheme (see below) to identify sensor ID 73.
@@ -254,7 +210,7 @@ It uses the fact that all FlexMeasures sensors have unique IDs.
 .. todo:: UDI events are not yet modelled in the fm1 scheme
 
 The ``fm0`` scheme is the original scheme.
-It identified different types of sensors (such as connections, weather sensors and markets) in different ways.
+It identified different types of sensors (such as grid connections, weather sensors and markets) in different ways.
 The ``fm0`` scheme has been deprecated for the most part and is no longer supported officially.
 Only UDI events still need to be sent using the fm0 scheme.
 
@@ -263,69 +219,6 @@ Only UDI events still need to be sent using the fm0 scheme.
     ea1.2021-01.io.flexmeasures:fm0.40:30:302:soc
     ea1.2021-01.io.flexmeasures:fm0.<owner_id>:<sensor_id>:<event_id>:<event_type>
 
-
-Groups
-^^^^^^
-
-Data such as measurements, load prognoses and tariffs are usually stated per group of connections.
-When the attributes "start", "duration" and "unit" are stated outside of "groups" they are inherited by each of the individual groups. For example:
-
-.. code-block:: json
-
-    {
-        "groups": [
-            {
-                "connections": [
-                    "ea1.2021-02.io.flexmeasures.company:fm1.71",
-                    "ea1.2021-02.io.flexmeasures.company:fm1.72"
-                ],
-                "values": [
-                    306.66,
-                    306.66,
-                    0,
-                    0,
-                    306.66,
-                    306.66
-                ]
-            },
-            {
-                "connection": "ea1.2021-02.io.flexmeasures.company:fm1.73"
-                "values": [
-                    306.66,
-                    0,
-                    0,
-                    0,
-                    306.66,
-                    306.66
-                ]
-            }
-        ],
-        "start": "2016-05-01T12:45:00Z",
-        "duration": "PT1H30M",
-        "unit": "MW"
-    }
-
-In case of a single group of connections, the message may be flattened to:
-
-.. code-block:: json
-
-    {
-        "connections": [
-            "ea1.2021-02.io.flexmeasures.company:fm1.71",
-            "ea1.2021-02.io.flexmeasures.company:fm1.72"
-        ],
-        "values": [
-            306.66,
-            306.66,
-            0,
-            0,
-            306.66,
-            306.66
-        ],
-        "start": "2016-05-01T12:45:00Z",
-        "duration": "PT1H30M",
-        "unit": "MW"
-    }
 
 Timeseries
 ^^^^^^^^^^
@@ -374,10 +267,10 @@ Technically, this is equal to:
 
 This intuitive convention allows us to reduce communication by sending univariate timeseries as arrays.
 
-Notation for v1
-"""""""""""""""
+Notation for v1, v2 and v3
+""""""""""""""""""""""""""
 
-For version 1 and 2 of the API, only equidistant timeseries data is expected to be communicated. Therefore:
+For version 1, 2 and 3 of the API, only equidistant timeseries data is expected to be communicated. Therefore:
 
 - only the array notation should be used (first notation from above),
 - "start" should be a timestamp on the hour or a multiple of the sensor resolution thereafter (e.g. "16:10" works if the resolution is 5 minutes), and
@@ -496,19 +389,25 @@ Resolutions
 
 Specifying a resolution is redundant for POST requests that contain both "values" and a "duration" ― FlexMeasures computes the resolution by dividing the duration by the number of values.
 
-When POSTing data, FlexMeasures checks this computed resolution against the required resolution of the assets which are posted to. If these can't be matched (through upsampling), an error will occur.
+When POSTing data, FlexMeasures checks this computed resolution against the required resolution of the sensors which are posted to. If these can't be matched (through upsampling), an error will occur.
 
 GET requests (such as *getMeterData*) return data in the resolution which the sensor is configured for.
 A "resolution" may be specified explicitly to obtain the data in downsampled form, 
 which can be very beneficial for download speed. The specified resolution needs to be a multiple
-of the asset's resolution, e.g. hourly or daily values if the asset's resolution is 15 minutes.
+of the sensor's resolution, e.g. hourly or daily values if the sensor's resolution is 15 minutes.
 
 .. _units:
 
 Units
 ^^^^^
 
-Valid units for timeseries data in version 1 of the API are "MW" only.
+From API version 3 onwards, we are much more flexible with sent units.
+A valid unit for timeseries data is any unit that is convertible to the configured sensor unit registered in FlexMeasures.
+So, for example, you can send timeseries data with "W" unit to a "kW" sensor.
+And if you wish to do so, you can even send a timeseries with "kWh" unit to a "kW" sensor.
+In this case, FlexMeasures will convert the data using the resolution of the timeseries.
+
+For API versions 1 and 2, the unit sent needs to be an exact match with the sensor unit, and only "MW" is allowed for power sensors.
 
 .. _signs:
 

@@ -195,7 +195,7 @@ First, you can load in data from a file (CSV or Excel) via the ``flexmeasures`` 
 
 This assumes you have a file `my-data.csv` with measurements, which was exported from some legacy database, and that the data is about our sensor with ID 1. This command has many options, so do use its ``--help`` function.
 
-Second, you can use the `POST /api/v2_0/postMeterData <api/v2_0.html#post--api-v2_0-postMeterData>`_ endpoint in the FlexMeasures API to send meter data.
+Second, you can use the `POST /api/v3_0/sensors/data <api/v3_0.html#post--api-v3_0-sensors-data>`_ endpoint in the FlexMeasures API to send meter data.
 
 Finally, you can tell FlexMeasures to create forecasts for your meter data with the ``flexmeasures add forecasts`` command, here is an example:
 

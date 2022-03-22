@@ -128,11 +128,13 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
 
     api/introduction
+    api/v3_0
     api/v2_0
     api/v1_3
     api/v1_2
     api/v1_1
     api/v1
+    api/dev
     api/change_log
 
 .. toctree::

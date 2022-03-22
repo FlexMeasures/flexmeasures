@@ -6,7 +6,7 @@ from webargs.flaskparser import use_kwargs, use_args
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.models.generic_assets import GenericAsset as AssetModel
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -36,7 +36,10 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", arg_name="account")
     @as_json
     def index(self, account: Account):
-        """List all assets owned by a certain account."""
+        """List all assets owned by a certain account.
+
+        .. :quickref: Asset; Download asset list
+        """
         return assets_schema.dump(account.generic_assets), 200
 
     @route("/", methods=["POST"])
@@ -44,9 +47,12 @@ class AssetAPI(FlaskView):
         "create-children", arg_loader=AccountIdField.load_current
     )
     @use_args(AssetSchema())
-    def post(self, asset_data):
-        """Create new asset"""
-        asset = AssetModel(**asset_data)
+    def post(self, asset_data: dict):
+        """Create new asset.
+
+        .. :quickref: Asset; Create a new asset
+        """
+        asset = GenericAsset(**asset_data)
         db.session.add(asset)
         db.session.commit()
         return asset_schema.dump(asset), 201
@@ -56,7 +62,10 @@ class AssetAPI(FlaskView):
     @permission_required_for_context("read", arg_name="asset")
     @as_json
     def fetch_one(self, id, asset):
-        """Fetch a given asset"""
+        """Fetch a given asset.
+
+        .. :quickref: Asset; Get an asset
+        """
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
@@ -64,8 +73,11 @@ class AssetAPI(FlaskView):
     @use_kwargs({"db_asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", arg_name="db_asset")
     @as_json
-    def patch(self, asset_data, id, db_asset):
-        """Update an asset given its identifier"""
+    def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
+        """Update an asset given its identifier.
+
+        .. :quickref: Asset; Update an asset
+        """
         ignored_fields = ["id", "account_id"]
         for k, v in [(k, v) for k, v in asset_data.items() if k not in ignored_fields]:
             setattr(db_asset, k, v)
@@ -77,8 +89,11 @@ class AssetAPI(FlaskView):
     @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("delete", arg_name="asset")
     @as_json
-    def delete(self, id, asset):
-        """Delete an asset given its identifier"""
+    def delete(self, id: int, asset: GenericAsset):
+        """Delete an asset given its identifier.
+
+        .. :quickref: Asset; Delete an asset
+        """
         asset_name = asset.name
         db.session.delete(asset)
         db.session.commit()

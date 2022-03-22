@@ -1,5 +1,7 @@
 import click
 import marshmallow as ma
+from click import get_current_context
+from flask.cli import with_appcontext as with_cli_appcontext
 from marshmallow import ValidationError
 
 
@@ -28,3 +30,14 @@ class FMValidationError(ValidationError):
 
     result = "Rejected"
     status = "UNPROCESSABLE_ENTITY"
+
+
+def with_appcontext_if_needed():
+    """Execute within the script's application context, in case there is one."""
+
+    def decorator(f):
+        if get_current_context(silent=True):
+            return with_cli_appcontext(f)
+        return f
+
+    return decorator

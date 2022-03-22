@@ -73,9 +73,9 @@ def get_versions() -> dict:
     """
     response = {
         "message": "For these API versions a public endpoint is available, listing its service. For example: "
-        "/api/v1/getService and /api/v1_1/getService. An authentication token can be requested at: "
+        "/api/v2_0/getService and /api/v3_0/getService. An authentication token can be requested at: "
         "/api/requestAuthToken",
-        "versions": ["v1", "v1_1", "v1_2", "v1_3", "v2_0"],
+        "versions": ["v1", "v1_1", "v1_2", "v1_3", "v2_0", "v3_0"],
         "flexmeasures_version": flexmeasures_version,
     }
     return response
@@ -110,6 +110,7 @@ def register_at(app: Flask):
     from flexmeasures.api.v1_2 import register_at as v1_2_register_at
     from flexmeasures.api.v1_3 import register_at as v1_3_register_at
     from flexmeasures.api.v2_0 import register_at as v2_0_register_at
+    from flexmeasures.api.v3_0 import register_at as v3_0_register_at
     from flexmeasures.api.dev import register_at as dev_register_at
 
     v1_register_at(app)
@@ -117,4 +118,5 @@ def register_at(app: Flask):
     v1_2_register_at(app)
     v1_3_register_at(app)
     v2_0_register_at(app)
+    v3_0_register_at(app)
     dev_register_at(app)

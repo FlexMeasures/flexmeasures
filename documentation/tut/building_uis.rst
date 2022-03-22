@@ -20,7 +20,7 @@ This tutorial will show how the FlexMeasures API can be used from JavaScript to 
 Get an authentication token
 -----------------------
 
-FlexMeasures provides the `POST /api/v2_0/requestAuthToken <../api/v2_0.html#post--api-v2_0-requestAuthToken>`_ endpoint, as discussed in :ref:`api_auth`. 
+FlexMeasures provides the `POST /api/requestAuthToken <../api/v2_0.html#post--api-v2_0-requestAuthToken>`_ endpoint, as discussed in :ref:`api_auth`.
 Here is a JavaScript function to call it:
 
 .. code-block:: JavaScript

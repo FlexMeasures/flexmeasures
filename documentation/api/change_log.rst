@@ -6,6 +6,31 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
 
+v3.0-0 | 2022-03-22
+"""""""""""""""""""
+
+- Added REST endpoint for listing sensors: `/sensors` (GET).
+- Added REST endpoint for managing sensor data: `/sensors/data` (GET, POST).
+- [**Breaking change**] Switched to plural resource names for REST endpoints:  `/users/<id>` (GET, PATCH) and `/users/<id>/password-reset` (PATCH).
+- [**Breaking change**] Deprecated the following endpoints:
+
+    - *getConnection* -> use `/sensors` (GET) instead
+    - *getMeterData* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
+    - *getPrognosis* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
+    - *getService*
+    - *postMeterData* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
+    - *postPriceData* -> use `/sensors/data` (POST) instead, replacing the "market" field with "sensor"
+    - *postPrognosis* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
+    - *postWeatherData* -> use `/sensors/data` (POST) instead
+    - *restoreData*
+
+- Changed the Introduction section:
+
+    - Rewrote the section on service listing for API versions to refer to the public documentation.
+    - Rewrote the section on entity addresses to refer to *sensors* instead of *connections*.
+    - Rewrote the sections on roles and sources into a combined section that refers to account roles rather than USEF roles.
+    - Deprecated the section on group notation.
+
 v2.0-4 | 2022-01-04
 """""""""""""""""""
 
@@ -42,12 +67,12 @@ v2.0-2 | 2021-04-02
 v2.0-1 | 2021-02-19
 """""""""""""""""""
 
-- REST endpoints for managing users: `/users/` (GET), `/user/<id>` (GET, PATCH) and `/user/<id>/password-reset` (PATCH).
+- Added REST endpoints for managing users: `/users/` (GET), `/user/<id>` (GET, PATCH) and `/user/<id>/password-reset` (PATCH).
 
 v2.0-0 | 2020-11-14
 """""""""""""""""""
 
-- REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
+- Added REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
 
 
 v1.3-11 | 2022-01-05
@@ -80,7 +105,7 @@ v1.3-8 | 2020-04-02
 
 *Affects all versions since v1.0*.
 
-- [**Breaking change**, partially reverted in v1.3-9] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API version below v2.0.
+- [**Breaking change**, partially reverted in v1.3-9] Deprecated the automatic inference of horizons for *postMeterData*, *postPrognosis*, *postPriceData* and *postWeatherData* endpoints for API versions below v2.0.
 
 v1.3-7 | 2020-12-16
 """""""""""""""""""
@@ -107,7 +132,7 @@ v1.3-5 | 2020-10-29
 - Endpoints to POST meter data will now check incoming data to see if the required asset's resolution is being used ― upsampling is done if possible.
   These endpoints can now return the REQUIRED_INFO_MISSING status 400 response.
 - Endpoints to GET meter data will return data in the asset's resolution ― downsampling to the "resolution" field is done if possible.
-- As they need to determine the asset, all of the mentioned POST and GET endpoints can now return the UNRECOGNIZED_ASSET status 4000 response.
+- As they need to determine the asset, all of the mentioned POST and GET endpoints can now return the UNRECOGNIZED_ASSET status 400 response.
 
 v1.3-4 | 2020-06-18
 """""""""""""""""""

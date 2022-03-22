@@ -2,22 +2,27 @@ from datetime import timedelta
 from typing import List, Union
 
 from flask_login import current_user
+from isodate import datetime_isoformat, duration_isoformat
 from marshmallow import fields, post_load, validates_schema, ValidationError
-from marshmallow.validate import Equal, OneOf
+from marshmallow.validate import OneOf
 from marshmallow_polyfield import PolyField
 from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import (
     convert_units,
     units_are_convertible,
+    is_energy_price_unit,
 )
+from flexmeasures.auth.policy import check_access
 
 
 class SingleValueField(fields.Float):
@@ -60,28 +65,15 @@ def select_schema_to_ensure_list_of_floats(
 
 class SensorDataDescriptionSchema(ma.Schema):
     """
-    Describing sensor data (i.e. in a GET request).
-
-    TODO: when we want to support other entity types with this
-          schema (assets/weather/markets or actuators), we'll need some re-design.
+    Schema describing sensor data (specifically, the sensor and the timing of the data).
     """
 
-    type = fields.Str(required=True, validate=Equal("GetSensorDataRequest"))
     sensor = SensorField(required=True, entity_type="sensor", fm_scheme="fm1")
     start = AwareDateTimeField(required=True, format="iso")
     duration = DurationField(required=True)
     horizon = DurationField(required=False)
     prior = AwareDateTimeField(required=False, format="iso")
     unit = fields.Str(required=True)
-
-    @validates_schema
-    def check_user_rights_against_sensor(self, data, **kwargs):
-        """If the user is a Prosumer and the sensor belongs to an asset
-        over which the Prosumer has no ownership, raise a ValidationError.
-        """
-        # todo: implement check once sensors can belong to an asset
-        #       https://github.com/FlexMeasures/flexmeasures/issues/155
-        pass
 
     @validates_schema
     def check_schema_unit_against_sensor_unit(self, data, **kwargs):
@@ -103,7 +95,116 @@ class SensorDataDescriptionSchema(ma.Schema):
             )
 
 
-class SensorDataSchema(SensorDataDescriptionSchema):
+class GetSensorDataSchema(SensorDataDescriptionSchema):
+
+    # Optional field that can be used for extra validation
+    type = fields.Str(
+        required=False,
+        validate=OneOf(
+            [
+                "GetSensorDataRequest",
+                "GetMeterDataRequest",
+                "GetPrognosisRequest",
+                "GetPriceDataRequest",
+            ]
+        ),
+    )
+
+    @validates_schema
+    def check_user_may_read(self, data, **kwargs):
+        check_access(data["sensor"], "read")
+
+    @validates_schema
+    def check_schema_unit_against_type(self, data, **kwargs):
+        requested_unit = data["unit"]
+        _type = data.get("type", None)
+        if (
+            _type
+            in (
+                "GetMeterDataRequest",
+                "GetPrognosisRequest",
+            )
+            and not units_are_convertible(requested_unit, "MW")
+        ):
+            raise ValidationError(
+                f"The unit requested for this message type should be convertible from MW, got incompatible unit: {requested_unit}"
+            )
+        elif _type == "GetPriceDataRequest" and not is_energy_price_unit(
+            requested_unit
+        ):
+            raise ValidationError(
+                f"The unit requested for this message type should be convertible from an energy price unit, got incompatible unit: {requested_unit}"
+            )
+
+    @post_load
+    def dump_bdf(self, sensor_data_description: dict, **kwargs) -> dict:
+        """Turn the de-serialized and validated data description into a response.
+
+        Specifically, this function:
+        - queries data according to the given description
+        - converts to a single deterministic belief per event
+        - ensures the response respects the requested time frame
+        - converts values to the requested unit
+        """
+        sensor: Sensor = sensor_data_description["sensor"]
+        start = sensor_data_description["start"]
+        duration = sensor_data_description["duration"]
+        end = sensor_data_description["start"] + duration
+        unit = sensor_data_description["unit"]
+
+        # Post-load configuration of belief timing against message type
+        horizons_at_least = sensor_data_description.get("horizon", None)
+        horizons_at_most = None
+        _type = sensor_data_description.get("type", None)
+        if _type == "GetMeterDataRequest":
+            horizons_at_most = timedelta(0)
+        elif _type == "GetPrognosisRequest":
+            if horizons_at_least is None:
+                horizons_at_least = timedelta(0)
+            else:
+                # If the horizon field is used, ensure we still respect the minimum horizon for prognoses
+                horizons_at_least = max(horizons_at_least, timedelta(0))
+
+        df = simplify_index(
+            sensor.search_beliefs(
+                event_starts_after=start,
+                event_ends_before=end,
+                horizons_at_least=horizons_at_least,
+                horizons_at_most=horizons_at_most,
+                beliefs_before=sensor_data_description.get("prior", None),
+                one_deterministic_belief_per_event=True,
+                as_json=False,
+            )
+        )
+
+        # Convert to desired time range
+        index = pd.date_range(
+            start=start, end=end, freq=sensor.event_resolution, closed="left"
+        )
+        df = df.reindex(index)
+
+        # Convert to desired unit
+        values: pd.Series = convert_units(  # type: ignore
+            df["event_value"],
+            from_unit=sensor.unit,
+            to_unit=unit,
+        )
+
+        # Convert NaN to null
+        values = values.where(pd.notnull(values), None)
+
+        # Form the response
+        response = dict(
+            values=values.tolist(),
+            start=datetime_isoformat(start),
+            duration=duration_isoformat(duration),
+            unit=unit,
+        )
+
+        return response
+
+
+class PostSensorDataSchema(SensorDataDescriptionSchema):
     """
     This schema includes data, so it can be used for POST requests
     or GET responses.
@@ -112,14 +213,48 @@ class SensorDataSchema(SensorDataDescriptionSchema):
           (sets a resolution parameter which we can pass to the data collection function).
     """
 
+    # Optional field that can be used for extra validation
     type = fields.Str(
-        validate=OneOf(["PostSensorDataRequest", "GetSensorDataResponse"])
+        required=False,
+        validate=OneOf(
+            [
+                "PostSensorDataRequest",
+                "PostMeterDataRequest",
+                "PostPrognosisRequest",
+                "PostPriceDataRequest",
+                "PostWeatherDataRequest",
+            ]
+        ),
     )
     values = PolyField(
         deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
         serialization_schema_selector=select_schema_to_ensure_list_of_floats,
         many=False,
     )
+
+    @validates_schema
+    def check_user_may_create(self, data, **kwargs):
+        check_access(data["sensor"], "create-children")
+
+    @validates_schema
+    def check_schema_unit_against_type(self, data, **kwargs):
+        posted_unit = data["unit"]
+        _type = data.get("type", None)
+        if (
+            _type
+            in (
+                "PostMeterDataRequest",
+                "PostPrognosisRequest",
+            )
+            and not units_are_convertible(posted_unit, "MW")
+        ):
+            raise ValidationError(
+                f"The unit required for this message type should be convertible to MW, got incompatible unit: {posted_unit}"
+            )
+        elif _type == "PostPriceDataRequest" and not is_energy_price_unit(posted_unit):
+            raise ValidationError(
+                f"The unit required for this message type should be convertible to an energy price unit, got incompatible unit: {posted_unit}"
+            )
 
     @validates_schema
     def check_resolution_compatibility_of_values(self, data, **kwargs):
@@ -134,7 +269,25 @@ class SensorDataSchema(SensorDataDescriptionSchema):
             )
 
     @post_load()
-    def possibly_convert_units(self, data, **kwargs):
+    def post_load_sequence(self, data: dict, **kwargs) -> BeliefsDataFrame:
+        """If needed, upsample and convert units, then deserialize to a BeliefsDataFrame."""
+        data = self.possibly_upsample_values(data)
+        data = self.possibly_convert_units(data)
+        bdf = self.load_bdf(data)
+
+        # Post-load validation against message type
+        _type = data.get("type", None)
+        if _type == "PostMeterDataRequest":
+            if any(h > timedelta(0) for h in bdf.belief_horizons):
+                raise ValidationError("Meter data must lie in the past.")
+        elif _type == "PostPrognosisRequest":
+            if any(h < timedelta(0) for h in bdf.belief_horizons):
+                raise ValidationError("Prognoses must lie in the future.")
+
+        return bdf
+
+    @staticmethod
+    def possibly_convert_units(data):
         """
         Convert values if needed, to fit the sensor's unit.
         Marshmallow runs this after validation.
@@ -147,8 +300,8 @@ class SensorDataSchema(SensorDataDescriptionSchema):
         )
         return data
 
-    @post_load()
-    def possibly_upsample_values(self, data, **kwargs):
+    @staticmethod
+    def possibly_upsample_values(data):
         """
         Upsample the data if needed, to fit to the sensor's resolution.
         Marshmallow runs this after validation.
@@ -169,7 +322,8 @@ class SensorDataSchema(SensorDataDescriptionSchema):
             )
         return data
 
-    def load_bdf(sensor_data) -> BeliefsDataFrame:
+    @staticmethod
+    def load_bdf(sensor_data: dict) -> BeliefsDataFrame:
         """
         Turn the de-serialized and validated data into a BeliefsDataFrame.
         """

@@ -18,8 +18,8 @@ class SensorAPI(FlaskView):
     """
 
     route_base = "/sensor"
+    decorators = [auth_required()]
 
-    @auth_required()
     @route("/<id>/chart/")
     @use_kwargs(
         {
@@ -34,12 +34,14 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    def get_chart(self, id, **kwargs):
-        """GET from /sensor/<id>/chart"""
+    def get_chart(self, id: int, **kwargs):
+        """GET from /sensor/<id>/chart
+
+        .. :quickref: Chart; Download a chart with time series
+        """
         sensor = get_sensor_or_abort(id)
         return json.dumps(sensor.chart(**kwargs))
 
-    @auth_required()
     @route("/<id>/chart_data/")
     @use_kwargs(
         {
@@ -50,17 +52,21 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
-    def get_chart_data(self, id, **kwargs):
+    def get_chart_data(self, id: int, **kwargs):
         """GET from /sensor/<id>/chart_data
+
+        .. :quickref: Chart; Download time series for use in charts
 
         Data for use in charts (in case you have the chart specs already).
         """
         sensor = get_sensor_or_abort(id)
         return sensor.search_beliefs(as_json=True, **kwargs)
 
-    @auth_required()
     def get(self, id: int):
-        """GET from /sensor/<id>"""
+        """GET from /sensor/<id>
+
+        .. :quickref: Chart; Download sensor attributes for use in charts
+        """
         sensor = get_sensor_or_abort(id)
         attributes = ["name", "timezone", "timerange"]
         return {attr: getattr(sensor, attr) for attr in attributes}
