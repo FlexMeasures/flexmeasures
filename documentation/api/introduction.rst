@@ -136,27 +136,26 @@ Throughout this document, keys are written in singular if a single value is list
 
 The API, however, does not distinguish between singular and plural key notation.
 
-Connections and entity addresses
+Sensors and entity addresses
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A connection represents an end point of the grid, at which an electricity sensor (power meter) is located.
-Connections should be identified with an entity address following the EA1 addressing scheme prescribed by USEF[1],
-which is mostly taken from IETF RFC 3720 [2]:
+All sensors are identified with an entity address following the EA1 addressing scheme prescribed by USEF[1],
+which is mostly taken from IETF RFC 3720 [2].
 
 This is the complete structure of an EA1 address:
 
 .. code-block:: json
 
     {
-        "connection": "ea1.{date code}.{reversed domain name}:{locally unique string}"
+        "sensor": "ea1.{date code}.{reversed domain name}:{locally unique string}"
     }
 
-Here is a full example for a FlexMeasures connection address: 
+Here is a full example for an entity address of a sensor in FlexMeasures:
 
 .. code-block:: json
 
     {
-        "connection": "ea1.2021-02.io.flexmeasures.company:fm1.73"
+        "sensor": "ea1.2021-02.io.flexmeasures.company:fm1.73"
     }
 
 where FlexMeasures runs at `company.flexmeasures.io` (which the current domain owner started using in February 2021), and the locally unique string uses the `fm1` scheme (see below) to identify sensor ID 73.
@@ -211,7 +210,7 @@ It uses the fact that all FlexMeasures sensors have unique IDs.
 .. todo:: UDI events are not yet modelled in the fm1 scheme
 
 The ``fm0`` scheme is the original scheme.
-It identified different types of sensors (such as connections, weather sensors and markets) in different ways.
+It identified different types of sensors (such as grid connections, weather sensors and markets) in different ways.
 The ``fm0`` scheme has been deprecated for the most part and is no longer supported officially.
 Only UDI events still need to be sent using the fm0 scheme.
 
