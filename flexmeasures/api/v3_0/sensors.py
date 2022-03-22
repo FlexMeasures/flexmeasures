@@ -210,6 +210,7 @@ class SensorAPI(FlaskView):
     )
     @use_kwargs(
         {
+            "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
             "roundtrip_efficiency": QuantityField(
                 "%", validate=validate.Range(min=0, max=1)
             ),
@@ -308,6 +309,8 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 405: INVALID_METHOD
         """
+        # todo: if a soc-sensor entity address is passed, persist those values to the corresponding sensor
+        #       (also update the note in posting_data.rst about flexibility states not being persisted).
 
         # get value
         if "value" not in kwargs:
