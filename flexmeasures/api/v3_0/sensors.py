@@ -287,12 +287,15 @@ class SensorAPI(FlaskView):
         **Example response**
 
         This message indicates that the scheduling request has been processed without any error.
-        A scheduling job has been created, which may be picked up by a worker.
+        A scheduling job has been created with some Universally Unique Identifier (UUID),
+        which will be picked up by a worker.
+        The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
 
         .. sourcecode:: json
 
             {
                 "status": "PROCESSED",
+                "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                 "message": "Request has been processed."
             }
 
@@ -407,16 +410,16 @@ class SensorAPI(FlaskView):
 
         db.session.commit()
 
-        response = dict(job_id=job.id)
+        response = dict(schedule=job.id)
 
         d, s = request_processed()
         return dict(**response, **d), s
 
-    @route("/<id>/schedules/<job_id>", methods=["GET"])
+    @route("/<id>/schedules/<uuid>", methods=["GET"])
     @use_kwargs(
         {
             "sensor": SensorIdField(data_key="id"),
-            "job_id": fields.Str(data_key="job_id"),
+            "job_id": fields.Str(data_key="uuid"),
         },
         location="path",
     )

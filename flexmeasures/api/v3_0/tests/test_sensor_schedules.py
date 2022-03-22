@@ -48,7 +48,7 @@ def test_trigger_and_get_schedule(
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 200
-        job_id = trigger_schedule_response.json["job_id"]
+        job_id = trigger_schedule_response.json["schedule"]
 
     # test database state
     msg_dt = message["datetime"]
@@ -109,7 +109,7 @@ def test_trigger_and_get_schedule(
     del get_schedule_message["type"]
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_schedule_response = client.get(
-        url_for("SensorAPI:get_schedule", id=sensor.id, job_id=job_id),
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string=get_schedule_message,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
@@ -121,7 +121,7 @@ def test_trigger_and_get_schedule(
     # Test that a shorter planning horizon yields the same result for the shorter planning horizon
     get_schedule_message["duration"] = "PT6H"
     get_schedule_response_short = client.get(
-        url_for("SensorAPI:get_schedule", id=sensor.id, job_id=job_id),
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string=get_schedule_message,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
@@ -133,7 +133,7 @@ def test_trigger_and_get_schedule(
     # Test that a much longer planning horizon yields the same result (when there are only 2 days of prices)
     get_schedule_message["duration"] = "PT1000H"
     get_schedule_response_long = client.get(
-        url_for("SensorAPI:get_schedule", id=sensor.id, job_id=job_id),
+        url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
         query_string=get_schedule_message,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
