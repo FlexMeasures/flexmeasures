@@ -219,7 +219,6 @@ class SensorAPI(FlaskView):
             "start_of_schedule": AwareDateTimeField(
                 data_key="datetime", format="iso", required=False
             ),  # todo: in the CLI equivalent, the data key for this field is named 'from'
-            "event": fields.Str(),  # todo: deprecate UDI Event id
             "unit": fields.Str(
                 validate=OneOf(
                     [
@@ -251,14 +250,11 @@ class SensorAPI(FlaskView):
 
         **Example request A**
 
-        This message posts a state of charge (soc) of 12.1 kWh at 10.00am
-        as UDI event 203 of device 10 of owner 7.
+        This message triggers a schedule based on posting a state of charge (soc) of 12.1 kWh at 10.00am.
 
         .. code-block:: json
 
             {
-                "type": "PostUdiEventRequest",
-                "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc",
                 "value": 12.1,
                 "unit": "kWh",
                 "datetime": "2015-06-02T10:00:00+00:00"
@@ -266,17 +262,14 @@ class SensorAPI(FlaskView):
 
         **Example request B**
 
-        This "PostUdiEventRequest" message posts a state of charge (soc) of 12.1 kWh at 10.00am,
-        and a target state of charge of 25 kWh at 4.00pm,
-        as UDI event 204 of device 10 of owner 7.
+        This message triggers a schedule based on posting a state of charge (soc) of 12.1 kWh at 10.00am,
+        and a target state of charge of 25 kWh at 4.00pm.
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
 
         .. code-block:: json
 
             {
-                "type": "PostUdiEventRequest",
-                "event": "ea1.2021-01.io.flexmeasures.company:fm0.7:10:204:soc-with-targets",
                 "value": 12.1,
                 "unit": "kWh",
                 "datetime": "2015-06-02T10:00:00+00:00",
@@ -293,12 +286,12 @@ class SensorAPI(FlaskView):
 
         **Example response**
 
-        This "PostUdiEventResponse" message indicates that the UDI event has been processed without any error.
+        This message indicates that the scheduling request has been processed without any error.
+        A scheduling job has been created, which may be picked up by a worker.
 
         .. sourcecode:: json
 
             {
-                "type": "PostUdiEventResponse",
                 "status": "PROCESSED",
                 "message": "Request has been processed."
             }
@@ -307,8 +300,7 @@ class SensorAPI(FlaskView):
         :reqheader Content-Type: application/json
         :resheader Content-Type: application/json
         :status 200: PROCESSED
-        :status 400: INCOMPLETE_UDI_EVENT, INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_DATETIME, INVALID_DOMAIN,
-                     INVALID_UNIT, OUTDATED_UDI_EVENT, PTUS_INCOMPLETE, OUTDATED_UDI_EVENT or UNRECOGNIZED_UDI_EVENT
+        :status 400: INVALID_TIMEZONE, INVALID_DATETIME, INVALID_DOMAIN, INVALID_UNIT, PTUS_INCOMPLETE
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
         :status 405: INVALID_METHOD
@@ -394,7 +386,7 @@ class SensorAPI(FlaskView):
             # set target
             soc_targets.loc[target_datetime] = target_value
 
-        create_scheduling_job(
+        job = create_scheduling_job(
             sensor.id,
             start_of_schedule,
             end_of_schedule,
@@ -405,7 +397,6 @@ class SensorAPI(FlaskView):
             soc_min=soc_min,
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
-            udi_event_ea=kwargs.get("event"),
             enqueue=True,
         )
 
@@ -415,7 +406,11 @@ class SensorAPI(FlaskView):
         # sensor.generic_asset.set_attribute("soc_in_mwh", value)
 
         db.session.commit()
-        return request_processed()
+
+        response = dict(job_id=job.id)
+
+        d, s = request_processed()
+        return dict(**response, **d), s
 
     @route("/<id>/schedules/<job_id>", methods=["GET"])
     @use_kwargs(
@@ -424,12 +419,6 @@ class SensorAPI(FlaskView):
             "job_id": fields.Str(data_key="job_id"),
         },
         location="path",
-    )
-    @use_kwargs(
-        {
-            "event": fields.Str(required=True),  # todo: deprecate UDI Event id
-        },
-        location="query",
     )
     @optional_duration_accepted(timedelta(hours=6))
     def get_schedule(self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs):
@@ -441,27 +430,14 @@ class SensorAPI(FlaskView):
 
         - "duration" (6 hours by default; can be increased to plan further into the future)
 
-        **Example request**
-
-        This "GetDeviceMessageRequest" message requests targeted consumption for UDI event 203 of device 10 of owner 7.
-
-        .. code-block:: json
-
-            {
-                "type": "GetDeviceMessageRequest",
-                "event": "ea1.2021-01.io.flexmeasures.company:fm0.7:10:203:soc"
-            }
-
         **Example response**
 
-        This "GetDeviceMessageResponse" message indicates that the target for UDI event 203 is to consume at various power
+        This message contains a schedule indicating to consume at various power
         rates from 10am UTC onwards for a duration of 45 minutes.
 
         .. sourcecode:: json
 
             {
-                "type": "GetDeviceMessageResponse",
-                "event": "ea1.2021-01.io.flexmeasures.company:fm0.7:10:203:soc",
                 "values": [
                     2.15,
                     3,
@@ -476,7 +452,7 @@ class SensorAPI(FlaskView):
         :reqheader Content-Type: application/json
         :resheader Content-Type: application/json
         :status 200: PROCESSED
-        :status 400: INVALID_MESSAGE_TYPE, INVALID_TIMEZONE, INVALID_DOMAIN, INVALID_UNIT, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP, or UNRECOGNIZED_UDI_EVENT
+        :status 400: INVALID_TIMEZONE, INVALID_DOMAIN, INVALID_UNIT, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
         :status 405: INVALID_METHOD
@@ -488,25 +464,13 @@ class SensorAPI(FlaskView):
         )
 
         # Parse the entity address
-        event = kwargs["event"]
-        try:
-            ea = parse_entity_address(event, entity_type="event", fm_scheme="fm0")
-        except EntityAddressException as eae:
-            return invalid_domain(str(eae))
-        sensor_id = ea["asset_id"]
-        event_id = ea["event_id"]
-        event_type = ea["event_type"]
-
         connection = current_app.queues["scheduling"].connection
         try:  # First try the scheduling queue
-            job = Job.fetch(event, connection=connection)
+            job = Job.fetch(job_id, connection=connection)
         except NoSuchJobError:
-            print(event)
-            return unrecognized_event(event_id, event_type)
+            return unrecognized_event(job_id, "job")
         if job.is_finished:
-            message = (
-                "A scheduling job has been processed based on your UDI event, but "
-            )
+            message = "A scheduling job has been processed with your job ID, but "
         elif job.is_failed:  # Try to inform the user on why the job failed
             e = job.meta.get(
                 "exception",
@@ -568,13 +532,11 @@ class SensorAPI(FlaskView):
             start : start + duration - resolution
         ]
         response = dict(
-            event=event,
             values=consumption_schedule.tolist(),
+            start=isodate.datetime_isoformat(start),
+            duration=isodate.duration_isoformat(duration),
+            unit=sensor.unit,
         )
-
-        response["start"] = isodate.datetime_isoformat(start)
-        response["duration"] = isodate.duration_isoformat(duration)
-        response["unit"] = sensor.unit
 
         d, s = request_processed()
         return dict(**response, **d), s

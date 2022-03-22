@@ -365,7 +365,7 @@ def post_udi_event_response(unit: str, prior: datetime):
         soc_min=soc_min,
         soc_max=soc_max,
         roundtrip_efficiency=roundtrip_efficiency,
-        udi_event_ea=form.get("event"),
+        job_id=form.get("event"),
         enqueue=True,
     )
 

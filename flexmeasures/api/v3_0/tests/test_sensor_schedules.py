@@ -39,7 +39,7 @@ def test_trigger_and_get_schedule(
     del message["type"]
     with app.test_client() as client:
         sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
-        message["event"] = message["event"] % sensor.id
+        del message["event"]
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
@@ -48,6 +48,7 @@ def test_trigger_and_get_schedule(
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 200
+        job_id = trigger_schedule_response.json["job_id"]
 
     # test database state
     msg_dt = message["datetime"]
@@ -63,14 +64,12 @@ def test_trigger_and_get_schedule(
     job = app.queues["scheduling"].jobs[0]
     assert job.kwargs["sensor_id"] == sensor.id
     assert job.kwargs["start"] == parse_datetime(message["datetime"])
-    assert job.id == message["event"]
+    assert job.id == job_id
 
     # process the scheduling queue
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
     assert (
-        Job.fetch(
-            message["event"], connection=app.queues["scheduling"].connection
-        ).is_finished
+        Job.fetch(job_id, connection=app.queues["scheduling"].connection).is_finished
         is True
     )
 
@@ -108,12 +107,9 @@ def test_trigger_and_get_schedule(
     # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
     get_schedule_message = message_for_get_device_message(targets="targets" in message)
     del get_schedule_message["type"]
-    get_schedule_message["event"] = get_schedule_message["event"] % sensor.id
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_schedule_response = client.get(
-        url_for(
-            "SensorAPI:get_schedule", id=sensor.id, job_id=get_schedule_message["event"]
-        ),
+        url_for("SensorAPI:get_schedule", id=sensor.id, job_id=job_id),
         query_string=get_schedule_message,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
@@ -125,9 +121,7 @@ def test_trigger_and_get_schedule(
     # Test that a shorter planning horizon yields the same result for the shorter planning horizon
     get_schedule_message["duration"] = "PT6H"
     get_schedule_response_short = client.get(
-        url_for(
-            "SensorAPI:get_schedule", id=sensor.id, job_id=get_schedule_message["event"]
-        ),
+        url_for("SensorAPI:get_schedule", id=sensor.id, job_id=job_id),
         query_string=get_schedule_message,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
@@ -139,9 +133,7 @@ def test_trigger_and_get_schedule(
     # Test that a much longer planning horizon yields the same result (when there are only 2 days of prices)
     get_schedule_message["duration"] = "PT1000H"
     get_schedule_response_long = client.get(
-        url_for(
-            "SensorAPI:get_schedule", id=sensor.id, job_id=get_schedule_message["event"]
-        ),
+        url_for("SensorAPI:get_schedule", id=sensor.id, job_id=job_id),
         query_string=get_schedule_message,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
