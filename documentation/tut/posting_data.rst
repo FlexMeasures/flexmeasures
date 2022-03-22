@@ -267,29 +267,30 @@ Another example for the ``prior`` field is running simulations with FlexMeasures
 Posting flexibility states
 -------------------------------
 
-There is one more crucial kind of data that FlexMeasures needs to know about: What are the current states of flexible devices? For example, a battery has a state of charge.
+There is one more crucial kind of data that FlexMeasures needs to know about: What are the current states of flexible devices?
+For example, a battery has a certain state of charge, which is relevant to describe the flexibility that the battery currently has.
 
-The USEF framework defines a so-called "UDI-Event" (UDI stands for Universal Device Interface) to communicate settings for devices with Active Demand & Supply (ADS).
-Owners of such devices can post these states to `POST /api/v2_0/postUdiEvent <../api/v2_0.html#post--api-v2_0-postUdiEvent>`_. The URL might look like this:
+Owners of such devices can post these states along with triggering the creation of a new schedule, to `POST /api/v3_0/sensors/<id>/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
+The URL might look like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/postUdiEvent
+    https://company.flexmeasures.io/api/<version>/sensors/10/schedules/trigger
 
-This example posts a state of charge value for a battery device (asset 10 of owner 7) as UDI event 203.
+This example triggers a schedule for a power sensor (with ID 10) of a battery asset, asking to take into account the battery's current state of charge.
 From this, FlexMeasures derives the energy flexibility this battery has in the near future.
 
 .. code-block:: json
 
         {
-            "type": "PostUdiEventRequest",
-            "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc",
             "value": 12.1,
             "datetime": "2015-06-02T10:00:00+00:00",
             "unit": "kWh"
         }
 
-.. note:: At the moment, FlexMeasures only supports batteries and car chargers here (asset types "battery", "one-way_evse" or "two-way_evse").
-          This will be expanded to flexible assets as needed.
+.. note:: At the moment, FlexMeasures only supports flexibility models suitable for batteries and car chargers here (asset types "battery", "one-way_evse" or "two-way_evse").
+          This will be expanded to other flexible assets as needed.
 
-Actually, UDI Events are more powerful than this. In :ref:`how_queue_scheduling`, we'll cover how they can be used to request a future state, which is useful to steer the scheduling.
+.. note:: Flexibility states are not persisted. To record a history of the state of charge, set up a separate sensor and post data to it using `POST /sensors/data`.
+
+In :ref:`how_queue_scheduling`, we'll cover what happens when FlexMeasurers is triggered to create a new schedule, and how those schedules can be retrieved via the API, so they can be used to steer assets.

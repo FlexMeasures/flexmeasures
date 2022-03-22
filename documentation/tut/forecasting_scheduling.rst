@@ -79,17 +79,13 @@ How scheduling jobs are queued
 In FlexMeasures, a scheduling job is an order to plan optimised actions for flexible devices.
 It usually involves a linear program that combines a state of energy flexibility with forecasted data to draw up a consumption or production plan ahead of time.
 
-We already learned about the ``postUdiEvent`` endpoint in :ref:`posting_flex_states`, where we saw how to post a state of flexibility (in this case, the state of charge of a battery at a certain point in time).
+We already learned about the ``/schedules/trigger`` endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
 
-This endpoint can also be used to request a future state of charge (using ``soc-with-target`` in the entity address).
-
-As an example, consider the same UDI event as we saw earlier (in :ref:`posting_flex_states`), but with an additional target value.
+Here, we extend that example with an additional target value, representing a desired future state of charge.
 
 .. code-block:: json
 
     {
-        "type": "PostUdiEventRequest",
-        "event": "ea1.2021-01.io.flexmeasures.company:7:10:204:soc-with-targets",
         "value": 12.1,
         "datetime": "2015-06-02T10:00:00+00:00",
         "unit": "kWh",
@@ -104,7 +100,7 @@ As an example, consider the same UDI event as we saw earlier (in :ref:`posting_f
 Here we have described the state of charge at 10am to be ``12.1``. In addition, we requested that it should be ``25`` at 4pm.
 For instance, this could mean that a car should be charged at 90% at that time.
 
-Now here is a task that requires some scheduling. If FlexMeasures receives this UDI Event, a scheduling job will be made and put into the queue. In turn, the forecasting job creates a proposed schedule. We'll look a bit deeper into those further down in :ref:`getting_schedules`;
+Now here is a task that requires some scheduling. If FlexMeasures receives this message, a scheduling job will be made and put into the queue. In turn, the scheduling job creates a proposed schedule. We'll look a bit deeper into those further down in :ref:`getting_schedules`.
 
 .. note:: Even without a target state of charge, FlexMeasures will create a scheduling job. The flexible device can then be used with more freedom to reach the system objective (e.g. buy power when it is cheap, store it, and sell back when it's expensive).
 
@@ -146,31 +142,22 @@ This example requests a prognosis for 24 hours, with a rolling horizon of 6 hour
 Getting schedules (control signals)
 -----------------------
 
-We saw above how FlexMeasures can create optimised schedules with control signals for flexible devices. You can access the schedules via the `GET  /api/v2_0/getDeviceMessage <../api/v2_0.html#get--api-v2_0-getDeviceMessage>`_ endpoint. The URL then looks like this:
+We saw above how FlexMeasures can create optimised schedules with control signals for flexible devices (see :ref:`posting_flex_states`). You can access the schedules via the `GET  /api/v3_0/sensors/<id>/schedules/<uuid> <../api/v3_0.html#get--api-v3_0-sensors-(id)-schedules-(uuid)>`_ endpoint. The URL then looks like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/getDeviceMessage
+    https://company.flexmeasures.io/api/<version>/sensors/<id>/schedules/<uuid>
 
-Control signals can be queried by UDI event for up to 1 week after the UDI event was posted (ask your host if you need to keep them around longer).
-This example of a request body shows that we want to look up a control signal for UDI event 203 (which was posted previously, see :ref:`posting_flex_states`).
+Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `POST /schedules/trigger` response.
+Schedules can be queried by their UUID for up to 1 week after they were triggered (ask your host if you need to keep them around longer).
 
-.. code-block:: json
-
-        {
-            "type": "GetDeviceMessageRequest",
-            "event": "ea1.2021-01.io.flexmeasures.company:7:10:203:soc"
-        }
-
-The following example response indicates that FlexMeasures planned ahead 45 minutes for this battery.
+The following example response indicates that FlexMeasures planned ahead 45 minutes for the requested battery power sensor.
 The list of consecutive power values represents the target consumption of the battery (negative values for production).
 Each value represents the average power over a 15 minute time interval.
 
 .. sourcecode:: json
 
         {
-            "type": "GetDeviceMessageResponse",
-            "event": "ea1.2021-01.io.flexmeasures.company:7:10:203",
             "values": [
                 2.15,
                 3,
