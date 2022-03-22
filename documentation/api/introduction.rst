@@ -220,69 +220,6 @@ Only UDI events still need to be sent using the fm0 scheme.
     ea1.2021-01.io.flexmeasures:fm0.<owner_id>:<sensor_id>:<event_id>:<event_type>
 
 
-Groups
-^^^^^^
-
-Data such as measurements, load prognoses and tariffs are usually stated per group of connections.
-When the attributes "start", "duration" and "unit" are stated outside of "groups" they are inherited by each of the individual groups. For example:
-
-.. code-block:: json
-
-    {
-        "groups": [
-            {
-                "connections": [
-                    "ea1.2021-02.io.flexmeasures.company:fm1.71",
-                    "ea1.2021-02.io.flexmeasures.company:fm1.72"
-                ],
-                "values": [
-                    306.66,
-                    306.66,
-                    0,
-                    0,
-                    306.66,
-                    306.66
-                ]
-            },
-            {
-                "connection": "ea1.2021-02.io.flexmeasures.company:fm1.73"
-                "values": [
-                    306.66,
-                    0,
-                    0,
-                    0,
-                    306.66,
-                    306.66
-                ]
-            }
-        ],
-        "start": "2016-05-01T12:45:00Z",
-        "duration": "PT1H30M",
-        "unit": "MW"
-    }
-
-In case of a single group of connections, the message may be flattened to:
-
-.. code-block:: json
-
-    {
-        "connections": [
-            "ea1.2021-02.io.flexmeasures.company:fm1.71",
-            "ea1.2021-02.io.flexmeasures.company:fm1.72"
-        ],
-        "values": [
-            306.66,
-            306.66,
-            0,
-            0,
-            306.66,
-            306.66
-        ],
-        "start": "2016-05-01T12:45:00Z",
-        "duration": "PT1H30M",
-        "unit": "MW"
-    }
-
 Timeseries
 ^^^^^^^^^^
 
