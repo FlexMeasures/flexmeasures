@@ -17,6 +17,11 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.services.sensors import get_sensors
 
+# Instantiate schemas outside of endpoint logic to minimize response time
+get_sensor_schema = GetSensorDataSchema()
+post_sensor_schema = PostSensorDataSchema()
+sensors_schema = SensorSchema(many=True)
+
 
 class SensorAPI(FlaskView):
 
@@ -70,11 +75,11 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         """
         sensors = get_sensors(account_name=account.name)
-        return SensorSchema(many=True).dump(sensors), 200
+        return sensors_schema.dump(sensors), 200
 
     @route("/data", methods=["POST"])
     @use_args(
-        PostSensorDataSchema(),
+        post_sensor_schema,
         location="json",
     )
     def post_data(self, bdf: BeliefsDataFrame):
@@ -108,7 +113,7 @@ class SensorAPI(FlaskView):
 
     @route("/data", methods=["GET"])
     @use_args(
-        GetSensorDataSchema(),
+        get_sensor_schema,
         location="query",
     )
     def get_data(self, response: dict):

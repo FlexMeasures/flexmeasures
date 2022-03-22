@@ -24,6 +24,11 @@ API endpoints to manage users.
 Both POST (to create) and DELETE are not accessible via the API, but as CLI functions.
 """
 
+# Instantiate schemas outside of endpoint logic to minimize response time
+user_schema = UserSchema()
+users_schema = UserSchema(many=True)
+partial_user_schema = UserSchema(partial=True)
+
 
 class UserAPI(FlaskView):
     route_base = "/users"
@@ -80,7 +85,7 @@ class UserAPI(FlaskView):
         :status 403: INVALID_SENDER
         """
         users = get_users(account_name=account.name, only_active=not include_inactive)
-        return UserSchema(many=True).dump(users), 200
+        return users_schema.dump(users), 200
 
     @route("/<id>")
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
@@ -116,10 +121,10 @@ class UserAPI(FlaskView):
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
         """
-        return UserSchema().dump(user), 200
+        return user_schema.dump(user), 200
 
     @route("/<id>", methods=["PATCH"])
-    @use_kwargs(UserSchema(partial=True))
+    @use_kwargs(partial_user_schema)
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", arg_name="user")
     @as_json
@@ -191,7 +196,7 @@ class UserAPI(FlaskView):
                 dict(message="Duplicate user already exists", detail=ie._message()),
                 400,
             )
-        return UserSchema().dump(user), 200
+        return user_schema.dump(user), 200
 
     @route("/<id>/password-reset", methods=["PATCH"])
     @use_kwargs({"user": UserIdField(data_key="id")}, location="path")
