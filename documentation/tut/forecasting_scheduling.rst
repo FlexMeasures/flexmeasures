@@ -148,7 +148,7 @@ We saw above how FlexMeasures can create optimised schedules with control signal
 
     https://company.flexmeasures.io/api/<version>/sensors/<id>/schedules/<uuid>
 
-Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger` response.
+Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ response.
 Schedules can be queried by their UUID for up to 1 week after they were triggered (ask your host if you need to keep them around longer).
 Afterwards, the exact schedule can still be retrieved through the `[GET]  /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_, using precise filter values for ``start``, ``prior`` and ``source``.
 
