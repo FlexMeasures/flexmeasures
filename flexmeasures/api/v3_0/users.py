@@ -83,6 +83,7 @@ class UserAPI(FlaskView):
         :status 400: INVALID_REQUEST
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
         """
         users = get_users(account_name=account.name, only_active=not include_inactive)
         return users_schema.dump(users), 200
@@ -120,6 +121,7 @@ class UserAPI(FlaskView):
         :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
         """
         return user_schema.dump(user), 200
 
@@ -221,6 +223,7 @@ class UserAPI(FlaskView):
         :status 400: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
         """
         set_random_password(user)
         remove_cookie_and_token_access(user)

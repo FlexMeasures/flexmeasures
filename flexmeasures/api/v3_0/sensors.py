@@ -73,6 +73,7 @@ class SensorAPI(FlaskView):
         :status 400: INVALID_REQUEST
         :status 401: UNAUTHORIZED
         :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
         """
         sensors = get_sensors(account_name=account.name)
         return sensors_schema.dump(sensors), 200
@@ -107,6 +108,15 @@ class SensorAPI(FlaskView):
         The unit has to be convertible to the sensor's unit.
         The resolution of the data has to match the sensor's required resolution, but
         FlexMeasures will attempt to upsample lower resolutions.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
         """
         response, code = save_and_enqueue(bdf)
         return response, code
@@ -133,5 +143,14 @@ class SensorAPI(FlaskView):
             }
 
         The unit has to be convertible from the sensor's unit.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 403: INVALID_SENDER
+        :status 422: UNPROCESSABLE_ENTITY
         """
         return json.dumps(response)
