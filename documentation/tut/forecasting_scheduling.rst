@@ -112,15 +112,15 @@ Getting power forecasts (prognoses)
 
 Prognoses (the USEF term used for power forecasts) are used by FlexMeasures to determine the best control signals to valorise on balancing opportunities.
 
-You can access forecasts via the FlexMeasures API at `[GET] /getPrognosis <../api/v2_0.html#get--api-v2_0-getPrognosis>`_.
+You can access forecasts via the FlexMeasures API at `[GET] /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_.
 Getting them might be useful if you want to use prognoses in your own system, or to check their accuracy against meter data, i.e. the realised power measurements.
 The FlexMeasures UI also lists forecast accuracy, and visualises prognoses and meter data next to each other.
 
-A prognosis can be requested for a single asset at the ``getPrognosis`` endpoint, at a URL looking like this:
+A prognosis can be requested at a URL looking like this:
 
 .. code-block:: html
 
-    https://company.flexmeasures.io/api/<version>/getPrognosis
+    https://company.flexmeasures.io/api/<version>/sensors/data
 
 This example requests a prognosis for 24 hours, with a rolling horizon of 6 hours before realisation.
 
@@ -128,7 +128,7 @@ This example requests a prognosis for 24 hours, with a rolling horizon of 6 hour
 
     {
         "type": "GetPrognosisRequest",
-        "connection": "ea1.2021-01.io.flexmeasures.company:fm1.1",
+        "sensor": "ea1.2021-01.io.flexmeasures.company:fm1.1",
         "start": "2015-01-01T00:00:00+00:00",
         "duration": "PT24H",
         "horizon": "PT6H",
@@ -150,7 +150,7 @@ We saw above how FlexMeasures can create optimised schedules with control signal
 
 Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ response.
 Schedules can be queried by their UUID for up to 1 week after they were triggered (ask your host if you need to keep them around longer).
-Afterwards, the exact schedule can still be retrieved through the `[GET]  /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_, using precise filter values for ``start``, ``prior`` and ``source``.
+Afterwards, the exact schedule can still be retrieved through the `[GET] /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_, using precise filter values for ``start``, ``prior`` and ``source``.
 
 The following example response indicates that FlexMeasures planned ahead 45 minutes for the requested battery power sensor.
 The list of consecutive power values represents the target consumption of the battery (negative values for production).
