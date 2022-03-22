@@ -7,7 +7,7 @@ from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAss
 from flexmeasures.data.models.time_series import Sensor
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module")
 def setup_api_test_data(db, setup_roles_users, setup_generic_assets):
     """
     Set up data for API v3.0 tests.

@@ -2,7 +2,9 @@
 
 
 def message_for_get_device_message(
-    wrong_id: bool = False, unknown_prices: bool = False
+    wrong_id: bool = False,
+    unknown_prices: bool = False,
+    targets: bool = False,
 ) -> dict:
     message = {
         "type": "GetDeviceMessageRequest",
@@ -11,6 +13,8 @@ def message_for_get_device_message(
     }
     if wrong_id:
         message["event"] = "ea1.2018-06.localhost:%s:9999:soc"
+    if targets:
+        message["event"] = message["event"] + "-with-targets"
     if unknown_prices:
         message[
             "duration"
