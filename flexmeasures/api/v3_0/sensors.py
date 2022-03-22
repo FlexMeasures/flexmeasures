@@ -303,7 +303,7 @@ class SensorAPI(FlaskView):
         if "value" not in kwargs:
             return ptus_incomplete()
         try:
-            value = float(kwargs.get("value"))
+            value = float(kwargs.get("value"))  # type: ignore
         except ValueError:
             extra_info = "Request includes empty or ill-formatted value(s)."
             current_app.logger.warning(extra_info)
@@ -326,7 +326,7 @@ class SensorAPI(FlaskView):
             soc_max = soc_max / 1000.0
 
         # set soc targets
-        end_of_schedule = start_of_schedule + current_app.config.get(
+        end_of_schedule = start_of_schedule + current_app.config.get(  # type: ignore
             "FLEXMEASURES_PLANNING_HORIZON"
         )
         resolution = sensor.event_resolution
@@ -452,7 +452,7 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
 
-        planning_horizon = min(
+        planning_horizon = min(  # type: ignore
             duration, current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
         )
 
