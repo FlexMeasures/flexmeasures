@@ -150,6 +150,7 @@ We saw above how FlexMeasures can create optimised schedules with control signal
 
 Here, the schedule's Universally Unique Identifier (UUID) should be filled in that is returned in the `[POST] /schedules/trigger` response.
 Schedules can be queried by their UUID for up to 1 week after they were triggered (ask your host if you need to keep them around longer).
+Afterwards, the exact schedule can still be retrieved through the `[GET]  /sensors/data <../api/v3_0.html#get--api-v3_0-sensors-data>`_, using precise filter values for ``start``, ``prior`` and ``source``.
 
 The following example response indicates that FlexMeasures planned ahead 45 minutes for the requested battery power sensor.
 The list of consecutive power values represents the target consumption of the battery (negative values for production).

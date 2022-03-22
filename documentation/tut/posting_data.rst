@@ -291,6 +291,6 @@ From this, FlexMeasures derives the energy flexibility this battery has in the n
 .. note:: At the moment, FlexMeasures only supports flexibility models suitable for batteries and car chargers here (asset types "battery", "one-way_evse" or "two-way_evse").
           This will be expanded to other flexible assets as needed.
 
-.. note:: Flexibility states are not persisted. To record a history of the state of charge, set up a separate sensor and post data to it using `POST  /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
+.. note:: Flexibility states are not persisted. To record a history of the state of charge, set up a separate sensor and post data to it using `[POST]  /sensors/data <../api/v3_0.html#post--api-v3_0-sensors-data>`_ (see :ref:`posting_sensor_data`).
 
 In :ref:`how_queue_scheduling`, we'll cover what happens when FlexMeasurers is triggered to create a new schedule, and how those schedules can be retrieved via the API, so they can be used to steer assets.
