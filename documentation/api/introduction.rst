@@ -101,28 +101,13 @@ which gives a response like this if the credentials are correct:
 .. note:: Each access token has a limited lifetime, see :ref:`auth`.
 
 
-Roles
------
-
-We distinguish the following roles with different access rights to the individual services. Capitalised roles are defined by USEF:
-
-- public
-- user
-- admin
-- Aggregator
-- Supplier: an energy retailer (see :ref:`supplier`)
-- Prosumer: owner of a grid connection (see :ref:`prosumer`)
-- ESCo: an energy service company (see :ref:`esco`)
-- MDC: a meter data company (see :ref:`mdc`)
-- DSO: a distribution system operator (see :ref:`dso`)
-
 .. _sources:
 
 Sources
 -------
 
 Requests for data may limit the data selection by specifying a source, for example, a specific user.
-USEF roles are also valid source selectors.
+Account roles are also valid source selectors.
 For example, to obtain data originating from either a meter data company or user 42, include the following:
 
 .. code-block:: json
@@ -130,6 +115,8 @@ For example, to obtain data originating from either a meter data company or user
     {
         "sources": ["MDC", "42"],
     }
+
+Here, "MDC" is the name of the account role for meter data companies.
 
 Notation
 --------
