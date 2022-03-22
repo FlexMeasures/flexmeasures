@@ -6,7 +6,6 @@ from isodate import parse_datetime
 import pandas as pd
 from rq.job import Job
 
-from flexmeasures.api.common.responses import unrecognized_event
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v1_3.tests.utils import (
     message_for_get_device_message,
@@ -53,7 +52,7 @@ def test_trigger_and_get_schedule(
         job_id = trigger_schedule_response.json["schedule"]
 
     # test database state
-    msg_dt = message["datetime"]
+    # msg_dt = message["datetime"]
     sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
     # assert sensor.generic_asset.get_attribute("soc_datetime") == msg_dt
     # assert sensor.generic_asset.get_attribute("soc_in_mwh") == message["value"] / 1000

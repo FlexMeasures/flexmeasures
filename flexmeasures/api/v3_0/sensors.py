@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import json
 from typing import Optional
 
-from flask import request, current_app
+from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
@@ -16,25 +16,16 @@ from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
 
 from flexmeasures.api.common.responses import (
-    invalid_domain,
     invalid_datetime,
     invalid_timezone,
     request_processed,
-    incomplete_event,
     unrecognized_event,
-    unrecognized_event_type,
     unknown_schedule,
-    unrecognized_connection_group,
-    outdated_event_id,
     ptus_incomplete,
 )
 from flexmeasures.api.common.utils.validators import (
-    type_accepted,
-    assets_required,
     optional_duration_accepted,
     optional_prior_accepted,
-    units_accepted,
-    parse_isodate_str,
 )
 from flexmeasures.api.common.schemas.sensor_data import (
     GetSensorDataSchema,
@@ -53,10 +44,6 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import create_scheduling_job
-from flexmeasures.utils.entity_address_utils import (
-    parse_entity_address,
-    EntityAddressException,
-)
 from flexmeasures.utils.unit_utils import ur
 
 
@@ -233,7 +220,7 @@ class SensorAPI(FlaskView):
         location="json",
     )
     @optional_prior_accepted()
-    def trigger_schedule(
+    def trigger_schedule(  # noqa: C901
         self,
         sensor: Sensor,
         start_of_schedule: datetime,
