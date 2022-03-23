@@ -41,7 +41,7 @@ def test_edit_an_asset(client, setup_api_fresh_test_data):
     with AccountContext("Test Supplier Account") as supplier:
         existing_asset = supplier.generic_assets[0]
 
-    post_data = dict(latitude=10, id=999)  # id will be ignored
+    post_data = dict(latitude=10)
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     edit_asset_response = client.patch(
         url_for("AssetAPI:patch", id=existing_asset.id),

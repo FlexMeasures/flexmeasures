@@ -14,7 +14,7 @@ from flexmeasures.api.common.schemas.users import AccountIdField
 
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
-partial_asset_schema = AssetSchema(partial=True)
+partial_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 
 
 class AssetAPI(FlaskView):
@@ -161,7 +161,9 @@ class AssetAPI(FlaskView):
         This endpoint sets data for an existing asset.
         Any subset of asset fields can be sent.
 
-        Several fields are not allowed to be updated, e.g. id. They are ignored.
+        The following fields are not allowed to be updated:
+        - id
+        - account_id
 
         **Example request**
 
@@ -197,8 +199,7 @@ class AssetAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        ignored_fields = ["id", "account_id"]
-        for k, v in [(k, v) for k, v in asset_data.items() if k not in ignored_fields]:
+        for k, v in asset_data.items():
             setattr(db_asset, k, v)
         db.session.add(db_asset)
         db.session.commit()
