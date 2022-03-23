@@ -14,6 +14,7 @@ from flexmeasures.api.common.schemas.users import AccountIdField
 
 asset_schema = AssetSchema()
 assets_schema = AssetSchema(many=True)
+partial_asset_schema = AssetSchema(partial=True)
 
 
 class AssetAPI(FlaskView):
@@ -75,7 +76,7 @@ class AssetAPI(FlaskView):
     @permission_required_for_context(
         "create-children", arg_loader=AccountIdField.load_current
     )
-    @use_args(AssetSchema())
+    @use_args(asset_schema)
     def post(self, asset_data: dict):
         """Create new asset.
 
@@ -148,7 +149,7 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
-    @use_args(AssetSchema(partial=True))
+    @use_args(partial_asset_schema)
     @use_kwargs({"db_asset": AssetIdField(data_key="id")}, location="path")
     @permission_required_for_context("update", arg_name="db_asset")
     @as_json
