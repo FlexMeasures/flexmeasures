@@ -23,7 +23,7 @@ def setup_api_fresh_test_data(
     """
     Set up fresh data for API dev tests.
     """
-    print("Setting up fresh data for API dev tests on %s" % fresh_db.engine)
+    print("Setting up fresh data for API 3.0 tests on %s" % fresh_db.engine)
     for sensor in Sensor.query.all():
         fresh_db.delete(sensor)
     add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test Supplier User"])

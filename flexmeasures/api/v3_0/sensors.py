@@ -29,7 +29,7 @@ class SensorAPI(FlaskView):
     trailing_slash = False
     decorators = [auth_required()]
 
-    @route("/", methods=["GET"])
+    @route("", methods=["GET"])
     @use_kwargs(
         {
             "account": AccountIdField(

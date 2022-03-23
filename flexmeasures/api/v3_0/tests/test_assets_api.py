@@ -4,7 +4,7 @@ import pytest
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
-from flexmeasures.api.dev.tests.utils import get_asset_post_data
+from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
 
 
 @pytest.mark.parametrize("use_auth", [False, True])

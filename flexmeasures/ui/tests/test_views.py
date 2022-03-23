@@ -31,7 +31,7 @@ def test_portfolio_responds(client, setup_assets, as_prosumer_user1):
 
 def test_assets_responds(client, requests_mock, as_prosumer_user1):
     requests_mock.get(
-        "http://localhost//api/dev/generic_assets/?account_id=1",
+        "http://localhost//api/v3_0/assets?account_id=1",
         status_code=200,
         json={},
     )
