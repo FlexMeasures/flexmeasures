@@ -24,8 +24,9 @@ class AssetAPI(FlaskView):
     """
 
     route_base = "/assets"
+    trailing_slash = False
 
-    @route("/", methods=["GET"])
+    @route("", methods=["GET"])
     @use_kwargs(
         {
             "account": AccountIdField(
@@ -72,7 +73,7 @@ class AssetAPI(FlaskView):
         """
         return assets_schema.dump(account.generic_assets), 200
 
-    @route("/", methods=["POST"])
+    @route("", methods=["POST"])
     @permission_required_for_context(
         "create-children", arg_loader=AccountIdField.load_current
     )
