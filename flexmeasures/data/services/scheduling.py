@@ -38,7 +38,7 @@ def create_scheduling_job(
     soc_min: Optional[float] = None,
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
-    udi_event_ea: Optional[str] = None,
+    job_id: Optional[str] = None,
     enqueue: bool = True,
 ) -> Job:
     """Supporting quick retrieval of the scheduling job, the job id is the unique entity address of the UDI event.
@@ -67,7 +67,7 @@ def create_scheduling_job(
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
         ),
-        id=udi_event_ea,
+        id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(
             current_app.config.get(

@@ -6,7 +6,7 @@ from flexmeasures.api.tests.utils import get_auth_token, UserContext
 
 
 @pytest.mark.parametrize("use_auth", [False, True])
-def test_get_users_bad_auth(client, use_auth):
+def test_get_users_bad_auth(client, setup_api_test_data, use_auth):
     """
     Attempt to get users with insufficient or missing auth.
     """

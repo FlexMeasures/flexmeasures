@@ -10,18 +10,30 @@ v3.0-0 | 2022-03-22
 """""""""""""""""""
 
 - Added REST endpoint for listing sensors: `/sensors` (GET).
-- Added REST endpoint for managing sensor data: `/sensors/data` (GET, POST).
-- Added REST endpoint for managing assets: `/assets` (GET, POST, PATCH, DELETE).
+- Added REST endpoints for managing sensor data: `/sensors/data` (GET, POST).
+- Added REST endpoints for managing assets: `/assets` (GET, POST) and `/assets/<id>` (GET, PATCH, DELETE).
+- Added REST endpoints for triggering and getting schedules: `/sensors/<id>/schedules/<uuid>` (GET) and `/sensors/<id>/schedules/trigger` (POST).
 - [**Breaking change**] Switched to plural resource names for REST endpoints:  `/users/<id>` (GET, PATCH) and `/users/<id>/password-reset` (PATCH).
-- [**Breaking change**] Deprecated the following endpoints:
+- [**Breaking change**] Deprecated the following endpoints (NB replacement endpoints mentioned below no longer require the message "type" field):
 
     - *getConnection* -> use `/sensors` (GET) instead
+    - *getDeviceMessage* -> use `/sensors/<id>/schedules/<uuid>` (GET) instead, where <id> is the sensor id from the "event" field and <uuid> is the value of the "schedule" field returned by `/sensors/<id>/schedules/trigger` (POST)
     - *getMeterData* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
     - *getPrognosis* -> use `/sensors/data` (GET) instead, replacing the "connection" field with "sensor"
-    - *getService*
+    - *getService* -> consult the public API documentation instead, at https://flexmeasures.readthedocs.io
     - *postMeterData* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
     - *postPriceData* -> use `/sensors/data` (POST) instead, replacing the "market" field with "sensor"
     - *postPrognosis* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
+    - *postUdiEvent* -> use `/sensors/<id>/schedules/trigger` (POST) instead, where <id> is the sensor id from the "event" field, and rename the following fields:
+
+        - "datetime" -> "start"
+        - "value -> "soc-at-start"
+        - "unit" -> "soc-unit"
+        - "targets" -> "soc-targets"
+        - "soc_min" -> soc-min"
+        - "soc_max" -> soc-max"
+        - "roundtrip_efficiency" -> "roundtrip-efficiency"
+
     - *postWeatherData* -> use `/sensors/data` (POST) instead
     - *restoreData*
 

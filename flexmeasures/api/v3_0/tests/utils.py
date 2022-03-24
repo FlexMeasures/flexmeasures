@@ -32,3 +32,23 @@ def get_asset_post_data(account_id: int = 1, asset_type_id: int = 1) -> dict:
         "account_id": account_id,
     }
     return post_data
+
+
+def message_for_post_udi_event(
+    unknown_prices: bool = False,
+    targets: bool = False,
+) -> dict:
+    message = {
+        "start": "2015-01-01T00:00:00+00:00",
+        "soc-at-start": 12.1,
+        "soc-unit": "kWh",
+    }
+    if targets:
+        message["soc-targets"] = [
+            {"value": 25, "datetime": "2015-01-02T23:00:00+00:00"}
+        ]
+    if unknown_prices:
+        message[
+            "start"
+        ] = "2040-01-01T00:00:00+00:00"  # We have no beliefs in our test database about 2040 prices
+    return message
