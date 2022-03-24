@@ -278,7 +278,8 @@ The URL might look like this:
     https://company.flexmeasures.io/api/<version>/sensors/10/schedules/trigger
 
 This example triggers a schedule for a power sensor (with ID 10) of a battery asset, asking to take into account the battery's current state of charge.
-From this, FlexMeasures derives the energy flexibility this battery has in the near future.
+From this, FlexMeasures derives the energy flexibility this battery has in the next 48 hours and computes an optimal charging schedule.
+The endpoint allows to limit the flexibility range and also to set target values.
 
 .. code-block:: json
 
