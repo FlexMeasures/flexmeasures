@@ -456,7 +456,7 @@ class SensorAPI(FlaskView):
             duration, current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
         )
 
-        # Parse the entity address
+        # Look up the scheduling job
         connection = current_app.queues["scheduling"].connection
         try:  # First try the scheduling queue
             job = Job.fetch(job_id, connection=connection)
