@@ -216,6 +216,7 @@ class SensorAPI(FlaskView):
                 ),
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
             "targets": fields.List(fields.Nested(TargetSchema)),
+            # todo: add a duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
         },
         location="json",
     )
@@ -336,6 +337,7 @@ class SensorAPI(FlaskView):
                 start_of_schedule, end_of_schedule, freq=resolution, closed="right"
             ),  # note that target values are indexed by their due date (i.e. closed="right")
         )
+        # todo: move deserialization of targets into TargetSchema
         for target in kwargs.get("targets", []):
 
             # get target value
@@ -413,7 +415,9 @@ class SensorAPI(FlaskView):
         },
         location="path",
     )
-    @optional_duration_accepted(timedelta(hours=6))
+    @optional_duration_accepted(
+        timedelta(hours=6)
+    )  # todo: make this a Marshmallow field
     def get_schedule(self, sensor: Sensor, job_id: str, duration: timedelta, **kwargs):
         """Get a schedule from FlexMeasures.
 
