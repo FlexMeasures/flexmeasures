@@ -53,13 +53,6 @@ def test_trigger_and_get_schedule(
         assert trigger_schedule_response.status_code == 200
         job_id = trigger_schedule_response.json["schedule"]
 
-    # test database state
-    # msg_dt = message["datetime"]
-    sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
-    # assert sensor.generic_asset.get_attribute("soc_datetime") == msg_dt
-    # assert sensor.generic_asset.get_attribute("soc_in_mwh") == message["value"] / 1000
-    # assert sensor.generic_asset.get_attribute("soc_udi_event_id") == 204
-
     # look for scheduling jobs in queue
     assert (
         len(app.queues["scheduling"]) == 1
@@ -144,45 +137,3 @@ def test_trigger_and_get_schedule(
         get_schedule_response_long.json["values"][0:192]
         == get_schedule_response.json["values"]
     )
-    #
-    # # sending again results in an error, unless we increase the event ID
-    # with app.test_client() as client:
-    #     next_msg_dt = parse_datetime(msg_dt) + timedelta(minutes=5)
-    #     message["datetime"] = next_msg_dt.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
-    #     trigger_schedule_response = client.post(
-    #         url_for("SensorAPI:trigger_schedule", id=sensor.id),
-    #         json=message,
-    #         headers={"Authorization": auth_token},
-    #     )
-    #     print("Server responded with:\n%s" % trigger_schedule_response.json)
-    #     assert trigger_schedule_response.status_code == 400
-    #     # assert trigger_schedule_response.json["type"] == "PostUdiEventResponse"
-    #     assert trigger_schedule_response.json["status"] == "OUTDATED_UDI_EVENT"
-    #
-    #     message["event"] = message["event"].replace("204", "205")
-    #     trigger_schedule_response = client.post(
-    #         url_for("SensorAPI:trigger_schedule", id=sensor.id),
-    #         json=message,
-    #         headers={"Authorization": auth_token},
-    #     )
-    #     print("Server responded with:\n%s" % trigger_schedule_response.json)
-    #     assert trigger_schedule_response.status_code == 200
-    #     # assert trigger_schedule_response.json["type"] == "PostUdiEventResponse"
-    #
-    # # test database state
-    # # sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
-    # # assert parse_datetime(
-    # #     sensor.generic_asset.get_attribute("soc_datetime")
-    # # ) == parse_datetime(message["datetime"])
-    # # assert sensor.generic_asset.get_attribute("soc_in_mwh") == message["value"] / 1000
-    # # assert sensor.generic_asset.get_attribute("soc_udi_event_id") == 205
-    #
-    # # process the scheduling queue
-    # work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
-    # # the job still fails due to missing prices for the last time slot, but we did test that the api and worker now processed the UDI event and attempted to create a schedule
-    # assert (
-    #     Job.fetch(
-    #         message["event"], connection=app.queues["scheduling"].connection
-    #     ).is_failed
-    #     is True
-    # )
