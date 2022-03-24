@@ -34,7 +34,6 @@ from flexmeasures.api.common.schemas.sensor_data import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
@@ -400,13 +399,6 @@ class SensorAPI(FlaskView):
             roundtrip_efficiency=roundtrip_efficiency,
             enqueue=True,
         )
-
-        # Store new soc info as GenericAsset attributes
-        # sensor.generic_asset.set_attribute("soc_datetime", start_of_schedule.isoformat())
-        # sensor.generic_asset.set_attribute("soc_udi_event_id", event_id)
-        # sensor.generic_asset.set_attribute("soc_in_mwh", value)
-
-        db.session.commit()
 
         response = dict(schedule=job.id)
 
