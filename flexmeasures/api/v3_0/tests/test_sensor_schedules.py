@@ -55,7 +55,7 @@ def test_trigger_and_get_schedule(
     )  # only 1 schedule should be made for 1 asset
     job = app.queues["scheduling"].jobs[0]
     assert job.kwargs["sensor_id"] == sensor.id
-    assert job.kwargs["start"] == parse_datetime(message["datetime"])
+    assert job.kwargs["start"] == parse_datetime(message["start"])
     assert job.id == job_id
 
     # process the scheduling queue
@@ -89,15 +89,15 @@ def test_trigger_and_get_schedule(
 
     # check targets, if applicable
     if "targets" in message:
-        start_soc = message["value"] / 1000  # in MWh
+        start_soc = message["soc-at-start"] / 1000  # in MWh
         soc_schedule = integrate_time_series(consumption_schedule, start_soc, 6)
         print(consumption_schedule)
         print(soc_schedule)
         for target in message["targets"]:
-            assert soc_schedule[target["datetime"]] == target["value"] / 1000
+            assert soc_schedule[target["datetime"]] == target["soc-target"] / 1000
 
     # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
-    get_schedule_message = message_for_get_device_message(targets="targets" in message)
+    get_schedule_message = message_for_get_device_message(targets="soc-targets" in message)
     del get_schedule_message["type"]
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_schedule_response = client.get(

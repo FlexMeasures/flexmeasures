@@ -39,12 +39,12 @@ def message_for_post_udi_event(
     targets: bool = False,
 ) -> dict:
     message = {
-        "datetime": "2015-01-01T00:00:00+00:00",
-        "value": 12.1,
-        "unit": "kWh",
+        "start": "2015-01-01T00:00:00+00:00",
+        "soc-at-start": 12.1,
+        "soc-unit": "kWh",
     }
     if targets:
-        message["targets"] = [{"value": 25, "datetime": "2015-01-02T23:00:00+00:00"}]
+        message["targets"] = [{"soc-target": 25, "datetime": "2015-01-02T23:00:00+00:00"}]
     if unknown_prices:
         message[
             "start"

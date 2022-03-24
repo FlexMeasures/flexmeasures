@@ -26,6 +26,10 @@ v3.0-0 | 2022-03-22
     - *postPrognosis* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
     - *postUdiEvent* -> use `/sensors/<id>/schedules/trigger` (POST) instead, where <id> is the sensor id from the "event" field, and rename the following fields:
 
+        - "datetime" -> "start"
+        - "value -> "soc-at-start"
+        - "unit" -> "soc-unit"
+        - "value" in list of targets -> "soc-target"
         - "soc_min" -> soc-min"
         - "soc_max" -> soc-max"
         - "roundtrip_efficiency" -> "roundtrip-efficiency"

@@ -47,7 +47,7 @@ from flexmeasures.utils.unit_utils import ur
 
 
 class TargetSchema(Schema):
-    value = fields.Float()
+    soc_target = fields.Float(data_key="soc-target")
     datetime = AwareDateTimeField()
 
 
@@ -202,13 +202,14 @@ class SensorAPI(FlaskView):
                 validate=validate.Range(min=0, max=1),
                 data_key="roundtrip-efficiency",
             ),
-            "value": fields.Float(),  # todo: in the CLI equivalent, this field is named 'soc-at-start'
+            "value": fields.Float(data_key="soc-at-start"),
             "soc_min": fields.Float(data_key="soc-min"),
             "soc_max": fields.Float(data_key="soc-max"),
             "start_of_schedule": AwareDateTimeField(
-                data_key="datetime", format="iso", required=False
+                data_key="start", format="iso", required=False
             ),  # todo: in the CLI equivalent, the data key for this field is named 'from'
             "unit": fields.Str(
+                data_key="soc-unit",
                 validate=OneOf(
                     [
                         "kWh",
@@ -240,32 +241,32 @@ class SensorAPI(FlaskView):
 
         **Example request A**
 
-        This message triggers a schedule based on posting a state of charge (soc) of 12.1 kWh at 10.00am.
+        This message triggers a schedule starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
 
         .. code-block:: json
 
             {
-                "value": 12.1,
-                "unit": "kWh",
-                "datetime": "2015-06-02T10:00:00+00:00"
+                "start": "2015-06-02T10:00:00+00:00",
+                "soc-at-start": 12.1,
+                "soc-unit": "kWh"
             }
 
         **Example request B**
 
-        This message triggers a schedule based on posting a state of charge (soc) of 12.1 kWh at 10.00am,
-        and a target state of charge of 25 kWh at 4.00pm.
+        This message triggers a schedule starting at 10.00am, at which the state of charge (soc) is 12.1 kWh,
+        with a target state of charge of 25 kWh at 4.00pm.
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
 
         .. code-block:: json
 
             {
-                "value": 12.1,
-                "unit": "kWh",
-                "datetime": "2015-06-02T10:00:00+00:00",
+                "start": "2015-06-02T10:00:00+00:00",
+                "soc-at-start": 12.1,
+                "soc-unit": "kWh",
                 "targets": [
                     {
-                        "value": 25,
+                        "soc-target": 25,
                         "datetime": "2015-06-02T16:00:00+00:00"
                     }
                 ],
@@ -342,12 +343,12 @@ class SensorAPI(FlaskView):
         for target in kwargs.get("targets", []):
 
             # get target value
-            if "value" not in target:
-                return ptus_incomplete("Target missing value parameter.")
+            if "soc_target" not in target:
+                return ptus_incomplete("Target missing 'soc-target' parameter.")
             try:
-                target_value = float(target["value"])
+                target_value = float(target["soc_target"])
             except ValueError:
-                extra_info = "Request includes empty or ill-formatted target value(s)."
+                extra_info = "Request includes empty or ill-formatted soc target(s)."
                 current_app.logger.warning(extra_info)
                 return ptus_incomplete(extra_info)
             if unit == "kWh":
