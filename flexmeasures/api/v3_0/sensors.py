@@ -463,7 +463,7 @@ class SensorAPI(FlaskView):
         except NoSuchJobError:
             return unrecognized_event(job_id, "job")
         if job.is_finished:
-            message = "A scheduling job has been processed with your job ID, but "
+            error_message = "A scheduling job has been processed with your job ID, but "
         elif job.is_failed:  # Try to inform the user on why the job failed
             e = job.meta.get(
                 "exception",
@@ -500,7 +500,7 @@ class SensorAPI(FlaskView):
         ).one_or_none()
         if scheduler_source is None:
             return unknown_schedule(
-                message + f'no data is known from "{schedule_data_source_name}".'
+                error_message + f'no data is known from "{schedule_data_source_name}".'
             )
 
         power_values = sensor.search_beliefs(
@@ -514,7 +514,7 @@ class SensorAPI(FlaskView):
         consumption_schedule = -simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             return unknown_schedule(
-                message + "the schedule was not found in the database."
+                error_message + "the schedule was not found in the database."
             )
 
         # Update the planning window
