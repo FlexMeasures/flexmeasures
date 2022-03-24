@@ -140,7 +140,9 @@ class UserAPI(FlaskView):
         Only the user themselves or admins are allowed to update its data,
         while a non-admin can only edit a few of their own fields.
 
-        Several fields are not allowed to be updated, e.g. id and account_id.
+        The following fields are not allowed to be updated:
+         - id
+         - account_id
 
         **Example request**
 

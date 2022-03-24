@@ -17,7 +17,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     GenericAsset schema, with validations.
     """
 
-    id = ma.auto_field()
+    id = ma.auto_field(dump_only=True)
     name = fields.Str(required=True)
     account_id = ma.auto_field()
     latitude = ma.auto_field()
