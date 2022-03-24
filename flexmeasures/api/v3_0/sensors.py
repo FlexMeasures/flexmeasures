@@ -47,7 +47,7 @@ from flexmeasures.utils.unit_utils import ur
 
 
 class TargetSchema(Schema):
-    soc_target = fields.Float(data_key="soc-target")
+    value = fields.Float()
     datetime = AwareDateTimeField()
 
 
@@ -217,7 +217,7 @@ class SensorAPI(FlaskView):
                     ]
                 ),
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
-            "targets": fields.List(fields.Nested(TargetSchema)),
+            "targets": fields.List(fields.Nested(TargetSchema), data_key="soc-targets"),
             # todo: add a duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
         },
         location="json",
@@ -264,9 +264,9 @@ class SensorAPI(FlaskView):
                 "start": "2015-06-02T10:00:00+00:00",
                 "soc-at-start": 12.1,
                 "soc-unit": "kWh",
-                "targets": [
+                "soc-targets": [
                     {
-                        "soc-target": 25,
+                        "value": 25,
                         "datetime": "2015-06-02T16:00:00+00:00"
                     }
                 ],
@@ -343,10 +343,10 @@ class SensorAPI(FlaskView):
         for target in kwargs.get("targets", []):
 
             # get target value
-            if "soc_target" not in target:
-                return ptus_incomplete("Target missing 'soc-target' parameter.")
+            if "value" not in target:
+                return ptus_incomplete("Target missing 'value' parameter.")
             try:
-                target_value = float(target["soc_target"])
+                target_value = float(target["value"])
             except ValueError:
                 extra_info = "Request includes empty or ill-formatted soc target(s)."
                 current_app.logger.warning(extra_info)

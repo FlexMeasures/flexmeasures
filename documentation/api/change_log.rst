@@ -29,7 +29,7 @@ v3.0-0 | 2022-03-22
         - "datetime" -> "start"
         - "value -> "soc-at-start"
         - "unit" -> "soc-unit"
-        - "value" in list of targets -> "soc-target"
+        - "targets" -> "soc-targets"
         - "soc_min" -> soc-min"
         - "soc_max" -> soc-max"
         - "roundtrip_efficiency" -> "roundtrip-efficiency"
