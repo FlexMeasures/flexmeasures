@@ -14,7 +14,7 @@ v3.0-0 | 2022-03-22
 - Added REST endpoints for managing assets: `/assets` (GET, POST) and `/assets/<id> (GET, PATCH, DELETE).
 - Added REST endpoints for triggering and getting schedules: `/sensors/<id>/schedules/<uuid>` (GET) and `/sensors/<id>/schedules/trigger` (POST).
 - [**Breaking change**] Switched to plural resource names for REST endpoints:  `/users/<id>` (GET, PATCH) and `/users/<id>/password-reset` (PATCH).
-- [**Breaking change**] Deprecated the following endpoints:
+- [**Breaking change**] Deprecated the following endpoints (NB replacement endpoints mentioned below no longer require the message "type" field):
 
     - *getConnection* -> use `/sensors` (GET) instead
     - *getDeviceMessage* -> use `/sensors/<id>/schedules/<uuid>` (GET) instead, where <id> is the sensor id from the "event" field and <uuid> is the value of the "schedule" field returned by `/sensors/<id>/schedules/trigger` (POST)
