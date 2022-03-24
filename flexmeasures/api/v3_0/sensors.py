@@ -207,7 +207,7 @@ class SensorAPI(FlaskView):
             "soc_max": fields.Float(data_key="soc-max"),
             "start_of_schedule": AwareDateTimeField(
                 data_key="start", format="iso", required=False
-            ),  # todo: in the CLI equivalent, the data key for this field is named 'from'
+            ),
             "unit": fields.Str(
                 data_key="soc-unit",
                 validate=OneOf(
