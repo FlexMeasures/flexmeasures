@@ -35,7 +35,9 @@ def test_trigger_and_get_schedule(
     asset_name,
 ):
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
-    message["roundtrip_efficiency"] = 0.98
+    message["roundtrip-efficiency"] = 0.98
+    message["soc-min"] = 0
+    message["soc-max"] = 25
     del message["type"]
     with app.test_client() as client:
         sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()

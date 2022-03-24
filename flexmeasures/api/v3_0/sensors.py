@@ -199,11 +199,17 @@ class SensorAPI(FlaskView):
         {
             "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
             "roundtrip_efficiency": QuantityField(
-                "%", validate=validate.Range(min=0, max=1)
-            ),
+                "%",
+                validate=validate.Range(min=0, max=1),
+                data_key="roundtrip-efficiency",
+            ),  # todo: update changelog update instructions (in postUdiEvent, this field was named 'roundtrip_efficiency')
             "value": fields.Float(),  # todo: in the CLI equivalent, this field is named 'soc-at-start'
-            "soc-min": fields.Float(),  # todo: in postUdiEvent, this field was named 'soc_min'
-            "soc-max": fields.Float(),  # todo: in postUdiEvent, this field was named 'soc_max'
+            "soc_min": fields.Float(
+                data_key="soc-min"
+            ),  # todo: update changelog update instructions (in postUdiEvent, this field was named 'soc_min')
+            "soc_max": fields.Float(
+                data_key="soc-max"
+            ),  # todo: update changelog update instructions (in postUdiEvent, this field was named 'soc_max')
             "start_of_schedule": AwareDateTimeField(
                 data_key="datetime", format="iso", required=False
             ),  # todo: in the CLI equivalent, the data key for this field is named 'from'
