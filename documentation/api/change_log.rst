@@ -24,7 +24,12 @@ v3.0-0 | 2022-03-22
     - *postMeterData* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
     - *postPriceData* -> use `/sensors/data` (POST) instead, replacing the "market" field with "sensor"
     - *postPrognosis* -> use `/sensors/data` (POST) instead, replacing the "connection" field with "sensor"
-    - *postUdiEvent* -> use `/sensors/<id>/schedules/trigger` (POST) instead, where <id> is the sensor id from the "event" field
+    - *postUdiEvent* -> use `/sensors/<id>/schedules/trigger` (POST) instead, where <id> is the sensor id from the "event" field, and rename the following fields:
+
+        - "soc_min" -> soc-min"
+        - "soc_max" -> soc-max"
+        - "roundtrip_efficiency" -> "roundtrip-efficiency"
+
     - *postWeatherData* -> use `/sensors/data` (POST) instead
     - *restoreData*
 

@@ -201,14 +201,10 @@ class SensorAPI(FlaskView):
                 "%",
                 validate=validate.Range(min=0, max=1),
                 data_key="roundtrip-efficiency",
-            ),  # todo: update changelog update instructions (in postUdiEvent, this field was named 'roundtrip_efficiency')
+            ),
             "value": fields.Float(),  # todo: in the CLI equivalent, this field is named 'soc-at-start'
-            "soc_min": fields.Float(
-                data_key="soc-min"
-            ),  # todo: update changelog update instructions (in postUdiEvent, this field was named 'soc_min')
-            "soc_max": fields.Float(
-                data_key="soc-max"
-            ),  # todo: update changelog update instructions (in postUdiEvent, this field was named 'soc_max')
+            "soc_min": fields.Float(data_key="soc-min"),
+            "soc_max": fields.Float(data_key="soc-max"),
             "start_of_schedule": AwareDateTimeField(
                 data_key="datetime", format="iso", required=False
             ),  # todo: in the CLI equivalent, the data key for this field is named 'from'
@@ -273,9 +269,9 @@ class SensorAPI(FlaskView):
                         "datetime": "2015-06-02T16:00:00+00:00"
                     }
                 ],
-                "soc_min": 10,
-                "soc_max": 25,
-                "roundtrip_efficiency": 0.98
+                "soc-min": 10,
+                "soc-max": 25,
+                "roundtrip-efficiency": 0.98
             }
 
         **Example response**
