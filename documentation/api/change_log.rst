@@ -10,8 +10,8 @@ v3.0-0 | 2022-03-22
 """""""""""""""""""
 
 - Added REST endpoint for listing sensors: `/sensors` (GET).
-- Added REST endpoint for managing sensor data: `/sensors/data` (GET, POST).
-- Added REST endpoint for managing assets: `/assets` (GET, POST, PATCH, DELETE).
+- Added REST endpoints for managing sensor data: `/sensors/data` (GET, POST).
+- Added REST endpoints for managing assets: `/assets` (GET, POST) and `/assets/<id> (GET, PATCH, DELETE).
 - Added REST endpoints for triggering and getting schedules: `/sensors/<id>/schedules/<uuid>` (GET) and `/sensors/<id>/schedules/trigger` (POST).
 - [**Breaking change**] Switched to plural resource names for REST endpoints:  `/users/<id>` (GET, PATCH) and `/users/<id>/password-reset` (PATCH).
 - [**Breaking change**] Deprecated the following endpoints:
