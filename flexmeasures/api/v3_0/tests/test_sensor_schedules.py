@@ -7,10 +7,8 @@ import pandas as pd
 from rq.job import Job
 
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.v1_3.tests.utils import (
-    message_for_get_device_message,
-    message_for_post_udi_event,
-)
+from flexmeasures.api.v1_3.tests.utils import message_for_get_device_message
+from flexmeasures.api.v3_0.tests.utils import message_for_post_udi_event
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
@@ -38,10 +36,8 @@ def test_trigger_and_get_schedule(
     message["roundtrip-efficiency"] = 0.98
     message["soc-min"] = 0
     message["soc-max"] = 25
-    del message["type"]
     with app.test_client() as client:
         sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
-        del message["event"]
         message["soc-sensor"] = f"ea1.2018-06.localhost:fm1.{battery_soc_sensor.id}"
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
