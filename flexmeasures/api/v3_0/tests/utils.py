@@ -44,7 +44,9 @@ def message_for_post_udi_event(
         "soc-unit": "kWh",
     }
     if targets:
-        message["soc-targets"] = [{"value": 25, "datetime": "2015-01-02T23:00:00+00:00"}]
+        message["soc-targets"] = [
+            {"value": 25, "datetime": "2015-01-02T23:00:00+00:00"}
+        ]
     if unknown_prices:
         message[
             "start"

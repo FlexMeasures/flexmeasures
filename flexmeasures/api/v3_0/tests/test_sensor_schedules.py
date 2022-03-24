@@ -97,7 +97,9 @@ def test_trigger_and_get_schedule(
             assert soc_schedule[target["datetime"]] == target["soc-target"] / 1000
 
     # try to retrieve the schedule through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
-    get_schedule_message = message_for_get_device_message(targets="soc-targets" in message)
+    get_schedule_message = message_for_get_device_message(
+        targets="soc-targets" in message
+    )
     del get_schedule_message["type"]
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     get_schedule_response = client.get(
