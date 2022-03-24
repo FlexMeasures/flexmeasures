@@ -783,7 +783,7 @@ def create_forecasts(
     help="Optimize against this sensor, which measures a price factor or CO₂ intensity factor. Follow up with the sensor's ID.",
 )
 @click.option(
-    "--from",
+    "--start",
     "start",
     type=AwareDateTimeField(format="iso"),
     required=True,
@@ -794,7 +794,7 @@ def create_forecasts(
     "duration",
     type=DurationField(),
     required=True,
-    help="Duration of schedule, after --from. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
 )
 @click.option(
     "--soc-at-start",

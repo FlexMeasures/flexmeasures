@@ -20,7 +20,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv
     # make the schedule
     $ flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
-        --from ${TOMORROW}T07:00+01:00 --duration PT12H \
+        --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
 
 
@@ -165,7 +165,7 @@ Let's look at the price data we just loaded:
 
 .. code-block:: console
 
-    $ flexmeasures show beliefs --sensor-id 3 --from ${TOMORROW}T01:00:00+01:00 --duration PT24H
+    $ flexmeasures show beliefs --sensor-id 3 --start ${TOMORROW}T01:00:00+01:00 --duration PT24H
     Beliefs for Sensor 'Day ahead prices' (Id 3).
     Data spans a day and starts at 2022-03-03 01:00:00+01:00.
     The time resolution (x-axis) is an hour.
@@ -212,7 +212,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 .. code-block:: console
 
     $ flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
-        --from ${TOMORROW}T07:00+01:00 --duration PT12H \
+        --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.
 
@@ -220,7 +220,7 @@ Great. Let's see what we made:
 
 .. code-block:: console
 
-    $ flexmeasures show beliefs --sensor-id 2 --from ${TOMORROW}T07:00:00+01:00 --duration PT12H
+    $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
     Beliefs for Sensor 'charging' (Id 2).
     Data spans 12 hours and starts at 2022-03-04 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
