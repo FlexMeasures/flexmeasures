@@ -1,9 +1,11 @@
-.. _dev-data:
+.. _host-data:
 
 Handling databases
 =============================
 
 This document describes how to get the postgres database ready to use and maintain it (do migrations / changes to the structure).
+
+.. note:: This is about a stable database, useful for longer development work or production. A super quick way to get a postgres database running with Docker is described in :ref:`tut_toy_schedule` (and redis would work similarly).
 
 We also spend a few words on coding with database transactions in mind.
 

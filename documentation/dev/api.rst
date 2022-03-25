@@ -7,7 +7,7 @@ The FlexMeasures API is the main way that third-parties can automate their inter
 
 This is a small guide for creating new versions of the API and its docs.
 
-.. todo:: A guide for endpoint design, e.g. Marshmallow, custom USEF-like responses, validators (common code shared between endpoints).
+.. todo:: A guide for endpoint design, e.g. using Marshmallow schemas and common validators.
 
 .. contents:: Table of contents
     :local:
@@ -21,7 +21,7 @@ Larger changes to the API, other than fixes and refactoring, should be done by c
 In the guide we're assuming the new version is ``v1.1``.
 
 Whether we need a new API version or not, doesn't have a clear set of rules yet.
-Certainly backward-incopatible changes should require one, but as you'll see, there is also certain iverhead in creating
+Certainly backward-incompatible changes should require one, but as you'll see, there is also certain overhead in creating
 a new version, so a careful trade-off is advised.
 
 .. note:: For the rest of this guide we'll assume your new API version is ``v1_1``.

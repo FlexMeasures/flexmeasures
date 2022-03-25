@@ -4,8 +4,8 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.9.0 | January 26, 2022
-=====================
+since v0.9.0 | March 25, 2022
+==============================
 
 
 * Add CLI commands for showing data ``flexmeasures show accounts``, ``flexmeasures show account``, ``flexmeasures show roles``, ``flexmeasures show asset-types``, ``flexmeasures show asset``, ``flexmeasures show data-sources``, and ``flexmeasures show beliefs``.
@@ -13,13 +13,14 @@ since v0.9.0 | January 26, 2022
 * Add ``flexmeasures edit attribute`` CLI command to edit/add an attribute on an asset or sensor.
 * Add ``flexmeasures add toy-account`` for tutorials and trying things.
 * Add ``flexmeasures add schedule`` to create a new schedule for a given power sensor.
+* Add ``flexmeasures delete asset`` to delete an asset (including its sensors and data).
 * Rename ``flexmeasures add structure`` to ``flexmeasures add initial-structure``. 
 
 
 since v0.8.0 | January 26, 2022
-=====================
+===============================
 
-* Add ``flexmeasures add sensor``, ''flexmeasures add asset-type``, ```flexmeasures add beliefs``. These were previously experimental features (under the `dev-add` command group).
+* Add ``flexmeasures add sensor``, ``flexmeasures add asset-type``, ```flexmeasures add beliefs``. These were previously experimental features (under the `dev-add` command group).
 * ``flexmeasures add asset`` now directly creates an asset in the new data model.
 * Add ``flexmeasures delete sensor``, ``flexmeasures delete nan-beliefs`` and ``flexmeasures delete unchanged-beliefs``. 
 

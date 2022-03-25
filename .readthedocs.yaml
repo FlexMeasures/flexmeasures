@@ -11,11 +11,17 @@ sphinx:
 formats:
   - pdf
 
-# Set the version of Python and requirements required to build your docs
-python:
-  version: 3.9
+build:
+  os: ubuntu-20.04
+  tools:
+    python: "3.9"
+
+python: 
   install:
-  - requirements: requirements/app.txt
-  - requirements: requirements/docs.txt
-  - method: pip
-    path: .
+    - requirements: requirements/app.txt
+    - requirements: requirements/docs.txt
+    - method: pip
+      path: .
+
+sphinx:
+  fail_on_warning: true
