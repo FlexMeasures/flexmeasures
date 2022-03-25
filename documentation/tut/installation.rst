@@ -68,7 +68,7 @@ Preparing the time series database
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
-* Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See :ref:`dev-data` (section "Getting ready to use") for instructions on this.
+* Make sure you have a Postgres (Version 9+) database for FlexMeasures to use. See :ref:`host-data` (section "Getting ready to use") for instructions on this.
 * 
   Tell ``flexmeasures`` about it:
 

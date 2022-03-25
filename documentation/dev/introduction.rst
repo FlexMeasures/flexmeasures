@@ -43,6 +43,12 @@ Configuration
 Follow the configuration Quickstart advice in :ref:`getting_started` and :ref:`configuration`.
 
 
+Database
+^^^^^^^^^^^^^^^^
+
+See :ref:`host-data` for tips on how to install and upgrade databases (postgres and redis).
+
+
 Loading data
 ^^^^^^^^^^^^^^^^^^^^
 
