@@ -14,8 +14,7 @@ formats:
 build:
   os: ubuntu-20.04
   tools:
-  python:
-    version: "3.9"
+    python: "3.9"
 
 python: 
   install:
