@@ -2,7 +2,7 @@
 FlexMeasures Changelog
 **********************
 
-v0.9.0 | February XX, 2022
+v0.9.0 | March 25, 2022
 ===========================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
