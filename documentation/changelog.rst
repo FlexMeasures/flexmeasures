@@ -23,6 +23,9 @@ New features
 * Add CLI command to create a charging schedule [see `PR #372 <http://www.github.com/FlexMeasures/flexmeasures/pull/372>`_]
 * Support for percent (%) and permille (‰) sensor units [see `PR #359 <http://www.github.com/FlexMeasures/flexmeasures/pull/359>`_]
 
+.. note:: Read more on these features on `the FlexMeasures blog <http://flexmeasures.io/090-cli-developer-power/>`__.
+
+
 Bugfixes
 -----------
 
