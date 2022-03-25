@@ -22,7 +22,7 @@ Here we assume you have access to a Redis server and configured it (see :ref:`re
 
 Start to run one worker for each kind of job (in a separate terminal):
 
-.. code-block::
+.. code-block:: console
 
    flexmeasures run-worker --queue forecasting
    flexmeasures run-worker --queue scheduling
@@ -30,7 +30,7 @@ Start to run one worker for each kind of job (in a separate terminal):
 
 You can also clear the job queues:
 
-.. code-block::
+.. code-block:: console
 
    flexmeasures clear-queue --queue forecasting
    flexmeasures clear-queue --queue scheduling

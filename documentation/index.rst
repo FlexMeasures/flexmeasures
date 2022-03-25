@@ -1,13 +1,13 @@
 Welcome to the FlexMeasures documentation!
 ===================================================================
 
-*FlexMeasures is the intelligent & developer-friendly backend to support real-time energy flexibility apps, rapidly and scalable.*
+*FlexMeasures is the intelligent & developer-friendly EMS to support real-time energy flexibility apps, rapidly and scalable.*
 
 In a world with renewable energy, flexibility is crucial and valuable, e.g. for demand response.
 Planning ahead allows flexible assets to serve the whole system with their flexibility,
 e.g. by shifting or curtailing energy use.
 
-Developing energy flexibility services is expensive work. FlexMeasures is designed to be developer-friendly, which helps you to go to market quickly, while keeping the costs of software development at bay. FlexMeasures delivers:
+Developing energy flexibility services is expensive work. FlexMeasures is designed to be developer-friendly, which helps you to go to market quickly, while keeping the costs of software development at bay. FlexMeasures supports:
 
 - Real-time data intelligence & integration
 - Uncertainty models
@@ -40,7 +40,11 @@ Use cases
 
 As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling.
 
-However, even small companies and hobby projects might find FlexMeasures useful! 
+However, even small companies and hobby projects might find FlexMeasures useful! We are constantly improving the ease of use. 
+
+FlexMeasures can be used as your EMS, but is also to integrate with existing systems as a smart backend or add-on to deal with energy flexibility specifically.
+
+You (the reader) might be a user connecting with a FlexMeasures server or working on hosting FlexMeasures. Maybe you are planning to develop a plugin or even core functionality. In :ref:`getting_started` we have some helpful tips how to dive in this documentation!
 
 
 The three ways in which FlexMeasures supports developers:
@@ -93,8 +97,9 @@ The platform operator of FlexMeasures can be an Aggregator.
    :hidden:
 
    getting-started
-   configuration
+   get-in-touch
    changelog
+
 
 .. toctree::
     :caption: Concepts
@@ -112,6 +117,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
     
     tut/toy-example-from-scratch
+    tut/installation
     tut/posting_data
     tut/forecasting_scheduling
     tut/building_uis
@@ -128,6 +134,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
 
     api/introduction
+    api/notation
     api/v3_0
     api/v2_0
     api/v1_3
@@ -146,23 +153,34 @@ The platform operator of FlexMeasures can be an Aggregator.
 
 
 .. toctree::
-    :caption: Developers
+    :caption: Hosting FlexMeasures
+    :maxdepth: 1
+
+    host/deployment
+    host/error-monitoring
+    host/modes
+
+
+.. toctree::
+    :caption: Developing Plugins
+    :maxdepth: 1
+
+    plugin/introduction
+    plugin/showcase
+    plugin/customisation
+
+
+.. toctree::
+    :caption: Developing on FlexMeasures
     :maxdepth: 1
 
     dev/introduction
+    configuration
     dev/data
     dev/api
     dev/ci
-    dev/plugins
     dev/auth
-    dev/error-monitoring
-    dev/modes
 
-.. toctree::
-    :caption: Integrations
-    :maxdepth: 2
-
-    int/introduction
 
 
 Code documentation
