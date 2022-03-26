@@ -21,13 +21,13 @@ charset-normalizer==2.0.12
     # via
     #   -c requirements/app.txt
     #   requests
-click==8.0.3
+click==8.0.4
     # via
     #   -c requirements/app.txt
     #   flask
-coverage[toml]==6.3.1
+coverage[toml]==6.3.2
     # via pytest-cov
-cryptography==36.0.1
+cryptography==36.0.2
     # via
     #   -c requirements/app.txt
     #   pyopenssl
@@ -38,7 +38,7 @@ deprecated==1.2.13
     #   redis
 fakeredis==1.7.1
     # via -r requirements/test.in
-flask==2.0.2
+flask==2.0.3
     # via
     #   -c requirements/app.txt
     #   pytest-flask
@@ -49,17 +49,17 @@ idna==3.3
     #   urllib3
 iniconfig==1.1.1
     # via pytest
-itsdangerous==2.0.1
+itsdangerous==2.1.2
     # via
     #   -c requirements/app.txt
     #   flask
-jinja2==3.0.3
+jinja2==3.1.0
     # via
     #   -c requirements/app.txt
     #   flask
-lupa==1.10
+lupa==1.13
     # via -r requirements/test.in
-markupsafe==2.0.1
+markupsafe==2.1.1
     # via
     #   -c requirements/app.txt
     #   jinja2
@@ -86,7 +86,11 @@ pyparsing==3.0.7
     # via
     #   -c requirements/app.txt
     #   packaging
-pytest==7.0.1
+pysocks==1.7.1
+    # via
+    #   -c requirements/app.txt
+    #   urllib3
+pytest==7.1.1
     # via
     #   -r requirements/test.in
     #   pytest-cov
@@ -98,7 +102,7 @@ pytest-flask==1.2.0
     # via -r requirements/test.in
 pytest-sugar==0.9.4
     # via -r requirements/test.in
-redis==4.1.3
+redis==4.1.4
     # via
     #   -c requirements/app.txt
     #   fakeredis
@@ -120,11 +124,11 @@ sortedcontainers==2.4.0
     #   fakeredis
 termcolor==1.1.0
     # via pytest-sugar
-tomli==1.2.3
+tomli==2.0.1
     # via
     #   coverage
     #   pytest
-urllib3[secure]==1.26.8
+urllib3[secure,socks]==1.26.9
     # via
     #   -c requirements/app.txt
     #   requests
@@ -133,7 +137,7 @@ werkzeug==2.0.3
     #   -c requirements/app.txt
     #   flask
     #   pytest-flask
-wrapt==1.13.3
+wrapt==1.14.0
     # via
     #   -c requirements/app.txt
     #   deprecated
