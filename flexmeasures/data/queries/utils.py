@@ -49,7 +49,7 @@ def potentially_limit_query_to_account_assets(
 
     :param account_id: if set, all assets that are not in the given account will be filtered out (only works for admins and CLI users). For querying public assets in particular, don't use this function.
     """
-    if not current_user.is_authenticated and not current_app.cli:
+    if not current_app.cli and not current_user.is_authenticated:
         raise Forbidden("Unauthenticated user cannot list assets.")
     user_is_admin = (
         current_app.cli
