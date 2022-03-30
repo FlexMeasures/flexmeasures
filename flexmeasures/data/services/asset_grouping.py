@@ -4,13 +4,11 @@ For example, group by asset type or by location.
 """
 
 from __future__ import annotations
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional
 import inflect
 
-from flask_security.core import current_user
 from sqlalchemy.orm import Query
 
-from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils.flexmeasures_inflection import parameterize, pluralize
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
@@ -57,8 +55,6 @@ def get_asset_group_queries(
     # 3. Finally, we group assets by location
     if group_by_location:
         asset_queries.update(get_location_queries())
-
-    asset_queries = mask_inaccessible_assets(asset_queries)
 
     return asset_queries
 
@@ -147,24 +143,3 @@ class AssetGroup:
 
     def __str__(self):
         return self.display_name
-
-
-def mask_inaccessible_assets(
-    asset_queries: Union[Query, Dict[str, Query]]
-) -> Union[Query, Dict[str, Query]]:
-    """Filter out any assets that the user should not be able to access.
-
-    We do not explicitly check user authentication here, because non-authenticated users are not admins
-    and have no asset ownership, so applying this filter for non-admins masks all assets.
-    """
-    if not current_user.has_role(ADMIN_ROLE):
-        if isinstance(asset_queries, dict):
-            for name, query in asset_queries.items():
-                asset_queries[name] = query.filter(
-                    GenericAsset.owner == current_user.account
-                )
-        else:
-            asset_queries = asset_queries.filter(
-                GenericAsset.owner == current_user.account
-            )
-    return asset_queries

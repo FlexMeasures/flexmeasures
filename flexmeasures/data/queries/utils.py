@@ -1,18 +1,18 @@
 from typing import List, Optional, Type, Tuple, Union
 from datetime import datetime, timedelta
 
-from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Forbidden
 import pandas as pd
 import timely_beliefs as tb
 from sqlalchemy.orm import Query, Session
-from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy.sql.elements import BinaryExpression, or_
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils import flexmeasures_inflection
+from flexmeasures.cli import is_running as running_as_cli
 import flexmeasures.data.models.time_series as ts  # noqa: F401
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 
@@ -49,10 +49,10 @@ def potentially_limit_query_to_account_assets(
 
     :param account_id: if set, all assets that are not in the given account will be filtered out (only works for admins and CLI users). For querying public assets in particular, don't use this function.
     """
-    if not current_app.cli and not current_user.is_authenticated:
+    if not running_as_cli() and not current_user.is_authenticated:
         raise Forbidden("Unauthenticated user cannot list assets.")
     user_is_admin = (
-        current_app.cli
+        running_as_cli()
         or current_user.has_role(ADMIN_ROLE)
         or current_user.has_role(ADMIN_READER_ROLE)
     )
@@ -68,9 +68,9 @@ def potentially_limit_query_to_account_assets(
         account_id if account_id is not None else current_user.account_id
     )
     return query.filter(
-        (
-            GenericAsset.account_id == account_id_to_filter
-            or GenericAsset.account_id is None
+        or_(
+            GenericAsset.account_id == account_id_to_filter,
+            GenericAsset.account_id is None,
         )
     )
 
