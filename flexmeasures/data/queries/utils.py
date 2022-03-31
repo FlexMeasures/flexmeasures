@@ -7,6 +7,7 @@ import pandas as pd
 import timely_beliefs as tb
 from sqlalchemy.orm import Query, Session
 from sqlalchemy.sql.elements import BinaryExpression, or_
+from sqlalchemy.sql.expression import null
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -70,7 +71,7 @@ def potentially_limit_query_to_account_assets(
     return query.filter(
         or_(
             GenericAsset.account_id == account_id_to_filter,
-            GenericAsset.account_id is None,
+            GenericAsset.account_id == null(),
         )
     )
 
