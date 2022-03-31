@@ -11,6 +11,19 @@ p = inflect.engine()
 ResponseTuple = Tuple[dict, int]
 
 
+def is_response_tuple(value) -> bool:
+    """Check if an object qualifies as a ResponseTuple"""
+    if not isinstance(value, tuple):
+        return False
+    if not len(value) == 2:
+        return False
+    if not isinstance(value[0], dict):
+        return False
+    if not isinstance(value[1], int):
+        return False
+    return True
+
+
 class BaseMessage:
     """Set a base message to which extra info can be added by calling the wrapped function with additional string
     arguments. This is a decorator implemented as a class."""

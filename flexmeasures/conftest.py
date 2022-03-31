@@ -739,6 +739,17 @@ def battery_soc_sensor(db: SQLAlchemy, setup_generic_assets):
     return soc_sensor
 
 
+@pytest.fixture
+def run_as_cli(app, monkeypatch):
+    """
+    Use this to run your test as if it is run from the CLI.
+    This is useful where some auth restrictions (e.g. for querying) are in place.
+    FlexMeasures is more lenient with them if the CLI is running, as it considers
+    the user a sysadmin.
+    """
+    monkeypatch.setitem(app.config, "PRETEND_RUNNING_AS_CLI", True)
+
+
 @pytest.fixture(scope="function")
 def clean_redis(app):
     failed = app.queues["forecasting"].failed_job_registry
