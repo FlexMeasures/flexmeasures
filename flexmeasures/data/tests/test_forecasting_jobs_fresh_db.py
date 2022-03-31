@@ -18,7 +18,9 @@ from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.utils.time_utils import as_server_time
 
 
-def test_forecasting_three_hours_of_wind(app, setup_fresh_test_data, clean_redis):
+def test_forecasting_three_hours_of_wind(
+    app, run_as_cli, setup_fresh_test_data, clean_redis
+):
     wind_device2: Sensor = Sensor.query.filter_by(name="wind-asset-2").one_or_none()
 
     # makes 12 forecasts
@@ -47,7 +49,9 @@ def test_forecasting_three_hours_of_wind(app, setup_fresh_test_data, clean_redis
     check_aggregate(12, horizon, wind_device2.id)
 
 
-def test_forecasting_two_hours_of_solar(app, setup_fresh_test_data, clean_redis):
+def test_forecasting_two_hours_of_solar(
+    app, run_as_cli, setup_fresh_test_data, clean_redis
+):
     solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
     wind_device2: Sensor = Sensor.query.filter_by(name="wind-asset-2").one_or_none()
     print(solar_device1)
@@ -82,7 +86,12 @@ def test_forecasting_two_hours_of_solar(app, setup_fresh_test_data, clean_redis)
     "model_to_start_with, model_version", [("failing-test", 1), ("linear-OLS", 2)]
 )
 def test_failed_model_with_too_much_training_then_succeed_with_fallback(
-    setup_fresh_test_data, app, clean_redis, model_to_start_with, model_version
+    app,
+    run_as_cli,
+    clean_redis,
+    setup_fresh_test_data,
+    model_to_start_with,
+    model_version,
 ):
     """
     Here we fail once - because we start with a model that needs too much training.

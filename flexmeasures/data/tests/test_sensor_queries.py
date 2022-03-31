@@ -1,7 +1,7 @@
 from flexmeasures.data.models.time_series import Sensor
 
 
-def test_closest_sensor(add_nearby_weather_sensors):
+def test_closest_sensor(run_as_cli, add_nearby_weather_sensors):
     """Check that the closest temperature sensor to our wind sensor returns
     the one that is on the same spot as the wind sensor itself.
     (That's where we set it up in our conftest.)
