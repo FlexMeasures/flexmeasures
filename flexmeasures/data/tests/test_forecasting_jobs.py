@@ -46,7 +46,7 @@ def check_aggregate(overall_expected: int, horizon: timedelta, sensor_id: int):
     assert all([not np.isnan(f.event_value) for f in all_forecasts])
 
 
-def test_forecasting_an_hour_of_wind(db, app, setup_test_data):
+def test_forecasting_an_hour_of_wind(db, run_as_cli, app, setup_test_data):
     """Test one clean run of one job:
     - data source was made,
     - forecasts have been made
@@ -84,7 +84,9 @@ def test_forecasting_an_hour_of_wind(db, app, setup_test_data):
     check_aggregate(4, horizon, wind_device_1.id)
 
 
-def test_forecasting_two_hours_of_solar_at_edge_of_data_set(db, app, setup_test_data):
+def test_forecasting_two_hours_of_solar_at_edge_of_data_set(
+    db, run_as_cli, app, setup_test_data
+):
     solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
 
     last_power_datetime = (
@@ -168,7 +170,9 @@ def check_failures(
             assert job.meta["model_identifier"] == model_identifiers[job_idx]
 
 
-def test_failed_forecasting_insufficient_data(app, clean_redis, setup_test_data):
+def test_failed_forecasting_insufficient_data(
+    app, run_as_cli, clean_redis, setup_test_data
+):
     """This one (as well as the fallback) should fail as there is no underlying data.
     (Power data is in 2015)"""
     solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
@@ -183,7 +187,9 @@ def test_failed_forecasting_insufficient_data(app, clean_redis, setup_test_data)
     check_failures(app.queues["forecasting"], 2 * ["NotEnoughDataException"])
 
 
-def test_failed_forecasting_invalid_horizon(app, clean_redis, setup_test_data):
+def test_failed_forecasting_invalid_horizon(
+    app, run_as_cli, clean_redis, setup_test_data
+):
     """This one (as well as the fallback) should fail as the horizon is invalid."""
     solar_device1: Sensor = Sensor.query.filter_by(name="solar-asset-1").one_or_none()
     create_forecasting_jobs(

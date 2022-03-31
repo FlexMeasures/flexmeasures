@@ -16,6 +16,14 @@ Infrastructure / Support
 ----------------------
 
 
+v0.9.1 | March 31, 2022
+===========================
+
+Bugfixes
+--------
+* Fix auth bug not masking locations of inaccessible assets on map [see `PR #409 <http://www.github.com/FlexMeasures/flexmeasures/pull/409>`_]
+
+
 v0.9.0 | March 25, 2022
 ===========================
 
