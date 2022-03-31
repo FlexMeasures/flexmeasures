@@ -8,6 +8,8 @@ v0.9.1 | March 31, 2022
 Bugfixes
 --------
 * Fix auth bug not masking locations of inaccessible assets on map [see `PR #409 <http://www.github.com/FlexMeasures/flexmeasures/pull/409>`_]
+* Fix CLI auth check [see `PR #407 <http://www.github.com/FlexMeasures/flexmeasures/pull/407>`_]
+* Fix resampling of sensor data for scheduling [see `PR #406 <http://www.github.com/FlexMeasures/flexmeasures/pull/406>`_]
 
 
 v0.9.0 | March 25, 2022
