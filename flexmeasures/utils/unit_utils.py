@@ -120,12 +120,17 @@ def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
 
 
 def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
-    """For example:
+    """Determine the shortest unit of stock, given a unit of flow.
+
+    For example:
     >>> determine_stock_unit("m³/h")  # m³
     >>> determine_stock_unit("kW")  # kWh
     """
-    stock = to_preferred(ur.Quantity(flow_unit) * ur.Quantity(time_unit))
-    return "{:~P}".format(stock.units)
+    stock = ur.Quantity(flow_unit) * ur.Quantity(time_unit)
+    return min(
+        ["{:~P}".format(stock.units), "{:~P}".format(to_preferred(stock).units)],
+        key=len,
+    )
 
 
 def units_are_convertible(
