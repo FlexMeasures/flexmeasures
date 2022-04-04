@@ -91,6 +91,7 @@ def test_determine_flow_unit(
         ("kW", None, "kWh"),
         ("m/s", "s", "m"),
         ("m/s", "h", "km"),
+        ("t/h", None, "t"),
     ],
 )
 def test_determine_stock_unit(
