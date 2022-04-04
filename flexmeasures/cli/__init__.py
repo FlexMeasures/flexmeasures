@@ -29,9 +29,8 @@ def is_running() -> bool:
 
     See also: the run_as_cli test fixture, which uses the (non-public) PRETEND_RUNNING_AS_CLI env setting.
 
-    TODO: How can plugins add their CLI set here, should they need that?
     """
-    cli_sets = ("add", "delete", "show", "monitor", "jobs", "db-ops")
+    cli_sets = current_app.cli.list_commands(ctx=None)
     command_line = " ".join(sys.argv)
     for cli_set in cli_sets:
         if f"flexmeasures {cli_set}" in command_line:
