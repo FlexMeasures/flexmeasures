@@ -37,6 +37,25 @@ FIELD_DEFINITIONS = {
         title="Time and date",
     ),
 }
+LEGIBILITY_DEFAULTS = dict(
+    config=dict(
+        axis=dict(
+            titleFontSize=FONT_SIZE,
+            labelFontSize=FONT_SIZE,
+        )
+    ),
+    title=dict(fontSize=FONT_SIZE),
+    encoding=dict(
+        color=dict(
+            dict(
+                legend=dict(
+                    titleFontSize=FONT_SIZE,
+                    labelFontSize=FONT_SIZE,
+                )
+            )
+        )
+    ),
+)
 
 
 def apply_chart_defaults(fn):
@@ -64,25 +83,7 @@ def apply_chart_defaults(fn):
         # Improve default legibility
         chart_specs = merge_vega_lite_specs(
             chart_specs,
-            dict(
-                config=dict(
-                    axis=dict(
-                        titleFontSize=FONT_SIZE,
-                        labelFontSize=FONT_SIZE,
-                    )
-                ),
-                title=dict(fontSize=FONT_SIZE),
-                encoding=dict(
-                    color=dict(
-                        dict(
-                            legend=dict(
-                                titleFontSize=FONT_SIZE,
-                                labelFontSize=FONT_SIZE,
-                            )
-                        )
-                    )
-                ),
-            ),
+            LEGIBILITY_DEFAULTS,
         )
 
         # Add transform function to calculate full date
