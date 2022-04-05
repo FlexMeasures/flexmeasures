@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 def bar_chart(
     sensor: "Sensor",  # noqa F821
+    unique_source_names: list[str] | None = None,
     **override_chart_specs: dict,
 ):
     unit = sensor.unit if sensor.unit else "a.u."
@@ -13,6 +16,8 @@ def bar_chart(
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
+    color_definition = FIELD_DEFINITIONS["source"]
+    color_definition["scale"] = {"domain": unique_source_names}
     chart_specs = {
         "description": "A simple bar chart.",
         "title": capitalize(sensor.name),

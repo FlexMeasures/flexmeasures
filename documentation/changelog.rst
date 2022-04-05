@@ -2,6 +2,28 @@
 FlexMeasures Changelog
 **********************
 
+v0.10.0 | April XX, 2022
+===========================
+
+
+New features
+-----------
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
+v0.9.2 | April XX, 2022
+===========================
+
+Bugfixes
+--------
+* Prefer unit conversions to short stock units [see `PR #412 <http://www.github.com/FlexMeasures/flexmeasures/pull/412>`_]
+
+
 v0.9.1 | March 31, 2022
 ===========================
 

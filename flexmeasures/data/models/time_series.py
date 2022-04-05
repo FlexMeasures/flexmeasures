@@ -141,6 +141,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             "is_consumer", True
         )
 
+    @property
+    def unique_sources(self) -> List[DataSource]:
+        """List unique sources that have registered data for this sensor, ordered by id."""
+        return DataSource.query.join(TimedBelief).filter(TimedBelief.sensor_id == self.id).filter(TimedBelief.source_id == DataSource.id).order_by(DataSource.id).all()
+
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute on the Sensor.
         If not found, looks for the attribute on the Sensor's GenericAsset.
@@ -334,6 +339,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         chart_specs = chart_type_to_chart_specs(
             chart_type,
             sensor=self,
+            unique_source_names=[source.name for source in self.unique_sources],
             dataset_name=dataset_name,
             **kwargs,
         )
