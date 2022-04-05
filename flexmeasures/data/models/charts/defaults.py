@@ -82,8 +82,8 @@ def apply_chart_defaults(fn):
 
         # Improve default legibility
         chart_specs = merge_vega_lite_specs(
-            chart_specs,
             LEGIBILITY_DEFAULTS,
+            chart_specs,
         )
 
         # Add transform function to calculate full date
@@ -117,7 +117,7 @@ def merge_vega_lite_specs(child: dict, parent: dict) -> dict:
             and k in child
             and isinstance(child[k], dict)
         ):
-            v = merge_vega_lite_specs(parent[k], child[k])
+            v = merge_vega_lite_specs(child[k], parent[k])
         elif k in parent:
             v = parent[k]
         else:
