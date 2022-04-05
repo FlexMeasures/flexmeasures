@@ -62,32 +62,28 @@ def apply_chart_defaults(fn):
             chart_specs["width"] = WIDTH
 
         # Improve default legibility
-        if "config" not in chart_specs:
-            chart_specs["config"] = {}
-        if "axis" not in chart_specs["config"]:
-            chart_specs["config"]["axis"] = {}
-        chart_specs["config"]["axis"] = {
-            **chart_specs["config"]["axis"],
-            **dict(
-                titleFontSize=FONT_SIZE,
-                labelFontSize=FONT_SIZE,
-            ),
-        }
-        if "title" in chart_specs:
-            if isinstance(chart_specs["title"], str):
-                chart_specs["title"] = dict(text=chart_specs["title"])
-            chart_specs["title"] = {
-                **chart_specs["title"],
-                **dict(
-                    fontSize=FONT_SIZE,
+        chart_specs = merge_vega_lite_specs(
+            chart_specs,
+            dict(
+                config=dict(
+                    axis=dict(
+                        titleFontSize=FONT_SIZE,
+                        labelFontSize=FONT_SIZE,
+                    )
                 ),
-            }
-        if (
-            "color" in chart_specs["encoding"]
-            and "legend" in chart_specs["encoding"]["color"]
-        ):
-            chart_specs["encoding"]["color"]["legend"]["titleFontSize"] = FONT_SIZE
-            chart_specs["encoding"]["color"]["legend"]["labelFontSize"] = FONT_SIZE
+                title=dict(fontSize=FONT_SIZE),
+                encoding=dict(
+                    color=dict(
+                        dict(
+                            legend=dict(
+                                titleFontSize=FONT_SIZE,
+                                labelFontSize=FONT_SIZE,
+                            )
+                        )
+                    )
+                ),
+            ),
+        )
 
         # Add transform function to calculate full date
         if "transform" not in chart_specs:
@@ -101,3 +97,29 @@ def apply_chart_defaults(fn):
         return chart_specs
 
     return decorated_chart_specs
+
+
+def merge_vega_lite_specs(child: dict, parent: dict) -> dict:
+    """Merge nested dictionaries, with child inheriting values from parent.
+
+    Child values are updated with parent values if they exist.
+    In case the 'title' field is a string and the field is updated with some dict,
+    that string is moved inside the dict under the 'text' field.
+    """
+    d = {}
+    for k in set().union(child, parent):
+        if k == "title" and k in parent and k in child and isinstance(child[k], str):
+            child[k] = dict(text=child[k])
+        if (
+            k in parent
+            and isinstance(parent[k], dict)
+            and k in child
+            and isinstance(child[k], dict)
+        ):
+            v = merge_vega_lite_specs(parent[k], child[k])
+        elif k in parent:
+            v = parent[k]
+        else:
+            v = child[k]
+        d[k] = v
+    return d
