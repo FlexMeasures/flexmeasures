@@ -56,6 +56,10 @@ LEGIBILITY_DEFAULTS = dict(
         )
     ),
 )
+vega_lite_field_mapping = {
+    "title": "text",
+    "mark": "type",
+}
 
 
 def apply_chart_defaults(fn):
@@ -104,13 +108,14 @@ def merge_vega_lite_specs(child: dict, parent: dict) -> dict:
     """Merge nested dictionaries, with child inheriting values from parent.
 
     Child values are updated with parent values if they exist.
-    In case the 'title' field is a string and the field is updated with some dict,
-    that string is moved inside the dict under the 'text' field.
+    In case a field is a string and that field is updated with some dict,
+    the string is moved inside the dict under a field defined in vega_lite_field_mapping.
+    For example, 'title' becomes 'text' and 'mark' becomes 'type'.
     """
     d = {}
     for k in set().union(child, parent):
-        if k == "title" and k in parent and k in child and isinstance(child[k], str):
-            child[k] = dict(text=child[k])
+        if k in parent and k in child and isinstance(child[k], str):
+            child[k] = {vega_lite_field_mapping.get(k, "type"): child[k]}
         if (
             k in parent
             and isinstance(parent[k], dict)
