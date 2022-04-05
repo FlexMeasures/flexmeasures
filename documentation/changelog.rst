@@ -8,6 +8,7 @@ v0.10.0 | April XX, 2022
 
 New features
 -----------
+* Improve legibility of chart axes [see `PR #413 <http://www.github.com/FlexMeasures/flexmeasures/pull/413>`_]
 
 Bugfixes
 -----------
