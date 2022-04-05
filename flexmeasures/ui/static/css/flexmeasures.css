@@ -504,3 +504,5 @@ i.icon-wind:hover:before {
 .icon-buildings:before { content: '\e803'; } /* '' */
 .icon-charging_stations:before { content: '\e805'; } /* '' */
 .icon-bidirectional_charging_stations:before { content: '\e805'; } /* '' */
+
+.litepicker { font-size: 14px;}
