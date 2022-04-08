@@ -37,6 +37,8 @@ PREFERRED_UNITS = [
     "V",
     "A",
     "dimensionless",
+] + [
+    str(c) for c in list_all_currencies()
 ]  # todo: move to config setting, with these as a default (NB prefixes do not matter here, this is about SI base units, so km/h is equivalent to m/h)
 PREFERRED_UNITS_DICT = dict(
     [(ur.parse_expression(x).dimensionality, x) for x in PREFERRED_UNITS]
