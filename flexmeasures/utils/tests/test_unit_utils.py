@@ -70,7 +70,7 @@ def test_convert_unit(
         ("m³", None, "m³/h"),
         ("kWh", None, "kW"),
         ("km", "h", "km/h"),
-        ("m", "s", "km/h"),
+        ("m", "s", "m/s"),
     ],
 )
 def test_determine_flow_unit(

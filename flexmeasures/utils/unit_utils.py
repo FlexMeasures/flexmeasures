@@ -49,7 +49,11 @@ def to_preferred(x: pint.Quantity) -> pint.Quantity:
     """From https://github.com/hgrecco/pint/issues/676#issuecomment-689157693"""
     dim = x.dimensionality
     if dim in PREFERRED_UNITS_DICT:
-        return x.to(PREFERRED_UNITS_DICT[dim]).to_compact()
+
+        compact_unit = x.to(PREFERRED_UNITS_DICT[dim]).to_compact()
+
+        if len("{:~P}".format(compact_unit.units)) < len("{:~P}".format(x.units)):
+            return compact_unit
     return x
 
 
@@ -108,11 +112,8 @@ def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
     >>> determine_stock_unit("m³/h")  # m³
     >>> determine_stock_unit("kW")  # kWh
     """
-    stock = ur.Quantity(flow_unit) * ur.Quantity(time_unit)
-    return min(
-        ["{:~P}".format(stock.units), "{:~P}".format(to_preferred(stock).units)],
-        key=len,
-    )
+    stock = to_preferred(ur.Quantity(flow_unit) * ur.Quantity(time_unit))
+    return "{:~P}".format(stock.units)
 
 
 def units_are_convertible(
