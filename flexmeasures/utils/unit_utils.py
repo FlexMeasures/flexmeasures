@@ -2,43 +2,23 @@ from datetime import timedelta
 from typing import List, Optional, Union
 
 from moneyed import list_all_currencies
-import importlib.resources as pkg_resources
 import numpy as np
 import pandas as pd
 import pint
 import timely_beliefs as tb
 
-# Edit constants template to stop using h to represent planck_constant
-constants_template = (
-    pkg_resources.read_text(pint, "constants_en.txt")
-    .replace("= h  ", "     ")
-    .replace(" h ", " planck_constant ")
-)
-
-# Edit units template to use h to represent hour instead of planck_constant
-units_template = (
-    pkg_resources.read_text(pint, "default_en.txt")
-    .replace("@import constants_en.txt", "")
-    .replace(" h ", " planck_constant ")
-    .replace("hour = 60 * minute = hr", "hour = 60 * minute = h = hr")
-)
 
 # Create custom template
 custom_template = [f"{c} = [currency_{c}]" for c in list_all_currencies()]
 
-# Join templates as iterable object
-full_template = (
-    constants_template.split("\n") + units_template.split("\n") + custom_template
-)
-
 # Set up UnitRegistry with abbreviated scientific format
 ur = pint.UnitRegistry(
-    full_template,
     preprocessors=[
         lambda s: s.replace("%", " percent "),
         lambda s: s.replace("‰", " permille "),
     ],
 )
+ur.load_definitions(custom_template)
 ur.default_format = "~P"  # short pretty
 ur.define("percent = 1 / 100 = %")
 ur.define("permille = 1 / 1000 = ‰")
