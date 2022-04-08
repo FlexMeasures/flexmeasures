@@ -52,6 +52,11 @@ def to_preferred(x: pint.Quantity) -> pint.Quantity:
 
         compact_unit = x.to(PREFERRED_UNITS_DICT[dim]).to_compact()
 
+        # todo: switch to decimal unit registry and then swap out the if statements below
+        # if len(f"{compact_unit.magnitude}" + "{:~P}".format(compact_unit.units)) < len(
+        #     f"{x.magnitude}" + "{:~P}".format(x.units)
+        # ):
+        #     return compact_unit
         if len("{:~P}".format(compact_unit.units)) < len("{:~P}".format(x.units)):
             return compact_unit
     return x
