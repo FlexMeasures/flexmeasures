@@ -13,6 +13,7 @@ custom_template = [f"{c} = [currency_{c}]" for c in list_all_currencies()]
 
 # Set up UnitRegistry with abbreviated scientific format
 ur = pint.UnitRegistry(
+    # non_int_type=decimal.Decimal,  # todo: switch to decimal unit registry, after https://github.com/hgrecco/pint/issues/1505
     preprocessors=[
         lambda s: s.replace("%", " percent "),
         lambda s: s.replace("‰", " permille "),

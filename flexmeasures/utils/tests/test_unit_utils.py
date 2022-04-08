@@ -88,6 +88,8 @@ def test_determine_flow_unit(
     "unit, time_unit, expected_unit",
     [
         ("m³/h", None, "m³"),
+        ("km³/h", None, "km³"),
+        # ("hm³/h", None, "hm³"),  # todo: uncomment after switching to decimal unit registry
         ("kW", None, "kWh"),
         ("m/s", "s", "m"),
         ("m/s", "h", "km"),
