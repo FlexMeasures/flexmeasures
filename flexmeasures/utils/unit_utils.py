@@ -1,3 +1,14 @@
+"""Utility module for unit conversion
+
+FlexMeasures stores units as strings in short scientific notation (such as 'kWh' to denote kilowatt-hour).
+We use the pint library to convert data between compatible units (such as 'm/s' to 'km/h').
+Three-letter currency codes (such as 'KRW' to denote South Korean Won) are valid units.
+Note that converting between currencies requires setting up a sensor that registers conversion rates over time.
+The preferred compact form for combinations of units can be derived automatically (such as 'kW*EUR/MWh' to 'EUR/h').
+Time series with fixed resolution can be converted from units of flow to units of stock (such as 'kW' to 'kWh'), and vice versa.
+Percentages can be converted to units of some physical capacity if a capacity is known (such as '%' to 'kWh').
+"""
+
 from datetime import timedelta
 from typing import List, Optional, Union
 
