@@ -560,7 +560,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 # todo: move to timely-beliefs: select mean/median belief
                 bdf = (
                     bdf.for_each_belief(get_median_belief)
-                    .groupby(level=["event_start", "belief_time"])
+                    .groupby(level=["event_start", "belief_time"], group_keys=False)
                     .apply(lambda x: x.head(1))
                 )
             if resolution is not None:
