@@ -6,7 +6,7 @@ pscript
 pandas
 # pandas-bokeh 0.5 requires bokeh>=2.0, but bokeh still doesn't support sharing a legend across plots
 pandas-bokeh==0.4.3
-pint
+pint>=0.19.1
 py-moneyed
 iso8601
 xlrd
