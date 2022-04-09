@@ -8,6 +8,7 @@ v0.9.2 | April XX, 2022
 Bugfixes
 --------
 * Prefer unit conversions to short stock units [see `PR #412 <http://www.github.com/FlexMeasures/flexmeasures/pull/412>`_]
+* Fix filter for selecting one deterministic belief per event, which was duplicating index levels [see `PR #414 <http://www.github.com/FlexMeasures/flexmeasures/pull/414>`_]
 
 
 v0.9.1 | March 31, 2022
