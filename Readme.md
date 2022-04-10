@@ -1,4 +1,4 @@
-# The FlexMeasures Platform
+![FlexMeasures Logo](https://artwork.lfenergy.org/projects/flexmeasures/horizontal/color/flexmeasures-horizontal-color.png)
 
 [![License](https://img.shields.io/github/license/seitabv/flexmeasures?color=blue)](https://github.com/FlexMeasures/flexmeasures/blob/main/LICENSE)
 ![lint-and-test](https://github.com/FlexMeasures/flexmeasures/workflows/lint-and-test/badge.svg)
@@ -13,21 +13,18 @@ The *FlexMeasures Platform* is the intelligent EMS (energy management system) to
 - Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
 - FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
 
-![FlexMeasures Logo](https://artwork.lfenergy.org/projects/flexmeasures/horizontal/color/flexmeasures-horizontal-color.png)
+![High-level overview of FlexMeasures as a EMS for energy flexibility apps, using plugins to create the use-case fit](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.png)
 
 As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful! 
 
-![High-level overview of FlexMeasures as a EMS for energy flexibility apps, using plugins to create the use-case fit](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.png)
 
-
-## What does FlexMeasures provide?
+## How does FlexMeasures enable rapid development of energy flexibility apps?
 
 A closer look at FlexMeasures' three core value drivers:
 
 1. Real-time data intelligence and integration, with advice for the rest of the day. For example, forecasts and schedules are made available via API (designed with [the USEF framework](https://usef.energy) in mind).
 2. Energy sensor and environment data have multiple sources and their forecasts are uncertain. FlexMeasures uses the [timely-beliefs library](https://github.com/SeitaBV/timely-beliefs) to model this well.
 3. Developer support ― building customer-facing apps & services is where energy flexibility hits the road. FlexMeasures reduces developer workload with a well-documented API, data visualisation and multi-tenancy, and it supports plugins to customise and extend the platform to your needs.
-
 
 
 ## Getting started
