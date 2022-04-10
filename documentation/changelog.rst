@@ -2,7 +2,7 @@
 FlexMeasures Changelog
 **********************
 
-v0.9.2 | April XX, 2022
+v0.9.2 | April 10, 2022
 ===========================
 
 Bugfixes
