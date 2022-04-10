@@ -180,6 +180,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     dev/api
     dev/ci
     dev/auth
+    dev/docker
 
 
 

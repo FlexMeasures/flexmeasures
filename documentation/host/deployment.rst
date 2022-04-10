@@ -5,11 +5,12 @@ How to deploy FlexMeasures
 
 Here you can learn how to get FlexMeasures onto a server.
 
+.. note:: FlexMeasures can be deployed via Docker. Read more at :ref:`docker`.
+
 .. contents:: Table of contents
     :local:
     :depth: 1
 
-.. todo:: It would be great to enable Dockerization of FlexMeasures, let us know if this matters to you.
 
 
 WSGI configuration
@@ -23,9 +24,9 @@ On your own computer, ``flexmeasures run`` is a nice way to start FlexMeasures. 
    # web application.
    # It works by setting the variable 'application' to a WSGI handler of some description.
 
+   # use this if you serve from code
    import os
    from dotenv import load_dotenv
-
    project_home = u'/path/to/your/code/flexmeasures'
    load_dotenv(os.path.join(project_home, '.env'))
 

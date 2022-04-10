@@ -1,0 +1,48 @@
+version: "3.8"
+
+# -----------------------------------------------
+# TODO:
+# * Add redis service
+# * Add a worker service, maybe using https://docs.docker.com/compose/compose-file/#entrypoint
+# -----------------------------------------------
+
+services:
+  dev-db:
+    # This toy db is used with SQLALCHEMY_DATABASE_URI=postgresql://fm-dev-db-user:fm-dev-db-pass@localhost:5433/fm-dev-db
+    # You can set a different SQLALCHEMY_DATABASE_URI in .env, to work on a different database!
+    image: postgres
+    expose:
+      - 5432
+    restart: always
+    environment:
+      POSTGRES_DB: fm-dev-db
+      POSTGRES_USER: fm-dev-db-user
+      POSTGRES_PASSWORD: fm-dev-db-pass
+    #volumes:
+    #  - ./fm-dev.sql:/docker-entrypoint-initdb.d/fm-dev.sql
+  flexmeasures:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    #expose:
+    #  - 5000
+    ports:
+      - 5000:5000
+    depends_on:
+      - dev-db
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v3_0/health/ready"]
+      start_period: 30s
+      interval: 20s
+      timeout: 10s
+      retries: 6
+    environment:
+      SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
+      SECRET_KEY: notsecret
+      #FLASK_ENV: production
+    # not sure why, but using flexmeasures receives a "importlib.metadata.PackageNotFoundError". This is a TODO.  
+    command: >
+      bash -c "flask db upgrade
+      && flask add toy-account --name 'Docker Toy Account'
+      && flask run --host 0.0.0.0 --port 5000"
