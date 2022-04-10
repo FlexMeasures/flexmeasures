@@ -18,7 +18,7 @@ Infrastructure / Support
 * Unit conversion prefers shorter units in general [see `PR #415 <http://www.github.com/FlexMeasures/flexmeasures/pull/415>`_]
 
 
-v0.9.2 | April XX, 2022
+v0.9.2 | April 10, 2022
 ===========================
 
 Bugfixes
