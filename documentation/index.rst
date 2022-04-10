@@ -46,7 +46,14 @@ However, even small companies and hobby projects might find FlexMeasures useful!
 
 FlexMeasures can be used as your EMS, but is also to integrate with existing systems as a smart backend or add-on to deal with energy flexibility specifically.
 
-You (the reader) might be a user connecting with a FlexMeasures server or working on hosting FlexMeasures. Maybe you are planning to develop a plugin or even core functionality. In :ref:`getting_started` we have some helpful tips how to dive in this documentation!
+The image below shows how FlexMeasures, with the help of the plugins fitted for the use case, turns data into optimized schedules:
+
+.. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.png 
+    :align: center
+..    :scale: 40%
+
+You (the reader) might be a user connecting with a FlexMeasures server or working on hosting FlexMeasures. Maybe you are planning to develop a plugin or even core functionality. In :ref:`getting_started`, we have some helpful tips how to dive in this documentation!
+
 
 
 The three ways in which FlexMeasures supports developers:

@@ -3,19 +3,22 @@
 [![License](https://img.shields.io/github/license/seitabv/flexmeasures?color=blue)](https://github.com/FlexMeasures/flexmeasures/blob/main/LICENSE)
 ![lint-and-test](https://github.com/FlexMeasures/flexmeasures/workflows/lint-and-test/badge.svg)
 [![Pypi Version](https://img.shields.io/pypi/v/flexmeasures.svg)](https://pypi.python.org/pypi/flexmeasures)
-[![](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
+[![](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Documentation Status](https://readthedocs.org/projects/flexmeasures/badge/?version=latest)](https://flexmeasures.readthedocs.io/en/latest/?badge=latest)
 [![Coverage](https://coveralls.io/repos/github/FlexMeasures/flexmeasures/badge.svg?branch=coverage-in-ci)](https://coveralls.io/github/FlexMeasures/flexmeasures?branch=coverage-in-ci)
 
-The *FlexMeasures Platform* is the intelligent backend to support real-time energy flexibility apps, rapidly and scalable. 
+The *FlexMeasures Platform* is the intelligent EMS (energy management system) to support real-time energy flexibility apps, rapidly and scalable. 
 
 - Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
-- FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and API/UI support.
+- FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
 
-![Separation of concerns ― FlexMeasures enhancing Energy Service Company services](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/SeparationOfConcerns.png)
+![FlexMeasures Logo](https://artwork.lfenergy.org/projects/flexmeasures/horizontal/color/flexmeasures-horizontal-color.png)
 
 As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful! 
+
+![High-level overview of FlexMeasures as a EMS for energy flexibility apps, using plugins to create the use-case fit](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.png)
+
 
 ## What does FlexMeasures provide?
 
@@ -25,8 +28,6 @@ A closer look at FlexMeasures' three core value drivers:
 2. Energy sensor and environment data have multiple sources and their forecasts are uncertain. FlexMeasures uses the [timely-beliefs library](https://github.com/SeitaBV/timely-beliefs) to model this well.
 3. Developer support ― building customer-facing apps & services is where energy flexibility hits the road. FlexMeasures reduces developer workload with a well-documented API, data visualisation and multi-tenancy, and it supports plugins to customise and extend the platform to your needs.
 
-
-![Integration view of the FlexMeasures platform architecture](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/FlexMeasures-HighLevel.png)
 
 
 ## Getting started
