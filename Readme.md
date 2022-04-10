@@ -38,7 +38,7 @@ See also [Seita's Github profile](https://github.com/SeitaBV), e.g. for FlexMeas
 
 FlexMeasures was initiated by [Seita BV](https://www.seita.nl) in The Netherlands in order to make sure that smart backend software is available to all parties working with energy flexibility, no matter where they are working on their local energy transition.
 
-We made FlexMeasures freely available under the Apache2.0 licence.
+We made FlexMeasures freely available under the Apache2.0 licence and it is now an incubation project at [the Linux Energy Foundation](https://www.lfenergy.org/).
 
 Within the FlexMeasures project, [we welcome contributions](https://github.com/FlexMeasures/tsc/blob/main/CONTRIBUTING.md). You can also [learn more about our governance](https://github.com/Flexmeasures/tsc/blob/main/GOVERNANCE.md).
 
