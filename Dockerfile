@@ -24,7 +24,7 @@ COPY setup.* .flaskenv .env /app/
 COPY flexmeasures/ /app/flexmeasures
 COPY .git/ /app/.git
 
-RUN pip3 install -e .
+RUN pip3 install .
 
 EXPOSE 5000
 

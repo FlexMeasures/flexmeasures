@@ -33,16 +33,15 @@ services:
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/v3_0/health/ready"]
-      start_period: 30s
+      start_period: 10s
       interval: 20s
       timeout: 10s
       retries: 6
     environment:
       SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
       SECRET_KEY: notsecret
-      #FLASK_ENV: production
-    # not sure why, but using flexmeasures receives a "importlib.metadata.PackageNotFoundError". This is a TODO.  
+      #FLASK_ENV: production  
     command: >
-      bash -c "flask db upgrade
-      && flask add toy-account --name 'Docker Toy Account'
-      && flask run --host 0.0.0.0 --port 5000"
+      bash -c "flexmeasures db upgrade
+      && flexmeasures add toy-account --name 'Docker Toy Account'
+      && flexmeasures run --host 0.0.0.0 --port 5000"
