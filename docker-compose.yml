@@ -24,8 +24,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    #expose:
-    #  - 5000
     ports:
       - 5000:5000
     depends_on:
@@ -40,8 +38,13 @@ services:
     environment:
       SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
       SECRET_KEY: notsecret
-      #FLASK_ENV: production  
+      #FLASK_ENV: production 
+    volumes:
+      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
     command: >
       bash -c "flexmeasures db upgrade
       && flexmeasures add toy-account --name 'Docker Toy Account'
       && flexmeasures run --host 0.0.0.0 --port 5000"
+
+volumes:
+  flexmeasures-instance:

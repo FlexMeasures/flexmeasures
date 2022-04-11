@@ -28,6 +28,8 @@ RUN pip3 install .
 
 EXPOSE 5000
 
+CMD ["flexmeasures",  "run", "--host", "0.0.0.0", "--port", "5000"]
+
 #CMD [ \
 #    "gunicorn", flexmeasures.wsgi", \
 #    "--bind", "0.0.0.0:5000", \
