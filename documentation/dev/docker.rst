@@ -12,27 +12,26 @@ We also support running all needed parts of a FlexMeasures EMS setup via `docker
 
 .. warning:: The dockerization is still under development.
 
-TODO:
-
-- Main Dockerfile serves API (via gunicorn and a WSGI file)
-- Publish one flexmeasures image per version
-- Compose script defines one additional FM node, where it runs a worker as entry point instead. Document.
-- Some way to test that this is working, e.g. a list of steps. Document. Also include in Release list. Could be a test step, then a publish step.
-
 
 The `flexmeasures` image
 -----------------------------------
 
-Building or downloading
+Getting the image
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You can build the FlexMeasures image yourself:
+You can use versions we host at Docker Hub, e.g.:
+
+.. code-block: bash
+
+    docker pull flexmeasures:latest
+
+
+You can also build the FlexMeasures image yourself, from source:
+
+.. code-block:: bash
 
     docker build -t flexmeasures/my-version . 
 
-But you can also use versions we host at Docker Hub, e.g.:
-
-    docker pull flexmeasures/flexmeasures:latest
 
 
 Running
@@ -45,64 +44,85 @@ Running the image might work like this:
     docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla -d --net=host your-image-name
 
 The two minimal environment variables are the database URI and the secret key.
-In this example, we connect to a database running on our local computer, so we use the host net.
+
+In this example, we connect to a database running on our local computer, so we use the host network (in the docker-compose section below, we use a Docker container for the database, as well).
+
 Browsing ``http://localhost:5000`` should work.
 
 
-Configuring
-^^^^^^^^^^^^^
+Configuration and customizing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Using the :ref:`configuration` by file is sometimes easier and also not all settings can be given via environment variables.
-To load a configuration file into the container when starting up, you can put a file ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance`` and then mount that folder into the container, like this:
+Using :ref:`configuration` by file is usually what you want to do. It's easier than adding environment variables to ``docker run``. Also, not all settings can be given via environment variables (a good example is the MapBox auth token, so you can load maps on the dashboard).
+
+To load a configuration file into the container when starting up, you can put a configuration file called ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance`` and then mount that folder into the container, like this:
 
 .. code-block:: bash
 
-    docker run --volume flexmeasures-instance/:/var/usr/flexmeasures-instance/ -d --net=host your-image-name
+    docker run -v $(pwd)/flexmeasures-instance:/usr/var/flexmeasures-instance:ro -d --net=host flexmeasures/flexmeasures
 
+.. note:: This is also a way to add your custom logic (as described in :ref:`plugins`) to the container. We'll document that shortly. Plugins which should be installed (e.g. by ``pip``) are a bit more difficult to support (you'd need to add `pip install` before the actual entry point). Ideas welcome. 
+
+
+The complete stack: compose
+--------------------------
+
+There are situations, for instance when developing or testing, when you want the whole stack of necessary nodes to be spun up by Docker. `Docker compose <https://docs.docker.com/compose/>`_ is the answer for that.
 
 
 Build the compose stack
---------------------------
+^^^^^^^^^^^^^^^^^
 
 Run this:
 
+.. code-block:: bash
+
     docker-compose build
 
-This builds the containers you need from code. If you change code, re-running this will re-build that image.
+This pulls the containers you need, and re-builds the FlexMeasures one from code. If you change code, re-running this will re-build that image.
+
+This compose script can also serve as an inspiration for using FlexMeasures in modern cloud environments (like Kubernetes).
+
+.. todo:: This stack runs FlexMeasures, but misses the background worker aspect. For this, we'll add a redis node and one additional FlexMeasures node, which runs a worker as entry point instead (see `issue 418<https://github.com/FlexMeasures/flexmeasures/issues/418>`_).
 
 
 Run the compose stack
-------------------
+^^^^^^^^^^^^^^^^^^^^^^
 
 Start the stack like this:
+
+.. code-block:: bash
 
     docker-compose up
 
 You can see log output in the terminal, but ``docker-compose logs`` is also available to you.
 
-Check ``docker ps`` or ``docker-compose ps`` to see if your containers are running and ``docker-compose logs`` to look at output. ```docker inspect <container>`` can be quite useful to dive into details. 
-
-The FlexMeasures container has a health check implemented which is reflected in this output and you can see which ports are available on your machine to interact.
+Check ``docker ps`` or ``docker-compose ps`` to see if your containers are running:
 
 
-Inspect individual containers
--------------------------------
+.. code-block:: console
 
-To start a bash session in the `flexmeasures` container, do this:
+    ± docker ps
+    CONTAINER ID        IMAGE                       COMMAND                  CREATED             STATUS                    PORTS                    NAMES
+    6105f6d1c91f        flexmeasures_flexmeasures   "bash -c 'flexmeasur…"   45 seconds ago      Up 44 seconds (healthy)   0.0.0.0:5000->5000/tcp   flexmeasures_flexmeasures_1
+    b48e4b9b113b        postgres                    "docker-entrypoint.s…"   44 hours ago        Up 45 seconds             5432/tcp                 flexmeasures_dev-db_1
 
-    docker-compose run flexmeasures bash
+
+The FlexMeasures container has a health check implemented, which is reflected in this output and you can see which ports are available on your machine to interact.
+
+You can use ``docker-compose logs`` to look at output. ``docker inspect <container>`` and ``docker exec -it <container> bash`` can be quite useful to dive into details. 
+
+.. todo:: We should provide a way to test that this is working, e.g. a list of steps. Document this, but also include that in our tsc/Release list (as a test step to see if Dockerization still works, plus a publish step for the released version).
 
 
 Configuration
-----------------
+^^^^^^^^^^^^^^
 
 You can pass in your own configuration (e.g. for MapBox access token, or db URI, see below) like we described above for running a container: Put a file ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance``.
 
-TODO: also load plugins this way (installing them by pip will be offered later)
 
 Data
------
+^^^^^^
 
 The postgres database is a test database with toy data filled in when the flexmeasures container starts.
 You could also connect it to some other database, by setting a different `SQLALCHEMY_DATABASE_URI` in the config. 
-
