@@ -20,7 +20,7 @@ RUN pip3 install --upgrade setuptools
 RUN pip3 install -r requirements/app.txt -r requirements/dev.txt -r requirements/test.txt
 
 # Copy code and meta/config data
-COPY setup.* .flaskenv /app/
+COPY setup.* .flaskenv wsgi.py /app/
 COPY flexmeasures/ /app/flexmeasures
 RUN find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
 COPY .git/ /app/.git
@@ -28,16 +28,16 @@ COPY .git/ /app/.git
 RUN pip3 install .
 
 EXPOSE 5000
+RUN apt-get install -y gunicorn
 
-CMD ["flexmeasures",  "run", "--host", "0.0.0.0", "--port", "5000"]
-
-#CMD [ \
-#    "gunicorn", flexmeasures.wsgi", \
-#    "--bind", "0.0.0.0:5000", \
-#    # This is set to /tmp by default, but this is part of the Docker overlay filesystem, and can cause stalls.
-#    # http://docs.gunicorn.org/en/latest/faq.html#how-do-i-avoid-gunicorn-excessively-blocking-in-os-fchmod
-#    "--worker-tmp-dir", "/dev/shm", \
-#    # Ideally you'd want one worker per container, but we don't want to risk the health check timing out because
-#    # another request is taking a long time to complete.
-#    "--workers", "2", "--threads", "4" \
-#]
+CMD [ \
+    "gunicorn", \
+    "--bind", "0.0.0.0:5000", \
+    # This is set to /tmp by default, but this is part of the Docker overlay filesystem, and can cause stalls.
+    # http://docs.gunicorn.org/en/latest/faq.html#how-do-i-avoid-gunicorn-excessively-blocking-in-os-fchmod
+    "--worker-tmp-dir", "/dev/shm", \
+    # Ideally you'd want one worker per container, but we don't want to risk the health check timing out because
+    # another request is taking a long time to complete.
+    "--workers", "2", "--threads", "4", \
+    "wsgi:application" \
+]

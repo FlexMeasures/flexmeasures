@@ -9,7 +9,6 @@ version: "3.8"
 services:
   dev-db:
     # This toy db is used with SQLALCHEMY_DATABASE_URI=postgresql://fm-dev-db-user:fm-dev-db-pass@localhost:5433/fm-dev-db
-    # You can set a different SQLALCHEMY_DATABASE_URI in .env, to work on a different database!
     image: postgres
     expose:
       - 5432
@@ -18,6 +17,7 @@ services:
       POSTGRES_DB: fm-dev-db
       POSTGRES_USER: fm-dev-db-user
       POSTGRES_PASSWORD: fm-dev-db-pass
+    #You could load & execute custom SQL like this: 
     #volumes:
     #  - ./fm-dev.sql:/docker-entrypoint-initdb.d/fm-dev.sql
   flexmeasures:
@@ -40,11 +40,13 @@ services:
       SECRET_KEY: notsecret
       FLASK_ENV: development 
     volumes:
+      # the first one is for running the FlexMeasures CLI, the 2nd for gunicorn
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
+      - ./flexmeasures-instance/:/app/instance/:ro
     command: >
       bash -c "flexmeasures db upgrade
       && flexmeasures add toy-account --name 'Docker Toy Account'
-      && flexmeasures run --host 0.0.0.0 --port 5000"
+      && gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application"
 
 volumes:
   flexmeasures-instance:

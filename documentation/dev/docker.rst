@@ -55,11 +55,13 @@ Configuration and customizing
 
 Using :ref:`configuration` by file is usually what you want to do. It's easier than adding environment variables to ``docker run``. Also, not all settings can be given via environment variables (a good example is the MapBox auth token, so you can load maps on the dashboard).
 
-To load a configuration file into the container when starting up, you can put a configuration file called ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance`` and then mount that folder into the container, like this:
+To load a configuration file into the container when starting up, we make use of the `instance folder <https://flask.palletsprojects.com/en/2.1.x/config/#instance-folders>`_. You can put a configuration file called ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance`` and then mount that folder into the container, like this:
 
 .. code-block:: bash
 
-    docker run -v $(pwd)/flexmeasures-instance:/usr/var/flexmeasures-instance:ro -d --net=host flexmeasures/flexmeasures
+    docker run -v $(pwd)/flexmeasures-instance:/app/instance:ro -d --net=host flexmeasures/flexmeasures
+
+.. warning:: The location of the instance folder depends on how we serve FlexMeasures. The above works with gunicorn. See the compose file for an alternative (for the FlexMeasures CLI), and you can also read the above link about the instance folder.
 
 .. note:: This is also a way to add your custom logic (as described in :ref:`plugins`) to the container. We'll document that shortly. Plugins which should be installed (e.g. by ``pip``) are a bit more difficult to support (you'd need to add `pip install` before the actual entry point). Ideas welcome. 
 
