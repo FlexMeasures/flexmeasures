@@ -20,8 +20,9 @@ RUN pip3 install --upgrade setuptools
 RUN pip3 install -r requirements/app.txt -r requirements/dev.txt -r requirements/test.txt
 
 # Copy code and meta/config data
-COPY setup.* .flaskenv .env /app/
+COPY setup.* .flaskenv /app/
 COPY flexmeasures/ /app/flexmeasures
+RUN find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
 COPY .git/ /app/.git
 
 RUN pip3 install .

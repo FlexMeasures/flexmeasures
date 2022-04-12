@@ -38,7 +38,7 @@ services:
     environment:
       SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
       SECRET_KEY: notsecret
-      #FLASK_ENV: production 
+      FLASK_ENV: development 
     volumes:
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
     command: >
