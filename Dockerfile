@@ -8,7 +8,7 @@ ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
 
 # pre-requisites
-RUN apt-get update && apt-get install -y --upgrade python3 python3-pip git curl
+RUN apt-get update && apt-get install -y --upgrade python3 python3-pip git curl gunicorn
 
 WORKDIR /app
 # requirements - doing this earlier, so we don't install them each time. Use --no-cache to refresh them.
@@ -28,7 +28,6 @@ COPY .git/ /app/.git
 RUN pip3 install .
 
 EXPOSE 5000
-RUN apt-get install -y gunicorn
 
 CMD [ \
     "gunicorn", \

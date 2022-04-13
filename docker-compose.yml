@@ -40,7 +40,7 @@ services:
       SECRET_KEY: notsecret
       FLASK_ENV: development 
     volumes:
-      # the first one is for running the FlexMeasures CLI, the 2nd for gunicorn
+      # a place for config and plugin code - the mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
       - ./flexmeasures-instance/:/app/instance/:ro
     command: >
