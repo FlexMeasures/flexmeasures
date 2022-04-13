@@ -36,14 +36,14 @@ This example is from scratch, so we'll assume you have nothing prepared but a (U
 
 We start by installing the FlexMeasures platform, and then use Docker to run a postgres database and tell FlexMeasures to create all tables.
 
-.. note:: When installing with ``pip``, on some platforms problems might come up (e.g. MacOs, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use the FlexMeasures Docker image (see :ref:`docker`). We plan to offer this tutorial for users, who only use Docker and run it completely inside containers.
-
 .. code-block:: console
 
     $ pip install flexmeasures
     $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
     $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="WARNING" DEBUG=0 
     $ flexmeasures db upgrade
+
+.. note:: When installing with ``pip``, on some platforms problems might come up (e.g. MacOs, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use the FlexMeasures Docker image (see :ref:`docker`). We plan to offer this tutorial for users, who only use Docker and run it completely inside containers.
 
 
 Add some structural data
