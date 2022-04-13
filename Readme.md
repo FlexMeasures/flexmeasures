@@ -13,7 +13,7 @@ The *FlexMeasures Platform* is the intelligent EMS (energy management system) to
 - Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
 - FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
 
-![High-level overview of FlexMeasures as a EMS for energy flexibility apps, using plugins to create the use-case fit](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.png)
+![High-level overview of FlexMeasures as an EMS for energy flexibility apps, using plugins to fit a given use case](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.png)
 
 As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful! 
 
@@ -38,7 +38,7 @@ See also [Seita's Github profile](https://github.com/SeitaBV), e.g. for FlexMeas
 
 FlexMeasures was initiated by [Seita BV](https://www.seita.nl) in The Netherlands in order to make sure that smart backend software is available to all parties working with energy flexibility, no matter where they are working on their local energy transition.
 
-We made FlexMeasures freely available under the Apache2.0 licence and it is now an incubation project at [the Linux Energy Foundation](https://www.lfenergy.org/).
+We made FlexMeasures freely available under the Apache2.0 licence and it is now [an incubation project at the Linux Energy Foundation](https://www.lfenergy.org/projects/flexmeasures/).
 
 Within the FlexMeasures project, [we welcome contributions](https://github.com/FlexMeasures/tsc/blob/main/CONTRIBUTING.md). You can also [learn more about our governance](https://github.com/Flexmeasures/tsc/blob/main/GOVERNANCE.md).
 
