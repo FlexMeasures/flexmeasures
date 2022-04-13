@@ -3,7 +3,7 @@
 Running via Docker
 ======================
 
-FlexMeasures can be run via `docker <https://docs.docker.com/>`_. TODO: link to the image once it's up.
+FlexMeasures can be run via `docker <https://hub.docker.com/repository/docker/flexmeasures/flexmeasures>`_.
 
 Docker is great to save developers from installation trouble, but also for running FlexMeasures inside modern cloud environments in a scalable manner.
 For now, the use case is local development. Using in production is a goal for later.
@@ -21,9 +21,9 @@ Getting the image
 
 You can use versions we host at Docker Hub, e.g.:
 
-.. code-block: bash
+.. code-block:: bash
 
-    docker pull flexmeasures:latest
+    docker pull flexmeasures/flexmeasures:latest
 
 
 You can also build the FlexMeasures image yourself, from source:
@@ -32,6 +32,7 @@ You can also build the FlexMeasures image yourself, from source:
 
     docker build -t flexmeasures/my-version . 
 
+The tag is your choice.
 
 
 Running
@@ -41,7 +42,7 @@ Running the image might work like this:
 
 .. code-block:: bash
 
-    docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla -d --net=host your-image-name
+    docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla -d --net=host flexmeasures/flexmeasures
 
 The two minimal environment variables are the database URI and the secret key.
 
@@ -83,7 +84,7 @@ Run this:
 
 This pulls the containers you need, and re-builds the FlexMeasures one from code. If you change code, re-running this will re-build that image.
 
-This compose script can also serve as an inspiration for using FlexMeasures in modern cloud environments (like Kubernetes).
+This compose script can also serve as an inspiration for using FlexMeasures in modern cloud environments (like Kubernetes). For instance, you might want to not build the FlexMeasures image from code, but simply pull the image form DockerHub.
 
 .. todo:: This stack runs FlexMeasures, but misses the background worker aspect. For this, we'll add a redis node and one additional FlexMeasures node, which runs a worker as entry point instead (see `issue 418<https://github.com/FlexMeasures/flexmeasures/issues/418>`_).
 

@@ -21,7 +21,7 @@ A tiny, but complete example: Let's install FlexMeasures from scratch. Then, usi
 
 .. code-block:: console
 
-    $ pip install flexmeasures
+    $ pip install flexmeasures  # also available via Docker
     $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
     $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret 
     $ flexmeasures db upgrade  # create tables

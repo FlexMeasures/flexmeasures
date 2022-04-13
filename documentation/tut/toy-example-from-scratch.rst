@@ -10,6 +10,8 @@ Let's walk through an example from scratch! We'll ...
 - load hourly prices
 - optimize a 12h-schedule for a battery that is half full
 
+You'll need: A Unix computer with Python 3.8+, pip and `Docker <https://www.docker.com/>`_.
+
 Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain step by step. There are some other crucial steps for installation and setup, so this becomes a complete example from scratch, but this is the meat:
 
 .. code-block:: console
@@ -30,9 +32,11 @@ Okay, let's get started!
 Install Flexmeasures and the database
 ---------------------------------------
 
-This example is from scratch, so we'll assume you have nothing prepared but a (Unix) computer with Python and two well-known developer tools, `pip <https://pip.pypa.io>`_ and `docker <https://www.docker.com/>`_
+This example is from scratch, so we'll assume you have nothing prepared but a (Unix) computer with Python (3.8+) and two well-known developer tools, `pip <https://pip.pypa.io>`_ and `docker <https://www.docker.com/>`_.
 
-We install the FlexMeasures platform, use Docker to run a postgres database and tell FlexMeasures to create all tables.
+We start by installing the FlexMeasures platform, and then use Docker to run a postgres database and tell FlexMeasures to create all tables.
+
+.. note:: When installing with ``pip``, on some platforms problems might come up (e.g. MacOs, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use the FlexMeasures Docker image (see :ref:`docker`). We plan to offer this tutorial for users, who only use Docker and run it completely inside containers.
 
 .. code-block:: console
 
