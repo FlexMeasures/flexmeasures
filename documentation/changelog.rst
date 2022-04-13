@@ -9,11 +9,15 @@ v0.10.0 | April XX, 2022
 New features
 -----------
 
+* API provides health check at /api/v3_0/health/ready [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
+
 Bugfixes
 -----------
 
 Infrastructure / Support
 ----------------------
+
+* Dockerfile to run FlexMeasures API in container; also docker-compose file [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
 
 
 v0.9.1 | March 31, 2022
