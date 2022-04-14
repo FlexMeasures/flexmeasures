@@ -8,7 +8,7 @@ ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
 
 # pre-requisites
-RUN apt-get update && apt-get install -y --upgrade python3 python3-pip git curl gunicorn
+RUN apt-get update && apt-get install -y --upgrade python3 python3-pip git curl gunicorn coinor-cbc
 
 WORKDIR /app
 # requirements - doing this earlier, so we don't install them each time. Use --no-cache to refresh them.
