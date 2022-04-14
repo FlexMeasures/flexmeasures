@@ -1,44 +1,36 @@
+"""Utility module for unit conversion
+
+FlexMeasures stores units as strings in short scientific notation (such as 'kWh' to denote kilowatt-hour).
+We use the pint library to convert data between compatible units (such as 'm/s' to 'km/h').
+Three-letter currency codes (such as 'KRW' to denote South Korean Won) are valid units.
+Note that converting between currencies requires setting up a sensor that registers conversion rates over time.
+The preferred compact form for combinations of units can be derived automatically (such as 'kW*EUR/MWh' to 'EUR/h').
+Time series with fixed resolution can be converted from units of flow to units of stock (such as 'kW' to 'kWh'), and vice versa.
+Percentages can be converted to units of some physical capacity if a capacity is known (such as '%' to 'kWh').
+"""
+
 from datetime import timedelta
 from typing import List, Optional, Union
 
 from moneyed import list_all_currencies
-import importlib.resources as pkg_resources
 import numpy as np
 import pandas as pd
 import pint
 import timely_beliefs as tb
 
-# Edit constants template to stop using h to represent planck_constant
-constants_template = (
-    pkg_resources.read_text(pint, "constants_en.txt")
-    .replace("= h  ", "     ")
-    .replace(" h ", " planck_constant ")
-)
-
-# Edit units template to use h to represent hour instead of planck_constant
-units_template = (
-    pkg_resources.read_text(pint, "default_en.txt")
-    .replace("@import constants_en.txt", "")
-    .replace(" h ", " planck_constant ")
-    .replace("hour = 60 * minute = hr", "hour = 60 * minute = h = hr")
-)
 
 # Create custom template
 custom_template = [f"{c} = [currency_{c}]" for c in list_all_currencies()]
 
-# Join templates as iterable object
-full_template = (
-    constants_template.split("\n") + units_template.split("\n") + custom_template
-)
-
 # Set up UnitRegistry with abbreviated scientific format
 ur = pint.UnitRegistry(
-    full_template,
+    # non_int_type=decimal.Decimal,  # todo: switch to decimal unit registry, after https://github.com/hgrecco/pint/issues/1505
     preprocessors=[
         lambda s: s.replace("%", " percent "),
         lambda s: s.replace("‰", " permille "),
     ],
 )
+ur.load_definitions(custom_template)
 ur.default_format = "~P"  # short pretty
 ur.define("percent = 1 / 100 = %")
 ur.define("permille = 1 / 1000 = ‰")
@@ -57,6 +49,8 @@ PREFERRED_UNITS = [
     "V",
     "A",
     "dimensionless",
+] + [
+    str(c) for c in list_all_currencies()
 ]  # todo: move to config setting, with these as a default (NB prefixes do not matter here, this is about SI base units, so km/h is equivalent to m/h)
 PREFERRED_UNITS_DICT = dict(
     [(ur.parse_expression(x).dimensionality, x) for x in PREFERRED_UNITS]
@@ -67,7 +61,16 @@ def to_preferred(x: pint.Quantity) -> pint.Quantity:
     """From https://github.com/hgrecco/pint/issues/676#issuecomment-689157693"""
     dim = x.dimensionality
     if dim in PREFERRED_UNITS_DICT:
-        return x.to(PREFERRED_UNITS_DICT[dim]).to_compact()
+
+        compact_unit = x.to(PREFERRED_UNITS_DICT[dim]).to_compact()
+
+        # todo: switch to decimal unit registry and then swap out the if statements below
+        # if len(f"{compact_unit.magnitude}" + "{:~P}".format(compact_unit.units)) < len(
+        #     f"{x.magnitude}" + "{:~P}".format(x.units)
+        # ):
+        #     return compact_unit
+        if len("{:~P}".format(compact_unit.units)) < len("{:~P}".format(x.units)):
+            return compact_unit
     return x
 
 
@@ -120,7 +123,9 @@ def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
 
 
 def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
-    """For example:
+    """Determine the shortest unit of stock, given a unit of flow.
+
+    For example:
     >>> determine_stock_unit("m³/h")  # m³
     >>> determine_stock_unit("kW")  # kWh
     """

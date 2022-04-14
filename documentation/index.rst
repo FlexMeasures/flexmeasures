@@ -13,6 +13,8 @@ Developing energy flexibility services is expensive work. FlexMeasures is design
 - Uncertainty models
 - App-building (API/UI/CLI & plugin support)
 
+FlexMeasures proudly is an incubation project at `the Linux Energy Foundation <https://www.lfenergy.org/>`_.
+
 
 A quick glance at usage
 ------------------------
@@ -88,7 +90,7 @@ For more on benefits, consult :ref:`benefits`.
 
 FlexMeasures is compliant with the `Universal Smart Energy Framework (USEF) <https://www.usef.energy/>`_.
 Therefore, this documentation uses USEF terminology, e.g. for role definitions.
-The intended users of FlexMeasures are a Supplier (energy company) and its Prosumers (asset owners who have energy contracts with that Supplier).
+In this context, the intended users of FlexMeasures are a Supplier (energy company) and its Prosumers (asset owners who have energy contracts with that Supplier).
 The platform operator of FlexMeasures can be an Aggregator.
 
 
