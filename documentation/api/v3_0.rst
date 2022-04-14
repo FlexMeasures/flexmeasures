@@ -1,0 +1,20 @@
+.. _v3_0:
+
+Version 3.0
+===========
+
+Summary
+-------
+
+.. qrefflask:: flexmeasures.app:create(env="documentation")
+    :modules: flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.users
+    :order: path
+    :include-empty-docstring:
+
+API Details
+-----------
+
+.. autoflask:: flexmeasures.app:create(env="documentation")
+    :modules: flexmeasures.api.v3_0.assets, flexmeasures.api.v3_0.sensors, flexmeasures.api.v3_0.users
+    :order: path
+    :include-empty-docstring:

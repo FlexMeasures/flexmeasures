@@ -3,7 +3,7 @@ import pytest
 
 from flexmeasures.api.tests.utils import get_auth_token, AccountContext
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.api.dev.tests.utils import get_asset_post_data
+from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
 
 
 @pytest.mark.parametrize("admin_kind", ["site-admin", "account-admin"])
@@ -11,7 +11,11 @@ def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, admin_kind):
     """
     Post one extra asset, as an admin user.
     """
-    post_data = get_asset_post_data()
+    with AccountContext("Test Prosumer Account") as prosumer:
+        post_data = get_asset_post_data(
+            account_id=prosumer.id,
+            asset_type_id=prosumer.generic_assets[0].generic_asset_type.id,
+        )
     if admin_kind == "site-admin":
         auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     else:
@@ -34,10 +38,10 @@ def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, admin_kind):
 
 
 def test_edit_an_asset(client, setup_api_fresh_test_data):
-    with AccountContext("Test Prosumer Account") as prosumer:
-        existing_asset = prosumer.generic_assets[1]
+    with AccountContext("Test Supplier Account") as supplier:
+        existing_asset = supplier.generic_assets[0]
 
-    post_data = dict(latitude=10, id=999)  # id will be ignored
+    post_data = dict(latitude=10)
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     edit_asset_response = client.patch(
         url_for("AssetAPI:patch", id=existing_asset.id),

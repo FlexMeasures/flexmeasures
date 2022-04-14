@@ -60,7 +60,10 @@ def get_latest_power_as_plot(sensor: Sensor, small: bool = False) -> Tuple[str, 
         "Capacity in use": [latest_power_value],
         "Remaining capacity": [capacity_in_mw - latest_power_value],
     }
-    percentage_capacity = latest_power_value / capacity_in_mw
+    if capacity_in_mw > 0:
+        percentage_capacity = latest_power_value / capacity_in_mw
+    else:
+        percentage_capacity = 0
     df = pd.DataFrame(data)
     p = df.plot_bokeh(
         kind="bar",

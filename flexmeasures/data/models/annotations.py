@@ -1,7 +1,9 @@
 from datetime import timedelta
+from typing import List
+
+import pandas as pd
 
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import DataSource
 
 
 class Annotation(db.Model):
@@ -16,20 +18,24 @@ class Annotation(db.Model):
     """
 
     id = db.Column(db.Integer, nullable=False, autoincrement=True, primary_key=True)
-    content = db.Column(db.String(255), nullable=False)
     start = db.Column(db.DateTime(timezone=True), nullable=False)
     end = db.Column(db.DateTime(timezone=True), nullable=False)
-    source_id = db.Column(db.Integer, db.ForeignKey(DataSource.__tablename__ + ".id"))
+    belief_time = db.Column(db.DateTime(timezone=True), nullable=True)
+    source_id = db.Column(db.Integer, db.ForeignKey("data_source.id"))
     source = db.relationship(
         "DataSource",
         foreign_keys=[source_id],
         backref=db.backref("annotations", lazy=True),
     )
-    type = db.Column(db.Enum("alert", "holiday", "label", name="annotation_type"))
+    type = db.Column(
+        db.Enum("alert", "holiday", "label", "feedback", name="annotation_type")
+    )
+    content = db.Column(db.String(1024), nullable=False)
     __table_args__ = (
         db.UniqueConstraint(
             "content",
             "start",
+            "belief_time",
             "source_id",
             "type",
             name="annotation_content_key",
@@ -39,6 +45,81 @@ class Annotation(db.Model):
     @property
     def duration(self) -> timedelta:
         return self.end - self.start
+
+    @classmethod
+    def add(
+        cls,
+        df: pd.DataFrame,
+        annotation_type: str,
+        expunge_session: bool = False,
+        allow_overwrite: bool = False,
+        bulk_save_objects: bool = False,
+        commit_transaction: bool = False,
+    ) -> List["Annotation"]:
+        """Add a data frame describing annotations to the database and return the Annotation objects.
+
+        :param df:                  Data frame describing annotations.
+                                    Expects the following columns (or multi-index levels):
+                                    - start
+                                    - end or duration
+                                    - content
+                                    - belief_time
+                                    - source
+        :param annotation_type:     One of the possible Enum values for annotation.type
+        :param expunge_session:     if True, all non-flushed instances are removed from the session before adding annotations.
+                                    Expunging can resolve problems you might encounter with states of objects in your session.
+                                    When using this option, you might want to flush newly-created objects which are not annotations
+                                    (e.g. a sensor or data source object).
+        :param allow_overwrite:     if True, new objects are merged
+                                    if False, objects are added to the session or bulk saved
+        :param bulk_save_objects:   if True, objects are bulk saved with session.bulk_save_objects(),
+                                    which is quite fast but has several caveats, see:
+                                    https://docs.sqlalchemy.org/orm/persistence_techniques.html#bulk-operations-caveats
+                                    if False, objects are added to the session with session.add_all()
+        :param commit_transaction:  if True, the session is committed
+                                    if False, you can still add other data to the session
+                                    and commit it all within an atomic transaction
+        """
+        df = df.reset_index()
+        starts = df["start"]
+        if "end" in df.columns:
+            ends = df["end"]
+        elif "start" in df.columns and "duration" in df.columns:
+            ends = df["start"] + df["duration"]
+        else:
+            raise ValueError(
+                "Missing 'end' column cannot be derived from columns 'start' and 'duration'."
+            )
+        values = df["content"]
+        belief_times = df["belief_time"]
+        sources = df["source"]
+        annotations = [
+            cls(
+                content=row[0],
+                start=row[1],
+                end=row[2],
+                belief_time=row[3],
+                source=row[4],
+                type=annotation_type,
+            )
+            for row in zip(values, starts, ends, belief_times, sources)
+        ]
+
+        # Deal with the database session
+        if expunge_session:
+            db.session.expunge_all()
+        if not allow_overwrite:
+            if bulk_save_objects:
+                db.session.bulk_save_objects(annotations)
+            else:
+                db.session.add_all(annotations)
+        else:
+            for annotation in annotations:
+                db.session.merge(annotation)
+        if commit_transaction:
+            db.session.commit()
+
+        return annotations
 
     def __repr__(self) -> str:
         return f"<Annotation {self.id}: {self.content} ({self.type}), start: {self.start} end: {self.end}, source: {self.source}>"

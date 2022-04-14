@@ -223,7 +223,7 @@ def parse_entity_address(  # noqa: C901
             fr"(?P<naming_authority>{date_regex}\.[^:]+)"
             r":"
             r"((?P<fm_scheme>.+)\.)*"  # for backwards compatibility, missing fm_scheme is interpreted as fm0
-            r"(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w]+)"  # should start with at least one letter
+            r"(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w\s]+)"  # should start with at least one letter
             r":"
             r"(?P<latitude>\-?\d+(\.\d+)?)"
             r":"

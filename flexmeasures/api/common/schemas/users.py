@@ -7,7 +7,7 @@ from flexmeasures.data.models.user import User, Account
 
 class AccountIdField(fields.Integer):
     """
-    Field that represents an account ID. It de-serializes from the account id to an account instance.
+    Field that represents an account ID. It deserializes from the account id to an account instance.
     """
 
     def _deserialize(self, account_id: str, attr, obj, **kwargs) -> Account:
@@ -30,7 +30,7 @@ class AccountIdField(fields.Integer):
 
 class UserIdField(fields.Integer):
     """
-    Field that represents a user ID. It de-serializes from the user id to a user instance.
+    Field that represents a user ID. It deserializes from the user id to a user instance.
     """
 
     def __init__(self, *args, **kwargs):
@@ -42,7 +42,7 @@ class UserIdField(fields.Integer):
     def _deserialize(self, user_id: int, attr, obj, **kwargs) -> User:
         user: User = User.query.filter_by(id=int(user_id)).one_or_none()
         if user is None:
-            raise abort(404, f"User {id} not found")
+            raise abort(404, f"User {user_id} not found")
         return user
 
     def _serialize(self, user: User, attr, data, **kwargs) -> int:

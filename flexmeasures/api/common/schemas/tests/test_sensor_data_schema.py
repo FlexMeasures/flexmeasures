@@ -4,7 +4,7 @@ from marshmallow import ValidationError
 
 from flexmeasures.api.common.schemas.sensor_data import (
     SingleValueField,
-    SensorDataSchema,
+    PostSensorDataSchema,
 )
 
 
@@ -34,7 +34,7 @@ def test_value_field_deserialization(
     exp_deserialization_output,
 ):
     """Testing straightforward cases"""
-    vf = SensorDataSchema._declared_fields["values"]
+    vf = PostSensorDataSchema._declared_fields["values"]
     deser = vf.deserialize(deserialization_input)
     assert deser == exp_deserialization_output
 

@@ -1,7 +1,6 @@
 name: lint-and-test
 
-on: push
-
+on: ["push", "pull_request"]
 
 jobs:
   check:
@@ -20,13 +19,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ '3.8', '3.9' ]
+        py_version: [ '3.9' ]
+        include:
+          - python-version: "3.9"
+            coverage: yes
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py_version }}
-      - uses: actions/checkout@v2
+      - name: Check out src from Git
+        uses: actions/checkout@v2
+      - name: Get history and tags for SCM versioning to work
+        run: |
+          git fetch --prune --unshallow
+          git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - uses: actions/cache@v2
         with:
           path: ~/.cache/pip
@@ -34,7 +41,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
       - run: ci/SETUP.sh
-      - run: make test
+      - name: Install FlexMeasures & dependencies for tests
+        run: |
+          make install-for-test
+          pip install coveralls
+      - name: Run all tests except those marked to be skipped by GitHub
+        run: pytest -m "not skip_github"
+        if: ${{ matrix.coverage != 'yes' }}
+      - name: Run all tests except those marked to be skipped by GitHub AND record coverage
+        run: pytest -v -m "not skip_github" --cov=flexmeasures --cov-branch
+        if: ${{ matrix.coverage == 'yes' }}
+      - run: coveralls --service=github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ matrix.coverage == 'yes' }}
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5432

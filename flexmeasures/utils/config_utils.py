@@ -83,7 +83,7 @@ def read_config(app: Flask, custom_path_to_config: Optional[str]):
         used_path_to_config = read_custom_config(
             app, custom_path_to_config, path_to_config_home, path_to_config_instance
         )
-        read_required_env_vars(app)
+        read_env_vars(app)
 
     # Check for missing values.
     # Documentation runs fine without them.
@@ -142,14 +142,21 @@ def read_custom_config(
         app.logger.warning(
             f"File {path_to_config} could not be found! (work dir is {os.getcwd()})"
         )
-        app.logger.warning(f"File exists: {os.path.exists(path_to_config)}")
     return path_to_config
 
 
-def read_required_env_vars(app: Flask):
-    """All required variables and the plugins can be set as env var"""
-    for var in required:
+def read_env_vars(app: Flask):
+    """
+    Read in what we support as environment settings.
+    At the moment, these are:
+    - All required variables
+    - Logging settings
+    - plugins (handled in plugin utils)
+    """
+    for var in required + ["LOGGING_LEVEL"]:
         app.config[var] = os.getenv(var, app.config.get(var, None))
+    # DEBUG in env can come in as a string ("True") so make sure we don't trip here
+    app.config["DEBUG"] = int(bool(os.getenv("DEBUG", app.config.get("DEBUG", False))))
 
 
 def are_required_settings_complete(app) -> bool:

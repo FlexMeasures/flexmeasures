@@ -2,7 +2,42 @@
 FlexMeasures Changelog
 **********************
 
-v0.9.0 | February XX, 2022
+v0.10.0 | April XX, 2022
+===========================
+
+
+New features
+-----------
+* Improve legibility of chart axes [see `PR #413 <http://www.github.com/FlexMeasures/flexmeasures/pull/413>`_]
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+* Unit conversion prefers shorter units in general [see `PR #415 <http://www.github.com/FlexMeasures/flexmeasures/pull/415>`_]
+
+
+v0.9.2 | April 10, 2022
+===========================
+
+Bugfixes
+--------
+* Prefer unit conversions to short stock units [see `PR #412 <http://www.github.com/FlexMeasures/flexmeasures/pull/412>`_]
+* Fix filter for selecting one deterministic belief per event, which was duplicating index levels [see `PR #414 <http://www.github.com/FlexMeasures/flexmeasures/pull/414>`_]
+
+
+v0.9.1 | March 31, 2022
+===========================
+
+Bugfixes
+--------
+* Fix auth bug not masking locations of inaccessible assets on map [see `PR #409 <http://www.github.com/FlexMeasures/flexmeasures/pull/409>`_]
+* Fix CLI auth check [see `PR #407 <http://www.github.com/FlexMeasures/flexmeasures/pull/407>`_]
+* Fix resampling of sensor data for scheduling [see `PR #406 <http://www.github.com/FlexMeasures/flexmeasures/pull/406>`_]
+
+
+v0.9.0 | March 25, 2022
 ===========================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
@@ -12,9 +47,19 @@ New features
 * Three new CLI commands for cleaning up your database: delete 1) unchanged beliefs, 2) NaN values or 3) a sensor and all of its time series data [see `PR #328 <http://www.github.com/FlexMeasures/flexmeasures/pull/328>`_]
 * Add CLI option to pass a data unit when reading in time series data from CSV, so data can automatically be converted to the sensor unit [see `PR #341 <http://www.github.com/FlexMeasures/flexmeasures/pull/341>`_]
 * Add CLI option to specify custom strings that should be interpreted as NaN values when reading in time series data from CSV [see `PR #357 <http://www.github.com/FlexMeasures/flexmeasures/pull/357>`_]
-* Add CLI commands ``flexmeasures add sensor``, ``flexmeasures add asset-type``, ``flexmeasures add beliefs`` (which were experimental features before). [see `PR #337 <http://www.github.com/FlexMeasures/flexmeasures/pull/337>`_]
-* Add CLI commands for showing data [see `PR #339 <http://www.github.com/FlexMeasures/flexmeasures/pull/339>`_]
+* Add CLI commands ``flexmeasures add sensor``, ``flexmeasures add asset-type``, ``flexmeasures add beliefs`` (which were experimental features before) [see `PR #337 <http://www.github.com/FlexMeasures/flexmeasures/pull/337>`_]
+* Add CLI commands for showing organisational structure [see `PR #339 <http://www.github.com/FlexMeasures/flexmeasures/pull/339>`_]
+* Add a CLI command for showing time series data [see `PR #379 <http://www.github.com/FlexMeasures/flexmeasures/pull/379>`_]
 * Add CLI command for attaching annotations to assets: ``flexmeasures add holidays`` adds public holidays [see `PR #343 <http://www.github.com/FlexMeasures/flexmeasures/pull/343>`_]
+* Add CLI command for resampling existing sensor data to new resolution [see `PR #360 <http://www.github.com/FlexMeasures/flexmeasures/pull/360>`_]
+* Add CLI command to delete an asset, with its sensors and data. [see `PR #395 <http://www.github.com/FlexMeasures/flexmeasures/pull/395>`_]
+* Add CLI command to edit/add an attribute on an asset or sensor. [see `PR #380 <http://www.github.com/FlexMeasures/flexmeasures/pull/380>`_]
+* Add CLI command to add a toy account for tutorials and trying things [see `PR #368 <http://www.github.com/FlexMeasures/flexmeasures/pull/368>`_]
+* Add CLI command to create a charging schedule [see `PR #372 <http://www.github.com/FlexMeasures/flexmeasures/pull/372>`_]
+* Support for percent (%) and permille (‰) sensor units [see `PR #359 <http://www.github.com/FlexMeasures/flexmeasures/pull/359>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <http://flexmeasures.io/090-cli-developer-power/>`__.
+
 
 Bugfixes
 -----------
@@ -22,8 +67,9 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 * Plugins can import common FlexMeasures classes (like ``Asset`` and ``Sensor``) from a central place, using ``from flexmeasures import Asset, Sensor`` [see `PR #354 <http://www.github.com/FlexMeasures/flexmeasures/pull/354>`_]
-
 * Adapt CLI command for entering some initial structure (``flexmeasures add structure``) to new datamodel [see `PR #349 <http://www.github.com/FlexMeasures/flexmeasures/pull/349>`_]
+* Align documentation requirements with pip-tools [see `PR #384 <http://www.github.com/FlexMeasures/flexmeasures/pull/384>`_]
+* Beginning API v3.0 - more REST-like, supporting assets, users and sensor data [see `PR #390 <http://www.github.com/FlexMeasures/flexmeasures/pull/390>`_ and `PR #392 <http://www.github.com/FlexMeasures/flexmeasures/pull/392>`_]
 
 
 v0.8.0 | January 24, 2022

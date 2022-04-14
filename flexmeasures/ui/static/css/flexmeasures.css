@@ -418,7 +418,7 @@ i.icon-wind:hover:before {
 .icon-wind_speed:before { content: '\f0b1'; } /* wi-wind-direction */
 .icon-wind_direction:before { content: '\f050'; } /* wi-strong-wind */
 .icon-temperature:before { content: '\f053'; } /* wi-thermometer-exterior */
-.icon-radiation:before { content: '\f046'; } /* wi-horizon-alt */
+.icon-irradiance:before { content: '\f046'; } /* wi-horizon-alt */
 
 
 @font-face {
@@ -504,3 +504,5 @@ i.icon-wind:hover:before {
 .icon-buildings:before { content: '\e803'; } /* '' */
 .icon-charging_stations:before { content: '\e805'; } /* '' */
 .icon-bidirectional_charging_stations:before { content: '\e805'; } /* '' */
+
+.litepicker { font-size: 14px;}

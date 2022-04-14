@@ -1,4 +1,5 @@
 import copy
+from typing import List, Union
 
 from flask import url_for
 
@@ -22,7 +23,7 @@ def mock_asset_response(
     account_id: int = 1,
     as_list: bool = True,
     multiple: bool = False,
-) -> dict:
+) -> Union[dict, List[dict]]:
     asset = dict(
         id=asset_id,
         name="TestAsset",
@@ -48,7 +49,7 @@ def mock_user_response(
     active: bool = True,
     as_list: bool = True,
     multiple: bool = False,
-) -> dict:
+) -> Union[dict, List[dict]]:
     user = dict(
         id=user_id,
         username=username,
@@ -64,7 +65,7 @@ def mock_user_response(
             user2 = copy.deepcopy(user)
             user2["id"] = 2
             user2["username"] = "Bert"
-            user2["email"] = ("bert@seita.nl",)
+            user2["email"] = "bert@seita.nl"
             user_list.append(user2)
         return user_list
     return user

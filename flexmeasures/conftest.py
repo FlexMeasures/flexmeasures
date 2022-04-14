@@ -25,7 +25,6 @@ from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.weather import WeatherSensor, WeatherSensorType
 from flexmeasures.data.models.markets import Market, MarketType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import User, Account, AccountRole
@@ -248,6 +247,15 @@ def create_test_markets(db) -> Dict[str, Market]:
 
 @pytest.fixture(scope="module")
 def setup_sources(db) -> Dict[str, DataSource]:
+    return create_sources(db)
+
+
+@pytest.fixture(scope="function")
+def setup_sources_fresh_db(fresh_db) -> Dict[str, DataSource]:
+    return create_sources(fresh_db)
+
+
+def create_sources(db) -> Dict[str, DataSource]:
     seita_source = DataSource(name="Seita", type="demo script")
     db.session.add(seita_source)
     entsoe_source = DataSource(name="ENTSO-E", type="demo script")
@@ -329,9 +337,21 @@ def create_generic_asset_types(db):
     db.session.add(solar)
     wind = GenericAssetType(name="wind turbine")
     db.session.add(wind)
-    battery = GenericAssetType(name="battery")
+    battery = GenericAssetType.query.filter_by(name="battery").one_or_none()
+    if (
+        not battery
+    ):  # legacy if-block, because create_test_battery_assets might have created it already - refactor!
+        battery = GenericAssetType(name="battery")
     db.session.add(battery)
-    return dict(public_good=public_good, solar=solar, wind=wind, battery=battery)
+    weather_station = GenericAssetType(name="weather station")
+    db.session.add(weather_station)
+    return dict(
+        public_good=public_good,
+        solar=solar,
+        wind=wind,
+        battery=battery,
+        weather_station=weather_station,
+    )
 
 
 def create_test_asset_types(db) -> Dict[str, AssetType]:
@@ -406,7 +426,28 @@ def setup_assets(
 
 
 @pytest.fixture(scope="module")
-def setup_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
+def setup_beliefs(db, setup_markets, setup_sources) -> int:
+    """
+    Make some beliefs.
+
+    :returns: the number of beliefs set up
+    """
+    return create_beliefs(db, setup_markets, setup_sources)
+
+
+@pytest.fixture(scope="function")
+def setup_beliefs_fresh_db(
+    fresh_db, setup_markets_fresh_db, setup_sources_fresh_db
+) -> int:
+    """
+    Make some beliefs.
+
+    :returns: the number of beliefs set up
+    """
+    return create_beliefs(fresh_db, setup_markets_fresh_db, setup_sources_fresh_db)
+
+
+def create_beliefs(db: SQLAlchemy, setup_markets, setup_sources) -> int:
     """
     :returns: the number of beliefs set up
     """
@@ -507,7 +548,9 @@ def add_battery_assets_fresh_db(
 def create_test_battery_assets(
     db: SQLAlchemy, setup_roles_users, setup_markets
 ) -> Dict[str, Asset]:
-    """Add two battery assets, set their capacity values and their initial SOC."""
+    """
+    Add two battery assets, set their capacity values and their initial SOC.
+    """
     db.session.add(
         AssetType(
             name="battery",
@@ -634,38 +677,40 @@ def add_charging_station_assets(
 
 
 @pytest.fixture(scope="module")
-def add_weather_sensors(db) -> Dict[str, WeatherSensor]:
-    return create_weather_sensors(db)
+def add_weather_sensors(db, setup_generic_asset_types) -> Dict[str, Sensor]:
+    return create_weather_sensors(db, setup_generic_asset_types)
 
 
 @pytest.fixture(scope="function")
-def add_weather_sensors_fresh_db(fresh_db) -> Dict[str, WeatherSensor]:
-    return create_weather_sensors(fresh_db)
+def add_weather_sensors_fresh_db(
+    fresh_db, setup_generic_asset_types_fresh_db
+) -> Dict[str, Sensor]:
+    return create_weather_sensors(fresh_db, setup_generic_asset_types_fresh_db)
 
 
-def create_weather_sensors(db: SQLAlchemy):
-    """Add some weather sensors and weather sensor types."""
+def create_weather_sensors(db: SQLAlchemy, generic_asset_types) -> Dict[str, Sensor]:
+    """Add a weather station asset with two weather sensors."""
 
-    test_sensor_type = WeatherSensorType(name="wind_speed")
-    db.session.add(test_sensor_type)
-    wind_sensor = WeatherSensor(
-        name="wind_speed_sensor",
-        weather_sensor_type_name="wind_speed",
-        event_resolution=timedelta(minutes=5),
+    weather_station = GenericAsset(
+        name="Test weather station",
+        generic_asset_type=generic_asset_types["weather_station"],
         latitude=33.4843866,
         longitude=126,
+    )
+    db.session.add(weather_station)
+
+    wind_sensor = Sensor(
+        name="wind speed",
+        generic_asset=weather_station,
+        event_resolution=timedelta(minutes=5),
         unit="m/s",
     )
     db.session.add(wind_sensor)
 
-    test_sensor_type = WeatherSensorType(name="temperature")
-    db.session.add(test_sensor_type)
-    temp_sensor = WeatherSensor(
-        name="temperature_sensor",
-        weather_sensor_type_name="temperature",
+    temp_sensor = Sensor(
+        name="temperature",
+        generic_asset=weather_station,
         event_resolution=timedelta(minutes=5),
-        latitude=33.4843866,
-        longitude=126.0,
         unit="°C",
     )
     db.session.add(temp_sensor)
@@ -680,6 +725,29 @@ def add_sensors(db: SQLAlchemy, setup_generic_assets):
     )
     db.session.add(height_sensor)
     return height_sensor
+
+
+@pytest.fixture(scope="module")
+def battery_soc_sensor(db: SQLAlchemy, setup_generic_assets):
+    """Add a battery SOC sensor."""
+    soc_sensor = Sensor(
+        name="state of charge",
+        unit="%",
+        generic_asset=setup_generic_assets["test_battery"],
+    )
+    db.session.add(soc_sensor)
+    return soc_sensor
+
+
+@pytest.fixture
+def run_as_cli(app, monkeypatch):
+    """
+    Use this to run your test as if it is run from the CLI.
+    This is useful where some auth restrictions (e.g. for querying) are in place.
+    FlexMeasures is more lenient with them if the CLI is running, as it considers
+    the user a sysadmin.
+    """
+    monkeypatch.setitem(app.config, "PRETEND_RUNNING_AS_CLI", True)
 
 
 @pytest.fixture(scope="function")

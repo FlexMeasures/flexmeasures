@@ -8,4 +8,6 @@ def register_at(app: Flask):
 
     import flexmeasures.api.v2_0.routes  # noqa: F401 this is necessary to load the endpoints
 
-    app.register_blueprint(flexmeasures_api, url_prefix="/api/v2_0")
+    v2_0_api_prefix = "/api/v2_0"
+
+    app.register_blueprint(flexmeasures_api, url_prefix=v2_0_api_prefix)

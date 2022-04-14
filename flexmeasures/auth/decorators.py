@@ -8,15 +8,9 @@ from flask_security import (
     roles_required as roles_required_fs,
 )
 from werkzeug.local import LocalProxy
-from werkzeug.exceptions import Forbidden, Unauthorized
+from werkzeug.exceptions import Forbidden
 
-from flexmeasures.auth.policy import (
-    ADMIN_ROLE,
-    PERMISSIONS,
-    AuthModelMixin,
-    user_has_admin_access,
-    user_matches_principals,
-)
+from flexmeasures.auth.policy import ADMIN_ROLE, AuthModelMixin, check_access
 
 
 _security = LocalProxy(lambda: current_app.extensions["security"])
@@ -143,10 +137,6 @@ def permission_required_for_context(
     def wrapper(fn):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
-            if permission not in PERMISSIONS:
-                raise Forbidden(f"Permission '{permission}' cannot be handled.")
-            if current_user.is_anonymous:
-                raise Unauthorized()
             # load & check context
             if arg_loader is not None:
                 context: AuthModelMixin = arg_loader()
@@ -158,26 +148,9 @@ def permission_required_for_context(
                 context = kwargs[arg_name]
             else:
                 context = args[0]
-            if context is None:
-                raise Forbidden(
-                    f"Context needs {permission}-permission, but no context was passed."
-                )
-            if not isinstance(context, AuthModelMixin):
-                raise Forbidden(
-                    f"Context {context} needs {permission}-permission, but is no AuthModelMixin."
-                )
-            # now check access, either with admin rights or principal(s)
-            acl = context.__acl__()
-            principals = acl.get(permission, tuple())
-            current_app.logger.debug(
-                f"Looking for {permission}-permission on {context} ... Principals: {principals}"
-            )
-            if not user_has_admin_access(
-                current_user, permission
-            ) and not user_matches_principals(current_user, principals):
-                raise Forbidden(
-                    f"Authorization failure (accessing {context} to {permission}) ― cannot match {current_user} against {principals}!"
-                )
+
+            check_access(context, permission)
+
             return fn(*args, **kwargs)
 
         return decorated_view

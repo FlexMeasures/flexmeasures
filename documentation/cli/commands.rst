@@ -11,7 +11,7 @@ Each command has more extensive documentation if you call it with ``--help``.
 We keep track of changes to these commands in :ref:`cli-changelog`.
 You can also get the current overview over the commands you have available by:
 
-.. code-block::
+.. code-block:: console
 
     flexmeasures --help
 
@@ -23,18 +23,19 @@ of which some are referred to in this documentation.
 --------------
 
 ================================================= =======================================
-``flexmeasures add structure``                    Initialize structural data like asset types, 
-                                                  market types and weather sensor types.
+``flexmeasures add initial-structure``            Initialize structural data like users, roles and asset types. 
 ``flexmeasures add account-role``                 Create a FlexMeasures tenant account role.
 ``flexmeasures add account``                      Create a FlexMeasures tenant account.
 ``flexmeasures add user``                         Create a FlexMeasures user.
 ``flexmeasures add asset-type``                   Create a new asset type.
 ``flexmeasures add asset``                        Create a new asset.
 ``flexmeasures add sensor``                       Add a new sensor.
-``flexmeasures add weather-sensor``               Add a weather sensor.
-``flexmeasures add external-weather-forecasts``   Collect weather forecasts from the DarkSky API.
 ``flexmeasures add beliefs``                      Load beliefs from file.
 ``flexmeasures add forecasts``                    Create forecasts.
+``flexmeasures add schedule``                     Create a charging schedule.
+``flexmeasures add holidays``                     Add holiday annotations to accounts and/or assets.
+``flexmeasures add annotation``                   Add annotation to accounts, assets and/or sensors.
+``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.
 ================================================= =======================================
 
 
@@ -48,6 +49,17 @@ of which some are referred to in this documentation.
 ``flexmeasures show asset``                       Show an asset and its sensors.
 ``flexmeasures show roles``                       List available account- and user roles.
 ``flexmeasures show data-sources``                List available data sources.
+``flexmeasures show beliefs``                     Plot time series data.
+================================================= =======================================
+
+
+
+``edit`` - Edit data
+--------------
+
+================================================= =======================================
+``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
+``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ================================================= =======================================
 
 
@@ -56,10 +68,11 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures delete structure``                 Delete all structural (non time-series) data like assets (types), 
-                                                  markets (types) and weather sensors (types) and users.
+                                                  roles and users.
 ``flexmeasures delete account-role``              Delete a tenant account role.
 ``flexmeasures delete account``                   Delete a tenant account & also their users (with assets and power measurements).
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
+``flexmeasures delete asset``                     Delete an asset & also its sensors and data.
 ``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
 ``flexmeasures delete measurements``              Delete measurements (with horizon <= 0).
 ``flexmeasures delete prognoses``                 Delete forecasts and schedules (forecasts > 0).

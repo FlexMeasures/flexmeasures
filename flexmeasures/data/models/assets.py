@@ -75,9 +75,9 @@ class AssetType(db.Model):
         """Known correlations of weather sensor type and asset type."""
         correlations = []
         if self.name == "solar":
-            correlations.append("radiation")
+            correlations.append("irradiance")
         if self.name == "wind":
-            correlations.append("wind_speed")
+            correlations.append("wind speed")
         if self.name in (
             "one-way_evse",
             "two-way_evse",
@@ -99,7 +99,10 @@ class Asset(db.Model, tb.SensorDBMixin):
     """
 
     id = db.Column(
-        db.Integer, db.ForeignKey("sensor.id"), primary_key=True, autoincrement=True
+        db.Integer,
+        db.ForeignKey("sensor.id", ondelete="CASCADE"),
+        primary_key=True,
+        autoincrement=True,
     )
     # The name
     name = db.Column(db.String(80), default="", unique=True)

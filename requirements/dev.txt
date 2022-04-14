@@ -4,9 +4,7 @@
 #
 #    pip-compile --output-file=requirements/dev.txt requirements/dev.in
 #
-backports.entry-points-selectable==1.1.0
-    # via virtualenv
-black==21.10b0
+black==22.1.0
     # via -r requirements/dev.in
 cfgv==3.3.1
     # via pre-commit
@@ -15,9 +13,9 @@ click==8.0.3
     #   -c requirements/app.txt
     #   -c requirements/test.txt
     #   black
-distlib==0.3.3
+distlib==0.3.4
     # via virtualenv
-filelock==3.3.2
+filelock==3.4.2
     # via
     #   -c requirements/app.txt
     #   virtualenv
@@ -25,11 +23,11 @@ flake8==4.0.1
     # via -r requirements/dev.in
 flake8-blind-except==0.2.0
     # via -r requirements/dev.in
-identify==2.3.3
+identify==2.4.10
     # via pre-commit
 mccabe==0.6.1
     # via flake8
-mypy==0.910
+mypy==0.931
     # via -r requirements/dev.in
 mypy-extensions==0.4.3
     # via
@@ -37,24 +35,24 @@ mypy-extensions==0.4.3
     #   mypy
 nodeenv==1.6.0
     # via pre-commit
-packaging==21.2
+packaging==21.3
     # via
     #   -c requirements/app.txt
     #   -c requirements/test.txt
     #   setuptools-scm
 pathspec==0.9.0
     # via black
-platformdirs==2.4.0
+platformdirs==2.5.0
     # via
     #   black
     #   virtualenv
-pre-commit==2.15.0
+pre-commit==2.17.0
     # via -r requirements/dev.in
 pycodestyle==2.8.0
     # via flake8
 pyflakes==2.4.0
     # via flake8
-pyparsing==2.4.7
+pyparsing==3.0.7
     # via
     #   -c requirements/app.txt
     #   -c requirements/test.txt
@@ -65,9 +63,7 @@ pyyaml==6.0
     # via
     #   -c requirements/app.txt
     #   pre-commit
-regex==2021.10.23
-    # via black
-setuptools-scm==6.3.2
+setuptools-scm==6.4.2
     # via -r requirements/dev.in
 six==1.16.0
     # via
@@ -75,21 +71,19 @@ six==1.16.0
     #   -c requirements/test.txt
     #   virtualenv
 toml==0.10.2
-    # via
-    #   -c requirements/test.txt
-    #   mypy
-    #   pre-commit
-tomli==1.2.2
+    # via pre-commit
+tomli==1.2.3
     # via
     #   -c requirements/test.txt
     #   black
+    #   mypy
     #   setuptools-scm
-typing-extensions==4.0.1
+typing-extensions==4.1.1
     # via
     #   -c requirements/app.txt
     #   black
     #   mypy
-virtualenv==20.10.0
+virtualenv==20.13.1
     # via pre-commit
 watchdog==2.1.6
     # via -r requirements/dev.in

@@ -19,10 +19,10 @@ class UserSchema(ma.SQLAlchemySchema):
         if timezone not in all_timezones:
             raise ValidationError(f"Timezone {timezone} doesn't exist.")
 
-    id = ma.auto_field()
+    id = ma.auto_field(dump_only=True)
     email = ma.auto_field(required=True, validate=validate.Email)
     username = ma.auto_field(required=True)
-    account_id = ma.auto_field()
+    account_id = ma.auto_field(dump_only=True)
     active = ma.auto_field()
     timezone = ma.auto_field()
     flexmeasures_roles = ma.auto_field()

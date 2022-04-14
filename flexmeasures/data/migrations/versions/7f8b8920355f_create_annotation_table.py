@@ -142,19 +142,20 @@ def create_annotation_table():
         sa.Column(
             "id", sa.Integer(), nullable=False, autoincrement=True, primary_key=True
         ),
-        sa.Column("content", sa.String(255), nullable=False),
         sa.Column("start", sa.DateTime(timezone=True), nullable=False),
         sa.Column("end", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("belief_time", sa.DateTime(timezone=True), nullable=True),
         sa.Column("source_id", sa.Integer(), nullable=False),
         sa.Column(
             "type",
-            sa.Enum("alert", "holiday", "label", name="annotation_type"),
+            sa.Enum("alert", "holiday", "label", "feedback", name="annotation_type"),
             nullable=False,
         ),
+        sa.Column("content", sa.String(1024), nullable=False),
         sa.ForeignKeyConstraint(("source_id",), ["data_source.id"]),
     )
     op.create_unique_constraint(
         op.f("annotation_content_key"),
         "annotation",
-        ["content", "start", "source_id", "type"],
+        ["content", "start", "belief_time", "source_id", "type"],
     )

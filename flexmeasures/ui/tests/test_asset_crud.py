@@ -11,7 +11,7 @@ Here, we mock the API responses (we have to, as our UI layer contacts FlexMeasur
 The real logic tests are done in the api package, which is also the better place for that.
 """
 
-api_path_assets = "http://localhost//api/dev/generic_assets/"
+api_path_assets = "http://localhost//api/v3_0/assets"
 
 
 def test_assets_page_empty(db, client, requests_mock, as_prosumer_user1):
@@ -52,7 +52,7 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
     mock_asset["latitude"] = asset.latitude
     mock_asset["longitude"] = asset.longitude
 
-    requests_mock.get(f"{api_path_assets}{asset.id}", status_code=200, json=mock_asset)
+    requests_mock.get(f"{api_path_assets}/{asset.id}", status_code=200, json=mock_asset)
     asset_page = client.get(
         url_for("AssetCrudUI:get", id=asset.id), follow_redirects=True
     )
@@ -63,7 +63,7 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
 
 def test_edit_asset(db, client, setup_assets, requests_mock, as_admin):
     mock_asset = mock_asset_response(as_list=False)
-    requests_mock.patch(f"{api_path_assets}1", status_code=200, json=mock_asset)
+    requests_mock.patch(f"{api_path_assets}/1", status_code=200, json=mock_asset)
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,
@@ -96,7 +96,7 @@ def test_add_asset(db, client, setup_assets, requests_mock, as_admin):
 
 def test_delete_asset(client, db, requests_mock, as_admin):
     """Delete an asset"""
-    requests_mock.delete(f"{api_path_assets}1", status_code=204, json={})
+    requests_mock.delete(f"{api_path_assets}/1", status_code=204, json={})
     requests_mock.get(api_path_assets, status_code=200, json={})
     response = client.get(
         url_for("AssetCrudUI:delete_with_data", id=1),

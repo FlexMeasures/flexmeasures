@@ -2,16 +2,17 @@ from typing import Any, List, Dict, Optional, Union, Type, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
 
-from flask import current_app
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
+from sqlalchemy.schema import UniqueConstraint
 import timely_beliefs as tb
 from timely_beliefs.beliefs.probabilistic_utils import get_median_belief
 import timely_beliefs.utils as tb_utils
 
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.data import db
+from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.queries.utils import (
     create_beliefs_query,
     get_belief_timing_criteria,
@@ -23,11 +24,17 @@ from flexmeasures.data.services.time_series import (
 )
 from flexmeasures.utils.entity_address_utils import build_entity_address
 from flexmeasures.utils.unit_utils import is_energy_unit, is_power_unit
+from flexmeasures.data.models.annotations import (
+    Annotation,
+    SensorAnnotationRelationship,
+)
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
+from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.geo_utils import parse_lat_lng
 
 
 class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
@@ -74,17 +81,22 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             kwargs["attributes"] = attributes
         db.Model.__init__(self, **kwargs)
 
+    __table_args__ = (
+        UniqueConstraint(
+            "name",
+            "generic_asset_id",
+            name="sensor_name_generic_asset_id_key",
+        ),
+    )
+
     def __acl__(self):
         """
         All logged-in users can read if the sensor belongs to a public asset.
-        Within same account, everyone can read and update.
-        Creation and deletion are left to account admins.
+        Within same account, everyone can create, read and update.
+        Deletion is left to account admins.
         """
         return {
-            "create-children": (
-                f"account:{self.generic_asset.account_id}",
-                "role:account-admin",
-            ),
+            "create-children": f"account:{self.generic_asset.account_id}",
             "read": f"account:{self.generic_asset.account_id}"
             if self.generic_asset.account_id is not None
             else EVERY_LOGGED_IN_USER,
@@ -181,6 +193,48 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             most_recent_events_only=True,
             one_deterministic_belief_per_event=True,
         )
+
+    def search_annotations(
+        self,
+        annotation_starts_after: Optional[datetime_type] = None,
+        annotation_ends_before: Optional[datetime_type] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
+        include_asset_annotations: bool = False,
+        include_account_annotations: bool = False,
+    ):
+        parsed_sources = parse_source_arg(source)
+        query = Annotation.query.join(SensorAnnotationRelationship).filter(
+            SensorAnnotationRelationship.sensor_id == self.id,
+            SensorAnnotationRelationship.annotation_id == Annotation.id,
+        )
+        if annotation_starts_after is not None:
+            query = query.filter(
+                Annotation.start >= annotation_starts_after,
+            )
+        if annotation_ends_before is not None:
+            query = query.filter(
+                Annotation.end <= annotation_ends_before,
+            )
+        if parsed_sources:
+            query = query.filter(
+                Annotation.source.in_(parsed_sources),
+            )
+        annotations = query.all()
+        if include_asset_annotations:
+            annotations += self.generic_asset.search_annotations(
+                annotation_starts_before=annotation_starts_after,
+                annotation_ends_before=annotation_ends_before,
+                source=source,
+            )
+        if include_account_annotations:
+            annotations += self.generic_asset.owner.search_annotations(
+                annotation_starts_before=annotation_starts_after,
+                annotation_ends_before=annotation_ends_before,
+                source=source,
+            )
+        return annotations
 
     def search_beliefs(
         self,
@@ -330,6 +384,39 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
 
+    @classmethod
+    def find_closest(
+        cls, generic_asset_type_name: str, sensor_name: str, n: int = 1, **kwargs
+    ) -> Union["Sensor", List["Sensor"], None]:
+        """Returns the closest n sensors within a given asset type (as a list if n > 1).
+        Parses latitude and longitude values stated in kwargs.
+
+        Can be called with an object that has latitude and longitude properties, for example:
+
+            sensor = Sensor.find_closest("weather_station", "wind speed", object=generic_asset)
+
+        Can also be called with latitude and longitude parameters, for example:
+
+            sensor = Sensor.find_closest("weather_station", "temperature", latitude=32, longitude=54)
+            sensor = Sensor.find_closest("weather_station", "temperature", lat=32, lng=54)
+
+        Finally, pass in an account_id parameter if you want to query an account other than your own. This only works for admins. Public assets are always queried.
+        """
+
+        latitude, longitude = parse_lat_lng(kwargs)
+        account_id_filter = kwargs["account_id"] if "account_id" in kwargs else None
+        query = query_sensors_by_proximity(
+            latitude=latitude,
+            longitude=longitude,
+            generic_asset_type_name=generic_asset_type_name,
+            sensor_name=sensor_name,
+            account_id=account_id_filter,
+        )
+        if n == 1:
+            return query.first()
+        else:
+            return query.limit(n).all()
+
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     """A timed belief holds a precisely timed record of a belief about an event.
@@ -473,7 +560,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 # todo: move to timely-beliefs: select mean/median belief
                 bdf = (
                     bdf.for_each_belief(get_median_belief)
-                    .groupby(level=["event_start", "belief_time"])
+                    .groupby(level=["event_start", "belief_time"], group_keys=False)
                     .apply(lambda x: x.head(1))
                 )
             if resolution is not None:
@@ -652,38 +739,3 @@ class TimedValue(object):
             resolution=resolution,
             sum_multiple=sum_multiple,
         )
-
-
-def parse_source_arg(
-    source: Optional[
-        Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-    ]
-) -> Optional[List[DataSource]]:
-    """Parse the "source" argument by looking up DataSources corresponding to any given ids or names."""
-    if source is None:
-        return source
-    if not isinstance(source, list):
-        sources = [source]
-    else:
-        sources = source
-    parsed_sources: List[DataSource] = []
-    for source in sources:
-        if isinstance(source, int):
-            parsed_source = DataSource.query.filter_by(id=source).one_or_none()
-            if parsed_source is None:
-                current_app.logger.warning(
-                    f"Beliefs searched for unknown source {source}"
-                )
-            else:
-                parsed_sources.append(parsed_source)
-        elif isinstance(source, str):
-            _parsed_sources = DataSource.query.filter_by(name=source).all()
-            if _parsed_sources is []:
-                current_app.logger.warning(
-                    f"Beliefs searched for unknown source {source}"
-                )
-            else:
-                parsed_sources.extend(_parsed_sources)
-        else:
-            parsed_sources.append(source)
-    return parsed_sources

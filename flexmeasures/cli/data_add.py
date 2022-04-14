@@ -1,9 +1,11 @@
 """CLI Tasks for populating the database - most useful in development"""
 
-from datetime import timedelta
-from typing import Dict, List, Optional
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 import json
 
+from marshmallow import validate
+import numpy as np
 import pandas as pd
 import pytz
 from flask import current_app as app
@@ -11,34 +13,45 @@ from flask.cli import with_appcontext
 import click
 import getpass
 from sqlalchemy.exc import IntegrityError
+from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures.data import db
+from flexmeasures.data.scripts.data_gen import (
+    add_transmission_zone_asset,
+    populate_initial_structure,
+    add_default_asset_types,
+)
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
+from flexmeasures.data.services.scheduling import make_schedule
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
+from flexmeasures.data.models.validation_utils import (
+    check_required_attributes,
+    MissingAttributeException,
+)
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SensorIdField
 from flexmeasures.data.schemas.sensors import SensorSchema
+from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.weather import WeatherSensor
-from flexmeasures.data.schemas.weather import WeatherSensorSchema
-from flexmeasures.data.models.data_sources import (
+from flexmeasures.data.models.user import User
+from flexmeasures.data.queries.data_sources import (
     get_or_create_source,
     get_source_or_none,
 )
-from flexmeasures.data.models.user import User
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now
-from flexmeasures.utils.unit_utils import convert_units
+from flexmeasures.utils.unit_utils import convert_units, ur
 
 
 @click.group("add")
@@ -129,7 +142,7 @@ def new_user(
         raise click.Abort
     account = db.session.query(Account).get(account_id)
     if account is None:
-        print(f"No account with id {account_id} found!")
+        print(f"No account with ID {account_id} found!")
         raise click.Abort
     pwd1 = getpass.getpass(prompt="Please enter the password:")
     pwd2 = getpass.getpass(prompt="Please repeat the password:")
@@ -176,7 +189,7 @@ def new_user(
     required=False,
     type=str,
     default="{}",
-    help='Additional attributes. Passed as JSON string, should be a dict. Hint: Currently, for sensors that measures power, use {"capacity_in_mw": 10} to set a capacity of 10 MW',
+    help='Additional attributes. Passed as JSON string, should be a dict. Hint: Currently, for sensors that measure power, use {"capacity_in_mw": 10} to set a capacity of 10 MW',
 )
 def add_sensor(**args):
     """Add a sensor."""
@@ -253,57 +266,11 @@ def add_asset(**args):
     print("You can now assign sensors to it.")
 
 
-@fm_add_data.command("weather-sensor")
-@with_appcontext
-@click.option("--name", required=True)
-@click.option("--weather-sensor-type-name", required=True)
-@click.option("--unit", required=True, help="e.g. °C, m/s, kW/m²")
-@click.option(
-    "--event-resolution",
-    required=True,
-    type=int,
-    help="Expected resolution of the data in minutes",
-)
-@click.option(
-    "--latitude",
-    required=True,
-    type=float,
-    help="Latitude of the sensor's location",
-)
-@click.option(
-    "--longitude",
-    required=True,
-    type=float,
-    help="Longitude of the sensor's location",
-)
-@click.option(
-    "--timezone",
-    default="UTC",
-    help="timezone as string, e.g. 'UTC' (default) or 'Europe/Amsterdam'",
-)
-def add_weather_sensor(**args):
-    """
-    Add a weather sensor.
-    This is legacy, after we moved to the new data model.
-    Adding necessary GenericAsset and Sensor(s) should be done by the (to be built) OWM plugin.
-    """
-    check_timezone(args["timezone"])
-    check_errors(WeatherSensorSchema().validate(args))
-    args["event_resolution"] = timedelta(minutes=args["event_resolution"])
-    sensor = WeatherSensor(**args)
-    db.session.add(sensor)
-    db.session.commit()
-    print(f"Successfully created weather sensor with ID {sensor.id}")
-    print(f" You can access it at its entity address {sensor.entity_address}")
-
-
-@fm_add_data.command("structure")
+@fm_add_data.command("initial-structure")
 @with_appcontext
 def add_initial_structure():
     """Initialize useful structural data."""
-    from flexmeasures.data.scripts.data_gen import populate_structure
-
-    populate_structure(db)
+    populate_initial_structure(db)
 
 
 @fm_add_data.command("beliefs")
@@ -344,7 +311,8 @@ def add_initial_structure():
 @click.option(
     "--resample/--do-not-resample",
     default=True,
-    help="Resample the data to fit the sensor's event resolution.",
+    help="Resample the data to fit the sensor's event resolution. "
+    " Only downsampling is currently supported (for example, from hourly to daily data).",
 )
 @click.option(
     "--allow-overwrite/--do-not-allow-overwrite",
@@ -452,7 +420,7 @@ def add_beliefs(
     """
     sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
     if sensor is None:
-        print(f"Failed to create beliefs: no sensor found with id {sensor_id}.")
+        print(f"Failed to create beliefs: no sensor found with ID {sensor_id}.")
         return
     if source.isdigit():
         _source = get_source_or_none(int(source), source_type="CLI script")
@@ -798,52 +766,237 @@ def create_forecasts(
         )
 
 
-@fm_add_data.command("external-weather-forecasts")
+@fm_add_data.command("schedule")
 @with_appcontext
 @click.option(
-    "--region",
-    type=str,
-    default="",
-    help="Name of the region (will create sub-folder if you store json files, should later probably tag the forecast in the DB).",
-)
-@click.option(
-    "--location",
-    type=str,
+    "--sensor-id",
+    "power_sensor",
+    type=SensorIdField(),
     required=True,
-    help='Measurement location(s). "latitude,longitude" or "top-left-latitude,top-left-longitude:'
-    'bottom-right-latitude,bottom-right-longitude." The first format defines one location to measure.'
-    " The second format defines a region of interest with several (>=4) locations"
-    ' (see also the "method" and "num_cells" parameters for this feature).',
+    help="Create schedule for this sensor. Follow up with the sensor's ID.",
 )
 @click.option(
-    "--num_cells",
-    type=int,
+    "--optimization-context-id",
+    "optimization_context_sensor",
+    type=SensorIdField(),
+    required=True,
+    help="Optimize against this sensor, which measures a price factor or CO₂ intensity factor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(format="iso"),
+    required=True,
+    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--duration",
+    "duration",
+    type=DurationField(),
+    required=True,
+    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--soc-at-start",
+    "soc_at_start",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=True,
+    help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
+)
+@click.option(
+    "--soc-target",
+    "soc_target_strings",
+    type=click.Tuple(
+        types=[QuantityField("%", validate=validate.Range(min=0, max=1)), str]
+    ),
+    multiple=True,
+    required=False,
+    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    " This argument can be given multiple times."
+    " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
+)
+@click.option(
+    "--soc-min",
+    "soc_min",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=False,
+    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule.",
+)
+@click.option(
+    "--soc-max",
+    "soc_max",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=False,
+    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule.",
+)
+@click.option(
+    "--roundtrip-efficiency",
+    "roundtrip_efficiency",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=False,
     default=1,
-    help="Number of cells on the grid. Only used if a region of interest has been mapped in the location parameter. Defaults to 1.",
+    help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
 )
-@click.option(
-    "--method",
-    default="hex",
-    type=click.Choice(["hex", "square"]),
-    help="Grid creation method. Only used if a region of interest has been mapped in the location parameter.",
-)
-@click.option(
-    "--store-in-db/--store-as-json-files",
-    default=False,
-    help="Store forecasts in the database, or simply save as json files. (defaults to json files)",
-)
-def collect_weather_data(region, location, num_cells, method, store_in_db):
+def create_schedule(
+    power_sensor: Sensor,
+    optimization_context_sensor: Sensor,
+    start: datetime,
+    duration: timedelta,
+    soc_at_start: ur.Quantity,
+    soc_target_strings: List[Tuple[ur.Quantity, str]],
+    soc_min: Optional[ur.Quantity] = None,
+    soc_max: Optional[ur.Quantity] = None,
+    roundtrip_efficiency: Optional[ur.Quantity] = None,
+):
+    """Create a new schedule for a given power sensor.
+
+    Current limitations:
+
+    - only supports battery assets and Charge Points
+    - only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
-    Collect weather forecasts from the OpenWeatherMap API
 
-    This function can get weather data for one location or for several locations within
-    a geometrical grid (See the --location parameter).
+    # Parse input
+    if not power_sensor.measures_power:
+        click.echo(f"Sensor with ID {power_sensor.id} is not a power sensor.")
+        raise click.Abort()
+    end = start + duration
+    for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
+        try:
+            check_required_attributes(power_sensor, [(attribute, float)])
+        except MissingAttributeException:
+            click.echo(f"{power_sensor} has no {attribute} attribute.")
+            raise click.Abort()
+    soc_targets = pd.Series(
+        np.nan,
+        index=pd.date_range(
+            pd.Timestamp(start).tz_convert(power_sensor.timezone),
+            pd.Timestamp(end).tz_convert(power_sensor.timezone),
+            freq=power_sensor.event_resolution,
+            closed="right",
+        ),  # note that target values are indexed by their due date (i.e. closed="right")
+    )
 
-    This should move to a FlexMeasures plugin for OWM integration.
+    # Convert round-trip efficiency to dimensionless
+    if roundtrip_efficiency is not None:
+        roundtrip_efficiency = roundtrip_efficiency.to(
+            ur.Quantity("dimensionless")
+        ).magnitude
+
+    # Convert SoC units to MWh, given the storage capacity
+    capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
+    soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
+    for soc_target_tuple in soc_target_strings:
+        soc_target_value_str, soc_target_dt_str = soc_target_tuple
+        soc_target_value = convert_units(
+            soc_target_value_str.magnitude,
+            str(soc_target_value_str.units),
+            "MWh",
+            capacity=capacity_str,
+        )
+        soc_target_datetime = pd.Timestamp(soc_target_dt_str)
+        soc_targets.loc[soc_target_datetime] = soc_target_value
+    if soc_min is not None:
+        soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
+    if soc_max is not None:
+        soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
+
+    success = make_schedule(
+        sensor_id=power_sensor.id,
+        start=start,
+        end=end,
+        belief_time=server_now(),
+        resolution=power_sensor.event_resolution,
+        soc_at_start=soc_at_start,
+        soc_targets=soc_targets,
+        soc_min=soc_min,
+        soc_max=soc_max,
+        roundtrip_efficiency=roundtrip_efficiency,
+        price_sensor=optimization_context_sensor,
+    )
+    if success:
+        print("New schedule is stored.")
+
+
+@fm_add_data.command("toy-account")
+@with_appcontext
+@click.option(
+    "--kind",
+    default="battery",
+    type=click.Choice(["battery"]),
+    help="What kind of toy account. Defaults to a battery.",
+)
+@click.option("--name", type=str, default="Toy Account", help="Name of the account")
+def add_toy_account(kind: str, name: str):
     """
-    from flexmeasures.data.scripts.grid_weather import get_weather_forecasts
+    Create a toy account, for tutorials and trying things.
+    """
+    asset_types = add_default_asset_types(db=db)
+    location = (52.374, 4.88969)  # Amsterdam
+    if kind == "battery":
+        # make an account (if not exist)
+        account = Account.query.filter(Account.name == name).one_or_none()
+        if account:
+            click.echo(f"Account {name} already exists. Aborting ...")
+            raise click.Abort()
+        # make an account user (account-admin?)
+        user = create_user(
+            email="toy-user@flexmeasures.io",
+            check_email_deliverability=False,
+            password="toy-password",
+            user_roles=["account-admin"],
+            account_name=name,
+        )
+        # make assets
+        for asset_type in ("solar", "building", "battery"):
+            asset = GenericAsset(
+                name=f"toy-{asset_type}",
+                generic_asset_type=asset_types[asset_type],
+                owner=user.account,
+                latitude=location[0],
+                longitude=location[1],
+            )
+            db.session.add(asset)
+            if asset_type == "battery":
+                asset.attributes = dict(
+                    capacity_in_mw=0.5, min_soc_in_mwh=0.05, max_soc_in_mwh=0.45
+                )
+                # add charging sensor to battery
+                charging_sensor = Sensor(
+                    name="charging",
+                    generic_asset=asset,
+                    unit="MW",
+                    timezone="Europe/Amsterdam",
+                    event_resolution=timedelta(minutes=15),
+                )
+                db.session.add(charging_sensor)
 
-    get_weather_forecasts(app, region, location, num_cells, method, store_in_db)
+        # add public day-ahead market (as sensor of transmission zone asset)
+        nl_zone = add_transmission_zone_asset("NL", db=db)
+        day_ahead_sensor = Sensor.query.filter(
+            Sensor.generic_asset == nl_zone, Sensor.name == "Day ahead prices"
+        ).one_or_none()
+        if not day_ahead_sensor:
+            day_ahead_sensor = Sensor(
+                name="Day ahead prices",
+                generic_asset=nl_zone,
+                unit="EUR/MWh",
+                timezone="Europe/Amsterdam",
+                event_resolution=timedelta(minutes=60),
+                knowledge_horizon=(
+                    x_days_ago_at_y_oclock,
+                    {"x": 1, "y": 12, "z": "Europe/Paris"},
+                ),
+            )
+        db.session.add(day_ahead_sensor)
+
+    db.session.commit()
+
+    click.echo(
+        f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
+    )
+    click.echo(f"The sensor for battery charging is {charging_sensor}.")
+    click.echo(f"The sensor for Day ahead prices is {day_ahead_sensor}.")
 
 
 app.cli.add_command(fm_add_data)

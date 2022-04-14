@@ -1,6 +1,8 @@
 from typing import Dict, Union, Tuple, List
 
 from flask import current_app
+from flask_security import current_user
+from werkzeug.exceptions import Unauthorized, Forbidden
 
 
 PERMISSIONS = ["create-children", "read", "read-children", "update", "delete"]
@@ -67,6 +69,45 @@ class AuthModelMixin(object):
         [1] https://docs.microsoft.com/en-us/windows/security/identity-protection/access-control/security-principals#a-href-idw2k3tr-princ-whatawhat-are-security-principals
         """
         return {}
+
+
+def check_access(context: AuthModelMixin, permission: str):
+    """
+    Check if current user can access this auth context if this permission
+    is required, either with admin rights or principal(s).
+
+    Raises 401 or 403 otherwise.
+    """
+    # check current user
+    if permission not in PERMISSIONS:
+        raise Forbidden(f"Permission '{permission}' cannot be handled.")
+    if current_user.is_anonymous:
+        raise Unauthorized()
+
+    # check context
+    if context is None:
+        raise Forbidden(
+            f"Context needs {permission}-permission, but no context was passed."
+        )
+    if not isinstance(context, AuthModelMixin):
+        raise Forbidden(
+            f"Context {context} needs {permission}-permission, but is no AuthModelMixin."
+        )
+
+    # look up principals
+    acl = context.__acl__()
+    principals: PRINCIPALS_TYPE = acl.get(permission, [])
+    current_app.logger.debug(
+        f"Looking for {permission}-permission on {context} ... Principals: {principals}"
+    )
+
+    # check access
+    if not user_has_admin_access(
+        current_user, permission
+    ) and not user_matches_principals(current_user, principals):
+        raise Forbidden(
+            f"Authorization failure (accessing {context} to {permission}) ― cannot match {current_user} against {principals}!"
+        )
 
 
 def user_has_admin_access(user, permission: str) -> bool:

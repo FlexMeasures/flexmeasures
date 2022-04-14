@@ -20,7 +20,7 @@ This tutorial will show how the FlexMeasures API can be used from JavaScript to 
 Get an authentication token
 -----------------------
 
-FlexMeasures provides the `POST /api/v2_0/requestAuthToken <../api/v2_0.html#post--api-v2_0-requestAuthToken>`_ endpoint, as discussed in :ref:`api_auth`. 
+FlexMeasures provides the `[POST] /api/requestAuthToken <../api/v2_0.html#post--api-v2_0-requestAuthToken>`_ endpoint, as discussed in :ref:`api_auth`.
 Here is a JavaScript function to call it:
 
 .. code-block:: JavaScript
@@ -107,7 +107,7 @@ The result looks like this in your browser:
 ..    :scale: 40%
 
 
-From FlexMeasures, we are using the `GET /api/v2_0/user <../api/v2_0.html#get--api-v2_0-user-(id)>`_ endpoint, which loads information about one user.
+From FlexMeasures, we are using the `[GET] /user <../api/v3_0.html#get--api-v3_0-user-(id)>`_ endpoint, which loads information about one user.
 Browse its documentation to learn about other information you could get.
 
 
@@ -178,7 +178,7 @@ The result looks like this in your browser:
 
 
  
-From FlexMeasures, we are using the `GET /api/v2_0/assets <../api/v2_0.html#get--api-v2_0-assets>`_ endpoint, which loads a list of assets. Note how, unlike the user endpoint above, we are passing a query parameter here (``owner_id``). We are only displaying a subset of the information which is available about assets. Browse the endpoint documentation to learn other information you could get.
+From FlexMeasures, we are using the `[GET] /assets <../api/v2_0.html#get--api-v2_0-assets>`_ endpoint, which loads a list of assets. Note how, unlike the user endpoint above, we are passing a query parameter here (``owner_id``). We are only displaying a subset of the information which is available about assets. Browse the endpoint documentation to learn other information you could get.
 
 
 Embedding plots
@@ -283,5 +283,5 @@ The result looks like this in your browser:
 ..    :scale: 40%
 
 
-From FlexMeasures, we are using the `GET /api/v2_0/charts/power <../api/v2_0.html#get--api-v2_0-charts-power>`_ endpoint, which loads HTML and JavaScript. 
+From FlexMeasures, we are using the `[GET] /charts/power <../api/v2_0.html#get--api-v2_0-charts-power>`_ endpoint, which loads HTML and JavaScript.
 Browse the endpoint documentation to learn more about it.

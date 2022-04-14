@@ -8,8 +8,7 @@ from flask.cli import with_appcontext
 import flask_migrate as migrate
 import click
 
-
-BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
+BACKUP_PATH: str = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")  # type: ignore
 
 
 @click.group("db-ops")
@@ -121,7 +120,7 @@ def restore(file: str):
 
     """
 
-    db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+    db_uri: str = app.config.get("SQLALCHEMY_DATABASE_URI")  # type: ignore
     db_host_and_db_name = db_uri.split("@")[-1]
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
     command_for_restoring = f"pg_restore -d {db_uri} {file}"

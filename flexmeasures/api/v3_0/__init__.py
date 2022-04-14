@@ -1,0 +1,15 @@
+from flask import Flask
+
+from flexmeasures.api.v3_0.sensors import SensorAPI
+from flexmeasures.api.v3_0.users import UserAPI
+from flexmeasures.api.v3_0.assets import AssetAPI
+
+
+def register_at(app: Flask):
+    """This can be used to register this blueprint together with other api-related things"""
+
+    v3_0_api_prefix = "/api/v3_0"
+
+    SensorAPI.register(app, route_prefix=v3_0_api_prefix)
+    UserAPI.register(app, route_prefix=v3_0_api_prefix)
+    AssetAPI.register(app, route_prefix=v3_0_api_prefix)

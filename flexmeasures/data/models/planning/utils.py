@@ -68,9 +68,10 @@ def get_market(sensor: Sensor) -> Sensor:
 
 
 def get_prices(
-    sensor: Sensor,
     query_window: Tuple[datetime, datetime],
     resolution: timedelta,
+    price_sensor: Optional[Sensor] = None,
+    sensor: Optional[Sensor] = None,
     allow_trimmed_query_window: bool = True,
 ) -> Tuple[pd.DataFrame, Tuple[datetime, datetime]]:
     """Check for known prices or price forecasts, trimming query window accordingly if allowed.
@@ -78,11 +79,16 @@ def get_prices(
           (this may require implementing a belief time for scheduling jobs).
     """
 
-    # Look for the applicable market sensor
-    sensor = get_market(sensor)
+    # Look for the applicable price sensor
+    if price_sensor is None:
+        if sensor is None:
+            raise UnknownMarketException(
+                "Missing price sensor cannot be derived from a missing sensor"
+            )
+        price_sensor = get_market(sensor)
 
     price_bdf: tb.BeliefsDataFrame = TimedBelief.search(
-        sensor.name,
+        price_sensor,
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
         resolution=to_offset(resolution).freqstr,
@@ -97,7 +103,7 @@ def get_prices(
         nan_prices.any()
         or pd.Timestamp(price_df.index[0]).tz_convert("UTC")
         != pd.Timestamp(query_window[0]).tz_convert("UTC")
-        or pd.Timestamp(price_df.index[-1]).tz_convert("UTC")
+        or pd.Timestamp(price_df.index[-1]).tz_convert("UTC") + resolution
         != pd.Timestamp(query_window[-1]).tz_convert("UTC")
     ):
         if allow_trimmed_query_window:

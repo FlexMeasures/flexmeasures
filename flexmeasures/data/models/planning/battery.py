@@ -25,6 +25,8 @@ def schedule_battery(
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
+    price_sensor: Optional[Sensor] = None,
+    round_to_decimals: Optional[int] = 6,
 ) -> Union[pd.Series, None]:
     """Schedule a battery asset based directly on the latest beliefs regarding market prices within the specified time
     window.
@@ -55,10 +57,17 @@ def schedule_battery(
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     prices, (start, end) = get_prices(
-        sensor, (start, end), resolution, allow_trimmed_query_window=True
+        (start, end),
+        resolution,
+        price_sensor=price_sensor,
+        sensor=sensor,
+        allow_trimmed_query_window=True,
     )
+    start = pd.Timestamp(start).tz_convert("UTC")
+    end = pd.Timestamp(end).tz_convert("UTC")
     if soc_targets is not None:
         # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
+        soc_targets = soc_targets.tz_convert("UTC")
         soc_targets = soc_targets[start + resolution : end]
 
     # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
@@ -130,5 +139,9 @@ def schedule_battery(
         )
     else:
         battery_schedule = ems_schedule[0]
+
+    # Round schedule
+    if round_to_decimals:
+        battery_schedule = battery_schedule.round(round_to_decimals)
 
     return battery_schedule

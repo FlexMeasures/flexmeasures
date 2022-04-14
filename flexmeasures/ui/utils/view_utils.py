@@ -348,13 +348,13 @@ def asset_icon_name(asset_type_name: str) -> str:
     if "evse" in asset_type_name.lower():
         return "icon-charging_station"
     # weather exceptions
-    if asset_type_name == "radiation":
+    if asset_type_name == "irradiance":
         return "wi wi-horizon-alt"
     elif asset_type_name == "temperature":
         return "wi wi-thermometer"
-    elif asset_type_name == "wind_direction":
+    elif asset_type_name == "wind direction":
         return "wi wi-wind-direction"
-    elif asset_type_name == "wind_speed":
+    elif asset_type_name == "wind speed":
         return "wi wi-strong-wind"
     # aggregation exceptions
     elif asset_type_name == "renewables":

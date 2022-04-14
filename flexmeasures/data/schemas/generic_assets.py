@@ -5,6 +5,11 @@ from marshmallow import validates, validates_schema, ValidationError, fields
 from flexmeasures.data import ma
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.schemas.utils import (
+    FMValidationError,
+    MarshmallowClickMixin,
+    with_appcontext_if_needed,
+)
 
 
 class GenericAssetSchema(ma.SQLAlchemySchema):
@@ -12,7 +17,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     GenericAsset schema, with validations.
     """
 
-    id = ma.auto_field()
+    id = ma.auto_field(dump_only=True)
     name = fields.Str(required=True)
     account_id = ma.auto_field()
     latitude = ma.auto_field()
@@ -89,3 +94,21 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 
     class Meta:
         model = GenericAssetType
+
+
+class GenericAssetIdField(MarshmallowClickMixin, fields.Int):
+    """Field that deserializes to a GenericAsset and serializes back to an integer."""
+
+    @with_appcontext_if_needed()
+    def _deserialize(self, value, attr, obj, **kwargs) -> GenericAsset:
+        """Turn a generic asset id into a GenericAsset."""
+        generic_asset = GenericAsset.query.get(value)
+        if generic_asset is None:
+            raise FMValidationError(f"No asset found with id {value}.")
+        # lazy loading now (asset is somehow not in session after this)
+        generic_asset.generic_asset_type
+        return generic_asset
+
+    def _serialize(self, asset, attr, data, **kwargs):
+        """Turn a GenericAsset into a generic asset id."""
+        return asset.id

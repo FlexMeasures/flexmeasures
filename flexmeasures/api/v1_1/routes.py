@@ -197,9 +197,9 @@ def post_price_data():
 def post_weather_data():
     """API endpoint to post weather data, such as:
 
-    - "radiation" (with kW/m² as unit)
+    - "irradiance" (with kW/m² as unit)
     - "temperature" (with °C as unit)
-    - "wind_speed" (with m/s as unit)
+    - "wind speed" (with m/s as unit)
 
     The sensor type is part of the unique entity address for each sensor, together with the sensor's latitude and longitude.
 

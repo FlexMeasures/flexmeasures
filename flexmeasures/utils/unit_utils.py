@@ -1,38 +1,39 @@
+"""Utility module for unit conversion
+
+FlexMeasures stores units as strings in short scientific notation (such as 'kWh' to denote kilowatt-hour).
+We use the pint library to convert data between compatible units (such as 'm/s' to 'km/h').
+Three-letter currency codes (such as 'KRW' to denote South Korean Won) are valid units.
+Note that converting between currencies requires setting up a sensor that registers conversion rates over time.
+The preferred compact form for combinations of units can be derived automatically (such as 'kW*EUR/MWh' to 'EUR/h').
+Time series with fixed resolution can be converted from units of flow to units of stock (such as 'kW' to 'kWh'), and vice versa.
+Percentages can be converted to units of some physical capacity if a capacity is known (such as '%' to 'kWh').
+"""
+
 from datetime import timedelta
 from typing import List, Optional, Union
 
 from moneyed import list_all_currencies
-import importlib.resources as pkg_resources
 import numpy as np
 import pandas as pd
 import pint
+import timely_beliefs as tb
 
-# Edit constants template to stop using h to represent planck_constant
-constants_template = (
-    pkg_resources.read_text(pint, "constants_en.txt")
-    .replace("= h  ", "     ")
-    .replace(" h ", " planck_constant ")
-)
-
-# Edit units template to use h to represent hour instead of planck_constant
-units_template = (
-    pkg_resources.read_text(pint, "default_en.txt")
-    .replace("@import constants_en.txt", "")
-    .replace(" h ", " planck_constant ")
-    .replace("hour = 60 * minute = hr", "hour = 60 * minute = h = hr")
-)
 
 # Create custom template
 custom_template = [f"{c} = [currency_{c}]" for c in list_all_currencies()]
 
-# Join templates as iterable object
-full_template = (
-    constants_template.split("\n") + units_template.split("\n") + custom_template
-)
-
 # Set up UnitRegistry with abbreviated scientific format
-ur = pint.UnitRegistry(full_template)
+ur = pint.UnitRegistry(
+    # non_int_type=decimal.Decimal,  # todo: switch to decimal unit registry, after https://github.com/hgrecco/pint/issues/1505
+    preprocessors=[
+        lambda s: s.replace("%", " percent "),
+        lambda s: s.replace("‰", " permille "),
+    ],
+)
+ur.load_definitions(custom_template)
 ur.default_format = "~P"  # short pretty
+ur.define("percent = 1 / 100 = %")
+ur.define("permille = 1 / 1000 = ‰")
 
 
 PREFERRED_UNITS = [
@@ -48,6 +49,8 @@ PREFERRED_UNITS = [
     "V",
     "A",
     "dimensionless",
+] + [
+    str(c) for c in list_all_currencies()
 ]  # todo: move to config setting, with these as a default (NB prefixes do not matter here, this is about SI base units, so km/h is equivalent to m/h)
 PREFERRED_UNITS_DICT = dict(
     [(ur.parse_expression(x).dimensionality, x) for x in PREFERRED_UNITS]
@@ -58,7 +61,16 @@ def to_preferred(x: pint.Quantity) -> pint.Quantity:
     """From https://github.com/hgrecco/pint/issues/676#issuecomment-689157693"""
     dim = x.dimensionality
     if dim in PREFERRED_UNITS_DICT:
-        return x.to(PREFERRED_UNITS_DICT[dim]).to_compact()
+
+        compact_unit = x.to(PREFERRED_UNITS_DICT[dim]).to_compact()
+
+        # todo: switch to decimal unit registry and then swap out the if statements below
+        # if len(f"{compact_unit.magnitude}" + "{:~P}".format(compact_unit.units)) < len(
+        #     f"{x.magnitude}" + "{:~P}".format(x.units)
+        # ):
+        #     return compact_unit
+        if len("{:~P}".format(compact_unit.units)) < len("{:~P}".format(x.units)):
+            return compact_unit
     return x
 
 
@@ -111,7 +123,9 @@ def determine_flow_unit(stock_unit: str, time_unit: str = "h"):
 
 
 def determine_stock_unit(flow_unit: str, time_unit: str = "h"):
-    """For example:
+    """Determine the shortest unit of stock, given a unit of flow.
+
+    For example:
     >>> determine_stock_unit("m³/h")  # m³
     >>> determine_stock_unit("kW")  # kWh
     """
@@ -143,10 +157,14 @@ def units_are_convertible(
 
 def is_power_unit(unit: str) -> bool:
     """For example:
-    >>> is_power_unit("kW")  # True
-    >>> is_power_unit("°C")  # False
-    >>> is_power_unit("kWh")  # False
-    >>> is_power_unit("EUR/MWh")  # False
+    >>> is_power_unit("kW")
+    True
+    >>> is_power_unit("°C")
+    False
+    >>> is_power_unit("kWh")
+    False
+    >>> is_power_unit("EUR/MWh")
+    False
     """
     if not is_valid_unit(unit):
         return False
@@ -155,27 +173,56 @@ def is_power_unit(unit: str) -> bool:
 
 def is_energy_unit(unit: str) -> bool:
     """For example:
-    >>> is_energy_unit("kW")  # False
-    >>> is_energy_unit("°C")  # False
-    >>> is_energy_unit("kWh")  # True
-    >>> is_energy_unit("EUR/MWh")  # False
+    >>> is_energy_unit("kW")
+    False
+    >>> is_energy_unit("°C")
+    False
+    >>> is_energy_unit("kWh")
+    True
+    >>> is_energy_unit("EUR/MWh")
+    False
     """
     if not is_valid_unit(unit):
         return False
     return ur.Quantity(unit).dimensionality == ur.Quantity("Wh").dimensionality
 
 
+def is_energy_price_unit(unit: str) -> bool:
+    """For example:
+    >>> is_energy_price_unit("EUR/MWh")
+    True
+    >>> is_energy_price_unit("KRW/MWh")
+    True
+    >>> is_energy_price_unit("KRW/MW")
+    False
+    >>> is_energy_price_unit("beans/MW")
+    False
+    """
+    if (
+        unit[:3] in [str(c) for c in list_all_currencies()]
+        and unit[3] == "/"
+        and is_energy_unit(unit[4:])
+    ):
+        return True
+    return False
+
+
 def convert_units(
-    data: Union[pd.Series, List[Union[int, float]]],
+    data: Union[tb.BeliefsSeries, pd.Series, List[Union[int, float]], int, float],
     from_unit: str,
     to_unit: str,
-    event_resolution: Optional[timedelta],
-) -> Union[pd.Series, List[Union[int, float]]]:
+    event_resolution: Optional[timedelta] = None,
+    capacity: Optional[str] = None,
+) -> Union[pd.Series, List[Union[int, float]], int, float]:
     """Updates data values to reflect the given unit conversion."""
 
     if from_unit != to_unit:
         from_magnitudes = (
-            data.to_numpy() if isinstance(data, pd.Series) else np.asarray(data)
+            data.to_numpy()
+            if isinstance(data, pd.Series)
+            else np.asarray(data)
+            if isinstance(data, list)
+            else np.array([data])
         )
         try:
             from_quantities = ur.Quantity(from_magnitudes, from_unit)
@@ -187,18 +234,41 @@ def convert_units(
                 raise e  # reraise
         try:
             to_magnitudes = from_quantities.to(ur.Quantity(to_unit)).magnitude
-        except pint.errors.DimensionalityError:
-            # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
-            multiplier = determine_unit_conversion_multiplier(
-                from_unit, to_unit, event_resolution
-            )
-            to_magnitudes = from_magnitudes * multiplier
+        except pint.errors.DimensionalityError as e:
+            # Catch multiplicative conversions that rely on a capacity, like "%" to "kWh" and vice versa
+            if "from 'percent'" in str(e):
+                to_magnitudes = (
+                    (from_quantities * ur.Quantity(capacity))
+                    .to(ur.Quantity(to_unit))
+                    .magnitude
+                )
+            elif "to 'percent'" in str(e):
+                to_magnitudes = (
+                    (from_quantities / ur.Quantity(capacity))
+                    .to(ur.Quantity(to_unit))
+                    .magnitude
+                )
+            else:
+                # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
+                if event_resolution is None and isinstance(data, tb.BeliefsSeries):
+                    event_resolution = data.event_resolution
+                multiplier = determine_unit_conversion_multiplier(
+                    from_unit, to_unit, event_resolution
+                )
+                to_magnitudes = from_magnitudes * multiplier
+
+        # Output type should match input type
         if isinstance(data, pd.Series):
+            # Pandas Series
             data = pd.Series(
                 to_magnitudes,
                 index=data.index,
                 name=data.name,
             )
-        else:
+        elif isinstance(data, list):
+            # list
             data = list(to_magnitudes)
+        else:
+            # int or float
+            data = to_magnitudes[0]
     return data

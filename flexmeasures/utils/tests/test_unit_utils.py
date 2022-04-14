@@ -20,10 +20,13 @@ from flexmeasures.utils.unit_utils import (
 @pytest.mark.parametrize(
     "from_unit, to_unit, expected_multiplier, expected_values",
     [
+        ("%", "‰", 10, None),
         ("m/s", "km/h", 3.6, None),
         ("m³/h", "l/h", 1000, None),
         ("m³", "m³/h", 4, None),
         ("MW", "kW", 1000, None),
+        ("%", "kWh", 0.5, None),  # i.e. 1% of 50 kWh (the capacity used in the test)
+        ("kWh", "%", 2, None),  # i.e. 1 kWh = 2% of 50 kWh
         ("kWh", "kW", 4, None),
         ("kW", "kWh", 1 / 4, None),
         ("-W", "W", -1, None),
@@ -52,6 +55,7 @@ def test_convert_unit(
         from_unit=from_unit,
         to_unit=to_unit,
         event_resolution=timedelta(minutes=15),
+        capacity="50 kWh",
     )
     if expected_multiplier is not None:
         expected_data = data * expected_multiplier
@@ -66,7 +70,7 @@ def test_convert_unit(
         ("m³", None, "m³/h"),
         ("kWh", None, "kW"),
         ("km", "h", "km/h"),
-        ("m", "s", "km/h"),
+        ("m", "s", "m/s"),
     ],
 )
 def test_determine_flow_unit(
@@ -84,9 +88,12 @@ def test_determine_flow_unit(
     "unit, time_unit, expected_unit",
     [
         ("m³/h", None, "m³"),
+        ("km³/h", None, "km³"),
+        # ("hm³/h", None, "hm³"),  # todo: uncomment after switching to decimal unit registry
         ("kW", None, "kWh"),
         ("m/s", "s", "m"),
         ("m/s", "h", "km"),
+        ("t/h", None, "t"),
     ],
 )
 def test_determine_stock_unit(

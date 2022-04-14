@@ -2,7 +2,7 @@ from flask import url_for
 import pytest
 
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.api.dev.tests.utils import make_sensor_data_request_for_gas_sensor
+from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 
 
 @pytest.mark.parametrize("use_auth", [False, True])
@@ -14,14 +14,16 @@ def test_post_sensor_data_bad_auth(client, setup_api_test_data, use_auth):
     headers = {"content-type": "application/json"}
     if use_auth:
         # in this case, we successfully authenticate,
-        # but fail authorization (no admin or MDC role)
+        # but fail authorization (not member of the account in which the sensor lies)
         headers["Authorization"] = get_auth_token(
             client, "test_dummy_user_3@seita.nl", "testtest"
         )
 
+    post_data = make_sensor_data_request_for_gas_sensor()
     post_data_response = client.post(
-        url_for("post_sensor_data"),
+        url_for("SensorAPI:post_data"),
         headers=headers,
+        json=post_data,
     )
     print("Server responded with:\n%s" % post_data_response.data)
     if use_auth:
@@ -51,9 +53,9 @@ def test_post_invalid_sensor_data(
     post_data = make_sensor_data_request_for_gas_sensor()
     post_data[request_field] = new_value
     # this guy is allowed to post sensorData
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     response = client.post(
-        url_for("post_sensor_data"),
+        url_for("SensorAPI:post_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )
@@ -63,20 +65,21 @@ def test_post_invalid_sensor_data(
 
 
 def test_post_sensor_data_twice(client, setup_api_test_data):
-    auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     post_data = make_sensor_data_request_for_gas_sensor()
 
     # Check that 1st time posting the data succeeds
     response = client.post(
-        url_for("post_sensor_data"),
+        url_for("SensorAPI:post_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )
+    print(response.json)
     assert response.status_code == 200
 
     # Check that 2nd time posting the same data succeeds informatively
     response = client.post(
-        url_for("post_sensor_data"),
+        url_for("SensorAPI:post_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )
@@ -87,7 +90,7 @@ def test_post_sensor_data_twice(client, setup_api_test_data):
     # Check that replacing data fails informatively
     post_data["values"][0] = 100
     response = client.post(
-        url_for("post_sensor_data"),
+        url_for("SensorAPI:post_data"),
         json=post_data,
         headers={"Authorization": auth_token},
     )

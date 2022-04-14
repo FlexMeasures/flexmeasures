@@ -13,8 +13,8 @@ from flexmeasures.utils.entity_address_utils import (
 from flexmeasures.api.common.responses import (
     invalid_domain,
     invalid_unit,
-    ResponseTuple,
     invalid_horizon,
+    is_response_tuple,
 )
 from flexmeasures.api.common.utils.api_utils import (
     save_and_enqueue,
@@ -41,8 +41,8 @@ from flexmeasures.api.v1.implementations import (
 from flexmeasures.api.common.utils.api_utils import (
     get_sensor_by_generic_asset_type_and_location,
 )
-from flexmeasures.data.models.data_sources import get_or_create_source
 from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.queries.data_sources import get_or_create_source
 from flexmeasures.data.services.resources import get_sensors
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 
@@ -98,7 +98,7 @@ def post_price_data_response(
 
             # Look for the Sensor object
             sensor = get_sensor_by_unique_name(market_name, ["day_ahead", "tou_tariff"])
-            if type(sensor) == ResponseTuple:
+            if is_response_tuple(sensor):
                 # Error message telling the user what to do
                 return sensor
             if unit != sensor.unit:
@@ -185,7 +185,7 @@ def post_weather_data_response(  # noqa: C901
             sensor = get_sensor_by_generic_asset_type_and_location(
                 weather_sensor_type_name, latitude, longitude
             )
-            if type(sensor) == ResponseTuple:
+            if is_response_tuple(sensor):
                 # Error message telling the user about the nearest weather sensor they can post to
                 return sensor
 

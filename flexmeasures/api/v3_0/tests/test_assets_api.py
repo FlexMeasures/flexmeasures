@@ -4,7 +4,7 @@ import pytest
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
-from flexmeasures.api.dev.tests.utils import get_asset_post_data
+from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
 
 
 @pytest.mark.parametrize("use_auth", [False, True])
@@ -70,7 +70,7 @@ def test_get_asset_nonaccount_access(client, setup_api_test_data):
     assert "not found" in asset_response.json["message"]
 
 
-@pytest.mark.parametrize("account_name, num_assets", [("Prosumer", 2), ("Supplier", 1)])
+@pytest.mark.parametrize("account_name, num_assets", [("Prosumer", 1), ("Supplier", 2)])
 def test_get_assets(
     client, setup_api_test_data, setup_accounts, account_name, num_assets
 ):

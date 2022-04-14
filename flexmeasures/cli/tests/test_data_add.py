@@ -1,11 +1,15 @@
+import pytest
+
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.annotations import (
     Annotation,
     AccountAnnotationRelationship,
 )
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.cli.tests.utils import get_click_commands
 
 
+@pytest.mark.skip_github
 def test_add_annotation(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_annotation
 
@@ -41,6 +45,7 @@ def test_add_annotation(app, db, setup_roles_users):
     )
 
 
+@pytest.mark.skip_github
 def test_add_holidays(app, db, setup_roles_users):
     from flexmeasures.cli.data_add import add_holidays
 
@@ -71,3 +76,14 @@ def test_add_holidays(app, db, setup_roles_users):
         .count()
         == 11
     )
+
+
+def test_cli_help(app):
+    """Test that showing help does not throw an error."""
+    from flexmeasures.cli import data_add
+
+    runner = app.test_cli_runner()
+    for cmd in get_click_commands(data_add):
+        result = runner.invoke(cmd, ["--help"])
+        assert result.exit_code == 0
+        assert "Usage" in result.output

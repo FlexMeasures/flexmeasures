@@ -62,19 +62,21 @@ Here is a brief list:
 
 - |check_| `Data model based on timely beliefs <https://github.com/FlexMeasures/flexmeasures/projects/3>`_: Our data model of beliefs about timed events, timely-beliefs, is being more tightly integrated into FlexMeasures. We do this so we can take advantage of timely-belief's capabilities more and increase the focus of FlexMeasures on features.
 - |check_| `Support Sensor and Asset diversity <https://github.com/FlexMeasures/flexmeasures/projects/9>`_: We are generalizing our database structure for organising energy data, to support all sorts of sensors and assets, and are letting users move their data to the new database model. We do this so we can better support the diverse set of use cases for energy flexibility.
-- |uncheck_| `Update API endpoints for time series communication <https://github.com/FlexMeasures/flexmeasures/projects/13>`_: We are updating our API with new endpoints for communicating time series data, thereby consolidating a few older endpoints into a better standard. We do this so we can both simplify our API and documentation, and support a diversity of sensors.
-- |uncheck_| `Update CLI commands for setting up Sensors and Assets <https://github.com/FlexMeasures/flexmeasures/projects/14>`_: We are updating our CLI commands to reflect the new database structure. We do this to facilitate setting up structure for new users.
+- |check_| `Update API endpoints for time series communication <https://github.com/FlexMeasures/flexmeasures/projects/13>`_: We are updating our API with new endpoints for communicating time series data, thereby consolidating a few older endpoints into a better standard. We do this so we can both simplify our API and documentation, and support a diversity of sensors.
+- |check_| `Update CLI commands for setting up Sensors and Assets <https://github.com/FlexMeasures/flexmeasures/projects/14>`_: We are updating our CLI commands to reflect the new database structure. We do this to facilitate setting up structure for new users.
 - |uncheck_| `Update UI views for Sensors and Assets <https://github.com/FlexMeasures/flexmeasures/projects/10>`_: We are updating our UI views (dashboard maps and analytics charts) according to our new database structure for organising energy data. We do this so users can customize what they want to see.
 - |uncheck_| `Scheduling of sensors <https://github.com/FlexMeasures/flexmeasures/projects/6>`_: We are extending our database structure for Sensors with actuator functionality, and are moving to a model store where scheduling models can be registered. We do this so we can provide better plugin support for scheduling a diverse set of devices.
 - |uncheck_| `Forecasting of sensors <https://github.com/FlexMeasures/flexmeasures/projects/8>`_: We are revising our forecasting tooling to support fixed-viewpoint forecasts. We do this so we can better support decision moments with the most recent expectations about relevant sensors.
 - |uncheck_| `Deprecate old database models <https://github.com/FlexMeasures/flexmeasures/projects/11>`_: We are deprecating the Power, Price and Weather tables in favour of the TimedBelief table, and deprecating the Asset, Market and WeatherSensor tables in favour of the Sensor and GeneralizedAsset tables. We are doing this to clean up the code and database structure.
 
 
-The state of the transition (January 2022, v0.8.0)
+The state of the transition (March 2022, v0.9.0)
 ---------------------------------------------------
 
-Project 9 was implemented, which moved a lot of structure over, as well as actual data and some UI (dashboard, assets). We believe that was the hardest part.
+Project 9 was implemented with the release of v0.8.0. This work moved a lot of structure over, as well as actual data and some UI (dashboard, assets). We believe that was the hardest part.
 
-We are now close to being able to deprecate the old database models and route the API to the new model (see project 11). The API for assets is still in place, but the new one is already working (at /api/dev/generic_assets) and is powering what is shown in the UI.
+We are now working on deprecating the old database models (see project 11). As part of that move, we decided to begin the work on a new API version (v3) which supports only the new data model (and is more REST-like). That work was done in project 13. The new APIs for assets and sensor data had already been working before (at /api/dev) and had been powering what is shown in the UI since v0.8.0.
+
+We also implemented many CLI commands which support the new model (project 14).
 
 We take care to support people on the old data model so the transition will be as smooth as possible, as we said above. One part of this is that the ``flexmeasures db upgrade`` command copies your data to the new model. Also, creating new data (e.g. old-style assets) creates new-style data (e.g. assets/sensors) automatically. However, some edge cases are not supported in this way. For instance, edited asset meta data might have to be re-entered later. Feel free to contact us to discuss the transition if needed.

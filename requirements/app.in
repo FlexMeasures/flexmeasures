@@ -6,7 +6,7 @@ pscript
 pandas
 # pandas-bokeh 0.5 requires bokeh>=2.0, but bokeh still doesn't support sharing a legend across plots
 pandas-bokeh==0.4.3
-pint
+pint>=0.19.1
 py-moneyed
 iso8601
 xlrd
@@ -17,26 +17,21 @@ humanize
 psycopg2-binary
 bcrypt
 pytz
-tzlocal
 numpy
 isodate
 click
 email_validator
 rq
 rq-dashboard
-# the following two use environment markers (see PEP 496)
+# the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
-redis; os_name == 'nt' or os_name == 'win'
+# This limit resolves a conflict with test.in. The culprit is fakeredis (check their setup.cfg)
+redis < 4.2.0
 tldextract
 pyomo>=5.6
-pvlib
-# the following three are optional in pvlib, but we use them
-netCDF4
-siphon
-tables
 tabulate
 timetomodel>=0.7.1
-timely-beliefs>=1.11.0
+timely-beliefs>=1.11.5
 python-dotenv
 # a backport, not needed in Python3.8
 importlib_metadata
@@ -57,5 +52,6 @@ marshmallow>=3
 marshmallow-polyfield
 marshmallow-sqlalchemy>=0.23.1
 webargs
+uniplot
 # flask should be after all the flask plugins, because setup might find they ARE flask
 flask>=1.0
