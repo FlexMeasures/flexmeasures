@@ -129,3 +129,14 @@ Data
 
 The postgres database is a test database with toy data filled in when the flexmeasures container starts.
 You could also connect it to some other database, by setting a different `SQLALCHEMY_DATABASE_URI` in the config. 
+
+
+Running tests
+^^^^^^^^^^^^^^
+
+You can run tests in the flexmeasures docker container. This can be supported in a more straightforward way soon, of course, but here is how:
+
+- Go into the container: ``docker exec -it <container-id> bash``
+- Install vim (or the editor of your choice): ``apt-get install vim``
+- Change the `SQLALCHEMY_DATABASE_URI` setting in ``flexmeasures/utils/config_defaults.py``, under "TestingConfig", to that in ``docker-compose.yml``.
+- Run ``pytest``.
