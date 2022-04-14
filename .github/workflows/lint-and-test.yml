@@ -38,15 +38,16 @@ jobs:
         id: cache
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ secrets.CACHE_DATE }}-${{ hashFiles('**/requirements/**.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements/**.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
       - run: |
           ci/install-postgres.sh
-          sudo apt-get install coinor-cbc
+          sudo apt-get -y install coinor-cbc
       - name: Install FlexMeasures & dependencies for tests
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
+          make install-pip-tools
           make install-for-test
           pip install coveralls
       - name: Run all tests except those marked to be skipped by GitHub
