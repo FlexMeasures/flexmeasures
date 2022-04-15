@@ -3,12 +3,11 @@ version: "3.8"
 # -----------------------------------------------
 # TODO:
 # * Add redis service
-# * Add a worker service, maybe using https://docs.docker.com/compose/compose-file/#entrypoint
+# * Add a FlexMeasures worker service, maybe using https://docs.docker.com/compose/compose-file/#entrypoint
 # -----------------------------------------------
 
 services:
   dev-db:
-    # This toy db is used with SQLALCHEMY_DATABASE_URI=postgresql://fm-dev-db-user:fm-dev-db-pass@localhost:5433/fm-dev-db
     image: postgres
     expose:
       - 5432
@@ -17,9 +16,8 @@ services:
       POSTGRES_DB: fm-dev-db
       POSTGRES_USER: fm-dev-db-user
       POSTGRES_PASSWORD: fm-dev-db-pass
-    #You could load & execute custom SQL like this: 
-    #volumes:
-    #  - ./fm-dev.sql:/docker-entrypoint-initdb.d/fm-dev.sql
+    volumes:
+      - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
   flexmeasures:
     build:
       context: .

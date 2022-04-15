@@ -30,4 +30,4 @@ while [[ true ]]; do
   fi
 done
 
-psql -h $PGHOST -p $PGPORT -c "create extension if not exists cube; create extension if not exists earthdistance;" -U $PGUSER $PGDB;
+psql -h $PGHOST -p $PGPORT --file ci/load-psql-extensions.sql -U $PGUSER $PGDB;
