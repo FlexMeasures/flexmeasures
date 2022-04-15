@@ -38,7 +38,8 @@ jobs:
         id: cache
         with:
           path: ${{ env.pythonLocation }}
-          key: ${{ runner.os }}-pip-${{ env.pythonLocation }}-${{ hashFiles('**/requirements/**.txt') }}
+          # manually disable a cache if needed by (re)setting CACHE_DATE
+          key: ${{ runner.os }}-pip-${{ env.pythonLocation }}-${{ SECRETS.CACHE_DATE }}-${{ hashFiles('**/requirements/**.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
       - run: |
