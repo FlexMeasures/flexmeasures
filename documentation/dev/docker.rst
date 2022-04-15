@@ -134,11 +134,12 @@ You could also connect it to some other database, by setting a different `SQLALC
 Running tests
 ^^^^^^^^^^^^^^
 
-You can run tests in the flexmeasures docker container. This can be supported in a more straightforward way soon, of course, but here is how:
+You can run tests in the flexmeasures docker container, using the database service ``test-db`` in the compose file. Per default, we are using the ``dev-db`` database service.
 
-- Go into the container: ``docker exec -it <container-id> bash``
-- Install vim (or the editor of your choice): ``apt-get install vim``
-- Change the `SQLALCHEMY_DATABASE_URI` setting in ``flexmeasures/utils/config_defaults.py``, under "TestingConfig", to that in ``docker-compose.yml``.
-- Run ``pytest``. (you might have to run it twice, as the database has to be wiped, which only happens afterwards)
+After you've started the compose stack with ``docker-compose up``, run:
 
-.. warning:: This will destroy data in the container. We probably will add a container to the compose stack just for testing.
+.. code-block:: console
+
+    docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" <flexmeasures-container-name> pytest
+
+This rounds up the dev experience offered by running FlexMeasures in Docker. Now you can develop FlexMeasures and also run your tests. If you develop plugins, you could extend the command being used, e.g. ``bash -c "cd /path/to/my/plugin && pytest"``. 
