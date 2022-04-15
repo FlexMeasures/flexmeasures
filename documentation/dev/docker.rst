@@ -139,4 +139,6 @@ You can run tests in the flexmeasures docker container. This can be supported in
 - Go into the container: ``docker exec -it <container-id> bash``
 - Install vim (or the editor of your choice): ``apt-get install vim``
 - Change the `SQLALCHEMY_DATABASE_URI` setting in ``flexmeasures/utils/config_defaults.py``, under "TestingConfig", to that in ``docker-compose.yml``.
-- Run ``pytest``.
+- Run ``pytest``. (you might have to run it twice, as the database has to be wiped, which only happens afterwards)
+
+.. warning:: This will destroy data in the container. We probably will add a container to the compose stack just for testing.
