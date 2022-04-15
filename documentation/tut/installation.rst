@@ -235,7 +235,7 @@ Installing Cbc can be done on Unix via:
 
 (also available in different popular package managers).
 
-We provide a script for installing from source (without requiring ``sudo`` rights) in :ref:`continuous_integration`.
+We provide a script for installing from source (without requiring ``sudo`` rights) in the `ci` folder.
 
 More information (e.g. for installing on Windows) on `the Cbc website <https://projects.coin-or.org/Cbc>`_.
 

@@ -34,9 +34,21 @@ jobs:
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-      - run: ci/SETUP.sh
+      - uses: actions/cache@v2
+        id: cache
+        with:
+          path: ${{ env.pythonLocation }}
+          # manually disable a cache if needed by (re)setting CACHE_DATE
+          key: ${{ runner.os }}-pip-${{ env.pythonLocation }}-${{ SECRETS.CACHE_DATE }}-${{ hashFiles('**/requirements/**.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - run: |
+          ci/setup-postgres.sh
+          sudo apt-get -y install coinor-cbc
       - name: Install FlexMeasures & dependencies for tests
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
+          make install-pip-tools
           make install-for-test
           pip install coveralls
       - name: Run all tests except those marked to be skipped by GitHub

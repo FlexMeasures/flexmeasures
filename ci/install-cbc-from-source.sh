@@ -1,5 +1,10 @@
 #!/bin/bash
 
+######################################################################
+# This script installs the Cbc solver from source
+# (for cases where you can't install the coinor-cbc package)
+######################################################################
+
 # Install to this dir
 SOFTWARE_DIR=/home/seita/software
 if [ "$1" != "" ]; then
