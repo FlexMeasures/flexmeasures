@@ -18,6 +18,14 @@ Infrastructure / Support
 * Unit conversion prefers shorter units in general [see `PR #415 <http://www.github.com/FlexMeasures/flexmeasures/pull/415>`_]
 
 
+v0.9.3 | April 15, 2022
+===========================
+
+Bugfixes
+--------
+* Let registered plugins use CLI authorization [see `PR #411 <http://www.github.com/FlexMeasures/flexmeasures/pull/411>`_]
+
+
 v0.9.2 | April 10, 2022
 ===========================
 
