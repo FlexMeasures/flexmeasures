@@ -9,14 +9,14 @@ v0.10.0 | April XX, 2022
 New features
 -----------
 * Improve legibility of chart axes [see `PR #413 <http://www.github.com/FlexMeasures/flexmeasures/pull/413>`_]
-
-* API provides health check at /api/v3_0/health/ready [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
+* API provides health readiness check at /api/v3_0/health/ready [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
 
 Bugfixes
 -----------
 
 Infrastructure / Support
 ----------------------
+* Dockerfile to run FlexMeasures API in container; also docker-compose file [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
 * Unit conversion prefers shorter units in general [see `PR #415 <http://www.github.com/FlexMeasures/flexmeasures/pull/415>`_]
 * Shorter CI builds in Github Actions by caching Python environment [see `PR #361 <http://www.github.com/FlexMeasures/flexmeasures/pull/361>`_]
 
@@ -37,7 +37,6 @@ Bugfixes
 * Prefer unit conversions to short stock units [see `PR #412 <http://www.github.com/FlexMeasures/flexmeasures/pull/412>`_]
 * Fix filter for selecting one deterministic belief per event, which was duplicating index levels [see `PR #414 <http://www.github.com/FlexMeasures/flexmeasures/pull/414>`_]
 
-* Dockerfile to run FlexMeasures API in container; also docker-compose file [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
 
 
 v0.9.1 | March 31, 2022

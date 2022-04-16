@@ -5,12 +5,12 @@ Running via Docker
 
 FlexMeasures can be run via `docker <https://hub.docker.com/repository/docker/flexmeasures/flexmeasures>`_.
 
-Docker is great to save developers from installation trouble, but also for running FlexMeasures inside modern cloud environments in a scalable manner.
+`Docker <https://docs.docker.com/get-docker/>`_ is great to save developers from installation trouble, but also for running FlexMeasures inside modern cloud environments in a scalable manner.
 For now, the use case is local development. Using in production is a goal for later.
 
 We also support running all needed parts of a FlexMeasures EMS setup via `docker-compose <https://docs.docker.com/compose/>`_, which is helpful for developers and might inform hosting efforts. 
 
-.. warning:: The dockerization is still under development.
+.. warning:: The dockerization is still `under development <https://github.com/FlexMeasures/flexmeasures/projects/5>`_.
 
 
 The `flexmeasures` image
@@ -38,23 +38,27 @@ The tag is your choice.
 Running
 ^^^^^^^^^^^
 
-Running the image might work like this:
+Running the image (as a container) might work like this (remember to get the image first, see above):
 
 .. code-block:: bash
 
     docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla -d --net=host flexmeasures/flexmeasures
 
-The two minimal environment variables are the database URI and the secret key.
+.. note:: Don't know what your image is called (it's "tag")? We used ``flexmeasures/flexmeasures`` here, as that should be the name when pulling it from Docker Hub. You can run ``docker images`` to see which images you have.
 
-In this example, we connect to a database running on our local computer, so we use the host network (in the docker-compose section below, we use a Docker container for the database, as well).
+The two minimal environment variables to run the container successfully are the database URI and the secret key.
 
-Browsing ``http://localhost:5000`` should work.
+In this example, we connect to a postgres database running on our local computer, so we use the host network. In the docker-compose section below, we use a Docker container for the database, as well.
+
+Browsing ``http://localhost:5000`` should work now and ask you to log in.
+
+Of course, you might not have created a user. You can use ``docker exec -it <flexmeasures-container-name> bash`` to go inside the container and use the :ref:`cli` to create everything you need. 
 
 
-Configuration and customizing
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Configuration and customization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Using :ref:`configuration` by file is usually what you want to do. It's easier than adding environment variables to ``docker run``. Also, not all settings can be given via environment variables (a good example is the MapBox auth token, so you can load maps on the dashboard).
+Using :ref:`configuration` by file is usually what you want to do. It's easier than adding environment variables to ``docker run``. Also, not all settings can be given via environment variables. A good example is the :ref:`mapbox_access_token`, so you can load maps on the dashboard.
 
 To load a configuration file into the container when starting up, we make use of the `instance folder <https://flask.palletsprojects.com/en/2.1.x/config/#instance-folders>`_. You can put a configuration file called ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance`` and then mount that folder into the container, like this:
 
@@ -82,9 +86,9 @@ Run this:
 
     docker-compose build
 
-This pulls the containers you need, and re-builds the FlexMeasures one from code. If you change code, re-running this will re-build that image.
+This pulls the images you need, and re-builds the FlexMeasures one from code. If you change code, re-running this will re-build that image.
 
-This compose script can also serve as an inspiration for using FlexMeasures in modern cloud environments (like Kubernetes). For instance, you might want to not build the FlexMeasures image from code, but simply pull the image form DockerHub.
+This compose script can also serve as an inspiration for using FlexMeasures in modern cloud environments (like Kubernetes). For instance, you might want to not build the FlexMeasures image from code, but simply pull the image from DockerHub.
 
 .. todo:: This stack runs FlexMeasures, but misses the background worker aspect. For this, we'll add a redis node and one additional FlexMeasures node, which runs a worker as entry point instead (see `issue 418<https://github.com/FlexMeasures/flexmeasures/issues/418>`_).
 
@@ -121,7 +125,7 @@ You can use ``docker-compose logs`` to look at output. ``docker inspect <contain
 Configuration
 ^^^^^^^^^^^^^^
 
-You can pass in your own configuration (e.g. for MapBox access token, or db URI, see below) like we described above for running a container: Put a file ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance``.
+You can pass in your own configuration (e.g. for MapBox access token, or db URI, see below) like we described above for running a container: put a file ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance``.
 
 
 Data

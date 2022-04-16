@@ -43,7 +43,7 @@ We start by installing the FlexMeasures platform, and then use Docker to run a p
     $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="WARNING" DEBUG=0 
     $ flexmeasures db upgrade
 
-.. note:: When installing with ``pip``, on some platforms problems might come up (e.g. MacOs, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use the FlexMeasures Docker image (see :ref:`docker`). We plan to offer this tutorial for users, who only use Docker and run it completely inside containers.
+.. note:: When installing with ``pip``, on some platforms problems might come up (e.g. MacOs, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use the FlexMeasures Docker image (see :ref:`docker`). We plan to rewrite this tutorial to include steps for users running the complete FlexMeasures platform inside docker containers.
 
 
 Add some structural data
