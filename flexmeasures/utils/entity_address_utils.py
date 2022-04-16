@@ -30,7 +30,7 @@ class EntityAddressException(Exception):
 def get_host() -> str:
     """Get host from the context of the request.
 
-    Strips off www. but keeps subdomains.
+    Strips off www, but keeps subdomains.
     Can be localhost, too.
     """
     if has_request_context():
