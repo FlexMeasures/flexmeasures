@@ -44,7 +44,7 @@ Running the image (as a container) might work like this (remember to get the ima
 
     docker run --env SQLALCHEMY_DATABASE_URI=postgresql://user:pass@localhost:5432/dbname --env SECRET_KEY=blabla -d --net=host flexmeasures/flexmeasures
 
-.. note:: Don't know what your image is called (it's "tag")? We used ``flexmeasures/flexmeasures`` here, as that should be the name when pulling it from Docker Hub. You can run ``docker images`` to see which images you have.
+.. note:: Don't know what your image is called (its "tag")? We used ``flexmeasures/flexmeasures`` here, as that should be the name when pulling it from Docker Hub. You can run ``docker images`` to see which images you have.
 
 The two minimal environment variables to run the container successfully are the database URI and the secret key.
 
