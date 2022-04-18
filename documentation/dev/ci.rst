@@ -1,4 +1,4 @@
-.. continuous_integration:
+.. _continuous_integration:
 
 Continuous integration
 ======================
@@ -97,3 +97,15 @@ The last step, touching a wsgi.py file, is often used as a way to soft-restart t
 
    echo "RESTARTING APPLICATION ..."
    touch $PATH_TO_WSGI
+
+
+A WSGI file can do various things, as well, but the simplest form is shown below.
+
+.. code-block:: python
+
+  from flexmeasures.app import create as create_app
+
+  application = create_app()
+
+
+The web server is told about the WSGI script, but also about the object which represents the application. For instance, if this script is called ``wsgi.py``, then the relevant argument to the gunicorn server is ``wsgi:application``.

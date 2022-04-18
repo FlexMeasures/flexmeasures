@@ -165,8 +165,9 @@ The platform operator of FlexMeasures can be an Aggregator.
     :caption: Hosting FlexMeasures
     :maxdepth: 1
 
-    host/deployment
+    host/docker
     host/data
+    host/deployment
     host/error-monitoring
     host/modes
 
@@ -189,7 +190,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     dev/api
     dev/ci
     dev/auth
-    dev/docker
+    dev/docker-compose
 
 
 
