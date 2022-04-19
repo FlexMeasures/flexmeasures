@@ -959,7 +959,7 @@ def add_toy_account(kind: str, name: str):
             asset = GenericAsset(
                 name=f"toy-{asset_type}",
                 generic_asset_type=asset_types[asset_type],
-                owner=account,
+                owner=user.account,
                 latitude=location[0],
                 longitude=location[1],
             )
