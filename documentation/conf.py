@@ -48,6 +48,7 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.todo",
     "sphinx_copybutton",
+    "sphinx_tabs.tabs",
     "sphinx_fontawesome",
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",

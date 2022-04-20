@@ -10,7 +10,7 @@ Let's walk through an example from scratch! We'll ...
 - load hourly prices
 - optimize a 12h-schedule for a battery that is half full
 
-You'll need: A Unix computer with Python 3.8+, pip and `Docker <https://www.docker.com/>`_.
+You'll do this on your own computer, either with `Docker <https://www.docker.com/>`_ or on a Unix computer with Python 3.8+, pip and postgres.
 
 Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain step by step. There are some other crucial steps for installation and setup, so this becomes a complete example from scratch, but this is the meat:
 
@@ -29,21 +29,66 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
 Okay, let's get started!
 
 
+.. note: You can copy the commands by hovering on the top right corner of code examples. You'll copy only the commands, not the output!
+
 Install Flexmeasures and the database
 ---------------------------------------
 
-This example is from scratch, so we'll assume you have nothing prepared but a (Unix) computer with Python (3.8+) and two well-known developer tools, `pip <https://pip.pypa.io>`_ and `docker <https://www.docker.com/>`_.
+.. tabs::
 
-We start by installing the FlexMeasures platform, and then use Docker to run a postgres database and tell FlexMeasures to create all tables.
+  .. tab:: Docker
 
-.. code-block:: console
+        Okay, if `docker <https://www.docker.com/>`_ is running on your system, you're good to go. Otherwise, see `here <https://docs.docker.com/get-docker/>`_
 
-    $ pip install flexmeasures
-    $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
-    $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="WARNING" DEBUG=0 
-    $ flexmeasures db upgrade
+        We start by installing the FlexMeasures platform, and then use Docker to run a postgres database and tell FlexMeasures to create all tables.
 
-.. note:: When installing with ``pip``, on some platforms problems might come up (e.g. MacOs, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use the FlexMeasures Docker image (see :ref:`docker-image`). We plan to rewrite this tutorial to include steps for users running the complete FlexMeasures platform inside docker containers.
+        .. code-block:: console
+
+            $ docker pull flexmeasures/flexmeasures:latest
+            $ docker pull postgres
+            $ docker run --rm --name flexmeasures-tutorial-db -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
+            $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:docker@localhost:5433/flexmeasures-db --env SECRET_KEY=notsecret --env FLASK_ENV=development --env LOGGING_LEVEL=INFO -d --net=host flexmeasures/flexmeasures
+            $ docker exec flexmeasures-tutorial-fm bash -c "flexmeasures db upgrade"
+
+        Now the rest of this tutorial will happen inside the FlexMeasures container. This is how you hop inside the container and run a terminal there:
+
+        .. code-block:: console
+
+            $ docker exec -it flexmeasures-tutorial-fm bash
+
+        To leave the container session, hold CTRL-C or type "exit".
+
+        To stop the containers, you can type
+        
+        .. code-block:: console
+        
+            $ docker stop flexmeasures-tutorial-db
+            $ docker stop flexmeasures-tutorial-fm
+
+
+  .. tab:: On your PC
+        
+        This example is from scratch, so we'll assume you have nothing prepared but a (Unix) computer with Python (3.8+) and two well-known developer tools, `pip <https://pip.pypa.io>`_ and `postgres > 9<https://www.postgresql.org/download/>`_.
+
+
+        We'll create a databae for FlexMeasures:
+
+        .. code-block:: console
+
+            sudo -i -u postgres
+            createdb -U postgres flexmeasures
+            createuser --pwprompt -U postgres flexmeasures      # enter your password, we'll use "flexmeasures"
+            exit
+
+        Then, we can install FlexMeasures itself, set some variables and tell FlexMeasures to create all tables:
+
+        .. code-block:: console
+
+            $ pip install flexmeasures
+            $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures:flexmeasures@127.0.0.1:5432/flexmeasures" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
+            $ flexmeasures db upgrade 
+
+        .. note:: When installing with ``pip``, on some platforms problems might come up (e.g. MacOs, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use Docker, which usesa prepared Linux image, so it'll definitely work.
 
 
 Add some structural data
@@ -91,7 +136,7 @@ If you want, you can inspect what you created:
        2  toy-building  building  (52.374, 4.88969)
        1  toy-solar     solar     (52.374, 4.88969)
 
-    $ flexmeasures show asset --id
+    $ flexmeasures show asset --id 3
     
     ===========================
     Asset toy-battery (ID:3):
