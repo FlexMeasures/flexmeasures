@@ -1,24 +1,37 @@
-from typing import Optional, Union, List
+from __future__ import annotations
+
+import collections.abc
+from typing import Optional, Union
 
 from flask import current_app
 from flexmeasures.data import db
 
 from flexmeasures.data.models.data_sources import DataSource
 
+sequence = collections.abc.Sequence
+
 
 def parse_source_arg(
-    source: Optional[
-        Union[DataSource, List[DataSource], int, List[int], str, List[str]]
-    ]
-) -> Optional[List[DataSource]]:
-    """Parse the "source" argument by looking up DataSources corresponding to any given ids or names."""
+    source: DataSource
+    | int
+    | str
+    | sequence[DataSource]
+    | sequence[int]
+    | sequence[str]
+    | None,
+) -> list[DataSource] | None:
+    """Parse the "source" argument by looking up DataSources corresponding to any given ids or names.
+
+    Passes None as is (i.e. no source argument is given).
+    Accepts ids and names as list or tuples, always converting them to a list.
+    """
     if source is None:
         return source
-    if not isinstance(source, list):
+    if isinstance(source, (DataSource, str, int)):
         sources = [source]
     else:
         sources = source
-    parsed_sources: List[DataSource] = []
+    parsed_sources: list[DataSource] = []
     for source in sources:
         if isinstance(source, int):
             parsed_source = (
