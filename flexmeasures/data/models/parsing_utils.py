@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import collections.abc
-from typing import Optional, Union
+import collections
 
 from flask import current_app
 from flexmeasures.data import db
