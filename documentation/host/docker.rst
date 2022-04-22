@@ -3,7 +3,7 @@
 Running via Docker
 ======================
 
-FlexMeasures can be run via `docker <https://hub.docker.com/repository/docker/flexmeasures/flexmeasures>`_.
+FlexMeasures can be run via `docker <https://hub.docker.com/repository/docker/lfenergy/flexmeasures>`_.
 
 `Docker <https://docs.docker.com/get-docker/>`_ is great to save developers from installation trouble, but also for running FlexMeasures inside modern cloud environments in a scalable manner.
 For now, the use case is local development. Using in production is a goal for later.
@@ -48,7 +48,7 @@ Running the image (as a container) might work like this (remember to get the ima
 
 .. note:: Don't know what your image is called (its "tag")? We used ``lfenergy/flexmeasures`` here, as that should be the name when pulling it from Docker Hub. You can run ``docker images`` to see which images you have.
 
-The two minimal environment variables to run the container successfully are the database URI and the secret key, see :ref:`configuration`. ``Flask_ENV=development`` is needed if you do not have an SSL certificate set up (the default mode is ``production``, and in that mode FlexMeasures requires https for security reasons). If you see too much output, you can also set ``LOGGING_LEVEL=INFO``.
+The two minimal environment variables to run the container successfully are the database URI and the secret key, see :ref:`configuration`. ``FLASK_ENV=development`` is needed if you do not have an SSL certificate set up (the default mode is ``production``, and in that mode FlexMeasures requires https for security reasons). If you see too much output, you can also set ``LOGGING_LEVEL=INFO``.
 
 In this example, we connect to a postgres database running on our local computer, so we use the host network. In the docker-compose section below, we use a Docker container for the database, as well.
 

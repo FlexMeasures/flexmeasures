@@ -46,8 +46,8 @@ Install Flexmeasures and the database
 
             $ docker pull lfenergy/flexmeasures:latest
             $ docker pull postgres
-            $ docker run --rm --name flexmeasures-tutorial-db -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
-            $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:docker@localhost:5433/flexmeasures-db --env SECRET_KEY=notsecret --env FLASK_ENV=development --env LOGGING_LEVEL=INFO -d --net=host lfenergy/flexmeasures
+            $ docker run --rm --name flexmeasures-tutorial-db -e POSTGRES_PASSWORD=fm-db-passwd -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
+            $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:fm-db-passwd@localhost:5433/flexmeasures-db --env SECRET_KEY=notsecret --env FLASK_ENV=development --env LOGGING_LEVEL=INFO -d --net=host lfenergy/flexmeasures
             $ docker exec flexmeasures-tutorial-fm bash -c "flexmeasures db upgrade"
 
         Now the rest of this tutorial will happen inside the FlexMeasures container. This is how you hop inside the container and run a terminal there:
@@ -75,8 +75,8 @@ Install Flexmeasures and the database
         .. code-block:: console
 
             sudo -i -u postgres
-            createdb -U postgres flexmeasures
-            createuser --pwprompt -U postgres flexmeasures      # enter your password, we'll use "flexmeasures"
+            createdb -U postgres flexmeasures-db
+            createuser --pwprompt -U postgres flexmeasures-user      # enter your password, we'll use "fm-db-passwd"
             exit
 
         Then, we can install FlexMeasures itself, set some variables and tell FlexMeasures to create all tables:
@@ -84,7 +84,7 @@ Install Flexmeasures and the database
         .. code-block:: console
 
             $ pip install flexmeasures
-            $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures:flexmeasures@127.0.0.1:5432/flexmeasures" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
+            $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
             $ flexmeasures db upgrade 
 
         .. note:: When installing with ``pip``, on some platforms problems might come up (e.g. MacOs, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use Docker, which uses a prepared Linux image, so it'll definitely work.

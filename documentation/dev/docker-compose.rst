@@ -3,7 +3,7 @@
 Running a complete stack with docker-compose
 =============================================
 
-Installing FlexMeasures and dependencies is some work, and can have unexpected hurdles, e.g. depending on the operating system. So, running the whole stack via `Docker compose <https://docs.docker.com/compose/>`_ can be a very useful option.
+To install FlexMeasures, plus the libraries and databases it depends on, on your computer is some work, and can have unexpected hurdles, e.g. depending on the operating system. A nice alternative is to let that happen within Docker. The whole stack can be run via `Docker compose <https://docs.docker.com/compose/>`_, saving the developer much time.
 
 For this, we assume you are in the directory housing ``docker-compose.yml``.
 

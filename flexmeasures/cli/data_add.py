@@ -943,7 +943,7 @@ def add_toy_account(kind: str, name: str):
         email = "toy-user@flexmeasures.io"
         user = User.query.filter_by(email=email).one_or_none()
         if user is not None:
-            print(
+            click.echo(
                 f"User with email {email} already exists in account {user.account.name}."
             )
         else:

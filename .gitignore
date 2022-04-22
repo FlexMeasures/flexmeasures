@@ -16,7 +16,7 @@ venv
 .env-flexmeasures/
 flexmeasures.egg-info
 flexmeasures.log*
-prices-tomorrow.csv
+*.csv
 
 .cache
 __pycache__
