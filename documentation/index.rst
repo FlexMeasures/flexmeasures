@@ -44,7 +44,7 @@ As possible users, we see energy service companies (ESCOs) who want to build rea
 
 However, even small companies and hobby projects might find FlexMeasures useful! We are constantly improving the ease of use. 
 
-FlexMeasures can be used as your EMS, but is also to integrate with existing systems as a smart backend or add-on to deal with energy flexibility specifically.
+FlexMeasures can be used as your EMS, but it can also integrate with existing systems as a smart backend, or as an add-on to deal with energy flexibility specifically.
 
 The image below shows how FlexMeasures, with the help of plugins fitted for a given use case, turns data into optimized schedules:
 
