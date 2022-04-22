@@ -17,6 +17,7 @@ Infrastructure / Support
 ----------------------
 * Unit conversion prefers shorter units in general [see `PR #415 <http://www.github.com/FlexMeasures/flexmeasures/pull/415>`_]
 * Shorter CI builds in Github Actions by caching Python environment [see `PR #361 <http://www.github.com/FlexMeasures/flexmeasures/pull/361>`_]
+* Allow to filter data by source using a tuple instead of a list [see `PR #421 <http://www.github.com/FlexMeasures/flexmeasures/pull/421>`_]
 
 
 v0.9.3 | April 15, 2022
