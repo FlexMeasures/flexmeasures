@@ -50,7 +50,7 @@ Install Flexmeasures and the database
             $ docker run --rm --name flexmeasures-tutorial-fm --env SQLALCHEMY_DATABASE_URI=postgresql://postgres:fm-db-passwd@localhost:5433/flexmeasures-db --env SECRET_KEY=notsecret --env FLASK_ENV=development --env LOGGING_LEVEL=INFO -d --net=host lfenergy/flexmeasures
             $ docker exec flexmeasures-tutorial-fm bash -c "flexmeasures db upgrade"
 
-        Now the rest of this tutorial will happen inside the FlexMeasures container. This is how you hop inside the container and run a terminal there:
+        Now - what's *very important* to remember is this: The rest of this tutorial will happen *inside* the ``flexmeasures-tutorial-fm`` container! This is how you hop inside the container and run a terminal there:
 
         .. code-block:: console
 
