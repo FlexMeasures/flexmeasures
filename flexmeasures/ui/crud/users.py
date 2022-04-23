@@ -82,7 +82,7 @@ class UserCrudUI(FlaskView):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
         users = []
-        account = [current_user.account]
+        accounts = [current_user.account]
         if current_user.has_role(ADMIN_ROLE) or current_user.has_role(
             ADMIN_READER_ROLE
         ):
