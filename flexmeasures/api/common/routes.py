@@ -1,5 +1,6 @@
-from flask_security import auth_token_required, roles_required
+from flask_security import auth_token_required
 
+from flexmeasures.auth.decorators import roles_required
 from flexmeasures.api.common import flexmeasures_api as flexmeasures_api_ops
 from flexmeasures.api.common import implementations as ops_impl
 
