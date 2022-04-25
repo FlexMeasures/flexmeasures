@@ -6,7 +6,7 @@ Configuration
 The following configurations are used by FlexMeasures.
 
 Required settings (e.g. postgres db) are marked with a double star (**).
-To enable easier quickstart tutorials, these settings can be set by environment variables.
+To enable easier quickstart tutorials, these required settings can be set by environment variables.
 Recommended settings (e.g. mail, redis) are marked by one star (*).
 
 .. note:: FlexMeasures is best configured via a config file. The config file for FlexMeasures can be placed in one of two locations: 
@@ -300,6 +300,16 @@ Default:
            "pool_pre_ping": True,
            "connect_args": {"options": "-c timezone=utc"},
        }
+
+
+SQLALCHEMY_TEST_DATABASE_URI
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When running tests (``make test``, which runs ``pytest``), the default database URI is set in ``utils.config_defaults.TestingConfig``.
+You can use this setting to overwrite that URI and point the tests to an (empty) database of your choice. 
+
+.. note:: This setting is only supported as an environment variable, not in a config file, and only during testing.
+
 
 
 Security

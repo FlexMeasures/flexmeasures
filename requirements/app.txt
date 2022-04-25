@@ -219,7 +219,6 @@ packaging==21.3
     # via
     #   bokeh
     #   matplotlib
-    #   pint
     #   redis
     #   statsmodels
     #   webargs

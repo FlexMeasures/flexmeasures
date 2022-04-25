@@ -48,6 +48,7 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.todo",
     "sphinx_copybutton",
+    "sphinx_tabs.tabs",
     "sphinx_fontawesome",
     "sphinxcontrib.autohttp.flask",
     "sphinxcontrib.autohttp.flaskqref",
@@ -77,7 +78,7 @@ language = None
 # This pattern also affects html_static_path and html_extra_path .
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-# Todo: these are not mature enough yet for release
+# Todo: these are not mature enough yet for release, or should be removed
 exclude_patterns.append("int/*.rst")
 exclude_patterns.append("concepts/assets.rst")
 exclude_patterns.append("concepts/markets.rst")
@@ -194,7 +195,7 @@ texinfo_documents = [
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {"https://docs.python.org/": None}
+intersphinx_mapping = {"https://docs.python.org/3/": None}
 
 # -- Options for copybytton extension ---------------------------------------
 copybutton_prompt_is_regexp = True

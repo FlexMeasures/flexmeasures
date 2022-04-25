@@ -23,7 +23,7 @@ A tiny, but complete example: Let's install FlexMeasures from scratch. Then, usi
 
 .. code-block:: console
 
-    $ pip install flexmeasures
+    $ pip install flexmeasures  # also available via Docker
     $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
     $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret 
     $ flexmeasures db upgrade  # create tables
@@ -44,7 +44,7 @@ As possible users, we see energy service companies (ESCOs) who want to build rea
 
 However, even small companies and hobby projects might find FlexMeasures useful! We are constantly improving the ease of use. 
 
-FlexMeasures can be used as your EMS, but is also to integrate with existing systems as a smart backend or add-on to deal with energy flexibility specifically.
+FlexMeasures can be used as your EMS, but it can also integrate with existing systems as a smart backend, or as an add-on to deal with energy flexibility specifically.
 
 The image below shows how FlexMeasures, with the help of plugins fitted for a given use case, turns data into optimized schedules:
 
@@ -165,8 +165,9 @@ The platform operator of FlexMeasures can be an Aggregator.
     :caption: Hosting FlexMeasures
     :maxdepth: 1
 
-    host/deployment
+    host/docker
     host/data
+    host/deployment
     host/error-monitoring
     host/modes
 
@@ -189,6 +190,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     dev/api
     dev/ci
     dev/auth
+    dev/docker-compose
 
 
 

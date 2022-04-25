@@ -6,9 +6,14 @@ Installation & First steps
 Getting FlexMeasures to run
 -----------------------------
 
-This section walks you through getting FlexMeasures to run. For an example with the least effort, see :ref:`tut_toy_schedule`. Here, we'll cover getting started with an installation you run continuously ― making a secret key, connecting a database and creating one user & one asset.
+This section walks you through installing FlexMeasures on your own PC and running it continuously.
+We'll cover getting started by making a secret key, connecting a database and creating one user & one asset.
 
-.. note:: Are you not hosting FlexMeasures, but want to learn how to interact with it? Start with :ref:`tut_posting_data`.
+.. note:: Maybe these starting points are also interesting for you:
+
+          * For an example to see FlexMeasures in action with the least effort, see :ref:`tut_toy_schedule`.
+          * You can run FlexMeasures via Docker, see :ref:`docker` and :ref:`docker-compose`.
+          * Are you not hosting FlexMeasures, but want to learn how to interact with it? Start with :ref:`tut_posting_data`.
 
 
 Install FlexMeasures
@@ -205,11 +210,10 @@ It's finally time to start running FlexMeasures:
 (This might print some warnings, see the next section where we go into more detail)
 
 .. note:: In a production context, you shouldn't run a script - hand the ``app`` object to a WSGI process, as your platform of choice describes.
-          Often, that requires a WSGI script. We provide an example WSGI script in :ref:`continuous_integration`.
+          Often, that requires a WSGI script. We provide an example WSGI script in :ref:`continuous_integration`. You can also take a look at FlexMeasures' Dockerfile to get an idea how to run FlexMeasures with gunicorn.
 
 You can visit ``http://localhost:5000`` now to see if the app's UI works.
 When you see the dashboard, the map will not work. For that, you'll need to get your :ref:`mapbox_access_token` and add it to your config file.
-
 
 
 
@@ -258,4 +262,4 @@ Where to go from here?
 
 If your data structure is good, you should think about (continually) adding measurement data. This tutorial mentioned how to add data, but :ref:`_tut_posting_data` goes deeper with examples and terms & definitions.
 
-Then, you probably want to use FlexMeasures to generate forecasts and schedules! For this, read further in :ref:`_tut_forecasting_scheduling`. 
+Then, you probably want to use FlexMeasures to generate forecasts and schedules! For this, read further in :ref:`tut_forecasting_scheduling`. 

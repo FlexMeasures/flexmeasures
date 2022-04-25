@@ -5,11 +5,12 @@ How to deploy FlexMeasures
 
 Here you can learn how to get FlexMeasures onto a server.
 
+.. note:: FlexMeasures can be deployed via Docker. Read more at :ref:`docker-image`.
+
 .. contents:: Table of contents
     :local:
     :depth: 1
 
-.. todo:: It would be great to enable Dockerization of FlexMeasures, let us know if this matters to you.
 
 
 WSGI configuration
@@ -22,16 +23,24 @@ On your own computer, ``flexmeasures run`` is a nice way to start FlexMeasures. 
    # This file contains the WSGI configuration required to serve up your
    # web application.
    # It works by setting the variable 'application' to a WSGI handler of some description.
+   # The crucial part are the last two lines. We add some ideas for possible other logic.
 
    import os
-   from dotenv import load_dotenv
-
    project_home = u'/path/to/your/code/flexmeasures'
+   # use this if you want to load your own ``.env`` file.
+   from dotenv import load_dotenv
    load_dotenv(os.path.join(project_home, '.env'))
+   # use this if you run from source
+   if project_home not in sys.path:
+      sys.path = [project_home] + sys.path
+   # adapt PATH to find our LP solver if it is installed from source
+   os.environ["PATH"] = os.environ.get("PATH") + ":/home/seita/Cbc-2.9/bin"
 
-   # create flask app - need to call it "application" for WSGI to work
+   # create flask app - the name "application" has to be passed to the WSGI server
    from flexmeasures.app import create as create_app
    application = create_app()
+
+The web server is told about the WSGI script, but also about the object which represents the application. For instance, if this script is called ``wsgi.py``, then the relevant argument to the gunicorn server is ``wsgi:application``.
 
 Keep in mind that FlexMeasures is based on `Flask <https://flask.palletsprojects.com/>`_, so almost all knowledge on the web on how to deploy a Flask app also helps with deploying FlexMeasures. 
 
@@ -52,7 +61,7 @@ You can install it on Debian like this:
 
 
 If you can't use the package manager on your host, the solver has to be installed from source.
-We provide `an example script <ci/install-cbc.sh>`_ to do that, where you can also
+We provide an example script in ``ci/install-cbc-from-source.sh`` to do that, where you can also
 pass a directory for the installation.
 
 In case you want to install a later version, adapt the version in the script. 

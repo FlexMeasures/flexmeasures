@@ -1,0 +1,63 @@
+version: "3.4"
+
+# -----------------------------------------------
+# TODO:
+# * Add redis service
+# * Add a FlexMeasures worker service, maybe using https://docs.docker.com/compose/compose-file/#entrypoint
+# -----------------------------------------------
+
+services:
+  dev-db:
+    image: postgres
+    expose:
+      - 5432
+    restart: always
+    environment:
+      POSTGRES_DB: fm-dev-db
+      POSTGRES_USER: fm-dev-db-user
+      POSTGRES_PASSWORD: fm-dev-db-pass
+    volumes:
+      - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 5000:5000
+    depends_on:
+      - dev-db
+      - test-db  # use -e SQLALCHEMY_TEST_DATABASE_URI=... to exec pytest
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v3_0/health/ready"]
+      start_period: 10s
+      interval: 20s
+      timeout: 10s
+      retries: 6
+    environment:
+      SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
+      SECRET_KEY: notsecret
+      FLASK_ENV: development
+      LOGGING_LEVEL: INFO 
+    volumes:
+      # a place for config and plugin code - the mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
+      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
+      - ./flexmeasures-instance/:/app/instance/:ro
+    command: >
+      bash -c "flexmeasures db upgrade
+      && flexmeasures add toy-account --name 'Docker Toy Account'
+      && gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application"
+  test-db:
+    image: postgres
+    expose:
+      - 5432
+    restart: always
+    environment:
+      POSTGRES_DB: fm-test-db
+      POSTGRES_USER: fm-test-db-user
+      POSTGRES_PASSWORD: fm-test-db-pass
+    volumes:
+      - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
+
+volumes:
+  flexmeasures-instance:
