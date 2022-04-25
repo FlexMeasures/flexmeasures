@@ -6,7 +6,7 @@ from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
-from flexmeasures.auth.policy import ADMIN_ROLE
+from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.models.time_series import Sensor
 
@@ -15,6 +15,8 @@ class SensorAPI(FlaskView):
     """
     This view exposes sensor attributes through API endpoints under development.
     These endpoints are not yet part of our official API, but support the FlexMeasures UI.
+
+    TODO: use permission-based auth and marshmallow (SensorIDField).
     """
 
     route_base = "/sensor"
@@ -73,11 +75,15 @@ class SensorAPI(FlaskView):
 
 
 def get_sensor_or_abort(id: int) -> Sensor:
+    """
+    Util function to help the GET requests. Will be obsolete, see TODO above.
+    """
     sensor = Sensor.query.filter(Sensor.id == id).one_or_none()
     if sensor is None:
         raise abort(404, f"Sensor {id} not found")
     if not (
         current_user.has_role(ADMIN_ROLE)
+        or current_user.has_role(ADMIN_READER_ROLE)
         or sensor.generic_asset.owner is None  # public
         or sensor.generic_asset.owner == current_user.account  # private but authorized
     ):
