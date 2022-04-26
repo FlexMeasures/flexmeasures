@@ -79,6 +79,8 @@ def is_valid_unit(unit: str) -> bool:
     try:
         ur.Quantity(unit)
     except Exception:  # noqa B902
+        # in practice, we encountered pint.errors.UndefinedUnitError, ValueError and AttributeError,
+        # but since there may be more, here we simply catch them all
         return False
     return True
 
