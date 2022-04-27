@@ -1,6 +1,6 @@
 from flask_security import auth_token_required
 
-from flexmeasures.auth.deecorators import roles_required
+from flexmeasures.auth.decorators import roles_required
 from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.api.play import (
     flexmeasures_api as flexmeasures_api_play,
