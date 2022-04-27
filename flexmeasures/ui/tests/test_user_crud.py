@@ -1,3 +1,4 @@
+import pytest
 from flask import url_for
 
 from flexmeasures.data.services.users import find_user_by_email
@@ -20,6 +21,15 @@ def test_user_list(client, as_admin, requests_mock):
     assert b"All active users" in user_index.data
     assert b"alex@seita.nl" in user_index.data
     assert b"bert@seita.nl" in user_index.data
+
+
+@pytest.mark.parametrize("view", ["get", "toggle_active"])
+def test_user_page_as_nonadmin(client, as_prosumer_user1, view):
+    user2_id = find_user_by_email("test_prosumer_user_2@seita.nl").id
+    user_page = client.get(
+        url_for(f"UserCrudUI:{view}", id=user2_id), follow_redirects=True
+    )
+    assert user_page.status_code == 403
 
 
 def test_user_page(client, as_admin, requests_mock):
