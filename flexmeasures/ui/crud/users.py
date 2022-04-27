@@ -82,11 +82,12 @@ class UserCrudUI(FlaskView):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
         users = []
-        accounts = [current_user.account]
         if current_user.has_role(ADMIN_ROLE) or current_user.has_role(
             ADMIN_READER_ROLE
         ):
             accounts = Account.query.all()
+        else:
+            accounts = [current_user.account]
         for account in accounts:
             get_users_response = InternalApi().get(
                 url_for(
