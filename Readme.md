@@ -1,5 +1,5 @@
-![FlexMeasures Logo Light](https://artwork.lfenergy.org/projects/flexmeasures/horizontal/color/flexmeasures-horizontal-color.png#gh-light-mode-only)
-![FlexMeasures Logo Dark](https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.png#gh-dark-mode-only)
+![FlexMeasures Logo Light](https://github.com/FlexMeasures/screenshots/blob/main/logo/flexmeasures-horizontal-color.svg#gh-light-mode-only)
+![FlexMeasures Logo Dark](https://github.com/FlexMeasures/screenshots/blob/main/logo/flexmeasures-horizontal-dark.svg#gh-dark-mode-only)
 
 [![License](https://img.shields.io/github/license/seitabv/flexmeasures?color=blue)](https://github.com/FlexMeasures/flexmeasures/blob/main/LICENSE)
 ![lint-and-test](https://github.com/FlexMeasures/flexmeasures/workflows/lint-and-test/badge.svg)
