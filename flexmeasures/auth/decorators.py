@@ -20,7 +20,7 @@ def roles_accepted(*roles):
     """As in Flask-Security, but also accept admin"""
     if ADMIN_ROLE not in roles:
         roles = roles + (ADMIN_ROLE,)
-    return roles_accepted_fs(roles)
+    return roles_accepted_fs(*roles)
 
 
 def roles_required(*roles):

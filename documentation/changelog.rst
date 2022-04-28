@@ -13,6 +13,7 @@ New features
 
 Bugfixes
 -----------
+* Fix small problems in support for the admin-reader role & role-based authorization [see `PR #422 <http://www.github.com/FlexMeasures/flexmeasures/pull/422>`_]
 
 Infrastructure / Support
 ----------------------

@@ -1,5 +1,5 @@
-from flask import url_for
 import pytest
+from flask import url_for
 
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.ui.tests.utils import mock_user_response
@@ -8,17 +8,6 @@ from flexmeasures.ui.tests.utils import mock_user_response
 Testing if the UI crud views do auth checks and display answers.
 Actual logic is tested in the API tests.
 """
-
-
-@pytest.mark.parametrize("view", ["index", "get", "toggle_active"])
-def test_user_crud_as_non_admin(client, as_prosumer_user1, view):
-    user_index = client.get(url_for("UserCrudUI:index"), follow_redirects=True)
-    assert user_index.status_code == 403
-    user2_id = find_user_by_email("test_prosumer_user_2@seita.nl").id
-    user_page = client.get(
-        url_for(f"UserCrudUI:{view}", id=user2_id), follow_redirects=True
-    )
-    assert user_page.status_code == 403
 
 
 def test_user_list(client, as_admin, requests_mock):
@@ -34,13 +23,22 @@ def test_user_list(client, as_admin, requests_mock):
     assert b"bert@seita.nl" in user_index.data
 
 
+@pytest.mark.parametrize("view", ["get", "toggle_active"])
+def test_user_page_as_nonadmin(client, as_prosumer_user1, view):
+    user2_id = find_user_by_email("test_prosumer_user_2@seita.nl").id
+    user_page = client.get(
+        url_for(f"UserCrudUI:{view}", id=user2_id), follow_redirects=True
+    )
+    assert user_page.status_code == 403
+
+
 def test_user_page(client, as_admin, requests_mock):
     mock_user = mock_user_response(as_list=False)
     requests_mock.get(
         "http://localhost//api/v3_0/users/2", status_code=200, json=mock_user
     )
     requests_mock.get(
-        "http://localhost//api/v2_0/assets",
+        "http://localhost//api/v3_0/assets",
         status_code=200,
         json=[{}, {}, {}],  # we only care about the length
     )

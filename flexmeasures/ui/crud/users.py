@@ -3,12 +3,14 @@ from datetime import datetime
 
 from flask import request, url_for
 from flask_classful import FlaskView
+from flask_login import current_user
+from flask_security import login_required
 from flask_wtf import FlaskForm
 from wtforms import StringField, FloatField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired
-from flask_security import roles_required, login_required
 
-from flexmeasures.auth.policy import ADMIN_ROLE
+from flexmeasures.auth.policy import ADMIN_READER_ROLE, ADMIN_ROLE
+from flexmeasures.auth.decorators import roles_required, roles_accepted
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User, Role, Account
 from flexmeasures.data.services.users import (
@@ -76,12 +78,17 @@ class UserCrudUI(FlaskView):
     route_base = "/users"
     trailing_slash = False
 
-    @roles_required(ADMIN_ROLE)
     def index(self):
         """/users"""
         include_inactive = request.args.get("include_inactive", "0") != "0"
         users = []
-        for account in Account.query.all():
+        if current_user.has_role(ADMIN_ROLE) or current_user.has_role(
+            ADMIN_READER_ROLE
+        ):
+            accounts = Account.query.all()
+        else:
+            accounts = [current_user.account]
+        for account in accounts:
             get_users_response = InternalApi().get(
                 url_for(
                     "UserAPI:index",
@@ -97,7 +104,7 @@ class UserCrudUI(FlaskView):
             "crud/users.html", users=users, include_inactive=include_inactive
         )
 
-    @roles_required(ADMIN_ROLE)
+    @roles_accepted(ADMIN_ROLE, ADMIN_READER_ROLE)
     def get(self, id: str):
         """GET from /users/<id>"""
         get_user_response = InternalApi().get(url_for("UserAPI:get", id=id))
@@ -107,7 +114,7 @@ class UserCrudUI(FlaskView):
         asset_count = 0
         if user:
             get_users_assets_response = InternalApi().get(
-                url_for("flexmeasures_api_v2_0.get_assets", owner_id=user.id)
+                url_for("AssetAPI:index", account_id=user.account_id)
             )
             asset_count = len(get_users_assets_response.json())
         return render_user(user, asset_count=asset_count)
