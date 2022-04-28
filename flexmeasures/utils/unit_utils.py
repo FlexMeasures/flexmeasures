@@ -75,9 +75,9 @@ def is_valid_unit(unit: str) -> bool:
     """Return True if the pint library can work with this unit identifier."""
     try:
         ur.Quantity(unit)
-    except ValueError:
-        return False
-    except pint.errors.UndefinedUnitError:
+    except Exception:  # noqa B902
+        # in practice, we encountered pint.errors.UndefinedUnitError, ValueError and AttributeError,
+        # but since there may be more, here we simply catch them all
         return False
     return True
 

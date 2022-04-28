@@ -149,6 +149,7 @@ def test_units_are_convertible():
         ("°C", False),
         ("", False),
         ("not-a-unit", False),
+        ("#", False),
     ],
 )
 def test_is_power_unit(unit: str, power_unit: bool):

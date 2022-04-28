@@ -2,6 +2,14 @@
 FlexMeasures Changelog
 **********************
 
+v0.9.4 | April 28, 2022
+===========================
+
+Bugfixes
+--------
+* Support checking validity of custom units (i.e. non-SI, non-currency units) [see `PR #424 <http://www.github.com/FlexMeasures/flexmeasures/pull/424>`_]
+
+
 v0.9.3 | April 15, 2022
 ===========================
 
