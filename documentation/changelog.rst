@@ -22,7 +22,7 @@ Infrastructure / Support
 * Allow to filter data by source using a tuple instead of a list [see `PR #421 <http://www.github.com/FlexMeasures/flexmeasures/pull/421>`_]
 
 
-v0.9.4 | April 26, 2022
+v0.9.4 | April 28, 2022
 ===========================
 
 Bugfixes
