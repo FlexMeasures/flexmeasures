@@ -8,6 +8,7 @@ v0.10.0 | April XX, 2022
 
 New features
 -----------
+* New design for FlexMeasures' UI backoffice [see `PR #425 <http://www.github.com/FlexMeasures/flexmeasures/pull/425>`_]
 * Improve legibility of chart axes [see `PR #413 <http://www.github.com/FlexMeasures/flexmeasures/pull/413>`_]
 * API provides health readiness check at /api/v3_0/health/ready [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
 
