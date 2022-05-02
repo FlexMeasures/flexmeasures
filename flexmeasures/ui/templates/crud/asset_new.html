@@ -16,7 +16,7 @@
         <div class="col-sm-10">
         </div>
     </div>
-    <form class="form-horizontal" method="POST" action="/assets/create/">
+    <form class="new-asset-form form-horizontal" method="POST" action="/assets/create/">
         {{ asset_form.csrf_token }}
         {{ asset_form.hidden_tag() }}
         <fieldset>
