@@ -2,6 +2,7 @@ from typing import Any, List, Dict, Optional, Union, Type, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
 
+import pandas as pd
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session

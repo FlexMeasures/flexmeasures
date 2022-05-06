@@ -3,6 +3,7 @@ from typing import List, Optional, Union, TYPE_CHECKING
 from datetime import datetime
 
 from flask_security import UserMixin, RoleMixin
+import pandas as pd
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
