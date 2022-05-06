@@ -10,7 +10,7 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
 
 from flexmeasures.data import db
-from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
@@ -216,15 +216,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 source=source,
             )
 
-        if as_frame:
-            return pd.DataFrame(
-                [
-                    [a.start, a.end, a.belief_time, a.source, a.type, a.content]
-                    for a in annotations
-                ],
-                columns=["start", "end", "belief_time", "source", "type", "content"],
-            )
-        return annotations
+        return to_annotation_frame(annotations) if as_frame else annotations
 
     def count_annotations(
         self,

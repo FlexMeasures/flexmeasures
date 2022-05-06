@@ -11,6 +11,7 @@ from flexmeasures.data import db
 from flexmeasures.data.models.annotations import (
     Annotation,
     AccountAnnotationRelationship,
+    to_annotation_frame,
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.auth.policy import AuthModelMixin
@@ -115,15 +116,7 @@ class Account(db.Model, AuthModelMixin):
             )
         annotations = query.all()
 
-        if as_frame:
-            return pd.DataFrame(
-                [
-                    [a.start, a.end, a.belief_time, a.source, a.type, a.content]
-                    for a in annotations
-                ],
-                columns=["start", "end", "belief_time", "source", "type", "content"],
-            )
-        return annotations
+        return to_annotation_frame(annotations) if as_frame else annotations
 
 
 class RolesUsers(db.Model):

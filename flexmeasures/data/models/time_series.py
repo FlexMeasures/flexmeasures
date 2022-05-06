@@ -27,6 +27,7 @@ from flexmeasures.utils.unit_utils import is_energy_unit, is_power_unit
 from flexmeasures.data.models.annotations import (
     Annotation,
     SensorAnnotationRelationship,
+    to_annotation_frame,
 )
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
@@ -236,15 +237,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 source=source,
             )
 
-        if as_frame:
-            return pd.DataFrame(
-                [
-                    [a.start, a.end, a.belief_time, a.source, a.type, a.content]
-                    for a in annotations
-                ],
-                columns=["start", "end", "belief_time", "source", "type", "content"],
-            )
-        return annotations
+        return to_annotation_frame(annotations) if as_frame else annotations
 
     def search_beliefs(
         self,
