@@ -203,7 +203,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         ] = None,
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
-    ):
+        as_frame: bool = False,
+    ) -> Union[List[Annotation], pd.DataFrame]:
         parsed_sources = parse_source_arg(source)
         query = Annotation.query.join(SensorAnnotationRelationship).filter(
             SensorAnnotationRelationship.sensor_id == self.id,
@@ -233,6 +234,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 annotation_starts_after=annotation_starts_after,
                 annotation_ends_before=annotation_ends_before,
                 source=source,
+            )
+
+        if as_frame:
+            return pd.DataFrame(
+                [
+                    [a.start, a.end, a.belief_time, a.source, a.type, a.content]
+                    for a in annotations
+                ],
+                columns=["start", "end", "belief_time", "source", "type", "content"],
             )
         return annotations
 

@@ -94,7 +94,8 @@ class Account(db.Model, AuthModelMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
-    ):
+        as_frame: bool = False,
+    ) -> Union[List[Annotation], pd.DataFrame]:
         parsed_sources = parse_source_arg(source)
         query = Annotation.query.join(AccountAnnotationRelationship).filter(
             AccountAnnotationRelationship.account_id == self.id,
@@ -113,6 +114,15 @@ class Account(db.Model, AuthModelMixin):
                 Annotation.source.in_(parsed_sources),
             )
         annotations = query.all()
+
+        if as_frame:
+            return pd.DataFrame(
+                [
+                    [a.start, a.end, a.belief_time, a.source, a.type, a.content]
+                    for a in annotations
+                ],
+                columns=["start", "end", "belief_time", "source", "type", "content"],
+            )
         return annotations
 
 
