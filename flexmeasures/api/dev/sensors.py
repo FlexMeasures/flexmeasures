@@ -70,6 +70,38 @@ class SensorAPI(FlaskView):
         """
         return sensor.search_beliefs(as_json=True, **kwargs)
 
+    @route("/<id>/chart_annotations/")
+    @use_kwargs(
+        {"sensor": SensorIdField(data_key="id")},
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "event_starts_after": AwareDateTimeField(format="iso", required=False),
+            "event_ends_before": AwareDateTimeField(format="iso", required=False),
+            "beliefs_after": AwareDateTimeField(format="iso", required=False),
+            "beliefs_before": AwareDateTimeField(format="iso", required=False),
+        },
+        location="query",
+    )
+    def get_chart_annotations(self, id: int, sensor: Sensor, **kwargs):
+        """GET from /sensor/<id>/chart_annotations
+
+        .. :quickref: Chart; Download annotations for use in charts
+
+        Annotations for use in charts (in case you have the chart specs already).
+        """
+        df = sensor.generic_asset.search_annotations(
+            annotation_starts_after=kwargs.get("event_starts_after", None),
+            annotation_ends_before=kwargs.get("event_ends_before", None),
+            as_frame=True,
+        )
+
+        # Return JSON records
+        df = df.reset_index()
+        df["source"] = df["source"].astype(str)
+        return df.to_json(orient="records")
+
     @route("/<id>/")
     @use_kwargs(
         {"sensor": SensorIdField(data_key="id")},
