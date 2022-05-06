@@ -4,6 +4,7 @@ import warnings
 from flask_classful import FlaskView, route
 from flask_security import current_user, auth_required
 from marshmallow import fields
+from textwrap import wrap
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
@@ -96,6 +97,9 @@ class SensorAPI(FlaskView):
             annotation_ends_before=kwargs.get("event_ends_before", None),
             as_frame=True,
         )
+
+        # Wrap on whitespace with some max line length
+        df['content'] = df['content'].apply(wrap, args=[60])
 
         # Return JSON records
         df = df.reset_index()
