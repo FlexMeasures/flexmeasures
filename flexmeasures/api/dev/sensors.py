@@ -103,7 +103,8 @@ class SensorAPI(FlaskView):
         df["content"] = df["content"].apply(wrap, args=[60])
 
         # Stack annotations for the same event
-        df = df.groupby("end", group_keys=False).apply(stack_annotations)
+        if not df.empty:
+            df = df.groupby("end", group_keys=False).apply(stack_annotations)
 
         # Return JSON records
         df = df.reset_index()
