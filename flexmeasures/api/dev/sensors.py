@@ -100,10 +100,10 @@ class SensorAPI(FlaskView):
         )
 
         # Wrap on whitespace with some max line length
-        df['content'] = df['content'].apply(wrap, args=[60])
+        df["content"] = df["content"].apply(wrap, args=[60])
 
         # Stack annotations for the same event
-        df = df.groupby('end', group_keys=False).apply(stack_annotations)
+        df = df.groupby("end", group_keys=False).apply(stack_annotations)
 
         # Return JSON records
         df = df.reset_index()
