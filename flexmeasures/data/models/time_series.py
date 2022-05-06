@@ -224,13 +224,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         annotations = query.all()
         if include_asset_annotations:
             annotations += self.generic_asset.search_annotations(
-                annotation_starts_before=annotation_starts_after,
+                annotation_starts_after=annotation_starts_after,
                 annotation_ends_before=annotation_ends_before,
                 source=source,
             )
         if include_account_annotations:
             annotations += self.generic_asset.owner.search_annotations(
-                annotation_starts_before=annotation_starts_after,
+                annotation_starts_after=annotation_starts_after,
                 annotation_ends_before=annotation_ends_before,
                 source=source,
             )
