@@ -77,28 +77,28 @@ def apply_chart_defaults(fn):
             chart_specs.pop("$schema")
         if dataset_name:
             chart_specs["data"] = {"name": dataset_name}
-        chart_specs = {
-            "layer": [
-                chart_specs,
-                {
-                    "data": {"name": dataset_name + "_annotations"},
-                    "mark": {
-                        "type": "text",
-                        "y": 0,
-                        "baseline": "top",
-                        "align": "left",
+            chart_specs = {
+                "layer": [
+                    chart_specs,
+                    {
+                        "data": {"name": dataset_name + "_annotations"},
+                        "mark": {
+                            "type": "text",
+                            "y": 0,
+                            "baseline": "top",
+                            "align": "left",
+                        },
+                        "encoding": {
+                            "x": dict(
+                                field="start",
+                                type="temporal",
+                                title=None,
+                            ),
+                            "text": {"type": "nominal", "field": "content"},
+                        },
                     },
-                    "encoding": {
-                        "x": dict(
-                            field="start",
-                            type="temporal",
-                            title=None,
-                        ),
-                        "text": {"type": "nominal", "field": "content"},
-                    },
-                },
-            ]
-        }
+                ]
+            }
 
         # Fall back to default height and width, if needed
         if "height" not in chart_specs:
