@@ -313,6 +313,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         ] = None,
         most_recent_beliefs_only: bool = True,
         include_data: bool = False,
+        include_sensor_annotations: bool = False,
+        include_asset_annotations: bool = False,
+        include_account_annotations: bool = False,
         dataset_name: Optional[str] = None,
         **kwargs,
     ) -> dict:
@@ -326,6 +329,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param include_data: if True, include data in the chart, or if False, exclude data
+        :param include_sensor_annotations: if True and include_data is True, include sensor annotations in the chart, or if False, exclude these
+        :param include_asset_annotations: if True and include_data is True, include asset annotations in the chart, or if False, exclude them
+        :param include_account_annotations: if True and include_data is True, include account annotations in the chart, or if False, exclude them
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         """
 
@@ -343,7 +349,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         )
 
         if include_data:
-            # Set up data
+            # Get data
             data = self.search_beliefs(
                 as_json=True,
                 event_starts_after=event_starts_after,
@@ -353,8 +359,43 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 source=source,
             )
-            # Combine chart specs and data
-            chart_specs["datasets"] = {dataset_name: json.loads(data)}
+
+            # Get annotations
+            if include_sensor_annotations:
+                annotations_df = self.search_annotations(
+                    annotation_starts_after=event_starts_after,
+                    annotation_ends_before=event_ends_before,
+                    include_asset_annotations=include_asset_annotations,
+                    include_account_annotations=include_account_annotations,
+                    as_frame=True,
+                )
+            elif include_asset_annotations:
+                annotations_df = self.generic_asset.search_annotations(
+                    annotation_starts_after=event_starts_after,
+                    annotation_ends_before=event_ends_before,
+                    include_account_annotations=include_account_annotations,
+                    as_frame=True,
+                )
+            elif include_account_annotations:
+                annotations_df = self.generic_asset.owner.search_annotations(
+                    annotation_starts_after=event_starts_after,
+                    annotation_ends_before=event_ends_before,
+                    as_frame=True,
+                )
+            else:
+                annotations_df = to_annotation_frame([])
+
+            # Annotations to JSON records
+            annotations_df = annotations_df.reset_index()
+            annotations_df["source"] = annotations_df["source"].astype(str)
+            annotations_data = annotations_df.to_json(orient="records")
+
+            # Combine chart specs, data and annotations
+            chart_specs["datasets"] = {
+                dataset_name: json.loads(data),
+                dataset_name + "_annotations": json.loads(annotations_data),
+            }
+
         return chart_specs
 
     @property
