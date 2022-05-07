@@ -14,7 +14,7 @@
         <div class="col-sm-12">
             {% include "security/_messages.html" %}
         </div>
-        <div class="col-sm-4">
+        <div class="login-form col-sm-4">
             <h1>{{ _('Login') }}</h1>
             <form action="{{ url_for_security('login') }}" method="POST" name="login_user_form">
                 {{ login_user_form.hidden_tag() }}
