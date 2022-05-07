@@ -24,9 +24,8 @@ body {
 }
 
 body *:not(.fa, .glyphicon) {
-    font-family: 'Poppins', sans-serif !important;
+    font-family: 'Poppins', sans-serif;
 }
-
 
 h1 {
     font-size: 35px;
@@ -57,7 +56,7 @@ hr {
 small {
     font-size: 13px;
     font-style: italic;
-    color: #a1a1a1;
+    color: var(--gray);
     line-height: 13px;
     padding-top: 5px !important;
     display: inline-block;
@@ -69,6 +68,7 @@ form button[type="submit"] {
     border: none;
     padding: 12px 30px;
     font-size: 15px;
+    margin-top: 6px;
     margin-left: 0;
     /* margin-left: -15px; */
     transition: .4s;
@@ -94,7 +94,7 @@ form button[type="submit"] {
 /* ---- Errors, alerts and flashes ---- */
 
 p.error {
-    color: red;
+    color: var(--red);
 }
 
 #alerts {
@@ -142,7 +142,7 @@ p.error {
 
 .navbar-tool-name {
     margin-right: 30px;
-    color: #c21431;
+    color: var(--secondary-color);
 }
 
 .navbar-default {
@@ -399,7 +399,7 @@ p.error {
 }
 
 .icon-column .text-muted {
-    color: #ddd;
+    color: var(--light-gray);
 }
 
 i {
@@ -444,7 +444,7 @@ i.center-icon:after, i.center-icon:before {
 
 /* map icons */
 .map-icon {
-    color: #ffffff;
+    color: var(--white);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -462,11 +462,11 @@ i.center-icon:after, i.center-icon:before {
     top: -50px;
 }
 .map-icon.opportunity {
-    color: #c21431;
+    color: var(--red);
 }
 
 .icon-empty-marker {
-    color: #000000;
+    color: var(--black);
     opacity: 0.7;
 }
 
@@ -683,7 +683,7 @@ i.icon-wind:hover:before {
     width: 100%;
 }
 .floatThead-wrapper thead {
-    background-color: #FFF;
+    background-color: var(--white);
 }
 
 .floatThead-wrapper th, td {
@@ -1596,13 +1596,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current, body .da
 div.heading-group {
     display: flex;
     align-items: center;
-}
-
-label.control-label {
-    /*display: flex;
-    align-content: flex-end;*/
-    color: #c21431;
-    /*margin-bottom: 0px;*/
 }
 
 /* ---- End Unsure / potential Legacy ---- */
