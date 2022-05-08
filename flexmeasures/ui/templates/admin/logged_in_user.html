@@ -7,29 +7,30 @@
 {% block divs %}
 
 
-    <h2> Overview for logged-in user: {{ logged_in_user.username }} </h2>
+    <h2 class="user-overview"> Overview for logged-in user: {{ logged_in_user.username }} </h2>
 
     <div class="container-fluid">
         <div class="row">
-        <div class="col-sm-1">
+        <div class="user-action-button col-sm-1">
             <form action="/logout" method="get">
                 <button class="btn btn-sm btn-responsive btn-info" type="submit">Log out</button>
             </form>
         </div>
-        <div class="col-sm-2">
+        <div class="user-action-button col-sm-2">
             <form action="/users/reset_password_for/{{ logged_in_user.id }}" method="get">
                 <button class="btn btn-sm btn-responsive btn-info" type="submit">Send password reset instructions</button>
             </form>
         </div>
-        <div class="col-sm-9">
+        <div class="user-action-button col-sm-9">
             {% if user_is_admin %}
             <form action="/users" method="get">
                 <button class="btn btn-sm btn-responsive btn-info" type="submit">List active users</button>
             </form>
             {% endif %}
         </div>
+        <div class="clearfix"></div>
 
-        <div class="row" style="margin-top: 4em;">
+        <div class="user-data-table row" style="margin-top: 4em;">
             <div class="col-sm-12">
                 <table class="table">
                     <tbody>

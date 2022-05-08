@@ -33,7 +33,7 @@ On Unix:
 
 .. code-block:: console
 
-   sudo apt-get install postgresql
+   sudo apt-get install postgresql-12
    pip install psycopg2-binary
 
 

@@ -2,18 +2,75 @@
 FlexMeasures Changelog
 **********************
 
-v0.10.0 | April XX, 2022
+v0.11.0 | June XX, 2022
 ===========================
 
-
 New features
------------
+-------------
 
 Bugfixes
 -----------
 
 Infrastructure / Support
 ----------------------
+
+
+v0.10.0 | May 08, 2022
+===========================
+
+New features
+-----------
+* New design for FlexMeasures' UI back office [see `PR #425 <http://www.github.com/FlexMeasures/flexmeasures/pull/425>`_]
+* Improve legibility of chart axes [see `PR #413 <http://www.github.com/FlexMeasures/flexmeasures/pull/413>`_]
+* API provides health readiness check at /api/v3_0/health/ready [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <http://flexmeasures.io/010-docker-styling/>`__.
+
+Bugfixes
+-----------
+* Fix small problems in support for the admin-reader role & role-based authorization [see `PR #422 <http://www.github.com/FlexMeasures/flexmeasures/pull/422>`_]
+
+Infrastructure / Support
+----------------------
+* Dockerfile to run FlexMeasures in container; also docker-compose file [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
+* Unit conversion prefers shorter units in general [see `PR #415 <http://www.github.com/FlexMeasures/flexmeasures/pull/415>`_]
+* Shorter CI builds in Github Actions by caching Python environment [see `PR #361 <http://www.github.com/FlexMeasures/flexmeasures/pull/361>`_]
+* Allow to filter data by source using a tuple instead of a list [see `PR #421 <http://www.github.com/FlexMeasures/flexmeasures/pull/421>`_]
+
+
+v0.9.4 | April 28, 2022
+===========================
+
+Bugfixes
+--------
+* Support checking validity of custom units (i.e. non-SI, non-currency units) [see `PR #424 <http://www.github.com/FlexMeasures/flexmeasures/pull/424>`_]
+
+
+v0.9.3 | April 15, 2022
+===========================
+
+Bugfixes
+--------
+* Let registered plugins use CLI authorization [see `PR #411 <http://www.github.com/FlexMeasures/flexmeasures/pull/411>`_]
+
+
+v0.9.2 | April 10, 2022
+===========================
+
+Bugfixes
+--------
+* Prefer unit conversions to short stock units [see `PR #412 <http://www.github.com/FlexMeasures/flexmeasures/pull/412>`_]
+* Fix filter for selecting one deterministic belief per event, which was duplicating index levels [see `PR #414 <http://www.github.com/FlexMeasures/flexmeasures/pull/414>`_]
+
+
+v0.9.1 | March 31, 2022
+===========================
+
+Bugfixes
+--------
+* Fix auth bug not masking locations of inaccessible assets on map [see `PR #409 <http://www.github.com/FlexMeasures/flexmeasures/pull/409>`_]
+* Fix CLI auth check [see `PR #407 <http://www.github.com/FlexMeasures/flexmeasures/pull/407>`_]
+* Fix resampling of sensor data for scheduling [see `PR #406 <http://www.github.com/FlexMeasures/flexmeasures/pull/406>`_]
 
 
 v0.9.0 | March 25, 2022
@@ -36,6 +93,9 @@ New features
 * Add CLI command to add a toy account for tutorials and trying things [see `PR #368 <http://www.github.com/FlexMeasures/flexmeasures/pull/368>`_]
 * Add CLI command to create a charging schedule [see `PR #372 <http://www.github.com/FlexMeasures/flexmeasures/pull/372>`_]
 * Support for percent (%) and permille (‰) sensor units [see `PR #359 <http://www.github.com/FlexMeasures/flexmeasures/pull/359>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <http://flexmeasures.io/090-cli-developer-power/>`__.
+
 
 Bugfixes
 -----------

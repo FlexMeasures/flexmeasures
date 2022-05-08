@@ -12,9 +12,9 @@ from flexmeasures.data.models.data_sources import DataSource
 
 def query_asset_annotations(
     asset_id: int,
-    annotation_starts_after: Optional[datetime],
-    annotation_ends_before: Optional[datetime],
-    sources: List[DataSource],
+    annotation_starts_after: Optional[datetime] = None,
+    annotation_ends_before: Optional[datetime] = None,
+    sources: Optional[List[DataSource]] = None,
     annotation_type: str = None,
 ) -> Query:
     """Match annotations assigned to the given asset."""

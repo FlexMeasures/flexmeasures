@@ -220,7 +220,6 @@ packaging==21.3
     #   bokeh
     #   marshmallow
     #   matplotlib
-    #   pint
     #   redis
     #   statsmodels
     #   webargs
@@ -242,7 +241,7 @@ pillow==9.0.1
     # via
     #   bokeh
     #   matplotlib
-pint==0.18
+pint==0.19.1
     # via -r requirements/app.in
 ply==3.11
     # via pyomo

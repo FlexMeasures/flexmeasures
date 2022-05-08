@@ -32,6 +32,7 @@ docutils==0.17.1
     # via
     #   sphinx
     #   sphinx-rtd-theme
+    #   sphinx-tabs
 idna==3.3
     # via
     #   -c requirements/app.txt
@@ -60,7 +61,9 @@ pycparser==2.21
     #   -c requirements/app.txt
     #   cffi
 pygments==2.11.2
-    # via sphinx
+    # via
+    #   sphinx
+    #   sphinx-tabs
 pyopenssl==22.0.0
     # via
     #   -c requirements/app.txt
@@ -93,12 +96,15 @@ sphinx==4.4.0
     #   sphinx-copybutton
     #   sphinx-fontawesome
     #   sphinx-rtd-theme
+    #   sphinx-tabs
     #   sphinxcontrib.httpdomain
 sphinx-copybutton==0.5.0
     # via -r requirements/docs.in
 sphinx-fontawesome==0.0.6
     # via -r requirements/docs.in
 sphinx-rtd-theme==1.0.0
+    # via -r requirements/docs.in
+sphinx-tabs==3.3.1
     # via -r requirements/docs.in
 sphinxcontrib-applehelp==1.0.2
     # via sphinx

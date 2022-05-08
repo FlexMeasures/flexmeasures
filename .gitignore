@@ -16,6 +16,7 @@ venv
 .env-flexmeasures/
 flexmeasures.egg-info
 flexmeasures.log*
+*.csv
 
 .cache
 __pycache__

@@ -937,16 +937,23 @@ def add_toy_account(kind: str, name: str):
         # make an account (if not exist)
         account = Account.query.filter(Account.name == name).one_or_none()
         if account:
-            click.echo(f"Account {name} already exists. Aborting ...")
-            raise click.Abort()
+            click.echo(f"Account {name} already exists.")
+            return
         # make an account user (account-admin?)
-        user = create_user(
-            email="toy-user@flexmeasures.io",
-            check_email_deliverability=False,
-            password="toy-password",
-            user_roles=["account-admin"],
-            account_name=name,
-        )
+        email = "toy-user@flexmeasures.io"
+        user = User.query.filter_by(email=email).one_or_none()
+        if user is not None:
+            click.echo(
+                f"User with email {email} already exists in account {user.account.name}."
+            )
+        else:
+            user = create_user(
+                email=email,
+                check_email_deliverability=False,
+                password="toy-password",
+                user_roles=["account-admin"],
+                account_name=name,
+            )
         # make assets
         for asset_type in ("solar", "building", "battery"):
             asset = GenericAsset(

@@ -28,7 +28,7 @@ def get_asset_group_queries(
     group_by_location: bool = False,
 ) -> Dict[str, Query]:
     """
-    An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised  names.
+    An asset group is defined by Asset queries. Each query has a name, and we prefer pluralised names.
     They still need an executive call, like all(), count() or first().
 
     This function limits the assets to be queried to the current user's account,

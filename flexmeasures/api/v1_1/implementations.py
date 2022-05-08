@@ -13,8 +13,8 @@ from flexmeasures.utils.entity_address_utils import (
 from flexmeasures.api.common.responses import (
     invalid_domain,
     invalid_unit,
-    ResponseTuple,
     invalid_horizon,
+    is_response_tuple,
 )
 from flexmeasures.api.common.utils.api_utils import (
     save_and_enqueue,
@@ -98,7 +98,7 @@ def post_price_data_response(
 
             # Look for the Sensor object
             sensor = get_sensor_by_unique_name(market_name, ["day_ahead", "tou_tariff"])
-            if type(sensor) == ResponseTuple:
+            if is_response_tuple(sensor):
                 # Error message telling the user what to do
                 return sensor
             if unit != sensor.unit:
@@ -185,7 +185,7 @@ def post_weather_data_response(  # noqa: C901
             sensor = get_sensor_by_generic_asset_type_and_location(
                 weather_sensor_type_name, latitude, longitude
             )
-            if type(sensor) == ResponseTuple:
+            if is_response_tuple(sensor):
                 # Error message telling the user about the nearest weather sensor they can post to
                 return sensor
 

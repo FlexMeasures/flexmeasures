@@ -78,12 +78,16 @@ def read_config(app: Flask, custom_path_to_config: Optional[str]):
     path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
     path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
 
-    # Don't overwrite when testing (that should run completely on defaults)
+    # Custom config: not when testing (that should run completely on defaults)
     if not app.testing:
         used_path_to_config = read_custom_config(
             app, custom_path_to_config, path_to_config_home, path_to_config_instance
         )
         read_env_vars(app)
+    else:  # one exception: the ability to set where the test database is
+        custom_test_db_uri = os.getenv("SQLALCHEMY_TEST_DATABASE_URI", None)
+        if custom_test_db_uri:
+            app.config["SQLALCHEMY_DATABASE_URI"] = custom_test_db_uri
 
     # Check for missing values.
     # Documentation runs fine without them.
