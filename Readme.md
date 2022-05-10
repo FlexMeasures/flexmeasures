@@ -9,7 +9,7 @@
 [![Documentation Status](https://readthedocs.org/projects/flexmeasures/badge/?version=latest)](https://flexmeasures.readthedocs.io/en/latest/?badge=latest)
 [![Coverage](https://coveralls.io/repos/github/FlexMeasures/flexmeasures/badge.svg)](https://coveralls.io/github/FlexMeasures/flexmeasures)
 
-The *FlexMeasures Platform* is the intelligent EMS (energy management system) to support real-time energy flexibility apps, rapidly and scalable. 
+The *FlexMeasures Platform* is the intelligent & developer-friendly EMS (energy management system) to support real-time energy flexibility apps, rapidly and scalable. 
 
 - Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
 - FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
