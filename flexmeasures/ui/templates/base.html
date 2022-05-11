@@ -71,9 +71,9 @@
                     <a href="/">
                         <span class="navbar-tool-name">
                         {% if menu_logo %}
-                            <img id="menu-logo" src="{{menu_logo}}"/>
+                            <img id="navbar-logo" src="{{menu_logo}}"/>
                         {% else %}
-                            {{ FLEXMEASURES_PLATFORM_NAME }} {% if not "Error" in self.title() %} - {{ self.title() }} {% endif %}
+                            <img src="https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.svg" alt="flex-measures"/>
                         {% endif %}
                         </span>
                     </a>
@@ -387,7 +387,7 @@
                 {% endblock technical_info %}
             </div>
             <div>
-                <a href="https://seita.nl/"><i class="icon-seita_bird supersize"></i></a>
+                <a href="https://flexmeasures.io/"><img src="https://artwork.lfenergy.org/projects/flexmeasures/icon/white/flexmeasures-icon-white.svg" alt="flex-measures" class="footer-logo"></a>
             </div>
         </div>
     </footer>

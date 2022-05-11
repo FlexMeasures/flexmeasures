@@ -6,6 +6,12 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
 
+v3.0-1 | 2022-05-08
+"""""""""""""""""""
+
+- Added REST endpoint for checking application health (readiness to accept requests): `/health/ready` (GET).
+
+
 v3.0-0 | 2022-03-25
 """""""""""""""""""
 

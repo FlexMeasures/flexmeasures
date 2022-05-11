@@ -2,14 +2,29 @@
 FlexMeasures Changelog
 **********************
 
-v0.10.0 | April XX, 2022
+v0.11.0 | June XX, 2022
 ===========================
 
+New features
+-------------
+
+Bugfixes
+-----------
+
+Infrastructure / Support
+----------------------
+
+
+v0.10.0 | May 08, 2022
+===========================
 
 New features
 -----------
+* New design for FlexMeasures' UI back office [see `PR #425 <http://www.github.com/FlexMeasures/flexmeasures/pull/425>`_]
 * Improve legibility of chart axes [see `PR #413 <http://www.github.com/FlexMeasures/flexmeasures/pull/413>`_]
 * API provides health readiness check at /api/v3_0/health/ready [see `PR #416 <http://www.github.com/FlexMeasures/flexmeasures/pull/416>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <http://flexmeasures.io/010-docker-styling/>`__.
 
 Bugfixes
 -----------
