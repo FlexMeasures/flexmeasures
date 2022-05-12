@@ -110,6 +110,8 @@ def apply_chart_defaults(fn):
                             "dy": FONT_SIZE + ANNOTATION_MARGIN,
                             "baseline": "top",
                             "align": "left",
+                            "fontSize": FONT_SIZE,
+                            "fontStyle": "italic",
                         },
                         "encoding": {
                             "x": dict(
