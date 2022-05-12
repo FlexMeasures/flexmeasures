@@ -5,6 +5,7 @@ import altair as alt
 
 
 FONT_SIZE = 16
+ANNOTATION_MARGIN = 16
 HEIGHT = 300
 WIDTH = "container"
 REDUCED_HEIGHT = REDUCED_WIDTH = 60
@@ -106,7 +107,7 @@ def apply_chart_defaults(fn):
                         "mark": {
                             "type": "text",
                             "y": HEIGHT,
-                            "dy": 30,
+                            "dy": FONT_SIZE + ANNOTATION_MARGIN,
                             "baseline": "top",
                             "align": "left",
                         },
