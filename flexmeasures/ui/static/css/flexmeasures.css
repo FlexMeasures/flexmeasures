@@ -1065,6 +1065,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current, body .da
 #vg-tooltip-element {
     font-size: 16px;
 }
+#vg-tooltip-element table tr td.value {
+    max-height: inherit !important;
+}
 
 /* --- End Sensor Data --- */
 
