@@ -76,6 +76,17 @@ def apply_chart_defaults(fn):
         if isinstance(chart_specs, alt.TopLevelMixin):
             chart_specs = chart_specs.to_dict()
             chart_specs.pop("$schema")
+
+        # Add transform function to calculate full date
+        if "transform" not in chart_specs:
+            chart_specs["transform"] = []
+        chart_specs["transform"].append(
+            {
+                "as": "full_date",
+                "calculate": f"timeFormat(datum.event_start, '{TIME_FORMAT}')",
+            }
+        )
+
         if dataset_name:
             chart_specs["data"] = {"name": dataset_name}
             chart_specs = {
@@ -143,15 +154,6 @@ def apply_chart_defaults(fn):
             chart_specs,
         )
 
-        # Add transform function to calculate full date
-        if "transform" not in chart_specs:
-            chart_specs["transform"] = []
-        chart_specs["transform"].append(
-            {
-                "as": "full_date",
-                "calculate": f"timeFormat(datum.event_start, '{TIME_FORMAT}')",
-            }
-        )
         return chart_specs
 
     return decorated_chart_specs
