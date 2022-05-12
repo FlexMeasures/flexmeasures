@@ -254,11 +254,14 @@ def post_udi_event_response(unit: str, prior: datetime):
         ) and datetime < datetime.fromisoformat(
             sensor.generic_asset.get_attribute("soc_datetime")
         ):
-            msg = "The date of the requested UDI event (%s) is earlier than the latest known date (%s)." % (
-                datetime,
-                datetime.fromisoformat(
-                    sensor.generic_asset.get_attribute("soc_datetime")
-                ),
+            msg = (
+                "The date of the requested UDI event (%s) is earlier than the latest known date (%s)."
+                % (
+                    datetime,
+                    datetime.fromisoformat(
+                        sensor.generic_asset.get_attribute("soc_datetime")
+                    ),
+                )
             )
             current_app.logger.warning(msg)
             return invalid_datetime(msg)
