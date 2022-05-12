@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=requirements/dev.txt requirements/dev.in
 #
-black==22.1.0
+black==22.3.0
     # via -r requirements/dev.in
 cfgv==3.3.1
     # via pre-commit
