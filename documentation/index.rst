@@ -47,13 +47,13 @@ Use cases
 
 Here are a few relevant areas in which FlexMeasures can help you:
 
-- E-mobility (smart EV charging, V2G, V2H)
+- E-mobility (smart :abbr:`EV (Electric Vehicle)` charging, :abbr:`V2G (Vehicle to Grid)`, :abbr:`V2H (Vehicle to Home)`)
 - Heating (heat pump control)
 - Industry (best running times for processes with buffering capacity)
 
-You decide what to optimise for ― prices, CO₂, peaks.
+You decide what to optimize for ― prices, CO₂, peaks.
 
-It becomes even more interesting to use FlexMeasures in integrated scenarios, where complexity increases ― e.g. when heating and EV charging combine in the modern domestic settings, when industrials want to maximise consumption of their local solar panels, or when novel and multiple markets are supposed to be targeted.
+It becomes even more interesting to use FlexMeasures in integrated scenarios with increased complexity. For example, in modern domestic settings that combine solar panels, electric heating and EV charging, in industry settings that optimize for self-consumption of local solar panels, or when consumers can engage with multiple markets simultaneously.
 
 As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling.
 
