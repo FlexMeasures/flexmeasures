@@ -38,6 +38,51 @@ FIELD_DEFINITIONS = {
         title="Time and date",
     ),
 }
+SHADE_LAYER = {
+    "mark": {
+        "type": "bar",
+        "color": "#bbbbbb",
+        "opacity": 0.3,
+        "size": HEIGHT,
+    },
+    "encoding": {
+        "x": dict(
+            field="start",
+            type="temporal",
+            title=None,
+        ),
+        "x2": dict(
+            field="end",
+            type="temporal",
+            title=None,
+        ),
+        "tooltip": [
+            {"field": "content_str", "title": "Annotations"},
+        ],
+    },
+    "transform": [
+        {"calculate": "join(datum.content, ' ')", "as": "content_str"},
+    ],
+}
+TEXT_LAYER = {
+    "mark": {
+        "type": "text",
+        "y": HEIGHT,
+        "dy": FONT_SIZE + ANNOTATION_MARGIN,
+        "baseline": "top",
+        "align": "left",
+        "fontSize": FONT_SIZE,
+        "fontStyle": "italic",
+    },
+    "encoding": {
+        "x": dict(
+            field="start",
+            type="temporal",
+            title=None,
+        ),
+        "text": {"type": "nominal", "field": "content"},
+    },
+}
 LEGIBILITY_DEFAULTS = dict(
     config=dict(
         axis=dict(
@@ -89,56 +134,15 @@ def apply_chart_defaults(fn):
 
         if dataset_name:
             chart_specs["data"] = {"name": dataset_name}
+            annotation_shades_layer = SHADE_LAYER
+            annotation_text_layer = TEXT_LAYER
+            annotation_shades_layer["data"] = {"name": dataset_name + "_annotations"}
+            annotation_text_layer["data"] = {"name": dataset_name + "_annotations"}
             chart_specs = {
                 "layer": [
-                    {
-                        "data": {"name": dataset_name + "_annotations"},
-                        "mark": {
-                            "type": "bar",
-                            "color": "#bbbbbb",
-                            "opacity": 0.3,
-                            "size": HEIGHT,
-                        },
-                        "encoding": {
-                            "x": dict(
-                                field="start",
-                                type="temporal",
-                                title=None,
-                            ),
-                            "x2": dict(
-                                field="end",
-                                type="temporal",
-                                title=None,
-                            ),
-                            "tooltip": [
-                                {"field": "content_str", "title": "Annotations"},
-                            ],
-                        },
-                        "transform": [
-                            {"calculate": "join(datum.content, ' ')", "as": "content_str"},
-                        ],
-                    },
+                    annotation_shades_layer,
                     chart_specs,
-                    {
-                        "data": {"name": dataset_name + "_annotations"},
-                        "mark": {
-                            "type": "text",
-                            "y": HEIGHT,
-                            "dy": FONT_SIZE + ANNOTATION_MARGIN,
-                            "baseline": "top",
-                            "align": "left",
-                            "fontSize": FONT_SIZE,
-                            "fontStyle": "italic",
-                        },
-                        "encoding": {
-                            "x": dict(
-                                field="start",
-                                type="temporal",
-                                title=None,
-                            ),
-                            "text": {"type": "nominal", "field": "content"},
-                        },
-                    },
+                    annotation_text_layer,
                 ]
             }
 
