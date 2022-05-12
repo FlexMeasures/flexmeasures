@@ -99,7 +99,13 @@ def apply_chart_defaults(fn):
                                 type="temporal",
                                 title=None,
                             ),
+                            "tooltip": [
+                                {"field": "content_str", "title": "Annotations"},
+                            ],
                         },
+                        "transform": [
+                            {"calculate": "join(datum.content, ' ')", "as": "content_str"},
+                        ],
                     },
                     chart_specs,
                     {
