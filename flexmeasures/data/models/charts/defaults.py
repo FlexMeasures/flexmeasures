@@ -6,7 +6,7 @@ import altair as alt
 
 FONT_SIZE = 16
 HEIGHT = 300
-WIDTH = 600
+WIDTH = "container"
 REDUCED_HEIGHT = REDUCED_WIDTH = 60
 SELECTOR_COLOR = "darkred"
 TIME_FORMAT = "%I:%M %p on %A %b %e, %Y"
@@ -79,12 +79,34 @@ def apply_chart_defaults(fn):
             chart_specs["data"] = {"name": dataset_name}
             chart_specs = {
                 "layer": [
+                    {
+                        "data": {"name": dataset_name + "_annotations"},
+                        "mark": {
+                            "type": "bar",
+                            "color": "#bbbbbb",
+                            "opacity": 0.3,
+                            "size": HEIGHT,
+                        },
+                        "encoding": {
+                            "x": dict(
+                                field="start",
+                                type="temporal",
+                                title=None,
+                            ),
+                            "x2": dict(
+                                field="end",
+                                type="temporal",
+                                title=None,
+                            ),
+                        },
+                    },
                     chart_specs,
                     {
                         "data": {"name": dataset_name + "_annotations"},
                         "mark": {
                             "type": "text",
-                            "y": 0,
+                            "y": HEIGHT,
+                            "dy": 30,
                             "baseline": "top",
                             "align": "left",
                         },
