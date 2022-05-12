@@ -141,7 +141,7 @@ def parse_entity_address(  # noqa: C901
             f"A valid type 1 USEF entity address starts with '{ADDR_SCHEME}', please review {entity_address}"
         )
     date_regex = r"([0-9]{4})-(0[1-9]|1[012])"
-    if not re.search(fr"^{date_regex}$", entity_address[4:11]):
+    if not re.search(rf"^{date_regex}$", entity_address[4:11]):
         raise EntityAddressException(
             f"After '{ADDR_SCHEME}.', a date specification of the format {date_regex} is expected."
         )
@@ -172,7 +172,7 @@ def parse_entity_address(  # noqa: C901
         match = re.search(
             r"^"
             r"(?P<scheme>.+)\."
-            fr"(?P<naming_authority>{date_regex}\.[^:]+)"  # everything until the colon (no port)
+            rf"(?P<naming_authority>{date_regex}\.[^:]+)"  # everything until the colon (no port)
             r":"
             r"((?P<fm_scheme>.+)\.)"
             r"(?P<sensor_id>\d+)"
@@ -197,7 +197,7 @@ def parse_entity_address(  # noqa: C901
         match = re.search(
             r"^"
             r"(?P<scheme>.+)\."
-            fr"(?P<naming_authority>{date_regex}\.[^:]+)"  # everything until the colon (no port)
+            rf"(?P<naming_authority>{date_regex}\.[^:]+)"  # everything until the colon (no port)
             r":"
             r"((?P<fm_scheme>.+)\.)*"  # for backwards compatibility, missing fm_scheme is interpreted as fm0
             r"((?P<owner_id>\d+):)*"  # owner id is optional
@@ -220,7 +220,7 @@ def parse_entity_address(  # noqa: C901
             r"^"
             r"(?P<scheme>.+)"
             r"\."
-            fr"(?P<naming_authority>{date_regex}\.[^:]+)"
+            rf"(?P<naming_authority>{date_regex}\.[^:]+)"
             r":"
             r"((?P<fm_scheme>.+)\.)*"  # for backwards compatibility, missing fm_scheme is interpreted as fm0
             r"(?=[a-zA-Z])(?P<weather_sensor_type_name>[\w\s]+)"  # should start with at least one letter
@@ -247,7 +247,7 @@ def parse_entity_address(  # noqa: C901
             r"^"
             r"(?P<scheme>.+)"
             r"\."
-            fr"(?P<naming_authority>{date_regex}\.[^:]+)"
+            rf"(?P<naming_authority>{date_regex}\.[^:]+)"
             r":"
             r"((?P<fm_scheme>.+)\.)*"  # for backwards compatibility, missing fm_scheme is interpreted as fm0
             r"(?=[a-zA-Z])(?P<market_name>[\w]+)"  # should start with at least one letter
@@ -264,7 +264,7 @@ def parse_entity_address(  # noqa: C901
             r"^"
             r"(?P<scheme>.+)"
             r"\."
-            fr"(?P<naming_authority>{date_regex}\.[^:]+)"
+            rf"(?P<naming_authority>{date_regex}\.[^:]+)"
             r":"
             r"((?P<fm_scheme>.+)\.)*"  # for backwards compatibility, missing fm_scheme is interpreted as fm0
             r"((?P<owner_id>\d+):)*"  # owner id is optional
