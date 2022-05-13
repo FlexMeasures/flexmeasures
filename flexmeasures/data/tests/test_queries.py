@@ -58,7 +58,7 @@ def test_collect_power(db, app, query_start, query_end, num_values, setup_test_d
     )  # dtype of belief_horizon is timedelta64[ns], so the minimum horizon on an empty BeliefsDataFrame is NaT instead of NaN
     assert len(bdf) == num_values
     for v1, v2 in zip(bdf["event_value"].tolist(), data):
-        assert abs(v1 - v2.event_value) < 10 ** -6
+        assert abs(v1 - v2.event_value) < 10**-6
 
 
 @pytest.mark.parametrize(

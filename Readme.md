@@ -9,7 +9,11 @@
 [![Documentation Status](https://readthedocs.org/projects/flexmeasures/badge/?version=latest)](https://flexmeasures.readthedocs.io/en/latest/?badge=latest)
 [![Coverage](https://coveralls.io/repos/github/FlexMeasures/flexmeasures/badge.svg)](https://coveralls.io/github/FlexMeasures/flexmeasures)
 
-The *FlexMeasures Platform* is the intelligent EMS (energy management system) to support real-time energy flexibility apps, rapidly and scalable. 
+The *FlexMeasures Platform* is the intelligent & developer-friendly EMS (energy management system) to support real-time energy flexibility apps, rapidly and scalable. 
+
+In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets like batteries and heat pumps, or for flexible industry processes.
+
+Here is why using FlexMeasures is a great idea:
 
 - Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
 - FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
@@ -30,7 +34,7 @@ A closer look at FlexMeasures' three core value drivers:
 
 ## Getting started
 
-Head over to our [documentation](https://flexmeasures.readthedocs.io), e.g. the [getting started guide](https://flexmeasures.readthedocs.io/en/latest/getting-started.html). Or find more information on [FlexMeasures.io](https://flexmeasures.io).
+Head over to our [documentation](https://flexmeasures.readthedocs.io), e.g. the [getting started guide](https://flexmeasures.readthedocs.io/en/latest/getting-started.html) or the [5-minute tutorial](https://flexmeasures.readthedocs.io/en/latest/tut/toy-example-from-scratch.html). Or find more information on [FlexMeasures.io](https://flexmeasures.io).
 
 See also [Seita's Github profile](https://github.com/SeitaBV), e.g. for FlexMeasures plugin examples.
 

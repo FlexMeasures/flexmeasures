@@ -3,7 +3,7 @@
 Getting started
 =================================
 
-FlexMeasures is useful from different perspectives. The documentation is quote vast, so we give you some pointers here what to read first, based on your perspective.
+FlexMeasures is useful from different perspectives. The documentation is quite vast, so we give you some pointers here what to read first, based on your perspective.
 
 
 Using FlexMeasures

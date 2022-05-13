@@ -4,26 +4,29 @@ Welcome to the FlexMeasures documentation!
 *FlexMeasures is the intelligent & developer-friendly EMS to support real-time energy flexibility apps, rapidly and scalable.*
 
 In a world with renewable energy, flexibility is crucial and valuable, e.g. for demand response.
-Planning ahead allows flexible assets to serve the whole system with their flexibility,
+Planning ahead allows flexible assets like batteries or heat pumps to serve the whole system with their flexibility,
 e.g. by shifting or curtailing energy use.
 
-Developing energy flexibility services is expensive work. FlexMeasures is designed to be developer-friendly, which helps you to go to market quickly, while keeping the costs of software development at bay. FlexMeasures supports:
+In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets.
+
+However, developing energy flexibility services is expensive work. FlexMeasures is designed to be developer-friendly, which helps you to go to market quickly, while keeping the costs of software development at bay. 
+FlexMeasures supports:
 
 - Real-time data intelligence & integration
 - Uncertainty models
 - App-building (API/UI/CLI & plugin support)
 
-FlexMeasures proudly is an incubation project at `the Linux Energy Foundation <https://www.lfenergy.org/>`_.
+More on this in :ref:`dev_tooling`. FlexMeasures proudly is an incubation project at `the Linux Energy Foundation <https://www.lfenergy.org/>`_. More on where it is useful in :ref:`use_cases`.
 
 
 A quick glance at usage
 ------------------------
 
-A tiny, but complete example: Let's install FlexMeasures from scratch. Then, using only the terminal, load hourly prices and optimize a 12h-schedule for a battery that is half full at the beginning.
+A tiny, but complete example: Let's install FlexMeasures from scratch. Then, using only the terminal (FlexMeasures of course also has APIs for all of this), load hourly prices and optimize a 12h-schedule for a battery that is half full at the beginning. Finally, look at our new schedule.
 
 .. code-block:: console
 
-    $ pip install flexmeasures  # also available via Docker
+    $ pip install flexmeasures  # FlexMeasures can also be run via Docker
     $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
     $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret 
     $ flexmeasures db upgrade  # create tables
@@ -37,8 +40,20 @@ A tiny, but complete example: Let's install FlexMeasures from scratch. Then, usi
 We discuss this in more depth at :ref:`tut_toy_schedule`.
 
 
+.. _use_cases:
+
 Use cases
 -----------
+
+Here are a few relevant areas in which FlexMeasures can help you:
+
+- E-mobility (smart :abbr:`EV (Electric Vehicle)` charging, :abbr:`V2G (Vehicle to Grid)`, :abbr:`V2H (Vehicle to Home)`)
+- Heating (heat pump control)
+- Industry (best running times for processes with buffering capacity)
+
+You decide what to optimize for ― prices, CO₂, peaks.
+
+It becomes even more interesting to use FlexMeasures in integrated scenarios with increased complexity. For example, in modern domestic settings that combine solar panels, electric heating and EV charging, in industry settings that optimize for self-consumption of local solar panels, or when consumers can engage with multiple markets simultaneously.
 
 As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling.
 
@@ -55,9 +70,25 @@ The image below shows how FlexMeasures, with the help of plugins fitted for a gi
 You (the reader) might be a user connecting with a FlexMeasures server or working on hosting FlexMeasures. Maybe you are planning to develop a plugin or even core functionality. In :ref:`getting_started`, we have some helpful tips how to dive into this documentation!
 
 
+A possible road to start using FlexMeasures in your operation
+---------------------------------------------------------------
 
-Three ways in which FlexMeasures supports developers
----------------------------------------------------------
+We make FlexMeasures, so that developers are as productive with energy optimization as possible. As we are developers ourselves, we know that it takes a couple smaller steps to engage with new technology. 
+
+Your journey, from dipping your toes in the water towards being a happy FlexMeasures power user, could look like this:
+
+1. Quickstart ― Find an optimized schedule for your flexible asset, like a battery, with standard FlexMeasures tooling. This is basically what the from-scratch tutorial above does. All you need are 10 minutes and a CSV file with prices to optimise against.
+2. Automate ― get the prices from an open API, for instance `ENTSO-E <https://transparency.entsoe.eu/>`_ (using a plugin like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_), and run the scheduler regularly in a cron job.
+3. Integrate ― Load the schedules via FlexMeasures' API, so you can directly control your assets and/or show them within your own frontend.
+4. Customize ― Load other data (e.g. your solar production or weather forecasts via `flexmeasures-openweathermap <https://github.com/SeitaBV/flexmeasures-openweathermap/>`_. Adapt the algorithms, e.g. do your own forecasting or tweak the standard scheduling algorithm so it optimizes what you care about. Or write a plugin for accessing a new kind of market. The opportunities are endless!
+
+
+.. _dev_tooling:
+
+Developer support
+------------------------
+
+There are three ways in which FlexMeasures supports developers:
 
 Real-time data intelligence & integration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

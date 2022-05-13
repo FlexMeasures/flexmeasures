@@ -118,8 +118,8 @@ def schedule_charging_station(
         device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
 
     # Apply round-trip efficiency evenly to charging and discharging
-    device_constraints[0]["derivative down efficiency"] = roundtrip_efficiency ** 0.5
-    device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency ** 0.5
+    device_constraints[0]["derivative down efficiency"] = roundtrip_efficiency**0.5
+    device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency**0.5
 
     # Set up EMS constraints (no additional constraints)
     columns = ["derivative max", "derivative min"]
