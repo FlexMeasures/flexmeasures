@@ -128,6 +128,7 @@ def apply_chart_defaults(fn):
     @wraps(fn)
     def decorated_chart_specs(*args, **kwargs):
         dataset_name = kwargs.pop("dataset_name", None)
+        include_annotations = kwargs.pop("include_annotations", None)
         if isinstance(fn, Callable):
             # function that returns a chart specification
             chart_specs: Union[dict, alt.TopLevelMixin] = fn(*args, **kwargs)
@@ -150,17 +151,20 @@ def apply_chart_defaults(fn):
 
         if dataset_name:
             chart_specs["data"] = {"name": dataset_name}
-            annotation_shades_layer = SHADE_LAYER
-            annotation_text_layer = TEXT_LAYER
-            annotation_shades_layer["data"] = {"name": dataset_name + "_annotations"}
-            annotation_text_layer["data"] = {"name": dataset_name + "_annotations"}
-            chart_specs = {
-                "layer": [
-                    annotation_shades_layer,
-                    chart_specs,
-                    annotation_text_layer,
-                ]
-            }
+            if include_annotations:
+                annotation_shades_layer = SHADE_LAYER
+                annotation_text_layer = TEXT_LAYER
+                annotation_shades_layer["data"] = {
+                    "name": dataset_name + "_annotations"
+                }
+                annotation_text_layer["data"] = {"name": dataset_name + "_annotations"}
+                chart_specs = {
+                    "layer": [
+                        annotation_shades_layer,
+                        chart_specs,
+                        annotation_text_layer,
+                    ]
+                }
 
         # Fall back to default height and width, if needed
         if "height" not in chart_specs:

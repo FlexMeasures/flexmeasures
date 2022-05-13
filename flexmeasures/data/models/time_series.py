@@ -345,6 +345,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             chart_type,
             sensor=self,
             dataset_name=dataset_name,
+            include_annotations=include_sensor_annotations
+            or include_asset_annotations
+            or include_account_annotations,
             **kwargs,
         )
 
