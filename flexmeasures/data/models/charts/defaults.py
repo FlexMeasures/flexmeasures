@@ -56,12 +56,13 @@ SHADE_LAYER = {
             type="temporal",
             title=None,
         ),
-        "tooltip": [
-            {"field": "content_str", "title": "Annotations"},
-        ],
     },
-    "transform": [
-        {"calculate": "join(datum.content, ' ')", "as": "content_str"},
+    "params": [
+        {
+            "name": "highlight",
+            "select": {"type": "point", "on": "mouseover"},
+        },
+        {"name": "select", "select": "point"},
     ],
 }
 TEXT_LAYER = {
@@ -81,6 +82,21 @@ TEXT_LAYER = {
             title=None,
         ),
         "text": {"type": "nominal", "field": "content"},
+        "opacity": {
+            "condition": [
+                {
+                    "param": "select",
+                    "empty": False,
+                    "value": 1,
+                },
+                {
+                    "param": "highlight",
+                    "empty": False,
+                    "value": 1,
+                },
+            ],
+            "value": 0,
+        },
     },
 }
 LEGIBILITY_DEFAULTS = dict(
