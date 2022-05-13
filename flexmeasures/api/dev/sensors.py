@@ -154,6 +154,6 @@ def stack_annotations(x):
 
     The list of strings results in a multi-line text encoding in the chart.
     """
-    x = x.sort_values("start", ascending=True)
-    x["content"][0] = list(chain(*(x["content"].tolist())))
+    x = x.sort_values(["start", "belief_time"], ascending=True)
+    x["content"].iloc[0] = list(chain(*(x["content"].tolist())))
     return x.head(1)
