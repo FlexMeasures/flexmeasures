@@ -7,6 +7,7 @@ import pandas as pd
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
+from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import (
@@ -91,25 +92,51 @@ class Account(db.Model, AuthModelMixin):
 
     def search_annotations(
         self,
-        annotation_starts_after: Optional[datetime] = None,
-        annotation_ends_before: Optional[datetime] = None,
+        annotation_starts_after: Optional[datetime] = None,  # deprecated
+        annotations_after: Optional[datetime] = None,
+        annotation_ends_before: Optional[datetime] = None,  # deprecated
+        annotations_before: Optional[datetime] = None,
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
         as_frame: bool = False,
     ) -> Union[List[Annotation], pd.DataFrame]:
+        """Return annotations assigned to this account.
+
+        :param annotations_after: only return annotations that end after this datetime (exclusive)
+        :param annotations_before: only return annotations that start before this datetime (exclusive)
+        """
+
+        # todo: deprecate the 'annotation_starts_after' argument in favor of 'annotations_after' (announced v0.11.0)
+        annotations_after = tb_utils.replace_deprecated_argument(
+            "annotation_starts_after",
+            annotation_starts_after,
+            "annotations_after",
+            annotations_after,
+            required_argument=False,
+        )
+
+        # todo: deprecate the 'annotation_ends_before' argument in favor of 'annotations_before' (announced v0.11.0)
+        annotations_before = tb_utils.replace_deprecated_argument(
+            "annotation_ends_before",
+            annotation_ends_before,
+            "annotations_before",
+            annotations_before,
+            required_argument=False,
+        )
+
         parsed_sources = parse_source_arg(source)
         query = Annotation.query.join(AccountAnnotationRelationship).filter(
             AccountAnnotationRelationship.account_id == self.id,
             AccountAnnotationRelationship.annotation_id == Annotation.id,
         )
-        if annotation_starts_after is not None:
+        if annotations_after is not None:
             query = query.filter(
-                Annotation.start >= annotation_starts_after,
+                Annotation.end > annotations_after,
             )
-        if annotation_ends_before is not None:
+        if annotations_before is not None:
             query = query.filter(
-                Annotation.end <= annotation_ends_before,
+                Annotation.start < annotations_before,
             )
         if parsed_sources:
             query = query.filter(

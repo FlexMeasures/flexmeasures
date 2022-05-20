@@ -96,11 +96,19 @@ class SensorAPI(FlaskView):
 
         Annotations for use in charts (in case you have the chart specs already).
         """
+        event_starts_after = kwargs.get("event_starts_after", None)
+        event_ends_before = kwargs.get("event_ends_before", None)
         df = sensor.generic_asset.search_annotations(
-            annotation_starts_after=kwargs.get("event_starts_after", None),
-            annotation_ends_before=kwargs.get("event_ends_before", None),
+            annotations_after=event_starts_after,
+            annotations_before=event_ends_before,
             as_frame=True,
         )
+
+        # Clip annotations outside the requested time window
+        if event_starts_after is not None:
+            df.loc[df["start"] < event_starts_after, "start"] = event_starts_after
+        if event_ends_before is not None:
+            df.loc[df["end"] > event_ends_before, "end"] = event_ends_before
 
         # Wrap on whitespace with some max line length
         df["content"] = df["content"].apply(wrap, args=[60])
