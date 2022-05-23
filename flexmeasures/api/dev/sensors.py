@@ -136,6 +136,27 @@ class SensorAPI(FlaskView):
         return {attr: getattr(sensor, attr) for attr in attributes}
 
 
+def get_sensor_or_abort(id: int) -> Sensor:
+    """
+    Util function to help the GET requests. Will be obsolete..
+    """
+    warnings.warn(
+        "Util function will be deprecated. Switch to using SensorIdField to suppress this warning.",
+        FutureWarning,
+    )
+    sensor = Sensor.query.filter(Sensor.id == id).one_or_none()
+    if sensor is None:
+        raise abort(404, f"Sensor {id} not found")
+    if not (
+        current_user.has_role(ADMIN_ROLE)
+        or current_user.has_role(ADMIN_READER_ROLE)
+        or sensor.generic_asset.owner is None  # public
+        or sensor.generic_asset.owner == current_user.account  # private but authorized
+    ):
+        raise abort(403)
+    return sensor
+
+
 def stack_annotations(x):
     """Select earliest start, and include all annotations as a list.
 
