@@ -104,9 +104,11 @@ LEGIBILITY_DEFAULTS = dict(
         axis=dict(
             titleFontSize=FONT_SIZE,
             labelFontSize=FONT_SIZE,
-        )
+        ),
+        title=dict(
+            fontSize=FONT_SIZE,
+        ),
     ),
-    title=dict(fontSize=FONT_SIZE),
     encoding=dict(
         color=dict(
             dict(
