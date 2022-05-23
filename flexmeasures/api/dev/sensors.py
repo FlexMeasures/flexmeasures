@@ -1,11 +1,9 @@
-from itertools import chain
 import json
 import warnings
 
 from flask_classful import FlaskView, route
 from flask_security import current_user
 from marshmallow import fields
-from textwrap import wrap
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
@@ -14,6 +12,7 @@ from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 
 
 class SensorAPI(FlaskView):
@@ -107,18 +106,8 @@ class SensorAPI(FlaskView):
             as_frame=True,
         )
 
-        # Clip annotations outside the requested time window
-        if event_starts_after is not None:
-            df.loc[df["start"] < event_starts_after, "start"] = event_starts_after
-        if event_ends_before is not None:
-            df.loc[df["end"] > event_ends_before, "end"] = event_ends_before
-
-        # Wrap on whitespace with some max line length
-        df["content"] = df["content"].apply(wrap, args=[60])
-
-        # Stack annotations for the same event
-        if not df.empty:
-            df = df.groupby("end", group_keys=False).apply(stack_annotations)
+        # Wrap and stack annotations
+        df = prepare_annotations_for_chart(df)
 
         # Return JSON records
         df = df.reset_index()
@@ -159,13 +148,3 @@ def get_sensor_or_abort(id: int) -> Sensor:
     ):
         raise abort(403)
     return sensor
-
-
-def stack_annotations(x):
-    """Select earliest start, and include all annotations as a list.
-
-    The list of strings results in a multi-line text encoding in the chart.
-    """
-    x = x.sort_values(["start", "belief_time"], ascending=True)
-    x["content"].iloc[0] = list(chain(*(x["content"].tolist())))
-    return x.head(1)

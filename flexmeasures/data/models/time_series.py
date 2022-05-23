@@ -14,6 +14,7 @@ import timely_beliefs.utils as tb_utils
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.data import db
 from flexmeasures.data.models.parsing_utils import parse_source_arg
+from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.queries.utils import (
     create_beliefs_query,
     get_belief_timing_criteria,
@@ -413,6 +414,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 )
             else:
                 annotations_df = to_annotation_frame([])
+
+            # Wrap and stack annotations
+            annotations_df = prepare_annotations_for_chart(annotations_df)
 
             # Annotations to JSON records
             annotations_df = annotations_df.reset_index()
