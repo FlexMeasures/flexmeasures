@@ -6,7 +6,7 @@ from typing import Optional
 import pandas as pd
 
 
-def stack_annotations(x):
+def stack_annotations(x: pd.DataFrame) -> pd.DataFrame:
     """Select earliest start, and include all annotations as a list.
 
     The list of strings results in a multi-line text encoding in the chart.
