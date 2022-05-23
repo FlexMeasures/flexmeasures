@@ -346,7 +346,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         dataset_name: Optional[str] = None,
         **kwargs,
     ) -> dict:
-        """Create a chart showing sensor data.
+        """Create a vega-lite chart showing sensor data.
 
         :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
@@ -360,6 +360,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param include_asset_annotations: if True and include_data is True, include asset annotations in the chart, or if False, exclude them
         :param include_account_annotations: if True and include_data is True, include account annotations in the chart, or if False, exclude them
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        :returns: JSON string defining vega-lite chart specs
         """
 
         # Set up chart specification
