@@ -61,7 +61,7 @@ class SensorUI(FlaskView):
                 "vegalite"
             ],
             embed_options=embed_options,
-        )
+        ).replace('<div id="vis"></div>', '<div id="vis" style="width: 100%;"></div>')
 
     @login_required
     def get(self, id: int):
