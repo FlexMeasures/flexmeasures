@@ -3,13 +3,14 @@ import json
 import warnings
 
 from flask_classful import FlaskView, route
-from flask_security import current_user, auth_required
+from flask_security import current_user
 from marshmallow import fields
 from textwrap import wrap
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
+from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.data.models.time_series import Sensor
@@ -22,7 +23,6 @@ class SensorAPI(FlaskView):
     """
 
     route_base = "/sensor"
-    decorators = [auth_required()]
 
     @route("/<id>/chart/")
     @use_kwargs(
@@ -45,6 +45,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
+    @permission_required_for_context("read", arg_name="sensor")
     def get_chart(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart
 
@@ -66,6 +67,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
+    @permission_required_for_context("read", arg_name="sensor")
     def get_chart_data(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart_data
 
@@ -89,6 +91,7 @@ class SensorAPI(FlaskView):
         },
         location="query",
     )
+    @permission_required_for_context("read", arg_name="sensor")
     def get_chart_annotations(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart_annotations
 
@@ -127,6 +130,7 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
+    @permission_required_for_context("read", arg_name="sensor")
     def get(self, id: int, sensor: Sensor):
         """GET from /sensor/<id>
 
