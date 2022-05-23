@@ -204,7 +204,10 @@ def get_or_create_annotation(
 
 
 def to_annotation_frame(annotations: List[Annotation]) -> pd.DataFrame:
-    """Transform a list of annotations into a DataFrame."""
+    """Transform a list of annotations into a DataFrame.
+
+    We don't use a BeliefsDataFrame here, because they are designed for quantitative data only.
+    """
     return pd.DataFrame(
         [
             [a.start, a.end, a.belief_time, a.source, a.type, a.content]
