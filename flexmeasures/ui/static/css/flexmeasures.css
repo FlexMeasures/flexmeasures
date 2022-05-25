@@ -179,7 +179,7 @@ p.error {
 
 .navbar-default .navbar-nav>li>a {
     color: var(--white);
-    font: 500 14px/14px 'Poppins';
+    font: 500 14px/14px;
 }
 
 .navbar-brand {
