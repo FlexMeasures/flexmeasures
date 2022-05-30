@@ -4,12 +4,20 @@ Welcome to the FlexMeasures documentation!
 *FlexMeasures is the intelligent & developer-friendly EMS to support real-time energy flexibility apps, rapidly and scalable.*
 
 In a world with renewable energy, flexibility is crucial and valuable, e.g. for demand response.
-Planning ahead allows flexible assets like batteries or heat pumps to serve the whole system with their flexibility,
+What are the best times to run flexible assets, like batteries or heat pumps?
+
+Planning ahead allows flexible assets to serve the whole system with their flexibility,
 e.g. by shifting or curtailing energy use.
 
-In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets.
+In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets:
 
-However, developing energy flexibility services is expensive work. FlexMeasures is designed to be developer-friendly, which helps you to go to market quickly, while keeping the costs of software development at bay. 
+
+.. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/simple-flexEMS.png 
+    :align: center
+..    :scale: 40%
+
+
+However, developing apps & services around energy flexibility is expensive work. FlexMeasures is designed to be developer-friendly, which helps you to go to market quickly, while keeping the costs of software development at bay. 
 FlexMeasures supports:
 
 - Real-time data intelligence & integration

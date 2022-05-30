@@ -11,7 +11,10 @@
 
 The *FlexMeasures Platform* is the intelligent & developer-friendly EMS (energy management system) to support real-time energy flexibility apps, rapidly and scalable. 
 
-In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets like batteries and heat pumps, or for flexible industry processes.
+In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets like batteries and heat pumps, or for flexible industry processes:
+
+![The most simple view of FlexMeasures, turning data into schedules](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/simple-flexEMS.png)
+
 
 Here is why using FlexMeasures is a great idea:
 
