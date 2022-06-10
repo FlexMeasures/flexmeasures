@@ -21,9 +21,9 @@ e.g. by shifting energy consumption to other times.
 However, developing apps & services around energy flexibility is expensive work. FlexMeasures is designed to be developer-friendly, which helps you to go to market quickly, while keeping the costs of software development at bay. 
 FlexMeasures supports:
 
-- Real-time data intelligence & integration
-- Uncertainty models
-- App-building (API/UI/CLI & plugin support)
+- Real-time data integration & intelligence 
+- Model data well ― units, time resolution & uncertainty (of forecasts)
+- Faster app-building (API/UI/CLI, plugin & multi-tenancy support)
 
 More on this in :ref:`dev_tooling`. FlexMeasures proudly is an incubation project at `the Linux Energy Foundation <https://www.lfenergy.org/>`_. Also, read more on where FlexMeasures is useful in :ref:`use_cases`.
 
