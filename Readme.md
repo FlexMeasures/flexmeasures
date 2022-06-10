@@ -28,11 +28,36 @@ As possible users, we see energy service companies (ESCOs) who want to build rea
 
 ## How does FlexMeasures enable rapid development of energy flexibility apps?
 
-A closer look at FlexMeasures' three core value drivers:
+FlexMeasures is designed to help with three basic needs of developers in the energy flexibility domain:
 
-1. Real-time data intelligence and integration, with advice for the rest of the day. For example, forecasts and schedules are made available via API (designed with [the USEF framework](https://usef.energy) in mind).
-2. Energy sensor and environment data have multiple sources and their forecasts are uncertain. FlexMeasures uses the [timely-beliefs library](https://github.com/SeitaBV/timely-beliefs) to model this well.
-3. Developer support ― building customer-facing apps & services is where energy flexibility hits the road. FlexMeasures reduces developer workload with a well-documented API, data visualisation and multi-tenancy, and it supports plugins to customise and extend the platform to your needs.
+### I need help integrating available real-time data and continuously compute new data
+
+- API/CLI functionality to read in time series data
+- Extensions for integrating 3rd party data, e.g. from [ENTSO-E](https://github.com/SeitaBV/flexmeasures-entsoe) or [OpenWeatherMap](https://github.com/SeitaBV/flexmeasures-openweathermap)
+- Forecasting for the upcoming hours
+- Schedule optimization for flexible assets
+
+
+### It's hard to correctly model data from multiple sources, resolutions, horizons and even uncertainties
+
+Much developer time is spent correcting data and treating it correctly, so that you know you are computing on the right knowledge.
+
+FlexMeasures is built on the [timely-beliefs framework](https://github.com/SeitaBV/timely-beliefs), so we model this real-world aspect accurately:
+
+- Expected data properties are explicit (e.g. unit, time resolution)
+- Incoming data is converted to fitting unit and time resolution automatically
+- FlexMeasures also stores who thought that something happened (or that it will happen), and when they thought so
+- Uncertainty can be modelled (useful for forecasting)
+
+
+### I want to build new features quickly, not spend days solving basic problems
+
+Building customer-facing apps & services is where developers make impact. We make their work easy.
+
+- FlexMeasures has well-documented API endpoints and CLI commands to interact with its model and data
+- You can extend it easily with your own logic by writing plugins
+- A backend UI shows you your assets in maps and your data in plots. There is also support for plots to be available per API, for integration in your own frontend.
+- Multi-tenancy ― model multiple accounts on one server. Data is only seen/editable by authorized users in the right account
 
 
 ## Getting started
@@ -50,4 +75,4 @@ We made FlexMeasures freely available under the Apache2.0 licence and it is now 
 
 Within the FlexMeasures project, [we welcome contributions](https://github.com/FlexMeasures/tsc/blob/main/CONTRIBUTING.md). You can also [learn more about our governance](https://github.com/Flexmeasures/tsc/blob/main/GOVERNANCE.md).
 
-You can connect with the community here on Github (e.g. by creating an issue), on [the mailing list](https://lists.lfenergy.org/g/flexmeasures), on [the FlexMeasures channel within the LF Energy Slack](https://slack.lfenergy.org/) or [by contacting the current maintainers](https://www.seita.nl/contact).
+You can connect with the community here on Github (e.g. by creating an issue), on [the mailing list](https://lists.lfenergy.org/g/flexmeasures), on [the FlexMeasures channel within the LF Energy Slack](https://slack.lfenergy.org/) or [by contacting the current maintainers](https://seita.nl/who-we-are/#contact).
