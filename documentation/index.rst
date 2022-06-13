@@ -8,9 +8,9 @@ The problem it helps to solve is:
 
 *What are the best times to run flexible assets, like batteries or heat pumps?*
 
-In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets. Planning ahead allows flexible assets to serve the whole system with their flexibility,
-e.g. by shifting energy consumption to other times.
-
+In a nutshell, FlexMeasures turns data into optimized schedules for flexible assets.
+Why? Planning ahead allows flexible assets to serve the whole system with their flexibility, e.g. by shifting energy consumption to other times.
+For the asset owners, this creates CO₂ savings but also monetary value (e.g. through self-consumption, dynamic tariffs and grid incentives).
 
 
 .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/simple-flexEMS.png 
@@ -62,7 +62,9 @@ Here are a few relevant areas in which FlexMeasures can help you:
 
 You decide what to optimize for ― prices, CO₂, peaks.
 
-It becomes even more interesting to use FlexMeasures in *integrated scenarios* with increased complexity. For example, in modern domestic settings that combine solar panels, electric heating and EV charging, in industry settings that optimize for self-consumption of local solar panels, or when consumers can engage with multiple markets simultaneously.
+It becomes even more interesting to use FlexMeasures in *integrated scenarios* with increased complexity. For example, in modern domestic/office settings that combine solar panels, electric heating and EV charging, in industry settings that optimize for self-consumption of local solar panels, or when consumers can engage with multiple markets simultaneously.
+
+In these cases, our goal is that FlexMeasures helps you to achieve *"value stacking"*, which is often required to achieve a positive business case. Multiple sources of value can combine with multiple types of assets.
 
 As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling.
 

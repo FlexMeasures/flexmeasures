@@ -23,8 +23,11 @@ Here is why using FlexMeasures is a great idea:
 
 ![High-level overview of FlexMeasures as an EMS for energy flexibility apps, using plugins to fit a given use case](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.png)
 
-As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful! 
 
+So why optimise the schedules of flexible assets? Because planning ahead allows flexible assets to serve the whole system with their flexibility, e.g. by shifting energy consumption to other times.
+For the asset owners, this creates CO₂ savings but also monetary value (e.g. through self-consumption, dynamic tariffs and grid incentives). FlexMeasures thrives to be applicable in cases with multiple sources of value ("value stacking") and multiple types of assets (e.g. home/office/factory).
+
+As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling. However, even small companies and hobby projects might find FlexMeasures useful!
 
 ## How does FlexMeasures enable rapid development of energy flexibility apps?
 
