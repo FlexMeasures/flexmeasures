@@ -29,6 +29,8 @@
     --nav-current-background-color: var(--secondary-color);
     --nav-current-hover-color: var(--black);
     --nav-current-hover-background-color: var(--secondary-hover-color);
+    --create-color: var(--green);
+    --delete-color: var(--red);
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
@@ -1169,11 +1171,11 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 }
 
-.header-action-button #create-asset-button:hover {
-    color: var(--green);
+.create-button:hover {
+    color: var(--create-color);
 }
-.header-action-button #delete-asset-button:hover {
-    color: var(--red);
+.delete-button:hover {
+    color: var(--delete-color);
 }
 
 @media screen and (max-width: 767px) {
@@ -1304,14 +1306,18 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .new-asset-form input[type="submit"] {
-    background: var(--primary-color);
+    color: var(--nav-default-color);
+    background: var(--nav-default-background-color);
     border-radius: 4px;
-    color: var(--white);
     padding: 12px 35px !important;
     -webkit-border-radius: 4px;
     -moz-border-radius: 4px;
     -ms-border-radius: 4px;
     -o-border-radius: 4px;
+}
+.new-asset-form input[type="submit"]:hover {
+    color: var(--create-color) !important;
+    background: var(--nav-hover-background-color) !important;
 }
 
 /* ---- End New asset form ---- */
