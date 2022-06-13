@@ -759,9 +759,14 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled, .dataTa
     box-shadow: none;
 }
 
-body .dataTables_wrapper .dataTables_paginate .paginate_button.current, body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+body .dataTables_wrapper .dataTables_paginate .paginate_button.current {
     color: var(--black) !important;
     background: var(--secondary-color);
+    box-shadow: none !important;
+}
+body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+    color: var(--black) !important;
+    background: var(--secondary-hover-color);
     box-shadow: none !important;
 }
 
