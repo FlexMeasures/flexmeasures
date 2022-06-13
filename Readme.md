@@ -30,7 +30,9 @@ As possible users, we see energy service companies (ESCOs) who want to build rea
 
 FlexMeasures is designed to help with three basic needs of developers in the energy flexibility domain:
 
-### I need help integrating available real-time data and continuously compute new data
+### I need help with integrating real-time data and continuously computing new data
+
+FlexMeasures is designed to make decisions based on data in an automated way. Data pipelining and dedicated machine learning tooling is crucial.
 
 - API/CLI functionality to read in time series data
 - Extensions for integrating 3rd party data, e.g. from [ENTSO-E](https://github.com/SeitaBV/flexmeasures-entsoe) or [OpenWeatherMap](https://github.com/SeitaBV/flexmeasures-openweathermap)
@@ -38,7 +40,7 @@ FlexMeasures is designed to help with three basic needs of developers in the ene
 - Schedule optimization for flexible assets
 
 
-### It's hard to correctly model data from multiple sources, resolutions, horizons and even uncertainties
+### It's hard to correctly model data with different sources, resolutions, horizons and even uncertainties
 
 Much developer time is spent correcting data and treating it correctly, so that you know you are computing on the right knowledge.
 
@@ -56,7 +58,7 @@ Building customer-facing apps & services is where developers make impact. We mak
 
 - FlexMeasures has well-documented API endpoints and CLI commands to interact with its model and data
 - You can extend it easily with your own logic by writing plugins
-- A backend UI shows you your assets in maps and your data in plots. There is also support for plots to be available per API, for integration in your own frontend.
+- A backend UI shows you your assets in maps and your data in plots. There is also support for plots to be available per API, for integration in your own frontend
 - Multi-tenancy ― model multiple accounts on one server. Data is only seen/editable by authorized users in the right account
 
 
@@ -75,4 +77,4 @@ We made FlexMeasures freely available under the Apache2.0 licence and it is now 
 
 Within the FlexMeasures project, [we welcome contributions](https://github.com/FlexMeasures/tsc/blob/main/CONTRIBUTING.md). You can also [learn more about our governance](https://github.com/Flexmeasures/tsc/blob/main/GOVERNANCE.md).
 
-You can connect with the community here on Github (e.g. by creating an issue), on [the mailing list](https://lists.lfenergy.org/g/flexmeasures), on [the FlexMeasures channel within the LF Energy Slack](https://slack.lfenergy.org/) or [by contacting the current maintainers](https://seita.nl/who-we-are/#contact).
+You can connect with the community here on GitHub (e.g. by creating an issue), on [the mailing list](https://lists.lfenergy.org/g/flexmeasures), on [the FlexMeasures channel within the LF Energy Slack](https://slack.lfenergy.org/) or [by contacting the current maintainers](https://seita.nl/who-we-are/#contact).
