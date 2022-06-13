@@ -3,6 +3,7 @@
 */
 
 :root {
+    /* colors by name */
     --primary-color: #1a3443;
     --primary-border-color: #102029;
     --primary-hover-color: #152b38;
@@ -16,6 +17,18 @@
     --gray: #bbb;
     --red: #c21431;
     --green: #14c231;
+
+    /* colors by function */
+    --nav-default-color: var(--white);
+    --nav-default-background-color: var(--primary-color);
+    --nav-hover-color: var(--secondary-hover-color);
+    --nav-hover-background-color: var(--primary-hover-color);
+    --nav-open-color: var(--secondary-color);
+    --nav-open-background-color: var(--primary-color);
+    --nav-current-color: var(--black);
+    --nav-current-background-color: var(--secondary-color);
+    --nav-current-hover-color: var(--black);
+    --nav-current-hover-background-color: var(--secondary-hover-color);
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
@@ -147,19 +160,26 @@ p.error {
 }
 
 .navbar-default {
-    background-color: var(--primary-color);
+    background-color: var(--nav-default-background-color);
     border: none;
     z-index: 999991;
 }
 
-.navbar-default .navbar-nav>.active>a, .navbar-default .navbar-nav>.active>a:focus, .navbar-default .navbar-nav>.active>a:hover {
-    color: var(--black) !important;
-    background-color: var(--secondary-color) !important;
+.navbar-default .navbar-nav>.active>a {
+    color: var(--nav-current-color) !important;
+    background-color: var(--nav-current-background-color) !important;
+}
+.navbar-default .navbar-nav>.active>a:focus,
+.navbar-default .navbar-nav>.active>a:hover {
+    color: var(--nav-current-hover-color) !important;
+    background-color: var(--nav-current-hover-background-color) !important;
 }
 
-.nav .open>a, .nav .open>a:focus, .nav .open>a:hover {
-    background-color: var(--secondary-color) !important;
-    color: var(--white) !important;
+.nav .open>a,
+.nav .open>a:focus,
+.nav .open>a:hover {
+    background-color: var(--nav-open-background-color) !important;
+    color: var(--nav-open-color) !important;
     border: none;
 }
 
@@ -167,9 +187,10 @@ p.error {
     border: none !important;
 }
 
-.navbar-default .navbar-nav>li>a:focus, .navbar-default .navbar-nav>li>a:hover {
-    color: var(--secondary-color);
-    background-color: transparent;
+.navbar-default .navbar-nav>li>a:focus,
+.navbar-default .navbar-nav>li>a:hover {
+    color: var(--nav-hover-color);
+    background-color: var(--nav-hover-background-color);
     transition: .4s;
     -webkit-transition: .4s;
     -moz-transition: .4s;
@@ -178,7 +199,7 @@ p.error {
 }
 
 .navbar-default .navbar-nav>li>a {
-    color: var(--white);
+    color: var(--nav-default-color);
     font: 500 14px/14px;
 }
 
@@ -239,26 +260,29 @@ p.error {
         -ms-transition: .3s;
         -o-transition: .3s;
     }
-    
-    .navbar-default .dropdown-menu a:hover {
-        letter-spacing: 1px;
-    }
+
 }
 
 @media (max-width: 767px) {
     .navbar-default .navbar-nav .open .dropdown-menu>li>a {
-        color: var(--white);
+        color: var(--nav-default-color);
         transition: .4s;
         -webkit-transition: .4s;
         -moz-transition: .4s;
         -ms-transition: .4s;
         -o-transition: .4s;
+    }
 }
 
-    .navbar-default .navbar-nav .open .dropdown-menu>li>a:focus, .navbar-default .navbar-nav .open .dropdown-menu>li>a:hover {
-        color: var(--secondary-color);
-        background-color: transparent;
-    }
+.navbar-default .navbar-nav .open .dropdown-menu,
+.navbar-default .navbar-nav .open .dropdown-menu>li>a {
+    color: var(--nav-default-color);
+    background-color: var(--nav-default-background-color);
+}
+.navbar-default .navbar-nav .open .dropdown-menu>li>a:focus,
+.navbar-default .navbar-nav .open .dropdown-menu>li>a:hover {
+    color: var(--nav-hover-color);
+    background-color: var(--nav-hover-background-color);
 }
 
 #navbar-logo {
@@ -733,10 +757,10 @@ table.dataTable.no-footer {
 }
 
 body .dataTables_wrapper .dataTables_paginate .paginate_button {
-    color: var(--secondary-color) !important;
+    color: var(--nav-default-color) !important;
     border: none !important;
     border-radius: 4px !important;
-    background: var(--primary-color);
+    background: var(--nav-default-background-color);
     transition: .3s;
     -webkit-transition: .3s;
     -moz-transition: .3s;
@@ -749,26 +773,26 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button {
 }
 
 body .dataTables_wrapper .dataTables_paginate .paginate_button:not(.disabled, .current):hover {
-    background: var(--primary-hover-color) !important;
-    color: var(--secondary-color) !important;
+    color: var(--nav-hover-color) !important;
+    background: var(--nav-hover-background-color) !important;
 }
 
 body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
-body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover,
-body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:active {
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled:active {
     color: var(--light-gray) !important;
     background: var(--gray) !important;
     box-shadow: none;
 }
 
 body .dataTables_wrapper .dataTables_paginate .paginate_button.current {
-    color: var(--black) !important;
-    background: var(--secondary-color);
+    color: var(--nav-current-color) !important;
+    background: var(--nav-current-background-color);
     box-shadow: none !important;
 }
 body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
-    color: var(--black) !important;
-    background: var(--secondary-hover-color);
+    color: var(--nav-current-hover-color) !important;
+    background: var(--nav-current-hover-background-color);
     box-shadow: none !important;
 }
 
