@@ -21,9 +21,9 @@ e.g. by shifting energy consumption to other times.
 However, developing apps & services around energy flexibility is expensive work. FlexMeasures is designed to be developer-friendly, which helps you to go to market quickly, while keeping the costs of software development at bay. 
 FlexMeasures supports:
 
-- Real-time data intelligence & integration
-- Uncertainty models
-- App-building (API/UI/CLI & plugin support)
+- Real-time data integration & intelligence 
+- Model data well ― units, time resolution & uncertainty (of forecasts)
+- Faster app-building (API/UI/CLI, plugin & multi-tenancy support)
 
 More on this in :ref:`dev_tooling`. FlexMeasures proudly is an incubation project at `the Linux Energy Foundation <https://www.lfenergy.org/>`_. Also, read more on where FlexMeasures is useful in :ref:`use_cases`.
 
@@ -88,7 +88,7 @@ Your journey, from dipping your toes in the water towards being a happy FlexMeas
 1. Quickstart ― Find an optimized schedule for your flexible asset, like a battery, with standard FlexMeasures tooling. This is basically what the from-scratch tutorial above does. All you need are 10 minutes and a CSV file with prices to optimise against.
 2. Automate ― get the prices from an open API, for instance `ENTSO-E <https://transparency.entsoe.eu/>`_ (using a plugin like `flexmeasures-entsoe <https://github.com/SeitaBV/flexmeasures-entsoe>`_), and run the scheduler regularly in a cron job.
 3. Integrate ― Load the schedules via FlexMeasures' API, so you can directly control your assets and/or show them within your own frontend.
-4. Customize ― Load other data (e.g. your solar production or weather forecasts via `flexmeasures-openweathermap <https://github.com/SeitaBV/flexmeasures-openweathermap/>`_. Adapt the algorithms, e.g. do your own forecasting or tweak the standard scheduling algorithm so it optimizes what you care about. Or write a plugin for accessing a new kind of market. The opportunities are endless!
+4. Customize ― Load other data (e.g. your solar production or weather forecasts via `flexmeasures-openweathermap <https://github.com/SeitaBV/flexmeasures-openweathermap/>`_). Adapt the algorithms, e.g. do your own forecasting or tweak the standard scheduling algorithm so it optimizes what you care about. Or write a plugin for accessing a new kind of market. The opportunities are endless!
 
 
 
@@ -103,42 +103,48 @@ You (the reader) might be a user connecting with a FlexMeasures server or workin
 Developer support
 ------------------------
 
-There are three ways in which FlexMeasures supports developers:
+FlexMeasures is designed to help with three basic needs of developers in the energy flexibility domain:
 
-Real-time data intelligence & integration
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Energy flexibility services need to interact multiple times per day or hour. We equipped FlexMeasures with:
+I need help with integrating real-time data and continuously computing new data
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Support for real-time updates
+FlexMeasures is designed to make decisions based on data in an automated way. Data pipelining and dedicated machine learning tooling is crucial.
+
+- API/CLI functionality to read in time series data
+- Extensions for integrating 3rd party data, e.g. from `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_
 - Forecasting for the upcoming hours
-- Schedule optimization
-- Extensions for integrating data, e.g. from `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `OpenWeatherMap <https://github.com/SeitaBV/flexmeasures-openweathermap>`_
+- Schedule optimization for flexible assets
 
 
-Uncertainty models
-^^^^^^^^^^^^^^^^^^^^
+It's hard to correctly model data with different sources, resolutions, horizons and even uncertainties
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Dealing with uncertain forecasts and outcomes is crucial.
+Much developer time is spent correcting data and treating it correctly, so that you know you are computing on the right knowledge.
 
-FlexMeasures is therefore built on the `timely-beliefs framework <https://github.com/SeitaBV/timely-beliefs>`_, so we model this real-world aspect accurately.
+FlexMeasures is built on the `timely-beliefs framework <https://github.com/SeitaBV/timely-beliefs>`_, so we model this real-world aspect accurately:
+
+- Expected data properties are explicit (e.g. unit, time resolution)
+- Incoming data is converted to fitting unit and time resolution automatically
+- FlexMeasures also stores who thought that something happened (or that it will happen), and when they thought so
+- Uncertainty can be modelled (useful for forecasting)
 
 
-App building
-^^^^^^^^^^^^^^^^^^
+I want to build new features quickly, not spend days solving basic problems
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 Building customer-facing apps & services is where developers make impact. We make their work easy.
 
-- Well-documented API and CLI
-- Plugin support (add your own logic)
-- Backend UI and support for plotting
-- Multi-tenancy
+- FlexMeasures has well-documented API endpoints and CLI commands to interact with its model and data
+- You can extend it easily with your own logic by writing plugins
+- A backend UI shows you your assets in maps and your data in plots. There is also support for plots to be available per API, for integration in your own frontend
+- Multi-tenancy ― model multiple accounts on one server. Data is only seen/editable by authorized users in the right account
 
 
 For more on FlexMeasures services, read :ref:`services`. Or head right over to :ref:`getting_started`.
 
 
-Using FlexMeasures benefits operators as well as asset owners,
-by allowing for automation, insight, autonomy and profit sharing.
+Using FlexMeasures benefits operators as well as asset owners, by allowing for automation, insight, autonomy and profit sharing.
 For more on benefits, consult :ref:`benefits`.
 
 FlexMeasures is compliant with the `Universal Smart Energy Framework (USEF) <https://www.usef.energy/>`_.
