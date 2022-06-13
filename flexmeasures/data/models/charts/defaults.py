@@ -5,8 +5,9 @@ import altair as alt
 
 
 FONT_SIZE = 16
+ANNOTATION_MARGIN = 16
 HEIGHT = 300
-WIDTH = 600
+WIDTH = "container"
 REDUCED_HEIGHT = REDUCED_WIDTH = 60
 SELECTOR_COLOR = "darkred"
 TIME_FORMAT = "%I:%M %p on %A %b %e, %Y"
@@ -37,14 +38,77 @@ FIELD_DEFINITIONS = {
         title="Time and date",
     ),
 }
+SHADE_LAYER = {
+    "mark": {
+        "type": "bar",
+        "color": "#bbbbbb",
+        "opacity": 0.3,
+        "size": HEIGHT,
+    },
+    "encoding": {
+        "x": dict(
+            field="start",
+            type="temporal",
+            title=None,
+        ),
+        "x2": dict(
+            field="end",
+            type="temporal",
+            title=None,
+        ),
+    },
+    "params": [
+        {
+            "name": "highlight",
+            "select": {"type": "point", "on": "mouseover"},
+        },
+        {"name": "select", "select": "point"},
+    ],
+}
+TEXT_LAYER = {
+    "mark": {
+        "type": "text",
+        "y": HEIGHT,
+        "dy": FONT_SIZE + ANNOTATION_MARGIN,
+        "baseline": "top",
+        "align": "left",
+        "fontSize": FONT_SIZE,
+        "fontStyle": "italic",
+    },
+    "encoding": {
+        "x": dict(
+            field="start",
+            type="temporal",
+            title=None,
+        ),
+        "text": {"type": "nominal", "field": "content"},
+        "opacity": {
+            "condition": [
+                {
+                    "param": "select",
+                    "empty": False,
+                    "value": 1,
+                },
+                {
+                    "param": "highlight",
+                    "empty": False,
+                    "value": 1,
+                },
+            ],
+            "value": 0,
+        },
+    },
+}
 LEGIBILITY_DEFAULTS = dict(
     config=dict(
         axis=dict(
             titleFontSize=FONT_SIZE,
             labelFontSize=FONT_SIZE,
-        )
+        ),
+        title=dict(
+            fontSize=FONT_SIZE,
+        ),
     ),
-    title=dict(fontSize=FONT_SIZE),
     encoding=dict(
         color=dict(
             dict(
@@ -66,6 +130,7 @@ def apply_chart_defaults(fn):
     @wraps(fn)
     def decorated_chart_specs(*args, **kwargs):
         dataset_name = kwargs.pop("dataset_name", None)
+        include_annotations = kwargs.pop("include_annotations", None)
         if isinstance(fn, Callable):
             # function that returns a chart specification
             chart_specs: Union[dict, alt.TopLevelMixin] = fn(*args, **kwargs)
@@ -75,8 +140,33 @@ def apply_chart_defaults(fn):
         if isinstance(chart_specs, alt.TopLevelMixin):
             chart_specs = chart_specs.to_dict()
             chart_specs.pop("$schema")
+
+        # Add transform function to calculate full date
+        if "transform" not in chart_specs:
+            chart_specs["transform"] = []
+        chart_specs["transform"].append(
+            {
+                "as": "full_date",
+                "calculate": f"timeFormat(datum.event_start, '{TIME_FORMAT}')",
+            }
+        )
+
         if dataset_name:
             chart_specs["data"] = {"name": dataset_name}
+            if include_annotations:
+                annotation_shades_layer = SHADE_LAYER
+                annotation_text_layer = TEXT_LAYER
+                annotation_shades_layer["data"] = {
+                    "name": dataset_name + "_annotations"
+                }
+                annotation_text_layer["data"] = {"name": dataset_name + "_annotations"}
+                chart_specs = {
+                    "layer": [
+                        annotation_shades_layer,
+                        chart_specs,
+                        annotation_text_layer,
+                    ]
+                }
 
         # Fall back to default height and width, if needed
         if "height" not in chart_specs:
@@ -90,15 +180,6 @@ def apply_chart_defaults(fn):
             chart_specs,
         )
 
-        # Add transform function to calculate full date
-        if "transform" not in chart_specs:
-            chart_specs["transform"] = []
-        chart_specs["transform"].append(
-            {
-                "as": "full_date",
-                "calculate": f"timeFormat(datum.event_start, '{TIME_FORMAT}')",
-            }
-        )
         return chart_specs
 
     return decorated_chart_specs

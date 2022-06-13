@@ -8,9 +8,10 @@ from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
+from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data import db
-from flexmeasures.data.models.annotations import Annotation
+from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
@@ -191,8 +192,8 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def search_annotations(
         self,
-        annotation_starts_after: Optional[datetime] = None,
-        annotation_ends_before: Optional[datetime] = None,
+        annotations_after: Optional[datetime] = None,
+        annotations_before: Optional[datetime] = None,
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
@@ -200,47 +201,64 @@ class GenericAsset(db.Model, AuthModelMixin):
         include_account_annotations: bool = False,
         as_frame: bool = False,
     ) -> Union[List[Annotation], pd.DataFrame]:
-        """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account."""
+        """Return annotations assigned to this asset, and optionally, also those assigned to the asset's account.
+
+        :param annotations_after: only return annotations that end after this datetime (exclusive)
+        :param annotations_before: only return annotations that start before this datetime (exclusive)
+        """
         parsed_sources = parse_source_arg(source)
         annotations = query_asset_annotations(
             asset_id=self.id,
-            annotation_starts_after=annotation_starts_after,
-            annotation_ends_before=annotation_ends_before,
+            annotations_after=annotations_after,
+            annotations_before=annotations_before,
             sources=parsed_sources,
             annotation_type=annotation_type,
         ).all()
         if include_account_annotations:
             annotations += self.owner.search_annotations(
-                annotation_starts_before=annotation_starts_after,
-                annotation_ends_before=annotation_ends_before,
+                annotations_after=annotations_after,
+                annotations_before=annotations_before,
                 source=source,
             )
 
-        if as_frame:
-            return pd.DataFrame(
-                [
-                    [a.start, a.end, a.belief_time, a.source, a.type, a.content]
-                    for a in annotations
-                ],
-                columns=["start", "end", "belief_time", "source", "type", "content"],
-            )
-        return annotations
+        return to_annotation_frame(annotations) if as_frame else annotations
 
     def count_annotations(
         self,
-        annotation_starts_after: Optional[datetime] = None,
-        annotation_ends_before: Optional[datetime] = None,
+        annotation_starts_after: Optional[datetime] = None,  # deprecated
+        annotations_after: Optional[datetime] = None,
+        annotation_ends_before: Optional[datetime] = None,  # deprecated
+        annotations_before: Optional[datetime] = None,
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
         annotation_type: str = None,
     ) -> int:
         """Count the number of annotations assigned to this asset."""
+
+        # todo: deprecate the 'annotation_starts_after' argument in favor of 'annotations_after' (announced v0.11.0)
+        annotations_after = tb_utils.replace_deprecated_argument(
+            "annotation_starts_after",
+            annotation_starts_after,
+            "annotations_after",
+            annotations_after,
+            required_argument=False,
+        )
+
+        # todo: deprecate the 'annotation_ends_before' argument in favor of 'annotations_before' (announced v0.11.0)
+        annotations_before = tb_utils.replace_deprecated_argument(
+            "annotation_ends_before",
+            annotation_ends_before,
+            "annotations_before",
+            annotations_before,
+            required_argument=False,
+        )
+
         parsed_sources = parse_source_arg(source)
         return query_asset_annotations(
             asset_id=self.id,
-            annotation_starts_after=annotation_starts_after,
-            annotation_ends_before=annotation_ends_before,
+            annotations_after=annotations_after,
+            annotations_before=annotations_before,
             sources=parsed_sources,
             annotation_type=annotation_type,
         ).count()

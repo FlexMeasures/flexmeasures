@@ -36,7 +36,7 @@
 
       async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName + '&width=container', {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName + '&width=container&include_sensor_annotations=true&include_asset_annotations=true', {{ chart_options | safe }})
         .then(function (result) {
           // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
           vegaView = result.view;
@@ -85,6 +85,8 @@
           endDate.setDate(endDate.getDate() + 1);
           var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
           var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
+
+          // Fetch time series data
           fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
             method: "GET",
             headers: {"Content-Type": "application/json"},
@@ -92,6 +94,16 @@
           .then(function(response) { return response.json(); })
           .then(function(data) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(data)).resize().run();
+          })
+
+          // Fetch annotations
+          fetch(sensorPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+            method: "GET",
+            headers: {"Content-Type": "application/json"},
+          })
+          .then(function(response) { return response.json(); })
+          .then(function(data) {
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(data)).resize().run();
           });
       });
 

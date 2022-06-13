@@ -2,6 +2,7 @@ from typing import Any, List, Dict, Optional, Union, Type, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
 
+import pandas as pd
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Query, Session
@@ -13,6 +14,7 @@ import timely_beliefs.utils as tb_utils
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.data import db
 from flexmeasures.data.models.parsing_utils import parse_source_arg
+from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.queries.utils import (
     create_beliefs_query,
     get_belief_timing_criteria,
@@ -27,6 +29,7 @@ from flexmeasures.utils.unit_utils import is_energy_unit, is_power_unit
 from flexmeasures.data.models.annotations import (
     Annotation,
     SensorAnnotationRelationship,
+    to_annotation_frame,
 )
 from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
@@ -196,26 +199,53 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def search_annotations(
         self,
-        annotation_starts_after: Optional[datetime_type] = None,
-        annotation_ends_before: Optional[datetime_type] = None,
+        annotation_starts_after: Optional[datetime_type] = None,  # deprecated
+        annotations_after: Optional[datetime_type] = None,
+        annotation_ends_before: Optional[datetime_type] = None,  # deprecated
+        annotations_before: Optional[datetime_type] = None,
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
         include_asset_annotations: bool = False,
         include_account_annotations: bool = False,
-    ):
+        as_frame: bool = False,
+    ) -> Union[List[Annotation], pd.DataFrame]:
+        """Return annotations assigned to this sensor, and optionally, also those assigned to the sensor's asset and the asset's account.
+
+        :param annotations_after: only return annotations that end after this datetime (exclusive)
+        :param annotations_before: only return annotations that start before this datetime (exclusive)
+        """
+
+        # todo: deprecate the 'annotation_starts_after' argument in favor of 'annotations_after' (announced v0.11.0)
+        annotations_after = tb_utils.replace_deprecated_argument(
+            "annotation_starts_after",
+            annotation_starts_after,
+            "annotations_after",
+            annotations_after,
+            required_argument=False,
+        )
+
+        # todo: deprecate the 'annotation_ends_before' argument in favor of 'annotations_before' (announced v0.11.0)
+        annotations_before = tb_utils.replace_deprecated_argument(
+            "annotation_ends_before",
+            annotation_ends_before,
+            "annotations_before",
+            annotations_before,
+            required_argument=False,
+        )
+
         parsed_sources = parse_source_arg(source)
         query = Annotation.query.join(SensorAnnotationRelationship).filter(
             SensorAnnotationRelationship.sensor_id == self.id,
             SensorAnnotationRelationship.annotation_id == Annotation.id,
         )
-        if annotation_starts_after is not None:
+        if annotations_after is not None:
             query = query.filter(
-                Annotation.start >= annotation_starts_after,
+                Annotation.end > annotations_after,
             )
-        if annotation_ends_before is not None:
+        if annotations_before is not None:
             query = query.filter(
-                Annotation.end <= annotation_ends_before,
+                Annotation.start < annotations_before,
             )
         if parsed_sources:
             query = query.filter(
@@ -224,17 +254,18 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         annotations = query.all()
         if include_asset_annotations:
             annotations += self.generic_asset.search_annotations(
-                annotation_starts_before=annotation_starts_after,
-                annotation_ends_before=annotation_ends_before,
+                annotations_after=annotations_after,
+                annotations_before=annotations_before,
                 source=source,
             )
         if include_account_annotations:
             annotations += self.generic_asset.owner.search_annotations(
-                annotation_starts_before=annotation_starts_after,
-                annotation_ends_before=annotation_ends_before,
+                annotations_after=annotations_after,
+                annotations_before=annotations_before,
                 source=source,
             )
-        return annotations
+
+        return to_annotation_frame(annotations) if as_frame else annotations
 
     def search_beliefs(
         self,
@@ -309,10 +340,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         ] = None,
         most_recent_beliefs_only: bool = True,
         include_data: bool = False,
+        include_sensor_annotations: bool = False,
+        include_asset_annotations: bool = False,
+        include_account_annotations: bool = False,
         dataset_name: Optional[str] = None,
         **kwargs,
     ) -> dict:
-        """Create a chart showing sensor data.
+        """Create a vega-lite chart showing sensor data.
 
         :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
@@ -322,7 +356,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param include_data: if True, include data in the chart, or if False, exclude data
+        :param include_sensor_annotations: if True and include_data is True, include sensor annotations in the chart, or if False, exclude these
+        :param include_asset_annotations: if True and include_data is True, include asset annotations in the chart, or if False, exclude them
+        :param include_account_annotations: if True and include_data is True, include account annotations in the chart, or if False, exclude them
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        :returns: JSON string defining vega-lite chart specs
         """
 
         # Set up chart specification
@@ -335,11 +373,14 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             chart_type,
             sensor=self,
             dataset_name=dataset_name,
+            include_annotations=include_sensor_annotations
+            or include_asset_annotations
+            or include_account_annotations,
             **kwargs,
         )
 
         if include_data:
-            # Set up data
+            # Get data
             data = self.search_beliefs(
                 as_json=True,
                 event_starts_after=event_starts_after,
@@ -349,8 +390,46 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 source=source,
             )
-            # Combine chart specs and data
-            chart_specs["datasets"] = {dataset_name: json.loads(data)}
+
+            # Get annotations
+            if include_sensor_annotations:
+                annotations_df = self.search_annotations(
+                    annotations_after=event_starts_after,
+                    annotations_before=event_ends_before,
+                    include_asset_annotations=include_asset_annotations,
+                    include_account_annotations=include_account_annotations,
+                    as_frame=True,
+                )
+            elif include_asset_annotations:
+                annotations_df = self.generic_asset.search_annotations(
+                    annotations_after=event_starts_after,
+                    annotations_before=event_ends_before,
+                    include_account_annotations=include_account_annotations,
+                    as_frame=True,
+                )
+            elif include_account_annotations:
+                annotations_df = self.generic_asset.owner.search_annotations(
+                    annotations_after=event_starts_after,
+                    annotations_before=event_ends_before,
+                    as_frame=True,
+                )
+            else:
+                annotations_df = to_annotation_frame([])
+
+            # Wrap and stack annotations
+            annotations_df = prepare_annotations_for_chart(annotations_df)
+
+            # Annotations to JSON records
+            annotations_df = annotations_df.reset_index()
+            annotations_df["source"] = annotations_df["source"].astype(str)
+            annotations_data = annotations_df.to_json(orient="records")
+
+            # Combine chart specs, data and annotations
+            chart_specs["datasets"] = {
+                dataset_name: json.loads(data),
+                dataset_name + "_annotations": json.loads(annotations_data),
+            }
+
         return chart_specs
 
     @property
