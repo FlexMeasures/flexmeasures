@@ -753,7 +753,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button:not(.disabled, .c
     color: var(--secondary-color) !important;
 }
 
-body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled, .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover, .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:active {
+body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
+body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover,
+body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:active {
     color: var(--light-gray) !important;
     background: var(--gray) !important;
     box-shadow: none;
