@@ -760,8 +760,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled, .dataTa
 }
 
 body .dataTables_wrapper .dataTables_paginate .paginate_button.current, body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
-    color: var(--primary-hover-color) !important;
-    background: var(--primary-transparent);
+    color: var(--black) !important;
+    background: var(--secondary-color);
     box-shadow: none !important;
 }
 
