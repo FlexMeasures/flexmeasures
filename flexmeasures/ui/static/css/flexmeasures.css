@@ -78,6 +78,19 @@ small {
     display: inline-block;
 }
 
+button.btn {
+    color: var(--nav-default-color);
+    background: var(--nav-default-background-color);
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+button.btn:hover {
+    color: var(--nav-hover-color);
+    background: var(--nav-hover-background-color);
+}
+
 form button[type="submit"] {
     background: var(--primary-color) !important;
     outline: none !important;
@@ -649,9 +662,9 @@ i.icon-wind:hover:before {
 }
 
 .leaflet-bar a {
-    background-color: var(--primary-color);
+    color: var(--nav-default-color);
+    background-color: var(--nav-default-background-color);
     border-bottom: var(--primary-border-color) 1px solid !important;
-    color: var(--white);
     transition: .4s;
     -webkit-transition: .4s;
     -moz-transition: .4s;
@@ -664,8 +677,8 @@ i.icon-wind:hover:before {
 }
 
 .leaflet-bar a:hover {
-    background-color: var(--primary-hover-color);
-    color: var(--white);
+    color: var(--nav-hover-color);
+    background-color: var(--nav-hover-background-color);
 }
 
 .leaflet-marker-popup {
@@ -674,12 +687,12 @@ i.icon-wind:hover:before {
 
 .leaflet-control-layers {
     box-shadow: 0 1px 5px rgba(0,0,0,0.4);
-    background: var(--primary-color);
+    background: var(--nav-default-background-color);
     border-radius: 5px;
 }
 
 .leaflet-control-layers-overlays label span {
-    color: var(--white);
+    color: var(--nav-default-color);
     transition: .4s;
     -webkit-transition: .4s;
     -moz-transition: .4s;
@@ -688,7 +701,7 @@ i.icon-wind:hover:before {
 }
 
 .leaflet-control-layers-overlays label span:hover {
-    color: var(--secondary-color);
+    color: var(--nav-hover-color);
 }
 
 .leaflet-bar a.leaflet-disabled {
@@ -760,9 +773,9 @@ table.dataTable.no-footer {
 
 body .dataTables_wrapper .dataTables_paginate .paginate_button {
     color: var(--nav-default-color) !important;
+    background: var(--nav-default-background-color);
     border: none !important;
     border-radius: 4px !important;
-    background: var(--nav-default-background-color);
     transition: .3s;
     -webkit-transition: .3s;
     -moz-transition: .3s;
@@ -779,11 +792,11 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button:not(.disabled, .c
     background: var(--nav-hover-background-color) !important;
 }
 
-body .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover,
 .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:active {
-    color: var(--light-gray) !important;
-    background: var(--gray) !important;
+    color: var(--gray) !important;
+    background: var(--light-gray) !important;
     box-shadow: none;
 }
 
@@ -1172,10 +1185,10 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .create-button:hover {
-    color: var(--create-color);
+    color: var(--create-color) !important;
 }
 .delete-button:hover {
-    color: var(--delete-color);
+    color: var(--delete-color) !important;
 }
 
 @media screen and (max-width: 767px) {
@@ -1247,7 +1260,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .asset-form button[type="submit"]:hover {
-    background: var(--secondary-color) !important;
+    color: var(--nav-hover-color);
+    background: var(--nav-hover-background-color) !important;
 }
 
 .bk-canvas {
@@ -1371,8 +1385,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .sensors-asset td a {
     padding: 10px 20px;
-    color: var(--white);
-    background: var(--primary-color);
+    color: var(--nav-default-color);
+    background: var(--nav-default-background-color);
     white-space: nowrap;
     line-height: 14px;
     text-decoration: none;
@@ -1389,8 +1403,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .sensors-asset td a:hover {
-    color: var(--black);
-    background: var(--secondary-color);
+    color: var(--nav-hover-color);
+    background: var(--nav-hover-background-color);
 }
 
 .sensors-asset td {
