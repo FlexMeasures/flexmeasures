@@ -898,14 +898,13 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     border-radius: 4px;
     border: 1px solid #ddd;
     font-size: 13px;
-    color: var(--white);
-    background: var(--primary-color);
+    color: var(--nav-default-color);
+    background: var(--nav-default-background-color);
     -webkit-border-radius: 4px;
     -moz-border-radius: 4px;
     -ms-border-radius: 4px;
     -o-border-radius: 4px;
 }
-
 
 .container__predefined-ranges {
     padding: 20px;
@@ -942,8 +941,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .litepicker .container__days .day-item.is-today {
+    color: var(--nav-current-color);
     background: var(--secondary-transparent);
-    color: var(--secondary-color);
 }
 
 .litepicker .container__days .day-item {
@@ -971,14 +970,14 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .litepicker .container__days .day-item:hover {
     border: none;
-    background: var(--primary-transparent);
     color: var(--primary-color);
+    background: var(--primary-transparent);
 }
 
 .litepicker .container__days .day-item.is-in-range {
+    color: var(--nav-current-color);
     background-color: var(--secondary-transparent);
     border-radius: 0;
-    color: var(--primary-color);
     -webkit-border-radius: 0;
     -moz-border-radius: 0;
     -ms-border-radius: 0;
@@ -994,8 +993,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .litepicker .container__days .day-item.is-end-date {
-    color: var(--primary-color);
-    background-color: var(--secondary-color);
+    color: var(--nav-current-color);
+    background-color: var(--nav-current-background-color);
     border-radius: 0 50% 50% 0;
     -webkit-border-radius: 0 50% 50% 0;
     -moz-border-radius: 0 50% 50% 0;
@@ -1004,8 +1003,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .litepicker .container__days .day-item.is-start-date {
-    color: var(--primary-color);
-    background-color: var(--secondary-color);
+    color: var(--nav-current-color);
+    background-color: var(--nav-current-background-color);
     border-radius: 50% 0 0 50%;
     -webkit-border-radius: 50% 0 0 50%;
     -moz-border-radius: 50% 0 0 50%;
@@ -1048,11 +1047,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 .litepicker[data-plugins*="ranges"] > .container__main > .container__predefined-ranges button:hover {
     cursor: pointer;
     opacity: 1;
-    transform: translatex(5px);
-    -webkit-transform: translatex(5px);
-    -moz-transform: translatex(5px);
-    -ms-transform: translatex(5px);
-    -o-transform: translatex(5px);
+    color: var(--nav-hover-color);
 }
 
 .litepicker .container__months .month-item-header .button-next-month:hover>svg {
