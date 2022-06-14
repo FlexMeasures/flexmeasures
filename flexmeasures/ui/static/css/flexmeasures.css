@@ -1436,7 +1436,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 .user-action-button {
     width: auto;
     padding-right: 0 ;
-    margin-top: 20px;
+    margin-top: 0px;
     margin-bottom: 0px;
 }
 
@@ -1451,10 +1451,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     -moz-transition: .4s;
     -ms-transition: .4s;
     -o-transition: .4s;
-}
-
-.user-action-button button:hover {
-    background: var(--primary-hover-color) !important;
 }
 
 @media screen and (max-width: 575.98px) {
@@ -1473,10 +1469,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* ---- Users Page ---- */
 
-.user-overview {
-    padding-left: 15px;
-}
-
 .user-data-table {
     margin-left: 0 !important;
     margin-right: 0 !important;
@@ -1484,6 +1476,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .user-data-table>div table {
+    margin-top: 30px !important;
     box-shadow: 0 0 10px var(--primary-transparent);
     border-radius: 6px;
     -webkit-border-radius: 6px;
