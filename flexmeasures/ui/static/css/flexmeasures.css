@@ -151,8 +151,8 @@ p.error {
 #tzwarn {
     margin-top: 20px;
     margin-bottom: 20px;
-    background: var(--secondary-transparent);
-    color: var(--secondary-hover-color);
+    color: var(--secondary-color);
+    background: var(--primary-color);
     border: none;
 }
 
