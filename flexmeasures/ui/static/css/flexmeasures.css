@@ -139,9 +139,9 @@ p.error {
 }
 
 .flashes.alert.alert-info {
+    color: var(--black);
     background: var(--secondary-color);
     border: none;
-    color: var(--black);
     text-align: center;
     margin-top: 20px;
     text-transform: uppercase;
