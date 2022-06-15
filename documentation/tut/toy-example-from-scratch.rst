@@ -65,6 +65,8 @@ Install Flexmeasures and the database
             $ docker stop flexmeasures-tutorial-db
             $ docker stop flexmeasures-tutorial-fm
 
+        .. note:: A tip on Linux/MacOs ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
+
 
   .. tab:: On your PC
         
@@ -158,10 +160,13 @@ Yes, that is quite a large battery :)
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
 
-We can also look at the battery asset in the UI of FlexMeasures (start FlexMeasures with ``flexmeasures run``, username is "toy-user@flexmeasures.io", password is "toy-password"):
+We can also look at the battery asset in the UI of FlexMeasures (in Docker, the FlexMeasures web server already runs, on your PC you can start it with ``flexmeasures run``).
+Visit `http://localhost:5000/assets <http://localhost:5000/assets>`_ (username is "toy-user@flexmeasures.io", password is "toy-password") and select "toy-battery":
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view.png
     :align: center
+
+.. note:: You won't see the map tiles, as we have not configured the :ref:`MAPBOX_ACCESS_TOKEN`. If you have one, you can configure it via ``flexmeasures.cfg`` (for Docker, see :ref:`docker_configuration`).
 
 
 Add some price data
@@ -241,7 +246,7 @@ Let's look at the price data we just loaded:
 
 
 
-Again, we can also view these prices in the FlexMeasures UI:
+Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/3/>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
@@ -297,7 +302,7 @@ Great. Let's see what we made:
 
 Here, negative values denote output from the grid, so that's when the battery gets charged. 
 
-We can also look at the charging schedule in the FlexMeasures UI (reachable via the asset page for the battery):
+We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/2/>`_ (reachable via the asset page for the battery):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
