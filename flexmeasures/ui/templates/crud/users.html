@@ -8,10 +8,11 @@
 
     <div class="container-fluid">
 
-        <!-- a toggle for including inactive users, if wanted -->
-        <h2>All {% if not include_inactive %}active {% endif %}users</h2>
-
         <div class="row">
+            <div class="col-sm-12">
+                <!-- a toggle for including inactive users, if wanted -->
+                <h3>All {% if not include_inactive %}active {% endif %}users</h3>
+            </div>
             <form class="col-sm-12 text-right form-inline" role="form" target="" method="get" id="user-list-options">
                 <div class="checkbox">
                     <label>

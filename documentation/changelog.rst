@@ -2,6 +2,12 @@
 FlexMeasures Changelog
 **********************
 
+v0.10.1 | June XX, 2022
+===========================
+
+Bugfixes
+-----------
+* Fix some UI styling regressions in e.g. color contrast and hover effects [see `PR #441 <http://www.github.com/FlexMeasures/flexmeasures/pull/441>`_]
 
 v0.10.0 | May 08, 2022
 ===========================

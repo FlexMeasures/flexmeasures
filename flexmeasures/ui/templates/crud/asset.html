@@ -17,12 +17,12 @@
         {% if user_is_admin %}
         <div class="col-sm-1">
             <form action="/assets/new" method="get" style="float:right">
-                <button class="btn btn-sm btn-responsive btn-success" type="submit">Create new asset</button>
+                <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new asset</button>
             </form>
         </div>
         <div class="col-sm-1">
             <form action="/assets/delete_with_data/{{ asset.id }}/" method="get" style="float:right">
-                <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger" type="submit">Delete this
+                <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger delete-button" type="submit">Delete this
                     asset</button>
             </form>
             <script>
@@ -118,7 +118,6 @@
         </fieldset>
     </form>
 
-    <div class="col-sm-3"></div>
     <div class="sensors-asset">
 
         <h3>All sensors for this asset</h3>
@@ -155,7 +154,6 @@
             </tbody>
         </table>
     </div>
-    <div class="col-sm-3"></div>
 
 
 </div>
