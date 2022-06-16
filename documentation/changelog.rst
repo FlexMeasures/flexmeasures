@@ -14,6 +14,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Allow access tokens to be passed as env vars as well [see `PR #443 <http://www.github.com/FlexMeasures/flexmeasures/pull/443>`_]
 
 
 v0.10.0 | May 08, 2022
