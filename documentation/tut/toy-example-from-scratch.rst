@@ -65,7 +65,7 @@ Install Flexmeasures and the database
             $ docker stop flexmeasures-tutorial-db
             $ docker stop flexmeasures-tutorial-fm
 
-        .. note:: A tip on Linux/MacOs ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
+        .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
 
 
   .. tab:: On your PC
@@ -89,7 +89,7 @@ Install Flexmeasures and the database
             $ export SQLALCHEMY_DATABASE_URI="postgresql://flexmeasures-user:fm-db-passwd@localhost:5432/flexmeasures-db" SECRET_KEY=notsecret LOGGING_LEVEL="INFO" DEBUG=0
             $ flexmeasures db upgrade 
 
-        .. note:: When installing with ``pip``, on some platforms problems might come up (e.g. MacOs, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use Docker, which uses a prepared Linux image, so it'll definitely work.
+        .. note:: When installing with ``pip``, on some platforms problems might come up (e.g. macOS, Windows). One reason is that FlexMeasures requires some libraries with lots of C code support (e.g. Numpy). One way out is to use Docker, which uses a prepared Linux image, so it'll definitely work.
 
 
 Add some structural data
