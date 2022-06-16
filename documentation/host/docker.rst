@@ -57,6 +57,8 @@ Browsing ``http://localhost:5000`` should work now and ask you to log in.
 Of course, you might not have created a user. You can use ``docker exec -it <flexmeasures-container-name> bash`` to go inside the container and use the :ref:`cli` to create everything you need. 
 
 
+.. _docker_configuration:
+
 Configuration and customization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
