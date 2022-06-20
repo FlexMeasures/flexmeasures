@@ -887,8 +887,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 /* ---- Date picker ---- */
 
 #datepicker {
-    margin-top: 50px;
-    margin-bottom: 30px;
+    margin-top: 15px;
+    margin-bottom: 15px;
 }
 
 .datetimepicker input {
@@ -1054,11 +1054,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     fill: var(--secondary-color) !important;
 }
 
-@media (max-width:525px) {
+@media (max-width: 525px) {
     #datepicker .container__main {
         flex-wrap: wrap;
-        margin-left: 15px;
-        margin-right: 15px;
     }
 
     #datepicker .container__predefined-ranges {
