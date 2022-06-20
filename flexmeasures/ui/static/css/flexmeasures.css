@@ -1077,11 +1077,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* --- Sensor Data --- */
 
-.sensor-data .sensor-chart-main {
-    padding: 0;
-}
-
-#sensorchart {
+.card {
+    margin: 15px;
     padding: 20px 15px 20px 15px;
     box-shadow: 0 0 10px rgba(0,0,0,.1);
     border-radius: 6px;
@@ -1098,10 +1095,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .sensor-data .row {
     margin: 0 !important;
-}
-
-#sensorchart {
-    margin-bottom: 40px;
 }
 
 #vg-tooltip-element {
