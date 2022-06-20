@@ -1116,6 +1116,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     -ms-border-radius: 6px;
     -o-border-radius: 6px;
 }
+.card.vega-embed summary {
+    transform: translate(-15px, 15px);
+}
 
 .role-title-text text {
     font-size: 20px;
