@@ -12,6 +12,10 @@
           <div class="row">
               <div class="sensor-chart-main col-sm-12">
                   <div id="sensorchart" style="width: 100%;"></div>
+                  <div id="spinner" style="text-align: center; position: absolute; z-index: 10; font-size: 8px; top: 0; left: 0; width: 100%; height: 100%; margin-top: 4em; margin-bottom: 4em;">
+                      <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+                      <span class="sr-only">Loading...</span>
+                  </div>
               </div>
           </div>
           <hr>
@@ -80,6 +84,7 @@
           format: 'YYYY-MM-DD\\T00:00:00',
       });
       picker.on('selected', (startDate, endDate) => {
+          $("#spinner").show();
           startDate = startDate.toJSDate()
           endDate = endDate.toJSDate()
           endDate.setDate(endDate.getDate() + 1);
@@ -103,6 +108,7 @@
           ]).then(function(result) {
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
                 vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+                $("#spinner").hide();
           }).catch(console.error);
       });
 
