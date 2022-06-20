@@ -11,7 +11,7 @@ WIDTH = "container"
 REDUCED_HEIGHT = REDUCED_WIDTH = 60
 SELECTOR_COLOR = "darkred"
 TIME_FORMAT = "%H:%M on %A %b %e, %Y"
-FORMAT_24H = "hours(datum.value) == 0 & minutes(datum.value) == 0 | seconds(datum.value) != 0 ? timeFormat(datum.value) : timeFormat(datum.value, '%H:%M')"
+FORMAT_24H = "(hours(datum.value) == 0 & minutes(datum.value) == 0) | seconds(datum.value) != 0 ? timeFormat(datum.value) : timeFormat(datum.value, '%H:%M')"
 TIME_SELECTION_TOOLTIP = "Click and drag to select a time window"
 FIELD_DEFINITIONS = {
     "event_start": dict(
