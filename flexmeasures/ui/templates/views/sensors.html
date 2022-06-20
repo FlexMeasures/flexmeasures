@@ -66,10 +66,7 @@
           ranges: {
               customRanges: {
                   'Today': [new Date(date), new Date(date)],
-                  'Yesterday': [subtract(date, 1), subtract(date, 1)],
-                  'Last 2 days': [subtract(date, 1), new Date(date)],
                   'Last 7 days': [subtract(date, 6), new Date(date)],
-                  'Last 30 days': [subtract(date, 29), new Date(date)],
                   'This month': thisMonth(date)
               },
               position: 'bottom'
