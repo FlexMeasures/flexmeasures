@@ -86,25 +86,24 @@
           var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
           var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
 
-          // Fetch time series data
-          fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-            method: "GET",
-            headers: {"Content-Type": "application/json"},
-          })
-          .then(function(response) { return response.json(); })
-          .then(function(data) {
-            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(data)).resize().run();
-          })
+          Promise.all([
+              // Fetch time series data
+              fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                  method: "GET",
+                  headers: {"Content-Type": "application/json"},
+              })
+              .then(function(response) { return response.json(); }),
 
-          // Fetch annotations
-          fetch(sensorPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-            method: "GET",
-            headers: {"Content-Type": "application/json"},
-          })
-          .then(function(response) { return response.json(); })
-          .then(function(data) {
-            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(data)).resize().run();
-          });
+              // Fetch annotations
+              fetch(sensorPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                  method: "GET",
+                  headers: {"Content-Type": "application/json"},
+              })
+              .then(function(response) { return response.json(); })
+          ]).then(function(result) {
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+                vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+          }).catch(console.error);
       });
 
       document.onreadystatechange = () => {
