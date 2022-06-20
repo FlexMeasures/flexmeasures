@@ -962,6 +962,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .container__months {
+    box-shadow: 0 0 10px rgba(0,0,0,.1) !important;
     border-radius: 6px !important;
     -webkit-border-radius: 6px !important;
     -moz-border-radius: 6px !important;
