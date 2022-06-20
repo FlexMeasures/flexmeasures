@@ -1106,6 +1106,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 /* --- Sensor Data --- */
 
 .card {
+    background: var(--white);
     margin: 15px;
     padding: 20px 15px 20px 15px;
     box-shadow: 0 0 10px rgba(0,0,0,.1);
