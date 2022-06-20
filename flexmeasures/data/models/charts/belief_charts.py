@@ -15,7 +15,7 @@ def bar_chart(
     )
     chart_specs = {
         "description": "A simple bar chart.",
-        "title": capitalize(sensor.name),
+        "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "mark": "bar",
         "encoding": {
             "x": FIELD_DEFINITIONS["event_start"],
