@@ -906,6 +906,10 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         -moz-transition: .3s;
         -ms-transition: .3s;
         -o-transition: .3s;
+        border-top-left-radius: 0px;
+        border-bottom-left-radius: 0px;
+        border-top-right-radius: 15px;
+        border-bottom-right-radius: 15px;
     }
     .side-panel-container > .side-panel {
         transform: translateX(-106%);
