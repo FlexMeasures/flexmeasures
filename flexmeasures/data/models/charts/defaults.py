@@ -11,6 +11,7 @@ WIDTH = "container"
 REDUCED_HEIGHT = REDUCED_WIDTH = 60
 SELECTOR_COLOR = "darkred"
 TIME_FORMAT = "%H:%M on %A %b %e, %Y"
+# Use default timeFormat for date or second labels, and use 24-hour clock notation for other (hour and minute) labels
 FORMAT_24H = "(hours(datum.value) == 0 & minutes(datum.value) == 0) | seconds(datum.value) != 0 ? timeFormat(datum.value) : timeFormat(datum.value, '%H:%M')"
 TIME_SELECTION_TOOLTIP = "Click and drag to select a time window"
 FIELD_DEFINITIONS = {
