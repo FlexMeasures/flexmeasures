@@ -893,11 +893,11 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 /* ---- Side panel ---- */
 
 @media (min-width: 768px) {
-    .side-panel-container {
+    .sidepanel-container {
         z-index: 20;
     }
-    .side-panel {
-        background: var(--nav-default-background-color) !important;
+    .sidepanel {
+        background: var(--nav-default-background-color);
         width: calc(var(--litepicker-day-width) * 9);
         margin: 15px;
         padding: 20px 15px;
@@ -906,16 +906,18 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         -moz-transition: .3s;
         -ms-transition: .3s;
         -o-transition: .3s;
+    }
+    .left-sidepanel {
         border-top-left-radius: 0px;
         border-bottom-left-radius: 0px;
         border-top-right-radius: 15px;
         border-bottom-right-radius: 15px;
     }
-    .side-panel-container > .side-panel {
+    .sidepanel-container > .left-sidepanel {
         transform: translateX(-106%);
     }
-    .side-panel-container:hover > .side-panel,
-    .side-panel-container:active > .side-panel {
+    .sidepanel-container:hover > .left-sidepanel,
+    .sidepanel-container:active > .left-sidepanel {
         transform: translateX(-30px);
     }
 }
