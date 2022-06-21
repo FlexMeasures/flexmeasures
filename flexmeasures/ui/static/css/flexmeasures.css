@@ -44,8 +44,8 @@ body *:not(.fa, .glyphicon) {
 }
 
 @media (min-width: 768px) {
-    .flex-md {
-        display: flex;
+    .on-top-md {
+        z-index: 1010;
     }
 }
 
