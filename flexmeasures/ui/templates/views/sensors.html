@@ -86,13 +86,13 @@
           format: 'YYYY-MM-DD\\T00:00:00',
       });
       picker.on('selected', (startDate, endDate) => {
-          $("#spinner").show();
           startDate = startDate.toJSDate()
           endDate = endDate.toJSDate()
           endDate.setDate(endDate.getDate() + 1);
           var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
           var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
 
+          $("#spinner").show();
           Promise.all([
               // Fetch time series data
               fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
@@ -108,9 +108,9 @@
               })
               .then(function(response) { return response.json(); })
           ]).then(function(result) {
+                $("#spinner").hide();
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
                 vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
-                $("#spinner").hide();
           }).catch(console.error);
       });
 
