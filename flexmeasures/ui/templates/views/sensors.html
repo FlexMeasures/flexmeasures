@@ -59,6 +59,10 @@
       var datasetName = 'sensor_' + sensorId
       embedAndLoad(chartSpecsPath, elementId, datasetName);
 
+      // Set up abort controller to cancel requests
+      var controller = new AbortController()
+      var signal = controller.signal
+
       const date = Date();
       const picker = new Litepicker({
           element: document.getElementById('datepicker'),
@@ -91,6 +95,11 @@
           endDate.setDate(endDate.getDate() + 1);
           var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
           var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
+
+          // Abort previous request and create abort controller for new request
+          controller.abort()
+          controller = new AbortController()
+          signal = controller.signal
 
           $("#spinner").show();
           Promise.all([
