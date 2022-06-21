@@ -69,6 +69,12 @@ h1, h2, h3 {
     font-weight: 600;
     color: var(--primary-color);
 }
+.sidepanel h1,
+.sidepanel h2,
+.sidepanel h3,
+.sidepanel label {
+    color: var(--white) !important;
+}
 
 hr {
     border-top: none;
