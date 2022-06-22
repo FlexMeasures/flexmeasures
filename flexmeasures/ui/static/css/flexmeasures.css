@@ -188,7 +188,6 @@ p.error {
 /* --- Nav Bar --- */
 
 .navbar-tool-name {
-    margin-right: 30px;
     color: var(--secondary-color);
 }
 
@@ -238,8 +237,8 @@ p.error {
 
 .navbar-brand {
     display: inline-block;
-    width: 200px;
     height: 100%;
+    padding: 10px 15px;
 }
 
 .navbar-brand a {
@@ -249,10 +248,6 @@ p.error {
 .navbar-brand a span {
     display: inline-block;
     color: var(--secondary-color) !important;
-}
-
-.navbar-brand a span img {
-    width: 200px;
 }
 
 .navbar-default .navbar-collapse, .navbar-default .navbar-form {
@@ -282,8 +277,8 @@ p.error {
 
 @media (min-width: 768px) {
     .navbar-nav>li>a {
-        padding-top: 28px;
-        padding-bottom: 28px;
+        padding-top: 20px;
+        padding-bottom: 20px;
     }
 
     .navbar-default .dropdown-menu a {
@@ -319,8 +314,7 @@ p.error {
 }
 
 #navbar-logo {
-    height: 50px;
-    position: fixed; top: 0; left: 0;
+    height: 40px;
 }
 
 /* --- End Nav Bar --- */
