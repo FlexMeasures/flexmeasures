@@ -17,11 +17,13 @@ FIELD_DEFINITIONS = {
         field="event_start",
         type="temporal",
         title=None,
+        axis={"labelOverlap": True, "labelSeparation": 1},
     ),
     "event_end": dict(
         field="event_end",
         type="temporal",
         title=None,
+        axis={"labelOverlap": True, "labelSeparation": 1},
     ),
     "event_value": dict(
         field="event_value",
