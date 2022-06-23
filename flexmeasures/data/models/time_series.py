@@ -635,11 +635,18 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             if one_deterministic_belief_per_event:
                 # todo: compute median of collective belief instead of median of first belief (update expected test results accordingly)
                 # todo: move to timely-beliefs: select mean/median belief
-                bdf = (
-                    bdf.for_each_belief(get_median_belief)
-                    .groupby(level=["event_start", "belief_time"], group_keys=False)
-                    .apply(lambda x: x.head(1))
-                )
+                if (
+                    bdf.lineage.number_of_sources == 1
+                    and bdf.lineage.probabilistic_depth == 1
+                ):
+                    # Fast track, no need to loop over beliefs
+                    pass
+                else:
+                    bdf = (
+                        bdf.for_each_belief(get_median_belief)
+                        .groupby(level=["event_start", "belief_time"], group_keys=False)
+                        .apply(lambda x: x.head(1))
+                    )
             if resolution is not None:
                 bdf = bdf.resample_events(
                     resolution, keep_only_most_recent_belief=most_recent_beliefs_only
