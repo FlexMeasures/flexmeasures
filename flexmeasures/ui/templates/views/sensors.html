@@ -34,7 +34,6 @@
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/mobilefriendly.js"></script>
 
     <!-- Render Charts -->
     <script type="module" type="text/javascript">
@@ -66,7 +65,7 @@
       const date = Date();
       const picker = new Litepicker({
           element: document.getElementById('datepicker'),
-          plugins: ['ranges', 'keyboardnav', 'mobilefriendly'],
+          plugins: ['ranges', 'keyboardnav'],
           ranges: {
               customRanges: {
                   'Today': [new Date(date), new Date(date)],
