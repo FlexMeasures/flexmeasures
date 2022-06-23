@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Tuple, List, Union
+from typing import Any, Dict, Optional, Tuple, List, Union
 
 from flask_security import current_user
 import pandas as pd
@@ -18,6 +18,7 @@ from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
+from flexmeasures.utils.time_utils import server_now
 
 
 class GenericAssetType(db.Model):
@@ -263,6 +264,51 @@ class GenericAsset(db.Model, AuthModelMixin):
             sources=parsed_sources,
             annotation_type=annotation_type,
         ).count()
+
+    @property
+    def timezone(
+        self,
+    ) -> str:
+        """Timezone relevant to the asset.
+
+        If a timezone is not given as an attribute of the asset, it is taken from one of its sensors.
+        """
+        if self.has_attribute("timezone"):
+            return self.get_attribute("timezone")
+        if self.sensors:
+            return self.sensors[0].timezone
+        return "UTC"
+
+    @property
+    def timerange(self) -> Dict[str, datetime]:
+        """Time range for which sensor data exists.
+
+        :returns: dictionary with start and end, for example:
+                  {
+                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                  }
+        """
+        from flexmeasures.data.models.time_series import TimedBelief
+
+        sensor_ids = [sensor.id for sensor in self.sensors]
+        least_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor_id.in_(sensor_ids))
+            .order_by(TimedBelief.event_start.asc())
+            .limit(1)
+        )
+        most_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor_id.in_(sensor_ids))
+            .order_by(TimedBelief.event_start.desc())
+            .limit(1)
+        )
+        results = least_recent_query.union_all(most_recent_query).all()
+        if not results:
+            # return now in case there is no data for any of the sensors
+            now = server_now()
+            return dict(start=now, end=now)
+        least_recent, most_recent = results
+        return dict(start=least_recent.event_start, end=most_recent.event_end)
 
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
