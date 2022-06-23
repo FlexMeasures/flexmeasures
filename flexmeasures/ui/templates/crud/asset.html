@@ -7,156 +7,301 @@
 {% block divs %}
 
 <div class="container-fluid">
-    <div class="row header-action-button">
-<!--        <div class="col-sm-1">-->
-<!--            <form action="../../analytics" method="get">-->
-<!--                <input type="hidden" name="resource" value="{{ asset.name }}">-->
-<!--                <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
-<!--            </form>-->
-<!--        </div>-->
-        {% if user_is_admin %}
-        <div class="col-sm-1">
-            <form action="/assets/new" method="get" style="float:right">
-                <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new asset</button>
-            </form>
-        </div>
-        <div class="col-sm-1">
-            <form action="/assets/delete_with_data/{{ asset.id }}/" method="get" style="float:right">
-                <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger delete-button" type="submit">Delete this
-                    asset</button>
-            </form>
-            <script>
-                $("#delete-asset-button").click(function () {
-                    if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-                        return true;
-                    }
-                    else {
-                        return false;
-                    }
-                });
-            </script>
-        </div>
-        {% endif %}
-    </div>
-
-    <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}/">
-        {{ asset_form.csrf_token }}
-        {{ asset_form.hidden_tag() }}
-        <fieldset>
-            <div class="row">
-                <div class="asset-form col-sm-4">
-
-                    <h3>Edit asset {{ asset.name }}</h3>
-
-                    <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id }})</small>
-                    
-                    <div class="form-group">
-                        {{ asset_form.name.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
-                            {{ asset_form.name(class_="form-control") }}
-                            {% for error in asset_form.errors.name %}
-                            <span style="color: red;">[{{error}}]</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
-                            {{ asset_form.latitude(class_="form-control") }}
-                            {% for error in asset_form.errors.latitude %}
-                            <span style="color: red;">[{{error}}]</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        {{ asset_form.longitude.label(class="col-sm-6 control-label") }}
-                        <div class="col-sm-6">
-                            {{ asset_form.longitude(class_="form-control") }}
-                            {% for error in asset_form.errors.longitude %}
-                            <span style="color: red;">[{{error}}]</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="assset-type" class="col-sm-6 control-label">Asset Type</label>
-                         <div class="col-sm-6">
-                            <input class="form-control" id="asset-type-id" name="asset-type" type="text"
-                                value="{{ asset.generic_asset_type.name }}" disabled></input>
-                         </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
-                        <div class="col-sm-6">
-                            <input class="form-control" id="asset-id" name="asset-id" type="text" value="{{ asset.id }}"
-                                disabled></input>
-                        </div>
-                    </div>
-
-                    <div class="col-sm-6"></div>
-                    <div class="col-sm-6"></div>
-                    <div class="col-sm-6">
-                        <button class="btn btn-sm btn-responsive btn-success" type="submit" value="Save">Save</button>
-                    </div>
-
+    <div class="row">
+        <div class="col-sm-2 on-top-md">
+            <div class="header-action-button">
+                {% if user_is_admin %}
+                <div class="">
+                    <form action="/assets/new" method="get">
+                        <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new asset</button>
+                    </form>
                 </div>
-                <div class="col-sm-2">
-                    <h3>Latest state</h3>
-                    {% if asset_plot_html %}
-                    <small>(At {{ latest_measurement_time_str | safe}})</small>
-                    {{ asset_plot_html | safe}}
-                    {% else %}
-                    <small>No last state known (yet).</small>
-                    {% endif %}
+                <div class="">
+                    <form action="/assets/delete_with_data/{{ asset.id }}/" method="get">
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger delete-button" type="submit">Delete this asset</button>
+                    </form>
+                    <script>
+                        $("#delete-asset-button").click(function () {
+                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
+                                return true;
+                            }
+                            else {
+                                return false;
+                            }
+                        });
+                    </script>
                 </div>
-                <div class="col-sm-6">
-                    <h3>Location</h3>
-                    <small>(Click map to edit latitude and longitude in form)</small>
-                    <div id="mapid"></div>
+                {% endif %}
+            </div>
+            <div class="sidepanel-container">
+                <div class="sidepanel left-sidepanel">
+                    <div id="datepicker"></div>
                 </div>
             </div>
-        </fieldset>
-    </form>
+            <div class="sidepanel-container">
+                <div class="sidepanel left-sidepanel">
+                    <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}/">
+                        {{ asset_form.csrf_token }}
+                        {{ asset_form.hidden_tag() }}
+                        <fieldset>
+                            <div class="asset-form">
 
-    <div class="sensors-asset">
+                                <h3>Edit {{ asset.name }}</h3>
+                                <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id }})</small>
 
-        <h3>All sensors for this asset</h3>
-        <table class="table table-striped table-responsive paginate">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th class="text-right">Unit</th>
-                    <th class="text-right">Resolution</th>
-                    <th class="text-right no-sort">Entity address</th>
-                    <th class="text-right no-sort">Data</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for sensor in asset.sensors: %}
-                <tr>
-                    <td>
-                        {{ sensor.name }}
-                    </td>
-                    <td class="text-right">
-                        {{ sensor.unit }}
-                    </td>
-                    <td class="text-right">
-                        {{ sensor.event_resolution | naturalized_timedelta }}
-                    </td>
-                    <td class="text-right">
-                        {{ sensor.entity_address }}
-                    </td>
-                    <td class="text-right">
-                        <a href="/sensors/{{ sensor.id }}">View plot</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                                <div class="form-group">
+                                    {{ asset_form.name.label(class="col-sm-3 control-label") }}
+                                    <div class="col-sm-3">
+                                        {{ asset_form.name(class_="form-control") }}
+                                        {% for error in asset_form.errors.name %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
+                                    <div class="col-sm-6">
+                                        {{ asset_form.latitude(class_="form-control") }}
+                                        {% for error in asset_form.errors.latitude %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    {{ asset_form.longitude.label(class="col-sm-6 control-label") }}
+                                    <div class="col-sm-6">
+                                        {{ asset_form.longitude(class_="form-control") }}
+                                        {% for error in asset_form.errors.longitude %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="assset-type" class="col-sm-6 control-label">Asset Type</label>
+                                     <div class="col-sm-6">
+                                        <input class="form-control" id="asset-type-id" name="asset-type" type="text"
+                                            value="{{ asset.generic_asset_type.name }}" disabled></input>
+                                     </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
+                                    <div class="col-sm-6">
+                                        <input class="form-control" id="asset-id" name="asset-id" type="text" value="{{ asset.id }}"
+                                            disabled></input>
+                                    </div>
+                                </div>
+                                <label class="control-label">Location</label>
+                                <small>(Click map to edit latitude and longitude in form)</small>
+                                <div id="mapid"></div>
+                                <button class="btn btn-sm btn-responsive btn-success create-button" type="submit" value="Save" style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">Save</button>
+                            </div>
+                        </fieldset>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-8">
+            <div id="spinner">
+                <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+                <span class="sr-only">Loading...</span>
+            </div>
+            <div id="sensorchart" class="card" style="width: 100%;"></div>
+            <div class="sensors-asset card">
+                <h3>All sensors for {{ asset.name }}</h3>
+                <table class="table table-striped table-responsive paginate">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th class="text-right">Unit</th>
+                            <th class="text-right">Resolution</th>
+                            <th class="text-right no-sort">Entity address</th>
+                            <th class="text-right no-sort">Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sensor in asset.sensors: %}
+                        <tr>
+                            <td>
+                                {{ sensor.name }}
+                            </td>
+                            <td class="text-right">
+                                {{ sensor.unit }}
+                            </td>
+                            <td class="text-right">
+                                {{ sensor.event_resolution | naturalized_timedelta }}
+                            </td>
+                            <td class="text-right">
+                                {{ sensor.entity_address }}
+                            </td>
+                            <td class="text-right">
+                                <a href="/sensors/{{ sensor.id }}">View plot</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-sm-2"></div>
     </div>
 
 
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/keyboardnav.js"></script>
+
+<!-- Render Charts -->
+<script type="module" type="text/javascript">
+
+  import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
+
+  let vegaView;
+
+  async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
+
+    await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false', {{ chart_options | safe }})
+    .then(function (result) {
+      // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
+      vegaView = result.view;
+    });
+  }
+
+  var assetPath = '/api/v3_0/assets/' + {{ asset.id }}
+  var assetDevPath = '/api/dev/asset/' + {{ asset.id }}
+  var chartSpecsPath = assetPath + '/chart'
+  var elementId = 'sensorchart'
+  var datasetName = 'asset_' + {{ asset.id }}
+  embedAndLoad(chartSpecsPath, elementId, datasetName);
+
+  // Set up abort controller to cancel requests
+  var controller = new AbortController()
+  var signal = controller.signal
+
+  const date = Date();
+  const picker = new Litepicker({
+      element: document.getElementById('datepicker'),
+      plugins: ['ranges', 'keyboardnav'],
+      ranges: {
+          customRanges: {
+              'Today': [new Date(date), new Date(date)],
+              'Last 7 days': [subtract(date, 6), new Date(date)],
+              'This month': thisMonth(date)
+          },
+          position: 'bottom'
+      },
+      autoRefresh: true,
+      moduleRanges: true,
+      showWeekNumbers: true,
+      numberOfMonths: 1,
+      numberOfColumns: 1,
+      inlineMode: true,
+      switchingMonths: 1,
+      singleMode: false,
+      dropdowns: {
+          years: true,
+          months: true,
+      },
+      format: 'YYYY-MM-DD\\T00:00:00',
+  });
+  picker.on('selected', (startDate, endDate) => {
+      startDate = startDate.toJSDate()
+      endDate = endDate.toJSDate()
+      endDate.setDate(endDate.getDate() + 1);
+      var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
+      var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
+
+      // Abort previous request and create abort controller for new request
+      controller.abort()
+      controller = new AbortController()
+      signal = controller.signal
+
+      $("#spinner").show();
+      Promise.all([
+          // Fetch time series data
+          fetch(assetPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+              method: "GET",
+              headers: {"Content-Type": "application/json"},
+              signal: signal,
+          })
+          .then(function(response) { return response.json(); }),
+
+          /**
+          // Fetch annotations
+          fetch(assetPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+              method: "GET",
+              headers: {"Content-Type": "application/json"},
+              signal: signal,
+          })
+          .then(function(response) { return response.json(); })
+          */
+      ]).then(function(result) {
+            $("#spinner").hide();
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+            /**
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+            */
+      }).catch(console.error);
+  });
+
+  document.onreadystatechange = () => {
+    if (document.readyState === 'complete') {
+      fetch(assetDevPath, {
+        method: "GET",
+        headers: {"Content-Type": "application/json"},
+      })
+      .then(function(response) { return response.json(); })
+      .then(function(data) {
+        var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
+        if (offsetDifference != 0) {
+          document.getElementById('tzwarn').style.display = 'block';
+          var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes'
+          document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
+        }
+        var start = new Date(data.timerange.start);
+        var end = new Date(data.timerange.end)
+        end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+        start.setHours(0,0,0,0) // get start of first day
+        end.setHours(0,0,0,0) // get start of last day
+
+        // Initialize picker to the last 2 days of sensor data
+        var nearEnd = new Date(end)//.setDate(end.getDate() - 1)
+        nearEnd.setDate(nearEnd.getDate() - 1)
+        picker.setDateRange(
+            nearEnd,
+            end,
+        )
+
+        // No use looking for data in years outside timerange of sensor data
+        picker.setOptions({
+          dropdowns: {
+              minYear: start.getFullYear(),
+              maxYear: end.getFullYear(),
+          },
+        });
+      });
+    }
+  };
+
+  // Set up swiping for the left sidepanel
+    var leftSidepanels = document.getElementsByClassName('left-sidepanel');
+    document.addEventListener('swiped-right', function(e) {
+      if (e.target.classList.contains('sidepanel-container')) {
+        for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+        leftSidepanels[i].classList.add('sidepanel-show');
+      }
+    }
+  });
+  document.addEventListener('swiped-left', function(e) {
+    for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+      leftSidepanels[i].classList.remove('sidepanel-show');
+    }
+  });
+
+</script>
 
 <!-- Initialise the map -->
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet-src.min.js"></script>

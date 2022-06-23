@@ -1280,7 +1280,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     float: none !important;
 }
 
-.asset-form .form-group .control-label {
+.asset-form .control-label {
     width: auto !important;
     display: inline-block;
     float: none !important;
