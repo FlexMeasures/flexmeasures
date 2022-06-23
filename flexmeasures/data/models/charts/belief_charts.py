@@ -65,7 +65,9 @@ def point_chart_for_multiple_sensors(
             },
         )
         sensor_specs = {
-            "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
+            "title": capitalize(sensor.name)
+            if sensor.name != sensor.sensor_type
+            else None,
             "mark": "point",
             "encoding": {
                 "x": FIELD_DEFINITIONS["event_start"],
@@ -100,7 +102,7 @@ def point_chart_for_multiple_sensors(
         "autosize": {"type": "fit-x", "contains": "padding"},
         "legend": {"orient": "bottom", "columns": 1, "direction": "vertical"},
     }
-    chart_specs["resolve"] = {'scale': {'x': 'shared'}}
+    chart_specs["resolve"] = {"scale": {"x": "shared"}}
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
     return chart_specs

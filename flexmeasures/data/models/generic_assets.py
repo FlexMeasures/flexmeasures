@@ -338,7 +338,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def search_beliefs(
         self,
-        sensors: Optional[List["Sensor"]] = None,
+        sensors: Optional[List["Sensor"]] = None,  # noqa F821
         event_starts_after: Optional[datetime] = None,
         event_ends_before: Optional[datetime] = None,
         beliefs_after: Optional[datetime] = None,
