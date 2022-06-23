@@ -156,9 +156,10 @@ class GenericAsset(db.Model, AuthModelMixin):
             func.ll_to_earth(*other_location),
         )
 
-    def get_attribute(self, attribute: str):
+    def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
+        return default
 
     def has_attribute(self, attribute: str) -> bool:
         return attribute in self.attributes
