@@ -56,7 +56,7 @@ def test_asset_page(db, client, setup_assets, requests_mock, as_prosumer_user1):
     asset_page = client.get(
         url_for("AssetCrudUI:get", id=asset.id), follow_redirects=True
     )
-    assert ("Edit asset %s" % mock_asset["name"]).encode() in asset_page.data
+    assert ("Edit %s" % mock_asset["name"]).encode() in asset_page.data
     assert str(mock_asset["latitude"]).encode() in asset_page.data
     assert str(mock_asset["longitude"]).encode() in asset_page.data
 
