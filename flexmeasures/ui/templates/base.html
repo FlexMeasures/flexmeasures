@@ -225,6 +225,12 @@
 
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    {% if js_versions %}
+    <script src="https://cdn.jsdelivr.net/npm/vega@{{ js_versions.vega }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@{{ js_versions.vegalite }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@{{ js_versions.vegaembed }}"></script>
+    {% endif %}
 
     <!-- Custom scripts -->
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/swiped-events.min.js') }}"></script>
