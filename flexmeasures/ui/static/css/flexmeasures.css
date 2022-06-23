@@ -1393,16 +1393,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 
 /* ---- Sensors on asset page ---- */
-.sensors-asset {
-    padding-top: 50px;
-}
 
 .sensors-asset #DataTables_Table_0_wrapper {
     margin-top: 30px;
-}
-
-.sensors-asset #DataTables_Table_0_filter {
-    margin-bottom: 20px;
 }
 
 .sensors-asset #DataTables_Table_0_filter input {
