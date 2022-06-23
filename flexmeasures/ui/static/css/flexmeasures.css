@@ -1523,41 +1523,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 /* ---- End User Action Button ---- */
 
 
-/* ---- Users Page ---- */
-
-.user-data-table {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    margin-bottom: 30px;
-}
-
-.user-data-table>div table {
-    margin-top: 30px !important;
-    box-shadow: 0 0 10px var(--primary-transparent);
-    border-radius: 6px;
-    -webkit-border-radius: 6px;
-    -moz-border-radius: 6px;
-    -ms-border-radius: 6px;
-    -o-border-radius: 6px;
-}
-
-.user-data-table>div table tr:nth-child(even) {
-    background: var(--light-gray);
-}
-
-.user-data-table>div table tr td {
-    padding: 15px;
-    word-break: break-all;
-    border: none;
-}
-
-.user-data-table>div table tr:first-child td {
-    border-top: none !important;
-}
-
-/* ---- End Users Page ---- */
-
-
 /* ---- Login / Reset PWD forms ---- */
 
 .login-form input:not([type="checkbox"], [type="submit"]),
