@@ -939,7 +939,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         transform: translateX(-106%);
     }
     .sidepanel-container:hover > .left-sidepanel,
-    .sidepanel-container:active > .left-sidepanel {
+    .sidepanel-container:focus-within > .left-sidepanel {
         transform: translateX(-30px);
     }
 }
