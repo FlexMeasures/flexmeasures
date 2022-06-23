@@ -935,12 +935,19 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         border-top-right-radius: 15px;
         border-bottom-right-radius: 15px;
     }
-    .sidepanel-container > .left-sidepanel {
+    .sidepanel-container > .left-sidepanel:not(.sidepanel-show) {
         transform: translateX(-106%);
     }
-    .sidepanel-container:hover > .left-sidepanel,
-    .sidepanel-container:focus-within > .left-sidepanel {
-        transform: translateX(-30px);
+    @media (hover: hover) {
+        .sidepanel-container:hover > .left-sidepanel,
+        .sidepanel-container:focus-within > .left-sidepanel {
+            transform: translateX(-30px);
+        }
+    }
+    @media (hover: none) {
+        .sidepanel-container > .left-sidepanel.sidepanel-show {
+            transform: translateX(-30px);
+        }
     }
 }
 
