@@ -1178,14 +1178,15 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 /* ---- Header action button ---- */
 
 .header-action-button {
-    padding-top: 30px;
+    padding-top: 5px;
     display: flex;
-    justify-content: flex-end;
-    padding-right: 15px;
+    justify-content: space-around;
+
     width: 100% !important;
 }
 
 .header-action-button>div {
+    flex: 1 1 auto;
     width: auto !important;
     padding: 0;
 }
@@ -1196,7 +1197,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .header-action-button>div button {
     font-size: 15px;
-    padding: 17px 35px;
+    padding: 15px 30px;
     border: none;
     line-height: 16px;
     outline: none !important;
@@ -1218,7 +1219,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .header-action-button>div button:hover, .header-action-button>div button:focus {
     background: var(--primary-hover-color) !important;
-    border-right: 1px solid var(--primary-border-color) !important;
 }
 
 .header-action-button>div button {
@@ -1237,7 +1237,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     border-right: none;
     border-top-right-radius: 15px;
     border-bottom-right-radius: 15px;
-
 }
 
 .create-button:hover {
@@ -1267,7 +1266,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     .header-action-button>div {
         width: 100% !important;
         padding-left: 15px;
-        padding-right: 15px;
     }
 }
 
