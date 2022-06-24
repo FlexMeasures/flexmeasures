@@ -908,6 +908,11 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* ---- Side panel ---- */
 
+@media (max-width: 767px) {
+        .left-sidepanel-label {
+            visibility: collapse;
+        }
+    }
 @media (min-width: 768px) {
     .sidepanel h1,
     .sidepanel h2,
@@ -917,6 +922,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     }
     .sidepanel-container {
         z-index: 20;
+        position: relative;
     }
     .sidepanel,
     .left-sidepanel-label {
@@ -931,7 +937,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         -ms-transition: .3s;
         -o-transition: .3s;
     }
-    .left-sidepanel {
+    .left-sidepanel,
+    .left-sidepanel-label {
         border-top-left-radius: 0px;
         border-bottom-left-radius: 0px;
         border-top-right-radius: 15px;
@@ -939,6 +946,12 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     }
     .sidepanel-container > .left-sidepanel:not(.sidepanel-show) {
         transform: translateX(-106%);
+    }
+    .left-sidepanel-label {
+        margin: 0px;
+        transform: translateX(-70%);
+        text-align: right;
+        position: absolute;
     }
     @media (hover: hover) {
         .sidepanel-container:hover > .left-sidepanel,
@@ -990,6 +1003,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .container__predefined-ranges button {
+    color: var(--primary-border-color);
     font-weight: 500;
     cursor: pointer !important;
     border-right: 1px solid var(--primary-border-color) !important;

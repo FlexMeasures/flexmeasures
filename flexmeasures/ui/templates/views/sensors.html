@@ -9,9 +9,12 @@
       <div class="sensor-data charts text-center">
           <div class="row"><div class="alert alert-info" id="tzwarn" style="display:none;"></div></div>
           <div class="row on-top-md">
-              <div class="col-sm-2 sidepanel-container">
-                  <div class="sidepanel left-sidepanel">
-                      <div id="datepicker"></div>
+              <div class="col-sm-2">
+                  <div class="sidepanel-container">
+                      <div class="left-sidepanel-label">Select dates</div>
+                      <div class="sidepanel left-sidepanel">
+                          <div id="datepicker"></div>
+                      </div>
                   </div>
               </div>
               <div class="col-sm-8">
@@ -157,20 +160,26 @@
         }
       };
 
-      // Set up swiping for the left sidepanel
+      // Set up swiping and clicking for the left sidepanel
       var leftSidepanels = document.getElementsByClassName('left-sidepanel');
-      document.addEventListener('swiped-right', function(e) {
-        if (e.target.classList.contains('sidepanel-container')) {
+      var leftSidepanelLabels = document.getElementsByClassName('left-sidepanel-label');
+      async function openSidepanel(e) {
+        if ( (e.target.classList.contains('sidepanel-container')) | (e.type == 'click') ) {
           for (var i = leftSidepanels.length - 1; i >= 0; i--) {
             leftSidepanels[i].classList.add('sidepanel-show');
           }
         }
-      });
-      document.addEventListener('swiped-left', function(e) {
+      }
+      async function closeSidepanel(e) {
         for (var i = leftSidepanels.length - 1; i >= 0; i--) {
           leftSidepanels[i].classList.remove('sidepanel-show');
         }
-      });
+      }
+      for (var i = leftSidepanelLabels.length - 1; i >= 0; i--) {
+        leftSidepanelLabels[i].addEventListener("click", openSidepanel)
+      }
+      document.addEventListener('swiped-right', openSidepanel);
+      document.addEventListener('swiped-left', closeSidepanel);
 
     </script>
 
