@@ -25,7 +25,8 @@ def schedule_charging_station(
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
-    price_sensor: Optional[Sensor] = None,
+    up_deviation_price_sensor: Optional[Sensor] = None,
+    down_deviation_price_sensor: Optional[Sensor] = None,
     round_to_decimals: Optional[int] = 6,
 ) -> Union[pd.Series, None]:
     """Schedule a charging station asset based directly on the latest beliefs regarding market prices within the specified time
@@ -53,13 +54,21 @@ def schedule_charging_station(
         soc_max = sensor.get_attribute("max_soc_in_mwh", max(soc_targets.values))
 
     # Check for known prices or price forecasts, trimming planning window accordingly
-    prices, (start, end) = get_prices(
+    up_deviation_prices, (start, end) = get_prices(
         (start, end),
         resolution,
-        price_sensor=price_sensor,
+        price_sensor=up_deviation_price_sensor,
         sensor=sensor,
         allow_trimmed_query_window=True,
     )
+    down_deviation_prices, (start, end) = get_prices(
+        (start, end),
+        resolution,
+        price_sensor=down_deviation_price_sensor,
+        sensor=sensor,
+        allow_trimmed_query_window=True,
+    )
+
     # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
     soc_targets = soc_targets.tz_convert("UTC")
     start = pd.Timestamp(start).tz_convert("UTC")
@@ -69,17 +78,20 @@ def schedule_charging_station(
     # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
     # We penalise the future with at most 1 per thousand times the price spread.
     if prefer_charging_sooner:
-        prices = add_tiny_price_slope(prices, "event_value")
+        up_deviation_prices = add_tiny_price_slope(up_deviation_prices, "event_value")
+        down_deviation_prices = add_tiny_price_slope(
+            down_deviation_prices, "event_value"
+        )
 
     # Set up commitments to optimise for
     commitment_quantities = [initialize_series(0, start, end, resolution)]
 
     # Todo: convert to EUR/(deviation of commitment, which is in MW)
     commitment_upwards_deviation_price = [
-        prices.loc[start : end - resolution]["event_value"]
+        up_deviation_prices.loc[start : end - resolution]["event_value"]
     ]
     commitment_downwards_deviation_price = [
-        prices.loc[start : end - resolution]["event_value"]
+        down_deviation_prices.loc[start : end - resolution]["event_value"]
     ]
 
     # Set up device constraints (only one device for this EMS)

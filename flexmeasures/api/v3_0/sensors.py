@@ -219,6 +219,12 @@ class SensorAPI(FlaskView):
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
             "targets": fields.List(fields.Nested(TargetSchema), data_key="soc-targets"),
             # todo: add a duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
+            "up_deviation_price_sensor": SensorIdField(
+                data_key="up-deviation-price-sensor", required=False
+            ),
+            "down_deviation_price_sensor": SensorIdField(
+                data_key="down-deviation-price-sensor", required=False
+            ),
         },
         location="json",
     )
@@ -230,6 +236,8 @@ class SensorAPI(FlaskView):
         unit: str,
         prior: datetime,
         roundtrip_efficiency: Optional[ur.Quantity] = None,
+        up_deviation_price_sensor: Optional[Sensor] = None,
+        down_deviation_price_sensor: Optional[Sensor] = None,
         **kwargs,
     ):
         """
@@ -257,6 +265,8 @@ class SensorAPI(FlaskView):
         with a target state of charge of 25 kWh at 4.00pm.
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
+        Consumption should be priced by sensor 9,
+        and feed-in (i.e. production) should be priced by sensor 10.
 
         .. code-block:: json
 
@@ -272,7 +282,9 @@ class SensorAPI(FlaskView):
                 ],
                 "soc-min": 10,
                 "soc-max": 25,
-                "roundtrip-efficiency": 0.98
+                "roundtrip-efficiency": 0.98,
+                "up-deviation-price-sensor": 9,
+                "down-deviation-price-sensor": 10
             }
 
         **Example response**
@@ -394,6 +406,8 @@ class SensorAPI(FlaskView):
             soc_min=soc_min,
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
+            up_deviation_price_sensor=up_deviation_price_sensor,
+            down_deviation_price_sensor=down_deviation_price_sensor,
             enqueue=True,
         )
 

@@ -912,7 +912,8 @@ def create_schedule(
         soc_min=soc_min,
         soc_max=soc_max,
         roundtrip_efficiency=roundtrip_efficiency,
-        price_sensor=optimization_context_sensor,
+        up_deviation_price_sensor=optimization_context_sensor,
+        down_deviation_price_sensor=optimization_context_sensor,
     )
     if success:
         print("New schedule is stored.")

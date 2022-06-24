@@ -38,6 +38,8 @@ def create_scheduling_job(
     soc_min: Optional[float] = None,
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
+    up_deviation_price_sensor: Optional[Sensor] = None,
+    down_deviation_price_sensor: Optional[Sensor] = None,
     job_id: Optional[str] = None,
     enqueue: bool = True,
 ) -> Job:
@@ -66,6 +68,8 @@ def create_scheduling_job(
             soc_min=soc_min,
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
+            up_deviation_price_sensor=up_deviation_price_sensor,
+            down_deviation_price_sensor=down_deviation_price_sensor,
         ),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
@@ -96,7 +100,8 @@ def make_schedule(
     soc_min: Optional[float] = None,
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
-    price_sensor: Optional[Sensor] = None,
+    up_deviation_price_sensor: Optional[Sensor] = None,
+    down_deviation_price_sensor: Optional[Sensor] = None,
 ) -> bool:
     """Preferably, a starting soc is given.
     Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
@@ -142,7 +147,8 @@ def make_schedule(
             soc_min,
             soc_max,
             roundtrip_efficiency,
-            price_sensor=price_sensor,
+            up_deviation_price_sensor=up_deviation_price_sensor,
+            down_deviation_price_sensor=down_deviation_price_sensor,
         )
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
@@ -158,7 +164,8 @@ def make_schedule(
             soc_min,
             soc_max,
             roundtrip_efficiency,
-            price_sensor=price_sensor,
+            up_deviation_price_sensor=up_deviation_price_sensor,
+            down_deviation_price_sensor=down_deviation_price_sensor,
         )
     else:
         raise ValueError(
