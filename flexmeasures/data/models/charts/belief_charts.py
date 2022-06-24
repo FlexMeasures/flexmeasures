@@ -73,7 +73,13 @@ def chart_for_multiple_sensors(
                 "x": FIELD_DEFINITIONS["event_start"],
                 "x2": FIELD_DEFINITIONS["event_end"],
                 "y": event_value_field_definition,
-                "opacity": {"value": 0.7},
+                "size": {
+                    "condition": {
+                        "value": "200",
+                        "test": {"param": "paintbrush", "empty": False},
+                    },
+                    "value": "0",
+                },
                 "tooltip": [
                     FIELD_DEFINITIONS["full_date"],
                     {
@@ -82,6 +88,17 @@ def chart_for_multiple_sensors(
                     },
                 ],
             },
+            "params": [
+                {
+                    "name": "paintbrush",
+                    "select": {
+                        "type": "point",
+                        "encodings": ["x"],
+                        "on": "mouseover",
+                        "nearest": True,
+                    },
+                },
+            ],
             "width": "container",
             "transform": [
                 {
