@@ -220,10 +220,10 @@ class SensorAPI(FlaskView):
             "targets": fields.List(fields.Nested(TargetSchema), data_key="soc-targets"),
             # todo: add a duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
             "up_deviation_price_sensor": SensorIdField(
-                data_key="up-deviation-price-sensor", required=False
+                data_key="consumption-price-sensor", required=False
             ),
             "down_deviation_price_sensor": SensorIdField(
-                data_key="down-deviation-price-sensor", required=False
+                data_key="feed-in-price-sensor", required=False
             ),
         },
         location="json",
@@ -283,8 +283,8 @@ class SensorAPI(FlaskView):
                 "soc-min": 10,
                 "soc-max": 25,
                 "roundtrip-efficiency": 0.98,
-                "up-deviation-price-sensor": 9,
-                "down-deviation-price-sensor": 10
+                "consumption-price-sensor": 9,
+                "feed-in-price-sensor": 10
             }
 
         **Example response**
