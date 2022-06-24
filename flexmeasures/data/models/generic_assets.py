@@ -297,8 +297,11 @@ class GenericAsset(db.Model, AuthModelMixin):
         # Get sensors to show (by default, show two of the asset's sensors)
         sensors = self.sensors
         if self.has_attribute("show_sensors"):
+            from flexmeasures.data.services.sensors import get_public_sensors
+
             sensor_ids = self.get_attribute("show_sensors")
             sensors = [sensor for sensor in sensors if sensor.id in sensor_ids]
+            sensors += get_public_sensors(sensor_ids)
         else:
             sensors = sensors[:2]
 

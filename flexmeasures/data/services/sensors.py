@@ -26,3 +26,18 @@ def get_sensors(
         )
 
     return sensor_query.all()
+
+
+def get_public_sensors(sensor_ids: list[int] | None = None) -> list[Sensor]:
+    """Return a list of Sensor objects that belong to a public asset.
+
+    :param sensor_ids: optionally, filter by sensor id.
+    """
+    sensor_query = (
+        Sensor.query.join(GenericAsset)
+        .filter(Sensor.generic_asset_id == GenericAsset.id)
+        .filter(GenericAsset.account_id.is_(None))
+    )
+    if sensor_ids:
+        sensor_query = sensor_query.filter(Sensor.id.in_(sensor_ids))
+    return sensor_query.all()
