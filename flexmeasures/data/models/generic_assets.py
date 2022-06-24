@@ -389,8 +389,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         if as_json:
             from flexmeasures.data.services.time_series import simplify_index
 
+            smallest_resolution = min(bdf.event_resolution for bdf in bdf_dict.values())
             df_dict = {}
             for sensor, bdf in bdf_dict.items():
+                bdf = bdf.resample_events(smallest_resolution)
                 df = simplify_index(bdf)
                 df_dict[sensor.id] = df.rename(columns=dict(event_value=sensor.id))
             if len(df_dict) > 0:
