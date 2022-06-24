@@ -47,7 +47,7 @@ def bar_chart(
     return chart_specs
 
 
-def point_chart_for_multiple_sensors(
+def chart_for_multiple_sensors(
     sensors: list["Sensor"],  # noqa F821
     **override_chart_specs: dict,
 ):

@@ -269,7 +269,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     def chart(
         self,
-        chart_type: str = "point_chart_for_multiple_sensors",
+        chart_type: str = "chart_for_multiple_sensors",
         event_starts_after: Optional[datetime] = None,
         event_ends_before: Optional[datetime] = None,
         beliefs_after: Optional[datetime] = None,
