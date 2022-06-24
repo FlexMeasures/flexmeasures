@@ -92,12 +92,6 @@ h1, h2, h3 {
     font-weight: 600;
     color: var(--primary-color);
 }
-.sidepanel h1,
-.sidepanel h2,
-.sidepanel h3,
-.sidepanel label {
-    color: var(--white) !important;
-}
 
 hr {
     border-top: none;
@@ -915,10 +909,18 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 /* ---- Side panel ---- */
 
 @media (min-width: 768px) {
+    .sidepanel h1,
+    .sidepanel h2,
+    .sidepanel h3,
+    .sidepanel label {
+        color: var(--nav-default-color) !important;
+    }
     .sidepanel-container {
         z-index: 20;
     }
-    .sidepanel {
+    .sidepanel,
+    .left-sidepanel-label {
+        color: var(--nav-default-color);
         background: var(--nav-default-background-color);
         width: calc(var(--litepicker-day-width) * 9);
         margin: 15px;
