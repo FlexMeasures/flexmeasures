@@ -394,7 +394,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                 df = simplify_index(bdf)
                 df_dict[sensor.id] = df.rename(columns=dict(event_value=sensor.id))
             if len(df_dict) > 0:
-                df = list(df_dict.values())[0].join(list(df_dict.values())[1:])
+                df = list(df_dict.values())[0].join(
+                    list(df_dict.values())[1:], how="outer"
+                )
             else:
                 df = simplify_index(BeliefsDataFrame())
             df = df.reset_index()
