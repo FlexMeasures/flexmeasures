@@ -160,27 +160,8 @@
         }
       };
 
-      // Set up swiping and clicking for the left sidepanel
-      var leftSidepanels = document.getElementsByClassName('left-sidepanel');
-      var leftSidepanelLabels = document.getElementsByClassName('left-sidepanel-label');
-      async function openSidepanel(e) {
-        if ( (e.target.classList.contains('sidepanel-container')) | (e.type == 'click') ) {
-          for (var i = leftSidepanels.length - 1; i >= 0; i--) {
-            leftSidepanels[i].classList.add('sidepanel-show');
-          }
-        }
-      }
-      async function closeSidepanel(e) {
-        for (var i = leftSidepanels.length - 1; i >= 0; i--) {
-          leftSidepanels[i].classList.remove('sidepanel-show');
-        }
-      }
-      for (var i = leftSidepanelLabels.length - 1; i >= 0; i--) {
-        leftSidepanelLabels[i].addEventListener("click", openSidepanel)
-      }
-      document.addEventListener('swiped-right', openSidepanel);
-      document.addEventListener('swiped-left', closeSidepanel);
-
     </script>
+
+    {% block leftsidepanel %} {{ super() }} {% endblock %}
 
 {% endblock %}
