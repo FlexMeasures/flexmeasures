@@ -1,4 +1,4 @@
-from typing import Optional, List
+from __future__ import annotations
 
 from werkzeug.exceptions import NotFound
 
@@ -7,8 +7,8 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 
 
 def get_sensors(
-    account_name: Optional[str] = None,
-) -> List[Sensor]:
+    account_name: str | None = None,
+) -> list[Sensor]:
     """Return a list of Sensor objects.
 
     :param account_name: optionally, filter by account name.
