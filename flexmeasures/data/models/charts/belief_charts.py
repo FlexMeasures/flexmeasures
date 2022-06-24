@@ -98,7 +98,7 @@ def chart_for_multiple_sensors(
         bounds="flush",
     )
     chart_specs["config"] = {
-        "view": {"continuousWidth": 800, "continuousHeight": 100},
+        "view": {"continuousWidth": 800, "continuousHeight": 150},
         "autosize": {"type": "fit-x", "contains": "padding"},
         "legend": {"orient": "bottom", "columns": 1, "direction": "vertical"},
     }
