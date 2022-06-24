@@ -17,7 +17,7 @@ def bar_chart(
         **FIELD_DEFINITIONS["event_value"],
     )
     chart_specs = {
-        "description": "A simple bar chart.",
+        "description": "A simple bar chart showing sensor data.",
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "mark": "bar",
         "encoding": {
@@ -92,7 +92,7 @@ def point_chart_for_multiple_sensors(
         }
         sensors_specs.append(sensor_specs)
     chart_specs = dict(
-        description="A vertically concatenated bar chart.",
+        description="A vertically concatenated chart showing sensor data.",
         vconcat=[*sensors_specs],
         spacing=100,
         bounds="flush",
