@@ -71,7 +71,6 @@ def chart_for_multiple_sensors(
             "mark": "point",
             "encoding": {
                 "x": FIELD_DEFINITIONS["event_start"],
-                "x2": FIELD_DEFINITIONS["event_end"],
                 "y": event_value_field_definition,
                 "size": {
                     "condition": {
@@ -100,12 +99,6 @@ def chart_for_multiple_sensors(
                 },
             ],
             "width": "container",
-            "transform": [
-                {
-                    "calculate": f"datum.event_start + {sensor.event_resolution.total_seconds() * 1000}",
-                    "as": "event_end",
-                },
-            ],
         }
         sensors_specs.append(sensor_specs)
     chart_specs = dict(
