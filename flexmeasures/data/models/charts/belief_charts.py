@@ -68,34 +68,51 @@ def chart_for_multiple_sensors(
             "title": capitalize(sensor.name)
             if sensor.name != sensor.sensor_type
             else None,
-            "mark": "point",
-            "encoding": {
-                "x": FIELD_DEFINITIONS["event_start"],
-                "y": event_value_field_definition,
-                "size": {
-                    "condition": {
-                        "value": "200",
-                        "test": {"param": "paintbrush", "empty": False},
-                    },
-                    "value": "0",
-                },
-                "tooltip": [
-                    FIELD_DEFINITIONS["full_date"],
-                    {
-                        **event_value_field_definition,
-                        **dict(title=f"{capitalize(sensor.sensor_type)}"),
-                    },
-                ],
-            },
-            "params": [
+            "layer": [
                 {
-                    "name": "paintbrush",
-                    "select": {
-                        "type": "point",
-                        "encodings": ["x"],
-                        "on": "mouseover",
-                        "nearest": True,
+                    "mark": {
+                        "type": "line",
+                        "interpolate": "step-after",
                     },
+                    "encoding": {
+                        "x": FIELD_DEFINITIONS["event_start"],
+                        "y": event_value_field_definition,
+                    },
+                },
+                {
+                    "mark": {
+                        "type": "circle",
+                        "opacity": 1,
+                    },
+                    "encoding": {
+                        "x": FIELD_DEFINITIONS["event_start"],
+                        "y": event_value_field_definition,
+                        "size": {
+                            "condition": {
+                                "value": "200",
+                                "test": {"param": "paintbrush", "empty": False},
+                            },
+                            "value": "0",
+                        },
+                        "tooltip": [
+                            FIELD_DEFINITIONS["full_date"],
+                            {
+                                **event_value_field_definition,
+                                **dict(title=f"{capitalize(sensor.sensor_type)}"),
+                            },
+                        ],
+                    },
+                    "params": [
+                        {
+                            "name": "paintbrush",
+                            "select": {
+                                "type": "point",
+                                "encodings": ["x"],
+                                "on": "mouseover",
+                                "nearest": True,
+                            },
+                        },
+                    ],
                 },
             ],
             "width": "container",
