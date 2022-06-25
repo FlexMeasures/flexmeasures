@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import List, Optional
 
 from flask import current_app
 import click
@@ -40,6 +40,7 @@ def create_scheduling_job(
     roundtrip_efficiency: Optional[float] = None,
     up_deviation_price_sensor: Optional[Sensor] = None,
     down_deviation_price_sensor: Optional[Sensor] = None,
+    inflexible_device_sensors: Optional[List[Sensor]] = None,
     job_id: Optional[str] = None,
     enqueue: bool = True,
 ) -> Job:
@@ -70,6 +71,7 @@ def create_scheduling_job(
             roundtrip_efficiency=roundtrip_efficiency,
             up_deviation_price_sensor=up_deviation_price_sensor,
             down_deviation_price_sensor=down_deviation_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
         ),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
@@ -102,6 +104,7 @@ def make_schedule(
     roundtrip_efficiency: Optional[float] = None,
     up_deviation_price_sensor: Optional[Sensor] = None,
     down_deviation_price_sensor: Optional[Sensor] = None,
+    inflexible_device_sensors: Optional[List[Sensor]] = None,
 ) -> bool:
     """Preferably, a starting soc is given.
     Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
@@ -166,6 +169,7 @@ def make_schedule(
             roundtrip_efficiency,
             up_deviation_price_sensor=up_deviation_price_sensor,
             down_deviation_price_sensor=down_deviation_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
         )
     else:
         raise ValueError(

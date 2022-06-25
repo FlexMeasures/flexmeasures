@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import json
-from typing import Optional
+from typing import List, Optional
 
 from flask import current_app
 from flask_classful import FlaskView, route
@@ -225,6 +225,9 @@ class SensorAPI(FlaskView):
             "down_deviation_price_sensor": SensorIdField(
                 data_key="feed-in-price-sensor", required=False
             ),
+            "inflexible_device_sensors": fields.List(
+                SensorIdField, data_key="inflexible-device-sensors", required=False
+            ),
         },
         location="json",
     )
@@ -238,6 +241,7 @@ class SensorAPI(FlaskView):
         roundtrip_efficiency: Optional[ur.Quantity] = None,
         up_deviation_price_sensor: Optional[Sensor] = None,
         down_deviation_price_sensor: Optional[Sensor] = None,
+        inflexible_device_sensors: Optional[List[Sensor]] = None,
         **kwargs,
     ):
         """
@@ -266,7 +270,9 @@ class SensorAPI(FlaskView):
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
         Consumption should be priced by sensor 9,
-        and feed-in (i.e. production) should be priced by sensor 10.
+        and feed-in (i.e. production) should be priced by sensor 10,
+        where the aggregate power flow includes the sum over sensors 13, 14 and 15.
+        Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
         .. code-block:: json
 
@@ -284,7 +290,8 @@ class SensorAPI(FlaskView):
                 "soc-max": 25,
                 "roundtrip-efficiency": 0.98,
                 "consumption-price-sensor": 9,
-                "feed-in-price-sensor": 10
+                "feed-in-price-sensor": 10,
+                "inflexible-device-sensors": [13, 14, 15]
             }
 
         **Example response**
@@ -408,6 +415,7 @@ class SensorAPI(FlaskView):
             roundtrip_efficiency=roundtrip_efficiency,
             up_deviation_price_sensor=up_deviation_price_sensor,
             down_deviation_price_sensor=down_deviation_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
             enqueue=True,
         )
 

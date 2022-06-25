@@ -98,7 +98,9 @@ def get_prices(
     price_df = simplify_index(price_bdf)
     nan_prices = price_df.isnull().values
     if nan_prices.all() or price_df.empty:
-        raise UnknownPricesException("Prices unknown for planning window.")
+        raise UnknownPricesException(
+            f"Prices unknown for planning window. (sensor {price_sensor.id})"
+        )
     elif (
         nan_prices.any()
         or pd.Timestamp(price_df.index[0]).tz_convert("UTC")
@@ -110,14 +112,36 @@ def get_prices(
             first_event_start = price_df.first_valid_index()
             last_event_end = price_df.last_valid_index() + resolution
             current_app.logger.warning(
-                f"Prices partially unknown for planning window. Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
+                f"Prices partially unknown for planning window (sensor {price_sensor.id}). Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
             )
             query_window = (first_event_start, last_event_end)
         else:
             raise UnknownPricesException(
-                "Prices partially unknown for planning window."
+                f"Prices partially unknown for planning window (sensor {price_sensor.id})."
             )
     return price_df, query_window
+
+
+def inflexible_device_forecasts(
+    query_window: Tuple[datetime, datetime],
+    resolution: timedelta,
+    sensor: Sensor,
+):
+    bdf: tb.BeliefsDataFrame = TimedBelief.search(
+        sensor,
+        event_starts_after=query_window[0],
+        event_ends_before=query_window[1],
+        resolution=to_offset(resolution).freqstr,
+        most_recent_beliefs_only=True,
+        one_deterministic_belief_per_event=True,
+    )
+    df = simplify_index(bdf)
+    nan_values = df.isnull().values
+    if nan_values.any() or df.empty:
+        raise UnknownPricesException(
+            f"Forecasts unknown for planning window. (sensor {sensor.id})"
+        )
+    return df.values
 
 
 def fallback_charging_policy(

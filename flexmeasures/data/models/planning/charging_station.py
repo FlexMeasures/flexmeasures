@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import List, Optional, Union
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -10,6 +10,7 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     add_tiny_price_slope,
     get_prices,
+    inflexible_device_forecasts,
     fallback_charging_policy,
 )
 
@@ -27,6 +28,7 @@ def schedule_charging_station(
     prefer_charging_sooner: bool = True,
     up_deviation_price_sensor: Optional[Sensor] = None,
     down_deviation_price_sensor: Optional[Sensor] = None,
+    inflexible_device_sensors: Optional[List[Sensor]] = None,
     round_to_decimals: Optional[int] = 6,
 ) -> Union[pd.Series, None]:
     """Schedule a charging station asset based directly on the latest beliefs regarding market prices within the specified time
@@ -94,7 +96,7 @@ def schedule_charging_station(
         down_deviation_prices.loc[start : end - resolution]["event_value"]
     ]
 
-    # Set up device constraints (only one device for this EMS)
+    # Set up device constraints (only one flexible device for this EMS, plus inflexible devices)
     columns = [
         "equals",
         "max",
@@ -103,7 +105,17 @@ def schedule_charging_station(
         "derivative max",
         "derivative min",
     ]
-    device_constraints = [initialize_df(columns, start, end, resolution)]
+    if inflexible_device_sensors is None:
+        inflexible_device_sensors = []
+    device_constraints = [initialize_df(columns, start, end, resolution)] * (
+        1 + len(inflexible_device_sensors)
+    )
+    for i, inflexible_sensor in enumerate(inflexible_device_sensors):
+        device_constraints[i + 1]["derivative equals"] = inflexible_device_forecasts(
+            (start, end),
+            resolution,
+            inflexible_sensor,
+        )
     device_constraints[0]["equals"] = soc_targets.shift(-1, freq=resolution).values * (
         timedelta(hours=1) / resolution
     ) - soc_at_start * (
