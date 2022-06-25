@@ -17,11 +17,13 @@ FIELD_DEFINITIONS = {
         field="event_start",
         type="temporal",
         title=None,
+        axis={"labelOverlap": True, "labelSeparation": 1},
     ),
     "event_end": dict(
         field="event_end",
         type="temporal",
         title=None,
+        axis={"labelOverlap": True, "labelSeparation": 1},
     ),
     "event_value": dict(
         field="event_value",
@@ -105,6 +107,7 @@ LEGIBILITY_DEFAULTS = dict(
             titleFontSize=FONT_SIZE,
             labelFontSize=FONT_SIZE,
         ),
+        axisY={"titleAngle": 0, "titleAlign": "left", "titleY": -15, "titleX": -40},
         title=dict(
             fontSize=FONT_SIZE,
         ),
@@ -128,7 +131,8 @@ vega_lite_field_mapping = {
 
 def apply_chart_defaults(fn):
     @wraps(fn)
-    def decorated_chart_specs(*args, **kwargs):
+    def decorated_chart_specs(*args, **kwargs) -> dict:
+        """:returns: dict with vega-lite specs, even when applied to an Altair chart."""
         dataset_name = kwargs.pop("dataset_name", None)
         include_annotations = kwargs.pop("include_annotations", None)
         if isinstance(fn, Callable):

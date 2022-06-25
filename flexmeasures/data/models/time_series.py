@@ -366,9 +366,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         # Set up chart specification
         if dataset_name is None:
             dataset_name = "sensor_" + str(self.id)
-        self.sensor_type = (
-            self.name
-        )  # todo remove this placeholder when sensor types are modelled
+        self.sensor_type = self.get_attribute("sensor_type", self.name)
         chart_specs = chart_type_to_chart_specs(
             chart_type,
             sensor=self,

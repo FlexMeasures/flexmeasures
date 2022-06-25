@@ -33,7 +33,30 @@
     --delete-color: var(--red);
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+/* devanagari */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  src: url(https://fonts.gstatic.com/s/poppins/v20/pxiEyp8kv8JHgFVrJJbecmNE.woff2) format('woff2');
+  unicode-range: U+0900-097F, U+1CD0-1CF6, U+1CF8-1CF9, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  src: url(https://fonts.gstatic.com/s/poppins/v20/pxiEyp8kv8JHgFVrJJnecmNE.woff2) format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  src: url(https://fonts.gstatic.com/s/poppins/v20/pxiEyp8kv8JHgFVrJJfecg.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 body {
     padding-top: 100px;  /* This default is overridden by flexmeasures.js to support a fluid navbar */
@@ -41,6 +64,12 @@ body {
 
 body *:not(.fa, .glyphicon) {
     font-family: 'Poppins', sans-serif;
+}
+
+@media (min-width: 768px) {
+    .on-top-md {
+        z-index: 1010;
+    }
 }
 
 h1 {
@@ -62,6 +91,12 @@ h1, h2, h3 {
     font-size: 30px;
     font-weight: 600;
     color: var(--primary-color);
+}
+.sidepanel h1,
+.sidepanel h2,
+.sidepanel h3,
+.sidepanel label {
+    color: var(--white) !important;
 }
 
 hr {
@@ -108,8 +143,14 @@ form button[type="submit"] {
 }
 
 #spinner {
-    padding-top: 50px !important;
-    padding-bottom: 50px !important;
+    padding-top: 200px;
+    text-align: center;
+    position: absolute;
+    z-index: 10;
+    font-size: 8px;
+    top: 0;
+    left: 0;
+    width: 100%;
 }
 
 .legend {
@@ -170,7 +211,6 @@ p.error {
 /* --- Nav Bar --- */
 
 .navbar-tool-name {
-    margin-right: 30px;
     color: var(--secondary-color);
 }
 
@@ -220,8 +260,8 @@ p.error {
 
 .navbar-brand {
     display: inline-block;
-    width: 200px;
     height: 100%;
+    padding: 10px 15px;
 }
 
 .navbar-brand a {
@@ -231,10 +271,6 @@ p.error {
 .navbar-brand a span {
     display: inline-block;
     color: var(--secondary-color) !important;
-}
-
-.navbar-brand a span img {
-    width: 200px;
 }
 
 .navbar-default .navbar-collapse, .navbar-default .navbar-form {
@@ -264,8 +300,8 @@ p.error {
 
 @media (min-width: 768px) {
     .navbar-nav>li>a {
-        padding-top: 28px;
-        padding-bottom: 28px;
+        padding-top: 20px;
+        padding-bottom: 20px;
     }
 
     .navbar-default .dropdown-menu a {
@@ -301,8 +337,7 @@ p.error {
 }
 
 #navbar-logo {
-    height: 50px;
-    position: fixed; top: 0; left: 0;
+    height: 40px;
 }
 
 /* --- End Nav Bar --- */
@@ -877,12 +912,47 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 /* ---- End Modal ---- */
 
 
-/* ---- Date picker ---- */
+/* ---- Side panel ---- */
 
-#datepicker {
-    margin-top: 50px;
-    margin-bottom: 30px;
+@media (min-width: 768px) {
+    .sidepanel-container {
+        z-index: 20;
+    }
+    .sidepanel {
+        background: var(--nav-default-background-color);
+        width: calc(var(--litepicker-day-width) * 9);
+        margin: 15px;
+        padding: 20px 15px;
+        transition: .3s;
+        -webkit-transition: .3s;
+        -moz-transition: .3s;
+        -ms-transition: .3s;
+        -o-transition: .3s;
+    }
+    .left-sidepanel {
+        border-top-left-radius: 0px;
+        border-bottom-left-radius: 0px;
+        border-top-right-radius: 15px;
+        border-bottom-right-radius: 15px;
+    }
+    .sidepanel-container > .left-sidepanel:not(.sidepanel-show) {
+        transform: translateX(-106%);
+    }
+    @media (hover: hover) {
+        .sidepanel-container:hover > .left-sidepanel,
+        .sidepanel-container:focus-within > .left-sidepanel {
+            transform: translateX(-30px);
+        }
+    }
+    @media (hover: none) {
+        .sidepanel-container > .left-sidepanel.sidepanel-show {
+            transform: translateX(-30px);
+        }
+    }
 }
+
+
+/* ---- Date picker ---- */
 
 .datetimepicker input {
     width: 100%;
@@ -897,7 +967,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     outline: none;
     border-radius: 4px;
     border: 1px solid #ddd;
-    font-size: 13px;
     color: var(--nav-default-color);
     background: var(--nav-default-background-color);
     -webkit-border-radius: 4px;
@@ -907,8 +976,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .container__predefined-ranges {
-    padding: 20px;
-    margin-right: 10px;
+    padding: 0px;
+    margin-top: 15px;
+    justify-content: space-around;
     box-shadow: 0 0 10px rgba(0,0,0,.1) !important;
     border-radius: 6px !important;
     -webkit-border-radius: 6px !important;
@@ -918,26 +988,23 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .container__predefined-ranges button {
-    font-size: 14px;
     font-weight: 500;
     cursor: pointer !important;
+    border-right: 1px solid var(--primary-border-color) !important;
+    flex: 1 1 auto;
+}
+.container__predefined-ranges > button:last-child {
+    border-right: none !important;
 }
 
 .container__months {
+    box-shadow: 0 0 10px rgba(0,0,0,.1) !important;
     border-radius: 6px !important;
     -webkit-border-radius: 6px !important;
     -moz-border-radius: 6px !important;
     -ms-border-radius: 6px !important;
     -o-border-radius: 6px !important;
     justify-content: center;
-}
-
-.month-item-weekdays-row {
-    font-size: 14px;
-}
-
-.week-number {
-    font-size: 14px !important;
 }
 
 .litepicker .container__days .day-item.is-today {
@@ -947,7 +1014,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .litepicker .container__days .day-item {
     color: var(--litepicker-day-color);
-    font-size: 14px;
     cursor: pointer;
     width: 38px;
     height: 38px;
@@ -1058,11 +1124,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     fill: var(--secondary-color) !important;
 }
 
-@media (max-width:525px) {
+@media (max-width: 525px) {
     #datepicker .container__main {
         flex-wrap: wrap;
-        margin-left: 15px;
-        margin-right: 15px;
     }
 
     #datepicker .container__predefined-ranges {
@@ -1077,18 +1141,19 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* --- Sensor Data --- */
 
-.sensor-data .sensor-chart-main {
-    padding: 0;
-}
-
-#sensorchart {
-    padding: 20px 15px 20px 15px;
+.card {
+    background: var(--white);
+    margin: 15px;
+    padding: 20px 15px;
     box-shadow: 0 0 10px rgba(0,0,0,.1);
     border-radius: 6px;
     -webkit-border-radius: 6px;
     -moz-border-radius: 6px;
     -ms-border-radius: 6px;
     -o-border-radius: 6px;
+}
+.card.vega-embed summary {
+    transform: translate(-15px, 15px);
 }
 
 .role-title-text text {
@@ -1098,10 +1163,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .sensor-data .row {
     margin: 0 !important;
-}
-
-#sensorchart {
-    margin-bottom: 40px;
 }
 
 #vg-tooltip-element {

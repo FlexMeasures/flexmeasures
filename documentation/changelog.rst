@@ -8,6 +8,7 @@ v0.11.0 | June XX, 2022
 New features
 -------------
 * Individual sensor charts show available annotations [see `PR #428 <http://www.github.com/FlexMeasures/flexmeasures/pull/428>`_]
+* Collapsible sidepanel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_]
 
 Bugfixes
 -----------

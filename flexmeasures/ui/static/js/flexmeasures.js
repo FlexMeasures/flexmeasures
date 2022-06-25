@@ -310,3 +310,14 @@ function submit_market() {
 function submit_sensor_type() {
     $("#sensor_type-form").attr("action", empty_location).submit();
 }
+
+/** Tooltips: Register custom formatter for quantities incl. units
+              Usage:
+                  {
+                      'format': [<d3-format>, <sensor unit>],
+                      'formatType': 'quantityWithUnitFormat'
+                  }
+*/
+vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
+    return d3.format(params[0])(datum) + " " + params[1];
+});
