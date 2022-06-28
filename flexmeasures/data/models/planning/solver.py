@@ -237,17 +237,19 @@ def device_scheduler(  # noqa C901
         )
 
     def device_down_derivative_bounds(m, d, j):
+        """Strictly non-positive."""
         return (
-            m.device_derivative_min[d, j],
+            min(m.device_derivative_min[d, j], 0),
             m.device_power_down[d, j],
             0,
         )
 
     def device_up_derivative_bounds(m, d, j):
+        """Strictly non-negative."""
         return (
             0,
             m.device_power_up[d, j],
-            m.device_derivative_max[d, j],
+            max(0, m.device_derivative_max[d, j]),
         )
 
     def ems_derivative_bounds(m, j):
