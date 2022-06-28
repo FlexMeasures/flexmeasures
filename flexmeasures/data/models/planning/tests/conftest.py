@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from random import random
 import pytest
 
-import numpy as np
 import pandas as pd
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -38,6 +36,7 @@ def add_inflexible_devices(db, setup_accounts) -> dict[str, Sensor]:
         generic_asset=test_building,
         event_resolution=timedelta(hours=1),
         unit="kW",
+        attributes={"capacity_in_mw": 2},
     )
     db.session.add(pv_sensor)
     return {pv_sensor.name: pv_sensor}
@@ -50,13 +49,15 @@ def add_inflexible_device_forecasts(
     """
     Set up inflexible devices and forecasts.
     """
-    # one day of test data (one complete sine curve)
+    # 2 days of test data (each 8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
     time_slots = pd.date_range(
-        datetime(2015, 1, 1), datetime(2015, 1, 2), freq="1H", closed="left"
+        datetime(2015, 1, 1), datetime(2015, 1, 3), freq="1H", closed="left"
     )
-    values = [
-        random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
-    ]
+    headroom = 0.1  # 90% of nominal capacity
+    capacity = add_inflexible_devices["PV power sensor"].get_attribute("capacity_in_mw")
+    values = ([0] * 8 + [(1 - headroom) * capacity] * 8 + [0] * 8) * (
+        len(time_slots) // 24
+    )
     day1_beliefs = [
         TimedBelief(
             event_start=as_server_time(dt),
