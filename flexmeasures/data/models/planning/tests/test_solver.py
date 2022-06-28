@@ -20,7 +20,7 @@ def test_battery_solver_day_1(
 ):
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert Sensor.query.get(battery.get_attribute("market_id")) == epex_da
+    assert battery.get_attribute("market_id") == epex_da.id
     start = as_server_time(datetime(2015, 1, 1))
     end = as_server_time(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
@@ -71,7 +71,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
     """
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    assert Sensor.query.get(battery.get_attribute("market_id")) == epex_da
+    assert battery.get_attribute("market_id") == epex_da.id
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
@@ -145,7 +145,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
         Sensor.name == charging_station_name
     ).one_or_none()
     assert charging_station.get_attribute("capacity_in_mw") == 2
-    assert Sensor.query.get(charging_station.get_attribute("market_id")) == epex_da
+    assert charging_station.get_attribute("market_id") == epex_da.id
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
@@ -201,7 +201,7 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
         Sensor.name == charging_station_name
     ).one_or_none()
     assert charging_station.get_attribute("capacity_in_mw") == 2
-    assert Sensor.query.get(charging_station.get_attribute("market_id")) == epex_da
+    assert charging_station.get_attribute("market_id") == epex_da.id
     start = as_server_time(datetime(2015, 1, 2))
     end = as_server_time(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
