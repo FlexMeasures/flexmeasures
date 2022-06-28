@@ -14,9 +14,9 @@ from flexmeasures.utils.time_utils import as_server_time
 TOLERANCE = 0.00001
 
 
-@pytest.mark.parametrize("inflexible_device", [False, True])
+@pytest.mark.parametrize("use_inflexible_device", [False, True])
 def test_battery_solver_day_1(
-    add_battery_assets, add_inflexible_device_forecasts, inflexible_device
+    add_battery_assets, add_inflexible_device_forecasts, use_inflexible_device
 ):
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
@@ -32,7 +32,7 @@ def test_battery_solver_day_1(
         resolution,
         soc_at_start,
         inflexible_device_sensors=add_inflexible_device_forecasts.keys()
-        if inflexible_device
+        if use_inflexible_device
         else None,
     )
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
