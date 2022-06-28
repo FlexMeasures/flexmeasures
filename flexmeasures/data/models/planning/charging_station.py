@@ -145,9 +145,13 @@ def schedule_charging_station(
     device_constraints[0]["derivative down efficiency"] = roundtrip_efficiency**0.5
     device_constraints[0]["derivative up efficiency"] = roundtrip_efficiency**0.5
 
-    # Set up EMS constraints (no additional constraints)
+    # Set up EMS constraints
     columns = ["derivative max", "derivative min"]
     ems_constraints = initialize_df(columns, start, end, resolution)
+    ems_capacity = sensor.generic_asset.get_attribute("capacity_in_mw")
+    if ems_capacity is not None:
+        ems_constraints["derivative min"] = ems_capacity * -1
+        ems_constraints["derivative max"] = ems_capacity
 
     ems_schedule, expected_costs, scheduler_results = device_scheduler(
         device_constraints,
