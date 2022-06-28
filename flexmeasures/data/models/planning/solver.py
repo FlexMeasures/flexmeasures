@@ -173,15 +173,21 @@ def device_scheduler(  # noqa C901
 
     def device_derivative_down_efficiency(m, d, j):
         try:
-            return device_constraints[d]["derivative down efficiency"].iloc[j]
+            eff = device_constraints[d]["derivative down efficiency"].iloc[j]
         except KeyError:
             return 1
+        if np.isnan(eff):
+            return 1
+        return eff
 
     def device_derivative_up_efficiency(m, d, j):
         try:
-            return device_constraints[d]["derivative up efficiency"].iloc[j]
+            eff = device_constraints[d]["derivative up efficiency"].iloc[j]
         except KeyError:
             return 1
+        if np.isnan(eff):
+            return 1
+        return eff
 
     model.up_price = Param(model.c, model.j, initialize=price_up_select)
     model.down_price = Param(model.c, model.j, initialize=price_down_select)
