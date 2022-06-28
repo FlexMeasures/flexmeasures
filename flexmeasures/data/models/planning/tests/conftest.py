@@ -45,7 +45,7 @@ def add_inflexible_devices(db, setup_accounts) -> dict[str, Sensor]:
 @pytest.fixture(scope="module")
 def add_inflexible_device_forecasts(
     db, add_inflexible_devices, setup_sources
-) -> dict[str, Sensor]:
+) -> dict[Sensor, list[int | float]]:
     """
     Set up inflexible devices and forecasts.
     """
@@ -54,7 +54,8 @@ def add_inflexible_device_forecasts(
         datetime(2015, 1, 1), datetime(2015, 1, 3), freq="1H", closed="left"
     )
     headroom = 0.1  # 90% of nominal capacity
-    capacity = add_inflexible_devices["PV power sensor"].get_attribute("capacity_in_mw")
+    sensor = add_inflexible_devices["PV power sensor"]
+    capacity = sensor.get_attribute("capacity_in_mw")
     values = ([0] * 8 + [(1 - headroom) * capacity] * 8 + [0] * 8) * (
         len(time_slots) // 24
     )
@@ -64,9 +65,9 @@ def add_inflexible_device_forecasts(
             belief_horizon=timedelta(hours=0),
             event_value=val,
             source=setup_sources["Seita"],
-            sensor=add_inflexible_devices["PV power sensor"],
+            sensor=sensor,
         )
         for dt, val in zip(time_slots, values)
     ]
     db.session.add_all(day1_beliefs)
-    return add_inflexible_devices
+    return {sensor: values}

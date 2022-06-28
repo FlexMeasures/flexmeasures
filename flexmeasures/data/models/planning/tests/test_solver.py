@@ -31,7 +31,7 @@ def test_battery_solver_day_1(
         end,
         resolution,
         soc_at_start,
-        inflexible_device_sensors=add_inflexible_device_forecasts.values()
+        inflexible_device_sensors=add_inflexible_device_forecasts.keys()
         if inflexible_device
         else None,
     )
