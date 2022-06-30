@@ -231,3 +231,87 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
         abs(abs(soc_schedule.loc[target_soc_datetime] - target_soc) - expected_gap)
         < TOLERANCE
     )
+
+
+def test_building_solver_day_2(
+    db,
+    add_battery_assets,
+    add_market_prices,
+    add_inflexible_device_forecasts,
+    inflexible_devices,
+    flexible_devices,
+):
+    """Check battery scheduling results within the context of a building with PV, for day 2,
+    which is set up with 8 expensive, then 8 cheap, then again 8 expensive hours.
+    We expect the scheduler to:
+    - completely discharge within the first 8 hours
+    - completely charge within the next 8 hours
+    - completely discharge within the last 8 hours
+    """
+    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
+    battery = flexible_devices["battery power sensor"]
+    building = battery.generic_asset
+    assert battery.get_attribute("market_id") == epex_da.id
+    start = as_server_time(datetime(2015, 1, 2))
+    end = as_server_time(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 2.5
+    soc_min = 0.5
+    soc_max = 4.5
+    schedule = schedule_battery(
+        battery,
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_min=soc_min,
+        soc_max=soc_max,
+        inflexible_device_sensors=inflexible_devices.values(),
+    )
+    soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
+
+    with pd.option_context("display.max_rows", None, "display.max_columns", 3):
+        print(soc_schedule)
+
+    # Check if constraints were met
+    capacity = pd.DataFrame(
+        data=np.sum(np.array(list(add_inflexible_device_forecasts.values())), axis=0),
+        columns=["inflexible"],
+    ).tail(
+        -4 * 24
+    )  # remove first 96 quarterhours (the schedule is about the 2nd day)
+    capacity["max"] = building.get_attribute("capacity_in_mw")
+    capacity["min"] = -building.get_attribute("capacity_in_mw")
+    capacity["production headroom"] = capacity["max"] - capacity["inflexible"]
+    capacity["consumption headroom"] = capacity["inflexible"] - capacity["min"]
+    capacity["battery production headroom"] = capacity["production headroom"].clip(
+        upper=battery.get_attribute("capacity_in_mw")
+    )
+    capacity["battery consumption headroom"] = capacity["consumption headroom"].clip(
+        upper=battery.get_attribute("capacity_in_mw")
+    )
+    capacity[
+        "schedule"
+    ] = schedule.values  # consumption is positive, production is negative
+    with pd.option_context(
+        "display.max_rows", None, "display.max_columns", None, "display.width", 2000
+    ):
+        print(capacity)
+    assert (capacity["schedule"] >= -capacity["battery production headroom"]).all()
+    assert (capacity["schedule"] <= capacity["battery consumption headroom"]).all()
+
+    for soc in soc_schedule.values:
+        assert soc >= max(soc_min, battery.get_attribute("min_soc_in_mwh"))
+        assert soc <= battery.get_attribute("max_soc_in_mwh")
+
+    # Check whether the resulting soc schedule follows our expectations for 8 expensive, 8 cheap and 8 expensive hours
+    assert soc_schedule.iloc[-1] == max(
+        soc_min, battery.get_attribute("min_soc_in_mwh")
+    )  # Battery sold out at the end of its planning horizon
+
+    assert soc_schedule.loc[start + timedelta(hours=8)] == max(
+        soc_min, battery.get_attribute("min_soc_in_mwh")
+    )  # Sell what you begin with
+    assert soc_schedule.loc[start + timedelta(hours=16)] == min(
+        soc_max, battery.get_attribute("max_soc_in_mwh")
+    )  # Buy what you can to sell later
