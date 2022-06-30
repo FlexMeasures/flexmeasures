@@ -127,6 +127,9 @@ def inflexible_device_forecasts(
     resolution: timedelta,
     sensor: Sensor,
 ):
+    """
+    :returns: power forecasts (consumption is positive, production is negative)
+    """
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
         sensor,
         event_starts_after=query_window[0],
@@ -134,14 +137,14 @@ def inflexible_device_forecasts(
         resolution=to_offset(resolution).freqstr,
         most_recent_beliefs_only=True,
         one_deterministic_belief_per_event=True,
-    )
+    )  # consumption is negative, production is positive
     df = simplify_index(bdf)
     nan_values = df.isnull().values
     if nan_values.any() or df.empty:
         raise UnknownPricesException(
             f"Forecasts unknown for planning window. (sensor {sensor.id})"
         )
-    return df.values
+    return -df.values
 
 
 def fallback_charging_policy(
