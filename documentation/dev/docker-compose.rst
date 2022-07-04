@@ -44,9 +44,9 @@ Check ``docker ps`` or ``docker-compose ps`` to see if your containers are runni
 
     ± docker ps
     CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS                    PORTS                    NAMES
-    dda1a8606926        flexmeasures_server   "bash -c 'flexmeasur…"   43 seconds ago      Up 41 seconds (healthy)   0.0.0.0:5000->5000/tcp   flexmeasures_server_1
-    27ed9eef1b04        postgres              "docker-entrypoint.s…"   2 days ago          Up 42 seconds             5432/tcp                 flexmeasures_dev-db_1
-    90df2065e08d        postgres              "docker-entrypoint.s…"   2 days ago          Up 42 seconds             5432/tcp                 flexmeasures_test-db_1
+    dda1a8606926        flexmeasures_server   "bash -c 'flexmeasur…"   43 seconds ago      Up 41 seconds (healthy)   0.0.0.0:5000->5000/tcp   flexmeasures-server-1
+    27ed9eef1b04        postgres              "docker-entrypoint.s…"   2 days ago          Up 42 seconds             5432/tcp                 flexmeasures-dev-db-1
+    90df2065e08d        postgres              "docker-entrypoint.s…"   2 days ago          Up 42 seconds             5432/tcp                 flexmeasures-test-db-1
 
 
 The FlexMeasures container has a health check implemented, which is reflected in this output and you can see which ports are available on your machine to interact.
@@ -78,6 +78,6 @@ After you've started the compose stack with ``docker-compose up``, run:
 
 .. code-block:: console
 
-    docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures_server_1 pytest
+    docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures-server-1 pytest
 
 This rounds up the dev experience offered by running FlexMeasures in Docker. Now you can develop FlexMeasures and also run your tests. If you develop plugins, you could extend the command being used, e.g. ``bash -c "cd /path/to/my/plugin && pytest"``. 
