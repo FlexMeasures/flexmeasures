@@ -153,12 +153,12 @@ def read_env_vars(app: Flask):
     """
     Read in what we support as environment settings.
     At the moment, these are:
-    - All required variables
+    - All required and warnable variables
     - Logging settings
     - access tokens
     - plugins (handled in plugin utils)
     """
-    for var in required + ["LOGGING_LEVEL", "MAPBOX_ACCESS_TOKEN", "SENTRY_SDN"]:
+    for var in required + list(warnable.keys()) + ["LOGGING_LEVEL", "MAPBOX_ACCESS_TOKEN", "SENTRY_SDN"]:
         app.config[var] = os.getenv(var, app.config.get(var, None))
     # DEBUG in env can come in as a string ("True") so make sure we don't trip here
     app.config["DEBUG"] = int(bool(os.getenv("DEBUG", app.config.get("DEBUG", False))))
