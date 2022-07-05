@@ -18,6 +18,16 @@ services:
       POSTGRES_PASSWORD: fm-dev-db-pass
     volumes:
       - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
+  queue-db:
+    image: redis
+    restart: always
+    command: redis-server --loglevel warning --requirepass fm-redis-pass
+    expose:
+      - 6379
+    volumes:
+      - redis-cache:/data
+    environment:
+     - REDIS_REPLICATION_MODE=master
   server:
     build:
       context: .
@@ -47,6 +57,25 @@ services:
       bash -c "flexmeasures db upgrade
       && flexmeasures add toy-account --name 'Docker Toy Account'
       && gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application"
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - dev-db
+      - queue-db
+    restart: on-failure
+    environment:
+      SQLALCHEMY_DATABASE_URI: "postgresql://fm-dev-db-user:fm-dev-db-pass@dev-db:5432/fm-dev-db"
+      FLEXMEASURES_REDIS_URL: queue-db
+      FLEXMEASURES_REDIS_PASSWORD: fm-redis-pass
+      SECRET_KEY: notsecret
+      FLASK_ENV: development
+      LOGGING_LEVEL: INFO 
+    volumes:
+      # a place for config and plugin code
+      - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
+    command: flexmeasures jobs run-worker --name flexmeasures-worker --queue forecasting\|scheduling
   test-db:
     image: postgres
     expose:
@@ -60,4 +89,6 @@ services:
       - ./ci/load-psql-extensions.sql:/docker-entrypoint-initdb.d/load-psql-extensions.sql
 
 volumes:
+  redis-cache:
+    driver: local
   flexmeasures-instance:
