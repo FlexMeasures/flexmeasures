@@ -24,7 +24,7 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
-from flexmeasures.data.services.scheduling import make_schedule
+from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
@@ -837,6 +837,13 @@ def create_forecasts(
     default=1,
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
 )
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a forecasting job instead of computing directly."
+    " Useful to run locally and create forecasts on a remote server. In that case, just point the redis db in your"
+    " config settings to that of the remote server. To process the job, run a worker to process the forecasting queue. Defaults to False.",
+)
 def create_schedule(
     power_sensor: Sensor,
     optimization_context_sensor: Sensor,
@@ -847,6 +854,7 @@ def create_schedule(
     soc_min: Optional[ur.Quantity] = None,
     soc_max: Optional[ur.Quantity] = None,
     roundtrip_efficiency: Optional[ur.Quantity] = None,
+    as_job: bool = False,
 ):
     """Create a new schedule for a given power sensor.
 
@@ -901,21 +909,38 @@ def create_schedule(
     if soc_max is not None:
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
 
-    success = make_schedule(
-        sensor_id=power_sensor.id,
-        start=start,
-        end=end,
-        belief_time=server_now(),
-        resolution=power_sensor.event_resolution,
-        soc_at_start=soc_at_start,
-        soc_targets=soc_targets,
-        soc_min=soc_min,
-        soc_max=soc_max,
-        roundtrip_efficiency=roundtrip_efficiency,
-        price_sensor=optimization_context_sensor,
-    )
-    if success:
-        print("New schedule is stored.")
+    if as_job:
+        success = create_scheduling_job(
+            sensor_id=power_sensor.id,
+            start_of_schedule=start,
+            end_of_schedule=end,
+            belief_time=server_now(),
+            resolution=power_sensor.event_resolution,
+            soc_at_start=soc_at_start,
+            soc_targets=soc_targets,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            roundtrip_efficiency=roundtrip_efficiency,
+            price_sensor=optimization_context_sensor,
+        ) 
+        if success:
+            print("New scheduling job has been added to the queue.")
+    else:
+        success = make_schedule(
+            sensor_id=power_sensor.id,
+            start=start,
+            end=end,
+            belief_time=server_now(),
+            resolution=power_sensor.event_resolution,
+            soc_at_start=soc_at_start,
+            soc_targets=soc_targets,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            roundtrip_efficiency=roundtrip_efficiency,
+            price_sensor=optimization_context_sensor,
+        )
+        if success:
+            print("New schedule is stored.")
 
 
 @fm_add_data.command("toy-account")
