@@ -63,6 +63,7 @@ class SensorAPI(FlaskView):
             "event_ends_before": AwareDateTimeField(format="iso", required=False),
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
+            "resolution": fields.Str(),
         },
         location="query",
     )
