@@ -720,7 +720,7 @@ def create_forecasts(
 
     For example:
 
-        --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6 --sensor-id 12 --sensor-id 14
+        --from-date 2015-02-02 --to-date 2015-02-04 --horizon 6 --sensor-id 12 --sensor-id 14
 
         This will create forecast values from 0am on May 2nd to 0am on May 5th,
         based on a 6-hour horizon, for sensors 12 and 14.
@@ -922,7 +922,7 @@ def create_schedule(
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
             price_sensor=optimization_context_sensor,
-        ) 
+        )
         if success:
             print("New scheduling job has been added to the queue.")
     else:
