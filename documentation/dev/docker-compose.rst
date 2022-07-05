@@ -165,6 +165,6 @@ After you've started the compose stack with ``docker-compose up``, run:
 
 .. code-block:: console
 
-    docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures_server_1 pytest
+    docker exec -it -e SQLALCHEMY_TEST_DATABASE_URI="postgresql://fm-test-db-user:fm-test-db-pass@test-db:5432/fm-test-db" flexmeasures-server-1 pytest
 
 This rounds up the dev experience offered by running FlexMeasures in Docker. Now you can develop FlexMeasures and also run your tests. If you develop plugins, you could extend the command being used, e.g. ``bash -c "cd /path/to/my/plugin && pytest"``. 
