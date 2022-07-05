@@ -293,22 +293,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         :returns: JSON string defining vega-lite chart specs
         """
-
-        # Get sensors to show (by default, show two of the asset's sensors)
-        sensors = self.sensors
-        if self.has_attribute("show_sensors"):
-            from flexmeasures.data.services.sensors import get_public_sensors
-
-            sensor_ids = self.get_attribute("show_sensors")
-            sensors = [sensor for sensor in sensors if sensor.id in sensor_ids]
-            sensors += get_public_sensors(sensor_ids)
-
-            # Sort sensors by the order given in sensor_ids
-            sensor_map = {sensor.id: sensor for sensor in sensors}
-            sensors = [sensor_map[sensor_id] for sensor_id in sensor_ids]
-        else:
-            sensors = sensors[:2]
-
+        sensors = self.sensors_to_show
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
 
@@ -408,6 +393,24 @@ class GenericAsset(db.Model, AuthModelMixin):
             df = df.reset_index()
             return df.to_json(orient="records")
         return bdf_dict
+
+    @property
+    def sensors_to_show(self) -> List["Sensor"]:
+        """Sensors to show (by default, two of the asset's sensors)."""
+        sensors = self.sensors
+        if self.has_attribute("show_sensors"):
+            from flexmeasures.data.services.sensors import get_public_sensors
+
+            sensor_ids = self.get_attribute("show_sensors")
+            sensors = [sensor for sensor in sensors if sensor.id in sensor_ids]
+            sensors += get_public_sensors(sensor_ids)
+
+            # Sort sensors by the order given in sensor_ids
+            sensor_map = {sensor.id: sensor for sensor in sensors}
+            sensors = [sensor_map[sensor_id] for sensor_id in sensor_ids]
+        else:
+            sensors = sensors[:2]
+        return sensors
 
     @property
     def timezone(

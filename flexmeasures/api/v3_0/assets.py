@@ -284,15 +284,5 @@ class AssetAPI(FlaskView):
 
         Data for use in charts (in case you have the chart specs already).
         """
-        sensors = asset.sensors
-        if asset.has_attribute("show_sensors"):
-            from flexmeasures.data.services.sensors import get_public_sensors
-
-            sensor_ids = asset.get_attribute("show_sensors")
-            sensors = [sensor for sensor in sensors if sensor.id in sensor_ids]
-            sensors += get_public_sensors(sensor_ids)
-
-            # Sort sensors by the order given in sensor_ids
-            sensor_map = {sensor.id: sensor for sensor in sensors}
-            sensors = [sensor_map[sensor_id] for sensor_id in sensor_ids]
+        sensors = asset.sensors_to_show
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
