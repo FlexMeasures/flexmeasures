@@ -302,6 +302,10 @@ class GenericAsset(db.Model, AuthModelMixin):
             sensor_ids = self.get_attribute("show_sensors")
             sensors = [sensor for sensor in sensors if sensor.id in sensor_ids]
             sensors += get_public_sensors(sensor_ids)
+
+            # Sort sensors by the order given in sensor_ids
+            sensor_map = {sensor.id: sensor for sensor in sensors}
+            sensors = [sensor_map[sensor_id] for sensor_id in sensor_ids]
         else:
             sensors = sensors[:2]
 
