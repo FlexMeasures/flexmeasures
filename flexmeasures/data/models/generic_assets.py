@@ -313,6 +313,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         if include_data:
             # Get data
             data = self.search_beliefs(
+                sensors=sensors,
                 as_json=True,
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
