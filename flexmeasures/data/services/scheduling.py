@@ -67,7 +67,7 @@ def create_scheduling_job(
             soc_min=soc_min,
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
-            price_sensor=price_sensor
+            price_sensor=price_sensor,
         ),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
