@@ -33,10 +33,16 @@ class FMValidationError(ValidationError):
 
 
 def with_appcontext_if_needed():
-    """Execute within the script's application context, in case there is one."""
+    """Execute within the script's application context, in case there is one.
+
+    An exception is `flexmeasures run`, which has a click context at the time the decorator is called,
+    but no longer has a click context at the time the decorated function is called,
+    which, typically, is a request to the running FlexMeasures server.
+    """
 
     def decorator(f):
-        if get_current_context(silent=True):
+        ctx = get_current_context(silent=True)
+        if ctx and not ctx.invoked_subcommand == "run":
             return with_cli_appcontext(f)
         return f
 
