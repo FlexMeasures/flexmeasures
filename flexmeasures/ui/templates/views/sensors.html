@@ -135,27 +135,29 @@
               var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes'
               document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
             }
-            var start = new Date(data.timerange.start);
-            var end = new Date(data.timerange.end)
-            end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-            start.setHours(0,0,0,0) // get start of first day
-            end.setHours(0,0,0,0) // get start of last day
+            if ('timerange' in data) {
+              var start = new Date(data.timerange.start);
+              var end = new Date(data.timerange.end)
+              end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+              start.setHours(0,0,0,0) // get start of first day
+              end.setHours(0,0,0,0) // get start of last day
 
-            // Initialize picker to the last 2 days of sensor data
-            var nearEnd = new Date(end)//.setDate(end.getDate() - 1)
-            nearEnd.setDate(nearEnd.getDate() - 1)
-            picker.setDateRange(
+              // Initialize picker to the last 2 days of sensor data
+              var nearEnd = new Date(end)//.setDate(end.getDate() - 1)
+              nearEnd.setDate(nearEnd.getDate() - 1)
+              picker.setDateRange(
                 nearEnd,
                 end,
-            )
+              );
 
-            // No use looking for data in years outside timerange of sensor data
-            picker.setOptions({
-              dropdowns: {
+              // No use looking for data in years outside timerange of sensor data
+              picker.setOptions({
+                dropdowns: {
                   minYear: start.getFullYear(),
                   maxYear: end.getFullYear(),
-              },
-            });
+                },
+              });
+            };
           });
         }
       };
