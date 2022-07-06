@@ -15,6 +15,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Docker compose stack now with Redis worker queue [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
 * Allow access tokens to be passed as env vars as well [see `PR #443 <http://www.github.com/FlexMeasures/flexmeasures/pull/443>`_]
 
 v0.10.1 | June XX, 2022
