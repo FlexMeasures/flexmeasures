@@ -4,13 +4,13 @@ repos:
     hooks:
     - id: flake8
       name: flake8 (code linting)
-      language_version: python3.8
+      language_version: python3.9
 -   repo: https://github.com/psf/black
     rev: 22.3.0  # New version tags can be found here: https://github.com/psf/black/tags
     hooks:
     - id: black
       name: black (code formatting)
-      language_version: python3.8
+      language_version: python3.9
 -   repo: local
     hooks:
     - id: mypy
