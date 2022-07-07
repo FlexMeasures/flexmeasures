@@ -12,10 +12,12 @@ New features
 
 Bugfixes
 -----------
+* Do not fail asset page if entity addresses cannot be built [see `PR #457 <http://www.github.com/FlexMeasures/flexmeasures/pull/457>`_]
 
 Infrastructure / Support
 ----------------------
 * Allow access tokens to be passed as env vars as well [see `PR #443 <http://www.github.com/FlexMeasures/flexmeasures/pull/443>`_]
+
 
 v0.10.1 | June XX, 2022
 ===========================
