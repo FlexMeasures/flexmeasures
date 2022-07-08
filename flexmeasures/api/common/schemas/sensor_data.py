@@ -97,6 +97,8 @@ class SensorDataDescriptionSchema(ma.Schema):
 
 class GetSensorDataSchema(SensorDataDescriptionSchema):
 
+    resolution = DurationField(required=False)
+
     # Optional field that can be used for extra validation
     type = fields.Str(
         required=False,
