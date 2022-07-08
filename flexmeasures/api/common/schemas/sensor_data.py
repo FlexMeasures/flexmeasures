@@ -180,7 +180,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
 
         # Convert to desired time range
         index = pd.date_range(
-            start=start, end=end, freq=sensor.event_resolution, closed="left"
+            start=start, end=end, freq=df.event_resolution, closed="left"
         )
         df = df.reindex(index)
 
