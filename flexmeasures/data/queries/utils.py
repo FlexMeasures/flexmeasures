@@ -42,8 +42,9 @@ def create_beliefs_query(
     return query
 
 
-def potentially_limit_query_to_account_assets(
-    query: Query, account_id: Optional[int]
+def potentially_limit_assets_query_to_account(
+    query: Query,
+    account_id: Optional[int],
 ) -> Query:
     """Filter out all assets that are not in the current user's account.
     For admins and CLI users, no assets are filtered out, unless an account_id is set.
@@ -55,7 +56,7 @@ def potentially_limit_query_to_account_assets(
     user_is_admin = (
         running_as_cli()
         or current_user.has_role(ADMIN_ROLE)
-        or current_user.has_role(ADMIN_READER_ROLE)
+        or (query.statement.is_select and current_user.has_role(ADMIN_READER_ROLE))
     )
     if account_id is None and user_is_admin:
         return query  # allow admins to query assets across all accounts
