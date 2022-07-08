@@ -31,7 +31,10 @@ def bar_chart(
     chart_specs = {
         "description": "A simple bar chart showing sensor data.",
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
-        "mark": "bar",
+        "mark": {
+            "type": "bar",
+            "clip": True,
+        },
         "encoding": {
             "x": event_start_field_definition,
             "x2": FIELD_DEFINITIONS["event_end"],
@@ -97,6 +100,7 @@ def chart_for_multiple_sensors(
                     "mark": {
                         "type": "line",
                         "interpolate": "step-after",
+                        "clip": True,
                     },
                     "encoding": {
                         "x": event_start_field_definition,
@@ -109,6 +113,7 @@ def chart_for_multiple_sensors(
                     "mark": {
                         "type": "circle",
                         "opacity": 1,
+                        "clip": True,
                     },
                     "encoding": {
                         "x": event_start_field_definition,

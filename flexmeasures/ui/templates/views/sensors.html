@@ -40,13 +40,15 @@
       import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
 
       let vegaView;
+      let previousResult;
 
-      async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
+      async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult) {
 
         await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=true&include_asset_annotations=true', {{ chart_options | safe }})
         .then(function (result) {
           // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
           vegaView = result.view;
+          vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult)).resize().run();
         });
       }
 
@@ -99,7 +101,7 @@
           signal = controller.signal
 
           $("#spinner").show();
-          embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName);
+          embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult);
           Promise.all([
               // Fetch time series data
               fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
@@ -118,6 +120,7 @@
                 $("#spinner").hide();
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
                 vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+                previousResult = result[0];
           }).catch(console.error);
       });
 
