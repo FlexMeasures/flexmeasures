@@ -141,6 +141,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         - converts to a single deterministic belief per event
         - ensures the response respects the requested time frame
         - converts values to the requested unit
+        - converts values to the requested resolution
         """
         sensor: Sensor = sensor_data_description["sensor"]
         start = sensor_data_description["start"]
