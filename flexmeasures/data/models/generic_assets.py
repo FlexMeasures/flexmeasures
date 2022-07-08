@@ -405,23 +405,23 @@ class GenericAsset(db.Model, AuthModelMixin):
 
     @property
     def sensors_to_show(self) -> List["Sensor"]:  # noqa F821
-        """Sensors to show, as defined by the show_sensors attribute.
+        """Sensors to show, as defined by the sensors_to_show attribute.
 
         Defaults to two of the asset's sensors.
         """
-        if not self.has_attribute("show_sensors"):
+        if not self.has_attribute("sensors_to_show"):
             return self.sensors[:2]
 
         from flexmeasures.data.services.sensors import get_public_sensors
 
-        sensor_ids = self.get_attribute("show_sensors")
+        sensor_ids = self.get_attribute("sensors_to_show")
         sensor_map = {
             sensor.id: sensor
             for sensor in self.sensors + get_public_sensors(sensor_ids)
             if sensor.id in sensor_ids
         }
 
-        # Return sensors in the order given by the show_sensors attribute
+        # Return sensors in the order given by the sensors_to_show attribute
         return [sensor_map[sensor_id] for sensor_id in sensor_ids]
 
     @property
