@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import List, Union
 
 from flask_login import current_user
-from isodate import datetime_isoformat, duration_isoformat
+from isodate import datetime_isoformat
 from marshmallow import fields, post_load, validates_schema, ValidationError
 from marshmallow.validate import OneOf
 from marshmallow_polyfield import PolyField
@@ -16,7 +16,7 @@ from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import duration_isoformat, server_now
 from flexmeasures.utils.unit_utils import (
     convert_units,
     units_are_convertible,

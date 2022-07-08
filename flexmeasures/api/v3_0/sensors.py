@@ -43,6 +43,7 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import create_scheduling_job
+from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.unit_utils import ur
 
 
@@ -526,7 +527,7 @@ class SensorAPI(FlaskView):
         response = dict(
             values=consumption_schedule.tolist(),
             start=isodate.datetime_isoformat(start),
-            duration=isodate.duration_isoformat(duration),
+            duration=duration_isoformat(duration),
             unit=sensor.unit,
         )
 
