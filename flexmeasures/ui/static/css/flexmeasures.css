@@ -1118,6 +1118,11 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     width: auto;
 }
 
+.litepicker .container__tooltip {
+    color: var(--nav-default-color);
+    background-color: var(--nav-hover-background-color);
+}
+
 .litepicker[data-plugins*="ranges"] > .container__main > .container__predefined-ranges button {
     transition: .3s;
     -webkit-transition: .3s;
