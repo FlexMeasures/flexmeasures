@@ -1002,15 +1002,36 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     -o-border-radius: 6px !important;
 }
 
+@media (min-width: 768px) {
+    .container__predefined-ranges button {
+        color: var(--primary-color);
+        border-right: 1px solid var(--primary-border-color) !important;
+    }
+}
+@media (max-width: 767px) {
+    .container__predefined-ranges button {
+        color: var(--white);
+        background-color: var(--primary-color);
+        border-right: 1px solid var(--primary-border-color) !important;
+    }
+}
 .container__predefined-ranges button {
-    color: var(--primary-border-color);
     font-weight: 500;
     cursor: pointer !important;
-    border-right: 1px solid var(--primary-border-color) !important;
     flex: 1 1 auto;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.container__predefined-ranges > button:first-child {
+    border-top-left-radius: 15px;
+    border-bottom-left-radius: 15px;
 }
 .container__predefined-ranges > button:last-child {
     border-right: none !important;
+    border-top-right-radius: 15px;
+    border-bottom-right-radius: 15px;
 }
 
 .container__months {
