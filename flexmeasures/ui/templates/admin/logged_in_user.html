@@ -7,94 +7,90 @@
 {% block divs %}
 
     <div class="container-fluid">
-        <div class="row header-action-button">
-            <div class="user-action-button col-sm-1">
-                <form action="/logout" method="get">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Log out</button>
-                </form>
+        <div class="row">
+            <div class="col-sm-2 on-top-md">
+                <div class="header-action-button">
+                    <div class="user-action-button">
+                        <form action="/logout" method="get">
+                            <button class="btn btn-sm btn-responsive btn-info" type="submit">Log out</button>
+                        </form>
+                    </div>
+                    <div class="user-action-button">
+                        <form action="/users/reset_password_for/{{ logged_in_user.id }}" method="get">
+                            <button class="btn btn-sm btn-responsive btn-info delete-button" type="submit" title="Reset the password and send instructions how to choose a new one.">Reset password</button>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="user-action-button col-sm-2">
-                <form action="/users/reset_password_for/{{ logged_in_user.id }}" method="get">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Send password reset instructions</button>
-                </form>
+            <div class="col-sm-8">
+                <div class="user-data-table card">
+                    <h2>User overview</h2>
+                    <small>Logged-in user: {{ logged_in_user.username }}</small>
+                    <table class="table table-striped table-responsive">
+                        <tbody>
+                            <tr>
+                                <td>
+                                    Email address
+                                </td>
+                                <td>
+                                    {{logged_in_user.email }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    Account
+                                </td>
+                                <td>
+                                    {{ logged_in_user.account.name }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    Assets in account
+                                </td>
+                                <td>
+                                    <a href="/assets">{{ num_assets }}</a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    Time Zone
+                                </td>
+                                <td>
+                                    {{logged_in_user.timezone }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    Last login was
+                                </td>
+                                <td>
+                                    {{ logged_in_user.last_login_at | localized_datetime }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    Roles
+                                </td>
+                                <td>
+                                    {{ roles }}
+                                </td>
+                            </tr>
+                            {% if not user_is_anonymous %}
+                            <tr>
+                                <td>
+                                    Fresh access token
+                                </td>
+                                <td>
+                                    {{ logged_in_user.get_auth_token() }}
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div class="user-action-button col-sm-9">
-                {% if user_is_admin %}
-                <form action="/users" method="get">
-                    <button class="btn btn-sm btn-responsive btn-info" type="submit">List active users</button>
-                </form>
-                {% endif %}
-            </div>
-        </div>
-
-
-        <div class="user-data-table row">
-            <div class="col-sm-12">
-                <h3 class="user-overview">User overview</h3>
-                <small>Logged-in user: {{ logged_in_user.username }}</small>
-                <table class="table">
-                    <tbody>
-                        <tr>
-                            <td>
-                                Email address
-                            </td>
-                            <td>
-                                {{logged_in_user.email }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Account
-                            </td>
-                            <td>
-                                {{ logged_in_user.account.name }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Assets in account
-                            </td>
-                            <td>
-                                <a href="/assets">{{ num_assets }}</a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Time Zone
-                            </td>
-                            <td>
-                                {{logged_in_user.timezone }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Last login was
-                            </td>
-                            <td>
-                                {{ logged_in_user.last_login_at | localized_datetime }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                Roles
-                            </td>
-                            <td>
-                                {{ roles }}
-                            </td>
-                        </tr>
-                        {% if not user_is_anonymous %}
-                        <tr>
-                            <td>
-                                Fresh access token
-                            </td>
-                            <td>
-                                {{ logged_in_user.get_auth_token() }}
-                            </td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-            </div>
+            <div class="col-sm-2"></div>
         </div>
     </div>
 
