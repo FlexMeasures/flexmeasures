@@ -173,6 +173,7 @@ class SensorAPI(FlaskView):
                 "sensor": "ea1.2021-01.io.flexmeasures:fm1.1",
                 "start": "2021-06-07T00:00:00+02:00",
                 "duration": "PT1H",
+                "resolution": "PT15M",
                 "unit": "m³/h"
             }
 
