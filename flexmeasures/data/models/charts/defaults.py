@@ -124,6 +124,10 @@ LEGIBILITY_DEFAULTS = dict(
         legend=dict(
             titleFontSize=FONT_SIZE,
             labelFontSize=FONT_SIZE,
+            labelLimit=None,
+            orient="bottom",
+            columns=1,
+            direction="vertical",
         ),
     ),
 )
