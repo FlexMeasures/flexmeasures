@@ -8,6 +8,7 @@ v0.11.0 | June XX, 2022
 New features
 -------------
 * Individual sensor charts show available annotations [see `PR #428 <http://www.github.com/FlexMeasures/flexmeasures/pull/428>`_]
+* Collapsible sidepanel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_]
 * Switched from 12-hour AM/PM to 24-hour clock notation for time series chart axis labels [see `PR #446 <http://www.github.com/FlexMeasures/flexmeasures/pull/446>`_]
 
 Bugfixes
@@ -15,6 +16,7 @@ Bugfixes
 
 Infrastructure / Support
 ----------------------
+* Allow access tokens to be passed as env vars as well [see `PR #443 <http://www.github.com/FlexMeasures/flexmeasures/pull/443>`_]
 
 v0.10.1 | June XX, 2022
 ===========================
