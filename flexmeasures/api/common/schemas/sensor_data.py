@@ -150,7 +150,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         duration = sensor_data_description["duration"]
         end = sensor_data_description["start"] + duration
         unit = sensor_data_description["unit"]
-        resolution = sensor_data_description["resolution"]
+        resolution = sensor_data_description.get("resolution")
 
         # Post-load configuration of belief timing against message type
         horizons_at_least = sensor_data_description.get("horizon", None)
