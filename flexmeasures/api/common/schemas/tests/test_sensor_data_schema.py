@@ -1,3 +1,4 @@
+from datetime import timedelta
 import pytest
 
 from marshmallow import ValidationError
@@ -5,7 +6,31 @@ from marshmallow import ValidationError
 from flexmeasures.api.common.schemas.sensor_data import (
     SingleValueField,
     PostSensorDataSchema,
+    GetSensorDataSchema,
 )
+
+
+@pytest.mark.parametrize(
+    "deserialization_input, exp_deserialization_output",
+    [
+        (
+            "PT1H",
+            timedelta(hours=1),
+        ),
+        (
+            "PT15M",
+            timedelta(minutes=15),
+        ),
+    ],
+)
+def test_resolution_field_deserialization(
+    deserialization_input,
+    exp_deserialization_output,
+):
+    """Testing straightforward cases"""
+    vf = GetSensorDataSchema._declared_fields["resolution"]
+    deser = vf.deserialize(deserialization_input)
+    assert deser == exp_deserialization_output
 
 
 @pytest.mark.parametrize(
