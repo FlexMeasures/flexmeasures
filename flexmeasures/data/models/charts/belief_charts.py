@@ -36,7 +36,8 @@ def bar_chart(
             "x": event_start_field_definition,
             "x2": FIELD_DEFINITIONS["event_end"],
             "y": event_value_field_definition,
-            "color": FIELD_DEFINITIONS["source"],
+            "color": FIELD_DEFINITIONS["source_name"],
+            "detail": FIELD_DEFINITIONS["source"],
             "opacity": {"value": 0.7},
             "tooltip": [
                 FIELD_DEFINITIONS["full_date"],
@@ -44,7 +45,8 @@ def bar_chart(
                     **event_value_field_definition,
                     **dict(title=f"{capitalize(sensor.sensor_type)}"),
                 },
-                FIELD_DEFINITIONS["source"],
+                FIELD_DEFINITIONS["source_name"],
+                FIELD_DEFINITIONS["source_model"],
             ],
         },
         "transform": [
@@ -99,6 +101,8 @@ def chart_for_multiple_sensors(
                     "encoding": {
                         "x": event_start_field_definition,
                         "y": event_value_field_definition,
+                        "color": FIELD_DEFINITIONS["source_name"],
+                        "detail": FIELD_DEFINITIONS["source"],
                     },
                 },
                 {
@@ -109,6 +113,8 @@ def chart_for_multiple_sensors(
                     "encoding": {
                         "x": event_start_field_definition,
                         "y": event_value_field_definition,
+                        "color": FIELD_DEFINITIONS["source_name"],
+                        "detail": FIELD_DEFINITIONS["source"],
                         "size": {
                             "condition": {
                                 "value": "200",
@@ -122,6 +128,8 @@ def chart_for_multiple_sensors(
                                 **event_value_field_definition,
                                 **dict(title=f"{capitalize(sensor.sensor_type)}"),
                             },
+                            FIELD_DEFINITIONS["source_name"],
+                            FIELD_DEFINITIONS["source_model"],
                         ],
                     },
                     "params": [

@@ -19,6 +19,7 @@ bcrypt
 pytz
 numpy
 isodate
+json-fix
 click
 email_validator
 rq

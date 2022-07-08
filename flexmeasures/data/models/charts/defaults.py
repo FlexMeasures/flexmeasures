@@ -30,9 +30,19 @@ FIELD_DEFINITIONS = {
         type="quantitative",
     ),
     "source": dict(
-        field="source",
+        field="source.id",
+        type="nominal",
+        title=None,
+    ),
+    "source_name": dict(
+        field="source.name",
         type="nominal",
         title="Source",
+    ),
+    "source_model": dict(
+        field="source.model",
+        type="nominal",
+        title="Model",
     ),
     "full_date": dict(
         field="full_date",

@@ -387,14 +387,19 @@ class GenericAsset(db.Model, AuthModelMixin):
                 df_dict = {}
                 for sensor, bdf in bdf_dict.items():
                     bdf = bdf.resample_events(smallest_resolution)
-                    df = simplify_index(bdf)
+                    df = simplify_index(
+                        bdf, index_levels_to_columns=["source"]
+                    ).set_index(["source"], append=True)
                     df_dict[sensor.id] = df.rename(columns=dict(event_value=sensor.id))
                 df = list(df_dict.values())[0].join(
                     list(df_dict.values())[1:], how="outer"
                 )
             else:
-                df = simplify_index(BeliefsDataFrame())
+                df = simplify_index(
+                    BeliefsDataFrame(), index_levels_to_columns=["source"]
+                ).set_index(["source"], append=True)
             df = df.reset_index()
+            df["source"] = df["source"].astype(str)
             return df.to_json(orient="records")
         return bdf_dict
 
