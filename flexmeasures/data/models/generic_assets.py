@@ -300,9 +300,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         # Set up chart specification
         if dataset_name is None:
             dataset_name = "asset_" + str(self.id)
-        self.sensor_type = (
-            self.name
-        )  # todo remove this placeholder when sensor types are modelled
+        if event_starts_after:
+            kwargs["event_starts_after"] = event_starts_after
+        if event_ends_before:
+            kwargs["event_ends_before"] = event_ends_before
         chart_specs = chart_type_to_chart_specs(
             chart_type,
             sensors=sensors,

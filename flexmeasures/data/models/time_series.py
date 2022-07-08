@@ -367,6 +367,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         if dataset_name is None:
             dataset_name = "sensor_" + str(self.id)
         self.sensor_type = self.get_attribute("sensor_type", self.name)
+        if event_starts_after:
+            kwargs["event_starts_after"] = event_starts_after
+        if event_ends_before:
+            kwargs["event_ends_before"] = event_ends_before
         chart_specs = chart_type_to_chart_specs(
             chart_type,
             sensor=self,

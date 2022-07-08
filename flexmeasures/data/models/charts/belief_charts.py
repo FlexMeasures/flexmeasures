@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 def bar_chart(
     sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
 ):
     unit = sensor.unit if sensor.unit else "a.u."
@@ -16,12 +20,20 @@ def bar_chart(
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
+    event_start_field_definition = FIELD_DEFINITIONS["event_start"]
+    if event_starts_after and event_ends_before:
+        event_start_field_definition["scale"] = {
+            "domain": [
+                event_starts_after.timestamp() * 10**3,
+                event_ends_before.timestamp() * 10**3,
+            ]
+        }
     chart_specs = {
         "description": "A simple bar chart showing sensor data.",
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
         "mark": "bar",
         "encoding": {
-            "x": FIELD_DEFINITIONS["event_start"],
+            "x": event_start_field_definition,
             "x2": FIELD_DEFINITIONS["event_end"],
             "y": event_value_field_definition,
             "color": FIELD_DEFINITIONS["source"],
@@ -49,6 +61,8 @@ def bar_chart(
 
 def chart_for_multiple_sensors(
     sensors: list["Sensor"],  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
     **override_chart_specs: dict,
 ):
     sensors_specs = []
@@ -64,6 +78,14 @@ def chart_for_multiple_sensors(
                 **dict(field=sensor.id),
             },
         )
+        event_start_field_definition = FIELD_DEFINITIONS["event_start"]
+        if event_starts_after and event_ends_before:
+            event_start_field_definition["scale"] = {
+                "domain": [
+                    event_starts_after.timestamp() * 10**3,
+                    event_ends_before.timestamp() * 10**3,
+                ]
+            }
         sensor_specs = {
             "title": capitalize(sensor.name)
             if sensor.name != sensor.sensor_type
@@ -75,7 +97,7 @@ def chart_for_multiple_sensors(
                         "interpolate": "step-after",
                     },
                     "encoding": {
-                        "x": FIELD_DEFINITIONS["event_start"],
+                        "x": event_start_field_definition,
                         "y": event_value_field_definition,
                     },
                 },
@@ -85,7 +107,7 @@ def chart_for_multiple_sensors(
                         "opacity": 1,
                     },
                     "encoding": {
-                        "x": FIELD_DEFINITIONS["event_start"],
+                        "x": event_start_field_definition,
                         "y": event_value_field_definition,
                         "size": {
                             "condition": {

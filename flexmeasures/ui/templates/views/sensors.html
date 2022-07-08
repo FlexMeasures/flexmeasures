@@ -43,7 +43,7 @@
 
       async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName + '&width=container&include_sensor_annotations=true&include_asset_annotations=true', {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=true&include_asset_annotations=true', {{ chart_options | safe }})
         .then(function (result) {
           // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
           vegaView = result.view;
@@ -52,10 +52,9 @@
 
       var sensorId = {{ sensor_id }}
       var sensorPath = '/api/dev/sensor/' + sensorId
-      var chartSpecsPath = sensorPath + '/chart'
+      var chartSpecsPath = sensorPath + '/chart?'
       var elementId = 'sensorchart'
       var datasetName = 'sensor_' + sensorId
-      embedAndLoad(chartSpecsPath, elementId, datasetName);
 
       // Set up abort controller to cancel requests
       var controller = new AbortController()
@@ -100,6 +99,7 @@
           signal = controller.signal
 
           $("#spinner").show();
+          embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName);
           Promise.all([
               // Fetch time series data
               fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
