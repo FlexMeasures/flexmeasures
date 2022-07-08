@@ -121,16 +121,10 @@ LEGIBILITY_DEFAULTS = dict(
         title=dict(
             fontSize=FONT_SIZE,
         ),
-    ),
-    encoding=dict(
-        color=dict(
-            dict(
-                legend=dict(
-                    titleFontSize=FONT_SIZE,
-                    labelFontSize=FONT_SIZE,
-                )
-            )
-        )
+        legend=dict(
+            titleFontSize=FONT_SIZE,
+            labelFontSize=FONT_SIZE,
+        ),
     ),
 )
 vega_lite_field_mapping = {
