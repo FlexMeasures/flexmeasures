@@ -399,7 +399,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                     BeliefsDataFrame(), index_levels_to_columns=["source"]
                 ).set_index(["source"], append=True)
             df = df.reset_index()
-            df["source"] = df["source"].astype(str)
+            df["source"] = df["source"].apply(lambda x: x.to_dict())
             return df.to_json(orient="records")
         return bdf_dict
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
-import json_fix  # noqa F401
 import timely_beliefs as tb
 
 from flexmeasures.data import db
@@ -88,11 +87,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     def __str__(self):
         return self.description
 
-    def __json__(self) -> dict:
-        """Used by json.dumps to create a JSON string.
-
-        Requires the json_fix dependency.
-        """
+    def to_dict(self) -> dict:
         return dict(
             id=self.id,
             name=self.name,
