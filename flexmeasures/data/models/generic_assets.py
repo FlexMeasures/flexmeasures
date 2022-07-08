@@ -96,6 +96,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     account_id = db.Column(
         db.Integer, db.ForeignKey("account.id", ondelete="CASCADE"), nullable=True
     )  # if null, asset is public
+    account = db.relationship("Account", backref=db.backref("assets", lazy=True))
 
     owner = db.relationship(
         "Account",
