@@ -208,9 +208,11 @@ def merge_vega_lite_specs(child: dict, parent: dict) -> dict:
     d = {}
     for k in set().union(child, parent):
         if k in parent and k in child:
-            if isinstance(child[k], str):
+            if isinstance(child[k], str) and isinstance(parent[k], str):
+                child[k] = parent[k]
+            elif isinstance(child[k], str):
                 child[k] = {vega_lite_field_mapping.get(k, "type"): child[k]}
-            if isinstance(parent[k], str):
+            elif isinstance(parent[k], str):
                 parent[k] = {vega_lite_field_mapping.get(k, "type"): parent[k]}
         if (
             k in parent
