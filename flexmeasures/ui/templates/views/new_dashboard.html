@@ -40,26 +40,20 @@
                         </td>
                         {% endfor %}
                     </tr>
-                    {% if not user_is_admin %}
                     <tr>
-                        <td>My assets:</td>
+                        <td>
+                            {% if user_has_admin_reader_rights %}
+                                {{ FLEXMEASURES_PLATFORM_NAME }} total
+                            {% else %}
+                                My assets
+                            {% endif %}:
+                        </td>
 
                         {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
                         <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
                             {{ asset_groups[asset_group_name].count }}</td>
                         {% endfor %}
                     </tr>
-                    {% endif %}
-                    {% if user_is_admin or FLEXMEASURES_MODE == "demo" %}
-                    <tr>
-                        <td>{{ FLEXMEASURES_PLATFORM_NAME }} total:</td>
-
-                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
-                        <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
-                            {{ asset_groups[asset_group_name].count }}</td>
-                        {% endfor %}
-                    </tr>
-                    {% endif %}
                 </tbody>
             </table>
         </div>
@@ -114,6 +108,11 @@
     {% endif %}
     {% endfor %}
 
+    {% if user_has_admin_reader_rights %}
+        var user_is_admin = true;
+    {% else %}
+        var user_is_admin = false;
+    {% endif %}
 
     // create markers, keep them in separate lists (by asset type) to be put into layers
 
@@ -133,7 +132,8 @@
                             <div class="leaflet-marker-popup">
                                 <div class="row">
                                     <div class="col-sm-12">
-                                        <h4>{{ asset.name }}</h4>
+                                        <h4>{{ asset.name }} </h4>
+                                        {% if user_has_admin_reader_rights %} <h5>Account: {{ asset.account.name }} </h5> {% endif %}
                                     </div>
                                 </div>
                                 <div class="row">
@@ -150,7 +150,7 @@
                                         <div class="row top-buffer">
                                             <div class="col-sm-12">
                                                 <form action="assets/{{ asset.id }}" method="get">
-                                                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Edit this asset</button>
+                                                    <button class="btn btn-sm btn-responsive btn-info" type="submit">View this asset</button>
                                                 </form>
                                             </div>
                                         </div>
@@ -176,7 +176,7 @@
                 next();
             });
         })
-        .bindTooltip("{{ asset.name }}",
+        .bindTooltip(user_is_admin ? "{{ asset.name }} (Account: {{ asset.account.name }})" : "{{ asset.name }}",
         {
             permanent: false,
             direction: 'right'

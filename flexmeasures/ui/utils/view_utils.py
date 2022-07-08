@@ -12,7 +12,7 @@ from werkzeug.exceptions import BadRequest
 import iso8601
 
 from flexmeasures import __version__ as flexmeasures_version
-from flexmeasures.auth.policy import ADMIN_ROLE
+from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
@@ -83,6 +83,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables[
         "user_is_admin"
     ] = current_user.is_authenticated and current_user.has_role(ADMIN_ROLE)
+    variables["user_has_admin_reader_rights"] = current_user.is_authenticated and (
+        current_user.has_role(ADMIN_ROLE) or current_user.has_role(ADMIN_READER_ROLE)
+    )
     variables[
         "user_is_anonymous"
     ] = current_user.is_authenticated and current_user.has_role("anonymous")
