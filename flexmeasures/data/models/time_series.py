@@ -1,6 +1,7 @@
 from typing import Any, List, Dict, Optional, Union, Type, Tuple
 from datetime import datetime as datetime_type, timedelta
 import json
+from flask import current_app
 
 import pandas as pd
 from sqlalchemy.ext.declarative import declared_attr
@@ -24,7 +25,10 @@ from flexmeasures.data.services.time_series import (
     collect_time_series_data,
     aggregate_values,
 )
-from flexmeasures.utils.entity_address_utils import build_entity_address
+from flexmeasures.utils.entity_address_utils import (
+    EntityAddressException,
+    build_entity_address,
+)
 from flexmeasures.utils.unit_utils import is_energy_unit, is_power_unit
 from flexmeasures.data.models.annotations import (
     Annotation,
@@ -112,7 +116,13 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     @property
     def entity_address(self) -> str:
-        return build_entity_address(dict(sensor_id=self.id), "sensor")
+        try:
+            return build_entity_address(dict(sensor_id=self.id), "sensor")
+        except EntityAddressException as eae:
+            current_app.logger.warn(
+                f"Problems generating entity address for sensor {self}: {eae}"
+            )
+            return "no entity address available"
 
     @property
     def location(self) -> Optional[Tuple[float, float]]:

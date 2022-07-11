@@ -62,6 +62,10 @@
       var controller = new AbortController()
       var signal = controller.signal
 
+      // Set up abort controller to cancel requests
+      var controller = new AbortController()
+      var signal = controller.signal
+
       const date = Date();
       const picker = new Litepicker({
           element: document.getElementById('datepicker'),
@@ -164,6 +168,21 @@
           });
         }
       };
+
+      // Set up swiping for the left sidepanel
+      var leftSidepanels = document.getElementsByClassName('left-sidepanel');
+      document.addEventListener('swiped-right', function(e) {
+        if (e.target.classList.contains('sidepanel-container')) {
+          for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+            leftSidepanels[i].classList.add('sidepanel-show');
+          }
+        }
+      });
+      document.addEventListener('swiped-left', function(e) {
+        for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+          leftSidepanels[i].classList.remove('sidepanel-show');
+        }
+      });
 
     </script>
 
