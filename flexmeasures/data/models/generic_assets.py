@@ -375,7 +375,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 source=source,
                 most_recent_beliefs_only=True,
                 most_recent_events_only=most_recent_events_only,
-                one_deterministic_belief_per_event=True,
+                one_deterministic_belief_per_event_per_source=True,
             )
         if as_json:
             from flexmeasures.data.services.time_series import simplify_index

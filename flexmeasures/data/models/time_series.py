@@ -292,6 +292,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         most_recent_events_only: bool = False,
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
+        one_deterministic_belief_per_event_per_source: bool = False,
         as_json: bool = False,
     ) -> Union[tb.BeliefsDataFrame, str]:
         """Search all beliefs about events for this sensor.
@@ -307,7 +308,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
-        :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution)
+        :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
+        :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
@@ -331,6 +333,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
             one_deterministic_belief_per_event=one_deterministic_belief_per_event,
+            one_deterministic_belief_per_event_per_source=one_deterministic_belief_per_event_per_source,
         )
         if as_json:
             df = bdf.reset_index()
@@ -567,6 +570,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         most_recent_events_only: bool = False,
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
+        one_deterministic_belief_per_event_per_source: bool = False,
         resolution: Union[str, timedelta] = None,
         sum_multiple: bool = True,
     ) -> Union[tb.BeliefsDataFrame, Dict[str, tb.BeliefsDataFrame]]:
@@ -587,7 +591,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon)
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
-        :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution)
+        :param one_deterministic_belief_per_event: only return a single value per event (no probabilistic distribution and only 1 source)
+        :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param resolution: Optional timedelta or pandas freqstr used to resample the results **
         :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensor names as key, each holding a BeliefsDataFrame as its value
 
@@ -658,9 +663,16 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 else:
                     bdf = (
                         bdf.for_each_belief(get_median_belief)
-                        .groupby(level=["event_start", "belief_time"], group_keys=False)
+                        .groupby(level=["event_start"], group_keys=False)
                         .apply(lambda x: x.head(1))
                     )
+            elif one_deterministic_belief_per_event_per_source:
+                if bdf.lineage.probabilistic_depth == 1:
+                    # Fast track, no need to loop over beliefs
+                    pass
+                else:
+                    bdf = bdf.for_each_belief(get_median_belief)
+
             if resolution is not None:
                 bdf = bdf.resample_events(
                     resolution, keep_only_most_recent_belief=most_recent_beliefs_only
