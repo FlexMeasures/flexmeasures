@@ -42,13 +42,18 @@
       let vegaView;
       let previousResult;
 
-      async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult) {
+      async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
         await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=true&include_asset_annotations=true', {{ chart_options | safe }})
         .then(function (result) {
           // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
           vegaView = result.view;
-          vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult)).resize().run();
+          if (previousResult) {
+            var slicedPreviousResult = previousResult.filter(item => {
+              return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime()
+            })
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousResult)).resize().run();
+          }
         });
       }
 
@@ -105,7 +110,7 @@
           signal = controller.signal
 
           $("#spinner").show();
-          embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult);
+          embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate);
           Promise.all([
               // Fetch time series data
               fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
