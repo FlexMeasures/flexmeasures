@@ -125,13 +125,19 @@ def chart_for_multiple_sensors(
                 {
                     "mark": {
                         "type": "rect",
-                        "y": 0,
                         "y2": "height",
                         "opacity": 0,
                     },
                     "encoding": {
                         "x": event_start_field_definition,
                         "x2": FIELD_DEFINITIONS["event_end"],
+                        "y": {
+                            "condition": {
+                                "test": "isNaN(datum['event_value'])",
+                                **event_value_field_definition,
+                            },
+                            "value": 0,
+                        },
                         "detail": FIELD_DEFINITIONS["source"],
                         "tooltip": shared_tooltip,
                     },
