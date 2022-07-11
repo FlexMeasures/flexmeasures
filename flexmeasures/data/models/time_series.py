@@ -667,7 +667,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                         .apply(lambda x: x.head(1))
                     )
             elif one_deterministic_belief_per_event_per_source:
-                if bdf.lineage.probabilistic_depth == 1:
+                if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:
                     # Fast track, no need to loop over beliefs
                     pass
                 else:
