@@ -28,6 +28,7 @@ def bar_chart(
                 event_ends_before.timestamp() * 10**3,
             ]
         }
+    resolution_in_ms = sensor.event_resolution.total_seconds() * 1000
     chart_specs = {
         "description": "A simple bar chart showing sensor data.",
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
@@ -54,7 +55,7 @@ def bar_chart(
         },
         "transform": [
             {
-                "calculate": f"datum.event_start + {sensor.event_resolution.total_seconds() * 1000}",
+                "calculate": f"datum.event_start + {resolution_in_ms}",
                 "as": "event_end",
             },
         ],
@@ -71,6 +72,9 @@ def chart_for_multiple_sensors(
     **override_chart_specs: dict,
 ):
     sensors_specs = []
+    min_resolution_in_ms = (
+        min(sensor.event_resolution for sensor in sensors).total_seconds() * 1000
+    )
     for sensor in sensors:
         unit = sensor.unit if sensor.unit else "a.u."
         event_value_field_definition = dict(
@@ -133,7 +137,7 @@ def chart_for_multiple_sensors(
                     },
                     "transform": [
                         {
-                            "calculate": f"datum.event_start + {sensor.event_resolution.total_seconds() * 1000}",
+                            "calculate": f"datum.event_start + {min_resolution_in_ms}",
                             "as": "event_end",
                         },
                     ],
