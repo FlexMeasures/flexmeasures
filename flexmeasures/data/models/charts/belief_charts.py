@@ -91,6 +91,15 @@ def chart_for_multiple_sensors(
                     event_ends_before.timestamp() * 10**3,
                 ]
             }
+        shared_tooltip = [
+            FIELD_DEFINITIONS["full_date"],
+            {
+                **event_value_field_definition,
+                **dict(title=f"{capitalize(sensor.sensor_type)}"),
+            },
+            FIELD_DEFINITIONS["source_name"],
+            FIELD_DEFINITIONS["source_model"],
+        ]
         sensor_specs = {
             "title": capitalize(sensor.name)
             if sensor.name != sensor.sensor_type
@@ -111,6 +120,26 @@ def chart_for_multiple_sensors(
                 },
                 {
                     "mark": {
+                        "type": "rect",
+                        "y": 0,
+                        "y2": "height",
+                        "opacity": 0,
+                    },
+                    "encoding": {
+                        "x": event_start_field_definition,
+                        "x2": FIELD_DEFINITIONS["event_end"],
+                        "detail": FIELD_DEFINITIONS["source"],
+                        "tooltip": shared_tooltip,
+                    },
+                    "transform": [
+                        {
+                            "calculate": f"datum.event_start + {sensor.event_resolution.total_seconds() * 1000}",
+                            "as": "event_end",
+                        },
+                    ],
+                },
+                {
+                    "mark": {
                         "type": "circle",
                         "opacity": 1,
                         "clip": True,
@@ -127,15 +156,7 @@ def chart_for_multiple_sensors(
                             },
                             "value": "0",
                         },
-                        "tooltip": [
-                            FIELD_DEFINITIONS["full_date"],
-                            {
-                                **event_value_field_definition,
-                                **dict(title=f"{capitalize(sensor.sensor_type)}"),
-                            },
-                            FIELD_DEFINITIONS["source_name"],
-                            FIELD_DEFINITIONS["source_model"],
-                        ],
+                        "tooltip": shared_tooltip,
                     },
                     "params": [
                         {
@@ -144,7 +165,7 @@ def chart_for_multiple_sensors(
                                 "type": "point",
                                 "encodings": ["x"],
                                 "on": "mouseover",
-                                "nearest": True,
+                                "nearest": False,
                             },
                         },
                     ],
