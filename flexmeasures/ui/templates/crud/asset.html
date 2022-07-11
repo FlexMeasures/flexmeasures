@@ -165,7 +165,7 @@
   let vegaView;
   let previousResult;
 
-  async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
+  async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult) {
 
     await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false', {{ chart_options | safe }})
     .then(function (result) {
