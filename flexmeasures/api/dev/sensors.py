@@ -154,7 +154,7 @@ class AssetAPI(FlaskView):
 
         .. :quickref: Chart; Download asset attributes for use in charts
         """
-        attributes = ["name", "timezone", "timerange"]
+        attributes = ["name", "timezone", "timerange_of_sensors_to_show"]
         return {attr: getattr(asset, attr) for attr in attributes}
 
 

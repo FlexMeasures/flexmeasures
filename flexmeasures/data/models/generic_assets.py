@@ -446,9 +446,34 @@ class GenericAsset(db.Model, AuthModelMixin):
                       'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
                   }
         """
+        return self.get_timerange(self.sensors)
+
+    @property
+    def timerange_of_sensors_to_show(self) -> Dict[str, datetime]:
+        """Time range for which sensor data exists, for sensors to show.
+
+        :returns: dictionary with start and end, for example:
+                  {
+                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                  }
+        """
+        return self.get_timerange(self.sensors_to_show)
+
+    @classmethod
+    def get_timerange(cls, sensors: List["Sensor"]) -> Dict[str, datetime]:
+        """Time range for which sensor data exists.
+
+        :param sensors: sensors to check
+        :returns: dictionary with start and end, for example:
+                  {
+                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                  }
+        """
         from flexmeasures.data.models.time_series import TimedBelief
 
-        sensor_ids = [sensor.id for sensor in self.sensors]
+        sensor_ids = [sensor.id for sensor in sensors]
         least_recent_query = (
             TimedBelief.query.filter(TimedBelief.sensor_id.in_(sensor_ids))
             .order_by(TimedBelief.event_start.asc())

@@ -272,9 +272,9 @@
           var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes'
           document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
         }
-        if ('timerange' in data) {
-          var start = new Date(data.timerange.start);
-          var end = new Date(data.timerange.end)
+        if ('timerange_of_sensors_to_show' in data) {
+          var start = new Date(data.timerange_of_sensors_to_show.start);
+          var end = new Date(data.timerange_of_sensors_to_show.end)
           end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
           start.setHours(0,0,0,0) // get start of first day
           end.setHours(0,0,0,0) // get start of last day
