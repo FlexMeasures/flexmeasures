@@ -27,7 +27,12 @@ def test_resolution_field_deserialization(
     deserialization_input,
     exp_deserialization_output,
 ):
-    """Testing straightforward cases"""
+    """Check parsing the resolution field of the GetSensorDataSchema schema.
+
+    These particular ISO durations are expected to be parsed as python timedeltas.
+    """
+    # todo: extend test cases with some nominal durations when timely-beliefs supports these
+    #       see https://github.com/SeitaBV/timely-beliefs/issues/13
     vf = GetSensorDataSchema._declared_fields["resolution"]
     deser = vf.deserialize(deserialization_input)
     assert deser == exp_deserialization_output
