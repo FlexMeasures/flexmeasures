@@ -114,7 +114,6 @@ The charging/discharging schedule should be there:
 
 .. code-block:: console
 
-    $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
     ┌────────────────────────────────────────────────────────────┐
     │   ▐                      ▐▀▀▌                           ▛▀▀│ 
     │   ▞▌                     ▞  ▐                           ▌  │ 0.4MW
@@ -147,7 +146,7 @@ Scripting with the Docker stack
 ----------------------------------
 
 A very important aspect of this stack is if it can be put to interesting use.
-For this, developers need to be able to script things like just did with the toy tutorial.
+For this, developers need to be able to script things ― like we just did with the toy tutorial.
 
 Note that instead of starting a console in the containers, we can also send commands to them right away.
 For instance, we sent the complete ``flexmeasures show beliefs`` command and then viewed the output on our own machine.

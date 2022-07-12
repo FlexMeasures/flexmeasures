@@ -703,9 +703,8 @@ def add_holidays(
 @click.option(
     "--as-job",
     is_flag=True,
-    help="Whether to queue a forecasting job instead of computing directly."
-    " Useful to run locally and create forecasts on a remote server. In that case, just point the redis db in your"
-    " config settings to that of the remote server. To process the job, run a worker to process the forecasting queue. Defaults to False.",
+    help="Whether to queue a forecasting job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
 def create_forecasts(
     sensor_ids: List[int],
@@ -840,9 +839,8 @@ def create_forecasts(
 @click.option(
     "--as-job",
     is_flag=True,
-    help="Whether to queue a forecasting job instead of computing directly."
-    " Useful to run locally and create forecasts on a remote server. In that case, just point the redis db in your"
-    " config settings to that of the remote server. To process the job, run a worker to process the forecasting queue. Defaults to False.",
+    help="Whether to queue a scheduling job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
 def create_schedule(
     power_sensor: Sensor,

@@ -9,7 +9,7 @@ Requirements
 
 The hard computation work (e.g. forecasting, scheduling) should happen outside of web requests (asynchronously), in job queues accessed by worker processes.
 
-This queueing relies on a Redis server, which is has to be installed locally, or used on a separate host. In the latter case, configure :ref:`redis-config` details in your FlexMeasures config file.
+This queueing relies on a Redis server, which has to be installed locally, or used on a separate host. In the latter case, configure :ref:`redis-config` details in your FlexMeasures config file.
 
 Here we assume you have access to a Redis server and configured it (see :ref:`redis-config`).
 The FlexMeasures unit tests use fakeredis to simulate this task queueing, with no configuration required.

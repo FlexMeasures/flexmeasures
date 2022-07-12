@@ -41,6 +41,9 @@ When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the qu
 When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/analytics``.
 
 
+.. note:: You can run workers who process jobs on different computers than the main server process. This can be a great architectural choice. Just keep in mind to use the same databases (postgres/redis) and to stick to the same FlexMeasures version on both.
+
+
 .. _how_queue_forecasting:
 
 How forecasting jobs are queued
@@ -55,7 +58,7 @@ So technically, you don't have to do anything to keep fresh forecasts.
 The decision which horizons to forecast is currently also taken by FlexMeasures. For power data, FlexMeasures makes this decision depending on the asset resolution. For instance, a resolution of 15 minutes leads to forecast horizons of 1, 6, 24 and 48 hours. For price data, FlexMeasures chooses to forecast prices forward 24 and 48 hours
 These are decent defaults, and fixing them has the advantage that scheduling scripts (see below) will know what to expect. However, horizons will probably become more configurable in the near future of FlexMeasures. 
 
-You can also add forecasting directly jobs via the CLI. We explain this practice in the next section. 
+You can also add forecasting jobs directly via the CLI. We explain this practice in the next section. 
 
 
 
@@ -66,13 +69,13 @@ There might be reasons to add forecasts of past time ranges. For instance, for v
 
 If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
 
-Here we request 6-hour forecasts for two sensors, for a period of two days:
+Here we request 6-hour forecasts to be made for two sensors, for a period of two days:
 
 .. code-block:: console
 
     flexmeasures add forecasts --sensor-id 2 --sensor-id 3 \
         --from_date 2015-02-01 --to_date 2015-08-31 \
-        --horizon 6 --as-jobs
+        --horizon 6 --as-job
 
 This is half a year of data, so it will take a while.
 
