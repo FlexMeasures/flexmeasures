@@ -742,20 +742,23 @@ def create_forecasts(
         event_resolution = None
 
     if as_job:
+        num_jobs = 0
         for sensor_id in sensor_ids:
             for horizon in horizons:
                 # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
                 # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
-                create_forecasting_jobs(
+                jobs = create_forecasting_jobs(
                     sensor_id=sensor_id,
                     horizons=[horizon],
                     start_of_roll=forecast_start - horizon,
                     end_of_roll=forecast_end - horizon,
                 )
+                num_jobs += len(jobs)
+        print(f"{num_jobs} new forecasting job(s) added to the queue.")
     else:
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
 
-        populate_time_series_forecasts(
+        populate_time_series_forecasts(  # this function reports its own output
             db=app.db,
             sensor_ids=sensor_ids,
             horizons=horizons,
@@ -908,7 +911,7 @@ def create_schedule(
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
 
     if as_job:
-        success = create_scheduling_job(
+        job = create_scheduling_job(
             sensor_id=power_sensor.id,
             start_of_schedule=start,
             end_of_schedule=end,
@@ -921,8 +924,8 @@ def create_schedule(
             roundtrip_efficiency=roundtrip_efficiency,
             price_sensor=optimization_context_sensor,
         )
-        if success:
-            print("New scheduling job has been added to the queue.")
+        if job:
+            print(f"New scheduling job {job.id} has been added to the queue.")
     else:
         success = make_schedule(
             sensor_id=power_sensor.id,
