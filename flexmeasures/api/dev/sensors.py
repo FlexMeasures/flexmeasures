@@ -9,7 +9,12 @@ from werkzeug.exceptions import abort
 
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.data.schemas import AssetIdField, AwareDateTimeField, DurationField, SensorIdField
+from flexmeasures.data.schemas import (
+    AssetIdField,
+    AwareDateTimeField,
+    DurationField,
+    SensorIdField,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
