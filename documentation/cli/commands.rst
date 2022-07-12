@@ -86,6 +86,7 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures jobs run-worker``                  Start a worker process for forecasting and/or scheduling jobs.
+``flexmeasures jobs show queues``                 List job queues.
 ``flexmeasures jobs clear-queue``                 Clear a job queue.
 ================================================= =======================================
 

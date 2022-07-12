@@ -74,13 +74,30 @@ def run_worker(queue: str, name: Optional[str]):
     worker.work()
 
 
+@fm_jobs.command("show-queues")
+@with_appcontext
+def show_queues():
+    """
+    Show the job queues and their job counts (including "failed" queue).
+
+    To inspect contents, go to the RQ-Dashboard at <flexmeasures-URL>/tasks
+    We use the app context to find out which redis queues to use.
+    """
+
+    configure_mappers()
+    for q in list(app.queues.values()) + [
+        Queue(connection=app.queues["forecasting"].connection, name="failed")
+    ]:
+        click.echo(f"Queue {q.name} has {q.count} jobs.")
+
+
 @fm_jobs.command("clear-queue")
 @with_appcontext
 @click.option(
     "--queue",
     default=None,
     required=True,
-    help="State which queue(s) to clear (using '|' as separator), e.g. 'forecasting', 'scheduling' or 'forecasting|scheduling'.",
+    help="State which queue(s) to clear (using '|' as separator), e.g. 'forecasting', 'scheduling' or 'forecasting|scheduling'. 'failed' is also supported.",
 )
 def clear_queue(queue: str):
     """
@@ -89,7 +106,7 @@ def clear_queue(queue: str):
     We use the app context to find out which redis queues to use.
     """
 
-    q_list = parse_queue_list(queue)
+    q_list = parse_queue_list(queue, allow_failed=True)
     configure_mappers()
     for q in q_list:
         count_before = q.count
@@ -100,7 +117,7 @@ def clear_queue(queue: str):
         )
 
 
-def parse_queue_list(queue_names_str: str) -> List[Queue]:
+def parse_queue_list(queue_names_str: str, allow_failed: bool = False) -> List[Queue]:
     """Parse a | separated string of queue names against the app.queues dict.
 
     The app.queues dict is expected to have queue names as keys, and rq.Queue objects as values.
@@ -110,7 +127,11 @@ def parse_queue_list(queue_names_str: str) -> List[Queue]:
     """
     q_list = []
     for q_name in queue_names_str.split("|"):
-        if q_name in app.queues:
+        if allow_failed and q_name == "failed":
+            q_list.append(
+                Queue(connection=app.queues["forecasting"].connection, name="failed")
+            )
+        elif q_name in app.queues:
             q_list.append(app.queues[q_name])
         else:
             raise ValueError(f"Unknown queue '{q_name}'.")
