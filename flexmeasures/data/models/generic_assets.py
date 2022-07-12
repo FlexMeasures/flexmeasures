@@ -461,7 +461,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         return self.get_timerange(self.sensors_to_show)
 
     @classmethod
-    def get_timerange(cls, sensors: List["Sensor"]) -> Dict[str, datetime]:
+    def get_timerange(cls, sensors: List["Sensor"]) -> Dict[str, datetime]:  # noqa F821
         """Time range for which sensor data exists.
 
         :param sensors: sensors to check
