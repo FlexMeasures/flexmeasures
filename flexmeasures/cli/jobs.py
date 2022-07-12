@@ -1,4 +1,6 @@
-from typing import List
+from typing import List, Optional
+import random
+import string
 
 import click
 from flask import current_app as app
@@ -19,8 +21,8 @@ def fm_jobs():
 @click.option(
     "--name",
     default=None,
-    required=True,
-    help="Give your worker a recognizable name. Defaults to random string.",
+    required=False,
+    help="Give your worker a recognizable name. Defaults to random string. Defaults to fm-worker-<randomstring>",
 )
 @click.option(
     "--queue",
@@ -28,7 +30,7 @@ def fm_jobs():
     required=True,
     help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling' or 'forecasting|scheduling'.",
 )
-def run_worker(name: str, queue: str):
+def run_worker(queue: str, name: Optional[str]):
     """
     Start a worker process for forecasting and/or scheduling jobs.
 
@@ -40,16 +42,29 @@ def run_worker(name: str, queue: str):
     # https://stackoverflow.com/questions/50822822/high-sqlalchemy-initialization-overhead
     configure_mappers()
 
+    connection = app.queues["forecasting"].connection
+
+    # provide a random name if none was given
+    if name is None:
+        name = "fm-worker-" + "".join(random.sample(string.ascii_lowercase * 6, 6))
+    worker_names = [w.name for w in Worker.all(connection=connection)]
+
+    # making sure the name is unique
+    used_name = name
+    name_suffixes = iter(range(1, 51))
+    while used_name in worker_names:
+        used_name = f"{name}-{next(name_suffixes)}"
+
     worker = Worker(
         q_list,
-        connection=app.queues["forecasting"].connection,
-        name=name,
+        connection=connection,
+        name=used_name,
         exception_handlers=[handle_forecasting_exception],
     )
 
     click.echo("\n=========================================================")
     click.echo(
-        'Worker "%s" initialised: %s (processing %s queues)'
+        'Worker "%s" initialised: %s ― processing %s queue(s)'
         % (worker.name, worker, len(q_list))
     )
     for q in q_list:
