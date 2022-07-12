@@ -292,6 +292,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         most_recent_events_only: bool = False,
         most_recent_only: bool = None,  # deprecated
         one_deterministic_belief_per_event: bool = False,
+        resolution: Union[str, timedelta] = None,
         as_json: bool = False,
     ) -> Union[tb.BeliefsDataFrame, str]:
         """Search all beliefs about events for this sensor.
@@ -331,6 +332,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
             one_deterministic_belief_per_event=one_deterministic_belief_per_event,
+            resolution=resolution,
         )
         if as_json:
             df = bdf.reset_index()
