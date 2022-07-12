@@ -135,8 +135,8 @@
     {% for asset in asset_groups[asset_group_name].assets if asset.location %}
 
         // TODO: use id rather than asset name?
-                if (typeof marker_for_{{ (asset.name | parameterize) }} == 'undefined') {
-        var marker_for_{{ (asset.name | parameterize)
+                if (typeof marker_for_{{ (asset.id) }} == 'undefined') {
+        var marker_for_{{ (asset.id)
     }} = L
         .marker(
             [{{ asset.location[0] }}, {{ asset.location[1] }}],
@@ -198,7 +198,7 @@
         .on('click', clickPan)
         .on('click', lookForState);
     // .openPopup();
-    {{ asset_groups[asset_group_name].parameterized_name }}_markers.push(marker_for_{{ (asset.name | parameterize) }});
+    {{ asset_groups[asset_group_name].parameterized_name }}_markers.push(marker_for_{{ (asset.id) }});
                 }
     {% endfor %}
     {% endif %}
