@@ -20,26 +20,26 @@
                         {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
                         <th {% if asset_groups[asset_group_name].hover_label %}
                             title="{{ asset_groups[asset_group_name].hover_label | capitalize }}" {% endif %}
-                            class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
-<!--                            <a href="analytics?resource={{ asset_group_name }}">-->
+                            class="text-center{% if asset_group_name in aggregate_type_groups %} agg-group{% endif %}">
                                 {{ asset_group_name | capitalize }}
-<!--                            </a>-->
                         </th>
                         {% endfor %}
                     </tr>
                 </thead>
                 <tbody>
+                    {% if not group_by_accounts %}
+                    <!-- Asset type icons -->
                     <tr>
                         <td></td>
-
                         {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
-                        <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+                        <td class="text-center{% if asset_group_name in aggregate_type_groups %} agg-group{% endif %}">
                             <div style="min-height: 20px; padding:15px;">
                                 <i class="{{ asset_group_name | asset_icon }} center-icon"></i>
                             </div>
                         </td>
                         {% endfor %}
                     </tr>
+                    {% endif %}
                     <tr>
                         <td>
                             {% if user_has_admin_reader_rights %}
@@ -50,12 +50,28 @@
                         </td>
 
                         {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
-                        <td class="text-center{% if asset_group_name in aggregate_groups %} agg-group{% endif %}">
+                        <td class="text-center{% if asset_group_name in aggregate_type_groups %} agg-group{% endif %}">
                             {{ asset_groups[asset_group_name].count }}</td>
                         {% endfor %}
                     </tr>
                 </tbody>
             </table>
+            {% if user_has_admin_reader_rights %}
+            <div class="row">
+                <form class="col-sm-12 text-right form-inline" role="form" target="" method="get" id="dashboard-grouping-options">
+                    Group by accounts:
+                    <label class="switch">
+                        <input name="group_by_accounts" {% if group_by_accounts %} checked{% endif %} type="checkbox" data-toggle="toggle">
+                        <span class="slider"></span>
+                    </label>
+                </form>
+            </div>
+            <script type="text/javascript">
+                $(document).on('change', '#dashboard-grouping-options input[name="group_by_accounts"]', function () {
+                    $(this).closest('form').submit();
+                })
+            </script>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -82,30 +98,26 @@
         $(".bokeh-state-plot").html(data);
     }
 
-    // create lists for markers, one per asset type, and icons, one per asset type
+    // Make an icon for each know asset type
+    {% for asset_type_name in known_asset_types %}
 
-    {% for asset_group_name in asset_groups %}
-    {% if asset_group_name not in aggregate_groups %}
-    {% if asset_groups[asset_group_name].count > 0 %}
-    var {{ asset_groups[asset_group_name].parameterized_name }}_markers = [];
-
-    var {{ asset_groups[asset_group_name].parameterized_name }}_icon = new L.DivIcon({
+    var {{ asset_type_name | parameterize | pluralize }}_icon = new L.DivIcon({
         className: 'map-icon',
-        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset_groups[asset_group_name].unique_asset_types[0].name | asset_icon }}"></i>',
+        html: '<i class="icon-empty-marker center-icon supersize"></i><i class="overlay center-icon {{ asset_type_name | asset_icon }}"></i>',
         iconSize: [100, 100], // size of the icon
         iconAnchor: [50, 50], // point of the icon which will correspond to marker's location
         popupAnchor: [0, -50] // point from which the popup should open relative to the iconAnchor
     });
 
-    var {{ asset_groups[asset_group_name].parameterized_name }}_opportunity_icon = new L.DivIcon({
+    /*
+    var {{ asset_type_name | parameterize }}_opportunity_icon = new L.DivIcon({
         className: 'map-icon opportunity',
-        html: '<i class="{{ asset_groups[asset_group_name].unique_asset_types[0].name | asset_icon }}"></i>',
+        html: '<i class="{{ asset_type_name | asset_icon }}"></i>',
         iconSize: [24, 24], // size of the icon
         iconAnchor: [12, 12], // point of the icon which will correspond to marker's location
         popupAnchor: [0, -12] // point from which the popup should open relative to the iconAnchor
     });
-    {% endif %}
-    {% endif %}
+    */
     {% endfor %}
 
     {% if user_has_admin_reader_rights %}
@@ -117,16 +129,18 @@
     // create markers, keep them in separate lists (by asset type) to be put into layers
 
     {% for asset_group_name in asset_groups %}
-    {% if asset_group_name not in aggregate_groups %}
+    {% if asset_group_name not in aggregate_type_groups %}
+        var {{ asset_groups[asset_group_name].parameterized_name }}_markers = [];
+    
     {% for asset in asset_groups[asset_group_name].assets if asset.location %}
-                <!--var marker_for_{{ (asset.name | parameterize) }} = makeMarker({{ asset }})-->
 
+        // TODO: use id rather than asset name?
                 if (typeof marker_for_{{ (asset.name | parameterize) }} == 'undefined') {
         var marker_for_{{ (asset.name | parameterize)
     }} = L
         .marker(
             [{{ asset.location[0] }}, {{ asset.location[1] }}],
-            { icon: {{ asset_groups[asset_group_name].parameterized_name }}_icon, id: "{{ asset.id }}"}
+            { icon: {{ asset.generic_asset_type.name | pluralize | parameterize }}_icon, id: "{{ asset.id }}"}
     )
         .bindPopup(`
                             <div class="leaflet-marker-popup">
@@ -204,7 +218,7 @@
 
     // add a layer for each asset type
     {% for asset_group_name in asset_groups %}
-    {% if asset_group_name not in aggregate_groups %}
+    {% if asset_group_name not in aggregate_type_groups %}
     {% if asset_groups[asset_group_name].count > 0 %}
     var {{ asset_groups[asset_group_name].parameterized_name }}_layer = new L.LayerGroup({{ asset_groups[asset_group_name].parameterized_name }}_markers);
     mcgLayerSupportGroup.checkIn({{ asset_groups[asset_group_name].parameterized_name }}_layer);

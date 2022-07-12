@@ -12,6 +12,7 @@ from flexmeasures.auth.policy import ADMIN_ROLE
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
     parameterize,
+    pluralize,
 )
 from flexmeasures.utils.time_utils import (
     localized_datetime_str,
@@ -128,6 +129,7 @@ def add_jinja_filters(app):
     app.jinja_env.filters["naturalized_datetime"] = naturalized_datetime_str
     app.jinja_env.filters["naturalized_timedelta"] = naturaldelta
     app.jinja_env.filters["capitalize"] = capitalize
+    app.jinja_env.filters["pluralize"] = pluralize
     app.jinja_env.filters["parameterize"] = parameterize
     app.jinja_env.filters["isnull"] = pd.isnull
     app.jinja_env.filters["hide_nan_if_desired"] = (
