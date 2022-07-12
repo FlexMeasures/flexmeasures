@@ -1,4 +1,4 @@
-from typing import Union, Optional, Tuple
+from typing import Union, Optional, List, Tuple
 import copy
 
 from flask import url_for, current_app
@@ -7,7 +7,7 @@ from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
 from wtforms import StringField, DecimalField, SelectField
 from wtforms.validators import DataRequired
-from flexmeasures.auth.policy import ADMIN_ROLE
+from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
@@ -132,6 +132,7 @@ def process_internal_api_response(
             asset.sensors = Sensor.query.filter(
                 Sensor.generic_asset_id == asset_data["id"]
             ).all()
+            asset.account = Account.query.get(asset_data["account_id"])
         expunge_asset()
         return asset
     return asset_data
@@ -149,14 +150,27 @@ class AssetCrudUI(FlaskView):
 
     @login_required
     def index(self, msg=""):
-        """/assets"""
-        get_assets_response = InternalApi().get(
-            url_for("AssetAPI:index"), query={"account_id": current_user.account_id}
-        )
-        assets = [
-            process_internal_api_response(ad, make_obj=True)
-            for ad in get_assets_response.json()
-        ]
+        """GET from /assets
+
+        List the user's assets. For admins, list across all accounts.
+        """
+        assets = []
+
+        def get_asset_by_account(account_id) -> List[GenericAsset]:
+            get_assets_response = InternalApi().get(
+                url_for("AssetAPI:index"), query={"account_id": account_id}
+            )
+            return [
+                process_internal_api_response(ad, make_obj=True)
+                for ad in get_assets_response.json()
+            ]
+
+        if user_has_admin_access(current_user, "read"):
+            for account in Account.query.all():
+                assets += get_asset_by_account(account.id)
+        else:
+            assets = get_asset_by_account(current_user.account_id)
+
         return render_flexmeasures_template(
             "crud/assets.html", account=current_user.account, assets=assets, message=msg
         )
@@ -347,7 +361,7 @@ def _set_account(asset_form: NewAssetForm) -> Tuple[Optional[Account], Optional[
     account_error = None
 
     if asset_form.account_id.data == -1:
-        if current_user.has_role(ADMIN_ROLE):
+        if user_has_admin_access(current_user, "update"):
             return None, None  # Account can be None (public asset)
         else:
             account_error = "Please pick an existing account."

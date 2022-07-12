@@ -17,7 +17,7 @@
                         <th>Name</th>
                         <th class="text-right no-sort">Location</th>
                         <th class="text-right">Asset id</th>
-                        <th class="text-right">Account id</th>
+                        <th class="text-right">Account</th>
                         <th class="text-right no-sort">Sensors</th>
                         <th class="text-right no-sort">
                             {% if user_is_admin %}
@@ -34,7 +34,7 @@
                     <tr>
                         <td>
                             <i class="{{ asset.generic_asset_type.name | asset_icon }} left-icon"><a
-                                    href="/assets/{{ asset.id }}" alt="Edit this asset">{{ asset.name }}</a></i>
+                                    href="/assets/{{ asset.id }}" alt="View this asset">{{ asset.name }}</a></i>
                         </td>
                         <td class="text-right">
                             {% if asset.latitude and asset.longitude %}
@@ -46,7 +46,7 @@
                             {{ asset.id }}
                         </td>
                         <td class="text-right">
-                            {{ asset.account_id }}
+                            {{ asset.account.name }}
                         </td>
                         <td class="text-right">
                             {{ asset.sensors | length }}
