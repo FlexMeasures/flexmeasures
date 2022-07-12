@@ -74,7 +74,7 @@ Here we request 6-hour forecasts to be made for two sensors, for a period of two
 .. code-block:: console
 
     flexmeasures add forecasts --sensor-id 2 --sensor-id 3 \
-        --from_date 2015-02-01 --to_date 2015-08-31 \
+        --from-date 2015-02-01 --to-date 2015-08-31 \
         --horizon 6 --as-job
 
 This is half a year of data, so it will take a while.
