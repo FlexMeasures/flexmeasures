@@ -9,7 +9,7 @@ from werkzeug.exceptions import abort
 
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.data.schemas import AssetIdField, SensorIdField, AwareDateTimeField
+from flexmeasures.data.schemas import AssetIdField, AwareDateTimeField, DurationField, SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
@@ -63,6 +63,7 @@ class SensorAPI(FlaskView):
             "event_ends_before": AwareDateTimeField(format="iso", required=False),
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
+            "resolution": DurationField(required=False),
         },
         location="query",
     )

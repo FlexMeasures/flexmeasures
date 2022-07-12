@@ -6,6 +6,11 @@ API change log
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
 
+v3.0-2 | 2022-07-08
+"""""""""""""""""""
+
+- Introduced the "resolution" field to `/sensors/data` (GET) to obtain data in a given resolution.
+
 v3.0-1 | 2022-05-08
 """""""""""""""""""
 
