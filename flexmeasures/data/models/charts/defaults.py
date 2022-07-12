@@ -32,9 +32,19 @@ FIELD_DEFINITIONS = {
         type="quantitative",
     ),
     "source": dict(
-        field="source",
+        field="source.id",
+        type="nominal",
+        title=None,
+    ),
+    "source_name": dict(
+        field="source.name",
         type="nominal",
         title="Source",
+    ),
+    "source_model": dict(
+        field="source.model",
+        type="nominal",
+        title="Model",
     ),
     "full_date": dict(
         field="full_date",
@@ -113,16 +123,14 @@ LEGIBILITY_DEFAULTS = dict(
         title=dict(
             fontSize=FONT_SIZE,
         ),
-    ),
-    encoding=dict(
-        color=dict(
-            dict(
-                legend=dict(
-                    titleFontSize=FONT_SIZE,
-                    labelFontSize=FONT_SIZE,
-                )
-            )
-        )
+        legend=dict(
+            titleFontSize=FONT_SIZE,
+            labelFontSize=FONT_SIZE,
+            labelLimit=None,
+            orient="bottom",
+            columns=1,
+            direction="vertical",
+        ),
     ),
 )
 vega_lite_field_mapping = {
@@ -202,9 +210,11 @@ def merge_vega_lite_specs(child: dict, parent: dict) -> dict:
     d = {}
     for k in set().union(child, parent):
         if k in parent and k in child:
-            if isinstance(child[k], str):
+            if isinstance(child[k], str) and isinstance(parent[k], str):
+                child[k] = parent[k]
+            elif isinstance(child[k], str):
                 child[k] = {vega_lite_field_mapping.get(k, "type"): child[k]}
-            if isinstance(parent[k], str):
+            elif isinstance(parent[k], str):
                 parent[k] = {vega_lite_field_mapping.get(k, "type"): parent[k]}
         if (
             k in parent

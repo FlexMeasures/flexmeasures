@@ -9,8 +9,13 @@ from werkzeug.exceptions import abort
 
 from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.data.schemas.sensors import SensorIdField
-from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas import (
+    AssetIdField,
+    AwareDateTimeField,
+    DurationField,
+    SensorIdField,
+)
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 
@@ -128,6 +133,29 @@ class SensorAPI(FlaskView):
         """
         attributes = ["name", "timezone", "timerange"]
         return {attr: getattr(sensor, attr) for attr in attributes}
+
+
+class AssetAPI(FlaskView):
+    """
+    This view exposes asset attributes through API endpoints under development.
+    These endpoints are not yet part of our official API, but support the FlexMeasures UI.
+    """
+
+    route_base = "/asset"
+
+    @route("/<id>/")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @permission_required_for_context("read", arg_name="asset")
+    def get(self, id: int, asset: GenericAsset):
+        """GET from /asset/<id>
+
+        .. :quickref: Chart; Download asset attributes for use in charts
+        """
+        attributes = ["name", "timezone", "timerange_of_sensors_to_show"]
+        return {attr: getattr(asset, attr) for attr in attributes}
 
 
 def get_sensor_or_abort(id: int) -> Sensor:

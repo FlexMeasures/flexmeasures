@@ -914,11 +914,25 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* ---- Side panel ---- */
 
+@media (max-width: 767px) {
+        .left-sidepanel-label {
+            visibility: collapse;
+        }
+    }
 @media (min-width: 768px) {
+    .sidepanel h1,
+    .sidepanel h2,
+    .sidepanel h3,
+    .sidepanel label {
+        color: var(--nav-default-color) !important;
+    }
     .sidepanel-container {
         z-index: 20;
+        position: relative;
     }
-    .sidepanel {
+    .sidepanel,
+    .left-sidepanel-label {
+        color: var(--nav-default-color);
         background: var(--nav-default-background-color);
         width: calc(var(--litepicker-day-width) * 9);
         margin: 15px;
@@ -930,7 +944,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         -ms-transition: .3s;
         -o-transition: .3s;
     }
-    .left-sidepanel {
+    .left-sidepanel,
+    .left-sidepanel-label {
         border-top-left-radius: 0px;
         border-bottom-left-radius: 0px;
         border-top-right-radius: 15px;
@@ -938,6 +953,12 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     }
     .sidepanel-container > .left-sidepanel:not(.sidepanel-show) {
         transform: translateX(-106%);
+    }
+    .left-sidepanel-label {
+        margin: 0px;
+        transform: translateX(-70%);
+        text-align: right;
+        position: absolute;
     }
     @media (hover: hover) {
         .sidepanel-container:hover > .left-sidepanel,
@@ -988,14 +1009,36 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     -o-border-radius: 6px !important;
 }
 
+@media (min-width: 768px) {
+    .container__predefined-ranges button {
+        color: var(--primary-color);
+        border-right: 1px solid var(--primary-border-color) !important;
+    }
+}
+@media (max-width: 767px) {
+    .container__predefined-ranges button {
+        color: var(--white);
+        background-color: var(--primary-color);
+        border-right: 1px solid var(--primary-border-color) !important;
+    }
+}
 .container__predefined-ranges button {
     font-weight: 500;
     cursor: pointer !important;
-    border-right: 1px solid var(--primary-border-color) !important;
     flex: 1 1 auto;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.container__predefined-ranges > button:first-child {
+    border-top-left-radius: 15px;
+    border-bottom-left-radius: 15px;
 }
 .container__predefined-ranges > button:last-child {
     border-right: none !important;
+    border-top-right-radius: 15px;
+    border-bottom-right-radius: 15px;
 }
 
 .container__months {
@@ -1101,6 +1144,11 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .litepicker .container__months.columns-2 {
     width: auto;
+}
+
+.litepicker .container__tooltip {
+    color: var(--nav-default-color);
+    background-color: var(--nav-hover-background-color);
 }
 
 .litepicker[data-plugins*="ranges"] > .container__main > .container__predefined-ranges button {
@@ -1281,7 +1329,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     float: none !important;
 }
 
-.asset-form .form-group .control-label {
+.asset-form .control-label {
     width: auto !important;
     display: inline-block;
     float: none !important;
@@ -1394,16 +1442,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 
 /* ---- Sensors on asset page ---- */
-.sensors-asset {
-    padding-top: 50px;
-}
 
 .sensors-asset #DataTables_Table_0_wrapper {
     margin-top: 30px;
-}
-
-.sensors-asset #DataTables_Table_0_filter {
-    margin-bottom: 20px;
 }
 
 .sensors-asset #DataTables_Table_0_filter input {

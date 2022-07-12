@@ -7,6 +7,7 @@ v0.11.0 | June XX, 2022
 
 New features
 -------------
+* The asset page now shows the most relevant sensor data for the asset [see `PR #449 <http://www.github.com/FlexMeasures/flexmeasures/pull/449>`_]
 * Individual sensor charts show available annotations [see `PR #428 <http://www.github.com/FlexMeasures/flexmeasures/pull/428>`_]
 * Collapsible sidepanel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_ and `PR #448 <http://www.github.com/FlexMeasures/flexmeasures/pull/448>`_]
 * Switched from 12-hour AM/PM to 24-hour clock notation for time series chart axis labels [see `PR #446 <http://www.github.com/FlexMeasures/flexmeasures/pull/446>`_]
@@ -15,6 +16,7 @@ New features
 Bugfixes
 -----------
 * Do not fail asset page if entity addresses cannot be built [see `PR #457 <http://www.github.com/FlexMeasures/flexmeasures/pull/457>`_]
+* Time scale axes in sensor data charts now match the requested date range, rather than stopping at the edge of the available data [see `PR #449 <http://www.github.com/FlexMeasures/flexmeasures/pull/449>`_]
 
 Infrastructure / Support
 ----------------------

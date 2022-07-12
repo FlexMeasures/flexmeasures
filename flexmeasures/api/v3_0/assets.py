@@ -1,12 +1,16 @@
+import json
+
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
+from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args
 
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -231,3 +235,54 @@ class AssetAPI(FlaskView):
         db.session.commit()
         current_app.logger.info("Deleted asset '%s'." % asset_name)
         return {}, 204
+
+    @route("/<id>/chart/")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "event_starts_after": AwareDateTimeField(format="iso", required=False),
+            "event_ends_before": AwareDateTimeField(format="iso", required=False),
+            "beliefs_after": AwareDateTimeField(format="iso", required=False),
+            "beliefs_before": AwareDateTimeField(format="iso", required=False),
+            "include_data": fields.Boolean(required=False),
+            "dataset_name": fields.Str(required=False),
+            "height": fields.Str(required=False),
+            "width": fields.Str(required=False),
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", arg_name="asset")
+    def get_chart(self, id: int, asset: GenericAsset, **kwargs):
+        """GET from /assets/<id>/chart
+
+        .. :quickref: Chart; Download a chart with time series
+        """
+        return json.dumps(asset.chart(**kwargs))
+
+    @route("/<id>/chart_data/")
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "event_starts_after": AwareDateTimeField(format="iso", required=False),
+            "event_ends_before": AwareDateTimeField(format="iso", required=False),
+            "beliefs_after": AwareDateTimeField(format="iso", required=False),
+            "beliefs_before": AwareDateTimeField(format="iso", required=False),
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", arg_name="asset")
+    def get_chart_data(self, id: int, asset: GenericAsset, **kwargs):
+        """GET from /assets/<id>/chart_data
+
+        .. :quickref: Chart; Download time series for use in charts
+
+        Data for use in charts (in case you have the chart specs already).
+        """
+        sensors = asset.sensors_to_show
+        return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
