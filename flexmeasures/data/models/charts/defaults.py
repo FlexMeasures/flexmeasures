@@ -10,20 +10,22 @@ HEIGHT = 300
 WIDTH = "container"
 REDUCED_HEIGHT = REDUCED_WIDTH = 60
 SELECTOR_COLOR = "darkred"
-TIME_FORMAT = "%I:%M %p on %A %b %e, %Y"
+TIME_FORMAT = "%H:%M on %A %b %e, %Y"
+# Use default timeFormat for date or second labels, and use 24-hour clock notation for other (hour and minute) labels
+FORMAT_24H = "(hours(datum.value) == 0 & minutes(datum.value) == 0) | seconds(datum.value) != 0 ? timeFormat(datum.value) : timeFormat(datum.value, '%H:%M')"
 TIME_SELECTION_TOOLTIP = "Click and drag to select a time window"
 FIELD_DEFINITIONS = {
     "event_start": dict(
         field="event_start",
         type="temporal",
         title=None,
-        axis={"labelOverlap": True, "labelSeparation": 1},
+        axis={"labelExpr": FORMAT_24H, "labelOverlap": True, "labelSeparation": 1},
     ),
     "event_end": dict(
         field="event_end",
         type="temporal",
         title=None,
-        axis={"labelOverlap": True, "labelSeparation": 1},
+        axis={"labelExpr": FORMAT_24H, "labelOverlap": True, "labelSeparation": 1},
     ),
     "event_value": dict(
         field="event_value",

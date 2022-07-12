@@ -8,17 +8,20 @@ v0.11.0 | June XX, 2022
 New features
 -------------
 * Individual sensor charts show available annotations [see `PR #428 <http://www.github.com/FlexMeasures/flexmeasures/pull/428>`_]
-* Collapsible side-panel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_]
 * Add CLI command ``flexmeasures jobs show-queues`` [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
+* Collapsible side-panel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_ and `PR #448 <http://www.github.com/FlexMeasures/flexmeasures/pull/448>`_]
+* Switched from 12-hour AM/PM to 24-hour clock notation for time series chart axis labels [see `PR #446 <http://www.github.com/FlexMeasures/flexmeasures/pull/446>`_]
 
 Bugfixes
 -----------
+* Do not fail asset page if entity addresses cannot be built [see `PR #457 <http://www.github.com/FlexMeasures/flexmeasures/pull/457>`_]
 
 Infrastructure / Support
 ----------------------
 * Docker compose stack now with Redis worker queue [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
 * Allow access tokens to be passed as env vars as well [see `PR #443 <http://www.github.com/FlexMeasures/flexmeasures/pull/443>`_]
 * Queue workers can get initialised without a custom name and name collisions are handled [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
+
 
 v0.10.1 | June XX, 2022
 ===========================
