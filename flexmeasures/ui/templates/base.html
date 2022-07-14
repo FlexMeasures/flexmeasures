@@ -202,6 +202,33 @@
 
     {% endblock forecastpicker %}
 
+    {% block leftsidepanel %}
+
+    <script>
+      // Set up swiping and clicking for the left sidepanel
+      var leftSidepanels = document.getElementsByClassName('left-sidepanel');
+      var leftSidepanelLabels = document.getElementsByClassName('left-sidepanel-label');
+      async function openSidepanel(e) {
+        if ( (e.target.classList.contains('sidepanel-container')) | (e.type == 'click') ) {
+          for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+            leftSidepanels[i].classList.add('sidepanel-show');
+          }
+        }
+      }
+      async function closeSidepanel(e) {
+        for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+          leftSidepanels[i].classList.remove('sidepanel-show');
+        }
+      }
+      for (var i = leftSidepanelLabels.length - 1; i >= 0; i--) {
+        leftSidepanelLabels[i].addEventListener("click", openSidepanel)
+      }
+      document.addEventListener('swiped-right', openSidepanel);
+      document.addEventListener('swiped-left', closeSidepanel);
+    </script>
+
+    {% endblock leftsidepanel %}
+
     {% block attributions %}
     <div id="att-text" style="display: none;">
         <ul>
@@ -225,6 +252,12 @@
 
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    {% if js_versions %}
+    <script src="https://cdn.jsdelivr.net/npm/vega@{{ js_versions.vega }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@{{ js_versions.vegalite }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@{{ js_versions.vegaembed }}"></script>
+    {% endif %}
 
     <!-- Custom scripts -->
     <script src="{{ url_for('flexmeasures_ui.static', filename='js/swiped-events.min.js') }}"></script>

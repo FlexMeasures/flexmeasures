@@ -1,5 +1,6 @@
-from datetime import datetime
-from typing import Optional, Tuple, List, Union
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional, Tuple, List, Union
+import json
 
 from flask_security import current_user
 import pandas as pd
@@ -8,16 +9,18 @@ from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.sql.expression import func
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
-from timely_beliefs import utils as tb_utils
+from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, to_annotation_frame
+from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
+from flexmeasures.utils.time_utils import server_now
 
 
 class GenericAssetType(db.Model):
@@ -156,9 +159,10 @@ class GenericAsset(db.Model, AuthModelMixin):
             func.ll_to_earth(*other_location),
         )
 
-    def get_attribute(self, attribute: str):
+    def get_attribute(self, attribute: str, default: Any = None):
         if attribute in self.attributes:
             return self.attributes[attribute]
+        return default
 
     def has_attribute(self, attribute: str) -> bool:
         return attribute in self.attributes
@@ -262,6 +266,231 @@ class GenericAsset(db.Model, AuthModelMixin):
             sources=parsed_sources,
             annotation_type=annotation_type,
         ).count()
+
+    def chart(
+        self,
+        chart_type: str = "chart_for_multiple_sensors",
+        event_starts_after: Optional[datetime] = None,
+        event_ends_before: Optional[datetime] = None,
+        beliefs_after: Optional[datetime] = None,
+        beliefs_before: Optional[datetime] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
+        include_data: bool = False,
+        dataset_name: Optional[str] = None,
+        **kwargs,
+    ) -> dict:
+        """Create a vega-lite chart showing sensor data.
+
+        :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param include_data: if True, include data in the chart, or if False, exclude data
+        :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
+        :returns: JSON string defining vega-lite chart specs
+        """
+        sensors = self.sensors_to_show
+        for sensor in sensors:
+            sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
+
+        # Set up chart specification
+        if dataset_name is None:
+            dataset_name = "asset_" + str(self.id)
+        if event_starts_after:
+            kwargs["event_starts_after"] = event_starts_after
+        if event_ends_before:
+            kwargs["event_ends_before"] = event_ends_before
+        chart_specs = chart_type_to_chart_specs(
+            chart_type,
+            sensors=sensors,
+            dataset_name=dataset_name,
+            **kwargs,
+        )
+
+        if include_data:
+            # Get data
+            data = self.search_beliefs(
+                sensors=sensors,
+                as_json=True,
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                source=source,
+            )
+
+            # Combine chart specs and data
+            chart_specs["datasets"] = {
+                dataset_name: json.loads(data),
+            }
+
+        return chart_specs
+
+    def search_beliefs(
+        self,
+        sensors: Optional[List["Sensor"]] = None,  # noqa F821
+        event_starts_after: Optional[datetime] = None,
+        event_ends_before: Optional[datetime] = None,
+        beliefs_after: Optional[datetime] = None,
+        beliefs_before: Optional[datetime] = None,
+        horizons_at_least: Optional[timedelta] = None,
+        horizons_at_most: Optional[timedelta] = None,
+        source: Optional[
+            Union[DataSource, List[DataSource], int, List[int], str, List[str]]
+        ] = None,
+        most_recent_events_only: bool = False,
+        as_json: bool = False,
+    ) -> Union[BeliefsDataFrame, str]:
+        """Search all beliefs about events for all sensors of this asset
+
+        If you don't set any filters, you get the most recent beliefs about all events.
+
+        :param sensors: only return beliefs about events registered by these sensors
+        :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
+        :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
+        :param beliefs_after: only return beliefs formed after this datetime (inclusive)
+        :param beliefs_before: only return beliefs formed before this datetime (inclusive)
+        :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
+        :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
+        :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
+        :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
+        :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
+        """
+        bdf_dict = {}
+        if sensors is None:
+            sensors = self.sensors
+        for sensor in sensors:
+            bdf_dict[sensor] = sensor.search_beliefs(
+                event_starts_after=event_starts_after,
+                event_ends_before=event_ends_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
+                horizons_at_least=horizons_at_least,
+                horizons_at_most=horizons_at_most,
+                source=source,
+                most_recent_beliefs_only=True,
+                most_recent_events_only=most_recent_events_only,
+                one_deterministic_belief_per_event_per_source=True,
+            )
+        if as_json:
+            from flexmeasures.data.services.time_series import simplify_index
+
+            if sensors:
+                min_resolution = min(bdf.event_resolution for bdf in bdf_dict.values())
+                df_dict = {}
+                for sensor, bdf in bdf_dict.items():
+                    bdf = bdf.resample_events(min_resolution)
+                    df = simplify_index(
+                        bdf, index_levels_to_columns=["source"]
+                    ).set_index(["source"], append=True)
+                    df_dict[sensor.id] = df.rename(columns=dict(event_value=sensor.id))
+                df = list(df_dict.values())[0].join(
+                    list(df_dict.values())[1:], how="outer"
+                )
+            else:
+                df = simplify_index(
+                    BeliefsDataFrame(), index_levels_to_columns=["source"]
+                ).set_index(["source"], append=True)
+            df = df.reset_index()
+            df["source"] = df["source"].apply(lambda x: x.to_dict())
+            return df.to_json(orient="records")
+        return bdf_dict
+
+    @property
+    def sensors_to_show(self) -> List["Sensor"]:  # noqa F821
+        """Sensors to show, as defined by the sensors_to_show attribute.
+
+        Defaults to two of the asset's sensors.
+        """
+        if not self.has_attribute("sensors_to_show"):
+            return self.sensors[:2]
+
+        from flexmeasures.data.services.sensors import get_public_sensors
+
+        sensor_ids = self.get_attribute("sensors_to_show")
+        sensor_map = {
+            sensor.id: sensor
+            for sensor in self.sensors + get_public_sensors(sensor_ids)
+            if sensor.id in sensor_ids
+        }
+
+        # Return sensors in the order given by the sensors_to_show attribute
+        return [sensor_map[sensor_id] for sensor_id in sensor_ids]
+
+    @property
+    def timezone(
+        self,
+    ) -> str:
+        """Timezone relevant to the asset.
+
+        If a timezone is not given as an attribute of the asset, it is taken from one of its sensors.
+        """
+        if self.has_attribute("timezone"):
+            return self.get_attribute("timezone")
+        if self.sensors:
+            return self.sensors[0].timezone
+        return "UTC"
+
+    @property
+    def timerange(self) -> Dict[str, datetime]:
+        """Time range for which sensor data exists.
+
+        :returns: dictionary with start and end, for example:
+                  {
+                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                  }
+        """
+        return self.get_timerange(self.sensors)
+
+    @property
+    def timerange_of_sensors_to_show(self) -> Dict[str, datetime]:
+        """Time range for which sensor data exists, for sensors to show.
+
+        :returns: dictionary with start and end, for example:
+                  {
+                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                  }
+        """
+        return self.get_timerange(self.sensors_to_show)
+
+    @classmethod
+    def get_timerange(cls, sensors: List["Sensor"]) -> Dict[str, datetime]:  # noqa F821
+        """Time range for which sensor data exists.
+
+        :param sensors: sensors to check
+        :returns: dictionary with start and end, for example:
+                  {
+                      'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                      'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                  }
+        """
+        from flexmeasures.data.models.time_series import TimedBelief
+
+        sensor_ids = [sensor.id for sensor in sensors]
+        least_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor_id.in_(sensor_ids))
+            .order_by(TimedBelief.event_start.asc())
+            .limit(1)
+        )
+        most_recent_query = (
+            TimedBelief.query.filter(TimedBelief.sensor_id.in_(sensor_ids))
+            .order_by(TimedBelief.event_start.desc())
+            .limit(1)
+        )
+        results = least_recent_query.union_all(most_recent_query).all()
+        if not results:
+            # return now in case there is no data for any of the sensors
+            now = server_now()
+            return dict(start=now, end=now)
+        least_recent, most_recent = results
+        return dict(start=least_recent.event_start, end=most_recent.event_end)
 
 
 def create_generic_asset(generic_asset_type: str, **kwargs) -> GenericAsset:
