@@ -10,7 +10,7 @@
     <div class="row">
         <div class="col-sm-12">
 
-            <h3>All assets owned by account {{account.name}}</h3>
+            <h3>Asset overview</h3>
             <table class="table table-striped table-responsive paginate">
                 <thead>
                     <tr>
@@ -46,7 +46,7 @@
                             {{ asset.id }}
                         </td>
                         <td class="text-right">
-                            {{ asset.account.name }}
+                            {{ asset.owner.name }}
                         </td>
                         <td class="text-right">
                             {{ asset.sensors | length }}

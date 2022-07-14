@@ -147,7 +147,7 @@
                                 <div class="row">
                                     <div class="col-sm-12">
                                         <h4>{{ asset.name }} </h4>
-                                        {% if user_has_admin_reader_rights %} <h5>Account: {{ asset.account.name }} </h5> {% endif %}
+                                        {% if user_has_admin_reader_rights %} <h5>Account: {{ asset.owner.name }} </h5> {% endif %}
                                     </div>
                                 </div>
                                 <div class="row">
@@ -190,7 +190,7 @@
                 next();
             });
         })
-        .bindTooltip(user_is_admin ? "{{ asset.name }} (Account: {{ asset.account.name }})" : "{{ asset.name }}",
+        .bindTooltip(user_is_admin ? "{{ asset.name }} (Account: {{ asset.owner.name }})" : "{{ asset.name }}",
         {
             permanent: false,
             direction: 'right'

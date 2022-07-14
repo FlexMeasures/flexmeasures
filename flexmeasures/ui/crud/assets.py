@@ -112,6 +112,8 @@ def process_internal_api_response(
     """
     Turn data from the internal API into something we can use to further populate the UI.
     Either as an asset object or a dict for form filling.
+
+    If we add other data by querying the database, we make sure the asset is not in the session afterwards.
     """
 
     def expunge_asset():
@@ -127,13 +129,14 @@ def process_internal_api_response(
         asset.generic_asset_type = GenericAssetType.query.get(
             asset.generic_asset_type_id
         )
+        expunge_asset()
+        asset.owner = Account.query.get(asset_data["account_id"])
+        expunge_asset()
         if "id" in asset_data:
-            expunge_asset()
             asset.sensors = Sensor.query.filter(
                 Sensor.generic_asset_id == asset_data["id"]
             ).all()
-            asset.account = Account.query.get(asset_data["account_id"])
-        expunge_asset()
+            expunge_asset()
         return asset
     return asset_data
 
@@ -172,7 +175,7 @@ class AssetCrudUI(FlaskView):
             assets = get_asset_by_account(current_user.account_id)
 
         return render_flexmeasures_template(
-            "crud/assets.html", account=current_user.account, assets=assets, message=msg
+            "crud/assets.html", assets=assets, message=msg
         )
 
     @login_required
