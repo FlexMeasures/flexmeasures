@@ -86,3 +86,11 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     def __str__(self):
         return self.description
+
+    def to_dict(self) -> dict:
+        return dict(
+            id=self.id,
+            name=self.name,
+            model=f"{self.model} ({self.version})" if self.model else "",
+            description=self.description,
+        )

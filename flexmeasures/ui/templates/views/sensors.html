@@ -9,14 +9,17 @@
       <div class="sensor-data charts text-center">
           <div class="row"><div class="alert alert-info" id="tzwarn" style="display:none;"></div></div>
           <div class="row on-top-md">
-              <div class="col-sm-2 sidepanel-container">
-                  <div class="sidepanel left-sidepanel">
-                      <div id="datepicker"></div>
+              <div class="col-sm-2">
+                  <div class="sidepanel-container">
+                      <div class="left-sidepanel-label">Select dates</div>
+                      <div class="sidepanel left-sidepanel">
+                          <div id="datepicker"></div>
+                      </div>
                   </div>
               </div>
               <div class="col-sm-8">
                   <div id="sensorchart" class="card" style="width: 100%;"></div>
-                  <div id="spinner">
+                  <div id="spinner" hidden="hidden">
                       <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                       <span class="sr-only">Loading...</span>
                   </div>
@@ -26,10 +29,6 @@
           <hr>
       </div>
 
-    <script src="https://d3js.org/d3.v6.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega@{{ js_versions.vega }}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega-lite@{{ js_versions.vegalite }}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega-embed@{{ js_versions.vegaembed }}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jstimezonedetect/1.0.7/jstz.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/plugins/ranges.js"></script>
@@ -41,22 +40,32 @@
       import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
 
       let vegaView;
+      let previousResult;
 
-      async function embedAndLoad(chartSpecsPath, elementId, datasetName) {
+      async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
-        await vegaEmbed('#'+elementId, chartSpecsPath + '?dataset_name=' + datasetName + '&width=container&include_sensor_annotations=true&include_asset_annotations=true', {{ chart_options | safe }})
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=true&include_asset_annotations=true', {{ chart_options | safe }})
         .then(function (result) {
           // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
           vegaView = result.view;
+          if (previousResult) {
+            var slicedPreviousResult = previousResult.filter(item => {
+              return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime()
+            })
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousResult)).resize().run();
+          }
         });
       }
 
       var sensorId = {{ sensor_id }}
       var sensorPath = '/api/dev/sensor/' + sensorId
-      var chartSpecsPath = sensorPath + '/chart'
+      var chartSpecsPath = sensorPath + '/chart?'
       var elementId = 'sensorchart'
       var datasetName = 'sensor_' + sensorId
-      embedAndLoad(chartSpecsPath, elementId, datasetName);
+
+      // Set up abort controller to cancel requests
+      var controller = new AbortController()
+      var signal = controller.signal
 
       // Set up abort controller to cancel requests
       var controller = new AbortController()
@@ -101,6 +110,7 @@
           signal = controller.signal
 
           $("#spinner").show();
+          embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate);
           Promise.all([
               // Fetch time series data
               fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
@@ -119,6 +129,7 @@
                 $("#spinner").hide();
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
                 vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+                previousResult = result[0];
           }).catch(console.error);
       });
 
@@ -136,27 +147,29 @@
               var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes'
               document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
             }
-            var start = new Date(data.timerange.start);
-            var end = new Date(data.timerange.end)
-            end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-            start.setHours(0,0,0,0) // get start of first day
-            end.setHours(0,0,0,0) // get start of last day
+            if ('timerange' in data) {
+              var start = new Date(data.timerange.start);
+              var end = new Date(data.timerange.end)
+              end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+              start.setHours(0,0,0,0) // get start of first day
+              end.setHours(0,0,0,0) // get start of last day
 
-            // Initialize picker to the last 2 days of sensor data
-            var nearEnd = new Date(end)//.setDate(end.getDate() - 1)
-            nearEnd.setDate(nearEnd.getDate() - 1)
-            picker.setDateRange(
+              // Initialize picker to the last 2 days of sensor data
+              var nearEnd = new Date(end)//.setDate(end.getDate() - 1)
+              nearEnd.setDate(nearEnd.getDate() - 1)
+              picker.setDateRange(
                 nearEnd,
                 end,
-            )
+              );
 
-            // No use looking for data in years outside timerange of sensor data
-            picker.setOptions({
-              dropdowns: {
+              // No use looking for data in years outside timerange of sensor data
+              picker.setOptions({
+                dropdowns: {
                   minYear: start.getFullYear(),
                   maxYear: end.getFullYear(),
-              },
-            });
+                },
+              });
+            };
           });
         }
       };
@@ -177,5 +190,7 @@
       });
 
     </script>
+
+    {% block leftsidepanel %} {{ super() }} {% endblock %}
 
 {% endblock %}
