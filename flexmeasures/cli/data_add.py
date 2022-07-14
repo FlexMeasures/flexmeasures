@@ -970,7 +970,7 @@ def add_toy_account(kind: str, name: str):
                 )
                 # add charging sensor to battery
                 charging_sensor = Sensor(
-                    name="charging",
+                    name="discharging",
                     generic_asset=asset,
                     unit="MW",
                     timezone="Europe/Amsterdam",
