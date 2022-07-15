@@ -121,19 +121,20 @@ def clear_queue(queue: str, failed: bool):
                 reg.remove(job_id)  # not actually deleting the job
             count_after = reg.count
             click.echo(
-                f"Cleared all {count_before - count_after} failed jobs from the registry at {the_queue}."
+                f"Cleared {count_before - count_after} failed jobs from the registry at {the_queue}."
             )
         else:
             count_before = the_queue.count
-            the_queue.empty()
+            if count_before > 0:
+                the_queue.empty()
             count_after = the_queue.count
-            click.echo(
-                f"Cleared all {count_before - count_after} jobs from {the_queue}."
-            )
+            click.echo(f"Cleared {count_before - count_after} jobs from {the_queue}.")
         if count_after > 0:
             click.echo(
                 f"There are {count_after} jobs which could not be removed for some reason."
             )
+        else:
+            click.echo("No jobs left.")
 
 
 def parse_queue_list(queue_names_str: str) -> List[Queue]:
