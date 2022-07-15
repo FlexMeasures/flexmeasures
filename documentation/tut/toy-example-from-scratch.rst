@@ -169,6 +169,8 @@ Visit `http://localhost:5000/assets <http://localhost:5000/assets>`_ (username i
 .. note:: You won't see the map tiles, as we have not configured the :ref:`MAPBOX_ACCESS_TOKEN`. If you have one, you can configure it via ``flexmeasures.cfg`` (for Docker, see :ref:`docker_configuration`).
 
 
+.. _tut_toy_schedule_price_data:
+
 Add some price data
 ---------------------------------------
 

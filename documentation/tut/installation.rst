@@ -253,8 +253,8 @@ Then, start workers in a console (or some other method to keep a long-running pr
 
 .. code-block:: console
 
-   flexmeasures run-worker --queue forecasting
-   flexmeasures run-worker --queue scheduling
+   flexmeasures jobs run-worker --queue forecasting
+   flexmeasures jobs run-worker --queue scheduling
 
 
 Where to go from here?

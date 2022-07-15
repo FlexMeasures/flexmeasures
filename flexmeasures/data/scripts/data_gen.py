@@ -238,7 +238,7 @@ def populate_time_series_forecasts(  # noqa: C901
                 for dt, value in forecasts.items()
             ]
 
-            print(
+            click.echo(
                 "Saving %s %s-forecasts for %s..."
                 % (len(beliefs), naturaldelta(horizon), sensor.id)
             )

@@ -10,6 +10,8 @@ For this, we assume you are in the directory housing ``docker-compose.yml``.
 
 .. note:: The minimum Docker version is 17.09 and for docker-compose we tested successfully at version 1.25. You can check your versions with ``docker[-compose] --version``.
 
+.. note:: The command might also be ``docker compose`` (no dash), for instance if you are using `Docker Desktop <https://docs.docker.com/desktop>`_.
+
 Build the compose stack
 ------------------------
 
@@ -19,11 +21,12 @@ Run this:
 
     docker-compose build
 
-This pulls the images you need, and re-builds the FlexMeasures one from code. If you change code, re-running this will re-build that image.
+This pulls the images you need, and re-builds the FlexMeasures ones from code. If you change code, re-running this will re-build that image.
 
 This compose script can also serve as an inspiration for using FlexMeasures in modern cloud environments (like Kubernetes). For instance, you might want to not build the FlexMeasures image from code, but simply pull the image from DockerHub.
 
-.. todo:: This stack runs FlexMeasures, but misses the background worker aspect. For this, we'll add a redis node and one additional FlexMeasures node, which runs a worker as entry point instead (see `issue 418 <https://github.com/FlexMeasures/flexmeasures/issues/418>`_).
+If you wanted, you could stop building from source, and directly use the official flexmeasures image for the server and worker container
+(set ``image: lfenergy/flexmeasures`` in the file ``docker-compose.yml``).
 
 
 Run the compose stack
@@ -35,7 +38,7 @@ Start the stack like this:
 
     docker-compose up
 
-You can see log output in the terminal, but ``docker-compose logs`` is also available to you.
+.. warning:: This might fail if ports 5000 (Flask) or 6379 (Redis) are in use on your system. Stop these processes before you continue.
 
 Check ``docker ps`` or ``docker-compose ps`` to see if your containers are running:
 
@@ -43,30 +46,113 @@ Check ``docker ps`` or ``docker-compose ps`` to see if your containers are runni
 .. code-block:: console
 
     ± docker ps
-    CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS                    PORTS                    NAMES
-    dda1a8606926        flexmeasures_server   "bash -c 'flexmeasur…"   43 seconds ago      Up 41 seconds (healthy)   0.0.0.0:5000->5000/tcp   flexmeasures-server-1
-    27ed9eef1b04        postgres              "docker-entrypoint.s…"   2 days ago          Up 42 seconds             5432/tcp                 flexmeasures-dev-db-1
-    90df2065e08d        postgres              "docker-entrypoint.s…"   2 days ago          Up 42 seconds             5432/tcp                 flexmeasures-test-db-1
+    CONTAINER ID   IMAGE                 COMMAND                  CREATED          STATUS                             PORTS                    NAMES
+    beb9bf567303   flexmeasures_server   "bash -c 'flexmeasur…"   44 seconds ago   Up 38 seconds (health: starting)   0.0.0.0:5000->5000/tcp   flexmeasures-server-1
+    e36cd54a7fd5   flexmeasures_worker   "flexmeasures jobs r…"   44 seconds ago   Up 5 seconds                       5000/tcp                 flexmeasures-worker-1
+    c9985de27f68   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                 flexmeasures-test-db-1
+    03582d37230e   postgres              "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      5432/tcp                 flexmeasures-dev-db-1
+    792ec3d86e71   redis                 "docker-entrypoint.s…"   45 seconds ago   Up 40 seconds                      0.0.0.0:6379->6379/tcp   flexmeasures-queue-db-1
 
 
-The FlexMeasures container has a health check implemented, which is reflected in this output and you can see which ports are available on your machine to interact.
+The FlexMeasures server container has a health check implemented, which is reflected in this output and you can see which ports are available on your machine to interact.
 
-You can use ``docker-compose logs`` to look at output. ``docker inspect <container>`` and ``docker exec -it <container> bash`` can be quite useful to dive into details. 
-
-.. todo:: We should provide a way to test that this is working, e.g. a list of steps. Document this, but also include that in our tsc/Release list (as a test step to see if Dockerization still works, plus a publish step for the released version).
+You can use the terminal or ``docker-compose logs`` to look at output. ``docker inspect <container>`` and ``docker exec -it <container> bash`` can be quite useful to dive into details. 
+We'll see the latter more in this tutorial.
 
 
 Configuration
 ---------------
 
-You can pass in your own configuration (e.g. for MapBox access token, or db URI, see below) like we described above for running a container: put a file ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance``.
+You can pass in your own configuration (e.g. for MapBox access token, or db URI, see below) like we described in :ref:`docker_configuration` ― put a file ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance`` (the volume should be already mapped).
 
 
 Data
 -------
 
 The postgres database is a test database with toy data filled in when the flexmeasures container starts.
-You could also connect it to some other database, by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config. 
+You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config. 
+
+
+Seeing it work: Running the toy tutorial
+--------------------------------------
+
+A good way to see if these containers work well together, and maybe to inspire how to use them for your own purposes, is the :ref:`tut_toy_schedule`.
+The server container already creates the toy account when it starts. We'll now run the rest of that tutorial, with one twist at the end, when we create the battery schedule.
+
+Let's go into the worker container:
+
+.. code-block:: console
+
+    docker exec -it flexmeasures-worker-1 bash
+
+There, we add the price data, as described in :ref:`tut_toy_schedule_price_data`. Create the prices and add them to the FlexMeasures DB in the container's bash session.
+
+Next, we put a scheduling job in the worker's queue. This uses the Redis container ― the toy tutorial isn't doing that (the difference is ``--as-job``).
+
+.. code-block:: console
+
+    flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
+        --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
+        --roundtrip-efficiency 90% --as-job
+
+We should now see in the output of ``docker logs flexmeasures-worker-1`` something like the following:
+
+.. code-block:: console
+
+    Running Scheduling Job d3e10f6d-31d2-46c6-8308-01ede48f8fdd: <Sensor 2: charging, unit: MW res.: 0:15:00>, from 2022-07-06 07:00:00+01:00 to 2022-07-06 19:00:00+01:00
+
+So the job had been queued in Redis, was then picked up by the worker process, and the result should be in our SQL database container. Let's check!
+
+We'll not go into the server container this time, but simply send a command:
+
+.. code-block:: console
+
+    TOMORROW=$(date --date="next day" '+%Y-%m-%d')
+    docker exec -it flexmeasures-server-1 bash -c "flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H"
+
+The charging/discharging schedule should be there:
+
+.. code-block:: console
+
+    ┌────────────────────────────────────────────────────────────┐
+    │   ▐                      ▐▀▀▌                           ▛▀▀│ 
+    │   ▞▌                     ▞  ▐                           ▌  │ 0.4MW
+    │   ▌▌                     ▌  ▐                          ▐   │ 
+    │  ▗▘▌                     ▌  ▐                          ▐   │ 
+    │  ▐ ▐                    ▗▘  ▝▖                         ▐   │ 
+    │  ▞ ▐                    ▐    ▌                         ▌   │ 0.2MW
+    │ ▗▘ ▐                    ▐    ▌                         ▌   │ 
+    │ ▐  ▝▖                   ▌    ▚                        ▞    │ 
+    │▀▘───▀▀▀▀▀▀▀▀▀▀▀▀▀▀▌────▐─────▝▀▀▀▀▀▀▀▀▜─────▐▀▀▀▀▀▀▀▀▀─────│ 0MW
+    │                   ▌    ▞              ▐    ▗▘              │ 
+    │                   ▚    ▌              ▐    ▐               │ 
+    │                   ▐   ▗▘              ▝▖   ▌               │ -0.2MW
+    │                   ▐   ▐                ▌   ▌               │ 
+    │                   ▐   ▐                ▌  ▗▘               │ 
+    │                    ▌  ▞                ▌  ▐                │ 
+    │                    ▌  ▌                ▐  ▐                │ -0.4MW
+    │                    ▙▄▄▌                ▐▄▄▞                │ 
+    └────────────────────────────────────────────────────────────┘
+            10           20           30          40
+                         ██ charging
+
+Like in the original toy tutorial, we can also check in the server container's `web UI <http://localhost:5000/sensors/2/>`_ (username is "toy-user@flexmeasures.io", password is "toy-password"):
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
+    :align: center
+
+
+Scripting with the Docker stack
+----------------------------------
+
+A very important aspect of this stack is if it can be put to interesting use.
+For this, developers need to be able to script things ― like we just did with the toy tutorial.
+
+Note that instead of starting a console in the containers, we can also send commands to them right away.
+For instance, we sent the complete ``flexmeasures show beliefs`` command and then viewed the output on our own machine.
+Likewise, we send the ``pytest`` command to run the unit tests (see below).
+
+Used this way, and in combination with the powerful list of :ref:`cli`, this FlexMeasures Docker stack is scriptable for interesting applications and simulations!
 
 
 Running tests
