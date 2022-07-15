@@ -9,7 +9,7 @@ New features
 -------------
 * The asset page now shows the most relevant sensor data for the asset [see `PR #449 <http://www.github.com/FlexMeasures/flexmeasures/pull/449>`_]
 * Individual sensor charts show available annotations [see `PR #428 <http://www.github.com/FlexMeasures/flexmeasures/pull/428>`_]
-* Admins can group assets by accounts on dashboard & assets page [see `PR #461 <http://www.github.com/FlexMeasures/flexmeasures/pull/461>`_]
+* Admins can group assets by account on dashboard & assets page [see `PR #461 <http://www.github.com/FlexMeasures/flexmeasures/pull/461>`_]
 * Collapsible sidepanel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_ and `PR #448 <http://www.github.com/FlexMeasures/flexmeasures/pull/448>`_]
 * Switched from 12-hour AM/PM to 24-hour clock notation for time series chart axis labels [see `PR #446 <http://www.github.com/FlexMeasures/flexmeasures/pull/446>`_]
 * Get data in a given resolution [see `PR #458 <http://www.github.com/FlexMeasures/flexmeasures/pull/458>`_]

@@ -43,10 +43,10 @@
                     <tr>
                         <td>
                             {% if user_has_admin_reader_rights %}
-                                {{ FLEXMEASURES_PLATFORM_NAME }} total
+                                {{ FLEXMEASURES_PLATFORM_NAME }} total:
                             {% else %}
-                                My assets
-                            {% endif %}:
+                                My assets:
+                            {% endif %}
                         </td>
 
                         {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
@@ -59,7 +59,7 @@
             {% if user_has_admin_reader_rights %}
             <div class="row">
                 <form class="col-sm-12 text-right form-inline" role="form" target="" method="get" id="dashboard-grouping-options">
-                    Group by accounts:
+                    Group by account:
                     <label class="switch">
                         <input name="group_by_accounts" {% if group_by_accounts %} checked{% endif %} type="checkbox" data-toggle="toggle">
                         <span class="slider"></span>
@@ -98,7 +98,7 @@
         $(".bokeh-state-plot").html(data);
     }
 
-    // Make an icon for each know asset type
+    // Make an icon for each known asset type
     {% for asset_type_name in known_asset_types %}
 
     var {{ asset_type_name | parameterize | pluralize }}_icon = new L.DivIcon({
@@ -110,7 +110,7 @@
     });
 
     /*
-    var {{ asset_type_name | parameterize }}_opportunity_icon = new L.DivIcon({
+    var {{ asset_type_name | parameterize | pluralize }}_opportunity_icon = new L.DivIcon({
         className: 'map-icon opportunity',
         html: '<i class="{{ asset_type_name | asset_icon }}"></i>',
         iconSize: [24, 24], // size of the icon
@@ -120,12 +120,6 @@
     */
     {% endfor %}
 
-    {% if user_has_admin_reader_rights %}
-        var user_is_admin = true;
-    {% else %}
-        var user_is_admin = false;
-    {% endif %}
-
     // create markers, keep them in separate lists (by asset type) to be put into layers
 
     {% for asset_group_name in asset_groups %}
@@ -134,20 +128,19 @@
     
     {% for asset in asset_groups[asset_group_name].assets if asset.location %}
 
-        // TODO: use id rather than asset name?
                 if (typeof marker_for_{{ (asset.id) }} == 'undefined') {
         var marker_for_{{ (asset.id)
     }} = L
         .marker(
             [{{ asset.location[0] }}, {{ asset.location[1] }}],
-            { icon: {{ asset.generic_asset_type.name | pluralize | parameterize }}_icon, id: "{{ asset.id }}"}
+            { icon: {{ asset.generic_asset_type.name | parameterize | pluralize }}_icon, id: "{{ asset.id }}"}
     )
         .bindPopup(`
                             <div class="leaflet-marker-popup">
                                 <div class="row">
                                     <div class="col-sm-12">
                                         <h4>{{ asset.name }} </h4>
-                                        {% if user_has_admin_reader_rights %} <h5>Account: {{ asset.owner.name }} </h5> {% endif %}
+                                        {% if user_has_admin_reader_rights %} <small>Account: {{ asset.owner.name }} </small> {% endif %}
                                     </div>
                                 </div>
                                 <div class="row">
@@ -190,7 +183,7 @@
                 next();
             });
         })
-        .bindTooltip(user_is_admin ? "{{ asset.name }} (Account: {{ asset.owner.name }})" : "{{ asset.name }}",
+        .bindTooltip({% if user_has_admin_reader_rights %}"{{ asset.name }} ({{ asset.owner.name }})"{% else %}"{{ asset.name }}" {% endif %},
         {
             permanent: false,
             direction: 'right'
