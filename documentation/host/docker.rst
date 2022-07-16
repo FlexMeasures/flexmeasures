@@ -6,13 +6,11 @@ Running via Docker
 FlexMeasures can be run via `docker <https://hub.docker.com/repository/docker/lfenergy/flexmeasures>`_.
 
 `Docker <https://docs.docker.com/get-docker/>`_ is great to save developers from installation trouble, but also for running FlexMeasures inside modern cloud environments in a scalable manner.
-For now, the use case is local development. Using in production is a goal for later.
 
-We also support running all needed parts of a FlexMeasures EMS setup via `docker-compose <https://docs.docker.com/compose/>`_, which is helpful for developers and might inform hosting efforts. 
 
-.. warning:: The dockerization is still `under development <https://github.com/FlexMeasures/flexmeasures/projects/5>`_.
+.. note:: We also support running all needed parts of a FlexMeasures EMS setup via `docker-compose <https://docs.docker.com/compose/>`_, which is helpful for developers and might inform hosting efforts. See :ref:`docker-compose`. 
 
-We also provide a docker-compose file for development, see :ref:`docker-compose`.
+.. warning:: For now, the use case is local development. Using in production is a goal for later. Follow `our progress <https://github.com/FlexMeasures/flexmeasures/projects/5>`_.
 
 
 The `flexmeasures` image

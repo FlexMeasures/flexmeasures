@@ -5,7 +5,7 @@ How to deploy FlexMeasures
 
 Here you can learn how to get FlexMeasures onto a server.
 
-.. note:: FlexMeasures can be deployed via Docker. Read more at :ref:`docker-image`.
+.. note:: FlexMeasures can be deployed via Docker. Read more at :ref:`docker-image`. You need other components (e.g. postgres and redis) which are not handled here. See :ref:`docker-compose` for inspiration.
 
 .. contents:: Table of contents
     :local:
