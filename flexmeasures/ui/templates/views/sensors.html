@@ -27,6 +27,7 @@
               <div class="col-sm-2">
                   <div class="replay-container">
                     <div id="replay"></div>
+                    <div id="replay-time"></div>
                   </div>
               </div>
           </div>
@@ -258,12 +259,14 @@
                 return item.belief_time <= beliefTime.getTime()
               })
               vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedResult)).resize().run();
+              document.getElementById('replay-time').innerHTML = beliefTime
               await timer(25);
             }
             // Stop replay when finished
             console.log("stop replay")
             toggle.classList.remove('playing');
             toggle.classList.add('stopped');
+            document.getElementById('replay-time').innerHTML = ''
           }
         } else {
           // Resume replay

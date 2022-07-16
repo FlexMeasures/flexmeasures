@@ -1721,10 +1721,15 @@ div.heading-group {
 /* ---- Play/Pause button ---- */
 .replay-container {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
 }
+#replay-time {
+  margin-top: 15px;
+}
 #replay {
+  cursor: pointer !important;
   margin-top: 190px;
   width: 50px;
   height: 50px;
@@ -1751,13 +1756,12 @@ div.heading-group {
 }
 #replay:before {
   left: 0;
-  top: 0;
   height: 50px;
   border-width: 0 0 0 16.6666666667px;
 }
 #replay:after {
   left: 33.3333333333px;
-  top: 0;
+  top: 0px;
   height: 50px;
   border-width: 0 0 0 16.6666666667px;
 }
