@@ -233,7 +233,7 @@
           $("#spinner").show();
           Promise.all([
             // Fetch time series data
-            fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=true', {
+            fetch(sensorPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
               method: "GET",
               headers: {"Content-Type": "application/json"},
             })
