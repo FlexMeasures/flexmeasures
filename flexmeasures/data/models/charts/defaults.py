@@ -10,27 +10,41 @@ HEIGHT = 300
 WIDTH = "container"
 REDUCED_HEIGHT = REDUCED_WIDTH = 60
 SELECTOR_COLOR = "darkred"
-TIME_FORMAT = "%I:%M %p on %A %b %e, %Y"
+TIME_FORMAT = "%H:%M on %A %b %e, %Y"
+# Use default timeFormat for date or second labels, and use 24-hour clock notation for other (hour and minute) labels
+FORMAT_24H = "(hours(datum.value) == 0 & minutes(datum.value) == 0) | seconds(datum.value) != 0 ? timeFormat(datum.value) : timeFormat(datum.value, '%H:%M')"
 TIME_SELECTION_TOOLTIP = "Click and drag to select a time window"
 FIELD_DEFINITIONS = {
     "event_start": dict(
         field="event_start",
         type="temporal",
         title=None,
+        axis={"labelExpr": FORMAT_24H, "labelOverlap": True, "labelSeparation": 1},
     ),
     "event_end": dict(
         field="event_end",
         type="temporal",
         title=None,
+        axis={"labelExpr": FORMAT_24H, "labelOverlap": True, "labelSeparation": 1},
     ),
     "event_value": dict(
         field="event_value",
         type="quantitative",
     ),
     "source": dict(
-        field="source",
+        field="source.id",
+        type="nominal",
+        title=None,
+    ),
+    "source_name": dict(
+        field="source.name",
         type="nominal",
         title="Source",
+    ),
+    "source_model": dict(
+        field="source.model",
+        type="nominal",
+        title="Model",
     ),
     "full_date": dict(
         field="full_date",
@@ -105,19 +119,18 @@ LEGIBILITY_DEFAULTS = dict(
             titleFontSize=FONT_SIZE,
             labelFontSize=FONT_SIZE,
         ),
+        axisY={"titleAngle": 0, "titleAlign": "left", "titleY": -15, "titleX": -40},
         title=dict(
             fontSize=FONT_SIZE,
         ),
-    ),
-    encoding=dict(
-        color=dict(
-            dict(
-                legend=dict(
-                    titleFontSize=FONT_SIZE,
-                    labelFontSize=FONT_SIZE,
-                )
-            )
-        )
+        legend=dict(
+            titleFontSize=FONT_SIZE,
+            labelFontSize=FONT_SIZE,
+            labelLimit=None,
+            orient="bottom",
+            columns=1,
+            direction="vertical",
+        ),
     ),
 )
 vega_lite_field_mapping = {
@@ -128,7 +141,8 @@ vega_lite_field_mapping = {
 
 def apply_chart_defaults(fn):
     @wraps(fn)
-    def decorated_chart_specs(*args, **kwargs):
+    def decorated_chart_specs(*args, **kwargs) -> dict:
+        """:returns: dict with vega-lite specs, even when applied to an Altair chart."""
         dataset_name = kwargs.pop("dataset_name", None)
         include_annotations = kwargs.pop("include_annotations", None)
         if isinstance(fn, Callable):
@@ -196,9 +210,11 @@ def merge_vega_lite_specs(child: dict, parent: dict) -> dict:
     d = {}
     for k in set().union(child, parent):
         if k in parent and k in child:
-            if isinstance(child[k], str):
+            if isinstance(child[k], str) and isinstance(parent[k], str):
+                child[k] = parent[k]
+            elif isinstance(child[k], str):
                 child[k] = {vega_lite_field_mapping.get(k, "type"): child[k]}
-            if isinstance(parent[k], str):
+            elif isinstance(parent[k], str):
                 parent[k] = {vega_lite_field_mapping.get(k, "type"): parent[k]}
         if (
             k in parent

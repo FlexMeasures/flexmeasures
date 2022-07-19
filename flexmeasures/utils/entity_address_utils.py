@@ -325,7 +325,7 @@ def build_ea_scheme_and_naming_authority(
                 "FLEXMEASURES_HOSTS_AND_AUTH_START", {}
             )[config_var_domain_key]
         else:
-            raise Exception(
+            raise EntityAddressException(
                 f"Could not find out when authority for {config_var_domain_key} started. Is FLEXMEASURES_HOSTS_AND_AUTH_START configured for it?"
             )
     regex = r"^\d{4}-\d{2}$"
