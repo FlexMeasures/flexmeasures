@@ -100,6 +100,17 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
+def test_get_public_assets(client, setup_api_test_data, setup_accounts):
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    get_assets_response = client.get(
+        url_for("AssetAPI:public"),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % get_assets_response.json)
+    assert len(get_assets_response.json) == 1
+    assert get_assets_response.json[0]["name"] == "troposphere"
+
+
 def test_alter_an_asset(client, setup_api_test_data, setup_accounts):
     # without being an account-admin, no asset can be created ...
     with UserContext("test_prosumer_user@seita.nl") as prosumer1:

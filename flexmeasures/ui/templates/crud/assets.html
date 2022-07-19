@@ -46,7 +46,11 @@
                             {{ asset.id }}
                         </td>
                         <td class="text-right">
-                            {{ asset.owner.name }}
+                            {% if asset.owner %}
+                                {{ asset.owner.name }}
+                            {% else %}
+                                PUBLIC
+                            {% endif %}
                         </td>
                         <td class="text-right">
                             {{ asset.sensors | length }}

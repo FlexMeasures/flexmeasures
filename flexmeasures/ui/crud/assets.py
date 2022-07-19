@@ -160,9 +160,12 @@ class AssetCrudUI(FlaskView):
         assets = []
 
         def get_asset_by_account(account_id) -> List[GenericAsset]:
-            get_assets_response = InternalApi().get(
-                url_for("AssetAPI:index"), query={"account_id": account_id}
-            )
+            if account_id is not None:
+                get_assets_response = InternalApi().get(
+                    url_for("AssetAPI:index"), query={"account_id": account_id}
+                )
+            else:
+                get_assets_response = InternalApi().get(url_for("AssetAPI:public"))
             return [
                 process_internal_api_response(ad, make_obj=True)
                 for ad in get_assets_response.json()
@@ -171,6 +174,7 @@ class AssetCrudUI(FlaskView):
         if user_has_admin_access(current_user, "read"):
             for account in Account.query.all():
                 assets += get_asset_by_account(account.id)
+            assets += get_asset_by_account(account_id=None)
         else:
             assets = get_asset_by_account(current_user.account_id)
 
