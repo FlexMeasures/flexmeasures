@@ -73,13 +73,16 @@ The postgres database is a test database with toy data filled in when the flexme
 You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config. 
 
 
+.. _docker-compose-tutorial:
+
 Seeing it work: Running the toy tutorial
 --------------------------------------
 
 A good way to see if these containers work well together, and maybe to inspire how to use them for your own purposes, is the :ref:`tut_toy_schedule`.
-The server container already creates the toy account when it starts. We'll now run the rest of that tutorial, with one twist at the end, when we create the battery schedule.
 
-Let's go into the worker container:
+The `flexmeasures-server` container already creates the toy account when it starts (see its initial command). We'll now walk through the rest of the toy tutorial, with one twist at the end, when we create the battery schedule.
+
+Let's go into the `flexmeasures-worker` container:
 
 .. code-block:: console
 
@@ -87,7 +90,7 @@ Let's go into the worker container:
 
 There, we add the price data, as described in :ref:`tut_toy_schedule_price_data`. Create the prices and add them to the FlexMeasures DB in the container's bash session.
 
-Next, we put a scheduling job in the worker's queue. This uses the Redis container ― the toy tutorial isn't doing that (the difference is ``--as-job``).
+Next, we put a scheduling job in the worker's queue. This only works because we have the Redis container running ― the toy tutorial doesn't have it. The difference is that we're adding ``--as-job``:
 
 .. code-block:: console
 
