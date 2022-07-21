@@ -333,7 +333,7 @@
               console.log('Time taken to update data:'+ (t1-t0) +' milliseconds');
 
               // todo: remove obsolete beliefs and insert most recent new beliefs
-              vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(simulatedData)).resize().run().finalize();
+              vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(simulatedData)).run().finalize();
               
               let t2= performance.now();
 
