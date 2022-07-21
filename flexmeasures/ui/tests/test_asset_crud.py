@@ -16,6 +16,7 @@ api_path_assets = "http://localhost//api/v3_0/assets"
 
 def test_assets_page_empty(db, client, requests_mock, as_prosumer_user1):
     requests_mock.get(f"{api_path_assets}?account_id=1", status_code=200, json={})
+    requests_mock.get(f"{api_path_assets}/public", status_code=200, json={})
     asset_index = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert asset_index.status_code == 200
 
@@ -98,6 +99,7 @@ def test_delete_asset(client, db, requests_mock, as_admin):
     """Delete an asset"""
     requests_mock.delete(f"{api_path_assets}/1", status_code=204, json={})
     requests_mock.get(api_path_assets, status_code=200, json={})
+    requests_mock.get(f"{api_path_assets}/public", status_code=200, json={})
     response = client.get(
         url_for("AssetCrudUI:delete_with_data", id=1),
         follow_redirects=True,
