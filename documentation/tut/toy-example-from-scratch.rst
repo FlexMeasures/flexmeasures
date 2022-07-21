@@ -68,6 +68,7 @@ Install Flexmeasures and the database
 
         .. note:: A tip on Linux/macOS ― You might have the ``docker`` command, but need `sudo` rights to execute it. ``alias docker='sudo docker'`` enables you to still run this tutorial.
 
+        .. note:: Got docker-compose? You could run this tutorial with 5 containers :) ― Go to :ref:`docker-compose-tutorial`.
 
   .. tab:: On your PC
         
