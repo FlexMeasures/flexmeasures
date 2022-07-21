@@ -129,6 +129,8 @@ def set_time_range_for_session():
         ):  # session storage seems to lose tz info and becomes UTC
             session["start_time"] = time_utils.as_server_time(session["start_time"])
 
+    session["event_starts_after"] = request.values.get("event_starts_after")
+    session["event_ends_before"] = request.values.get("event_ends_before")
     if "end_time" in request.values:
         session["end_time"] = time_utils.localized_datetime(
             iso8601.parse_date(request.values.get("end_time"))

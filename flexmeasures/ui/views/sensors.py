@@ -1,7 +1,7 @@
 import json
 
 from altair.utils.html import spec_to_html
-from flask import current_app
+from flask import current_app, session
 from flask_classful import FlaskView, route
 from flask_security import auth_required, login_required
 from marshmallow import fields
@@ -69,5 +69,7 @@ class SensorUI(FlaskView):
         return render_flexmeasures_template(
             "views/sensors.html",
             sensor_id=id,
+            event_starts_after=session.get("event_starts_after"),
+            event_ends_before=session.get("event_ends_before"),
             msg="",
         )
