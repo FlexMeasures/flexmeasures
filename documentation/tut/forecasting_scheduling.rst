@@ -24,21 +24,24 @@ Start to run one worker for each kind of job (in a separate terminal):
 
 .. code-block:: console
 
-   flexmeasures run-worker --queue forecasting
-   flexmeasures run-worker --queue scheduling
+   flexmeasures jobs run-worker --queue forecasting
+   flexmeasures jobs run-worker --queue scheduling
 
 
 You can also clear the job queues:
 
 .. code-block:: console
 
-   flexmeasures clear-queue --queue forecasting
-   flexmeasures clear-queue --queue scheduling
+   flexmeasures jobs clear-queue --queue forecasting
+   flexmeasures jobs clear-queue --queue scheduling
 
 
 When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
 
 When forecasts and schedules have been generated, they should be visible at ``http://localhost:5000/analytics``.
+
+
+.. note:: You can run workers who process jobs on different computers than the main server process. This can be a great architectural choice. Just keep in mind to use the same databases (postgres/redis) and to stick to the same FlexMeasures version on both.
 
 
 .. _how_queue_forecasting:
@@ -49,12 +52,15 @@ How forecasting jobs are queued
 A forecasting job is an order to create forecasts based on measurements.
 A job can be about forecasting one point in time or about forecasting a range of points.
 
-
-In FlexMeasures, forecasting jobs are created by the server when new power, weather or price data arrives through the API (see :ref:`tut_posting_data`).
+In FlexMeasures, the usual way of creating forecasting jobs would be right in the moment when new power, weather or price data arrives through the API (see :ref:`tut_posting_data`).
 So technically, you don't have to do anything to keep fresh forecasts.
 
 The decision which horizons to forecast is currently also taken by FlexMeasures. For power data, FlexMeasures makes this decision depending on the asset resolution. For instance, a resolution of 15 minutes leads to forecast horizons of 1, 6, 24 and 48 hours. For price data, FlexMeasures chooses to forecast prices forward 24 and 48 hours
 These are decent defaults, and fixing them has the advantage that scheduling scripts (see below) will know what to expect. However, horizons will probably become more configurable in the near future of FlexMeasures. 
+
+You can also add forecasting jobs directly via the CLI. We explain this practice in the next section. 
+
+
 
 Historical forecasts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -63,13 +69,22 @@ There might be reasons to add forecasts of past time ranges. For instance, for v
 
 If you host FlexMeasures yourself, we provide a CLI task for adding forecasts for whole historic periods. This is an example call:
 
+Here we request 6-hour forecasts to be made for two sensors, for a period of two days:
+
 .. code-block:: console
 
-     flexmeasures add forecasts --from-date 2020-01-02 --to-date 2020-6-30 --horizon_hours 6  --resolution 60 --asset-id 2
+    flexmeasures add forecasts --sensor-id 2 --sensor-id 3 \
+        --from-date 2015-02-01 --to-date 2015-08-31 \
+        --horizon 6 --as-job
 
-Here, forecasts are being computed for asset 2, with one horizon (6 hours) and a resolution of 60 minutes.
 This is half a year of data, so it will take a while.
-You can also queue this work to workers (see above) with the additional ``--as-job`` parameter (though in general we'd advise to dispatch this work in smaller chunks).
+
+It can be good advice to dispatch this work in smaller chunks.
+Alternatively, note the ``--as-job`` parameter.
+If you use it, the forecasting jobs will be queued and picked up by worker processes (see above). You could run several workers (e.g. one per CPU) to get this work load done faster.
+
+Run ``flexmeasures add forecasts --help`` for more information.
+
 
 .. _how_queue_scheduling:
 
@@ -79,6 +94,9 @@ How scheduling jobs are queued
 In FlexMeasures, a scheduling job is an order to plan optimised actions for flexible devices.
 It usually involves a linear program that combines a state of energy flexibility with forecasted data to draw up a consumption or production plan ahead of time.
 
+There are two ways to queue a scheduling job:
+
+First, we can add a scheduling job to the queue via the API.
 We already learned about the `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint in :ref:`posting_flex_states`, where we saw how to post a flexibility state (in this case, the state of charge of a battery at a certain point in time).
 
 Here, we extend that example with an additional target value, representing a desired future state of charge.
@@ -97,12 +115,25 @@ Here, we extend that example with an additional target value, representing a des
         ]
     }
 
-Here we have described the state of charge at 10am to be ``12.1``. In addition, we requested that it should be ``25`` at 4pm.
+We now have described the state of charge at 10am to be ``12.1``. In addition, we requested that it should be ``25`` at 4pm.
 For instance, this could mean that a car should be charged at 90% at that time.
 
-Now here is a task that requires some scheduling. If FlexMeasures receives this message, a scheduling job will be made and put into the queue. In turn, the scheduling job creates a proposed schedule. We'll look a bit deeper into those further down in :ref:`getting_schedules`.
+If FlexMeasures receives this message, a scheduling job will be made and put into the queue. In turn, the scheduling job creates a proposed schedule. We'll look a bit deeper into those further down in :ref:`getting_schedules`.
 
 .. note:: Even without a target state of charge, FlexMeasures will create a scheduling job. The flexible device can then be used with more freedom to reach the system objective (e.g. buy power when it is cheap, store it, and sell back when it's expensive).
+
+
+A second way to add scheduling jobs is via the CLI, so this is available for people who host FlexMeasures themselves:
+
+.. code-block:: console
+
+    flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
+        --start 2022-07-05T07:00+01:00 --duration PT12H \
+        --soc-at-start 50% --roundtrip-efficiency 90% --as-job
+
+Here, the ``--as-job`` parameter makes the difference for queueing ― without it, the schedule is computed right away.
+
+Run ``flexmeasures add schedule --help`` for more information.
 
 
 .. _getting_prognoses:

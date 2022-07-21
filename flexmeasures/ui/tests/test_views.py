@@ -37,7 +37,7 @@ def test_assets_responds(client, requests_mock, as_prosumer_user1):
     )
     assets_page = client.get(url_for("AssetCrudUI:index"), follow_redirects=True)
     assert assets_page.status_code == 200
-    assert b"All assets" in assets_page.data
+    assert b"Asset overview" in assets_page.data
 
 
 def test_control_responds(client, as_prosumer_user1):

@@ -9,7 +9,9 @@ New features
 -------------
 * The asset page now shows the most relevant sensor data for the asset [see `PR #449 <http://www.github.com/FlexMeasures/flexmeasures/pull/449>`_]
 * Individual sensor charts show available annotations [see `PR #428 <http://www.github.com/FlexMeasures/flexmeasures/pull/428>`_]
-* Collapsible sidepanel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_ and `PR #448 <http://www.github.com/FlexMeasures/flexmeasures/pull/448>`_]
+* Admins can group assets by account on dashboard & assets page [see `PR #461 <http://www.github.com/FlexMeasures/flexmeasures/pull/461>`_]
+* Collapsible side-panel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_ and `PR #448 <http://www.github.com/FlexMeasures/flexmeasures/pull/448>`_]
+* Add CLI command ``flexmeasures jobs show-queues`` [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
 * Switched from 12-hour AM/PM to 24-hour clock notation for time series chart axis labels [see `PR #446 <http://www.github.com/FlexMeasures/flexmeasures/pull/446>`_]
 * Get data in a given resolution [see `PR #458 <http://www.github.com/FlexMeasures/flexmeasures/pull/458>`_]
 
@@ -17,10 +19,14 @@ Bugfixes
 -----------
 * Do not fail asset page if entity addresses cannot be built [see `PR #457 <http://www.github.com/FlexMeasures/flexmeasures/pull/457>`_]
 * Time scale axes in sensor data charts now match the requested date range, rather than stopping at the edge of the available data [see `PR #449 <http://www.github.com/FlexMeasures/flexmeasures/pull/449>`_]
+* The docker-based tutorial now works with UI on all platforms (port 5000 did not expose on MacOS) [see `PR #465 <http://www.github.com/FlexMeasures/flexmeasures/pull/465>`_]
 
 Infrastructure / Support
 ----------------------
+* Docker compose stack now with Redis worker queue [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
 * Allow access tokens to be passed as env vars as well [see `PR #443 <http://www.github.com/FlexMeasures/flexmeasures/pull/443>`_]
+* Queue workers can get initialised without a custom name and name collisions are handled [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
+* New API endpoint to get public assets [see `PR #461 <http://www.github.com/FlexMeasures/flexmeasures/pull/461>`_]
 
 
 v0.10.1 | June XX, 2022
@@ -100,7 +106,7 @@ New features
 * Add CLI option to specify custom strings that should be interpreted as NaN values when reading in time series data from CSV [see `PR #357 <http://www.github.com/FlexMeasures/flexmeasures/pull/357>`_]
 * Add CLI commands ``flexmeasures add sensor``, ``flexmeasures add asset-type``, ``flexmeasures add beliefs`` (which were experimental features before) [see `PR #337 <http://www.github.com/FlexMeasures/flexmeasures/pull/337>`_]
 * Add CLI commands for showing organisational structure [see `PR #339 <http://www.github.com/FlexMeasures/flexmeasures/pull/339>`_]
-* Add a CLI command for showing time series data [see `PR #379 <http://www.github.com/FlexMeasures/flexmeasures/pull/379>`_]
+* Add CLI command for showing time series data [see `PR #379 <http://www.github.com/FlexMeasures/flexmeasures/pull/379>`_]
 * Add CLI command for attaching annotations to assets: ``flexmeasures add holidays`` adds public holidays [see `PR #343 <http://www.github.com/FlexMeasures/flexmeasures/pull/343>`_]
 * Add CLI command for resampling existing sensor data to new resolution [see `PR #360 <http://www.github.com/FlexMeasures/flexmeasures/pull/360>`_]
 * Add CLI command to delete an asset, with its sensors and data. [see `PR #395 <http://www.github.com/FlexMeasures/flexmeasures/pull/395>`_]
