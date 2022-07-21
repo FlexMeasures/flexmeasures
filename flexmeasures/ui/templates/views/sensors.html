@@ -51,6 +51,61 @@
       let storeStartDate;
       let storeEndDate;
 
+      function updateBeliefs(oldBeliefs, newBeliefs) {
+        // Update oldBeliefs with the most recent newBeliefs about the same event by the same source
+
+        // Group by event start and source
+        var oldBeliefsByEventBySource = Object.fromEntries(new Map(oldBeliefs.map(belief => [belief['event_start'] + '_' + belief['source'].id, belief])));  // array -> dict (already had one belief per event)
+
+        // Group by event start and source and select only the most recent new beliefs
+        var mostRecentNewBeliefsByEventBySource = Object.fromEntries(new Map(newBeliefs.map(belief => [belief['event_start'] + '_' + belief['source'].id, belief])));  // array -> dict (assumes beliefs are ordered by ascending belief time, with the last belief used as dict value)
+
+        /**
+        // Group by event start and source
+        const groupByEventStartAndSource = (beliefs) => {
+          // Group beliefs by event_start and source, accumulates a dictionary using event_start and source.id as keys, and arrays of beliefs as values
+
+          return beliefs.reduce((beliefsByEvent, currentBelief) => {
+            let groupKey = currentBelief['event_start'] + '_' + currentBelief['source'].id;
+
+            // Initialize new dict entry if the event_start is new
+            if (!beliefsByEvent[groupKey]) {
+              beliefsByEvent[groupKey] = [];
+            }
+
+            // Push the current belief into the group
+            beliefsByEvent[groupKey].push(currentBelief);
+
+            return beliefsByEvent;
+          }, {});
+        };
+        var newBeliefsByEventBySource = groupByEventStartAndSource(newBeliefs);  // array -> dict (possibly multiple beliefs per event)
+
+        // Select only the most recent new beliefs
+        var mostRecentNewBeliefsByEventBySource = {};
+        Object.entries(newBeliefsByEventBySource).forEach(
+            ([event_start_and_source, newBeliefs]) => {
+                let mostRecentNewBelief = newBeliefs.reduce((l, e) => e.belief_time > l.belief_time ? e : l);
+                mostRecentNewBeliefsByEventBySource[event_start_and_source] = mostRecentNewBelief;
+            }
+        )
+        **/
+
+        // Return old beliefs updated with most recent new beliefs
+        return Object.values({...oldBeliefsByEventBySource, ...mostRecentNewBeliefsByEventBySource})  // dict -> list
+    }
+
+      function partition(array, callback){
+        return array.reduce(function(result, element, i) {
+          callback(element, i, array)
+            ? result[0].push(element)
+            : result[1].push(element);
+
+              return result;
+            }, [[],[]]
+          );
+       };
+
       async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
         await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=true&include_asset_annotations=true', {{ chart_options | safe }})
@@ -246,6 +301,8 @@
           const timer = ms => new Promise(res => setTimeout(res, ms))
 
           async function load (result) {
+            var remainingData = result[0]
+            var simulatedData = []
             for (var i = 0; i < numReplaySteps + 1; i++) {
               while (document.getElementById('replay').classList.contains('paused') ) {
                 await timer(1000);
@@ -255,10 +312,32 @@
               }
               var queryBeliefTime = (beliefTime != null) ? (beliefTime.toISOString()) : (null)
               beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)
-              var slicedResult = result[0].filter(item => {
-                return item.belief_time <= beliefTime.getTime()
-              })
-              vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedResult)).resize().run();
+
+              let t0= performance.now();
+
+              // Split of one simulation step of new data from the remaining data
+              var newData
+              [newData, remainingData] = partition(
+                  remainingData,
+                  (item) => item.belief_time <= beliefTime.getTime(),
+                );
+
+              // Update beliefs in the simulated data given the new data
+              const oldLength = simulatedData.length + newData.length;
+              simulatedData = updateBeliefs(simulatedData, newData)
+              const newLength = simulatedData.length;
+              console.log("Removed " + (oldLength - newLength) + " obsolete beliefs")
+
+              let t1= performance.now();
+
+              console.log('Time taken to update data:'+ (t1-t0) +' milliseconds');
+
+              // todo: remove obsolete beliefs and insert most recent new beliefs
+              vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(simulatedData)).resize().run().finalize();
+              
+              let t2= performance.now();
+
+              console.log('Time taken to embed data:'+ (t2-t1) +' milliseconds');
               document.getElementById('replay-time').innerHTML = beliefTime
               await timer(25);
             }
