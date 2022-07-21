@@ -1,14 +1,47 @@
 from datetime import datetime, timedelta
 
+from isodate import duration_isoformat as original_duration_isoformat
 import pandas as pd
 import pytz
 import pytest
 
 from flexmeasures.utils.time_utils import (
+    duration_isoformat,
     server_now,
     naturalized_datetime_str,
     get_most_recent_clocktime_window,
 )
+
+
+@pytest.mark.parametrize(
+    "td, iso",
+    [
+        (timedelta(hours=1), "PT1H"),
+        (timedelta(hours=14), "PT14H"),
+        (timedelta(hours=24), "PT24H"),
+        (timedelta(days=1), "PT24H"),
+        (timedelta(days=1, seconds=22), "PT24H22S"),
+        (timedelta(days=1, seconds=122), "PT24H2M2S"),
+    ],
+)
+def test_duration_isoformat(td: timedelta, iso: str):
+    assert duration_isoformat(td) == iso
+
+
+@pytest.mark.parametrize(
+    "td, iso",
+    [
+        (timedelta(hours=1), "PT1H"),
+        (timedelta(hours=14), "PT14H"),
+        # todo: if the following test cases fail, we can start using isodate.duration_isoformat again (see #459)
+        (timedelta(hours=24), "P1D"),
+        (timedelta(days=1), "P1D"),
+        (timedelta(days=1, seconds=22), "P1DT22S"),
+        (timedelta(days=1, seconds=122), "P1DT2M2S"),
+    ],
+)
+def test_original_duration_isoformat(td: timedelta, iso: str):
+    assert original_duration_isoformat(td) == iso
 
 
 @pytest.mark.parametrize(

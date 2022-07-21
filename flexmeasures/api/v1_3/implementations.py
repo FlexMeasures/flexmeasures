@@ -44,6 +44,7 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.services.resources import has_assets, can_access_asset
 from flexmeasures.data.services.scheduling import create_scheduling_job
+from flexmeasures.utils.time_utils import duration_isoformat
 
 
 p = inflect.engine()
@@ -182,7 +183,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
         new_event_groups, value_groups, generic_asset_type_name="event"
     )
     response["start"] = isodate.datetime_isoformat(start)
-    response["duration"] = isodate.duration_isoformat(duration)
+    response["duration"] = duration_isoformat(duration)
     response["unit"] = unit
 
     d, s = request_processed()

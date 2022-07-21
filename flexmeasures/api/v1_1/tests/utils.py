@@ -1,7 +1,7 @@
 """Useful test messages"""
 from typing import Optional, Dict, Any, List, Union
 from datetime import timedelta
-from isodate import duration_isoformat, parse_duration, parse_datetime
+from isodate import parse_datetime, parse_duration
 
 import pandas as pd
 from numpy import tile
@@ -10,6 +10,7 @@ from flask import current_app
 
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.utils.time_utils import duration_isoformat
 
 
 def message_for_get_prognosis(
