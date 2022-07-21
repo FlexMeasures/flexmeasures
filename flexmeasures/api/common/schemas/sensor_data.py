@@ -97,6 +97,8 @@ class SensorDataDescriptionSchema(ma.Schema):
 
 class GetSensorDataSchema(SensorDataDescriptionSchema):
 
+    resolution = DurationField(required=False)
+
     # Optional field that can be used for extra validation
     type = fields.Str(
         required=False,
@@ -141,12 +143,14 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         - converts to a single deterministic belief per event
         - ensures the response respects the requested time frame
         - converts values to the requested unit
+        - converts values to the requested resolution
         """
         sensor: Sensor = sensor_data_description["sensor"]
         start = sensor_data_description["start"]
         duration = sensor_data_description["duration"]
         end = sensor_data_description["start"] + duration
         unit = sensor_data_description["unit"]
+        resolution = sensor_data_description.get("resolution")
 
         # Post-load configuration of belief timing against message type
         horizons_at_least = sensor_data_description.get("horizon", None)
@@ -169,13 +173,14 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
                 horizons_at_most=horizons_at_most,
                 beliefs_before=sensor_data_description.get("prior", None),
                 one_deterministic_belief_per_event=True,
+                resolution=resolution,
                 as_json=False,
             )
         )
 
         # Convert to desired time range
         index = pd.date_range(
-            start=start, end=end, freq=sensor.event_resolution, closed="left"
+            start=start, end=end, freq=df.event_resolution, closed="left"
         )
         df = df.reindex(index)
 

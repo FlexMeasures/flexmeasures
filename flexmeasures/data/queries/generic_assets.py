@@ -4,7 +4,7 @@ from itertools import groupby
 from sqlalchemy.orm import Query
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.queries.utils import potentially_limit_query_to_account_assets
+from flexmeasures.data.queries.utils import potentially_limit_assets_query_to_account
 
 
 def query_assets_by_type(
@@ -28,7 +28,7 @@ def query_assets_by_type(
         query = query.filter(GenericAssetType.name == type_names)
     else:
         query = query.filter(GenericAssetType.name.in_(type_names))
-    query = potentially_limit_query_to_account_assets(query, account_id)
+    query = potentially_limit_assets_query_to_account(query, account_id)
     return query
 
 
@@ -52,7 +52,7 @@ def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
     :param account_id: Pass in an account ID if you want to query an account other than your own. This only works for admins. Public assets are always queried.
     """
     asset_queries = {}
-    all_assets = potentially_limit_query_to_account_assets(
+    all_assets = potentially_limit_assets_query_to_account(
         GenericAsset.query, account_id
     ).all()
     loc_groups = group_assets_by_location(all_assets)
@@ -71,7 +71,7 @@ def get_location_queries(account_id: Optional[int] = None) -> Dict[str, Query]:
         location_query = GenericAsset.query.filter(
             GenericAsset.name.in_([asset.name for asset in loc_group])
         )
-        asset_queries[location_name] = potentially_limit_query_to_account_assets(
+        asset_queries[location_name] = potentially_limit_assets_query_to_account(
             location_query, account_id
         )
     return asset_queries
