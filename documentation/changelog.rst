@@ -14,6 +14,7 @@ New features
 Bugfixes
 -----------
 * Do not fail asset page if entity addresses cannot be built [see `PR #457 <http://www.github.com/FlexMeasures/flexmeasures/pull/457>`_]
+* Avoid formatting datetime.timedelta durations as nominal ISO durations [see `PR #459 <http://www.github.com/FlexMeasures/flexmeasures/pull/459>`_]
 
 Infrastructure / Support
 ----------------------
