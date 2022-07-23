@@ -15,6 +15,7 @@ from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.ui.utils.view_utils import set_time_range_for_session
 
 
 asset_schema = AssetSchema()
@@ -282,6 +283,7 @@ class AssetAPI(FlaskView):
 
         .. :quickref: Chart; Download a chart with time series
         """
+        set_time_range_for_session()
         return json.dumps(asset.chart(**kwargs))
 
     @route("/<id>/chart_data/")
