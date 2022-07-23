@@ -47,6 +47,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
     if "end_time" in session:
         variables["end_time"] = session["end_time"]
 
+    variables["event_starts_after"] = session.get("event_starts_after")
+    variables["event_ends_before"] = session.get("event_ends_before")
+
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
     if "show_datepicker" not in variables:
         variables["show_datepicker"] = variables["page"] in ("analytics", "portfolio")
