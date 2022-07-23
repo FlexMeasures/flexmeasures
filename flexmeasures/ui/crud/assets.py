@@ -1,7 +1,7 @@
 from typing import Union, Optional, List, Tuple
 import copy
 
-from flask import url_for, current_app, session
+from flask import url_for, current_app
 from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from flask_security import login_required, current_user
@@ -237,8 +237,6 @@ class AssetCrudUI(FlaskView):
             asset=asset,
             asset_form=asset_form,
             msg="",
-            event_starts_after=session.get("event_starts_after"),
-            event_ends_before=session.get("event_ends_before"),
             latest_measurement_time_str=latest_measurement_time_str,
             asset_plot_html=asset_plot_html,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
