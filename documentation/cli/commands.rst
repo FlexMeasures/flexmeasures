@@ -14,6 +14,8 @@ You can also get the current overview over the commands you have available by:
 .. code-block:: console
 
     flexmeasures --help
+    flexmeasures [command] --help
+
 
 This also shows admin commands made available through Flask and installed extensions (such as `Flask-Security <https://flask-security-too.readthedocs.io>`_ and `Flask-Migrate <https://flask-migrate.readthedocs.io>`_),
 of which some are referred to in this documentation.
@@ -45,7 +47,7 @@ of which some are referred to in this documentation.
 ================================================= =======================================
 ``flexmeasures show accounts``                    List accounts.
 ``flexmeasures show account``                     Show an account, its users and assets.
-``flexmeasures show asset-types`                  List available asset types.
+``flexmeasures show asset-types``                 List available asset types.
 ``flexmeasures show asset``                       Show an asset and its sensors.
 ``flexmeasures show roles``                       List available account- and user roles.
 ``flexmeasures show data-sources``                List available data sources.
@@ -59,7 +61,8 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
-``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
+``flexmeasures edit resample-data``               | Assign a new event resolution to an existing sensor
+                                                  | and resample its data accordingly.
 ================================================= =======================================
 
 
@@ -67,10 +70,11 @@ of which some are referred to in this documentation.
 --------------
 
 ================================================= =======================================
-``flexmeasures delete structure``                 Delete all structural (non time-series) data like assets (types), 
-                                                  roles and users.
+``flexmeasures delete structure``                 | Delete all structural (non time-series) data, 
+                                                  | like assets (types), roles and users.
 ``flexmeasures delete account-role``              Delete a tenant account role.
-``flexmeasures delete account``                   Delete a tenant account & also their users (with assets and power measurements).
+``flexmeasures delete account``                   | Delete a tenant account & also their users
+                                                  | (with assets and power measurements).
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
 ``flexmeasures delete asset``                     Delete an asset & also its sensors and data.
 ``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
