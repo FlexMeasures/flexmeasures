@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import pytest
+import pytz
 
 import numpy as np
 import pandas as pd
@@ -8,7 +9,6 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
 from flexmeasures.utils.calculations import integrate_time_series
-from flexmeasures.utils.time_utils import as_server_time
 
 
 TOLERANCE = 0.00001
@@ -21,8 +21,9 @@ def test_battery_solver_day_1(
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     assert battery.get_attribute("market_id") == epex_da.id
-    start = as_server_time(datetime(2015, 1, 1))
-    end = as_server_time(datetime(2015, 1, 2))
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
     soc_at_start = battery.get_attribute("soc_in_mwh")
     schedule = schedule_battery(
@@ -72,8 +73,9 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
     epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     assert battery.get_attribute("market_id") == epex_da.id
-    start = as_server_time(datetime(2015, 1, 2))
-    end = as_server_time(datetime(2015, 1, 3))
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     soc_at_start = battery.get_attribute("soc_in_mwh")
     soc_min = 0.5
@@ -146,8 +148,9 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     ).one_or_none()
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
-    start = as_server_time(datetime(2015, 1, 2))
-    end = as_server_time(datetime(2015, 1, 3))
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     target_soc_datetime = start + duration_until_target
     soc_targets = pd.Series(
@@ -202,8 +205,9 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     ).one_or_none()
     assert charging_station.get_attribute("capacity_in_mw") == 2
     assert charging_station.get_attribute("market_id") == epex_da.id
-    start = as_server_time(datetime(2015, 1, 2))
-    end = as_server_time(datetime(2015, 1, 3))
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     target_soc_datetime = start + duration_until_target
     soc_targets = pd.Series(
@@ -252,8 +256,9 @@ def test_building_solver_day_2(
     battery = flexible_devices["battery power sensor"]
     building = battery.generic_asset
     assert battery.get_attribute("market_id") == epex_da.id
-    start = as_server_time(datetime(2015, 1, 2))
-    end = as_server_time(datetime(2015, 1, 3))
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     soc_at_start = 2.5
     soc_min = 0.5

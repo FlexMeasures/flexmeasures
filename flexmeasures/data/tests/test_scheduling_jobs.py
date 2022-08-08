@@ -1,11 +1,11 @@
 # flake8: noqa: E402
 from datetime import datetime, timedelta
+import pytz
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import create_scheduling_job
-from flexmeasures.utils.time_utils import as_server_time
 
 
 def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
@@ -15,8 +15,9 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     """
 
     battery = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
-    start = as_server_time(datetime(2015, 1, 2))
-    end = as_server_time(datetime(2015, 1, 3))
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
 
     assert (
