@@ -270,8 +270,8 @@ class SensorAPI(FlaskView):
         with a target state of charge of 25 kWh at 4.00pm.
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
-        Consumption should be priced by sensor 9,
-        and production should be priced by sensor 10,
+        Aggregate consumption should be priced by sensor 9,
+        and aggregate production should be priced by sensor 10,
         where the aggregate power flow includes the sum over sensors 13, 14 and 15.
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
