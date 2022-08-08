@@ -224,7 +224,7 @@ class SensorAPI(FlaskView):
                 data_key="consumption-price-sensor", required=False
             ),
             "production_price_sensor": SensorIdField(
-                data_key="feed-in-price-sensor", required=False
+                data_key="production-price-sensor", required=False
             ),
             "inflexible_device_sensors": fields.List(
                 SensorIdField, data_key="inflexible-device-sensors", required=False
@@ -271,7 +271,7 @@ class SensorAPI(FlaskView):
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
         Consumption should be priced by sensor 9,
-        and feed-in (i.e. production) should be priced by sensor 10,
+        and production should be priced by sensor 10,
         where the aggregate power flow includes the sum over sensors 13, 14 and 15.
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
@@ -291,7 +291,7 @@ class SensorAPI(FlaskView):
                 "soc-max": 25,
                 "roundtrip-efficiency": 0.98,
                 "consumption-price-sensor": 9,
-                "feed-in-price-sensor": 10,
+                "production-price-sensor": 10,
                 "inflexible-device-sensors": [13, 14, 15]
             }
 
