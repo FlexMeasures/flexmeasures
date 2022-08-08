@@ -152,6 +152,7 @@ def make_schedule(
             roundtrip_efficiency,
             up_deviation_price_sensor=up_deviation_price_sensor,
             down_deviation_price_sensor=down_deviation_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
         )
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
