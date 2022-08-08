@@ -44,7 +44,7 @@ def test_scheduling_a_charging_station(
         charging_station.id,
         start,
         end,
-        belief_time=start,
+        belief_time=end,
         resolution=resolution,
         soc_at_start=soc_at_start,
         soc_targets=soc_targets,
