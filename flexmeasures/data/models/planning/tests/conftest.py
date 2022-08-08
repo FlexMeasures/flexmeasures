@@ -99,7 +99,11 @@ def add_inflexible_device_forecasts(
     """
     # 2 days of test data
     time_slots = pd.date_range(
-        datetime(2015, 1, 1), datetime(2015, 1, 3), freq="15T", closed="left", tz="Europe/Amsterdam"
+        datetime(2015, 1, 1),
+        datetime(2015, 1, 3),
+        freq="15T",
+        closed="left",
+        tz="Europe/Amsterdam",
     )
 
     # PV (8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
