@@ -7,7 +7,6 @@ import pandas as pd
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.utils.time_utils import as_server_time
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -100,7 +99,7 @@ def add_inflexible_device_forecasts(
     """
     # 2 days of test data
     time_slots = pd.date_range(
-        datetime(2015, 1, 1), datetime(2015, 1, 3), freq="15T", closed="left"
+        datetime(2015, 1, 1), datetime(2015, 1, 3), freq="15T", closed="left", tz="Europe/Amsterdam"
     )
 
     # PV (8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
@@ -132,7 +131,7 @@ def add_inflexible_device_forecasts(
 def add_as_beliefs(db, sensor, values, time_slots, source):
     beliefs = [
         TimedBelief(
-            event_start=as_server_time(dt),
+            event_start=dt,
             belief_time=time_slots[0],
             event_value=val,
             source=source,
