@@ -172,6 +172,7 @@ def device_scheduler(  # noqa C901
             return v
 
     def device_derivative_down_efficiency(m, d, j):
+        """Assume perfect efficiency if no efficiency information is available."""
         try:
             eff = device_constraints[d]["derivative down efficiency"].iloc[j]
         except KeyError:
@@ -181,6 +182,7 @@ def device_scheduler(  # noqa C901
         return eff
 
     def device_derivative_up_efficiency(m, d, j):
+        """Assume perfect efficiency if no efficiency information is available."""
         try:
             eff = device_constraints[d]["derivative up efficiency"].iloc[j]
         except KeyError:
