@@ -103,7 +103,7 @@ def schedule_battery(
         down_deviation_prices.loc[start : end - resolution]["event_value"]
     ]
 
-    # Set up device constraints (only one flexible device for this EMS, plus inflexible devices)
+    # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
     columns = [
         "equals",
         "max",
