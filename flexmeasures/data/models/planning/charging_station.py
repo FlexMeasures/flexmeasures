@@ -29,6 +29,7 @@ def schedule_charging_station(
     up_deviation_price_sensor: Optional[Sensor] = None,
     down_deviation_price_sensor: Optional[Sensor] = None,
     inflexible_device_sensors: Optional[List[Sensor]] = None,
+    belief_time: Optional[datetime] = None,
     round_to_decimals: Optional[int] = 6,
 ) -> Union[pd.Series, None]:
     """Schedule a charging station asset based directly on the latest beliefs regarding market prices within the specified time
@@ -59,6 +60,7 @@ def schedule_charging_station(
     up_deviation_prices, (start, end) = get_prices(
         (start, end),
         resolution,
+        beliefs_before=belief_time,
         price_sensor=up_deviation_price_sensor,
         sensor=sensor,
         allow_trimmed_query_window=True,
@@ -66,6 +68,7 @@ def schedule_charging_station(
     down_deviation_prices, (start, end) = get_prices(
         (start, end),
         resolution,
+        beliefs_before=belief_time,
         price_sensor=down_deviation_price_sensor,
         sensor=sensor,
         allow_trimmed_query_window=True,
@@ -112,9 +115,10 @@ def schedule_charging_station(
     )
     for i, inflexible_sensor in enumerate(inflexible_device_sensors):
         device_constraints[i + 1]["derivative equals"] = inflexible_device_forecasts(
-            (start, end),
-            resolution,
-            inflexible_sensor,
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            sensor=inflexible_sensor,
         )
     device_constraints[0]["equals"] = soc_targets.shift(-1, freq=resolution).values * (
         timedelta(hours=1) / resolution

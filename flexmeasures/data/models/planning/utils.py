@@ -70,14 +70,12 @@ def get_market(sensor: Sensor) -> Sensor:
 def get_prices(
     query_window: Tuple[datetime, datetime],
     resolution: timedelta,
+    beliefs_before: Optional[datetime],
     price_sensor: Optional[Sensor] = None,
     sensor: Optional[Sensor] = None,
     allow_trimmed_query_window: bool = True,
 ) -> Tuple[pd.DataFrame, Tuple[datetime, datetime]]:
-    """Check for known prices or price forecasts, trimming query window accordingly if allowed.
-    todo: set a horizon to avoid collecting prices that are not known at the time of constructing the schedule
-          (this may require implementing a belief time for scheduling jobs).
-    """
+    """Check for known prices or price forecasts, trimming query window accordingly if allowed."""
 
     # Look for the applicable price sensor
     if price_sensor is None:
@@ -92,6 +90,7 @@ def get_prices(
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
         resolution=to_offset(resolution).freqstr,
+        beliefs_before=beliefs_before,
         most_recent_beliefs_only=True,
         one_deterministic_belief_per_event=True,
     )
@@ -125,6 +124,7 @@ def get_prices(
 def inflexible_device_forecasts(
     query_window: Tuple[datetime, datetime],
     resolution: timedelta,
+    beliefs_before: Optional[datetime],
     sensor: Sensor,
 ):
     """
@@ -135,6 +135,7 @@ def inflexible_device_forecasts(
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
         resolution=to_offset(resolution).freqstr,
+        beliefs_before=beliefs_before,
         most_recent_beliefs_only=True,
         one_deterministic_belief_per_event=True,
     )  # consumption is negative, production is positive
