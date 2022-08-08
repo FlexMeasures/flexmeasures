@@ -133,7 +133,7 @@ def add_as_beliefs(db, sensor, values, time_slots, source):
     beliefs = [
         TimedBelief(
             event_start=as_server_time(dt),
-            belief_horizon=timedelta(hours=0),
+            belief_time=time_slots[0],
             event_value=val,
             source=source,
             sensor=sensor,
