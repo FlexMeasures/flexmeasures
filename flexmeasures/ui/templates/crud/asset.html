@@ -229,7 +229,6 @@
       signal = controller.signal
 
       $("#spinner").show();
-      embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate);
       Promise.all([
           // Fetch time series data
           fetch(assetPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
@@ -246,8 +245,10 @@
               headers: {"Content-Type": "application/json"},
               signal: signal,
           })
-          .then(function(response) { return response.json(); })
+          .then(function(response) { return response.json(); }),
           */
+
+          embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
       ]).then(function(result) {
             $("#spinner").hide();
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
