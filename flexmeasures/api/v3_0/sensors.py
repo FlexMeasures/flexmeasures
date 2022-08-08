@@ -220,10 +220,10 @@ class SensorAPI(FlaskView):
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
             "targets": fields.List(fields.Nested(TargetSchema), data_key="soc-targets"),
             # todo: add a duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
-            "up_deviation_price_sensor": SensorIdField(
+            "consumption_price_sensor": SensorIdField(
                 data_key="consumption-price-sensor", required=False
             ),
-            "down_deviation_price_sensor": SensorIdField(
+            "production_price_sensor": SensorIdField(
                 data_key="feed-in-price-sensor", required=False
             ),
             "inflexible_device_sensors": fields.List(
@@ -240,8 +240,8 @@ class SensorAPI(FlaskView):
         unit: str,
         prior: datetime,
         roundtrip_efficiency: Optional[ur.Quantity] = None,
-        up_deviation_price_sensor: Optional[Sensor] = None,
-        down_deviation_price_sensor: Optional[Sensor] = None,
+        consumption_price_sensor: Optional[Sensor] = None,
+        production_price_sensor: Optional[Sensor] = None,
         inflexible_device_sensors: Optional[List[Sensor]] = None,
         **kwargs,
     ):
@@ -414,8 +414,8 @@ class SensorAPI(FlaskView):
             soc_min=soc_min,
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
-            up_deviation_price_sensor=up_deviation_price_sensor,
-            down_deviation_price_sensor=down_deviation_price_sensor,
+            consumption_price_sensor=consumption_price_sensor,
+            production_price_sensor=production_price_sensor,
             inflexible_device_sensors=inflexible_device_sensors,
             enqueue=True,
         )

@@ -26,8 +26,8 @@ def schedule_battery(
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
     prefer_charging_sooner: bool = True,
-    up_deviation_price_sensor: Optional[Sensor] = None,
-    down_deviation_price_sensor: Optional[Sensor] = None,
+    consumption_price_sensor: Optional[Sensor] = None,
+    production_price_sensor: Optional[Sensor] = None,
     inflexible_device_sensors: Optional[List[Sensor]] = None,
     belief_time: Optional[datetime] = None,
     round_to_decimals: Optional[int] = 6,
@@ -64,7 +64,7 @@ def schedule_battery(
         (start, end),
         resolution,
         beliefs_before=belief_time,
-        price_sensor=up_deviation_price_sensor,
+        price_sensor=consumption_price_sensor,
         sensor=sensor,
         allow_trimmed_query_window=True,
     )
@@ -72,7 +72,7 @@ def schedule_battery(
         (start, end),
         resolution,
         beliefs_before=belief_time,
-        price_sensor=down_deviation_price_sensor,
+        price_sensor=production_price_sensor,
         sensor=sensor,
         allow_trimmed_query_window=True,
     )
