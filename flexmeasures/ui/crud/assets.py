@@ -130,7 +130,7 @@ def process_internal_api_response(
         asset = GenericAsset(
             **{
                 **asset_data,
-                **{"attributes": json.loads(asset_data["attributes"])},
+                **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
             }
         )  # TODO: use schema?
         asset.generic_asset_type = GenericAssetType.query.get(
