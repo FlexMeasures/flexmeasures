@@ -12,7 +12,7 @@ from werkzeug.exceptions import BadRequest
 import iso8601
 
 from flexmeasures import __version__ as flexmeasures_version
-from flexmeasures.auth.policy import ADMIN_ROLE
+from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.utils import time_utils
 from flexmeasures.ui import flexmeasures_ui
 from flexmeasures.data.models.user import User, Account
@@ -34,7 +34,7 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["show_queues"] = False
     if current_user.is_authenticated:
         if (
-            current_user.has_role(ADMIN_ROLE)
+            user_has_admin_access(current_user, "update")
             or current_app.config.get("FLEXMEASURES_MODE", "") == "demo"
         ):
             variables["show_queues"] = True
@@ -46,6 +46,9 @@ def render_flexmeasures_template(html_filename: str, **variables):
     variables["end_time"] = time_utils.get_default_end_time()
     if "end_time" in session:
         variables["end_time"] = session["end_time"]
+
+    variables["event_starts_after"] = session.get("event_starts_after")
+    variables["event_ends_before"] = session.get("event_ends_before")
 
     variables["page"] = html_filename.split("/")[-1].replace(".html", "")
     if "show_datepicker" not in variables:
@@ -80,9 +83,10 @@ def render_flexmeasures_template(html_filename: str, **variables):
     )
 
     variables["user_is_logged_in"] = current_user.is_authenticated
-    variables[
-        "user_is_admin"
-    ] = current_user.is_authenticated and current_user.has_role(ADMIN_ROLE)
+    variables["user_is_admin"] = user_has_admin_access(current_user, "update")
+    variables["user_has_admin_reader_rights"] = user_has_admin_access(
+        current_user, "read"
+    )
     variables[
         "user_is_anonymous"
     ] = current_user.is_authenticated and current_user.has_role("anonymous")
@@ -112,10 +116,17 @@ def clear_session():
 
 
 def set_time_range_for_session():
-    """Set period (start_date, end_date and resolution) on session if they are not yet set.
-    The datepicker sends times as tz-aware UTC strings.
+    """Set period on session if they are not yet set.
+    The daterangepicker sends times as tz-aware UTC strings.
     We re-interpret them as being in the server's timezone.
-    Also set the forecast horizon, if given."""
+    Also set the forecast horizon, if given.
+
+    TODO: event_[stars|ends]_before are used on the new asset and sensor pages.
+          We simply store the UTC strings.
+          It might be that the other settings & logic can be deprecated when we clean house.
+          Tip: grep for timerangeEnd, where end_time is used in our base template,
+               and then used in the daterangepicker. We seem to use litepicker now.
+    """
     if "start_time" in request.values:
         session["start_time"] = time_utils.localized_datetime(
             iso8601.parse_date(request.values.get("start_time"))
@@ -128,6 +139,8 @@ def set_time_range_for_session():
         ):  # session storage seems to lose tz info and becomes UTC
             session["start_time"] = time_utils.as_server_time(session["start_time"])
 
+    session["event_starts_after"] = request.values.get("event_starts_after")
+    session["event_ends_before"] = request.values.get("event_ends_before")
     if "end_time" in request.values:
         session["end_time"] = time_utils.localized_datetime(
             iso8601.parse_date(request.values.get("end_time"))

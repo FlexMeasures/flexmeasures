@@ -2,6 +2,7 @@ import json
 
 from flask import current_app
 from flask_classful import FlaskView, route
+from flask_security import login_required
 from flask_json import as_json
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs, use_args
@@ -14,6 +15,7 @@ from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.api.common.schemas.generic_assets import AssetIdField
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.ui.utils.view_utils import set_time_range_for_session
 
 
 asset_schema = AssetSchema()
@@ -76,6 +78,27 @@ class AssetAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         return assets_schema.dump(account.generic_assets), 200
+
+    @route("/public", methods=["GET"])
+    @login_required
+    @as_json
+    def public(self):
+        """Return all public assets.
+
+        .. :quickref: Asset; Return all public assets.
+
+        This endpoint returns all public assets.
+
+        :reqheader Authorization: The authentication token
+        :reqheader Content-Type: application/json
+        :resheader Content-Type: application/json
+        :status 200: PROCESSED
+        :status 400: INVALID_REQUEST
+        :status 401: UNAUTHORIZED
+        :status 422: UNPROCESSABLE_ENTITY
+        """
+        assets = GenericAsset.query.filter(GenericAsset.account_id.is_(None)).all()
+        return assets_schema.dump(assets), 200
 
     @route("", methods=["POST"])
     @permission_required_for_context(
@@ -260,6 +283,7 @@ class AssetAPI(FlaskView):
 
         .. :quickref: Chart; Download a chart with time series
         """
+        set_time_range_for_session()
         return json.dumps(asset.chart(**kwargs))
 
     @route("/<id>/chart_data/")

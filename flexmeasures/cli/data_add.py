@@ -24,7 +24,7 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
-from flexmeasures.data.services.scheduling import make_schedule
+from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
@@ -703,9 +703,8 @@ def add_holidays(
 @click.option(
     "--as-job",
     is_flag=True,
-    help="Whether to queue a forecasting job instead of computing directly."
-    " Useful to run locally and create forecasts on a remote server. In that case, just point the redis db in your"
-    " config settings to that of the remote server. To process the job, run a worker to process the forecasting queue. Defaults to False.",
+    help="Whether to queue a forecasting job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
 def create_forecasts(
     sensor_ids: List[int],
@@ -720,7 +719,7 @@ def create_forecasts(
 
     For example:
 
-        --from_date 2015-02-02 --to_date 2015-02-04 --horizon_hours 6 --sensor-id 12 --sensor-id 14
+        --from-date 2015-02-02 --to-date 2015-02-04 --horizon 6 --sensor-id 12 --sensor-id 14
 
         This will create forecast values from 0am on May 2nd to 0am on May 5th,
         based on a 6-hour horizon, for sensors 12 and 14.
@@ -743,20 +742,23 @@ def create_forecasts(
         event_resolution = None
 
     if as_job:
+        num_jobs = 0
         for sensor_id in sensor_ids:
             for horizon in horizons:
                 # Note that this time period refers to the period of events we are forecasting, while in create_forecasting_jobs
                 # the time period refers to the period of belief_times, therefore we are subtracting the horizon.
-                create_forecasting_jobs(
+                jobs = create_forecasting_jobs(
                     sensor_id=sensor_id,
                     horizons=[horizon],
                     start_of_roll=forecast_start - horizon,
                     end_of_roll=forecast_end - horizon,
                 )
+                num_jobs += len(jobs)
+        print(f"{num_jobs} new forecasting job(s) added to the queue.")
     else:
         from flexmeasures.data.scripts.data_gen import populate_time_series_forecasts
 
-        populate_time_series_forecasts(
+        populate_time_series_forecasts(  # this function reports its own output
             db=app.db,
             sensor_ids=sensor_ids,
             horizons=horizons,
@@ -837,6 +839,12 @@ def create_forecasts(
     default=1,
     help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
 )
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a scheduling job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
+)
 def create_schedule(
     power_sensor: Sensor,
     optimization_context_sensor: Sensor,
@@ -847,6 +855,7 @@ def create_schedule(
     soc_min: Optional[ur.Quantity] = None,
     soc_max: Optional[ur.Quantity] = None,
     roundtrip_efficiency: Optional[ur.Quantity] = None,
+    as_job: bool = False,
 ):
     """Create a new schedule for a given power sensor.
 
@@ -901,21 +910,38 @@ def create_schedule(
     if soc_max is not None:
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
 
-    success = make_schedule(
-        sensor_id=power_sensor.id,
-        start=start,
-        end=end,
-        belief_time=server_now(),
-        resolution=power_sensor.event_resolution,
-        soc_at_start=soc_at_start,
-        soc_targets=soc_targets,
-        soc_min=soc_min,
-        soc_max=soc_max,
-        roundtrip_efficiency=roundtrip_efficiency,
-        price_sensor=optimization_context_sensor,
-    )
-    if success:
-        print("New schedule is stored.")
+    if as_job:
+        job = create_scheduling_job(
+            sensor_id=power_sensor.id,
+            start_of_schedule=start,
+            end_of_schedule=end,
+            belief_time=server_now(),
+            resolution=power_sensor.event_resolution,
+            soc_at_start=soc_at_start,
+            soc_targets=soc_targets,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            roundtrip_efficiency=roundtrip_efficiency,
+            price_sensor=optimization_context_sensor,
+        )
+        if job:
+            print(f"New scheduling job {job.id} has been added to the queue.")
+    else:
+        success = make_schedule(
+            sensor_id=power_sensor.id,
+            start=start,
+            end=end,
+            belief_time=server_now(),
+            resolution=power_sensor.event_resolution,
+            soc_at_start=soc_at_start,
+            soc_targets=soc_targets,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            roundtrip_efficiency=roundtrip_efficiency,
+            price_sensor=optimization_context_sensor,
+        )
+        if success:
+            print("New schedule is stored.")
 
 
 @fm_add_data.command("toy-account")
@@ -970,7 +996,7 @@ def add_toy_account(kind: str, name: str):
                 )
                 # add charging sensor to battery
                 charging_sensor = Sensor(
-                    name="charging",
+                    name="discharging",
                     generic_asset=asset,
                     unit="MW",
                     timezone="Europe/Amsterdam",

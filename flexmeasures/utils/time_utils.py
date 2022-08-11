@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 from typing import List, Union, Tuple, Optional
 
@@ -290,3 +291,34 @@ def supported_horizons() -> List[timedelta]:
 
 def timedelta_to_pandas_freq_str(resolution: timedelta) -> str:
     return to_offset(resolution).freqstr
+
+
+def duration_isoformat(duration: timedelta):
+    """Adapted version of isodate.duration_isoformat for formatting a datetime.timedelta.
+
+    The difference is that absolute days are not formatted as nominal days.
+    Workaround for https://github.com/gweis/isodate/issues/74.
+    """
+    ret = []
+    usecs = abs(
+        (duration.days * 24 * 60 * 60 + duration.seconds) * 1000000
+        + duration.microseconds
+    )
+    seconds, usecs = divmod(usecs, 1000000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours or minutes or seconds or usecs:
+        ret.append("T")
+        if hours:
+            ret.append("%sH" % hours)
+        if minutes:
+            ret.append("%sM" % minutes)
+        if seconds or usecs:
+            if usecs:
+                ret.append(("%d.%06d" % (seconds, usecs)).rstrip("0"))
+            else:
+                ret.append("%d" % seconds)
+            ret.append("S")
+    # at least one component has to be there.
+    repl = ret and "".join(ret) or "T0H"
+    return re.sub("%P", repl, "P%P")

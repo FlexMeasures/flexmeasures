@@ -4,7 +4,7 @@
 Administration
 **************
 
-The administrator can edit assets and users here.
+The administrator can see assets and users here.
 
 Assets
 ------
@@ -15,11 +15,6 @@ Listing all assets:
     :align: center
 ..    :scale: 40%
 
-Viewing & editing one asset:
-
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset.png
-    :align: center
-..    :scale: 40%
 
 
 Users

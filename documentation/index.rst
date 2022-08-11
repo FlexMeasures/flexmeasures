@@ -190,6 +190,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     :maxdepth: 1
 
     views/dashboard
+    views/asset-data
     views/admin
 
 .. toctree::
@@ -222,6 +223,7 @@ The platform operator of FlexMeasures can be an Aggregator.
     host/docker
     host/data
     host/deployment
+    host/queues
     host/error-monitoring
     host/modes
 

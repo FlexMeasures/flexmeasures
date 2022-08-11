@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import timedelta
-from isodate import duration_isoformat, parse_duration, parse_datetime
+from isodate import parse_datetime, parse_duration
 
 import pandas as pd
 import timely_beliefs as tb
@@ -11,6 +11,7 @@ from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.v1_1.tests.utils import (
     message_for_post_price_data as v1_1_message_for_post_price_data,
 )
+from flexmeasures.utils.time_utils import duration_isoformat
 
 
 def get_asset_post_data() -> dict:
