@@ -146,7 +146,12 @@
                 </table>
             </div>
         </div>
-        <div class="col-sm-2"></div>
+        <div class="col-sm-2">
+            <div class="replay-container">
+                <div id="replay"></div>
+                <div id="replay-time"></div>
+            </div>
+        </div>
     </div>
 
 
@@ -164,6 +169,65 @@
 
   let vegaView;
   let previousResult;
+  let queryStartDate;
+  let queryEndDate;
+  let storeStartDate;
+  let storeEndDate;
+
+  function updateBeliefs(oldBeliefs, newBeliefs) {
+        // Update oldBeliefs with the most recent newBeliefs about the same event for the same sensor by the same source
+
+        // Group by sensor, event start and source
+        var oldBeliefsByEventBySource = Object.fromEntries(new Map(oldBeliefs.map(belief => [belief['sensor_id'] + '_' + belief['event_start'] + '_' + belief['source'].id, belief])));  // array -> dict (already had one belief per event)
+
+        // Group by sensor, event start and source, and select only the most recent new beliefs
+        var mostRecentNewBeliefsByEventBySource = Object.fromEntries(new Map(newBeliefs.map(belief => [belief['sensor_id'] + '_' + belief['event_start'] + '_' + belief['source'].id, belief])));  // array -> dict (assumes beliefs are ordered by ascending belief time, with the last belief used as dict value)
+
+        /**
+        // Group by sensor, event start and source
+        const groupByEventStartAndSource = (beliefs) => {
+          // Group beliefs by event_start and source, accumulates a dictionary using event_start and source.id as keys, and arrays of beliefs as values
+
+          return beliefs.reduce((beliefsByEvent, currentBelief) => {
+            let groupKey = currentBelief['sensor_id'] + '_' + currentBelief['event_start'] + '_' + currentBelief['source'].id;
+
+            // Initialize new dict entry if the event_start is new
+            if (!beliefsByEvent[groupKey]) {
+              beliefsByEvent[groupKey] = [];
+            }
+
+            // Push the current belief into the group
+            beliefsByEvent[groupKey].push(currentBelief);
+
+            return beliefsByEvent;
+          }, {});
+        };
+        var newBeliefsByEventBySource = groupByEventStartAndSource(newBeliefs);  // array -> dict (possibly multiple beliefs per event)
+
+        // Select only the most recent new beliefs
+        var mostRecentNewBeliefsByEventBySource = {};
+        Object.entries(newBeliefsByEventBySource).forEach(
+            ([event_start_and_source, newBeliefs]) => {
+                let mostRecentNewBelief = newBeliefs.reduce((l, e) => e.belief_time > l.belief_time ? e : l);
+                mostRecentNewBeliefsByEventBySource[event_start_and_source] = mostRecentNewBelief;
+            }
+        )
+        **/
+
+        // Return old beliefs updated with most recent new beliefs
+        return Object.values({...oldBeliefsByEventBySource, ...mostRecentNewBeliefsByEventBySource})  // dict -> list
+    }
+
+      function partition(array, callback){
+        return array.reduce(function(result, element, i) {
+          callback(element, i, array)
+            ? result[0].push(element)
+            : result[1].push(element);
+
+              return result;
+            }, [[],[]]
+          );
+       };
 
   async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
@@ -217,9 +281,18 @@
       format: 'YYYY-MM-DD\\T00:00:00',
   });
   picker.on('selected', (startDate, endDate) => {
+
+      // Stop replay
+      let toggle = document.querySelector('#replay')
+      toggle.classList.remove('playing');
+      toggle.classList.remove('paused');
+      toggle.classList.add('stopped');
+
       startDate = startDate.toJSDate()
       endDate = endDate.toJSDate()
       endDate.setDate(endDate.getDate() + 1);
+      storeStartDate = startDate
+      storeEndDate = endDate
       var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
       var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
 
@@ -248,6 +321,7 @@
           .then(function(response) { return response.json(); }),
           */
 
+          // Embed chart
           embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
       ]).then(function(result) {
             $("#spinner").hide();
@@ -299,6 +373,99 @@
       });
     }
   };
+
+  // Set up play/pause button for replay
+  let toggle = document.querySelector('#replay');
+  toggle.addEventListener('click', function(e) {
+    e.preventDefault();
+    // toggle.classList.toggle('paused');
+    if (toggle.classList.contains('playing')) {
+      // Pause replay
+      console.log("pause replay")
+      toggle.classList.remove('playing');
+      toggle.classList.add('paused');
+    } else if (toggle.classList.contains('stopped')) {
+      // Start replay
+      console.log("start replay")
+      // toggle.classList.remove('paused');
+      toggle.classList.remove('stopped');
+      toggle.classList.add('playing');
+      var beliefTime = new Date(storeStartDate)
+      // var beliefTimedelta = 900000
+      var beliefTimedelta = 3600000
+      var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta)
+      queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null)
+      queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null)
+
+      $("#spinner").show();
+      Promise.all([
+        // Fetch time series data
+        fetch(assetPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
+          method: "GET",
+          headers: {"Content-Type": "application/json"},
+        })
+        .then(function(response) { return response.json(); }),
+      ]).then(function(result) {
+        $("#spinner").hide();
+        load(result);
+      }).catch(console.error);
+
+      const timer = ms => new Promise(res => setTimeout(res, ms))
+
+      async function load (result) {
+        var remainingData = result[0]
+        var simulatedData = []
+        for (var i = 0; i < numReplaySteps + 1; i++) {
+          while (document.getElementById('replay').classList.contains('paused') ) {
+            await timer(1000);
+          }
+          if (document.getElementById('replay').classList.contains('stopped') ) {
+            break;
+          }
+          var queryBeliefTime = (beliefTime != null) ? (beliefTime.toISOString()) : (null)
+          beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)
+
+          let t0= performance.now();
+
+          // Split off one simulation step of new data from the remaining data
+          var newData
+          [newData, remainingData] = partition(
+            remainingData,
+            (item) => item.belief_time <= beliefTime.getTime(),
+          );
+
+          // Update beliefs in the simulated data given the new data
+          const oldLength = simulatedData.length + newData.length;
+          simulatedData = updateBeliefs(simulatedData, newData)
+          const newLength = simulatedData.length;
+          console.log("Removed " + (oldLength - newLength) + " obsolete beliefs")
+
+          let t1= performance.now();
+
+          console.log('Time taken to update data:'+ (t1-t0) +' milliseconds');
+
+          // todo: remove obsolete beliefs and insert most recent new beliefs
+          vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(simulatedData)).run().finalize();
+
+          let t2= performance.now();
+
+          console.log('Time taken to embed data:'+ (t2-t1) +' milliseconds');
+          document.getElementById('replay-time').innerHTML = beliefTime
+          await timer(25);
+        }
+        // Stop replay when finished
+        console.log("stop replay")
+        toggle.classList.remove('playing');
+        toggle.classList.add('stopped');
+        document.getElementById('replay-time').innerHTML = ''
+      }
+    } else {
+      // Resume replay
+      console.log("resume replay")
+      toggle.classList.remove('paused');
+      toggle.classList.add('playing');
+    }
+  });
 </script>
 
 {% block leftsidepanel %} {{ super() }} {% endblock %}
