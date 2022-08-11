@@ -127,9 +127,12 @@ def process_internal_api_response(
     if asset_id:
         asset_data["id"] = asset_id
     if make_obj:
-        asset_data["attributes"] = json.loads(asset_data["attributes"])
-        asset = GenericAsset(**asset_data)  # TODO: use schema?
-        asset_data["attributes"] = json.dumps(asset_data["attributes"])
+        asset = GenericAsset(
+            **{
+                **asset_data,
+                **{"attributes": json.loads(asset_data["attributes"])},
+            }
+        )  # TODO: use schema?
         asset.generic_asset_type = GenericAssetType.query.get(
             asset.generic_asset_type_id
         )
