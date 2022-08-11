@@ -387,16 +387,32 @@ class GenericAsset(db.Model, AuthModelMixin):
                 for sensor, bdf in bdf_dict.items():
                     bdf = bdf.resample_events(min_resolution)
                     df = simplify_index(
-                        bdf, index_levels_to_columns=["source"] if most_recent_beliefs_only else ["belief_time", "source"]
-                    ).set_index(["source"] if most_recent_beliefs_only else ["belief_time", "source"], append=True)
+                        bdf,
+                        index_levels_to_columns=["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"],
+                    ).set_index(
+                        ["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"],
+                        append=True,
+                    )
                     df["sensor"] = sensor  # or some JSONfiable representation
                     df = df.set_index(["sensor"], append=True)
                     df_dict[sensor.id] = df
                 df = pd.concat(df_dict.values())
             else:
                 df = simplify_index(
-                    BeliefsDataFrame(), index_levels_to_columns=["source"] if most_recent_beliefs_only else ["belief_time", "source"]
-                ).set_index(["source"] if most_recent_beliefs_only else ["belief_time", "source"], append=True)
+                    BeliefsDataFrame(),
+                    index_levels_to_columns=["source"]
+                    if most_recent_beliefs_only
+                    else ["belief_time", "source"],
+                ).set_index(
+                    ["source"]
+                    if most_recent_beliefs_only
+                    else ["belief_time", "source"],
+                    append=True,
+                )
             df = df.reset_index()
             df["source"] = df["source"].apply(lambda x: x.to_dict())
             df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
