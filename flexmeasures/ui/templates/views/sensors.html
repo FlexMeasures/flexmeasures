@@ -60,37 +60,6 @@
         // Group by event start and source and select only the most recent new beliefs
         var mostRecentNewBeliefsByEventBySource = Object.fromEntries(new Map(newBeliefs.map(belief => [belief.event_start + '_' + belief.source.id, belief])));  // array -> dict (assumes beliefs are ordered by ascending belief time, with the last belief used as dict value)
 
-        /**
-        // Group by event start and source
-        const groupByEventStartAndSource = (beliefs) => {
-          // Group beliefs by event_start and source, accumulates a dictionary using event_start and source.id as keys, and arrays of beliefs as values
-
-          return beliefs.reduce((beliefsByEvent, currentBelief) => {
-            let groupKey = currentBelief.event_start + '_' + currentBelief.source.id;
-
-            // Initialize new dict entry if the event_start is new
-            if (!beliefsByEvent[groupKey]) {
-              beliefsByEvent[groupKey] = [];
-            }
-
-            // Push the current belief into the group
-            beliefsByEvent[groupKey].push(currentBelief);
-
-            return beliefsByEvent;
-          }, {});
-        };
-        var newBeliefsByEventBySource = groupByEventStartAndSource(newBeliefs);  // array -> dict (possibly multiple beliefs per event)
-
-        // Select only the most recent new beliefs
-        var mostRecentNewBeliefsByEventBySource = {};
-        Object.entries(newBeliefsByEventBySource).forEach(
-            ([event_start_and_source, newBeliefs]) => {
-                let mostRecentNewBelief = newBeliefs.reduce((l, e) => e.belief_time > l.belief_time ? e : l);
-                mostRecentNewBeliefsByEventBySource[event_start_and_source] = mostRecentNewBelief;
-            }
-        )
-        **/
-
         // Return old beliefs updated with most recent new beliefs
         return Object.values({...oldBeliefsByEventBySource, ...mostRecentNewBeliefsByEventBySource})  // dict -> list
     }
