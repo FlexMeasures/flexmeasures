@@ -48,7 +48,7 @@ class AssetForm(FlaskForm):
         places=4,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
-    attributes = StringField("Attributes")
+    attributes = StringField("Other attributes")
 
     def validate_on_submit(self):
         if (
