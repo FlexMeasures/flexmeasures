@@ -105,7 +105,7 @@ def chart_for_multiple_sensors(
             "title": capitalize(sensor.name)
             if sensor.name != sensor.sensor_type
             else None,
-            "transform": [{"filter": f"datum.sensor_id == {sensor.id}"}],
+            "transform": [{"filter": f"datum.sensor.id == {sensor.id}"}],
             "layer": [
                 {
                     "mark": {

@@ -480,6 +480,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
 
+    def __str__(self) -> str:
+        return self.name
+
+    def to_dict(self) -> dict:
+        return dict(
+            id=self.id,
+            name=self.name,
+        )
+
     @classmethod
     def find_closest(
         cls, generic_asset_type_name: str, sensor_name: str, n: int = 1, **kwargs

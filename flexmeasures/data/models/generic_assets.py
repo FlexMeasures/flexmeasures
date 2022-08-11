@@ -389,8 +389,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                     df = simplify_index(
                         bdf, index_levels_to_columns=["source"] if most_recent_beliefs_only else ["belief_time", "source"]
                     ).set_index(["source"] if most_recent_beliefs_only else ["belief_time", "source"], append=True)
-                    df["sensor_id"] = sensor.id  # or some JSONfiable representation
-                    df = df.set_index(["sensor_id"], append=True)
+                    df["sensor"] = sensor  # or some JSONfiable representation
+                    df = df.set_index(["sensor"], append=True)
                     df_dict[sensor.id] = df
                 df = pd.concat(df_dict.values())
             else:
@@ -399,6 +399,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 ).set_index(["source"] if most_recent_beliefs_only else ["belief_time", "source"], append=True)
             df = df.reset_index()
             df["source"] = df["source"].apply(lambda x: x.to_dict())
+            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
             return df.to_json(orient="records")
         return bdf_dict
 
