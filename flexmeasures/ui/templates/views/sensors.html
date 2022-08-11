@@ -43,7 +43,7 @@
     <script type="module" type="text/javascript">
 
       import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
-      import { partition } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
+      import { partition, updateBeliefs } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
 
       let vegaView;
       let previousResult;
@@ -51,19 +51,6 @@
       let queryEndDate;
       let storeStartDate;
       let storeEndDate;
-
-      function updateBeliefs(oldBeliefs, newBeliefs) {
-        // Update oldBeliefs with the most recent newBeliefs about the same event by the same source
-
-        // Group by event start and source
-        var oldBeliefsByEventBySource = Object.fromEntries(new Map(oldBeliefs.map(belief => [belief.event_start + '_' + belief.source.id, belief])));  // array -> dict (already had one belief per event)
-
-        // Group by event start and source and select only the most recent new beliefs
-        var mostRecentNewBeliefsByEventBySource = Object.fromEntries(new Map(newBeliefs.map(belief => [belief.event_start + '_' + belief.source.id, belief])));  // array -> dict (assumes beliefs are ordered by ascending belief time, with the last belief used as dict value)
-
-        // Return old beliefs updated with most recent new beliefs
-        return Object.values({...oldBeliefsByEventBySource, ...mostRecentNewBeliefsByEventBySource})  // dict -> list
-    }
 
       async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 

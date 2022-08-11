@@ -339,6 +339,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         )
         if as_json:
             df = bdf.reset_index()
+            df["sensor"] = self
+            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
             df["source"] = df["source"].apply(lambda x: x.to_dict())
             return df.to_json(orient="records")
         return bdf
