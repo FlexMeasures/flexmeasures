@@ -2,7 +2,7 @@
 FlexMeasures Changelog
 **********************
 
-v0.10.1 | June XX, 2022
+v0.10.1 | August 12, 2022
 ===========================
 
 Bugfixes
@@ -79,7 +79,7 @@ New features
 * Add CLI option to specify custom strings that should be interpreted as NaN values when reading in time series data from CSV [see `PR #357 <http://www.github.com/FlexMeasures/flexmeasures/pull/357>`_]
 * Add CLI commands ``flexmeasures add sensor``, ``flexmeasures add asset-type``, ``flexmeasures add beliefs`` (which were experimental features before) [see `PR #337 <http://www.github.com/FlexMeasures/flexmeasures/pull/337>`_]
 * Add CLI commands for showing organisational structure [see `PR #339 <http://www.github.com/FlexMeasures/flexmeasures/pull/339>`_]
-* Add a CLI command for showing time series data [see `PR #379 <http://www.github.com/FlexMeasures/flexmeasures/pull/379>`_]
+* Add CLI command for showing time series data [see `PR #379 <http://www.github.com/FlexMeasures/flexmeasures/pull/379>`_]
 * Add CLI command for attaching annotations to assets: ``flexmeasures add holidays`` adds public holidays [see `PR #343 <http://www.github.com/FlexMeasures/flexmeasures/pull/343>`_]
 * Add CLI command for resampling existing sensor data to new resolution [see `PR #360 <http://www.github.com/FlexMeasures/flexmeasures/pull/360>`_]
 * Add CLI command to delete an asset, with its sensors and data. [see `PR #395 <http://www.github.com/FlexMeasures/flexmeasures/pull/395>`_]
