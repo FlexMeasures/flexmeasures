@@ -67,22 +67,6 @@ def register_at(app: Flask):
     add_jinja_filters(app)
     add_jinja_variables(app)
 
-    # Add our chart endpoint to the Api 2.0 blueprint.
-    # This lets it show up in the API list twice, but that seems to be the best way for now (see below).
-    # Also, we'll reconsider where these charts endpoints should really live when we make more.
-    from flexmeasures.ui.views.charts import get_power_chart
-
-    # We cannot call this directly on the blueprint, as that only defers to registration.
-    # Re-registering the blueprint leads to all endpoints being listed twice.
-    blueprint_state = BlueprintSetupState(
-        flexmeasures_api_v2_0,
-        app,
-        {"url_prefix": "/api/v2_0"},
-        first_registration=False,
-    )
-    blueprint_state.add_url_rule("/charts/power", None, get_power_chart)
-
-
 def register_rq_dashboard(app):
     app.config.update(
         RQ_DASHBOARD_REDIS_URL=[

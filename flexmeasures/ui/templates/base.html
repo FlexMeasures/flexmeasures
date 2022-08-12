@@ -35,10 +35,6 @@
         rel="stylesheet" />
     <!-- Custom CSS -->
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/flexmeasures.css') }}" rel="stylesheet" />
-    {% if contains_plots %}
-    {{ bokeh_css_resources|indent(4)|safe }}
-    {{ bokeh_js_resources|indent(4)|safe }}
-    {% endif %}
     {% if active_page == "tasks" %}
     <link href="{{ url_for('flexmeasures_ui.static', filename='css/external/rq-dashboard-bootstrap.min.css') }}"
         rel="stylesheet" />
@@ -232,7 +228,7 @@
     {% block attributions %}
     <div id="att-text" style="display: none;">
         <ul>
-            <li>Plots made with <a href="https://bokeh.pydata.org">Bokeh</a>.</li>
+            <li>Plots made with <a href="https://vega.github.io/vega-lite/">Vega-Lite</a>.</li>
             <li>Icons made by <a href="https://freepik.com">Freepik</a>, <a
                     href="https://www.flaticon.com/authors/tomas-knop" title="Tomas Knop">Tomas Knop</a>, <a
                     href="https://www.flaticon.com/authors/gregor-cresnar" title="Gregor Cresnar">Gregor Cresnar</a> and

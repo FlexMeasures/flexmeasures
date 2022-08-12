@@ -84,19 +84,7 @@
 <script
     src="https://unpkg.com/leaflet.markercluster.layersupport@2.0.1/dist/leaflet.markercluster.layersupport.js"></script>
 
-{{ bokeh_html_embedded | safe }}
 <script type="text/javascript">
-
-    function lookForState(event) {
-        $.ajax({
-            url: "/asset/" + encodeURI(this.options.id) + "/state",
-            success: stateFoundCallback
-        });
-    }
-
-    function stateFoundCallback(data) {
-        $(".bokeh-state-plot").html(data);
-    }
 
     // Make an icon for each known asset type
     {% for asset_type_name in known_asset_types %}
@@ -138,37 +126,16 @@
         .bindPopup(`
                             <div class="leaflet-marker-popup">
                                 <div class="row">
-                                    <div class="col-sm-12">
+                                    <div class="col-sm-9">
                                         <h4>{{ asset.name }} </h4>
                                         {% if user_has_admin_reader_rights %} <small>Account: {{ asset.owner.name }} </small> {% endif %}
                                     </div>
                                 </div>
-                                <div class="row">
-                                    <div class="col-sm-5 bokeh-state-plot"></div>
-                                    <div class="col-sm-7">
-                                        <div class="row top-buffer">
-<!--                                            <div class="col-sm-12">-->
-<!--                                                <form action="analytics" method="get">-->
-<!--                                                    <input type="hidden" name="resource" value="{{ asset.name }}">-->
-<!--                                                    <button class="btn btn-sm btn-responsive btn-info" type="submit">Analyse this asset</button>-->
-<!--                                                </form>-->
-<!--                                            </div>-->
-                                        </div>
-                                        <div class="row top-buffer">
-                                            <div class="col-sm-12">
-                                                <form action="assets/{{ asset.id }}" method="get">
-                                                    <button class="btn btn-sm btn-responsive btn-info" type="submit">View this asset</button>
-                                                </form>
-                                            </div>
-                                        </div>
-        <!--                                <div class="row top-buffer">-->
-        <!--                                    <div class="col-sm-12">-->
-        <!--                                        <form action="control" method="get">-->
-        <!--                                            &lt;!&ndash;<input type="hidden" name="offer" value="still_mocked">&ndash;&gt;-->
-        <!--                                            &lt;!&ndash;<button class="btn btn-sm btn-responsive btn-danger" type="submit">Review opportunity</button>&ndash;&gt;-->
-        <!--                                        </form>-->
-        <!--                                    </div>-->
-        <!--                                </div>-->
+                                <div class="row top-buffer">
+                                    <div class="col-sm-3">
+                                        <form action="assets/{{ asset.id }}" method="get">
+                                            <button class="btn btn-sm btn-responsive btn-info" type="submit">View</button>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -189,7 +156,6 @@
             direction: 'right'
         })
         .on('click', clickPan)
-        .on('click', lookForState);
     // .openPopup();
     {{ asset_groups[asset_group_name].parameterized_name }}_markers.push(marker_for_{{ (asset.id) }});
                 }

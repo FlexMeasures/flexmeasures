@@ -18,7 +18,6 @@ from flexmeasures.data.models.generic_assets import (
 )
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.ui.charts.latest_state import get_latest_power_as_plot
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
 from flexmeasures.utils.unit_utils import is_power_unit
@@ -231,14 +230,11 @@ class AssetCrudUI(FlaskView):
         asset = process_internal_api_response(asset_dict, int(id), make_obj=True)
         asset_form.process(data=process_internal_api_response(asset_dict))
 
-        latest_measurement_time_str, asset_plot_html = _get_latest_power_plot(asset)
         return render_flexmeasures_template(
             "crud/asset.html",
             asset=asset,
             asset_form=asset_form,
             msg="",
-            latest_measurement_time_str=latest_measurement_time_str,
-            asset_plot_html=asset_plot_html,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
         )
 
@@ -304,9 +300,6 @@ class AssetCrudUI(FlaskView):
             asset_form = with_options(AssetForm())
             if not asset_form.validate_on_submit():
                 asset = GenericAsset.query.get(id)
-                latest_measurement_time_str, asset_plot_html = _get_latest_power_plot(
-                    asset
-                )
                 # Display the form data, but set some extra data which the page wants to show.
                 asset_info = asset_form.to_json()
                 asset_info["id"] = id
@@ -319,8 +312,6 @@ class AssetCrudUI(FlaskView):
                     asset_form=asset_form,
                     asset=asset,
                     msg="Cannot edit asset.",
-                    latest_measurement_time_str=latest_measurement_time_str,
-                    asset_plot_html=asset_plot_html,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
             patch_asset_response = InternalApi().patch(
@@ -342,14 +333,11 @@ class AssetCrudUI(FlaskView):
                 asset_form.process_api_validation_errors(patch_asset_response.json())
                 asset = GenericAsset.query.get(id)
 
-        latest_measurement_time_str, asset_plot_html = _get_latest_power_plot(asset)
         return render_flexmeasures_template(
             "crud/asset.html",
             asset=asset,
             asset_form=asset_form,
             msg=msg,
-            latest_measurement_time_str=latest_measurement_time_str,
-            asset_plot_html=asset_plot_html,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
         )
 
@@ -402,19 +390,3 @@ def _set_asset_type(
     else:
         current_app.logger.error(asset_type_error)
     return asset_type, asset_type_error
-
-
-def _get_latest_power_plot(asset: GenericAsset) -> Tuple[str, str]:
-    power_sensor: Optional[Sensor] = None
-    if asset._sa_instance_state.transient:
-        sensors = Sensor.query.filter(Sensor.generic_asset_id == asset.id).all()
-    else:
-        sensors = asset.sensors
-    for sensor in sensors:
-        if is_power_unit(sensor.unit):
-            power_sensor = sensor
-            break
-    if power_sensor is None:
-        return "", ""
-    else:
-        return get_latest_power_as_plot(power_sensor)
