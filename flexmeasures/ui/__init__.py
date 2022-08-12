@@ -67,6 +67,7 @@ def register_at(app: Flask):
     add_jinja_filters(app)
     add_jinja_variables(app)
 
+
 def register_rq_dashboard(app):
     app.config.update(
         RQ_DASHBOARD_REDIS_URL=[
