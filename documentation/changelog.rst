@@ -32,7 +32,7 @@ Infrastructure / Support
 * New API endpoint to get public assets [see `PR #461 <http://www.github.com/FlexMeasures/flexmeasures/pull/461>`_]
 
 
-v0.10.1 | June XX, 2022
+v0.10.1 | August 12, 2022
 ===========================
 
 Bugfixes
