@@ -1,7 +1,6 @@
 import os
 
 from flask import current_app, Flask, Blueprint
-from flask.blueprints import BlueprintSetupState
 from flask import send_from_directory
 from flask_security import login_required, roles_accepted
 import pandas as pd
@@ -22,7 +21,6 @@ from flexmeasures.utils.app_utils import (
     parse_config_entry_by_account_roles,
     find_first_applicable_config_entry,
 )
-from flexmeasures.api.v2_0 import flexmeasures_api as flexmeasures_api_v2_0
 
 # The ui blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_ui = Blueprint(

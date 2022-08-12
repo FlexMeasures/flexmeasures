@@ -20,7 +20,6 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.crud.api_wrapper import InternalApi
-from flexmeasures.utils.unit_utils import is_power_unit
 
 
 """

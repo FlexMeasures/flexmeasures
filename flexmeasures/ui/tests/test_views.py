@@ -1,5 +1,4 @@
 from flask import url_for
-from flask_security import SQLAlchemySessionUserDatastore
 
 from flexmeasures.ui.tests.utils import logout
 
