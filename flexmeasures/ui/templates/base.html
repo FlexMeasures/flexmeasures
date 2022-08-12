@@ -263,16 +263,14 @@
         var assetPath = '/api/v3_0/assets/' + {{ asset.id }}
         var assetDevPath = '/api/dev/asset/' + {{ asset.id }}
         var chartSpecsPath = assetPath + '/chart?'
-        var elementId = 'sensorchart'
         var datasetName = 'asset_' + {{ asset.id }}
     {% elif active_page == "sensors" %}
-        var sensorId = {{ sensor_id }}
-        var assetPath = '/api/dev/sensor/' + sensorId
-        var assetDevPath = '/api/dev/sensor/' + sensorId
+        var assetPath = '/api/dev/sensor/' + {{ sensor_id }}
+        var assetDevPath = '/api/dev/sensor/' + {{ sensor_id }}
         var chartSpecsPath = assetPath + '/chart?'
-        var elementId = 'sensorchart'
-        var datasetName = 'sensor_' + sensorId
+        var datasetName = 'sensor_' + {{ sensor_id }}
     {% endif %}
+    var elementId = 'sensorchart'
 
     // Set up abort controller to cancel requests
     var controller = new AbortController()
