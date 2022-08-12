@@ -21,7 +21,7 @@ Bugfixes
 * Asynchronous reloading of a chart's dataset relies on that chart already having been embedded [see `PR #472 <http://www.github.com/FlexMeasures/flexmeasures/pull/472>`_]
 * Time scale axes in sensor data charts now match the requested date range, rather than stopping at the edge of the available data [see `PR #449 <http://www.github.com/FlexMeasures/flexmeasures/pull/449>`_]
 * The docker-based tutorial now works with UI on all platforms (port 5000 did not expose on MacOS) [see `PR #465 <http://www.github.com/FlexMeasures/flexmeasures/pull/465>`_]
-* Fix interpretation of scheduling results in toy tutorial [see `PR #466 <http://www.github.com/FlexMeasures/flexmeasures/pull/466>`_]
+* Fix interpretation of scheduling results in toy tutorial [see `PR #466 <http://www.github.com/FlexMeasures/flexmeasures/pull/466>`_ and `PR #475 <http://www.github.com/FlexMeasures/flexmeasures/pull/475>`_]
 * Avoid formatting datetime.timedelta durations as nominal ISO durations [see `PR #459 <http://www.github.com/FlexMeasures/flexmeasures/pull/459>`_]
 
 Infrastructure / Support
