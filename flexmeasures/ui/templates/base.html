@@ -260,17 +260,16 @@
     }
 
     {% if active_page == "assets" %}
-        var assetPath = '/api/v3_0/assets/' + {{ asset.id }}
-        var assetDevPath = '/api/dev/asset/' + {{ asset.id }}
-        var chartSpecsPath = assetPath + '/chart?'
+        var dataPath = '/api/v3_0/assets/' + {{ asset.id }}
+        var dataDevPath = '/api/dev/asset/' + {{ asset.id }}
         var datasetName = 'asset_' + {{ asset.id }}
     {% elif active_page == "sensors" %}
-        var assetPath = '/api/dev/sensor/' + {{ sensor_id }}
-        var assetDevPath = '/api/dev/sensor/' + {{ sensor_id }}
-        var chartSpecsPath = assetPath + '/chart?'
+        var dataPath = '/api/dev/sensor/' + {{ sensor_id }}
+        var dataDevPath = '/api/dev/sensor/' + {{ sensor_id }}
         var datasetName = 'sensor_' + {{ sensor_id }}
     {% endif %}
     var elementId = 'sensorchart'
+    var chartSpecsPath = dataPath + '/chart?'
 
     // Set up abort controller to cancel requests
     var controller = new AbortController()
@@ -326,7 +325,7 @@
         $("#spinner").show();
         Promise.all([
             // Fetch time series data
-            fetch(assetPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+            fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
                 signal: signal,
@@ -335,7 +334,7 @@
 
             /**
             // Fetch annotations
-            fetch(assetPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+            fetch(dataPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
                   signal: signal,
@@ -357,7 +356,7 @@
 
     document.onreadystatechange = () => {
         if (document.readyState === 'complete') {
-            fetch(assetDevPath, {
+            fetch(dataDevPath, {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
             })
@@ -440,7 +439,7 @@
             $("#spinner").show();
             Promise.all([
                 // Fetch time series data
-                fetch(assetPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
+                fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
                     method: "GET",
                     headers: {"Content-Type": "application/json"},
                 })
