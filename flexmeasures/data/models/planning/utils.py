@@ -127,8 +127,17 @@ def inflexible_device_forecasts(
     beliefs_before: Optional[datetime],
     sensor: Sensor,
 ) -> np.ndarray:
-    """
-    :returns: power forecasts (consumption is positive, production is negative)
+    """Get power forecasts of an inflexible device represented by a power sensor.
+
+    If the requested schedule lies in the future, the returned data will consist of (the most recent) forecasts (if any exist).
+    If the requested schedule lies in the past, the returned data will consist of (the most recent) measurements (if any exist).
+    The latter amounts to answering "What if we could have scheduled under perfect foresight?".
+
+    :param query_window:    datetime window within which events occur (equal to the scheduling window)
+    :param resolution:      timedelta used to resample the forecasts to the resolution of the schedule
+    :param beliefs_before:  datetime used to indicate we are interested in the state of knowledge at that time
+    :param sensor:          power sensor representing an energy flow out of the device
+    :returns:               power forecasts (consumption is positive, production is negative)
     """
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
         sensor,
