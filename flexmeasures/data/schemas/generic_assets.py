@@ -15,13 +15,12 @@ from flexmeasures.data.schemas.utils import (
 
 class JSON(fields.Field):
     def _deserialize(self, value, attr, data, **kwargs):
-        if value:
-            try:
-                return json.loads(value)
-            except ValueError:
-                return None
-
-        return None
+        try:
+            return json.loads(value)
+        except ValueError:
+            raise ValidationError(
+                f"Not a valid JSON string.",
+            )
 
     def _serialize(self, value, attr, data, **kwargs):
         return json.dumps(value)
