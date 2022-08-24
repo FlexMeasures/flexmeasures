@@ -1,3 +1,5 @@
+import json
+
 from flask import url_for
 import pytest
 
@@ -138,6 +140,50 @@ def test_alter_an_asset(client, setup_api_test_data, setup_accounts):
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={
             "latitude": prosumer_asset.latitude
+        },  # we're not changing values to keep other tests clean here
+    )
+    print(f"Editing Response: {asset_edit_response.json}")
+    assert asset_edit_response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "bad_json_str",
+    [
+        None,
+        "{",
+        '{"hallo": world}',
+    ],
+)
+def test_alter_an_asset_with_bad_json_attributes(
+    client, setup_api_test_data, setup_accounts, bad_json_str
+):
+    """Check whether updating an asset's attributes with a badly structured JSON fails."""
+    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
+        auth_token = prosumer1.get_auth_token()
+    with AccountContext("Test Prosumer Account") as prosumer:
+        prosumer_asset = prosumer.generic_assets[0]
+    asset_edit_response = client.patch(
+        url_for("AssetAPI:patch", id=prosumer_asset.id),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+        json={"attributes": bad_json_str},
+    )
+    print(f"Editing Response: {asset_edit_response.json}")
+    assert asset_edit_response.status_code == 422
+
+
+def test_alter_an_asset_with_json_attributes(
+    client, setup_api_test_data, setup_accounts
+):
+    """Check whether updating an asset's attributes with a properly structured JSON succeeds."""
+    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
+        auth_token = prosumer1.get_auth_token()
+    with AccountContext("Test Prosumer Account") as prosumer:
+        prosumer_asset = prosumer.generic_assets[0]
+    asset_edit_response = client.patch(
+        url_for("AssetAPI:patch", id=prosumer_asset.id),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+        json={
+            "attributes": json.dumps(prosumer_asset.attributes)
         },  # we're not changing values to keep other tests clean here
     )
     print(f"Editing Response: {asset_edit_response.json}")
