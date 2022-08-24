@@ -9,6 +9,7 @@ import timely_beliefs as tb
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
+    UnknownForecastException,
     UnknownMarketException,
     UnknownPricesException,
 )
@@ -61,23 +62,21 @@ def add_tiny_price_slope(
 
 def get_market(sensor: Sensor) -> Sensor:
     """Get market sensor from the sensor's attributes."""
-    sensor = Sensor.query.get(sensor.get_attribute("market_id"))
-    if sensor is None:
+    price_sensor = Sensor.query.get(sensor.get_attribute("market_id"))
+    if price_sensor is None:
         raise UnknownMarketException
-    return sensor
+    return price_sensor
 
 
 def get_prices(
     query_window: Tuple[datetime, datetime],
     resolution: timedelta,
+    beliefs_before: Optional[datetime],
     price_sensor: Optional[Sensor] = None,
     sensor: Optional[Sensor] = None,
     allow_trimmed_query_window: bool = True,
 ) -> Tuple[pd.DataFrame, Tuple[datetime, datetime]]:
-    """Check for known prices or price forecasts, trimming query window accordingly if allowed.
-    todo: set a horizon to avoid collecting prices that are not known at the time of constructing the schedule
-          (this may require implementing a belief time for scheduling jobs).
-    """
+    """Check for known prices or price forecasts, trimming query window accordingly if allowed."""
 
     # Look for the applicable price sensor
     if price_sensor is None:
@@ -92,13 +91,16 @@ def get_prices(
         event_starts_after=query_window[0],
         event_ends_before=query_window[1],
         resolution=to_offset(resolution).freqstr,
+        beliefs_before=beliefs_before,
         most_recent_beliefs_only=True,
         one_deterministic_belief_per_event=True,
     )
     price_df = simplify_index(price_bdf)
     nan_prices = price_df.isnull().values
     if nan_prices.all() or price_df.empty:
-        raise UnknownPricesException("Prices unknown for planning window.")
+        raise UnknownPricesException(
+            f"Prices unknown for planning window. (sensor {price_sensor.id})"
+        )
     elif (
         nan_prices.any()
         or pd.Timestamp(price_df.index[0]).tz_convert("UTC")
@@ -110,14 +112,50 @@ def get_prices(
             first_event_start = price_df.first_valid_index()
             last_event_end = price_df.last_valid_index() + resolution
             current_app.logger.warning(
-                f"Prices partially unknown for planning window. Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
+                f"Prices partially unknown for planning window (sensor {price_sensor.id}). Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
             )
             query_window = (first_event_start, last_event_end)
         else:
             raise UnknownPricesException(
-                "Prices partially unknown for planning window."
+                f"Prices partially unknown for planning window (sensor {price_sensor.id})."
             )
     return price_df, query_window
+
+
+def get_power_values(
+    query_window: Tuple[datetime, datetime],
+    resolution: timedelta,
+    beliefs_before: Optional[datetime],
+    sensor: Sensor,
+) -> np.ndarray:
+    """Get measurements or forecasts of an inflexible device represented by a power sensor.
+
+    If the requested schedule lies in the future, the returned data will consist of (the most recent) forecasts (if any exist).
+    If the requested schedule lies in the past, the returned data will consist of (the most recent) measurements (if any exist).
+    The latter amounts to answering "What if we could have scheduled under perfect foresight?".
+
+    :param query_window:    datetime window within which events occur (equal to the scheduling window)
+    :param resolution:      timedelta used to resample the forecasts to the resolution of the schedule
+    :param beliefs_before:  datetime used to indicate we are interested in the state of knowledge at that time
+    :param sensor:          power sensor representing an energy flow out of the device
+    :returns:               power measurements or forecasts (consumption is positive, production is negative)
+    """
+    bdf: tb.BeliefsDataFrame = TimedBelief.search(
+        sensor,
+        event_starts_after=query_window[0],
+        event_ends_before=query_window[1],
+        resolution=to_offset(resolution).freqstr,
+        beliefs_before=beliefs_before,
+        most_recent_beliefs_only=True,
+        one_deterministic_belief_per_event=True,
+    )  # consumption is negative, production is positive
+    df = simplify_index(bdf)
+    nan_values = df.isnull().values
+    if nan_values.any() or df.empty:
+        raise UnknownForecastException(
+            f"Forecasts unknown for planning window. (sensor {sensor.id})"
+        )
+    return -df.values
 
 
 def fallback_charging_policy(

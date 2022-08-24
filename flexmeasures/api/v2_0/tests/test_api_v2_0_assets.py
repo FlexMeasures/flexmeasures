@@ -100,7 +100,7 @@ def test_get_assets(client, add_charging_station_assets, use_owner_id, num_asset
             battery = asset
     assert battery
     assert pd.Timestamp(battery["soc_datetime"]) == pd.Timestamp(
-        "2015-01-01T00:00:00+00:00"
+        "2015-01-01T00:00:00+01:00"
     )
     assert battery["owner_id"] == test_prosumer2_id
     assert battery["capacity_in_mw"] == 2

@@ -29,15 +29,15 @@ def message_for_post_udi_event(
     message = {
         "type": "PostUdiEventRequest",
         "event": "ea1.2018-06.localhost:%s:204:soc",
-        "datetime": "2015-01-01T00:00:00+00:00",
+        "datetime": "2015-01-01T00:00:00+01:00",
         "value": 12.1,
         "unit": "kWh",
     }
     if targets:
         message["event"] = message["event"] + "-with-targets"
-        message["targets"] = [{"value": 25, "datetime": "2015-01-02T23:00:00+00:00"}]
+        message["targets"] = [{"value": 25, "datetime": "2015-01-02T23:00:00+01:00"}]
     if unknown_prices:
         message[
             "datetime"
-        ] = "2040-01-01T00:00:00+00:00"  # We have no beliefs in our test database about 2040 prices
+        ] = "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
     return message

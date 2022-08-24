@@ -172,16 +172,24 @@ def device_scheduler(  # noqa C901
             return v
 
     def device_derivative_down_efficiency(m, d, j):
+        """Assume perfect efficiency if no efficiency information is available."""
         try:
-            return device_constraints[d]["derivative down efficiency"].iloc[j]
+            eff = device_constraints[d]["derivative down efficiency"].iloc[j]
         except KeyError:
             return 1
+        if np.isnan(eff):
+            return 1
+        return eff
 
     def device_derivative_up_efficiency(m, d, j):
+        """Assume perfect efficiency if no efficiency information is available."""
         try:
-            return device_constraints[d]["derivative up efficiency"].iloc[j]
+            eff = device_constraints[d]["derivative up efficiency"].iloc[j]
         except KeyError:
             return 1
+        if np.isnan(eff):
+            return 1
+        return eff
 
     model.up_price = Param(model.c, model.j, initialize=price_up_select)
     model.down_price = Param(model.c, model.j, initialize=price_down_select)
@@ -237,17 +245,19 @@ def device_scheduler(  # noqa C901
         )
 
     def device_down_derivative_bounds(m, d, j):
+        """Strictly non-positive."""
         return (
-            m.device_derivative_min[d, j],
+            min(m.device_derivative_min[d, j], 0),
             m.device_power_down[d, j],
             0,
         )
 
     def device_up_derivative_bounds(m, d, j):
+        """Strictly non-negative."""
         return (
             0,
             m.device_power_up[d, j],
-            m.device_derivative_max[d, j],
+            max(0, m.device_derivative_max[d, j]),
         )
 
     def ems_derivative_bounds(m, j):
