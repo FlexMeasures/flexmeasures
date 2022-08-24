@@ -126,7 +126,7 @@ def inflexible_device_forecasts(
     resolution: timedelta,
     beliefs_before: Optional[datetime],
     sensor: Sensor,
-):
+) -> np.ndarray:
     """
     :returns: power forecasts (consumption is positive, production is negative)
     """
