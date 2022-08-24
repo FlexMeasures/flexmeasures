@@ -272,7 +272,8 @@ class SensorAPI(FlaskView):
         Roundtrip efficiency for use in scheduling is set to 98%.
         Aggregate consumption should be priced by sensor 9,
         and aggregate production should be priced by sensor 10,
-        where the aggregate power flow includes the sum over sensors 13, 14 and 15.
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
+        (plus the flexible sensor being optimized, of course).
         Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
         .. code-block:: json
