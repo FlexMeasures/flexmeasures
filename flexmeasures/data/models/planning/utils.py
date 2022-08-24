@@ -9,6 +9,7 @@ import timely_beliefs as tb
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
+    UnknownForecastException,
     UnknownMarketException,
     UnknownPricesException,
 )
@@ -151,7 +152,7 @@ def inflexible_device_forecasts(
     df = simplify_index(bdf)
     nan_values = df.isnull().values
     if nan_values.any() or df.empty:
-        raise UnknownPricesException(
+        raise UnknownForecastException(
             f"Forecasts unknown for planning window. (sensor {sensor.id})"
         )
     return -df.values
