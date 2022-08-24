@@ -10,7 +10,7 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     add_tiny_price_slope,
     get_prices,
-    inflexible_device_forecasts,
+    get_power_values,
     fallback_charging_policy,
 )
 
@@ -121,7 +121,7 @@ def schedule_battery(
         for i in range(1 + len(inflexible_device_sensors))
     ]
     for i, inflexible_sensor in enumerate(inflexible_device_sensors):
-        device_constraints[i + 1]["derivative equals"] = inflexible_device_forecasts(
+        device_constraints[i + 1]["derivative equals"] = get_power_values(
             query_window=(start, end),
             resolution=resolution,
             beliefs_before=belief_time,
