@@ -18,9 +18,7 @@ class JSON(fields.Field):
         try:
             return json.loads(value)
         except ValueError:
-            raise ValidationError(
-                f"Not a valid JSON string.",
-            )
+            raise ValidationError("Not a valid JSON string.")
 
     def _serialize(self, value, attr, data, **kwargs):
         return json.dumps(value)
