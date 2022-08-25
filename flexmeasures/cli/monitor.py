@@ -47,13 +47,11 @@ def send_monitoring_alert(
     if len(email_recipients) > 0:
         email = Message(subject=f"Problem with task {task_name}", bcc=email_recipients)
         email.body = (
-            f"{msg}\n\n{latest_run_txt}\nWe suggest to check the logs. {custom_msg_txt}"
+            f"{msg}\n\n{latest_run_txt}\nWe suggest to check the logs.{custom_msg_txt}"
         )
         app.mail.send(email)
 
-    app.logger.error(f"{msg} {latest_run_txt}")
-    if custom_msg:
-        app.logger.info(custom_msg)
+    app.logger.error(f"{msg} {latest_run_txt} NOTE: {custom_msg}")
 
 
 @fm_monitor.command("tasks")  # TODO: a better name would be "latest-run"
