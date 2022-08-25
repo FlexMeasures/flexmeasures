@@ -32,6 +32,7 @@ Infrastructure / Support
 * Queue workers can get initialised without a custom name and name collisions are handled [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
 * New API endpoint to get public assets [see `PR #461 <http://www.github.com/FlexMeasures/flexmeasures/pull/461>`_]
 * Allow editing an asset's JSON attributes through the UI [see `PR #474 <http://www.github.com/FlexMeasures/flexmeasures/pull/474>`_]
+* Allow a custom message when monitoring latest run of tasks [see `PR #489 <http://www.github.com/FlexMeasures/flexmeasures/pull/489>`_]
 
 
 v0.10.1 | August 12, 2022
