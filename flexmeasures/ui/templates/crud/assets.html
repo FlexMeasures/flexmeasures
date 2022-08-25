@@ -20,7 +20,7 @@
                         <th class="text-right">Account</th>
                         <th class="text-right no-sort">Sensors</th>
                         <th class="text-right no-sort">
-                            {% if user_is_admin %}
+                            {% if user_can_create_assets %}
                             <form action="/assets/new" method="get">
                                 <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new
                                     asset</button>

@@ -109,7 +109,7 @@ def show_account(account):
                 user.username,
                 user.email,
                 naturaltime(user.last_login_at),
-                "".join([role.name for role in user.roles]),
+                ",".join([role.name for role in user.roles]),
             )
             for user in users
         ]
@@ -187,7 +187,7 @@ def show_generic_asset(asset):
             sensor.unit,
             naturaldelta(sensor.event_resolution),
             sensor.timezone,
-            "".join([f"{k}:{v}\n" for k, v in sensor.attributes.items()]),
+            ",".join([f"{k}:{v}\n" for k, v in sensor.attributes.items()]),
         )
         for sensor in sensors
     ]

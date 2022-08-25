@@ -2,6 +2,7 @@ from typing import Optional
 import json
 
 from marshmallow import validates, validates_schema, ValidationError, fields
+from flask_security import current_user
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.user import Account
@@ -11,6 +12,7 @@ from flexmeasures.data.schemas.utils import (
     MarshmallowClickMixin,
     with_appcontext_if_needed,
 )
+from flexmeasures.auth.policy import user_has_admin_access
 
 
 class JSON(fields.Field):
@@ -66,6 +68,13 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         account = Account.query.get(account_id)
         if not account:
             raise ValidationError(f"Account with Id {account_id} doesn't exist.")
+        if (
+            not user_has_admin_access(current_user, "update")
+            and account_id != current_user.account_id
+        ):
+            raise ValidationError(
+                "User is not allowed to create assets for this account."
+            )
 
     @validates("latitude")
     def validate_latitude(self, latitude: Optional[float]):
