@@ -1,5 +1,6 @@
 from typing import Union, Optional, List, Tuple
 import copy
+import json
 
 from flask import url_for, current_app
 from flask_classful import FlaskView
@@ -47,6 +48,7 @@ class AssetForm(FlaskForm):
         places=4,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
+    attributes = StringField("Other attributes (JSON)")
 
     def validate_on_submit(self):
         if (
@@ -125,7 +127,12 @@ def process_internal_api_response(
     if asset_id:
         asset_data["id"] = asset_id
     if make_obj:
-        asset = GenericAsset(**asset_data)  # TODO: use schema?
+        asset = GenericAsset(
+            **{
+                **asset_data,
+                **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
+            }
+        )  # TODO: use schema?
         asset.generic_asset_type = GenericAssetType.query.get(
             asset.generic_asset_type_id
         )
@@ -285,11 +292,14 @@ class AssetCrudUI(FlaskView):
                         f"Internal asset API call unsuccessful [{post_asset_response.status_code}]: {post_asset_response.text}"
                     )
                     asset_form.process_api_validation_errors(post_asset_response.json())
-                    if (
-                        "message" in post_asset_response.json()
-                        and "json" in post_asset_response.json()["message"]
-                    ):
-                        error_msg = str(post_asset_response.json()["message"]["json"])
+                    if "message" in post_asset_response.json():
+                        asset_form.process_api_validation_errors(
+                            post_asset_response.json()["message"]
+                        )
+                        if "json" in post_asset_response.json()["message"]:
+                            error_msg = str(
+                                post_asset_response.json()["message"]["json"]
+                            )
             if asset is None:
                 msg = "Cannot create asset. " + error_msg
                 return render_flexmeasures_template(
@@ -339,7 +349,9 @@ class AssetCrudUI(FlaskView):
                     f"Internal asset API call unsuccessful [{patch_asset_response.status_code}]: {patch_asset_response.text}"
                 )
                 msg = "Cannot edit asset."
-                asset_form.process_api_validation_errors(patch_asset_response.json())
+                asset_form.process_api_validation_errors(
+                    patch_asset_response.json().get("message")
+                )
                 asset = GenericAsset.query.get(id)
 
         latest_measurement_time_str, asset_plot_html = _get_latest_power_plot(asset)

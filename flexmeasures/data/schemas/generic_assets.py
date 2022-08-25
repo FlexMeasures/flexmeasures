@@ -1,4 +1,5 @@
 from typing import Optional
+import json
 
 from marshmallow import validates, validates_schema, ValidationError, fields
 
@@ -12,6 +13,17 @@ from flexmeasures.data.schemas.utils import (
 )
 
 
+class JSON(fields.Field):
+    def _deserialize(self, value, attr, data, **kwargs):
+        try:
+            return json.loads(value)
+        except ValueError:
+            raise ValidationError("Not a valid JSON string.")
+
+    def _serialize(self, value, attr, data, **kwargs):
+        return json.dumps(value)
+
+
 class GenericAssetSchema(ma.SQLAlchemySchema):
     """
     GenericAsset schema, with validations.
@@ -23,6 +35,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     latitude = ma.auto_field()
     longitude = ma.auto_field()
     generic_asset_type_id = fields.Integer(required=True)
+    attributes = JSON(required=False)
 
     class Meta:
         model = GenericAsset
