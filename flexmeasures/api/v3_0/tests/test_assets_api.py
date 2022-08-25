@@ -212,6 +212,27 @@ def test_post_an_asset_with_existing_name(client, setup_api_test_data):
     )
 
 
+def test_post_an_asset_with_other_account(client, setup_api_test_data):
+    """Catch auth error, when account-admin posts an asset for another account"""
+    with UserContext("test_prosumer_user_2@seita.nl") as account_admin_user:
+        auth_token = account_admin_user.get_auth_token()
+    with AccountContext("Test Supplier Account") as supplier:
+        supplier_id = supplier.id
+    post_data = get_asset_post_data()
+    post_data["account_id"] = supplier_id
+    asset_creation_response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print(f"Creation Response: {asset_creation_response.json}")
+    assert asset_creation_response.status_code == 422
+    assert (
+        "not allowed to create assets for this account"
+        in asset_creation_response.json["message"]["json"]["account_id"][0]
+    )
+
+
 def test_post_an_asset_with_nonexisting_field(client, setup_api_test_data):
     """Posting a field that is unexpected leads to a 422"""
     with UserContext("test_admin_user@seita.nl") as prosumer:
