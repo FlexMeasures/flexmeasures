@@ -292,11 +292,14 @@ class AssetCrudUI(FlaskView):
                         f"Internal asset API call unsuccessful [{post_asset_response.status_code}]: {post_asset_response.text}"
                     )
                     asset_form.process_api_validation_errors(post_asset_response.json())
-                    if (
-                        "message" in post_asset_response.json()
-                        and "json" in post_asset_response.json()["message"]
-                    ):
-                        error_msg = str(post_asset_response.json()["message"]["json"])
+                    if "message" in post_asset_response.json():
+                        asset_form.process_api_validation_errors(
+                            post_asset_response.json()["message"]
+                        )
+                        if "json" in post_asset_response.json()["message"]:
+                            error_msg = str(
+                                post_asset_response.json()["message"]["json"]
+                            )
             if asset is None:
                 msg = "Cannot create asset. " + error_msg
                 return render_flexmeasures_template(
@@ -346,7 +349,9 @@ class AssetCrudUI(FlaskView):
                     f"Internal asset API call unsuccessful [{patch_asset_response.status_code}]: {patch_asset_response.text}"
                 )
                 msg = "Cannot edit asset."
-                asset_form.process_api_validation_errors(patch_asset_response.json())
+                asset_form.process_api_validation_errors(
+                    patch_asset_response.json().get("message")
+                )
                 asset = GenericAsset.query.get(id)
 
         latest_measurement_time_str, asset_plot_html = _get_latest_power_plot(asset)
