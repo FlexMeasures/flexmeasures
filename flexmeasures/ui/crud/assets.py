@@ -152,8 +152,15 @@ def process_internal_api_response(
 def user_can_create_assets() -> bool:
     try:
         check_access(current_user.account, "create-children")
-    except Exception as exc:
-        current_app.logger.error(exc)
+    except Exception:
+        return False
+    return True
+
+
+def user_can_delete(asset) -> bool:
+    try:
+        check_access(asset, "delete")
+    except Exception:
         return False
     return True
 
@@ -224,6 +231,7 @@ class AssetCrudUI(FlaskView):
             account=Account.query.get(account_id),
             assets=assets,
             msg=msg,
+            user_can_create_assets=user_can_create_assets(),
         )
 
     @login_required
@@ -260,6 +268,8 @@ class AssetCrudUI(FlaskView):
             latest_measurement_time_str=latest_measurement_time_str,
             asset_plot_html=asset_plot_html,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+            user_can_create_assets=user_can_create_assets(),
+            user_can_delete_asset=user_can_delete(asset),
         )
 
     @login_required
@@ -345,6 +355,8 @@ class AssetCrudUI(FlaskView):
                     latest_measurement_time_str=latest_measurement_time_str,
                     asset_plot_html=asset_plot_html,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+                    user_can_create_assets=user_can_create_assets(),
+                    user_can_delete_asset=user_can_delete(asset),
                 )
             patch_asset_response = InternalApi().patch(
                 url_for("AssetAPI:patch", id=id),
@@ -376,6 +388,8 @@ class AssetCrudUI(FlaskView):
             latest_measurement_time_str=latest_measurement_time_str,
             asset_plot_html=asset_plot_html,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+            user_can_create_assets=user_can_create_assets(),
+            user_can_delete_asset=user_can_delete(asset),
         )
 
     @login_required
