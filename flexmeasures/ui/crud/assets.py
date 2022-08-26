@@ -12,6 +12,7 @@ from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
     GenericAsset,
@@ -48,7 +49,7 @@ class AssetForm(FlaskForm):
         places=4,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
-    attributes = StringField("Other attributes (JSON)")
+    attributes = StringField("Other attributes (JSON)", default="{}")
 
     def validate_on_submit(self):
         if (
@@ -148,6 +149,22 @@ def process_internal_api_response(
     return asset_data
 
 
+def user_can_create_assets() -> bool:
+    try:
+        check_access(current_user.account, "create-children")
+    except Exception:
+        return False
+    return True
+
+
+def user_can_delete(asset) -> bool:
+    try:
+        check_access(asset, "delete")
+    except Exception:
+        return False
+    return True
+
+
 class AssetCrudUI(FlaskView):
     """
     These views help us offer a Jinja2-based UI.
@@ -186,7 +203,10 @@ class AssetCrudUI(FlaskView):
             assets = get_asset_by_account(current_user.account_id)
 
         return render_flexmeasures_template(
-            "crud/assets.html", assets=assets, message=msg
+            "crud/assets.html",
+            assets=assets,
+            message=msg,
+            user_can_create_assets=user_can_create_assets(),
         )
 
     @login_required
@@ -211,6 +231,7 @@ class AssetCrudUI(FlaskView):
             account=Account.query.get(account_id),
             assets=assets,
             msg=msg,
+            user_can_create_assets=user_can_create_assets(),
         )
 
     @login_required
@@ -218,7 +239,7 @@ class AssetCrudUI(FlaskView):
         """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)"""
 
         if id == "new":
-            if not current_user.has_role("admin"):
+            if not user_can_create_assets():
                 return unauthorized_handler(None, [])
 
             asset_form = with_options(NewAssetForm())
@@ -247,6 +268,8 @@ class AssetCrudUI(FlaskView):
             latest_measurement_time_str=latest_measurement_time_str,
             asset_plot_html=asset_plot_html,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+            user_can_create_assets=user_can_create_assets(),
+            user_can_delete_asset=user_can_delete(asset),
         )
 
     @login_required
@@ -332,6 +355,8 @@ class AssetCrudUI(FlaskView):
                     latest_measurement_time_str=latest_measurement_time_str,
                     asset_plot_html=asset_plot_html,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+                    user_can_create_assets=user_can_create_assets(),
+                    user_can_delete_asset=user_can_delete(asset),
                 )
             patch_asset_response = InternalApi().patch(
                 url_for("AssetAPI:patch", id=id),
@@ -363,6 +388,8 @@ class AssetCrudUI(FlaskView):
             latest_measurement_time_str=latest_measurement_time_str,
             asset_plot_html=asset_plot_html,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+            user_can_create_assets=user_can_create_assets(),
+            user_can_delete_asset=user_can_delete(asset),
         )
 
     @login_required
