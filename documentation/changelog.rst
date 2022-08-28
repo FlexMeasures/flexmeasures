@@ -2,19 +2,22 @@
 FlexMeasures Changelog
 **********************
 
-v0.11.0 | June XX, 2022
+v0.11.0 | August 28, 2022
 ===========================
 
 New features
 -------------
 * The asset page now shows the most relevant sensor data for the asset [see `PR #449 <http://www.github.com/FlexMeasures/flexmeasures/pull/449>`_]
 * Individual sensor charts show available annotations [see `PR #428 <http://www.github.com/FlexMeasures/flexmeasures/pull/428>`_]
+* New API options to further customize the optimization context for scheduling, including the ability to use different prices for consumption and production (feed-in) [see `PR #451 <http://www.github.com/FlexMeasures/flexmeasures/pull/451>`_]
 * Admins can group assets by account on dashboard & assets page [see `PR #461 <http://www.github.com/FlexMeasures/flexmeasures/pull/461>`_]
 * Collapsible side-panel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_ and `PR #448 <http://www.github.com/FlexMeasures/flexmeasures/pull/448>`_]
 * Add CLI command ``flexmeasures jobs show-queues`` [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
 * Switched from 12-hour AM/PM to 24-hour clock notation for time series chart axis labels [see `PR #446 <http://www.github.com/FlexMeasures/flexmeasures/pull/446>`_]
 * Get data in a given resolution [see `PR #458 <http://www.github.com/FlexMeasures/flexmeasures/pull/458>`_]
-* New API options to further customize the optimization context for scheduling, including the ability to use different prices for consumption and production (feed-in) [see `PR #451 <http://www.github.com/FlexMeasures/flexmeasures/pull/451>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <http://flexmeasures.io/011-better-data-views/>`__.
+
 
 Bugfixes
 -----------
