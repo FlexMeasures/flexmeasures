@@ -796,7 +796,7 @@ def create_forecasts(
     "--optimization-context-id",
     "optimization_context_sensor",
     type=SensorIdField(),
-    required=True,
+    required=False,
     help="To be deprecated. Use consumption-price-sensor instead.",
 )
 @click.option(
