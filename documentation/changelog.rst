@@ -23,7 +23,7 @@ v0.11.1 | September XX, 2022
 
 Bugfixes
 -----------
-
+* Do not fail asset page if none of the sensors has any data [see `PR #492 <http://www.github.com/FlexMeasures/flexmeasures/pull/492>`_]
 
 
 v0.11.0 | August 28, 2022
