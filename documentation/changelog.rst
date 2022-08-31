@@ -16,6 +16,8 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 
+* Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
+
 
 
 v0.11.1 | September XX, 2022
