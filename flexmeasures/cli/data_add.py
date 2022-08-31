@@ -15,6 +15,7 @@ import getpass
 from sqlalchemy.exc import IntegrityError
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
+import timely_beliefs.utils as tb_utils
 from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures.data import db
@@ -778,11 +779,25 @@ def create_forecasts(
     help="Create schedule for this sensor. Follow up with the sensor's ID.",
 )
 @click.option(
+    "--consumption-price-sensor",
+    "consumption_price_sensor",
+    type=SensorIdField(),
+    required=False,
+    help="Optimize consumption against this sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
+)
+@click.option(
+    "--production-price-sensor",
+    "production_price_sensor",
+    type=SensorIdField(),
+    required=False,
+    help="Optimize production against this sensor. Defaults to the consumption price sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
+)
+@click.option(
     "--optimization-context-id",
     "optimization_context_sensor",
     type=SensorIdField(),
-    required=True,
-    help="Optimize against this sensor, which measures a price factor or CO₂ intensity factor. Follow up with the sensor's ID.",
+    required=False,
+    help="To be deprecated. Use consumption-price-sensor instead.",
 )
 @click.option(
     "--start",
@@ -847,6 +862,8 @@ def create_forecasts(
 )
 def create_schedule(
     power_sensor: Sensor,
+    consumption_price_sensor: Sensor,
+    production_price_sensor: Sensor,
     optimization_context_sensor: Sensor,
     start: datetime,
     duration: timedelta,
@@ -865,10 +882,20 @@ def create_schedule(
     - only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
 
+    # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
+    tb_utils.replace_deprecated_argument(
+        "optimization-context-id",
+        optimization_context_sensor,
+        "consumption-price-sensor",
+        consumption_price_sensor,
+    )
+
     # Parse input
     if not power_sensor.measures_power:
         click.echo(f"Sensor with ID {power_sensor.id} is not a power sensor.")
         raise click.Abort()
+    if production_price_sensor is None:
+        production_price_sensor = consumption_price_sensor
     end = start + duration
     for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
         try:
@@ -922,7 +949,8 @@ def create_schedule(
             soc_min=soc_min,
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
-            price_sensor=optimization_context_sensor,
+            consumption_price_sensor=consumption_price_sensor,
+            production_price_sensor=production_price_sensor,
         )
         if job:
             print(f"New scheduling job {job.id} has been added to the queue.")
@@ -938,7 +966,8 @@ def create_schedule(
             soc_min=soc_min,
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
-            price_sensor=optimization_context_sensor,
+            consumption_price_sensor=consumption_price_sensor,
+            production_price_sensor=production_price_sensor,
         )
         if success:
             print("New schedule is stored.")

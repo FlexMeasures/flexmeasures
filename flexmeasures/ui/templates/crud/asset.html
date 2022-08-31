@@ -11,12 +11,14 @@
     <div class="row">
         <div class="col-sm-2 on-top-md">
             <div class="header-action-button">
-                {% if user_is_admin %}
+                {% if user_can_create_assets %}
                 <div class="">
                     <form action="/assets/new" method="get">
                         <button class="btn btn-sm btn-responsive btn-success create-button" type="submit">Create new asset</button>
                     </form>
                 </div>
+                {% endif %}
+                {% if user_can_delete_asset %}
                 <div class="">
                     <form action="/assets/delete_with_data/{{ asset.id }}/" method="get">
                         <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger delete-button" type="submit">Delete this asset</button>
@@ -86,12 +88,20 @@
                                             value="{{ asset.generic_asset_type.name }}" disabled></input>
                                      </div>
                                 </div>
-
                                 <div class="form-group">
                                     <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
                                     <div class="col-sm-6">
                                         <input class="form-control" id="asset-id" name="asset-id" type="text" value="{{ asset.id }}"
                                             disabled></input>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    {{ asset_form.attributes.label(class="col-sm-3 control-label") }}
+                                    <div class="col-sm-3">
+                                        {{ asset_form.attributes(class_="form-control") }}
+                                        {% for error in asset_form.errors.attributes %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
                                     </div>
                                 </div>
                                 <label class="control-label">Location</label>

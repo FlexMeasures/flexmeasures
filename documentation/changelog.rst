@@ -2,18 +2,46 @@
 FlexMeasures Changelog
 **********************
 
-v0.11.0 | June XX, 2022
+v0.12.0 | October XX, 2022
+============================
+
+New features
+-------------
+
+
+Bugfixes
+-----------
+
+
+Infrastructure / Support
+----------------------
+
+
+
+v0.11.1 | September XX, 2022
+============================
+
+Bugfixes
+-----------
+
+
+
+v0.11.0 | August 28, 2022
 ===========================
 
 New features
 -------------
 * The asset page now shows the most relevant sensor data for the asset [see `PR #449 <http://www.github.com/FlexMeasures/flexmeasures/pull/449>`_]
 * Individual sensor charts show available annotations [see `PR #428 <http://www.github.com/FlexMeasures/flexmeasures/pull/428>`_]
+* New API options to further customize the optimization context for scheduling, including the ability to use different prices for consumption and production (feed-in) [see `PR #451 <http://www.github.com/FlexMeasures/flexmeasures/pull/451>`_]
 * Admins can group assets by account on dashboard & assets page [see `PR #461 <http://www.github.com/FlexMeasures/flexmeasures/pull/461>`_]
 * Collapsible side-panel (hover/swipe) used for date selection on sensor charts, and various styling improvements [see `PR #447 <http://www.github.com/FlexMeasures/flexmeasures/pull/447>`_ and `PR #448 <http://www.github.com/FlexMeasures/flexmeasures/pull/448>`_]
 * Add CLI command ``flexmeasures jobs show-queues`` [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
 * Switched from 12-hour AM/PM to 24-hour clock notation for time series chart axis labels [see `PR #446 <http://www.github.com/FlexMeasures/flexmeasures/pull/446>`_]
 * Get data in a given resolution [see `PR #458 <http://www.github.com/FlexMeasures/flexmeasures/pull/458>`_]
+
+.. note:: Read more on these features on `the FlexMeasures blog <http://flexmeasures.io/011-better-data-views/>`__.
+
 
 Bugfixes
 -----------
@@ -21,8 +49,9 @@ Bugfixes
 * Asynchronous reloading of a chart's dataset relies on that chart already having been embedded [see `PR #472 <http://www.github.com/FlexMeasures/flexmeasures/pull/472>`_]
 * Time scale axes in sensor data charts now match the requested date range, rather than stopping at the edge of the available data [see `PR #449 <http://www.github.com/FlexMeasures/flexmeasures/pull/449>`_]
 * The docker-based tutorial now works with UI on all platforms (port 5000 did not expose on MacOS) [see `PR #465 <http://www.github.com/FlexMeasures/flexmeasures/pull/465>`_]
-* Fix interpretation of scheduling results in toy tutorial [see `PR #466 <http://www.github.com/FlexMeasures/flexmeasures/pull/466>`_]
+* Fix interpretation of scheduling results in toy tutorial [see `PR #466 <http://www.github.com/FlexMeasures/flexmeasures/pull/466>`_ and `PR #475 <http://www.github.com/FlexMeasures/flexmeasures/pull/475>`_]
 * Avoid formatting datetime.timedelta durations as nominal ISO durations [see `PR #459 <http://www.github.com/FlexMeasures/flexmeasures/pull/459>`_]
+* Account admins cannot add assets to other accounts anymore; and they are shown a button for asset creation in UI [see `PR #488 <http://www.github.com/FlexMeasures/flexmeasures/pull/488>`_]
 
 Infrastructure / Support
 ----------------------
@@ -30,6 +59,8 @@ Infrastructure / Support
 * Allow access tokens to be passed as env vars as well [see `PR #443 <http://www.github.com/FlexMeasures/flexmeasures/pull/443>`_]
 * Queue workers can get initialised without a custom name and name collisions are handled [see `PR #455 <http://www.github.com/FlexMeasures/flexmeasures/pull/455>`_]
 * New API endpoint to get public assets [see `PR #461 <http://www.github.com/FlexMeasures/flexmeasures/pull/461>`_]
+* Allow editing an asset's JSON attributes through the UI [see `PR #474 <http://www.github.com/FlexMeasures/flexmeasures/pull/474>`_]
+* Allow a custom message when monitoring latest run of tasks [see `PR #489 <http://www.github.com/FlexMeasures/flexmeasures/pull/489>`_]
 
 
 v0.10.1 | August 12, 2022

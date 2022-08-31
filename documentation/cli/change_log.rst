@@ -4,6 +4,15 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.11.0 | August 28, 2022
+==============================
+
+* Add ``flexmeasures jobs show-queues`` to show contents of computation job queues.
+* ``--name`` parameter in ``flexmeasures jobs run-worker`` is now optional.
+* Add ``--custom-message`` param to ``flexmeasures monitor tasks``.
+* Rename ``-optimization-context-id`` to ``--consumption-price-sensor`` in ``flexmeasures add schedule``, and added ``--production-price-sensor``.
+
+
 since v0.9.0 | March 25, 2022
 ==============================
 

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import json
-from typing import Optional
+from typing import List, Optional
 
 from flask import current_app
 from flask_classful import FlaskView, route
@@ -221,6 +221,15 @@ class SensorAPI(FlaskView):
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
             "targets": fields.List(fields.Nested(TargetSchema), data_key="soc-targets"),
             # todo: add a duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
+            "consumption_price_sensor": SensorIdField(
+                data_key="consumption-price-sensor", required=False
+            ),
+            "production_price_sensor": SensorIdField(
+                data_key="production-price-sensor", required=False
+            ),
+            "inflexible_device_sensors": fields.List(
+                SensorIdField, data_key="inflexible-device-sensors", required=False
+            ),
         },
         location="json",
     )
@@ -232,6 +241,9 @@ class SensorAPI(FlaskView):
         unit: str,
         prior: datetime,
         roundtrip_efficiency: Optional[ur.Quantity] = None,
+        consumption_price_sensor: Optional[Sensor] = None,
+        production_price_sensor: Optional[Sensor] = None,
+        inflexible_device_sensors: Optional[List[Sensor]] = None,
         **kwargs,
     ):
         """
@@ -259,6 +271,11 @@ class SensorAPI(FlaskView):
         with a target state of charge of 25 kWh at 4.00pm.
         The minimum and maximum soc are set to 10 and 25 kWh, respectively.
         Roundtrip efficiency for use in scheduling is set to 98%.
+        Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
+        and aggregate production should be priced by sensor 10,
+        where the aggregate power flow in the EMS is described by the sum over sensors 13, 14 and 15
+        (plus the flexible sensor being optimized, of course).
+        Note that, if forecasts for sensors 13, 14 and 15 are not available, a schedule cannot be computed.
 
         .. code-block:: json
 
@@ -274,7 +291,10 @@ class SensorAPI(FlaskView):
                 ],
                 "soc-min": 10,
                 "soc-max": 25,
-                "roundtrip-efficiency": 0.98
+                "roundtrip-efficiency": 0.98,
+                "consumption-price-sensor": 9,
+                "production-price-sensor": 10,
+                "inflexible-device-sensors": [13, 14, 15]
             }
 
         **Example response**
@@ -396,6 +416,9 @@ class SensorAPI(FlaskView):
             soc_min=soc_min,
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
+            consumption_price_sensor=consumption_price_sensor,
+            production_price_sensor=production_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
             enqueue=True,
         )
 

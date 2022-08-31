@@ -1,3 +1,5 @@
+import json
+
 from flask import url_for
 import pytest
 
@@ -144,6 +146,50 @@ def test_alter_an_asset(client, setup_api_test_data, setup_accounts):
     assert asset_edit_response.status_code == 200
 
 
+@pytest.mark.parametrize(
+    "bad_json_str",
+    [
+        None,
+        "{",
+        '{"hallo": world}',
+    ],
+)
+def test_alter_an_asset_with_bad_json_attributes(
+    client, setup_api_test_data, setup_accounts, bad_json_str
+):
+    """Check whether updating an asset's attributes with a badly structured JSON fails."""
+    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
+        auth_token = prosumer1.get_auth_token()
+    with AccountContext("Test Prosumer Account") as prosumer:
+        prosumer_asset = prosumer.generic_assets[0]
+    asset_edit_response = client.patch(
+        url_for("AssetAPI:patch", id=prosumer_asset.id),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+        json={"attributes": bad_json_str},
+    )
+    print(f"Editing Response: {asset_edit_response.json}")
+    assert asset_edit_response.status_code == 422
+
+
+def test_alter_an_asset_with_json_attributes(
+    client, setup_api_test_data, setup_accounts
+):
+    """Check whether updating an asset's attributes with a properly structured JSON succeeds."""
+    with UserContext("test_prosumer_user@seita.nl") as prosumer1:
+        auth_token = prosumer1.get_auth_token()
+    with AccountContext("Test Prosumer Account") as prosumer:
+        prosumer_asset = prosumer.generic_assets[0]
+    asset_edit_response = client.patch(
+        url_for("AssetAPI:patch", id=prosumer_asset.id),
+        headers={"content-type": "application/json", "Authorization": auth_token},
+        json={
+            "attributes": json.dumps(prosumer_asset.attributes)
+        },  # we're not changing values to keep other tests clean here
+    )
+    print(f"Editing Response: {asset_edit_response.json}")
+    assert asset_edit_response.status_code == 200
+
+
 def test_post_an_asset_with_existing_name(client, setup_api_test_data):
     """Catch DB error (Unique key violated) correctly"""
     with UserContext("test_admin_user@seita.nl") as admin_user:
@@ -163,6 +209,27 @@ def test_post_an_asset_with_existing_name(client, setup_api_test_data):
     assert asset_creation_response.status_code == 422
     assert (
         "already exists" in asset_creation_response.json["message"]["json"]["name"][0]
+    )
+
+
+def test_post_an_asset_with_other_account(client, setup_api_test_data):
+    """Catch auth error, when account-admin posts an asset for another account"""
+    with UserContext("test_prosumer_user_2@seita.nl") as account_admin_user:
+        auth_token = account_admin_user.get_auth_token()
+    with AccountContext("Test Supplier Account") as supplier:
+        supplier_id = supplier.id
+    post_data = get_asset_post_data()
+    post_data["account_id"] = supplier_id
+    asset_creation_response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print(f"Creation Response: {asset_creation_response.json}")
+    assert asset_creation_response.status_code == 422
+    assert (
+        "not allowed to create assets for this account"
+        in asset_creation_response.json["message"]["json"]["account_id"][0]
     )
 
 

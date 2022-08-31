@@ -1,5 +1,6 @@
 from typing import Union, Optional, List, Tuple
 import copy
+import json
 
 from flask import url_for, current_app
 from flask_classful import FlaskView
@@ -11,6 +12,7 @@ from flexmeasures.auth.policy import user_has_admin_access
 
 from flexmeasures.data import db
 from flexmeasures.auth.error_handling import unauthorized_handler
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
     GenericAsset,
@@ -45,6 +47,7 @@ class AssetForm(FlaskForm):
         places=4,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
+    attributes = StringField("Other attributes (JSON)", default="{}")
 
     def validate_on_submit(self):
         if (
@@ -123,7 +126,12 @@ def process_internal_api_response(
     if asset_id:
         asset_data["id"] = asset_id
     if make_obj:
-        asset = GenericAsset(**asset_data)  # TODO: use schema?
+        asset = GenericAsset(
+            **{
+                **asset_data,
+                **{"attributes": json.loads(asset_data.get("attributes", "{}"))},
+            }
+        )  # TODO: use schema?
         asset.generic_asset_type = GenericAssetType.query.get(
             asset.generic_asset_type_id
         )
@@ -137,6 +145,22 @@ def process_internal_api_response(
             expunge_asset()
         return asset
     return asset_data
+
+
+def user_can_create_assets() -> bool:
+    try:
+        check_access(current_user.account, "create-children")
+    except Exception:
+        return False
+    return True
+
+
+def user_can_delete(asset) -> bool:
+    try:
+        check_access(asset, "delete")
+    except Exception:
+        return False
+    return True
 
 
 class AssetCrudUI(FlaskView):
@@ -177,7 +201,10 @@ class AssetCrudUI(FlaskView):
             assets = get_asset_by_account(current_user.account_id)
 
         return render_flexmeasures_template(
-            "crud/assets.html", assets=assets, message=msg
+            "crud/assets.html",
+            assets=assets,
+            message=msg,
+            user_can_create_assets=user_can_create_assets(),
         )
 
     @login_required
@@ -202,6 +229,7 @@ class AssetCrudUI(FlaskView):
             account=Account.query.get(account_id),
             assets=assets,
             msg=msg,
+            user_can_create_assets=user_can_create_assets(),
         )
 
     @login_required
@@ -209,7 +237,7 @@ class AssetCrudUI(FlaskView):
         """GET from /assets/<id> where id can be 'new' (and thus the form for asset creation is shown)"""
 
         if id == "new":
-            if not current_user.has_role("admin"):
+            if not user_can_create_assets():
                 return unauthorized_handler(None, [])
 
             asset_form = with_options(NewAssetForm())
@@ -235,6 +263,8 @@ class AssetCrudUI(FlaskView):
             asset_form=asset_form,
             msg="",
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+            user_can_create_assets=user_can_create_assets(),
+            user_can_delete_asset=user_can_delete(asset),
         )
 
     @login_required
@@ -280,11 +310,14 @@ class AssetCrudUI(FlaskView):
                         f"Internal asset API call unsuccessful [{post_asset_response.status_code}]: {post_asset_response.text}"
                     )
                     asset_form.process_api_validation_errors(post_asset_response.json())
-                    if (
-                        "message" in post_asset_response.json()
-                        and "json" in post_asset_response.json()["message"]
-                    ):
-                        error_msg = str(post_asset_response.json()["message"]["json"])
+                    if "message" in post_asset_response.json():
+                        asset_form.process_api_validation_errors(
+                            post_asset_response.json()["message"]
+                        )
+                        if "json" in post_asset_response.json()["message"]:
+                            error_msg = str(
+                                post_asset_response.json()["message"]["json"]
+                            )
             if asset is None:
                 msg = "Cannot create asset. " + error_msg
                 return render_flexmeasures_template(
@@ -312,6 +345,8 @@ class AssetCrudUI(FlaskView):
                     asset=asset,
                     msg="Cannot edit asset.",
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+                    user_can_create_assets=user_can_create_assets(),
+                    user_can_delete_asset=user_can_delete(asset),
                 )
             patch_asset_response = InternalApi().patch(
                 url_for("AssetAPI:patch", id=id),
@@ -329,7 +364,9 @@ class AssetCrudUI(FlaskView):
                     f"Internal asset API call unsuccessful [{patch_asset_response.status_code}]: {patch_asset_response.text}"
                 )
                 msg = "Cannot edit asset."
-                asset_form.process_api_validation_errors(patch_asset_response.json())
+                asset_form.process_api_validation_errors(
+                    patch_asset_response.json().get("message")
+                )
                 asset = GenericAsset.query.get(id)
 
         return render_flexmeasures_template(
@@ -338,6 +375,8 @@ class AssetCrudUI(FlaskView):
             asset_form=asset_form,
             msg=msg,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+            user_can_create_assets=user_can_create_assets(),
+            user_can_delete_asset=user_can_delete(asset),
         )
 
     @login_required
