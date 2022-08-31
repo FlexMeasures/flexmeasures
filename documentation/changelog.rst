@@ -23,7 +23,7 @@ v0.11.1 | September XX, 2022
 
 Bugfixes
 -----------
-
+* Do not fail asset page if one of the shown sensors records instantaneous values [see `PR #491 <http://www.github.com/FlexMeasures/flexmeasures/pull/491>`_]
 
 
 v0.11.0 | August 28, 2022
