@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS
 from flexmeasures.utils.flexmeasures_inflection import capitalize
@@ -112,7 +112,9 @@ def chart_for_multiple_sensors(
                 {
                     "mark": {
                         "type": "line",
-                        "interpolate": "step-after",
+                        "interpolate": "step-after"
+                        if sensor.event_resolution != timedelta(0)
+                        else "linear",
                         "clip": True,
                     },
                     "encoding": {
