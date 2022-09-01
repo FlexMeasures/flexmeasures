@@ -28,7 +28,7 @@ deprecated==1.2.13
     #   redis
 fakeredis==1.9.0
     # via -r requirements/test.in
-flask==2.2.2
+flask==2.1.2
     # via
     #   -c requirements/app.txt
     #   pytest-flask
@@ -56,7 +56,6 @@ markupsafe==2.1.1
     # via
     #   -c requirements/app.txt
     #   jinja2
-    #   werkzeug
 packaging==21.3
     # via
     #   -c requirements/app.txt
@@ -117,7 +116,7 @@ urllib3[socks]==1.26.12
     # via
     #   -c requirements/app.txt
     #   requests
-werkzeug==2.2.2
+werkzeug==2.1.2
     # via
     #   -c requirements/app.txt
     #   flask

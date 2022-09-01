@@ -63,7 +63,7 @@ entrypoints==0.4
     # via altair
 filelock==3.8.0
     # via tldextract
-flask==2.2.2
+flask==2.1.2
     # via
     #   -r requirements/app.in
     #   flask-classful
@@ -162,7 +162,6 @@ markupsafe==2.1.1
     # via
     #   jinja2
     #   mako
-    #   werkzeug
     #   wtforms
 marshmallow==3.17.1
     # via
@@ -349,8 +348,9 @@ urllib3[socks]==1.26.12
     #   sentry-sdk
 webargs==8.2.0
     # via -r requirements/app.in
-werkzeug==2.2.2
+werkzeug==2.1.2
     # via
+    #   -r requirements/app.in
     #   flask
     #   flask-login
 workalendar==16.3.0

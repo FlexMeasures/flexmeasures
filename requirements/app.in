@@ -51,4 +51,7 @@ marshmallow-sqlalchemy>=0.23.1
 webargs
 uniplot
 # flask should be after all the flask plugins, because setup might find they ARE flask
-flask>=1.0
+# Minimum here due to Flask-Classful not supporting Werkzeug 2.2.0 yet, see https://github.com/teracyhq/flask-classful/pull/145
+flask>=1.0, <=2.1.2
+# remove if Flask max constraint is removed 
+werkzeug <=2.1.2
