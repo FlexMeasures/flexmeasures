@@ -86,7 +86,7 @@ flask-cors==3.0.10
     # via -r requirements/app.in
 flask-json==0.3.4
     # via -r requirements/app.in
-flask-login==0.6.2
+flask-login==0.5.0
     # via
     #   -r requirements/app.in
     #   flask-security-too
@@ -98,7 +98,7 @@ flask-migrate==3.1.0
     # via -r requirements/app.in
 flask-principal==0.4.0
     # via flask-security-too
-flask-security-too==5.0.0
+flask-security-too==4.1.5
     # via -r requirements/app.in
 flask-sqlalchemy==2.5.1
     # via
@@ -348,11 +348,10 @@ urllib3[socks]==1.26.12
     #   sentry-sdk
 webargs==8.2.0
     # via -r requirements/app.in
-werkzeug==2.1.2
+werkzeug==2.0.3
     # via
     #   -r requirements/app.in
     #   flask
-    #   flask-login
 workalendar==16.3.0
     # via -r requirements/app.in
 wrapt==1.14.1
@@ -360,9 +359,7 @@ wrapt==1.14.1
 wsproto==1.2.0
     # via trio-websocket
 wtforms==3.0.1
-    # via
-    #   flask-security-too
-    #   flask-wtf
+    # via flask-wtf
 xlrd==2.0.1
     # via -r requirements/app.in
 zipp==3.8.1
