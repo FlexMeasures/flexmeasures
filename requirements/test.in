@@ -1,4 +1,5 @@
 -c app.txt
+# we are not using app.in, because we want to test exactly what is being packaged
 
 pytest
 pytest-flask

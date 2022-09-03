@@ -1,5 +1,6 @@
 -c app.txt
 -c test.txt
+# we are not using app.in and test.in, because we want to develop against exactly what is being packaged and tested
 
 pre-commit
 # we're pinning the following two to what .pre-commit-config.yaml says
