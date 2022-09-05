@@ -1,11 +1,8 @@
 # see ui/utils/plotting_utils: separate_legend() and create_hover_tool()
 altair
-bokeh==1.0.4
 colour
 pscript
 pandas
-# pandas-bokeh 0.5 requires bokeh>=2.0, but bokeh still doesn't support sharing a legend across plots
-pandas-bokeh==0.4.3
 pint>=0.19.1
 py-moneyed
 iso8601
@@ -26,7 +23,7 @@ rq-dashboard
 # the following uses environment markers (see PEP 496)
 rq-win; os_name == 'nt' or os_name == 'win'
 # This limit resolves a conflict with test.in. The culprit is fakeredis (check their setup.cfg)
-redis < 4.2.0
+redis < 4.4.0
 tldextract
 pyomo>=5.6
 tabulate
@@ -43,7 +40,8 @@ Flask-Migrate
 Flask-WTF
 Flask-Login
 Flask-Mail
-Flask-Security-Too>=4.0
+# We wait a little with upgrading to 5, until it's less fresh (Aug 2022)
+Flask-Security-Too>=4.0, <5.0
 Flask-Classful
 Flask-Marshmallow
 Flask-Cors
@@ -54,4 +52,7 @@ marshmallow-sqlalchemy>=0.23.1
 webargs
 uniplot
 # flask should be after all the flask plugins, because setup might find they ARE flask
-flask>=1.0
+# Minimum here due to Flask-Classful not supporting Werkzeug 2.2.0 yet, see https://github.com/teracyhq/flask-classful/pull/145
+flask>=1.0, <=2.1.2
+# remove if flask max constraint (see above) is removed 
+werkzeug <2.1

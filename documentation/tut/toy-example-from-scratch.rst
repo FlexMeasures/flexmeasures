@@ -21,7 +21,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     # load prices to optimise the schedule against
     $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv
     # make the schedule
-    $ flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
+    $ flexmeasures add schedule --sensor-id 2 --consumption-price-sensor 3 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
 
@@ -268,7 +268,7 @@ To keep it short, we'll only ask for a 12-hour window starting at 7am. Finally, 
 
 .. code-block:: console
 
-    $ flexmeasures add schedule --sensor-id 2 --optimization-context-id 3 \
+    $ flexmeasures add schedule --sensor-id 2 --consumption-price-sensor 3 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%
     New schedule is stored.

@@ -3,20 +3,12 @@
 from flexmeasures.ui import flexmeasures_ui
 
 # Now views can register
-from flexmeasures.ui.views.dashboard import (  # noqa: F401
-    dashboard_view as legacy_dashboard_view,
-)
-from flexmeasures.ui.views.new_dashboard import new_dashboard_view  # noqa: F401
-from flexmeasures.ui.views.portfolio import portfolio_view  # noqa: F401
+from flexmeasures.ui.views.new_dashboard import dashboard_view  # noqa: F401
 from flexmeasures.ui.views.control import control_view  # noqa: F401
-from flexmeasures.ui.views.analytics import analytics_view  # noqa: F401
-from flexmeasures.ui.views.state import sensor_state_view  # noqa: F401
 
 from flexmeasures.ui.views.logged_in_user import (  # noqa: F401  # noqa: F401
     logged_in_user_view,
 )
-
-from flexmeasures.ui.views.charts import get_power_chart  # noqa: F401
 
 
 @flexmeasures_ui.route("/docs")

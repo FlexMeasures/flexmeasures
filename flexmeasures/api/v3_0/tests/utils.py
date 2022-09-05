@@ -39,16 +39,16 @@ def message_for_post_udi_event(
     targets: bool = False,
 ) -> dict:
     message = {
-        "start": "2015-01-01T00:00:00+00:00",
+        "start": "2015-01-01T00:00:00+01:00",
         "soc-at-start": 12.1,
         "soc-unit": "kWh",
     }
     if targets:
         message["soc-targets"] = [
-            {"value": 25, "datetime": "2015-01-02T23:00:00+00:00"}
+            {"value": 25, "datetime": "2015-01-02T23:00:00+01:00"}
         ]
     if unknown_prices:
         message[
             "start"
-        ] = "2040-01-01T00:00:00+00:00"  # We have no beliefs in our test database about 2040 prices
+        ] = "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
     return message

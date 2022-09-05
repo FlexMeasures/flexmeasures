@@ -20,7 +20,10 @@ def fm_monitor():
 
 
 def send_monitoring_alert(
-    task_name: str, msg: str, latest_run: Optional[LatestTaskRun] = None
+    task_name: str,
+    msg: str,
+    latest_run: Optional[LatestTaskRun] = None,
+    custom_msg: Optional[str] = None,
 ):
     """
     Send any monitoring message per Sentry and per email. Also log an error.
@@ -34,18 +37,24 @@ def send_monitoring_alert(
             f"Last run was at {latest_run.datetime}, status was: {latest_run.status}"
         )
 
+    custom_msg_txt = ""
+    if custom_msg:
+        custom_msg_txt = f"\n\nNote: {custom_msg}"
+
     capture_message_for_sentry(msg)
 
     email_recipients = app.config.get("FLEXMEASURES_MONITORING_MAIL_RECIPIENTS", [])
     if len(email_recipients) > 0:
         email = Message(subject=f"Problem with task {task_name}", bcc=email_recipients)
-        email.body = f"{msg}\n\n{latest_run_txt}\nWe suggest to check the logs."
+        email.body = (
+            f"{msg}\n\n{latest_run_txt}\nWe suggest to check the logs.{custom_msg_txt}"
+        )
         app.mail.send(email)
 
-    app.logger.error(f"{msg} {latest_run_txt}")
+    app.logger.error(f"{msg} {latest_run_txt} NOTE: {custom_msg}")
 
 
-@fm_monitor.command("tasks")
+@fm_monitor.command("tasks")  # TODO: a better name would be "latest-run"
 @with_appcontext
 @click.option(
     "--task",
@@ -54,7 +63,13 @@ def send_monitoring_alert(
     required=True,
     help="The name of the task and the maximal allowed minutes between successful runs. Use multiple times if needed.",
 )
-def monitor_tasks(task):
+@click.option(
+    "--custom-message",
+    type=str,
+    default="",
+    help="Add this message to the monitoring alert (if one is sent).",
+)
+def monitor_tasks(task, custom_message):
     """
     Check if the given task's last successful execution happened less than the allowed time ago.
     If not, alert someone, via email or sentry.
@@ -65,7 +80,7 @@ def monitor_tasks(task):
         latest_run: LatestTaskRun = LatestTaskRun.query.get(task_name)
         if latest_run is None:
             msg = f"Task {task_name} has no last run and thus cannot be monitored. Is it configured properly?"
-            send_monitoring_alert(task_name, msg)
+            send_monitoring_alert(task_name, msg, custom_msg=custom_message)
             return
         now = server_now()
         acceptable_interval = timedelta(minutes=t[1])
@@ -74,14 +89,17 @@ def monitor_tasks(task):
             # latest run time is okay, let's check the status
             if latest_run.status is False:
                 msg = f"A failure has been reported on task {task_name}."
-                send_monitoring_alert(task_name, msg, latest_run)
+                send_monitoring_alert(
+                    task_name, msg, latest_run=latest_run, custom_msg=custom_message
+                )
         else:
             msg = (
-                f"Task {task_name}'s latest run time is outside of the acceptable range "
-                f"({acceptable_interval})."
+                f"Task {task_name}'s latest run time is outside of the acceptable range"
+                f" ({acceptable_interval})."
             )
-            app.logger.error(msg)
-            send_monitoring_alert(task_name, msg, latest_run)
+            send_monitoring_alert(
+                task_name, msg, latest_run=latest_run, custom_msg=custom_message
+            )
     app.logger.info("Done checking task runs ...")
 
 

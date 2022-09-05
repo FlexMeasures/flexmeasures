@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import List, Optional
 
 from flask import current_app
 import click
@@ -38,7 +38,9 @@ def create_scheduling_job(
     soc_min: Optional[float] = None,
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
-    price_sensor: Optional[Sensor] = None,
+    consumption_price_sensor: Optional[Sensor] = None,
+    production_price_sensor: Optional[Sensor] = None,
+    inflexible_device_sensors: Optional[List[Sensor]] = None,
     job_id: Optional[str] = None,
     enqueue: bool = True,
 ) -> Job:
@@ -67,7 +69,9 @@ def create_scheduling_job(
             soc_min=soc_min,
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
-            price_sensor=price_sensor,
+            consumption_price_sensor=consumption_price_sensor,
+            production_price_sensor=production_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
         ),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
@@ -98,7 +102,9 @@ def make_schedule(
     soc_min: Optional[float] = None,
     soc_max: Optional[float] = None,
     roundtrip_efficiency: Optional[float] = None,
-    price_sensor: Optional[Sensor] = None,
+    consumption_price_sensor: Optional[Sensor] = None,
+    production_price_sensor: Optional[Sensor] = None,
+    inflexible_device_sensors: Optional[List[Sensor]] = None,
 ) -> bool:
     """Preferably, a starting soc is given.
     Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
@@ -144,7 +150,10 @@ def make_schedule(
             soc_min,
             soc_max,
             roundtrip_efficiency,
-            price_sensor=price_sensor,
+            consumption_price_sensor=consumption_price_sensor,
+            production_price_sensor=production_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
+            belief_time=belief_time,
         )
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
@@ -160,7 +169,10 @@ def make_schedule(
             soc_min,
             soc_max,
             roundtrip_efficiency,
-            price_sensor=price_sensor,
+            consumption_price_sensor=consumption_price_sensor,
+            production_price_sensor=production_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
+            belief_time=belief_time,
         )
     else:
         raise ValueError(
