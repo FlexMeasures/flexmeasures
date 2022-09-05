@@ -451,6 +451,15 @@
 
             const timer = ms => new Promise(res => setTimeout(res, ms))
 
+            /**
+             * Replays beliefs data.
+             *
+             * As we go forward in time in steps, replayedData is updated with newData that was known at beliefTime,
+             * by splitting off newData from remainingData.
+             * Then, replayedData is loaded into the chart.
+             *
+             * @param {Array} remainingData Array containing beliefs.
+             */
             async function replayBeliefsData (remainingData) {
                 var replayedData = []
                 for (var i = 0; i < numReplaySteps + 1; i++) {
