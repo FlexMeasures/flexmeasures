@@ -25,7 +25,7 @@ v0.11.1 | September XX, 2022
 
 Bugfixes
 -----------
-* Do not fail asset page if none of the sensors has any data [see `PR #492 <http://www.github.com/FlexMeasures/flexmeasures/pull/492>`_]
+* Do not fail asset page if none of the sensors has any data [see `PR #493 <http://www.github.com/FlexMeasures/flexmeasures/pull/493>`_]
 * Do not fail asset page if one of the shown sensors records instantaneous values [see `PR #491 <http://www.github.com/FlexMeasures/flexmeasures/pull/491>`_]
 
 
