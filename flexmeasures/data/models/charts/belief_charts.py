@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS
 from flexmeasures.utils.flexmeasures_inflection import capitalize
@@ -72,8 +72,13 @@ def chart_for_multiple_sensors(
     **override_chart_specs: dict,
 ):
     sensors_specs = []
-    min_resolution_in_ms = (
-        min(sensor.event_resolution for sensor in sensors).total_seconds() * 1000
+    condition = (
+        sensor.event_resolution
+        for sensor in sensors
+        if sensor.event_resolution > timedelta(0)
+    )
+    minimum_non_zero_resolution_in_ms = (
+        min(condition).total_seconds() * 1000 if any(condition) else 0
     )
     for sensor in sensors:
         unit = sensor.unit if sensor.unit else "a.u."
@@ -110,7 +115,9 @@ def chart_for_multiple_sensors(
                 {
                     "mark": {
                         "type": "line",
-                        "interpolate": "step-after",
+                        "interpolate": "step-after"
+                        if sensor.event_resolution != timedelta(0)
+                        else "linear",
                         "clip": True,
                     },
                     "encoding": {
@@ -141,7 +148,7 @@ def chart_for_multiple_sensors(
                     },
                     "transform": [
                         {
-                            "calculate": f"datum.event_start + {min_resolution_in_ms}",
+                            "calculate": f"datum.event_start + {minimum_non_zero_resolution_in_ms}",
                             "as": "event_end",
                         },
                     ],
