@@ -446,12 +446,12 @@
                 .then(function(response) { return response.json(); }),
             ]).then(function(result) {
                 $("#spinner").hide();
-                load(result);
+                replayBeliefsData(result);
             }).catch(console.error);
 
             const timer = ms => new Promise(res => setTimeout(res, ms))
 
-            async function load (result) {
+            async function replayBeliefsData (result) {
                 var remainingData = result[0]
                 var replayedData = []
                 for (var i = 0; i < numReplaySteps + 1; i++) {
