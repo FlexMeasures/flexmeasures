@@ -1,4 +1,15 @@
 // Replay utils
+
+/**
+ * Partitions array into two arrays.
+ *
+ * Partitions array into two array by pushing elements left or right given some decision function
+ * that is evaluated on each element.
+ *
+ * @param {Array} array       Array to be partitioned.
+ * @param {function} callback Function that assigns elements to the left or right arrays.
+ * @return {Array}            Array containing the left and right arrays.
+ */
 export function partition(array, callback){
   return array.reduce(function(result, element, i) {
     callback(element, i, array)
@@ -9,9 +20,16 @@ export function partition(array, callback){
   );
 };
 
+/**
+ * Updates beliefs.
+ *
+ * Updates oldBeliefs with the most recent newBeliefs about the same event for the same sensor by the same source.
+ *
+ * @param {Array} oldBeliefs Array containing old beliefs.
+ * @param {Array} newBeliefs Array containing new beliefs.
+ * @return {Array}           Array containing updated beliefs.
+ */
 export function updateBeliefs(oldBeliefs, newBeliefs) {
-  // Update oldBeliefs with the most recent newBeliefs about the same event for the same sensor by the same source
-
   // Group by sensor, event start and source
   var oldBeliefsByEventBySource = Object.fromEntries(new Map(oldBeliefs.map(belief => [belief.sensor.id + '_' + belief.event_start + '_' + belief.source.id, belief])));  // array -> dict (already had one belief per event)
 
@@ -19,5 +37,5 @@ export function updateBeliefs(oldBeliefs, newBeliefs) {
   var mostRecentNewBeliefsByEventBySource = Object.fromEntries(new Map(newBeliefs.map(belief => [belief.sensor.id + '_' + belief.event_start + '_' + belief.source.id, belief])));  // array -> dict (assumes beliefs are ordered by ascending belief time, with the last belief used as dict value)
 
   // Return old beliefs updated with most recent new beliefs
-  return Object.values({...oldBeliefsByEventBySource, ...mostRecentNewBeliefsByEventBySource})  // dict -> list
+  return Object.values({...oldBeliefsByEventBySource, ...mostRecentNewBeliefsByEventBySource})  // dict -> array
 }
