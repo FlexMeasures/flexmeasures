@@ -420,12 +420,10 @@
         // toggle.classList.toggle('paused');
         if (toggle.classList.contains('playing')) {
             // Pause replay
-            console.log("pause replay")
             toggle.classList.remove('playing');
             toggle.classList.add('paused');
         } else if (toggle.classList.contains('stopped')) {
             // Start replay
-            console.log("start replay")
             // toggle.classList.remove('paused');
             toggle.classList.remove('stopped');
             toggle.classList.add('playing');
@@ -469,8 +467,6 @@
                     }
                     beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)
 
-                    let t0= performance.now();
-
                     // Split off one replay step of new data from the remaining data
                     var newData
                     [newData, remainingData] = partition(
@@ -479,14 +475,7 @@
                     );
 
                     // Update beliefs in the replayed data given the new data
-                    const oldLength = replayedData.length + newData.length;
                     replayedData = updateBeliefs(replayedData, newData)
-                    const newLength = replayedData.length;
-                    console.log("Removed " + (oldLength - newLength) + " obsolete beliefs")
-
-                    let t1= performance.now();
-
-                    console.log('Time taken to update data:'+ (t1-t0) +' milliseconds');
 
                     /** When selecting a longer time periode (more than a week), the replay slows down a bit. This
                      * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
@@ -498,21 +487,16 @@
                      */
                     vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData)).run().finalize();
 
-                    let t2= performance.now();
-
-                    console.log('Time taken to embed data:'+ (t2-t1) +' milliseconds');
                     document.getElementById('replay-time').innerHTML = beliefTime
                     await timer(25);
                 }
                 // Stop replay when finished
-                console.log("stop replay")
                 toggle.classList.remove('playing');
                 toggle.classList.add('stopped');
                 document.getElementById('replay-time').innerHTML = ''
             }
         } else {
             // Resume replay
-            console.log("resume replay")
             toggle.classList.remove('paused');
             toggle.classList.add('playing');
         }
