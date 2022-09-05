@@ -461,7 +461,6 @@
                     if (document.getElementById('replay').classList.contains('stopped') ) {
                         break;
                     }
-                    var queryBeliefTime = (beliefTime != null) ? (beliefTime.toISOString()) : (null)
                     beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)
 
                     let t0= performance.now();
