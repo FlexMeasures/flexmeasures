@@ -6,13 +6,13 @@
  * Partitions array into two array by pushing elements left or right given some decision function
  * that is evaluated on each element.
  *
- * @param {Array} array       Array to be partitioned.
- * @param {function} callback Function that assigns elements to the left or right arrays.
- * @return {Array}            Array containing the left and right arrays.
+ * @param {Array} array               Array to be partitioned.
+ * @param {function} decisionFunction Function that assigns elements to the left or right arrays.
+ * @return {Array}                    Array containing the left and right arrays.
  */
-export function partition(array, callback){
+export function partition(array, decisionFunction){
   return array.reduce(function(result, element, i) {
-    callback(element, i, array)
+    decisionFunction(element, i, array)
       ? result[0].push(element)
       : result[1].push(element);
       return result;
