@@ -235,7 +235,7 @@
     <script type="module" type="text/javascript">
 
     import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
-    import { partition, updateBeliefs } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
+    import { partition, updateBeliefs, beliefTimedelta} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
 
     let vegaView;
     let previousResult;
@@ -430,8 +430,6 @@
             toggle.classList.remove('stopped');
             toggle.classList.add('playing');
             var beliefTime = new Date(storeStartDate)
-            //  Define the step duration for the replay (value in ms)
-            var beliefTimedelta = 3600000
             var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta)
             queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null)
             queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null)

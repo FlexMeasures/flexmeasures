@@ -39,3 +39,6 @@ export function updateBeliefs(oldBeliefs, newBeliefs) {
   // Return old beliefs updated with most recent new beliefs
   return Object.values({...oldBeliefsByEventBySource, ...mostRecentNewBeliefsByEventBySource})  // dict -> array
 }
+
+//  Define the step duration for the replay (value in ms)
+export var beliefTimedelta = 3600000
