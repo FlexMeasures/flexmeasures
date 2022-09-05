@@ -20,7 +20,7 @@ Infrastructure / Support
 
 
 
-v0.11.1 | September XX, 2022
+v0.11.1 | September 5, 2022
 ============================
 
 Bugfixes
