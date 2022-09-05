@@ -8,6 +8,7 @@ v0.12.0 | October XX, 2022
 New features
 -------------
 
+* Hit the replay button to replay what happened, available on the sensor and asset pages [see `PR #463 <http://www.github.com/FlexMeasures/flexmeasures/pull/463>`_]
 
 Bugfixes
 -----------
