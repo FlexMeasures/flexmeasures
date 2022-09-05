@@ -413,7 +413,7 @@
         }
     };
 
-    // Set up play/pause button for replay
+    // Set up play/pause button for replay, incl. the complete playback logic
     let toggle = document.querySelector('#replay');
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -430,7 +430,7 @@
             toggle.classList.remove('stopped');
             toggle.classList.add('playing');
             var beliefTime = new Date(storeStartDate)
-            // var beliefTimedelta = 900000
+            //  Define the step duration for the playback (value in ms)
             var beliefTimedelta = 3600000
             var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta)
             queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null)
@@ -438,7 +438,7 @@
 
             $("#spinner").show();
             Promise.all([
-                // Fetch time series data
+                // Fetch time series data (all data, not only the most recent beliefs)
                 fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
                     method: "GET",
                     headers: {"Content-Type": "application/json"},
@@ -483,7 +483,14 @@
 
                     console.log('Time taken to update data:'+ (t1-t0) +' milliseconds');
 
-                    // todo: remove obsolete beliefs and insert most recent new beliefs
+                    /** When selecting a longer time periode (more than a week), the simulation slows down a bit. This
+                     * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
+                     * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
+                     * graph. After trying different approaches, we fell back to the original approach of telling vega
+                     * to remove all previous data and to insert a completely new dataset at each iteration. Updating
+                     * the view with removing only a few data points (representing obsolete beliefs) and inserting only
+                     * a few data points (representing the most recent new beliefs) actually made it slower.
+                     */
                     vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(simulatedData)).run().finalize();
 
                     let t2= performance.now();
