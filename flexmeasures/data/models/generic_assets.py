@@ -381,10 +381,13 @@ class GenericAsset(db.Model, AuthModelMixin):
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
-                minimum_non_zero_resolution = min(
+                condition = (
                     bdf.event_resolution
                     for bdf in bdf_dict.values()
                     if bdf.event_resolution > timedelta(0)
+                )
+                minimum_non_zero_resolution = (
+                    min(condition) if any(condition) else timedelta(0)
                 )
                 df_dict = {}
                 for sensor, bdf in bdf_dict.items():

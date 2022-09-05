@@ -72,13 +72,13 @@ def chart_for_multiple_sensors(
     **override_chart_specs: dict,
 ):
     sensors_specs = []
+    condition = (
+        sensor.event_resolution
+        for sensor in sensors
+        if sensor.event_resolution > timedelta(0)
+    )
     minimum_non_zero_resolution_in_ms = (
-        min(
-            sensor.event_resolution
-            for sensor in sensors
-            if sensor.event_resolution > timedelta(0)
-        ).total_seconds()
-        * 1000
+        min(condition).total_seconds() * 1000 if any(condition) else 0
     )
     for sensor in sensors:
         unit = sensor.unit if sensor.unit else "a.u."
