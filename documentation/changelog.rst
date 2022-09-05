@@ -73,7 +73,7 @@ Bugfixes
 -----------
 * Fix some UI styling regressions in e.g. color contrast and hover effects [see `PR #441 <http://www.github.com/FlexMeasures/flexmeasures/pull/441>`_]
 
-v0.10.0 | May 08, 2022
+v0.10.0 | May 8, 2022
 ===========================
 
 New features
@@ -211,7 +211,7 @@ Infrastructure / Support
 * Stop automatically triggering forecasting jobs when API calls save nothing new to the database, thereby saving redundant computation [see `PR #303 <http://www.github.com/FlexMeasures/flexmeasures/pull/303>`_]
 
 
-v0.7.1 | November 08, 2021
+v0.7.1 | November 8, 2021
 ===========================
 
 Bugfixes
