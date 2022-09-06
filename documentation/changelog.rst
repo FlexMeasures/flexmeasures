@@ -19,12 +19,13 @@ Infrastructure / Support
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
 
 
-v0.11.2 | September XX, 2022
+v0.11.2 | September 6, 2022
 ============================
 
 Bugfixes
 -----------
 * Fix regression for sensors recording non-instantaneous values [see `PR #498 <http://www.github.com/FlexMeasures/flexmeasures/pull/498>`_]
+* Fix broken auth check for creating assets with CLI [see `PR #497 <http://www.github.com/FlexMeasures/flexmeasures/pull/497>`_]
 
 
 v0.11.1 | September 5, 2022
