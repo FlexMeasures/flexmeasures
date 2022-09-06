@@ -13,9 +13,9 @@ from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils import flexmeasures_inflection
+from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
 import flexmeasures.data.models.time_series as ts  # noqa: F401
-from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
 
 
 def create_beliefs_query(
@@ -53,10 +53,8 @@ def potentially_limit_assets_query_to_account(
     """
     if not running_as_cli() and not current_user.is_authenticated:
         raise Forbidden("Unauthenticated user cannot list assets.")
-    user_is_admin = (
-        running_as_cli()
-        or current_user.has_role(ADMIN_ROLE)
-        or (query.statement.is_select and current_user.has_role(ADMIN_READER_ROLE))
+    user_is_admin = running_as_cli() or user_has_admin_access(
+        current_user, permission="read" if query.statement.is_select else "update"
     )
     if account_id is None and user_is_admin:
         return query  # allow admins to query assets across all accounts
