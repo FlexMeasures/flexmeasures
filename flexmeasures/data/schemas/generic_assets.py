@@ -13,6 +13,7 @@ from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
 )
 from flexmeasures.auth.policy import user_has_admin_access
+from flexmeasures.cli import is_running as running_as_cli
 
 
 class JSON(fields.Field):
@@ -68,7 +69,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         account = Account.query.get(account_id)
         if not account:
             raise ValidationError(f"Account with Id {account_id} doesn't exist.")
-        if (
+        if not running_as_cli() and (
             not user_has_admin_access(current_user, "update")
             and account_id != current_user.account_id
         ):
