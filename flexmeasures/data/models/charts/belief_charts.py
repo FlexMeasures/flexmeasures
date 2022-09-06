@@ -72,7 +72,7 @@ def chart_for_multiple_sensors(
     **override_chart_specs: dict,
 ):
     sensors_specs = []
-    condition = (
+    condition = list(
         sensor.event_resolution
         for sensor in sensors
         if sensor.event_resolution > timedelta(0)
