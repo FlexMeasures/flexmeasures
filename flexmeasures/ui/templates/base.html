@@ -217,7 +217,7 @@
         }
       }
       for (var i = leftSidepanelLabels.length - 1; i >= 0; i--) {
-        leftSidepanelLabels[i].addEventListener("click", openSidepanel)
+        leftSidepanelLabels[i].addEventListener("click", openSidepanel);
       }
       document.addEventListener('swiped-right', openSidepanel);
       document.addEventListener('swiped-left', closeSidepanel);
@@ -248,7 +248,7 @@
             vegaView = result.view;
             if (previousResult) {
                 var slicedPreviousResult = previousResult.filter(item => {
-                    return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime()
+                    return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime();
                 })
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousResult)).resize().run();
             }
@@ -256,20 +256,20 @@
     }
 
     {% if active_page == "assets" %}
-        var dataPath = '/api/v3_0/assets/' + {{ asset.id }}
-        var dataDevPath = '/api/dev/asset/' + {{ asset.id }}
-        var datasetName = 'asset_' + {{ asset.id }}
+        var dataPath = '/api/v3_0/assets/' + {{ asset.id }};
+        var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
+        var datasetName = 'asset_' + {{ asset.id }};
     {% elif active_page == "sensors" %}
-        var dataPath = '/api/dev/sensor/' + {{ sensor_id }}
-        var dataDevPath = '/api/dev/sensor/' + {{ sensor_id }}
-        var datasetName = 'sensor_' + {{ sensor_id }}
+        var dataPath = '/api/dev/sensor/' + {{ sensor_id }};
+        var dataDevPath = '/api/dev/sensor/' + {{ sensor_id }};
+        var datasetName = 'sensor_' + {{ sensor_id }};
     {% endif %}
-    var elementId = 'sensorchart'
-    var chartSpecsPath = dataPath + '/chart?'
+    var elementId = 'sensorchart';
+    var chartSpecsPath = dataPath + '/chart?';
 
     // Set up abort controller to cancel requests
-    var controller = new AbortController()
-    var signal = controller.signal
+    var controller = new AbortController();
+    var signal = controller.signal;
 
     const date = Date();
     const picker = new Litepicker({
@@ -300,23 +300,23 @@
     picker.on('selected', (startDate, endDate) => {
 
         // Stop replay
-        let toggle = document.querySelector('#replay')
+        let toggle = document.querySelector('#replay');
         toggle.classList.remove('playing');
         toggle.classList.remove('paused');
         toggle.classList.add('stopped');
 
-        startDate = startDate.toJSDate()
-        endDate = endDate.toJSDate()
+        startDate = startDate.toJSDate();
+        endDate = endDate.toJSDate();
         endDate.setDate(endDate.getDate() + 1);
-        storeStartDate = startDate
-        storeEndDate = endDate
-        var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null)
-        var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null)
+        storeStartDate = startDate;
+        storeEndDate = endDate;
+        var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
+        var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
         // Abort previous request and create abort controller for new request
-        controller.abort()
-        controller = new AbortController()
-        signal = controller.signal
+        controller.abort();
+        controller = new AbortController();
+        signal = controller.signal;
 
         $("#spinner").show();
         Promise.all([
@@ -365,32 +365,32 @@
                     document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
                 }
                 {% if active_page == "assets" %}
-                    var timerangeVar = 'timerange_of_sensors_to_show'
+                    var timerangeVar = 'timerange_of_sensors_to_show';
                 {% else %}
-                    var timerangeVar = 'timerange'
+                    var timerangeVar = 'timerange';
                 {% endif %}
                 if (timerangeVar in data) {
                     var start = new Date(data[timerangeVar].start);
-                    var end = new Date(data[timerangeVar].end)
+                    var end = new Date(data[timerangeVar].end);
                     end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-                    start.setHours(0,0,0,0) // get start of first day
-                    end.setHours(0,0,0,0) // get start of last day
+                    start.setHours(0,0,0,0); // get start of first day
+                    end.setHours(0,0,0,0); // get start of last day
 
                     {% if event_starts_after and event_ends_before %}
                         // Initialize picker to the date selection specified in the session
                         var sessionStart = new Date('{{ event_starts_after }}');
-                        var sessionEnd = new Date('{{ event_ends_before }}')
+                        var sessionEnd = new Date('{{ event_ends_before }}');
                         sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-                        sessionStart.setHours(0,0,0,0) // get start of first day
-                        sessionEnd.setHours(0,0,0,0) // get start of last day
+                        sessionStart.setHours(0,0,0,0); // get start of first day
+                        sessionEnd.setHours(0,0,0,0); // get start of last day
                         picker.setDateRange(
                             sessionStart,
                             sessionEnd,
                         );
                     {% else %}
                         // Initialize picker to the last 2 days of sensor data
-                        var nearEnd = new Date(end)//.setDate(end.getDate() - 1)
-                        nearEnd.setDate(nearEnd.getDate() - 1)
+                        var nearEnd = new Date(end)//.setDate(end.getDate() - 1);
+                        nearEnd.setDate(nearEnd.getDate() - 1);
                         picker.setDateRange(
                             nearEnd,
                             end,
@@ -423,10 +423,10 @@
             // toggle.classList.remove('paused');
             toggle.classList.remove('stopped');
             toggle.classList.add('playing');
-            var beliefTime = new Date(storeStartDate)
-            var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta)
-            queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null)
-            queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null)
+            var beliefTime = new Date(storeStartDate);
+            var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
+            queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
+            queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
 
             $("#spinner").show();
             Promise.all([
@@ -441,7 +441,7 @@
                 replayBeliefsData(result[0]);
             }).catch(console.error);
 
-            const timer = ms => new Promise(res => setTimeout(res, ms))
+            const timer = ms => new Promise(res => setTimeout(res, ms));
 
             /**
              * Replays beliefs data.
@@ -453,7 +453,7 @@
              * @param {Array} remainingData Array containing beliefs.
              */
             async function replayBeliefsData (remainingData) {
-                var replayedData = []
+                var replayedData = [];
                 for (var i = 0; i < numReplaySteps + 1; i++) {
                     while (document.getElementById('replay').classList.contains('paused') ) {
                         await timer(1000);
@@ -461,17 +461,17 @@
                     if (document.getElementById('replay').classList.contains('stopped') ) {
                         break;
                     }
-                    beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)
+                    beliefTime = new Date(beliefTime.getTime() + beliefTimedelta);
 
                     // Split off one replay step of new data from the remaining data
-                    var newData
+                    var newData;
                     [newData, remainingData] = partition(
                         remainingData,
                         (item) => item.belief_time <= beliefTime.getTime(),
                     );
 
                     // Update beliefs in the replayed data given the new data
-                    replayedData = updateBeliefs(replayedData, newData)
+                    replayedData = updateBeliefs(replayedData, newData);
 
                     /** When selecting a longer time periode (more than a week), the replay slows down a bit. This
                      * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
@@ -483,13 +483,13 @@
                      */
                     vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData)).run().finalize();
 
-                    document.getElementById('replay-time').innerHTML = beliefTime
+                    document.getElementById('replay-time').innerHTML = beliefTime;
                     await timer(25);
                 }
                 // Stop replay when finished
                 toggle.classList.remove('playing');
                 toggle.classList.add('stopped');
-                document.getElementById('replay-time').innerHTML = ''
+                document.getElementById('replay-time').innerHTML = '';
             }
         } else {
             // Resume replay
