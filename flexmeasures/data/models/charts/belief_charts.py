@@ -87,10 +87,7 @@ def chart_for_multiple_sensors(
             format=[".3~r", unit],
             formatType="quantityWithUnitFormat",
             stack=None,
-            **{
-                **FIELD_DEFINITIONS["event_value"],
-                **dict(field=sensor.id),
-            },
+            **FIELD_DEFINITIONS["event_value"],
         )
         event_start_field_definition = FIELD_DEFINITIONS["event_start"]
         if event_starts_after and event_ends_before:
@@ -113,6 +110,7 @@ def chart_for_multiple_sensors(
             "title": capitalize(sensor.name)
             if sensor.name != sensor.sensor_type
             else None,
+            "transform": [{"filter": f"datum.sensor.id == {sensor.id}"}],
             "layer": [
                 {
                     "mark": {

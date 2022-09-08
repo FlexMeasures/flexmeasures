@@ -217,13 +217,291 @@
         }
       }
       for (var i = leftSidepanelLabels.length - 1; i >= 0; i--) {
-        leftSidepanelLabels[i].addEventListener("click", openSidepanel)
+        leftSidepanelLabels[i].addEventListener("click", openSidepanel);
       }
       document.addEventListener('swiped-right', openSidepanel);
       document.addEventListener('swiped-left', closeSidepanel);
     </script>
 
     {% endblock leftsidepanel %}
+
+    {% block sensorChartSetup %}
+
+    <!-- Render Charts -->
+    <script type="module" type="text/javascript">
+
+    import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
+    import { partition, updateBeliefs, beliefTimedelta} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
+
+    let vegaView;
+    let previousResult;
+    let queryStartDate;
+    let queryEndDate;
+    let storeStartDate;
+    let storeEndDate;
+
+    async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
+
+        await vegaEmbed('#'+elementId, chartSpecsPath + 'dataset_name=' + datasetName + '&width=container&include_sensor_annotations=false&include_asset_annotations=false', {{ chart_options | safe }})
+        .then(function (result) {
+            // result.view is the Vega View, chartSpecsPath is the original Vega-Lite specification
+            vegaView = result.view;
+            if (previousResult) {
+                var slicedPreviousResult = previousResult.filter(item => {
+                    return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime();
+                })
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousResult)).resize().run();
+            }
+        });
+    }
+
+    {% if active_page == "assets" %}
+        var dataPath = '/api/v3_0/assets/' + {{ asset.id }};
+        var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
+        var datasetName = 'asset_' + {{ asset.id }};
+    {% elif active_page == "sensors" %}
+        var dataPath = '/api/dev/sensor/' + {{ sensor_id }};
+        var dataDevPath = '/api/dev/sensor/' + {{ sensor_id }};
+        var datasetName = 'sensor_' + {{ sensor_id }};
+    {% endif %}
+    var elementId = 'sensorchart';
+    var chartSpecsPath = dataPath + '/chart?';
+
+    // Set up abort controller to cancel requests
+    var controller = new AbortController();
+    var signal = controller.signal;
+
+    // Create date range picker and the logic for a new date range selection (mostly, fetching data and displaying the chart for it)
+    const date = Date();
+    const picker = new Litepicker({
+        element: document.getElementById('datepicker'),
+        plugins: ['ranges', 'keyboardnav'],
+        ranges: {
+            customRanges: {
+                'Today': [new Date(date), new Date(date)],
+                'Last 7 days': [subtract(date, 6), new Date(date)],
+                'This month': thisMonth(date)
+            },
+            position: 'bottom'
+        },
+        autoRefresh: true,
+        moduleRanges: true,
+        showWeekNumbers: true,
+        numberOfMonths: 1,
+        numberOfColumns: 1,
+        inlineMode: true,
+        switchingMonths: 1,
+        singleMode: false,
+        dropdowns: {
+            years: true,
+            months: true,
+        },
+        format: 'YYYY-MM-DD\\T00:00:00',
+    });
+    picker.on('selected', (startDate, endDate) => {
+
+        // Stop replay
+        let toggle = document.querySelector('#replay');
+        toggle.classList.remove('playing');
+        toggle.classList.remove('paused');
+        toggle.classList.add('stopped');
+
+        startDate = startDate.toJSDate();
+        endDate = endDate.toJSDate();
+        endDate.setDate(endDate.getDate() + 1);
+        storeStartDate = startDate;
+        storeEndDate = endDate;
+        var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
+        var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
+
+        // Abort previous request and create abort controller for new request
+        controller.abort();
+        controller = new AbortController();
+        signal = controller.signal;
+
+        $("#spinner").show();
+        Promise.all([
+            // Fetch time series data
+            fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                method: "GET",
+                headers: {"Content-Type": "application/json"},
+                signal: signal,
+            })
+            .then(function(response) { return response.json(); }),
+
+            /**
+            // Fetch annotations
+            fetch(dataPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                method: "GET",
+                headers: {"Content-Type": "application/json"},
+                  signal: signal,
+            })
+            .then(function(response) { return response.json(); }),
+            */
+
+            // Embed chart
+            embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
+        ]).then(function(result) {
+            $("#spinner").hide();
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+            previousResult = result[0];
+            /**
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+            */
+        }).catch(console.error);
+    });
+
+    /** If the page is done loading, get data (for the time range stored in the session, or the default range),
+     * check for time zone differences, and then trigger the time range picker to display the correct range.
+     */
+    document.onreadystatechange = () => {
+        if (document.readyState === 'complete') {
+            fetch(dataDevPath, {
+                method: "GET",
+                headers: {"Content-Type": "application/json"},
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                var offsetDifference = getOffsetBetweenTimezonesForDate(new Date(), data.timezone, jstz.determine().name());
+                if (offsetDifference != 0) {
+                    document.getElementById('tzwarn').style.display = 'block';
+                    var offsetNotice = (offsetDifference > 0) ? 'which is currently ahead by ' + offsetDifference + 'minutes' : 'which is currently behind by ' + offsetDifference + ' minutes'
+                    document.getElementById('tzwarn').innerHTML = 'Please note that the sensor data you are viewing is located in a different timezone (' + offsetNotice + ').<br/>To view the data from a local perspective, set your locale timezone to ' + data.timezone + '.'
+                }
+                {% if active_page == "assets" %}
+                    var timerangeVar = 'timerange_of_sensors_to_show';
+                {% else %}
+                    var timerangeVar = 'timerange';
+                {% endif %}
+                if (timerangeVar in data) {
+                    var start = new Date(data[timerangeVar].start);
+                    var end = new Date(data[timerangeVar].end);
+                    end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+                    start.setHours(0,0,0,0); // get start of first day
+                    end.setHours(0,0,0,0); // get start of last day
+
+                    {% if event_starts_after and event_ends_before %}
+                        // Initialize picker to the date selection specified in the session
+                        var sessionStart = new Date('{{ event_starts_after }}');
+                        var sessionEnd = new Date('{{ event_ends_before }}');
+                        sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+                        sessionStart.setHours(0,0,0,0); // get start of first day
+                        sessionEnd.setHours(0,0,0,0); // get start of last day
+                        picker.setDateRange(
+                            sessionStart,
+                            sessionEnd,
+                        );
+                    {% else %}
+                        // Initialize picker to the last 2 days of sensor data
+                        var nearEnd = new Date(end)//.setDate(end.getDate() - 1);
+                        nearEnd.setDate(nearEnd.getDate() - 1);
+                        picker.setDateRange(
+                            nearEnd,
+                            end,
+                        );
+                    {% endif %}
+
+                    // No use looking for data in years outside timerange of sensor data
+                    picker.setOptions({
+                        dropdowns: {
+                            minYear: start.getFullYear(),
+                            maxYear: end.getFullYear(),
+                        },
+                    });
+                };
+            });
+        }
+    };
+
+    // Set up play/pause button for replay, incl. the complete replay logic
+    let toggle = document.querySelector('#replay');
+    toggle.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (toggle.classList.contains('playing')) {
+            // Pause replay
+            toggle.classList.remove('playing');
+            toggle.classList.add('paused');
+        } else if (toggle.classList.contains('stopped')) {
+            // Start replay
+            toggle.classList.remove('stopped');
+            toggle.classList.add('playing');
+            var beliefTime = new Date(storeStartDate);
+            var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
+            queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
+            queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
+
+            $("#spinner").show();
+            Promise.all([
+                // Fetch time series data (all data, not only the most recent beliefs)
+                fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
+                    method: "GET",
+                    headers: {"Content-Type": "application/json"},
+                })
+                .then(function(response) { return response.json(); }),
+            ]).then(function(result) {
+                $("#spinner").hide();
+                replayBeliefsData(result[0]);
+            }).catch(console.error);
+
+            const timer = ms => new Promise(res => setTimeout(res, ms));
+
+            /**
+             * Replays beliefs data.
+             *
+             * As we go forward in time in steps, replayedData is updated with newData that was known at beliefTime,
+             * by splitting off newData from remainingData.
+             * Then, replayedData is loaded into the chart.
+             *
+             * @param {Array} remainingData Array containing beliefs.
+             */
+            async function replayBeliefsData (remainingData) {
+                var replayedData = [];
+                for (var i = 0; i < numReplaySteps + 1; i++) {
+                    while (document.getElementById('replay').classList.contains('paused') ) {
+                        await timer(1000);
+                    }
+                    if (document.getElementById('replay').classList.contains('stopped') ) {
+                        break;
+                    }
+                    beliefTime = new Date(beliefTime.getTime() + beliefTimedelta);
+
+                    // Split off one replay step of new data from the remaining data
+                    var newData;
+                    [newData, remainingData] = partition(
+                        remainingData,
+                        (item) => item.belief_time <= beliefTime.getTime(),
+                    );
+
+                    // Update beliefs in the replayed data given the new data
+                    replayedData = updateBeliefs(replayedData, newData);
+
+                    /** When selecting a longer time periode (more than a week), the replay slows down a bit. This
+                     * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
+                     * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
+                     * graph. After trying different approaches, we fell back to the original approach of telling vega
+                     * to remove all previous data and to insert a completely new dataset at each iteration. Updating
+                     * the view with removing only a few data points (representing obsolete beliefs) and inserting only
+                     * a few data points (representing the most recent new beliefs) actually made it slower.
+                     */
+                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData)).run().finalize();
+
+                    document.getElementById('replay-time').innerHTML = beliefTime;
+                    await timer(25);
+                }
+                // Stop replay when finished
+                toggle.classList.remove('playing');
+                toggle.classList.add('stopped');
+                document.getElementById('replay-time').innerHTML = '';
+            }
+        } else {
+            // Resume replay
+            toggle.classList.remove('paused');
+            toggle.classList.add('playing');
+        }
+    });
+    </script>
+
+    {% endblock sensorChartSetup %}
 
     {% block attributions %}
     <div id="att-text" style="display: none;">

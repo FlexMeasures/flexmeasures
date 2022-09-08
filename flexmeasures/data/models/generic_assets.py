@@ -342,6 +342,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         source: Optional[
             Union[DataSource, List[DataSource], int, List[int], str, List[str]]
         ] = None,
+        most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
         as_json: bool = False,
     ) -> Union[BeliefsDataFrame, str]:
@@ -373,7 +374,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=source,
-                most_recent_beliefs_only=True,
+                most_recent_beliefs_only=most_recent_beliefs_only,
                 most_recent_events_only=most_recent_events_only,
                 one_deterministic_belief_per_event_per_source=True,
             )
@@ -394,18 +395,35 @@ class GenericAsset(db.Model, AuthModelMixin):
                     if bdf.event_resolution > timedelta(0):
                         bdf = bdf.resample_events(minimum_non_zero_resolution)
                     df = simplify_index(
-                        bdf, index_levels_to_columns=["source"]
-                    ).set_index(["source"], append=True)
-                    df_dict[sensor.id] = df.rename(columns=dict(event_value=sensor.id))
-                df = list(df_dict.values())[0].join(
-                    list(df_dict.values())[1:], how="outer"
-                )
+                        bdf,
+                        index_levels_to_columns=["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"],
+                    ).set_index(
+                        ["source"]
+                        if most_recent_beliefs_only
+                        else ["belief_time", "source"],
+                        append=True,
+                    )
+                    df["sensor"] = sensor  # or some JSONfiable representation
+                    df = df.set_index(["sensor"], append=True)
+                    df_dict[sensor.id] = df
+                df = pd.concat(df_dict.values())
             else:
                 df = simplify_index(
-                    BeliefsDataFrame(), index_levels_to_columns=["source"]
-                ).set_index(["source"], append=True)
+                    BeliefsDataFrame(),
+                    index_levels_to_columns=["source"]
+                    if most_recent_beliefs_only
+                    else ["belief_time", "source"],
+                ).set_index(
+                    ["source"]
+                    if most_recent_beliefs_only
+                    else ["belief_time", "source"],
+                    append=True,
+                )
             df = df.reset_index()
             df["source"] = df["source"].apply(lambda x: x.to_dict())
+            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
             return df.to_json(orient="records")
         return bdf_dict
 

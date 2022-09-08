@@ -339,6 +339,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         )
         if as_json:
             df = bdf.reset_index()
+            df["sensor"] = self
+            df["sensor"] = df["sensor"].apply(lambda x: x.to_dict())
             df["source"] = df["source"].apply(lambda x: x.to_dict())
             return df.to_json(orient="records")
         return bdf
@@ -479,6 +481,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
 
     def __repr__(self) -> str:
         return f"<Sensor {self.id}: {self.name}, unit: {self.unit} res.: {self.event_resolution}>"
+
+    def __str__(self) -> str:
+        return self.name
+
+    def to_dict(self) -> dict:
+        return dict(
+            id=self.id,
+            name=self.name,
+        )
 
     @classmethod
     def find_closest(

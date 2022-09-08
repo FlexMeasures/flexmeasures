@@ -81,10 +81,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
                 descr += f" v{self.version}"
         return descr
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<Data source %r (%s)>" % (self.id, self.description)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.description
 
     def to_dict(self) -> dict:

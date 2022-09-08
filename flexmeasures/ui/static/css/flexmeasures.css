@@ -1771,3 +1771,52 @@ div.heading-group {
 }
 
 /* ---- End Unsure / potential Legacy ---- */
+
+
+/* ---- Play/Pause button ---- */
+.replay-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#replay-time {
+  margin-top: 15px;
+}
+#replay {
+  cursor: pointer !important;
+  margin-top: 190px;
+  width: 50px;
+  height: 50px;
+  position: relative;
+}
+#replay:before, #replay:after {
+  content: "";
+  position: absolute;
+  width: 0;
+  border-style: solid;
+  border-color: transparent;
+  border-left-color: var(--secondary-color);
+  transition: 0.3s;
+}
+#replay:not(.playing):before {
+  height: 50px;
+  border-width: 25px 0px 25px 50px;
+}
+#replay:not(.playing):after {
+  left: 25px;
+  top: 12.5px;
+  height: 0;
+  border-width: 12.5px 0 12.5px 25px;
+}
+#replay:before {
+  left: 0;
+  height: 50px;
+  border-width: 0 0 0 16.6666666667px;
+}
+#replay:after {
+  left: 33.3333333333px;
+  top: 0px;
+  height: 50px;
+  border-width: 0 0 0 16.6666666667px;
+}
