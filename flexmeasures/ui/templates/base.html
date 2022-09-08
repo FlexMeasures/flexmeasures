@@ -417,14 +417,12 @@
     let toggle = document.querySelector('#replay');
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
-        // toggle.classList.toggle('paused');
         if (toggle.classList.contains('playing')) {
             // Pause replay
             toggle.classList.remove('playing');
             toggle.classList.add('paused');
         } else if (toggle.classList.contains('stopped')) {
             // Start replay
-            // toggle.classList.remove('paused');
             toggle.classList.remove('stopped');
             toggle.classList.add('playing');
             var beliefTime = new Date(storeStartDate);
