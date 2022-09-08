@@ -467,6 +467,11 @@ def add_beliefs(
         na_values=na_values,
         **kwargs,
     )
+    duplicate_rows = bdf.index.duplicated(keep="first") == True
+    if any(duplicate_rows) > 0:
+        print("Duplicates found. Dropping duplicates for the following records:")
+        print(bdf[duplicate_rows])
+        bdf = bdf[~duplicate_rows]
     if unit is not None:
         bdf["event_value"] = convert_units(
             bdf["event_value"],
