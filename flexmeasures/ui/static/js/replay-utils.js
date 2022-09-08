@@ -3,8 +3,8 @@
 /**
  * Partitions array into two arrays.
  *
- * Partitions array into two array by pushing elements left or right given some decision function
- * that is evaluated on each element.
+ * Partitions array into two array by pushing elements left or right given some decision function, which is
+ * evaluated on each element. Successful validations lead to placement on the left side, others on the right.
  *
  * @param {Array} array               Array to be partitioned.
  * @param {function} decisionFunction Function that assigns elements to the left or right arrays.
