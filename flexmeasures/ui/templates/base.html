@@ -271,6 +271,7 @@
     var controller = new AbortController();
     var signal = controller.signal;
 
+    // Create date range picker and the logic for a new date range selection (mostly, fetching data and displaying the chart for it)
     const date = Date();
     const picker = new Litepicker({
         element: document.getElementById('datepicker'),
@@ -350,6 +351,9 @@
         }).catch(console.error);
     });
 
+    /** If the page is done loading, get data (for the time range stored in the session, or the default range),
+     * check for time zone differences, and then trigger the time range picker to display the correct range.
+     */
     document.onreadystatechange = () => {
         if (document.readyState === 'complete') {
             fetch(dataDevPath, {
