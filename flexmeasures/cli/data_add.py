@@ -355,6 +355,12 @@ def add_initial_structure():
     help="Column number with values (1 is 2nd column, the default)",
 )
 @click.option(
+    "--beliefcol",
+    required=False,
+    type=int,
+    help="Column number with datetimes",
+)
+@click.option(
     "--delimiter",
     required=True,
     type=str,
@@ -395,6 +401,7 @@ def add_beliefs(
     nrows: Optional[int] = None,
     datecol: int = 0,
     valuecol: int = 1,
+    beliefcol: Optional[int] = None,
     delimiter: str = ",",
     decimal: str = ".",
     thousands: Optional[str] = None,
@@ -416,8 +423,8 @@ def add_beliefs(
         2020-12-03 14:10,215.6
         2020-12-03 14:20,203.8
 
-    In case no --horizon is specified, the moment of executing this CLI command is taken
-    as the time at which the beliefs were recorded.
+    In case no --horizon is specified and no beliefcol is specified,
+    the moment of executing this CLI command is taken as the time at which the beliefs were recorded.
     """
     sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
     if sensor is None:
@@ -441,7 +448,7 @@ def add_beliefs(
         kwargs["sheet_name"] = sheet_number
     if horizon is not None:
         kwargs["belief_horizon"] = timedelta(minutes=horizon)
-    else:
+    elif beliefcol is None:
         kwargs["belief_time"] = server_now().astimezone(pytz.timezone(sensor.timezone))
 
     bdf = tb.read_csv(
@@ -453,7 +460,9 @@ def add_beliefs(
         header=None,
         skiprows=skiprows,
         nrows=nrows,
-        usecols=[datecol, valuecol],
+        usecols=[datecol, valuecol]
+        if beliefcol is None
+        else [datecol, beliefcol, valuecol],
         parse_dates=True,
         na_values=na_values,
         **kwargs,
