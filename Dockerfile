@@ -1,8 +1,5 @@
 FROM ubuntu:focal
  
-# TODO: Cbc solver
-# TODO: run gunicorn as entry command
-
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
