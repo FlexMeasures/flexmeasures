@@ -449,7 +449,6 @@ class GenericAsset(db.Model, AuthModelMixin):
             sensor.id: sensor
             for sensor in get_sensors(self.owner, sensor_ids)
             + get_public_sensors(sensor_ids)
-            if sensor.id in sensor_ids
         }
 
         # Return sensors in the order given by the sensors_to_show attribute
