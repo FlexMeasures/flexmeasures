@@ -9,7 +9,7 @@ New features
 -------------
 
 * Hit the replay button to replay what happened, available on the sensor and asset pages [see `PR #463 <http://www.github.com/FlexMeasures/flexmeasures/pull/463>`_]
-* Simplified import of time series data from CSV file that includes a column with explicit recording times for each data point (use case: importing forecasts) [see `PR #501 <http://www.github.com/FlexMeasures/flexmeasures/pull/501>`_]
+* Improved import of time series data from CSV file: 1) drop duplicate records with warning, and 2) allow configuring which column contains explicit recording times for each data point (use case: import forecasts) [see `PR #501 <http://www.github.com/FlexMeasures/flexmeasures/pull/501>`_]
 
 Bugfixes
 -----------
