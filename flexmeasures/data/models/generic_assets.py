@@ -447,7 +447,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         sensor_ids = self.get_attribute("sensors_to_show")
         sensor_map = {
             sensor.id: sensor
-            for sensor in get_sensors(self.owner) + get_public_sensors(sensor_ids)
+            for sensor in get_sensors(self.owner, sensor_ids)
+            + get_public_sensors(sensor_ids)
             if sensor.id in sensor_ids
         }
 

@@ -8,10 +8,12 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 
 def get_sensors(
     account: Account | int | str | None = None,
+    sensor_ids: list[int] | None = None,
 ) -> list[Sensor]:
     """Return a list of Sensor objects.
 
     :param account: optionally, filter by account by passing an Account, int (account id) or string (account name).
+    :param sensor_ids: optionally, filter by sensor id.
     """
     sensor_query = Sensor.query
 
@@ -29,6 +31,8 @@ def get_sensors(
             .filter(Sensor.generic_asset_id == GenericAsset.id)
             .filter(GenericAsset.owner == account)
         )
+    if sensor_ids:
+        sensor_query = sensor_query.filter(Sensor.id.in_(sensor_ids))
 
     return sensor_query.all()
 
