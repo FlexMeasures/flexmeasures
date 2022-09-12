@@ -442,14 +442,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         if not self.has_attribute("sensors_to_show"):
             return self.sensors[:2]
 
-        from flexmeasures.data.services.sensors import get_account_sensors
+        from flexmeasures.data.services.sensors import get_sensors
 
         sensor_ids = self.get_attribute("sensors_to_show")
         sensor_map = {
             sensor.id: sensor
-            for sensor in get_account_sensors(
+            for sensor in get_sensors(
                 accounts=[self.owner, None],  # include public sensors
-                sensor_ids=sensor_ids,
+                filter_by_sensor_ids=sensor_ids,
             )
         }
 

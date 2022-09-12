@@ -41,7 +41,7 @@ from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas import AwareDateTimeField
-from flexmeasures.data.services.sensors import get_account_sensors
+from flexmeasures.data.services.sensors import get_sensors
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.unit_utils import ur
@@ -110,7 +110,7 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        sensors = get_account_sensors(accounts=[account])
+        sensors = get_sensors(accounts=[account])
         return sensors_schema.dump(sensors), 200
 
     @route("/data", methods=["POST"])
