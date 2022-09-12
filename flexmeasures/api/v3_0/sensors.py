@@ -110,7 +110,7 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        sensors = get_account_sensors(account=account)
+        sensors = get_account_sensors(accounts=[account])
         return sensors_schema.dump(sensors), 200
 
     @route("/data", methods=["POST"])

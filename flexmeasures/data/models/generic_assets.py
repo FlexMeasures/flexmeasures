@@ -442,16 +442,15 @@ class GenericAsset(db.Model, AuthModelMixin):
         if not self.has_attribute("sensors_to_show"):
             return self.sensors[:2]
 
-        from flexmeasures.data.services.sensors import (
-            get_account_sensors,
-            get_public_sensors,
-        )
+        from flexmeasures.data.services.sensors import get_account_sensors
 
         sensor_ids = self.get_attribute("sensors_to_show")
         sensor_map = {
             sensor.id: sensor
-            for sensor in get_account_sensors(self.owner, sensor_ids)
-            + get_public_sensors(sensor_ids)
+            for sensor in get_account_sensors(
+                accounts=[self.owner, None],  # include public sensors
+                sensor_ids=sensor_ids,
+            )
         }
 
         # Return sensors in the order given by the sensors_to_show attribute
