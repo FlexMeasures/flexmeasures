@@ -6,7 +6,7 @@ from flexmeasures import Sensor, Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 
 
-def get_sensors(
+def get_account_sensors(
     account: Account | int | str | None = None,
     sensor_ids: list[int] | None = None,
 ) -> list[Sensor]:
