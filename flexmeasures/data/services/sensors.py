@@ -7,14 +7,25 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 
 
 def get_sensors(
+    account_id: int | None = None,
     account_name: str | None = None,
 ) -> list[Sensor]:
     """Return a list of Sensor objects.
 
+    :param account_id: optionally, filter by account id.
     :param account_name: optionally, filter by account name.
     """
     sensor_query = Sensor.query
 
+    if account_id is not None:
+        account = Account.query.filter_by(id=account_id).one_or_none()
+        if not account:
+            raise NotFound(f"There is no account with id {account_id}!")
+        sensor_query = (
+            sensor_query.join(GenericAsset)
+            .filter(Sensor.generic_asset_id == GenericAsset.id)
+            .filter(GenericAsset.owner == account)
+        )
     if account_name is not None:
         account = Account.query.filter(Account.name == account_name).one_or_none()
         if not account:
