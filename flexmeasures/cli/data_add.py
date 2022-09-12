@@ -467,7 +467,7 @@ def add_beliefs(
         na_values=na_values,
         **kwargs,
     )
-    duplicate_rows = bdf.index.duplicated(keep="first") == True
+    duplicate_rows = bdf.index.duplicated(keep="first")
     if any(duplicate_rows) > 0:
         print("Duplicates found. Dropping duplicates for the following records:")
         print(bdf[duplicate_rows])
