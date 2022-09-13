@@ -394,6 +394,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):
                         bdf = bdf.resample_events(minimum_non_zero_resolution)
+                    bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
                     df = simplify_index(
                         bdf,
                         index_levels_to_columns=["source"]
