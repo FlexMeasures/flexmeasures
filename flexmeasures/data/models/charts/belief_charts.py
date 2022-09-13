@@ -138,13 +138,13 @@ def chart_for_multiple_sensors(
         ex_ante_line_layer = {
             **line_layer,
             **{
-                "transform": [{"filter": f"datum.belief_horizon > 0"}],
+                "transform": [{"filter": "datum.belief_horizon > 0"}],
             },
         }
         ex_post_line_layer = {
             **line_layer,
             **{
-                "transform": [{"filter": f"datum.belief_horizon <= 0"}],
+                "transform": [{"filter": "datum.belief_horizon <= 0"}],
             },
         }
         sensor_specs = {
