@@ -330,10 +330,10 @@ vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
     return d3.format(params[0])(datum) + " " + params[1];
 });
 vega.expressionFunction('timedeltaFormat', function(timedelta, params) {
-    return (timedelta > 1000 * 60 * 60 * 24 * 365.2425 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60 * 24 * 365.2425)) + " years"
-        : timedelta > 1000 * 60 * 60 * 24 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60 * 24)) + " days"
-        : timedelta > 1000 * 60 * 60 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60)) + " hours"
-        : timedelta > 1000 * 60 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60)) + " minutes"
-        : timedelta > 1000 * params[1] ? d3.format(params[0])(timedelta / 1000) + " seconds"
+    return (Math.abs(timedelta) > 1000 * 60 * 60 * 24 * 365.2425 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60 * 24 * 365.2425)) + " years"
+        : Math.abs(timedelta) > 1000 * 60 * 60 * 24 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60 * 24)) + " days"
+        : Math.abs(timedelta) > 1000 * 60 * 60 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60)) + " hours"
+        : Math.abs(timedelta) > 1000 * 60 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60)) + " minutes"
+        : Math.abs(timedelta) > 1000 * params[1] ? d3.format(params[0])(timedelta / 1000) + " seconds"
         : d3.format(params[0])(timedelta) + " milliseconds");
 });
