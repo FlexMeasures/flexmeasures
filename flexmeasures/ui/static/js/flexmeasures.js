@@ -311,13 +311,29 @@ function submit_sensor_type() {
     $("#sensor_type-form").attr("action", empty_location).submit();
 }
 
-/** Tooltips: Register custom formatter for quantities incl. units
-              Usage:
-                  {
-                      'format': [<d3-format>, <sensor unit>],
-                      'formatType': 'quantityWithUnitFormat'
-                  }
-*/
+/** Tooltips: Register custom formatters
+ *
+ *          - Quantities incl. units
+ *            Usage:
+ *                 {
+ *                     'format': [<d3-format>, <sensor unit>],
+ *                     'formatType': 'quantityWithUnitFormat'
+ *                 }
+ *          - Timedeltas measured in human-readable quantities (usually not milliseconds)
+ *            Usage:
+ *                 {
+ *                     'format': [<d3-format>, <breakpoint>],
+ *                     'formatType': 'timedeltaFormat'
+ *                 }
+ */
 vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
     return d3.format(params[0])(datum) + " " + params[1];
+});
+vega.expressionFunction('timedeltaFormat', function(timedelta, params) {
+    return (timedelta > 1000 * 60 * 60 * 24 * 365.2425 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60 * 24 * 365.2425)) + " years"
+        : timedelta > 1000 * 60 * 60 * 24 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60 * 24)) + " days"
+        : timedelta > 1000 * 60 * 60 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60)) + " hours"
+        : timedelta > 1000 * 60 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60)) + " minutes"
+        : timedelta > 1000 * params[1] ? d3.format(params[0])(timedelta / 1000) + " seconds"
+        : d3.format(params[0])(timedelta) + " milliseconds");
 });
