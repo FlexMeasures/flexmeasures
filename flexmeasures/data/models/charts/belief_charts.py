@@ -106,27 +106,48 @@ def chart_for_multiple_sensors(
             FIELD_DEFINITIONS["source_name"],
             FIELD_DEFINITIONS["source_model"],
         ]
+        line_layer = {
+            "mark": {
+                "type": "line",
+                "interpolate": "step-after"
+                if sensor.event_resolution != timedelta(0)
+                else "linear",
+                "clip": True,
+            },
+            "encoding": {
+                "x": event_start_field_definition,
+                "y": event_value_field_definition,
+                "color": FIELD_DEFINITIONS["source_name"],
+                "strokeDash": {
+                    "condition": {
+                        "test": "datum['belief_horizon'] > 0",
+                        "value": [1, 2],  # dashed
+                    },
+                    "value": [1, 0],  # solid
+                },
+                "detail": FIELD_DEFINITIONS["source"],
+            },
+        }
+        ex_ante_line_layer = {
+            **line_layer,
+            **{
+                "transform": [{"filter": f"datum.belief_horizon > 0"}],
+            },
+        }
+        ex_post_line_layer = {
+            **line_layer,
+            **{
+                "transform": [{"filter": f"datum.belief_horizon <= 0"}],
+            },
+        }
         sensor_specs = {
             "title": capitalize(sensor.name)
             if sensor.name != sensor.sensor_type
             else None,
             "transform": [{"filter": f"datum.sensor.id == {sensor.id}"}],
             "layer": [
-                {
-                    "mark": {
-                        "type": "line",
-                        "interpolate": "step-after"
-                        if sensor.event_resolution != timedelta(0)
-                        else "linear",
-                        "clip": True,
-                    },
-                    "encoding": {
-                        "x": event_start_field_definition,
-                        "y": event_value_field_definition,
-                        "color": FIELD_DEFINITIONS["source_name"],
-                        "detail": FIELD_DEFINITIONS["source"],
-                    },
-                },
+                ex_ante_line_layer,
+                ex_post_line_layer,
                 {
                     "mark": {
                         "type": "rect",
