@@ -99,6 +99,13 @@ def chart_for_multiple_sensors(
             }
         shared_tooltip = [
             FIELD_DEFINITIONS["full_date"],
+            dict(
+                field="belief_horizon",
+                type="quantitative",
+                title="Horizon",
+                format=["d", 4],
+                formatType="timedeltaFormat",
+            ),
             {
                 **event_value_field_definition,
                 **dict(title=f"{capitalize(sensor.sensor_type)}"),
