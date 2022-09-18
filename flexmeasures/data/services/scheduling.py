@@ -1,5 +1,9 @@
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Tuple, Optional, Callable
+import os
+import sys
+import importlib.util
+from importlib.abc import Loader
 
 from flask import current_app
 import click
@@ -24,7 +28,7 @@ The life cycle of a scheduling job:
 """
 
 
-DEFAULT_RESOLUTION = timedelta(minutes=15)
+DEFAULT_RESOLUTION = timedelta(minutes=15)  # make_schedule can also fallback to sensor resoution
 
 
 def create_scheduling_job(
@@ -138,50 +142,45 @@ def make_schedule(
         soc_targets = pd.Series(
             np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
         )
+    
+    data_source_name = "FlexMeasures"
 
-    if sensor.generic_asset.generic_asset_type.name == "battery":
-        consumption_schedule = schedule_battery(
-            sensor,
-            start,
-            end,
-            resolution,
-            soc_at_start,
-            soc_targets,
-            soc_min,
-            soc_max,
-            roundtrip_efficiency,
-            consumption_price_sensor=consumption_price_sensor,
-            production_price_sensor=production_price_sensor,
-            inflexible_device_sensors=inflexible_device_sensors,
-            belief_time=belief_time,
-        )
+    # Choose which algorithm to use
+    if "custom-scheduler" in sensor.attributes:
+        scheduler_specs = sensor.attributes.get("custom-scheduler")
+        scheduler, data_source_name = load_custom_scheduler(scheduler_specs) 
+    elif sensor.generic_asset.generic_asset_type.name == "battery":
+        scheduler = schedule_battery
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
         "two-way_evse",
     ):
-        consumption_schedule = schedule_charging_station(
-            sensor,
-            start,
-            end,
-            resolution,
-            soc_at_start,
-            soc_targets,
-            soc_min,
-            soc_max,
-            roundtrip_efficiency,
-            consumption_price_sensor=consumption_price_sensor,
-            production_price_sensor=production_price_sensor,
-            inflexible_device_sensors=inflexible_device_sensors,
-            belief_time=belief_time,
-        )
+        scheduler = schedule_charging_station
+        
     else:
         raise ValueError(
             "Scheduling is not (yet) supported for asset type %s."
             % sensor.generic_asset.generic_asset_type
         )
 
+    consumption_schedule = scheduler(
+        sensor,
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets,
+        soc_min,
+        soc_max,
+        roundtrip_efficiency,
+        consumption_price_sensor=consumption_price_sensor,
+        production_price_sensor=production_price_sensor,
+        inflexible_device_sensors=inflexible_device_sensors,
+        belief_time=belief_time,
+    )
+    
     data_source = get_data_source(
-        data_source_name="Seita",
+        data_source_name=data_source_name,
         data_source_type="scheduling script",
     )
     if rq_job:
@@ -202,6 +201,50 @@ def make_schedule(
     db.session.commit()
 
     return True
+
+
+def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, str]:
+    """
+    Read in custom scheduling spec.
+    Attempt to load the Callable, also derive a data source name.
+    
+    Example specs:
+
+    {
+        "path": "/path/to/module.py",
+        "function": "name_of_function",
+        "source": "source name"
+    }
+    
+    """
+    assert isinstance(scheduler_specs, dict), f"Scheduler specs is {type(scheduler_specs)}, should be a dict"
+    assert "path" in scheduler_specs, "scheduler specs have no 'path'."
+    assert "function" in scheduler_specs, "scheduler specs have no 'function'"
+
+    source_name = scheduler_specs.get("source", f"Custom scheduler - {scheduler_specs['function']}")
+    scheduler_name = scheduler_specs["function"]
+
+    # import module
+    module_path = scheduler_specs["path"]
+    module_name = module_path.split("/")[-1]
+    assert os.path.exists(module_path), f"Module {module_path} cannot be found."
+    spec = importlib.util.spec_from_file_location(
+        scheduler_name, module_path
+    )
+    assert spec, f"Could not load specs for scheduleing module at {module_path}."
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[scheduler_name] = module
+    assert isinstance(spec.loader, Loader)
+    spec.loader.exec_module(module)
+    assert module, f"Module {module_path} could not be loaded."
+
+    # get scheduling function
+    assert (
+        hasattr(module, scheduler_specs["function"]),
+        f"Module at {module_path} has no function {scheduler_specs['function']}"
+    )
+
+    return getattr(module, scheduler_specs["function"]), source_name
 
 
 def handle_scheduling_exception(job, exc_type, exc_value, traceback):
