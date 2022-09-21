@@ -1,4 +1,20 @@
+from datetime import datetime, timedelta
 
-def compute_a_schedule():
-    """Just a test scheduler."""
-    pass
+import pandas as pd
+
+from flexmeasures.data.models.time_series import Sensor
+
+
+def compute_a_schedule(
+    sensor: Sensor,
+    start: datetime,
+    end: datetime,
+    resolution: timedelta,
+    *args,
+    **kwargs
+):
+    """Just a dummy scheduler."""
+    return pd.Series(
+        sensor.get_attribute("capacity_in_mw"),
+        index=pd.date_range(start, end, freq=resolution, closed="right"),
+    )
