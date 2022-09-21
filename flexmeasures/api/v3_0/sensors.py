@@ -519,6 +519,8 @@ class SensorAPI(FlaskView):
         schedule_start = job.kwargs["start"]
 
         schedule_data_source_name = "FlexMeasures"
+        if "data_source_name" in job.meta:
+            schedule_data_source_name = job.meta["data_source_name"]
         scheduler_source = DataSource.query.filter_by(
             name=schedule_data_source_name, type="scheduling script"
         ).one_or_none()

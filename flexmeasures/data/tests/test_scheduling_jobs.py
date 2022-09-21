@@ -4,6 +4,7 @@ import os
 
 import pytz
 import pytest
+from rq.job import Job
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -105,8 +106,13 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
 
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
+    # make sure we saved the data source for later lookup
+    redis_connection = app.queues["scheduling"].connection
+    finished_job = Job.fetch(job.id, connection=redis_connection)
+    assert finished_job.meta["data_source_name"] == scheduler_specs["source"]
+
     scheduler_source = DataSource.query.filter_by(
-        name=scheduler_specs["source"], type="scheduling script"
+        name=finished_job.meta["data_source_name"], type="scheduling script"
     ).one_or_none()
     assert (
         scheduler_source is not None

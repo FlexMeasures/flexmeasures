@@ -151,6 +151,9 @@ def make_schedule(
     if "custom-scheduler" in sensor.attributes:
         scheduler_specs = sensor.attributes.get("custom-scheduler")
         scheduler, data_source_name = load_custom_scheduler(scheduler_specs)
+        if rq_job:
+            rq_job.meta["data_source_name"] = data_source_name
+            rq_job.save_meta()
     elif sensor.generic_asset.generic_asset_type.name == "battery":
         scheduler = schedule_battery
     elif sensor.generic_asset.generic_asset_type.name in (
