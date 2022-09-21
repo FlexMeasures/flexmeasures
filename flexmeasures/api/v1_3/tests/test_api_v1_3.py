@@ -90,7 +90,7 @@ def test_post_udi_event_and_get_device_message(
     # check results are in the database
     resolution = timedelta(minutes=15)
     scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduling script"
+        name="FlexMeasures", type="scheduling script"
     ).one_or_none()
     assert (
         scheduler_source is not None
