@@ -28,7 +28,9 @@ The life cycle of a scheduling job:
 """
 
 
-DEFAULT_RESOLUTION = timedelta(minutes=15)  # make_schedule can also fallback to sensor resoution
+DEFAULT_RESOLUTION = timedelta(
+    minutes=15
+)  # make_schedule can also fallback to sensor resoution
 
 
 def create_scheduling_job(
@@ -142,13 +144,13 @@ def make_schedule(
         soc_targets = pd.Series(
             np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
         )
-    
+
     data_source_name = "FlexMeasures"
 
     # Choose which algorithm to use
     if "custom-scheduler" in sensor.attributes:
         scheduler_specs = sensor.attributes.get("custom-scheduler")
-        scheduler, data_source_name = load_custom_scheduler(scheduler_specs) 
+        scheduler, data_source_name = load_custom_scheduler(scheduler_specs)
     elif sensor.generic_asset.generic_asset_type.name == "battery":
         scheduler = schedule_battery
     elif sensor.generic_asset.generic_asset_type.name in (
@@ -156,7 +158,7 @@ def make_schedule(
         "two-way_evse",
     ):
         scheduler = schedule_charging_station
-        
+
     else:
         raise ValueError(
             "Scheduling is not (yet) supported for asset type %s."
@@ -178,7 +180,7 @@ def make_schedule(
         inflexible_device_sensors=inflexible_device_sensors,
         belief_time=belief_time,
     )
-    
+
     data_source = get_data_source(
         data_source_name=data_source_name,
         data_source_type="scheduling script",
@@ -207,42 +209,53 @@ def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, str]:
     """
     Read in custom scheduling spec.
     Attempt to load the Callable, also derive a data source name.
-    
+
     Example specs:
 
     {
-        "path": "/path/to/module.py",
+        "module": "/path/to/module.py",  # or sthg importable, e.g. "package.module"
         "function": "name_of_function",
         "source": "source name"
     }
-    
+
     """
-    assert isinstance(scheduler_specs, dict), f"Scheduler specs is {type(scheduler_specs)}, should be a dict"
-    assert "path" in scheduler_specs, "scheduler specs have no 'path'."
+    assert isinstance(
+        scheduler_specs, dict
+    ), f"Scheduler specs is {type(scheduler_specs)}, should be a dict"
+    assert "module" in scheduler_specs, "scheduler specs have no 'module'."
     assert "function" in scheduler_specs, "scheduler specs have no 'function'"
 
-    source_name = scheduler_specs.get("source", f"Custom scheduler - {scheduler_specs['function']}")
+    source_name = scheduler_specs.get(
+        "source", f"Custom scheduler - {scheduler_specs['function']}"
+    )
     scheduler_name = scheduler_specs["function"]
 
     # import module
-    module_path = scheduler_specs["path"]
-    module_name = module_path.split("/")[-1]
-    assert os.path.exists(module_path), f"Module {module_path} cannot be found."
-    spec = importlib.util.spec_from_file_location(
-        scheduler_name, module_path
-    )
-    assert spec, f"Could not load specs for scheduleing module at {module_path}."
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[scheduler_name] = module
-    assert isinstance(spec.loader, Loader)
-    spec.loader.exec_module(module)
-    assert module, f"Module {module_path} could not be loaded."
+    module_descr = scheduler_specs["module"]
+    if os.path.exists(module_descr):
+        spec = importlib.util.spec_from_file_location(scheduler_name, module_descr)
+        assert spec, f"Could not load specs for scheduling module at {module_descr}."
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[scheduler_name] = module
+        assert isinstance(spec.loader, Loader)
+        spec.loader.exec_module(module)
+    else:  # assume importable module
+        try:
+            module = importlib.import_module(module_descr)
+        except TypeError:
+            current_app.log.error(f"Cannot load {module_descr}.")
+            raise
+        except ModuleNotFoundError:
+            current_app.logger.error(
+                f"Attempted to import module {module_descr} (as it is not a valid file path), but it is not installed."
+            )
+            raise
+    assert module, f"Module {module_descr} could not be loaded."
 
     # get scheduling function
-    assert (
-        hasattr(module, scheduler_specs["function"]),
-        f"Module at {module_path} has no function {scheduler_specs['function']}"
-    )
+    assert hasattr(
+        module, scheduler_specs["function"]
+    ), "Module at {module_descr} has no function {scheduler_specs['function']}"
 
     return getattr(module, scheduler_specs["function"]), source_name
 

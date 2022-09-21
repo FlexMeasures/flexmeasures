@@ -56,7 +56,7 @@ def test_scheduling_a_charging_station(
     work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
 
     scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduling script"
+        name="FlexMeasures", type="scheduling script"
     ).one_or_none()
     assert (
         scheduler_source is not None
