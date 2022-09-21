@@ -28,9 +28,7 @@ The life cycle of a scheduling job:
 """
 
 
-DEFAULT_RESOLUTION = timedelta(
-    minutes=15
-)  # make_schedule can also fallback to sensor resoution
+DEFAULT_RESOLUTION = timedelta(minutes=15)
 
 
 def create_scheduling_job(
