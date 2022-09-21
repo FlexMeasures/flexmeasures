@@ -144,7 +144,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     return unknown_schedule("Scheduling job has an unknown status.")
                 schedule_start = job.kwargs["start"]
 
-            schedule_data_source_name = "FlexMeasures"
+            schedule_data_source_name = "Seita"
             scheduler_source = DataSource.query.filter_by(
                 name=schedule_data_source_name, type="scheduling script"
             ).one_or_none()

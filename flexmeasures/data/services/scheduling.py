@@ -145,7 +145,7 @@ def make_schedule(
             np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
         )
 
-    data_source_name = "FlexMeasures"
+    data_source_name = "Seita"
 
     # Choose which algorithm to use
     if "custom-scheduler" in sensor.attributes:

@@ -68,7 +68,7 @@ def test_trigger_and_get_schedule(
     # check results are in the database
     resolution = timedelta(minutes=15)
     scheduler_source = DataSource.query.filter_by(
-        name="FlexMeasures", type="scheduling script"
+        name="Seita", type="scheduling script"
     ).one_or_none()
     assert (
         scheduler_source is not None

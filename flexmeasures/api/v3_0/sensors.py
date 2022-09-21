@@ -518,7 +518,7 @@ class SensorAPI(FlaskView):
             return unknown_schedule("Scheduling job has an unknown status.")
         schedule_start = job.kwargs["start"]
 
-        schedule_data_source_name = "FlexMeasures"
+        schedule_data_source_name = "Seita"
         if "data_source_name" in job.meta:
             schedule_data_source_name = job.meta["data_source_name"]
         scheduler_source = DataSource.query.filter_by(
