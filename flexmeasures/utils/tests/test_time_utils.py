@@ -137,6 +137,13 @@ def test_naturalized_datetime_str(
             60,
         ),
         (
+            5,
+            datetime(2021, 5, 20, 10, 7, 4),
+            datetime(2021, 5, 20, 9, 55),
+            datetime(2021, 5, 20, 10, 0),
+            130,  # grace period > 2 minutes
+        ),
+        (
             60,
             datetime(2021, 1, 1, 0, 4),  # new year
             datetime(2020, 12, 31, 23, 00),

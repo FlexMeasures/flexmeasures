@@ -232,7 +232,7 @@ def get_most_recent_clocktime_window(
         and grace_period_in_seconds > 0
         and (now - last_full_minute).seconds < grace_period_in_seconds
     ):
-        last_full_minute -= timedelta(minutes=1)
+        last_full_minute -= timedelta(minutes=1 + grace_period_in_seconds // 60)
     last_round_minute = last_full_minute.minute - (
         last_full_minute.minute % window_size_in_minutes
     )
