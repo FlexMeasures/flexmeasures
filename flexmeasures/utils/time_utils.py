@@ -199,7 +199,9 @@ def get_most_recent_hour() -> datetime:
 
 
 def get_most_recent_clocktime_window(
-    window_size_in_minutes: int, now: Optional[datetime] = None
+    window_size_in_minutes: int,
+    now: Optional[datetime] = None,
+    grace_period_in_seconds: Optional[int] = 0,
 ) -> Tuple[datetime, datetime]:
     """
     Calculate a recent time window, returning a start and end minute so that
@@ -207,6 +209,9 @@ def get_most_recent_clocktime_window(
 
     Calling this function at 15:01:xx with window size 5 -> (14:55:00, 15:00:00)
     Calling this function at 03:36:xx with window size 15 -> (03:15:00, 03:30:00)
+
+    We can demand a grace period (of x seconds) to have passed before we are ready to accept that we're in a new window:
+    Calling this function at 15:00:16 with window size 5 and grace period of 30 seconds -> (14:50:00, 14:55:00)
 
     window_size_in_minutes is assumed to > 0 and < = 60, and a divisor of 60 (1, 2, ..., 30, 60).
 
@@ -221,7 +226,13 @@ def get_most_recent_clocktime_window(
     assert 60 % window_size_in_minutes == 0
     if now is None:
         now = server_now()
-    last_full_minute = now.replace(second=0, microsecond=0) - timedelta(minutes=1)
+    last_full_minute = now.replace(second=0, microsecond=0)
+    if (
+        grace_period_in_seconds is not None
+        and grace_period_in_seconds > 0
+        and (now - last_full_minute).seconds < grace_period_in_seconds
+    ):
+        last_full_minute -= timedelta(minutes=1)
     last_round_minute = last_full_minute.minute - (
         last_full_minute.minute % window_size_in_minutes
     )
