@@ -21,7 +21,6 @@ def schedule_charging_station(
     end: datetime,
     resolution: timedelta,
     storage_specs: dict,
-    prefer_charging_sooner: bool = True,
     consumption_price_sensor: Optional[Sensor] = None,
     production_price_sensor: Optional[Sensor] = None,
     inflexible_device_sensors: Optional[List[Sensor]] = None,
@@ -39,6 +38,7 @@ def schedule_charging_station(
     soc_min = storage_specs.get("soc_min")
     soc_max = storage_specs.get("soc_max")
     roundtrip_efficiency = storage_specs.get("roundtrip_efficiency")
+    prefer_charging_sooner = storage_specs.get("prefer_charging_sooner", True)
 
     # Check for required Sensor attributes
     sensor.check_required_attributes([("capacity_in_mw", (float, int))])

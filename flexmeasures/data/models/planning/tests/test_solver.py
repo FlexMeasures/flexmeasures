@@ -8,6 +8,7 @@ import pandas as pd
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
+from flexmeasures.data.models.planning.utils import ensure_storage_specs
 from flexmeasures.utils.calculations import integrate_time_series
 
 
@@ -26,12 +27,15 @@ def test_battery_solver_day_1(
     end = tz.localize(datetime(2015, 1, 2))
     resolution = timedelta(minutes=15)
     soc_at_start = battery.get_attribute("soc_in_mwh")
+    storage_specs = ensure_storage_specs(
+        dict(soc_at_start=soc_at_start), battery.id, start, end, resolution
+    )
     schedule = schedule_battery(
         battery,
         start,
         end,
         resolution,
-        soc_at_start,
+        storage_specs=storage_specs,
         inflexible_device_sensors=add_inflexible_device_forecasts.keys()
         if use_inflexible_device
         else None,
@@ -80,15 +84,24 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
     soc_at_start = battery.get_attribute("soc_in_mwh")
     soc_min = 0.5
     soc_max = 4.5
+    storage_specs = ensure_storage_specs(
+        dict(
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            roundtrip_efficiency=roundtrip_efficiency,
+        ),
+        battery.id,
+        start,
+        end,
+        resolution,
+    )
     schedule = schedule_battery(
         battery,
         start,
         end,
         resolution,
-        soc_at_start,
-        soc_min=soc_min,
-        soc_max=soc_max,
-        roundtrip_efficiency=roundtrip_efficiency,
+        storage_specs=storage_specs,
     )
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 
@@ -157,8 +170,15 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
         np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
     )
     soc_targets.loc[target_soc_datetime] = target_soc
+    storage_specs = ensure_storage_specs(
+        dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
+        charging_station.id,
+        start,
+        end,
+        resolution,
+    )
     consumption_schedule = schedule_charging_station(
-        charging_station, start, end, resolution, soc_at_start, soc_targets
+        charging_station, start, end, resolution, storage_specs=storage_specs
     )
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
@@ -214,8 +234,19 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
         np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
     )
     soc_targets.loc[target_soc_datetime] = target_soc
+    storage_specs = ensure_storage_specs(
+        dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
+        charging_station.id,
+        start,
+        end,
+        resolution,
+    )
     consumption_schedule = schedule_charging_station(
-        charging_station, start, end, resolution, soc_at_start, soc_targets
+        charging_station,
+        start,
+        end,
+        resolution,
+        storage_specs=storage_specs,
     )
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
@@ -263,14 +294,23 @@ def test_building_solver_day_2(
     soc_at_start = 2.5
     soc_min = 0.5
     soc_max = 4.5
+    storage_specs = ensure_storage_specs(
+        dict(
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+        ),
+        battery.id,
+        start,
+        end,
+        resolution,
+    )
     schedule = schedule_battery(
         battery,
         start,
         end,
         resolution,
-        soc_at_start,
-        soc_min=soc_min,
-        soc_max=soc_max,
+        storage_specs=storage_specs,
         inflexible_device_sensors=inflexible_devices.values(),
     )
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)

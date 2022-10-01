@@ -364,11 +364,13 @@ def post_udi_event_response(unit: str, prior: datetime):
         end_of_schedule,
         resolution=resolution,
         belief_time=prior,  # server time if no prior time was sent
-        soc_at_start=value,
-        soc_targets=soc_targets,
-        soc_min=soc_min,
-        soc_max=soc_max,
-        roundtrip_efficiency=roundtrip_efficiency,
+        storage_specs=dict(
+            soc_at_start=value,
+            soc_targets=soc_targets,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            roundtrip_efficiency=roundtrip_efficiency,
+        ),
         job_id=form.get("event"),
         enqueue=True,
     )

@@ -220,6 +220,9 @@ class SensorAPI(FlaskView):
                 ),
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
             "targets": fields.List(fields.Nested(TargetSchema), data_key="soc-targets"),
+            "prefer_charging_sooner": fields.Bool(
+                data_key="prefer-charging-sooner", required=False
+            ),
             # todo: add a duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
             "consumption_price_sensor": SensorIdField(
                 data_key="consumption-price-sensor", required=False
@@ -241,6 +244,7 @@ class SensorAPI(FlaskView):
         unit: str,
         prior: datetime,
         roundtrip_efficiency: Optional[ur.Quantity] = None,
+        prefer_charging_sooner: Optional[bool] = True,
         consumption_price_sensor: Optional[Sensor] = None,
         production_price_sensor: Optional[Sensor] = None,
         inflexible_device_sensors: Optional[List[Sensor]] = None,
@@ -274,6 +278,7 @@ class SensorAPI(FlaskView):
             - soc-max (defaults to max soc target)
             - soc-targets (defaults to NaN values)
             - roundtrip-efficiency (defaults to 100%)
+            - prefer-charging-sooner (defaults to True)
 
         2) Heat pump sensors are work in progress.
 
@@ -442,6 +447,7 @@ class SensorAPI(FlaskView):
                 soc_min=soc_min,
                 soc_max=soc_max,
                 roundtrip_efficiency=roundtrip_efficiency,
+                prefer_charging_sooner=prefer_charging_sooner,
             ),
             consumption_price_sensor=consumption_price_sensor,
             production_price_sensor=production_price_sensor,

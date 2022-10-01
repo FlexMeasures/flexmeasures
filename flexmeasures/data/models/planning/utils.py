@@ -44,7 +44,7 @@ def initialize_index(
 
 def ensure_storage_specs(
     specs: Optional[dict],
-    sensor_id: Sensor,
+    sensor_id: int,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     resolution: timedelta,
@@ -58,6 +58,7 @@ def ensure_storage_specs(
     - soc_max
     - soc_targets
     - roundtrip_efficiency
+    - prefer_charging_sooner
     """
     if specs is None:
         specs = {}
@@ -74,7 +75,7 @@ def ensure_storage_specs(
     # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
     # Otherwise, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
     # and without soc targets and limits the starting soc doesn't matter).
-    if "soc_at_start" not in specs:
+    if "soc_at_start" not in specs or specs["soc_at_start"] is None:
         sensor = ensure_sensor_is_set(sensor)
         if (
             start_of_schedule == sensor.get_attribute("soc_datetime")
@@ -85,7 +86,7 @@ def ensure_storage_specs(
             specs["soc_at_start"] = 0
 
     # init targets
-    if "soc_targets" not in specs:
+    if "soc_targets" not in specs or specs["soc_targets"] is None:
         specs["soc_targets"] = pd.Series(
             np.nan,
             index=pd.date_range(
@@ -98,11 +99,11 @@ def ensure_storage_specs(
     ]
 
     # Check for min and max SOC, or get default from sensor
-    if "soc_min" not in specs:
+    if "soc_min" not in specs or specs["soc_min"] is None:
         sensor = ensure_sensor_is_set(sensor)
         # Can't drain the EV battery by more than it contains
         specs["soc_min"] = sensor.get_attribute("min_soc_in_mwh", 0)
-    if "soc_max" not in specs:
+    if "soc_max" not in specs or specs["soc_max"] is None:
         sensor = ensure_sensor_is_set(sensor)
         # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
         specs["soc_max"] = sensor.get_attribute(
@@ -110,7 +111,7 @@ def ensure_storage_specs(
         )
 
     # Check for round-trip efficiency
-    if "roundtrip_efficiency" not in specs:
+    if "roundtrip_efficiency" not in specs or specs["roundtrip_efficiency"] is None:
         sensor = ensure_sensor_is_set(sensor)
         # Get default from sensor, or use 100% otherwise
         specs["roundtrip_efficiency"] = sensor.get_attribute("roundtrip_efficiency", 1)
