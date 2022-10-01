@@ -42,6 +42,84 @@ def initialize_index(
     return i
 
 
+def ensure_storage_specs(
+    specs: Optional[dict],
+    sensor_id: Sensor,
+    start_of_schedule: datetime,
+    end_of_schedule: datetime,
+    resolution: timedelta,
+) -> dict:
+    """
+    Check storage specs and fill in values from context, if possible.
+
+    Storage specs are:
+    - soc_at_start
+    - soc_min
+    - soc_max
+    - soc_targets
+    - roundtrip_efficiency
+    """
+    if specs is None:
+        specs = {}
+
+    sensor: Optional[Sensor] = None
+
+    def ensure_sensor_is_set(sensor) -> Sensor:
+        if sensor is None:
+            sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
+        return sensor
+
+    # Check state of charge
+    # Preferably, a starting soc is given.
+    # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
+    # Otherwise, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
+    # and without soc targets and limits the starting soc doesn't matter).
+    if "soc_at_start" not in specs:
+        sensor = ensure_sensor_is_set(sensor)
+        if (
+            start_of_schedule == sensor.get_attribute("soc_datetime")
+            and sensor.get_attribute("soc_in_mwh") is not None
+        ):
+            specs["soc_at_start"] = sensor.get_attribute("soc_in_mwh")
+        else:
+            specs["soc_at_start"] = 0
+
+    # init targets
+    if "soc_targets" not in specs:
+        specs["soc_targets"] = pd.Series(
+            np.nan,
+            index=pd.date_range(
+                start_of_schedule, end_of_schedule, freq=resolution, closed="right"
+            ),
+        )
+    # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
+    specs["soc_targets"] = specs["soc_targets"][
+        start_of_schedule + resolution : end_of_schedule
+    ]
+
+    # Check for min and max SOC, or get default from sensor
+    if "soc_min" not in specs:
+        sensor = ensure_sensor_is_set(sensor)
+        # Can't drain the EV battery by more than it contains
+        specs["soc_min"] = sensor.get_attribute("min_soc_in_mwh", 0)
+    if "soc_max" not in specs:
+        sensor = ensure_sensor_is_set(sensor)
+        # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
+        specs["soc_max"] = sensor.get_attribute(
+            "max_soc_in_mwh", max(specs["soc_targets"].values)
+        )
+
+    # Check for round-trip efficiency
+    if "roundtrip_efficiency" not in specs:
+        sensor = ensure_sensor_is_set(sensor)
+        # Get default from sensor, or use 100% otherwise
+        specs["roundtrip_efficiency"] = sensor.get_attribute("roundtrip_efficiency", 1)
+    if specs["roundtrip_efficiency"] <= 0 or specs["roundtrip_efficiency"] > 1:
+        raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
+
+    return specs
+
+
 def add_tiny_price_slope(
     prices: pd.DataFrame, col_name: str = "event_value", d: float = 10**-3
 ) -> pd.DataFrame:

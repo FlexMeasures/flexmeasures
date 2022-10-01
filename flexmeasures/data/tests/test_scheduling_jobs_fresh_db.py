@@ -47,8 +47,7 @@ def test_scheduling_a_charging_station(
         end,
         belief_time=start,
         resolution=resolution,
-        soc_at_start=soc_at_start,
-        soc_targets=soc_targets,
+        storage_specs=dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
     )
 
     print("Job: %s" % job.id)

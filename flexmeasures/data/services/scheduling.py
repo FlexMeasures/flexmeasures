@@ -7,8 +7,6 @@ from importlib.abc import Loader
 
 from flask import current_app
 import click
-import numpy as np
-import pandas as pd
 from rq import get_current_job
 from rq.job import Job
 import timely_beliefs as tb
@@ -16,6 +14,7 @@ import timely_beliefs as tb
 from flexmeasures.data import db
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
+from flexmeasures.data.models.planning.utils import ensure_storage_specs
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.utils import get_data_source, save_to_db
 
@@ -27,8 +26,9 @@ The life cycle of a scheduling job:
    This might re-enqueue the job or try a different model (which creates a new job).
 """
 
-
-DEFAULT_RESOLUTION = timedelta(minutes=15)
+DEFAULT_RESOLUTION = timedelta(
+    minutes=15
+)  # make_schedule can also fallback to sensor.event_resolution, trigger_schedule also uses that
 
 
 def create_scheduling_job(
@@ -37,18 +37,19 @@ def create_scheduling_job(
     end_of_schedule: datetime,
     belief_time: datetime,
     resolution: timedelta = DEFAULT_RESOLUTION,
-    soc_at_start: Optional[float] = None,
-    soc_targets: Optional[pd.Series] = None,
-    soc_min: Optional[float] = None,
-    soc_max: Optional[float] = None,
-    roundtrip_efficiency: Optional[float] = None,
     consumption_price_sensor: Optional[Sensor] = None,
     production_price_sensor: Optional[Sensor] = None,
     inflexible_device_sensors: Optional[List[Sensor]] = None,
     job_id: Optional[str] = None,
     enqueue: bool = True,
+    storage_specs: Optional[dict] = None,
 ) -> Job:
-    """Supporting quick retrieval of the scheduling job, the job id is the unique entity address of the UDI event.
+    """
+    Create a new Job, which is queued for later execution.
+
+    Before enqueing, we perform some checks on sensor type and specs, for errors we want to bubble up early.
+
+    To support quick retrieval of the scheduling job, the job id is the unique entity address of the UDI event.
     That means one event leads to one job (i.e. actions are event driven).
 
     Target SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
@@ -60,6 +61,10 @@ def create_scheduling_job(
         2010-01-01 06:00:00    3.0
         Freq: 15T, dtype: float64
     """
+    storage_specs = ensure_storage_specs(
+        storage_specs, sensor_id, start_of_schedule, end_of_schedule, resolution
+    )
+
     job = Job.create(
         make_schedule,
         kwargs=dict(
@@ -68,15 +73,11 @@ def create_scheduling_job(
             end=end_of_schedule,
             belief_time=belief_time,
             resolution=resolution,
-            soc_at_start=soc_at_start,
-            soc_targets=soc_targets,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
+            storage_specs=storage_specs,
             consumption_price_sensor=consumption_price_sensor,
             production_price_sensor=production_price_sensor,
             inflexible_device_sensors=inflexible_device_sensors,
-        ),
+        ),  # TODO: maybe also pass these sensors as IDs, to avoid potential db sessions confusion
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(
@@ -101,49 +102,31 @@ def make_schedule(
     end: datetime,
     belief_time: datetime,
     resolution: timedelta,
-    soc_at_start: Optional[float] = None,
-    soc_targets: Optional[pd.Series] = None,
-    soc_min: Optional[float] = None,
-    soc_max: Optional[float] = None,
-    roundtrip_efficiency: Optional[float] = None,
+    storage_specs: Optional[dict],
     consumption_price_sensor: Optional[Sensor] = None,
     production_price_sensor: Optional[Sensor] = None,
     inflexible_device_sensors: Optional[List[Sensor]] = None,
 ) -> bool:
-    """Preferably, a starting soc is given.
-    Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
-    Otherwise, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
-    and without soc targets and limits the starting soc doesn't matter).
+    """
+    This function is meant to be queued as a job.
+    It thus potentially runs on a different FlexMeasures node than where the job is created.
+
+    - Choose which scheduling function can be used
+    - Compute schedule
+    - Turn schedukled values into beliefs and save them to db
     """
     # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
     db.engine.dispose()
 
-    rq_job = get_current_job()
-
-    # find sensor
     sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
+    data_source_name = "Seita"
 
+    rq_job = get_current_job()
     if rq_job:
         click.echo(
             "Running Scheduling Job %s: %s, from %s to %s"
             % (rq_job.id, sensor, start, end)
         )
-
-    if soc_at_start is None:
-        if (
-            start == sensor.get_attribute("soc_datetime")
-            and sensor.get_attribute("soc_in_mwh") is not None
-        ):
-            soc_at_start = sensor.get_attribute("soc_in_mwh")
-        else:
-            soc_at_start = 0
-
-    if soc_targets is None:
-        soc_targets = pd.Series(
-            np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
-        )
-
-    data_source_name = "Seita"
 
     # Choose which algorithm to use
     if "custom-scheduler" in sensor.attributes:
@@ -171,11 +154,7 @@ def make_schedule(
         start,
         end,
         resolution,
-        soc_at_start,
-        soc_targets,
-        soc_min,
-        soc_max,
-        roundtrip_efficiency,
+        storage_specs=storage_specs,
         consumption_price_sensor=consumption_price_sensor,
         production_price_sensor=production_price_sensor,
         inflexible_device_sensors=inflexible_device_sensors,

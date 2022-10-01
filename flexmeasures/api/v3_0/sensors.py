@@ -204,7 +204,7 @@ class SensorAPI(FlaskView):
                 validate=validate.Range(min=0, max=1),
                 data_key="roundtrip-efficiency",
             ),
-            "value": fields.Float(data_key="soc-at-start"),
+            "start_value": fields.Float(data_key="soc-at-start"),
             "soc_min": fields.Float(data_key="soc-min"),
             "soc_max": fields.Float(data_key="soc-max"),
             "start_of_schedule": AwareDateTimeField(
@@ -251,11 +251,35 @@ class SensorAPI(FlaskView):
 
         .. :quickref: Schedule; Trigger scheduling job
 
-        The message should contain a flexibility model.
+        Trigger FlexMeasures to create a schedule for this sensor.
+        The assumption is that this sensor is the energy sensor on a flexible asset.
+
+        In this request, you can describe:
+
+        - the schedule (start, unit, prior)
+        - the flexibility model for the sensor (see below, only storage models are supported at the moment)
+        - the EMS the sensor operates in (inflexible device sensors, sensors which put a price on consumption and/or production)
+
+        Note: This endpoint does not support an EMS with multiple flexible sensors. This will happen in another endpoint.
+              See https://github.com/FlexMeasures/flexmeasures/issues/485
+
+        Flexibility models apply to the sensor's asset type:
+
+        1) For storage sensors (e.g. battery, charging stations), the schedule deals with the state of charge (SOC).
+           The possible flexibility parameters are:
+
+            - soc-at-start (defaults to 0)
+            - soc-unit (kWh or MWh)
+            - soc-min (defaults to 0)
+            - soc-max (defaults to max soc target)
+            - soc-targets (defaults to NaN values)
+            - roundtrip-efficiency (defaults to 100%)
+
+        2) Heat pump sensors are work in progress.
 
         **Example request A**
 
-        This message triggers a schedule starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
+        This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
 
         .. code-block:: json
 
@@ -324,19 +348,19 @@ class SensorAPI(FlaskView):
         # todo: if a soc-sensor entity address is passed, persist those values to the corresponding sensor
         #       (also update the note in posting_data.rst about flexibility states not being persisted).
 
-        # get value
-        if "value" not in kwargs:
+        # get starting value
+        if "start_value" not in kwargs:
             return ptus_incomplete()
         try:
-            value = float(kwargs.get("value"))  # type: ignore
+            start_value = float(kwargs.get("start_value"))  # type: ignore
         except ValueError:
             extra_info = "Request includes empty or ill-formatted value(s)."
             current_app.logger.warning(extra_info)
             return ptus_incomplete(extra_info)
         if unit == "kWh":
-            value = value / 1000.0
+            start_value = start_value / 1000.0
 
-        # Convert round-trip efficiency to dimensionless
+        # Convert round-trip efficiency to dimensionless (to the [0,1] range)
         if roundtrip_efficiency is not None:
             roundtrip_efficiency = roundtrip_efficiency.to(
                 ur.Quantity("dimensionless")
@@ -345,6 +369,7 @@ class SensorAPI(FlaskView):
         # get optional min and max SOC
         soc_min = kwargs.get("soc_min", None)
         soc_max = kwargs.get("soc_max", None)
+        # TODO: review when we moved away from capacity having to be described in MWh
         if soc_min is not None and unit == "kWh":
             soc_min = soc_min / 1000.0
         if soc_max is not None and unit == "kWh":
@@ -361,7 +386,7 @@ class SensorAPI(FlaskView):
                 start_of_schedule, end_of_schedule, freq=resolution, closed="right"
             ),  # note that target values are indexed by their due date (i.e. closed="right")
         )
-        # todo: move deserialization of targets into TargetSchema
+        # todo: move this deserialization of targets into newly-created ScheduleTargetSchema
         for target in kwargs.get("targets", []):
 
             # get target value
@@ -411,11 +436,13 @@ class SensorAPI(FlaskView):
             end_of_schedule,
             resolution=resolution,
             belief_time=prior,  # server time if no prior time was sent
-            soc_at_start=value,
-            soc_targets=soc_targets,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
+            storage_specs=dict(
+                soc_at_start=start_value,
+                soc_targets=soc_targets,
+                soc_min=soc_min,
+                soc_max=soc_max,
+                roundtrip_efficiency=roundtrip_efficiency,
+            ),
             consumption_price_sensor=consumption_price_sensor,
             production_price_sensor=production_price_sensor,
             inflexible_device_sensors=inflexible_device_sensors,

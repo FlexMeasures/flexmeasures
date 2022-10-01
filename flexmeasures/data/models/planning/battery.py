@@ -20,11 +20,7 @@ def schedule_battery(
     start: datetime,
     end: datetime,
     resolution: timedelta,
-    soc_at_start: float,
-    soc_targets: Optional[pd.Series] = None,
-    soc_min: Optional[float] = None,
-    soc_max: Optional[float] = None,
-    roundtrip_efficiency: Optional[float] = None,
+    storage_specs: dict,
     prefer_charging_sooner: bool = True,
     consumption_price_sensor: Optional[Sensor] = None,
     production_price_sensor: Optional[Sensor] = None,
@@ -37,6 +33,12 @@ def schedule_battery(
     For the resulting consumption schedule, consumption is defined as positive values.
     """
 
+    soc_at_start = storage_specs.get("soc_at_start")
+    soc_targets = storage_specs.get("soc_targets")
+    soc_min = storage_specs.get("soc_min")
+    soc_max = storage_specs.get("soc_max")
+    roundtrip_efficiency = storage_specs.get("roundtrip_efficiency")
+
     # Check for required Sensor attributes
     sensor.check_required_attributes(
         [
@@ -45,19 +47,6 @@ def schedule_battery(
             ("min_soc_in_mwh", (float, int)),
         ],
     )
-
-    # Check for round-trip efficiency
-    if roundtrip_efficiency is None:
-        # Get default from sensor, or use 100% otherwise
-        roundtrip_efficiency = sensor.get_attribute("roundtrip_efficiency", 1)
-    if roundtrip_efficiency <= 0 or roundtrip_efficiency > 1:
-        raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
-
-    # Check for min and max SOC, or get default from sensor
-    if soc_min is None:
-        soc_min = sensor.get_attribute("min_soc_in_mwh")
-    if soc_max is None:
-        soc_max = sensor.get_attribute("max_soc_in_mwh")
 
     # Check for known prices or price forecasts, trimming planning window accordingly
     up_deviation_prices, (start, end) = get_prices(
@@ -77,12 +66,9 @@ def schedule_battery(
         allow_trimmed_query_window=True,
     )
 
+    soc_targets = soc_targets.tz_convert("UTC")
     start = pd.Timestamp(start).tz_convert("UTC")
     end = pd.Timestamp(end).tz_convert("UTC")
-    if soc_targets is not None:
-        # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
-        soc_targets = soc_targets.tz_convert("UTC")
-        soc_targets = soc_targets[start + resolution : end]
 
     # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
     # We penalise the future with at most 1 per thousand times the price spread.
