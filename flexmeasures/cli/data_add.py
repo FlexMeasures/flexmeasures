@@ -958,11 +958,13 @@ def create_schedule(
             end_of_schedule=end,
             belief_time=server_now(),
             resolution=power_sensor.event_resolution,
-            soc_at_start=soc_at_start,
-            soc_targets=soc_targets,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
+            storage_specs=dict(
+                soc_at_start=soc_at_start,
+                soc_targets=soc_targets,
+                soc_min=soc_min,
+                soc_max=soc_max,
+                roundtrip_efficiency=roundtrip_efficiency,
+            ),
             consumption_price_sensor=consumption_price_sensor,
             production_price_sensor=production_price_sensor,
         )
