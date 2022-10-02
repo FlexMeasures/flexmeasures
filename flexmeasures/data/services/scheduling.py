@@ -26,17 +26,13 @@ The life cycle of a scheduling job:
    This might re-enqueue the job or try a different model (which creates a new job).
 """
 
-DEFAULT_RESOLUTION = timedelta(
-    minutes=15
-)  # make_schedule can also fallback to sensor.event_resolution, trigger_schedule also uses that
-
 
 def create_scheduling_job(
     sensor_id: int,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     belief_time: datetime,
-    resolution: timedelta = DEFAULT_RESOLUTION,
+    resolution: timedelta,
     consumption_price_sensor: Optional[Sensor] = None,
     production_price_sensor: Optional[Sensor] = None,
     inflexible_device_sensors: Optional[List[Sensor]] = None,

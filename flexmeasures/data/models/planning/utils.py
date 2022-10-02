@@ -85,7 +85,7 @@ def ensure_storage_specs(
         else:
             specs["soc_at_start"] = 0
 
-    # init targets
+    # init default targets
     if "soc_targets" not in specs or specs["soc_targets"] is None:
         specs["soc_targets"] = pd.Series(
             np.nan,
