@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from typing import List, Optional, Union
 
 from flask import current_app
-from timely_beliefs import BeliefsDataFrame
+from timely_beliefs import BeliefsDataFrame, BeliefsSeries
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -50,7 +52,7 @@ def get_data_source(
 
 
 def save_to_db(
-    data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
+    data: BeliefsDataFrame | BeliefsSeries | list[BeliefsDataFrame | BeliefsSeries],
     bulk_save_objects: bool = False,
     save_changed_beliefs_only: bool = True,
 ) -> str:
@@ -100,6 +102,10 @@ def save_to_db(
         if timed_values.empty:
             # Nothing to save
             continue
+
+        # Convert series to frame if needed
+        if isinstance(timed_values, BeliefsSeries):
+            timed_values = timed_values.rename("event_value").to_frame()
 
         len_before = len(timed_values)
         if save_changed_beliefs_only:
