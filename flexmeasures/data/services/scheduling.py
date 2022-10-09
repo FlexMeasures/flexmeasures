@@ -16,6 +16,7 @@ import timely_beliefs as tb
 from flexmeasures.data import db
 from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
+from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.utils import get_data_source, save_to_db
 
@@ -139,8 +140,8 @@ def make_schedule(
             soc_at_start = 0
 
     if soc_targets is None:
-        soc_targets = pd.Series(
-            np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
+        soc_targets = initialize_series(
+            data=np.nan, start=start, end=end, resolution=resolution, inclusive="right"
         )
 
     data_source_name = "Seita"

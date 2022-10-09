@@ -326,11 +326,11 @@ def device_scheduler(  # noqa C901
             for j in model.j
         ]
         planned_power_per_device.append(
-            pd.Series(
-                index=pd.date_range(
-                    start=start, end=end, freq=to_offset(resolution), closed="left"
-                ),
+            initialize_series(
                 data=planned_device_power,
+                start=start,
+                end=end,
+                resolution=to_offset(resolution),
             )
         )
 
