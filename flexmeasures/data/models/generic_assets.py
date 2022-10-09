@@ -448,7 +448,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         sensor_map = {
             sensor.id: sensor
             for sensor in get_sensors(
-                accounts=[self.owner],
+                account=self.owner,
                 include_public_assets=True,
                 filter_by_sensor_ids=sensor_ids,
             )
