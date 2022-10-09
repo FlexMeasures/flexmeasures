@@ -7,24 +7,25 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 
 
 def get_sensors(
-    accounts: list[Account | None] = None,
+    accounts: list[Account] = None,
+    include_public_assets: bool = False,
     filter_by_sensor_ids: list[int] | None = None,
     filter_by_sensor_names: list[str] | None = None,
 ) -> list[Sensor]:
     """Return a list of Sensor objects that belong to any of the given accounts, and/or public sensors.
 
     :param accounts:                optionally, select only sensors from this list of accounts
-                                    (include None to select sensors that belong to a public asset).
-    :param filter_by_sensor_ids:    optionally, filter by sensor id.
-    :param filter_by_sensor_names:  optionally, filter by sensor name.
+    :param include_public_assets:   if True, include sensors that belong to a public asset
+    :param filter_by_sensor_ids:    optionally, filter by sensor id
+    :param filter_by_sensor_names:  optionally, filter by sensor name
     """
     sensor_query = Sensor.query
     if accounts is not None:
-        account_ids = [account.id for account in accounts if account is not None]
+        account_ids = [account.id for account in accounts]
         sensor_query = sensor_query.join(GenericAsset).filter(
             Sensor.generic_asset_id == GenericAsset.id
         )
-        if None in accounts:
+        if include_public_assets:
             sensor_query = sensor_query.filter(
                 sa.or_(
                     GenericAsset.account_id.in_(account_ids),
