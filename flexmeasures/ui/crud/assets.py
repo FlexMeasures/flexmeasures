@@ -39,12 +39,12 @@ class AssetForm(FlaskForm):
     name = StringField("Name")
     latitude = DecimalField(
         "Latitude",
-        places=4,
+        places=None,
         render_kw={"placeholder": "--Click the map or enter a latitude--"},
     )
     longitude = DecimalField(
         "Longitude",
-        places=4,
+        places=None,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
