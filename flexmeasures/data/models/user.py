@@ -67,7 +67,7 @@ class Account(db.Model, AuthModelMixin):
     )
 
     def __repr__(self):
-        return "<Account %s (ID:%s)" % (self.name, self.id)
+        return "<Account %s (ID:%s)>" % (self.name, self.id)
 
     def __acl__(self):
         """
