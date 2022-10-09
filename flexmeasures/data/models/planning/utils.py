@@ -157,6 +157,10 @@ def get_power_values(
             f"Assuming zero power values for (partially) unknown power values for planning window. (sensor {sensor.id})"
         )
         df = df.fillna(0)
+    if sensor.get_attribute(
+        "consumption_is_positive", False
+    ):  # FlexMeasures default is to store consumption as negative power values
+        return df.values
     return -df.values
 
 
