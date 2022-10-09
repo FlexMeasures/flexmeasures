@@ -335,6 +335,12 @@ def add_initial_structure():
     help="Additional strings to recognize as NaN values. This argument can be given multiple times.",
 )
 @click.option(
+    "--keep-default-na",
+    default=False,
+    type=bool,
+    help="Whether or not to keep NaN values in the data.",
+)
+@click.option(
     "--nrows",
     required=False,
     type=int,
@@ -416,6 +422,7 @@ def add_beliefs(
     allow_overwrite: bool = False,
     skiprows: int = 1,
     na_values: List[str] = None,
+    keep_default_na: bool = False,
     nrows: Optional[int] = None,
     datecol: int = 0,
     valuecol: int = 1,
@@ -494,6 +501,7 @@ def add_beliefs(
         else [datecol, beliefcol, valuecol],
         parse_dates=True,
         na_values=na_values,
+        keep_default_na=keep_default_na,
         timezone=timezone,
         filter_by_column=filter_by_column,
         **kwargs,
