@@ -258,15 +258,23 @@ def list_data_sources():
     type=DataSourceIdField(),
     help="Source of the beliefs (an existing source id).",
 )
+@click.option(
+    "--to-file",
+    "filepath",
+    required=False,
+    type=str,
+    help="Set a filepath to store the beliefs as a CSV file.",
+)
 def plot_beliefs(
     sensors: List[Sensor],
     start: datetime,
     duration: timedelta,
     belief_time_before: Optional[datetime],
     source: Optional[DataSource],
+    filepath: Optional[str],
 ):
     """
-    Show a simple plot of belief data directly in the terminal.
+    Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.
     """
     sensors = list(sensors)
     minimum_resampling_resolution = determine_minimum_resampling_resolution(
@@ -325,6 +333,12 @@ def plot_beliefs(
         if shared_unit
         else [s.name + f" (in {s.unit})" for s in sensors],
     )
+    if filepath is not None:
+        df.columns = pd.MultiIndex.from_arrays(
+            [df.columns, [df.sensor.unit for df in beliefs_by_sensor.values()]]
+        )
+        df.to_csv(filepath)
+        click.echo("Data saved to file.")
 
 
 app.cli.add_command(fm_show_data)
