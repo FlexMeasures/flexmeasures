@@ -8,6 +8,7 @@ The preferred compact form for combinations of units can be derived automaticall
 Time series with fixed resolution can be converted from units of flow to units of stock (such as 'kW' to 'kWh'), and vice versa.
 Percentages can be converted to units of some physical capacity if a capacity is known (such as '%' to 'kWh').
 """
+from __future__ import annotations
 
 from datetime import timedelta
 from typing import List, Optional, Union
@@ -215,6 +216,14 @@ def convert_units(
     capacity: Optional[str] = None,
 ) -> Union[pd.Series, List[Union[int, float]], int, float]:
     """Updates data values to reflect the given unit conversion."""
+    if from_unit == "datetime":
+        return (
+            pd.to_datetime(data) - pd.Timestamp("1970-01-01", tz="utc")
+        ) // pd.Timedelta("1s")
+    if from_unit == "timedelta":
+        if to_unit[0].isdigit():
+            return data / pd.Timedelta(to_unit)
+        return data / pd.Timedelta(1, to_unit)
 
     if from_unit != to_unit:
         from_magnitudes = (
