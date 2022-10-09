@@ -1126,7 +1126,7 @@ def check_errors(errors: Dict[str, List[str]]):
 
 def parse_source(source):
     if source.isdigit():
-        _source = get_source_or_none(int(source), source_type="CLI script")
+        _source = get_source_or_none(int(source))
         if not _source:
             print(f"Failed to find source {source}.")
             return

@@ -42,7 +42,15 @@ def get_or_create_source(
     return _source
 
 
-def get_source_or_none(source: int, source_type: str) -> Optional[DataSource]:
-    query = DataSource.query.filter(DataSource.type == source_type)
+def get_source_or_none(
+    source: int | str, source_type: str | None = None
+) -> DataSource | None:
+    """
+    :param source:      source id
+    :param source_type: optionally, filter by source type
+    """
+    query = DataSource.query
+    if source_type is not None:
+        query = query.filter(DataSource.type == source_type)
     query = query.filter(DataSource.id == int(source))
     return query.one_or_none()
