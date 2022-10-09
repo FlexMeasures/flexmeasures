@@ -361,6 +361,12 @@ def add_initial_structure():
     help="Column number with datetimes",
 )
 @click.option(
+    "--timezone",
+    required=False,
+    default="UTC",
+    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+)
+@click.option(
     "--filter-column",
     "filter_columns",
     multiple=True,
@@ -414,6 +420,7 @@ def add_beliefs(
     datecol: int = 0,
     valuecol: int = 1,
     beliefcol: Optional[int] = None,
+    timezone: Optional[str] = None,
     filter_columns: List[int] = None,
     filter_values: List[int] = None,
     delimiter: str = ",",
@@ -487,6 +494,7 @@ def add_beliefs(
         else [datecol, beliefcol, valuecol],
         parse_dates=True,
         na_values=na_values,
+        timezone=timezone,
         filter_by_column=filter_by_column,
         **kwargs,
     )
