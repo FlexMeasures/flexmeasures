@@ -361,6 +361,18 @@ def add_initial_structure():
     help="Column number with datetimes",
 )
 @click.option(
+    "--filter-column",
+    "filter_columns",
+    multiple=True,
+    help="Set a column number to filter data. Use together with --filter-value.",
+)
+@click.option(
+    "--filter-value",
+    "filter_values",
+    multiple=True,
+    help="Set a column value to filter data. Use together with --filter-column.",
+)
+@click.option(
     "--delimiter",
     required=True,
     type=str,
@@ -402,6 +414,8 @@ def add_beliefs(
     datecol: int = 0,
     valuecol: int = 1,
     beliefcol: Optional[int] = None,
+    filter_columns: List[int] = None,
+    filter_values: List[int] = None,
     delimiter: str = ",",
     decimal: str = ".",
     thousands: Optional[str] = None,
@@ -451,6 +465,14 @@ def add_beliefs(
     elif beliefcol is None:
         kwargs["belief_time"] = server_now().astimezone(pytz.timezone(sensor.timezone))
 
+    # Set up optional filters:
+    if len(filter_columns) != len(filter_values):
+        raise ValueError(
+            "The number of filter columns and filter values should be the same."
+        )
+    filter_by_column = (
+        dict(zip(filter_columns, filter_values)) if filter_columns else None
+    )
     bdf = tb.read_csv(
         file,
         sensor,
@@ -465,6 +487,7 @@ def add_beliefs(
         else [datecol, beliefcol, valuecol],
         parse_dates=True,
         na_values=na_values,
+        filter_by_column=filter_by_column,
         **kwargs,
     )
     duplicate_rows = bdf.index.duplicated(keep="first")
