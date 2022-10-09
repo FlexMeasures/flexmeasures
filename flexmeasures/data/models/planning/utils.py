@@ -150,11 +150,13 @@ def get_power_values(
         one_deterministic_belief_per_event=True,
     )  # consumption is negative, production is positive
     df = simplify_index(bdf)
+    df = df.reindex(initialize_index(query_window[0], query_window[1], resolution))
     nan_values = df.isnull().values
     if nan_values.any() or df.empty:
-        raise UnknownForecastException(
-            f"Forecasts unknown for planning window. (sensor {sensor.id})"
+        current_app.logger.warning(
+            f"Assuming zero power values for (partially) unknown power values for planning window. (sensor {sensor.id})"
         )
+        df = df.fillna(0)
     return -df.values
 
 
