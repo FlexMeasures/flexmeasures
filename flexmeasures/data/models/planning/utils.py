@@ -1,3 +1,4 @@
+from packaging import version
 from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
 
@@ -6,6 +7,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
+from timely_beliefs.beliefs import utils as belief_utils
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
@@ -28,18 +30,34 @@ def initialize_series(
     start: datetime,
     end: datetime,
     resolution: timedelta,
+    inclusive: str = "left",
 ) -> pd.Series:
-    s = pd.Series(index=initialize_index(start, end, resolution), data=data)
+    s = pd.Series(index=initialize_index(start, end, resolution, inclusive), data=data)
     return s
 
 
 def initialize_index(
-    start: Union[date, datetime], end: Union[date, datetime], resolution: timedelta
+    start: Union[date, datetime],
+    end: Union[date, datetime],
+    resolution: timedelta,
+    inclusive: str = "left",
 ) -> pd.DatetimeIndex:
-    i = pd.date_range(
-        start=start, end=end, freq=to_offset(resolution), closed="left", name="datetime"
-    )
-    return i
+    if version.parse(pd.__version__) >= version.parse("1.4.0"):
+        return pd.date_range(
+            start=start,
+            end=end,
+            freq=to_offset(resolution),
+            inclusive=inclusive,
+            name="datetime",
+        )
+    else:
+        return pd.date_range(
+            start=start,
+            end=end,
+            freq=to_offset(resolution),
+            closed=inclusive,
+            name="datetime",
+        )
 
 
 def add_tiny_price_slope(
