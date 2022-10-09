@@ -450,7 +450,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             for sensor in get_sensors(
                 account=self.owner,
                 include_public_assets=True,
-                filter_by_sensor_ids=sensor_ids,
+                sensor_id_allowlist=sensor_ids,
             )
         }
 
