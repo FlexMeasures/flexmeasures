@@ -9,7 +9,6 @@ import timely_beliefs as tb
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
-    UnknownForecastException,
     UnknownMarketException,
     UnknownPricesException,
 )
