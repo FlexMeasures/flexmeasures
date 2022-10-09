@@ -20,7 +20,10 @@ from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
-from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.time_utils import (
+    determine_minimum_resampling_resolution,
+    server_now,
+)
 
 
 class GenericAssetType(db.Model):
@@ -382,18 +385,13 @@ class GenericAsset(db.Model, AuthModelMixin):
             from flexmeasures.data.services.time_series import simplify_index
 
             if sensors:
-                condition = list(
-                    bdf.event_resolution
-                    for bdf in bdf_dict.values()
-                    if bdf.event_resolution > timedelta(0)
-                )
-                minimum_non_zero_resolution = (
-                    min(condition) if any(condition) else timedelta(0)
+                minimum_resampling_resolution = determine_minimum_resampling_resolution(
+                    bdf_dict.values()
                 )
                 df_dict = {}
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):
-                        bdf = bdf.resample_events(minimum_non_zero_resolution)
+                        bdf = bdf.resample_events(minimum_resampling_resolution)
                     bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
                     df = simplify_index(
                         bdf,
@@ -406,7 +404,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                         else ["belief_time", "source"],
                         append=True,
                     )
-                    df["sensor"] = sensor  # or some JSONfiable representation
+                    df["sensor"] = sensor  # or some JSONifiable representation
                     df = df.set_index(["sensor"], append=True)
                     df_dict[sensor.id] = df
                 df = pd.concat(df_dict.values())
