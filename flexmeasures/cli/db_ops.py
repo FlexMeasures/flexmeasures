@@ -95,10 +95,7 @@ def dump():
     dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
     command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
     try:
-        proc = subprocess.Popen(command_for_dumping, shell=True)  # , env={
-        # 'PGPASSWORD': DB_PASSWORD
-        # })
-        proc.wait()
+        subprocess.check_output(command_for_dumping, shell=True)
         click.echo(f"db dump successful: saved to {dump_filename}")
 
     except Exception as e:
