@@ -5,16 +5,14 @@ ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
 
 # pre-requisites
-RUN apt-get update && apt-get install -y --upgrade python3 python3-pip git curl gunicorn coinor-cbc
+RUN apt-get update && apt-get install --no-install-recommends -y --upgrade python3 python3-pip git curl gunicorn coinor-cbc && apt-get clean
 
 WORKDIR /app
 # requirements - doing this earlier, so we don't install them each time. Use --no-cache to refresh them.
 COPY requirements /app/requirements
 
 # py dev tooling
-RUN python3 -m pip install --upgrade pip && python3 --version
-RUN pip3 install --upgrade setuptools
-RUN pip3 install -r requirements/app.txt -r requirements/dev.txt -r requirements/test.txt
+RUN python3 -m pip install --no-cache-dir  --upgrade pip && python3 --version && pip3 install --no-cache-dir --upgrade setuptools && pip3 install --no-cache-dir -r requirements/app.txt -r requirements/dev.txt -r requirements/test.txt
 
 # Copy code and meta/config data
 COPY setup.* .flaskenv wsgi.py /app/
@@ -22,7 +20,7 @@ COPY flexmeasures/ /app/flexmeasures
 RUN find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
 COPY .git/ /app/.git
 
-RUN pip3 install .
+RUN pip3 install --no-cache-dir .
 
 EXPOSE 5000
 
