@@ -18,6 +18,7 @@ Bugfixes
 Infrastructure / Support
 ----------------------
 
+* Reduce size of Docker image (from 2GB to 1.4GB) [see `PR #512 <http://www.github.com/FlexMeasures/flexmeasures/pull/512>`_]
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
 
 
