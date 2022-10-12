@@ -325,6 +325,10 @@ function submit_sensor_type() {
  *                     'format': [<d3-format>, <breakpoint>],
  *                     'formatType': 'timedeltaFormat'
  *                 }
+ *            <d3-format>  is a d3 format identifier, e.g. 'd' for decimal notation, rounded to integer.
+ *                         See https://github.com/d3/d3-format for more details.
+ *            <breakpoint> is a scalar that decides the breakpoint from one duration unit to the next larger unit.
+  *                        For example, a breakpoint of 4 means we format 4 days as '4 days', but 3.96 days as '95 hours'.
  */
 vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
     return d3.format(params[0])(datum) + " " + params[1];
