@@ -166,8 +166,8 @@ class AssetAPI(FlaskView):
             **{attr: getattr(asset, attr) for attr in attributes},
             **{
                 "timerange_of_sensors_to_show": {
-                    'start': datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                    'end': datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc)
+                    "start": datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
+                    "end": datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc),
                 },
             },
         }

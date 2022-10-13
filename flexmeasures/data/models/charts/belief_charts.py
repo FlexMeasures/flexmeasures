@@ -141,7 +141,7 @@ def chart_for_multiple_sensors(
                     },
                     "legend": {
                         # Belief horizons binned as 1 ms contain ex-ante beliefs; the other bin contains ex-post beliefs
-                        "labelExpr": f"datum.label > 0 ? 'ex ante' : 'ex post'",
+                        "labelExpr": "datum.label > 0 ? 'ex ante' : 'ex post'",
                         "title": "Recorded",
                     },
                     "scale": {
