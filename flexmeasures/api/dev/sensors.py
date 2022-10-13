@@ -159,18 +159,8 @@ class AssetAPI(FlaskView):
 
         .. :quickref: Chart; Download asset attributes for use in charts
         """
-        # attributes = ["name", "timezone", "timerange_of_sensors_to_show"]
-        # return {attr: getattr(asset, attr) for attr in attributes}
-        attributes = ["name", "timezone"]  # , "timerange_of_sensors_to_show"]
-        return {
-            **{attr: getattr(asset, attr) for attr in attributes},
-            **{
-                "timerange_of_sensors_to_show": {
-                    "start": datetime.datetime(2020, 12, 3, 14, 0, tzinfo=pytz.utc),
-                    "end": datetime.datetime(2020, 12, 3, 14, 30, tzinfo=pytz.utc),
-                },
-            },
-        }
+        attributes = ["name", "timezone", "timerange_of_sensors_to_show"]
+        return {attr: getattr(asset, attr) for attr in attributes}
 
 
 def get_sensor_or_abort(id: int) -> Sensor:
