@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Optional
 
 import sqlalchemy as sa
 
@@ -8,7 +7,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 
 
 def get_sensors(
-    account: Optional[Account | list[Account]],
+    account: Account | list[Account] | None,
     include_public_assets: bool = False,
     sensor_id_allowlist: list[int] | None = None,
     sensor_name_allowlist: list[str] | None = None,
