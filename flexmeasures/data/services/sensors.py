@@ -7,7 +7,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 
 
 def get_sensors(
-    account: Account | list[Account],
+    account: Account | list[Account] | None,
     include_public_assets: bool = False,
     sensor_id_allowlist: list[int] | None = None,
     sensor_name_allowlist: list[str] | None = None,
@@ -20,7 +20,9 @@ def get_sensors(
     :param sensor_name_allowlist:   optionally, allow only sensors whose name is in this list
     """
     sensor_query = Sensor.query
-    if isinstance(account, list):
+    if account is None:
+        account_ids = []
+    elif isinstance(account, list):
         account_ids = [account.id for account in account]
     else:
         account_ids = [account.id]
