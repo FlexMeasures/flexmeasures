@@ -99,6 +99,13 @@ def chart_for_multiple_sensors(
             }
         shared_tooltip = [
             FIELD_DEFINITIONS["full_date"],
+            dict(
+                field="belief_horizon",
+                type="quantitative",
+                title="Horizon",
+                format=["d", 4],
+                formatType="timedeltaFormat",
+            ),
             {
                 **event_value_field_definition,
                 **dict(title=f"{capitalize(sensor.sensor_type)}"),
@@ -106,27 +113,54 @@ def chart_for_multiple_sensors(
             FIELD_DEFINITIONS["source_name"],
             FIELD_DEFINITIONS["source_model"],
         ]
+        line_layer = {
+            "mark": {
+                "type": "line",
+                "interpolate": "step-after"
+                if sensor.event_resolution != timedelta(0)
+                else "linear",
+                "clip": True,
+            },
+            "encoding": {
+                "x": event_start_field_definition,
+                "y": event_value_field_definition,
+                "color": FIELD_DEFINITIONS["source_name"],
+                "strokeDash": {
+                    "field": "belief_horizon",
+                    "type": "quantitative",
+                    "bin": {
+                        # Divide belief horizons into 2 bins by setting a very large bin size.
+                        # The bins should be defined as follows: ex ante (>0) and ex post (<=0),
+                        # but because the bin anchor is included in the ex-ante bin,
+                        # and 0 belief horizons should be attributed to the ex-post bin,
+                        # (and belief horizons are given with 1 ms precision,)
+                        # the bin anchor is set at 1 ms before knowledge time to obtain: ex ante (>=1) and ex post (<1).
+                        "anchor": 1,
+                        "step": 8640000000000000,  # JS max ms for a Date object (NB 10 times less than Python max ms)
+                        # "step": timedelta.max.total_seconds() * 10**2,
+                    },
+                    "legend": {
+                        # Belief horizons binned as 1 ms contain ex-ante beliefs; the other bin contains ex-post beliefs
+                        "labelExpr": "datum.label > 0 ? 'ex ante' : 'ex post'",
+                        "title": "Recorded",
+                    },
+                    "scale": {
+                        # Positive belief horizons are clamped to 1, negative belief horizons are clamped to 0
+                        "domain": [1, 0],
+                        # belief horizons >= 1 ms get a dashed line, belief horizons < 1 ms get a solid line
+                        "range": [[1, 2], [1, 0]],
+                    },
+                },
+                "detail": FIELD_DEFINITIONS["source"],
+            },
+        }
         sensor_specs = {
             "title": capitalize(sensor.name)
             if sensor.name != sensor.sensor_type
             else None,
             "transform": [{"filter": f"datum.sensor.id == {sensor.id}"}],
             "layer": [
-                {
-                    "mark": {
-                        "type": "line",
-                        "interpolate": "step-after"
-                        if sensor.event_resolution != timedelta(0)
-                        else "linear",
-                        "clip": True,
-                    },
-                    "encoding": {
-                        "x": event_start_field_definition,
-                        "y": event_value_field_definition,
-                        "color": FIELD_DEFINITIONS["source_name"],
-                        "detail": FIELD_DEFINITIONS["source"],
-                    },
-                },
+                line_layer,
                 {
                     "mark": {
                         "type": "rect",
