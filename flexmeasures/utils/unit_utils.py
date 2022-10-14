@@ -218,7 +218,7 @@ def convert_units(
     """Updates data values to reflect the given unit conversion."""
     if from_unit == "datetime":
         return (
-            pd.to_datetime(data) - pd.Timestamp("1970-01-01", tz="utc")
+            pd.to_datetime(data, utc=True) - pd.Timestamp("1970-01-01", tz="utc")
         ) // pd.Timedelta("1s")
     if from_unit == "timedelta":
         if to_unit[0].isdigit():
