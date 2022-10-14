@@ -321,7 +321,7 @@ tabulate==0.8.10
     # via -r requirements/app.in
 threadpoolctl==3.1.0
     # via scikit-learn
-timely-beliefs==1.11.5
+timely-beliefs==1.13.0
     # via -r requirements/app.in
 timetomodel==0.7.1
     # via -r requirements/app.in
