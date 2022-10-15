@@ -35,7 +35,7 @@ The following minimal example gives you an idea of the inputs and outputs:
     ):
         """Just a dummy scheduler, advising to do nothing"""
         return pd.Series(
-            0, index=pd.date_range(start, end, freq=resolution, inclusive="left")
+            0, index=pd.date_range(start, end, freq=resolution, closed="left")
         )
 
 

@@ -59,7 +59,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
 
 
 scheduler_specs = {
-    "module": None,
+    "module": None,  # use make_module_descr, see below
     "function": "compute_a_schedule",
     "source": "Test Source",
 }

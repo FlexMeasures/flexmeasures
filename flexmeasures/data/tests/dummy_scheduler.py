@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta
 
-import pandas as pd
-
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.planning.utils import initialize_series
 
 
 def compute_a_schedule(
@@ -14,7 +13,9 @@ def compute_a_schedule(
     **kwargs
 ):
     """Just a dummy scheduler."""
-    return pd.Series(
-        sensor.get_attribute("capacity_in_mw"),
-        index=pd.date_range(start, end, freq=resolution, inclusive="left"),
+    return initialize_series(  # simply creates a Pandas Series repeating one value
+        data=sensor.get_attribute("capacity_in_mw"),
+        start=start,
+        end=end,
+        resolution=resolution,
     )
