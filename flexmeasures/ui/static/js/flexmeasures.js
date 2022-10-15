@@ -311,13 +311,33 @@ function submit_sensor_type() {
     $("#sensor_type-form").attr("action", empty_location).submit();
 }
 
-/** Tooltips: Register custom formatter for quantities incl. units
-              Usage:
-                  {
-                      'format': [<d3-format>, <sensor unit>],
-                      'formatType': 'quantityWithUnitFormat'
-                  }
-*/
+/** Tooltips: Register custom formatters
+ *
+ *          - Quantities incl. units
+ *            Usage:
+ *                 {
+ *                     'format': [<d3-format>, <sensor unit>],
+ *                     'formatType': 'quantityWithUnitFormat'
+ *                 }
+ *          - Timedeltas measured in human-readable quantities (usually not milliseconds)
+ *            Usage:
+ *                 {
+ *                     'format': [<d3-format>, <breakpoint>],
+ *                     'formatType': 'timedeltaFormat'
+ *                 }
+ *            <d3-format>  is a d3 format identifier, e.g. 'd' for decimal notation, rounded to integer.
+ *                         See https://github.com/d3/d3-format for more details.
+ *            <breakpoint> is a scalar that decides the breakpoint from one duration unit to the next larger unit.
+  *                        For example, a breakpoint of 4 means we format 4 days as '4 days', but 3.96 days as '95 hours'.
+ */
 vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
     return d3.format(params[0])(datum) + " " + params[1];
+});
+vega.expressionFunction('timedeltaFormat', function(timedelta, params) {
+    return (Math.abs(timedelta) > 1000 * 60 * 60 * 24 * 365.2425 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60 * 24 * 365.2425)) + " years"
+        : Math.abs(timedelta) > 1000 * 60 * 60 * 24 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60 * 24)) + " days"
+        : Math.abs(timedelta) > 1000 * 60 * 60 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60 * 60)) + " hours"
+        : Math.abs(timedelta) > 1000 * 60 * params[1] ? d3.format(params[0])(timedelta / (1000 * 60)) + " minutes"
+        : Math.abs(timedelta) > 1000 * params[1] ? d3.format(params[0])(timedelta / 1000) + " seconds"
+        : d3.format(params[0])(timedelta) + " milliseconds");
 });
