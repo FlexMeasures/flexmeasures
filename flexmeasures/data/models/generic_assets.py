@@ -394,6 +394,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 for sensor, bdf in bdf_dict.items():
                     if bdf.event_resolution > timedelta(0):
                         bdf = bdf.resample_events(minimum_non_zero_resolution)
+                    bdf["belief_horizon"] = bdf.belief_horizons.to_numpy()
                     df = simplify_index(
                         bdf,
                         index_levels_to_columns=["source"]
@@ -431,18 +432,27 @@ class GenericAsset(db.Model, AuthModelMixin):
     def sensors_to_show(self) -> List["Sensor"]:  # noqa F821
         """Sensors to show, as defined by the sensors_to_show attribute.
 
+        Sensors to show are defined as a list of sensor ids, which
+        is set by the "sensors_to_show" field of the asset's "attributes" column.
+        Valid sensors either belong to the asset itself, to other assets in the same account,
+        or to public assets.
+
+
         Defaults to two of the asset's sensors.
         """
         if not self.has_attribute("sensors_to_show"):
             return self.sensors[:2]
 
-        from flexmeasures.data.services.sensors import get_public_sensors
+        from flexmeasures.data.services.sensors import get_sensors
 
         sensor_ids = self.get_attribute("sensors_to_show")
         sensor_map = {
             sensor.id: sensor
-            for sensor in self.sensors + get_public_sensors(sensor_ids)
-            if sensor.id in sensor_ids
+            for sensor in get_sensors(
+                account=self.owner,
+                include_public_assets=True,
+                sensor_id_allowlist=sensor_ids,
+            )
         }
 
         # Return sensors in the order given by the sensors_to_show attribute

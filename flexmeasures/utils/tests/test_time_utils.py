@@ -97,48 +97,72 @@ def test_naturalized_datetime_str(
 
 
 @pytest.mark.parametrize(
-    "window_size, now, exp_start, exp_end",
+    "window_size, now, exp_start, exp_end, grace_period",
     [
         (
             5,
             datetime(2021, 4, 30, 15, 1),
             datetime(2021, 4, 30, 14, 55),
             datetime(2021, 4, 30, 15),
+            0,
         ),
         (
             15,
             datetime(2021, 4, 30, 3, 36),
             datetime(2021, 4, 30, 3, 15),
             datetime(2021, 4, 30, 3, 30),
+            0,
+        ),
+        (
+            5,
+            datetime(2021, 4, 30, 9, 15, 16),
+            datetime(2021, 4, 30, 9, 10),
+            datetime(2021, 4, 30, 9, 15),
+            0,
         ),
         (
             10,
             datetime(2021, 4, 30, 0, 5),
             datetime(2021, 4, 29, 23, 50),
             datetime(2021, 4, 30, 0, 0),
+            0,
         ),
         (
             5,
-            datetime(2021, 5, 20, 10, 5, 34),  # boundary condition
+            datetime(
+                2021, 5, 20, 10, 5, 34
+            ),  # less than grace period into the new window
             datetime(2021, 5, 20, 9, 55),
             datetime(2021, 5, 20, 10, 0),
+            60,
+        ),
+        (
+            5,
+            datetime(2021, 5, 20, 10, 7, 4),
+            datetime(2021, 5, 20, 9, 55),
+            datetime(2021, 5, 20, 10, 0),
+            130,  # grace period > 2 minutes
         ),
         (
             60,
             datetime(2021, 1, 1, 0, 4),  # new year
             datetime(2020, 12, 31, 23, 00),
             datetime(2021, 1, 1, 0, 0),
+            0,
         ),
         (
             60,
             datetime(2021, 3, 28, 3, 10),  # DST transition
             datetime(2021, 3, 28, 2),
             datetime(2021, 3, 28, 3),
+            0,
         ),
     ],
 )
-def test_recent_clocktime_window(window_size, now, exp_start, exp_end):
-    start, end = get_most_recent_clocktime_window(window_size, now=now)
+def test_recent_clocktime_window(window_size, now, exp_start, exp_end, grace_period):
+    start, end = get_most_recent_clocktime_window(
+        window_size, now=now, grace_period_in_seconds=grace_period
+    )
     assert start == exp_start
     assert end == exp_end
 
