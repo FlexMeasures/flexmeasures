@@ -22,6 +22,7 @@ The following minimal example gives you an idea of the inputs and outputs:
 
     from datetime import datetime, timedelta
     import pandas as pd
+    from pandas.tseries.frequencies import to_offset
     from flexmeasures.data.models.time_series import Sensor
 
     def compute_a_schedule(
@@ -34,15 +35,15 @@ The following minimal example gives you an idea of the inputs and outputs:
     ):
         """Just a dummy scheduler, advising to do nothing"""
         return pd.Series(
-            0, index=pd.date_range(start, end, freq=resolution, closed="right")
+            0, index=pd.date_range(start, end, freq=resolution, inclusive="left")
         )
 
 
-.. note:: It's possible to add arguments which describe the asset flexibility and the EMS context in more detail. For example,
+.. note:: It's possible to add arguments that describe the asset flexibility and the EMS context in more detail. For example,
           for storage assets we support various state-of-charge parameters. For now, the existing schedulers are the best documentation.
 
 
-Finally, make your scheduler be the one which FlexMeasures will use for certain sensors:
+Finally, make your scheduler be the one that FlexMeasures will use for certain sensors:
 
 
 .. code-block:: python
@@ -52,7 +53,7 @@ Finally, make your scheduler be the one which FlexMeasures will use for certain 
     scheduler_specs = {
         "module": "flexmeasures.data.tests.dummy_scheduler",  # or a file path, see note below
         "function": "compute_a_schedule",
-        "source": "My Opinion"
+        "source": "My Company"
     }
     
     my_sensor = Sensor.query.filter(Sensor.name == "My power sensor on a flexible asset").one_or_none()

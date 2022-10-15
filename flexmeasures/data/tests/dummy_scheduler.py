@@ -16,5 +16,5 @@ def compute_a_schedule(
     """Just a dummy scheduler."""
     return pd.Series(
         sensor.get_attribute("capacity_in_mw"),
-        index=pd.date_range(start, end, freq=resolution, closed="right"),
+        index=pd.date_range(start, end, freq=resolution, inclusive="left"),
     )

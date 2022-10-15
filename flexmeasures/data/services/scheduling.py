@@ -243,15 +243,15 @@ def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, str]:
     else:  # assume importable module
         try:
             module = importlib.import_module(module_descr)
-        except TypeError:
-            current_app.log.error(f"Cannot load {module_descr}.")
+        except TypeError as te:
+            current_app.log.error(f"Cannot load {module_descr}: {te}.")
             raise
         except ModuleNotFoundError:
             current_app.logger.error(
                 f"Attempted to import module {module_descr} (as it is not a valid file path), but it is not installed."
             )
             raise
-    assert module, f"Module {module_descr} could not be loaded."
+        assert module, f"Module {module_descr} could not be loaded."
 
     # get scheduling function
     assert hasattr(

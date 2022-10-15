@@ -3,7 +3,7 @@
 Writing Plugins
 ====================
 
-You can extend FlexMeasures with functionality like UI pages, API endpoints, or CLI functions.
+You can extend FlexMeasures with functionality like UI pages, API endpoints, CLI functions and custom scheduling algorithms.
 This is eventually how energy flexibility services are built on top of FlexMeasures!
 
 In an nutshell, a FlexMeasures plugin adds functionality via one or more `Flask Blueprints <https://flask.palletsprojects.com/en/1.1.x/tutorial/views/>`_.
