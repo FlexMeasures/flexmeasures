@@ -3,12 +3,10 @@
 Writing Plugins
 ====================
 
-You can extend FlexMeasures with functionality like UI pages, API endpoints, or CLI functions.
+You can extend FlexMeasures with functionality like UI pages, API endpoints, CLI functions and custom scheduling algorithms.
 This is eventually how energy flexibility services are built on top of FlexMeasures!
 
 In an nutshell, a FlexMeasures plugin adds functionality via one or more `Flask Blueprints <https://flask.palletsprojects.com/en/1.1.x/tutorial/views/>`_.
-
-.. todo:: We'll use this to allow for custom forecasting and scheduling algorithms, as well.
 
 
 How to make FlexMeasures load your plugin
@@ -34,4 +32,4 @@ To hit the ground running with that approach, we provide a `CookieCutter templat
 It also includes a few Blueprint examples and best practices.
 
 
-Continue reading the :ref:`plugin_showcase`.
+Continue reading the :ref:`plugin_showcase` or possibilities to do :ref:`plugin_customization`.

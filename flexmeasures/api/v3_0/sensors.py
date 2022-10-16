@@ -519,8 +519,10 @@ class SensorAPI(FlaskView):
         schedule_start = job.kwargs["start"]
 
         schedule_data_source_name = "Seita"
+        if "data_source_name" in job.meta:
+            schedule_data_source_name = job.meta["data_source_name"]
         scheduler_source = DataSource.query.filter_by(
-            name="Seita", type="scheduling script"
+            name=schedule_data_source_name, type="scheduling script"
         ).one_or_none()
         if scheduler_source is None:
             return unknown_schedule(

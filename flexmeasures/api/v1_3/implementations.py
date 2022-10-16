@@ -146,7 +146,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
 
             schedule_data_source_name = "Seita"
             scheduler_source = DataSource.query.filter_by(
-                name="Seita", type="scheduling script"
+                name=schedule_data_source_name, type="scheduling script"
             ).one_or_none()
             if scheduler_source is None:
                 return unknown_schedule(
