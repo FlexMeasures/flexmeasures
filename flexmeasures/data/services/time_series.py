@@ -320,6 +320,15 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     """
     if bdf.empty:
         return bdf
+    return (
+        bdf.convert_index_from_belief_horizon_to_time()
+        .groupby(level=["belief_time", "source"], as_index=False)
+        .apply(_drop_unchanged_beliefs)
+    )
+
+
+def _drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
+    """Only works on BeliefsDataFrames with a unique belief time and unique source."""
     if len(bdf.lineage.belief_times) > 1:
         raise NotImplementedError("Beliefs should share a unique belief time.")
     if len(bdf.lineage.sources) > 1:
