@@ -315,11 +315,26 @@ def set_bdf_source(bdf: tb.BeliefsDataFrame, source_name: str) -> tb.BeliefsData
 def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     """Drop beliefs that are already stored in the database with an earlier belief time.
 
+    Also drop beliefs that are already in the data with an earlier belief time.
+
     Quite useful function to prevent cluttering up your database with beliefs that remain unchanged over time.
     Only works on BeliefsDataFrames with a unique belief time and unique source.
     """
     if bdf.empty:
         return bdf
+
+    # Remove unchanged beliefs from within the new data itself
+    index_names = bdf.index.names
+    bdf = (
+        bdf.sort_index()
+        .reset_index()
+        .drop_duplicates(
+            ["event_start", "source", "cumulative_probability", "event_value"],
+            keep="first",
+        )
+        .set_index(index_names)
+    )
+
     return (
         bdf.convert_index_from_belief_horizon_to_time()
         .groupby(level=["belief_time", "source"], as_index=False)
