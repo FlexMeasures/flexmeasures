@@ -1,4 +1,5 @@
 import functools
+import time
 
 
 def make_registering_decorator(foreign_decorator):
@@ -114,3 +115,16 @@ def optional_arg_decorator(fn):
 def sort_dict(unsorted_dict: dict) -> dict:
     sorted_dict = dict(sorted(unsorted_dict.items(), key=lambda item: item[0]))
     return sorted_dict
+
+
+def timeit(func):
+    """Decorator for printing the time it took to execute the decorated function."""
+    @functools.wraps(func)
+    def new_func(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        elapsed_time = time.time() - start_time
+        print(f"{func.__name__} finished in {int(elapsed_time * 1_000)} ms")
+        return result
+
+    return new_func
