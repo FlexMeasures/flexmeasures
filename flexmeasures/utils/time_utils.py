@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
 from datetime import datetime, timedelta
 from typing import List, Union, Tuple, Optional
 
