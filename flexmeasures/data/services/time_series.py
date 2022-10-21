@@ -323,6 +323,16 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     if bdf.empty:
         return bdf
 
+    # Save the oldest ex-post beliefs explicitly, even if they do not deviate from the most recent ex-ante beliefs
+    ex_ante_bdf = bdf[bdf.belief_horizons > timedelta(0)]
+    ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
+    if not ex_ante_bdf.empty and not ex_post_bdf.empty:
+        # Recursive function call
+        ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf)
+        ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf)
+        bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
+        return bdf
+
     # Remove unchanged beliefs from within the new data itself
     index_names = bdf.index.names
     bdf = (
