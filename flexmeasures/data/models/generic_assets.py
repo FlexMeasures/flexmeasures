@@ -386,7 +386,7 @@ class GenericAsset(db.Model, AuthModelMixin):
 
             if sensors:
                 minimum_resampling_resolution = determine_minimum_resampling_resolution(
-                    bdf_dict.values()
+                    [bdf.event_resolution for bdf in bdf_dict.values()]
                 )
                 df_dict = {}
                 for sensor, bdf in bdf_dict.items():

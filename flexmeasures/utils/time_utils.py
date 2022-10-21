@@ -339,12 +339,12 @@ def duration_isoformat(duration: timedelta):
 
 
 def determine_minimum_resampling_resolution(
-    objects_with_event_resolution: Iterable,
+    event_resolutions: list[timedelta],
 ) -> timedelta:
-    """Return minimum non-zero event resolution, or zero resolution if none of the object has a non-zero resolution."""
+    """Return minimum non-zero event resolution, or zero resolution if none of the event resolutions is non-zero."""
     condition = list(
-        o.event_resolution
-        for o in objects_with_event_resolution
-        if o.event_resolution > timedelta(0)
+        event_resolution
+        for event_resolution in event_resolutions
+        if event_resolution > timedelta(0)
     )
     return min(condition) if any(condition) else timedelta(0)

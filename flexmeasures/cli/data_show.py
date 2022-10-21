@@ -269,7 +269,9 @@ def plot_beliefs(
     Show a simple plot of belief data directly in the terminal.
     """
     sensors = list(sensors)
-    minimum_resampling_resolution = determine_minimum_resampling_resolution(sensors)
+    minimum_resampling_resolution = determine_minimum_resampling_resolution(
+        [sensor.event_resolution for sensor in sensors]
+    )
 
     # query data
     beliefs_by_sensor = TimedBelief.search(
