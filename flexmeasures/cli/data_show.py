@@ -259,6 +259,13 @@ def list_data_sources():
     help="Source of the beliefs (an existing source id).",
 )
 @click.option(
+    "--resolution",
+    "resolution",
+    type=DurationField(),
+    required=False,
+    help="Resolution of the data. If not set, defaults to the minimum resolution of the sensor data.",
+)
+@click.option(
     "--to-file",
     "filepath",
     required=False,
@@ -269,6 +276,7 @@ def plot_beliefs(
     sensors: List[Sensor],
     start: datetime,
     duration: timedelta,
+    resolution: Optional[timedelta],
     belief_time_before: Optional[datetime],
     source: Optional[DataSource],
     filepath: Optional[str],
@@ -277,9 +285,10 @@ def plot_beliefs(
     Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.
     """
     sensors = list(sensors)
-    minimum_resampling_resolution = determine_minimum_resampling_resolution(
-        [sensor.event_resolution for sensor in sensors]
-    )
+    if resolution is None:
+        resolution = determine_minimum_resampling_resolution(
+            [sensor.event_resolution for sensor in sensors]
+        )
 
     # query data
     beliefs_by_sensor = TimedBelief.search(
@@ -289,7 +298,7 @@ def plot_beliefs(
         beliefs_before=belief_time_before,
         source=source,
         one_deterministic_belief_per_event=True,
-        resolution=minimum_resampling_resolution,
+        resolution=resolution,
         sum_multiple=False,
     )
     # only keep non-empty
@@ -321,7 +330,7 @@ def plot_beliefs(
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.description}"
-    title += f"\nThe time resolution (x-axis) is {naturaldelta(minimum_resampling_resolution)}."
+    title += f"\nThe time resolution (x-axis) is {naturaldelta(resolution)}."
 
     uniplot.plot(
         [df[col] for col in df.columns],
