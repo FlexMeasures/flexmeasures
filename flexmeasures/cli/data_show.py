@@ -266,6 +266,13 @@ def list_data_sources():
     help="Resolution of the data. If not set, defaults to the minimum resolution of the sensor data.",
 )
 @click.option(
+    "--timezone",
+    "timezone",
+    type=str,
+    required=False,
+    help="Timezone of the data. If not set, defaults to the timezone of the first non-empty sensor."
+)
+@click.option(
     "--to-file",
     "filepath",
     required=False,
@@ -277,6 +284,7 @@ def plot_beliefs(
     start: datetime,
     duration: timedelta,
     resolution: Optional[timedelta],
+    timezone: Optional[str],
     belief_time_before: Optional[datetime],
     source: Optional[DataSource],
     filepath: Optional[str],
@@ -319,6 +327,11 @@ def plot_beliefs(
         )
     df = pd.concat([simplify_index(df) for df in beliefs_by_sensor.values()], axis=1)
     df.columns = beliefs_by_sensor.keys()
+
+    # Convert to the requested or default timezone
+    if timezone is not None:
+        timezone = sensors[0].timezone
+    df.index = df.index.tz_convert(timezone)
 
     # Build title
     if len(sensors) == 1:
