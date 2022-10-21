@@ -369,7 +369,7 @@ def add_initial_structure():
 @click.option(
     "--timezone",
     required=False,
-    default="UTC",
+    default=None,
     help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
 )
 @click.option(
