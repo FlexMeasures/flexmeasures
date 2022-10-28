@@ -12,10 +12,13 @@ def compute_a_schedule(
     *args,
     **kwargs
 ):
-    """Just a dummy scheduler."""
+    """
+    Just a dummy scheduler that always plans to consume at maximum capacity.
+    (Schedulers return positive values for consumption, and negative values for production)
+    """
     return initialize_series(  # simply creates a Pandas Series repeating one value
         data=sensor.get_attribute("capacity_in_mw"),
         start=start,
         end=end,
         resolution=resolution,
-    )
+    ) 

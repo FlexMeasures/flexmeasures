@@ -33,9 +33,13 @@ The following minimal example gives you an idea of the inputs and outputs:
         *args,
         **kwargs
     ):
-        """Just a dummy scheduler, advising to do nothing"""
+        """
+        Just a dummy scheduler that always plans to consume at maximum capacity.
+        (Schedulers return positive values for consumption, and negative values for production)
+        """
         return pd.Series(
-            0, index=pd.date_range(start, end, freq=resolution, closed="left")
+            sensor.get_attribute("capacity_in_mw"),
+            index=pd.date_range(start, end, freq=resolution, closed="left"),
         )
 
 

@@ -256,20 +256,21 @@ class SensorAPI(FlaskView):
         .. :quickref: Schedule; Trigger scheduling job
 
         Trigger FlexMeasures to create a schedule for this sensor.
-        The assumption is that this sensor is the energy sensor on a flexible asset.
+        The assumption is that this sensor is the power sensor on a flexible asset.
 
         In this request, you can describe:
 
         - the schedule (start, unit, prior)
         - the flexibility model for the sensor (see below, only storage models are supported at the moment)
-        - the EMS the sensor operates in (inflexible device sensors, sensors which put a price on consumption and/or production)
+        - the EMS the sensor operates in (inflexible device sensors, and sensors that put a price on consumption and/or production)
 
-        Note: This endpoint does not support an EMS with multiple flexible sensors. This will happen in another endpoint.
-              See https://github.com/FlexMeasures/flexmeasures/issues/485
+        Note: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
+              See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
+              (considering already scheduled sensors as inflexible).
 
         Flexibility models apply to the sensor's asset type:
 
-        1) For storage sensors (e.g. battery, charging stations), the schedule deals with the state of charge (SOC).
+        1) For storage sensors (e.g. battery, charge points), the schedule deals with the state of charge (SOC).
            The possible flexibility parameters are:
 
             - soc-at-start (defaults to 0)
@@ -365,7 +366,7 @@ class SensorAPI(FlaskView):
         if unit == "kWh":
             start_value = start_value / 1000.0
 
-        # Convert round-trip efficiency to dimensionless (to the [0,1] range)
+        # Convert round-trip efficiency to dimensionless (to the (0,1] range)
         if roundtrip_efficiency is not None:
             roundtrip_efficiency = roundtrip_efficiency.to(
                 ur.Quantity("dimensionless")

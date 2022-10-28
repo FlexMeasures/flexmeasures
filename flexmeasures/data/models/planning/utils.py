@@ -17,9 +17,15 @@ from flexmeasures.data.queries.utils import simplify_index
 
 
 def initialize_df(
-    columns: List[str], start: datetime, end: datetime, resolution: timedelta
+    columns: List[str],
+    start: datetime,
+    end: datetime,
+    resolution: timedelta,
+    inclusive: str,
 ) -> pd.DataFrame:
-    df = pd.DataFrame(index=initialize_index(start, end, resolution), columns=columns)
+    df = pd.DataFrame(
+        index=initialize_index(start, end, resolution, inclusive), columns=columns
+    )
     return df
 
 
@@ -28,16 +34,25 @@ def initialize_series(
     start: datetime,
     end: datetime,
     resolution: timedelta,
+    inclusive: str,
 ) -> pd.Series:
-    s = pd.Series(index=initialize_index(start, end, resolution), data=data)
+    s = pd.Series(index=initialize_index(start, end, resolution, inclusive), data=data)
     return s
 
 
 def initialize_index(
-    start: Union[date, datetime], end: Union[date, datetime], resolution: timedelta
+    start: Union[date, datetime],
+    end: Union[date, datetime],
+    resolution: timedelta,
+    inclusive: str = "left",
 ) -> pd.DatetimeIndex:
+    assert inclusive == "left" or inclusive == "right"
     i = pd.date_range(
-        start=start, end=end, freq=to_offset(resolution), closed="left", name="datetime"
+        start=start,
+        end=end,
+        freq=to_offset(resolution),
+        closed=inclusive,
+        name="datetime",
     )
     return i
 
@@ -101,7 +116,7 @@ def ensure_storage_specs(
     # Check for min and max SOC, or get default from sensor
     if "soc_min" not in specs or specs["soc_min"] is None:
         sensor = ensure_sensor_is_set(sensor)
-        # Can't drain the EV battery by more than it contains
+        # Can't drain the storage by more than it contains
         specs["soc_min"] = sensor.get_attribute("min_soc_in_mwh", 0)
     if "soc_max" not in specs or specs["soc_max"] is None:
         sensor = ensure_sensor_is_set(sensor)
@@ -234,6 +249,10 @@ def get_power_values(
         raise UnknownForecastException(
             f"Forecasts unknown for planning window. (sensor {sensor.id})"
         )
+    if sensor.get_attribute(
+        "consumption_is_positive", False
+    ):  # FlexMeasures default is to store consumption as negative power values
+        return df.values
     return -df.values
 
 

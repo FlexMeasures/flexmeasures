@@ -109,7 +109,7 @@ def make_schedule(
 
     - Choose which scheduling function can be used
     - Compute schedule
-    - Turn schedukled values into beliefs and save them to db
+    - Turn scheduled values into beliefs and save them to db
     """
     # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
     db.engine.dispose()
@@ -202,7 +202,7 @@ def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, str]:
     assert "function" in scheduler_specs, "scheduler specs have no 'function'"
 
     source_name = scheduler_specs.get(
-        "source", f"Custom scheduler - {scheduler_specs['function']}"
+        "source", f"custom scheduler - {scheduler_specs['function']}"
     )
     scheduler_name = scheduler_specs["function"]
 
