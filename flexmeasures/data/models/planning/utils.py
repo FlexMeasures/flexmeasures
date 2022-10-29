@@ -21,7 +21,7 @@ def initialize_df(
     start: datetime,
     end: datetime,
     resolution: timedelta,
-    inclusive: str,
+    inclusive: str = "left",
 ) -> pd.DataFrame:
     df = pd.DataFrame(
         index=initialize_index(start, end, resolution, inclusive), columns=columns
@@ -34,7 +34,7 @@ def initialize_series(
     start: datetime,
     end: datetime,
     resolution: timedelta,
-    inclusive: str,
+    inclusive: str = "left",
 ) -> pd.Series:
     s = pd.Series(index=initialize_index(start, end, resolution, inclusive), data=data)
     return s

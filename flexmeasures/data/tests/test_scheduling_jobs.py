@@ -82,7 +82,7 @@ def test_loading_custom_scheduler(is_path: bool):
     custom_scheduler, data_source = load_custom_scheduler(scheduler_specs)
     assert data_source == "Test Source"
     assert custom_scheduler.__name__ == "compute_a_schedule"
-    assert custom_scheduler.__doc__ == "Just a dummy scheduler."
+    assert "Just a dummy scheduler" in custom_scheduler.__doc__
 
 
 @pytest.mark.parametrize("is_path", [False, True])
