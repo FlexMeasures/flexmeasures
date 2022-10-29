@@ -8,6 +8,7 @@ from flask import current_app as app
 from flask.cli import with_appcontext
 from tabulate import tabulate
 from humanize import naturaldelta, naturaltime
+import pandas as pd
 import uniplot
 
 from flexmeasures.data.models.user import Account, AccountRole, User, Role
@@ -19,6 +20,8 @@ from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.services.time_series import simplify_index
+from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 
 
 @click.group("show")
@@ -266,7 +269,9 @@ def plot_beliefs(
     Show a simple plot of belief data directly in the terminal.
     """
     sensors = list(sensors)
-    min_resolution = min([s.event_resolution for s in sensors])
+    minimum_resampling_resolution = determine_minimum_resampling_resolution(
+        [sensor.event_resolution for sensor in sensors]
+    )
 
     # query data
     beliefs_by_sensor = TimedBelief.search(
@@ -276,7 +281,7 @@ def plot_beliefs(
         beliefs_before=belief_time_before,
         source=source,
         one_deterministic_belief_per_event=True,
-        resolution=min_resolution,
+        resolution=minimum_resampling_resolution,
         sum_multiple=False,
     )
     # only keep non-empty
@@ -288,33 +293,37 @@ def plot_beliefs(
     if len(beliefs_by_sensor.keys()) == 0:
         click.echo("No data found!")
         raise click.Abort()
-    first_df = beliefs_by_sensor[sensors[0].name]
+    if all(sensor.unit == sensors[0].unit for sensor in sensors):
+        shared_unit = sensors[0].unit
+    else:
+        shared_unit = ""
+        click.echo(
+            "The y-axis shows no unit, because the selected sensors do not share the same unit."
+        )
+    df = pd.concat([simplify_index(df) for df in beliefs_by_sensor.values()], axis=1)
+    df.columns = beliefs_by_sensor.keys()
 
     # Build title
     if len(sensors) == 1:
         title = f"Beliefs for Sensor '{sensors[0].name}' (Id {sensors[0].id}).\n"
     else:
-        title = f"Beliefs for Sensor(s) [{','.join([s.name for s in sensors])}], (Id(s): [{','.join([str(s.id) for s in sensors])}]).\n"
+        title = f"Beliefs for Sensor(s) [{', '.join([s.name for s in sensors])}], (Id(s): [{', '.join([str(s.id) for s in sensors])}]).\n"
     title += f"Data spans {naturaldelta(duration)} and starts at {start}."
     if belief_time_before:
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.description}"
-    title += f"\nThe time resolution (x-axis) is {naturaldelta(min_resolution)}."
+    title += f"\nThe time resolution (x-axis) is {naturaldelta(minimum_resampling_resolution)}."
 
     uniplot.plot(
-        [
-            beliefs.event_value
-            for beliefs in [beliefs_by_sensor[sn] for sn in [s.name for s in sensors]]
-        ],
+        [df[col] for col in df.columns],
         title=title,
         color=True,
         lines=True,
-        y_unit=first_df.sensor.unit
-        if len(beliefs_by_sensor) == 1
-        or all(sensor.unit == first_df.sensor.unit for sensor in sensors)
-        else "",
-        legend_labels=[s.name for s in sensors],
+        y_unit=shared_unit,
+        legend_labels=[s.name for s in sensors]
+        if shared_unit
+        else [s.name + f" (in {s.unit})" for s in sensors],
     )
 
 

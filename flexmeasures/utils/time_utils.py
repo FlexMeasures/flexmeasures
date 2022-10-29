@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from datetime import datetime, timedelta
 from typing import List, Union, Tuple, Optional
@@ -333,3 +335,15 @@ def duration_isoformat(duration: timedelta):
     # at least one component has to be there.
     repl = ret and "".join(ret) or "T0H"
     return re.sub("%P", repl, "P%P")
+
+
+def determine_minimum_resampling_resolution(
+    event_resolutions: list[timedelta],
+) -> timedelta:
+    """Return minimum non-zero event resolution, or zero resolution if none of the event resolutions is non-zero."""
+    condition = list(
+        event_resolution
+        for event_resolution in event_resolutions
+        if event_resolution > timedelta(0)
+    )
+    return min(condition) if any(condition) else timedelta(0)

@@ -16,7 +16,7 @@ New features
 
 Bugfixes
 -----------
-
+* The CLI command ``flexmeasures show beliefs`` now supports plotting time series data that includes NaN values, and provides better support for plotting multiple sensors that do not share the same unit [see `PR #516 <http://www.github.com/FlexMeasures/flexmeasures/pull/516>`_]
 
 Infrastructure / Support
 ----------------------

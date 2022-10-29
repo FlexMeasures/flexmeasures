@@ -339,7 +339,7 @@ typing-extensions==4.3.0
     # via
     #   py-moneyed
     #   pydantic
-uniplot==0.5.0
+uniplot==0.7.0
     # via -r requirements/app.in
 urllib3[socks]==1.26.12
     # via
