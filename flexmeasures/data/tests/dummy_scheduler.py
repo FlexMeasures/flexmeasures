@@ -21,4 +21,4 @@ def compute_a_schedule(
         start=start,
         end=end,
         resolution=resolution,
-    ) 
+    )
