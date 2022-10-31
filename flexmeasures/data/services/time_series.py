@@ -360,7 +360,7 @@ def _drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         source=bdf.lineage.sources[0],  # unique source
         most_recent_beliefs_only=False,
     )
-    # todo: delete next line and set most_recent_beliefs_only=True when this is resolved: https://github.com/SeitaBV/timely-beliefs/issues/97
+    # todo: delete next line and set most_recent_beliefs_only=True when this is resolved: https://github.com/SeitaBV/timely-beliefs/pull/117
     previous_most_recent_beliefs_in_db = belief_utils.select_most_recent_belief(
         previous_beliefs_in_db
     )
