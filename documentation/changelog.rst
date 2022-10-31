@@ -25,6 +25,14 @@ Infrastructure / Support
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
 
 
+v0.11.3 | November XX, 2022
+============================
+
+Bugfixes
+-----------
+* Fix scheduler for Charge Points when taking into account inflexible devices [see `PR #517 <http://www.github.com/FlexMeasures/flexmeasures/pull/517>`_]
+
+
 v0.11.2 | September 6, 2022
 ============================
 
