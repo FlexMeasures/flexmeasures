@@ -279,8 +279,9 @@ def add_initial_structure():
 @click.argument("file", type=click.Path(exists=True))
 @click.option(
     "--sensor-id",
+    "sensor",
     required=True,
-    type=click.IntRange(min=1),
+    type=SensorIdField(),
     help="Sensor to which the beliefs pertain.",
 )
 @click.option(
@@ -413,7 +414,7 @@ def add_initial_structure():
 )
 def add_beliefs(
     file: str,
-    sensor_id: int,
+    sensor: Sensor,
     source: str,
     filter_columns: List[int],
     filter_values: List[int],
@@ -454,10 +455,6 @@ def add_beliefs(
     In case no --horizon is specified and no beliefcol is specified,
     the moment of executing this CLI command is taken as the time at which the beliefs were recorded.
     """
-    sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
-    if sensor is None:
-        print(f"Failed to create beliefs: no sensor found with ID {sensor_id}.")
-        return
     _source = parse_source(source)
 
     # Set up optional parameters for read_csv
