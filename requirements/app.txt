@@ -40,7 +40,9 @@ convertdate==2.4.0
 cycler==0.11.0
     # via matplotlib
 deprecated==1.2.13
-    # via redis
+    # via
+    #   redis
+    #   sktime
 dill==0.3.5.1
     # via openturns
 dnspython==2.2.1
@@ -141,6 +143,8 @@ jsonschema==4.15.0
     # via altair
 kiwisolver==1.4.4
     # via matplotlib
+llvmlite==0.39.1
+    # via numba
 lunardate==0.2.0
     # via workalendar
 mako==1.2.2
@@ -163,16 +167,20 @@ marshmallow-sqlalchemy==0.28.1
     # via -r requirements/app.in
 matplotlib==3.5.3
     # via timetomodel
-numpy==1.23.2
+numba==0.56.3
+    # via sktime
+numpy==1.22.4
     # via
     #   -r requirements/app.in
     #   altair
     #   matplotlib
+    #   numba
     #   pandas
     #   patsy
     #   properscoring
     #   scikit-learn
     #   scipy
+    #   sktime
     #   statsmodels
     #   timely-beliefs
     #   timetomodel
@@ -191,6 +199,7 @@ pandas==1.5.1
     # via
     #   -r requirements/app.in
     #   altair
+    #   sktime
     #   statsmodels
     #   timely-beliefs
     #   timetomodel
@@ -264,11 +273,14 @@ rq==1.11.0
 rq-dashboard==0.6.1
     # via -r requirements/app.in
 scikit-learn==1.1.2
-    # via sklearn
-scipy==1.9.1
+    # via
+    #   sklearn
+    #   sktime
+scipy==1.8.1
     # via
     #   properscoring
     #   scikit-learn
+    #   sktime
     #   statsmodels
     #   timely-beliefs
     #   timetomodel
@@ -284,6 +296,8 @@ six==1.16.0
     #   requests-file
 sklearn==0.0
     # via timetomodel
+sktime==0.13.4
+    # via timely-beliefs
 sqlalchemy==1.4.40
     # via
     #   -r requirements/app.in
@@ -293,12 +307,14 @@ sqlalchemy==1.4.40
     #   timely-beliefs
     #   timetomodel
 statsmodels==0.13.2
-    # via timetomodel
+    # via
+    #   sktime
+    #   timetomodel
 tabulate==0.8.10
     # via -r requirements/app.in
 threadpoolctl==3.1.0
     # via scikit-learn
-timely-beliefs==1.13.0
+timely-beliefs[forecast]==1.13.0
     # via -r requirements/app.in
 timetomodel==0.7.1
     # via -r requirements/app.in
@@ -332,3 +348,6 @@ xlrd==2.0.1
     # via -r requirements/app.in
 zipp==3.8.1
     # via importlib-metadata
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools
