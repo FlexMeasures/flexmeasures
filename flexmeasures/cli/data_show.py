@@ -270,7 +270,7 @@ def list_data_sources():
     "timezone",
     type=str,
     required=False,
-    help="Timezone of the data. If not set, defaults to the timezone of the first non-empty sensor."
+    help="Timezone of the data. If not set, defaults to the timezone of the first non-empty sensor.",
 )
 @click.option(
     "--to-file",
