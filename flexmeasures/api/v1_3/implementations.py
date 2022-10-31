@@ -156,14 +156,14 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 type="scheduling script",
                 **data_source_info,
             ).all()  # Might be more than one, e.g. per user
-            if scheduler_source is None:
+            if len(scheduler_sources) == 0:
                 s_info = ",".join([f"{k}={v}" for k, v in data_source_info.items()])
                 return unknown_schedule(message + f"no data is known from [{s_info}].")
 
             power_values = sensor.search_beliefs(
                 event_starts_after=schedule_start,
                 event_ends_before=schedule_start + planning_horizon,
-                source=scheduler_source,
+                source=scheduler_sources[-1],
                 most_recent_beliefs_only=True,
                 one_deterministic_belief_per_event=True,
             )

@@ -557,11 +557,11 @@ class SensorAPI(FlaskView):
             data_source_info = dict(
                 name="Seita"
             )  # TODO: change to raise later - all scheduling jobs now get full info
-        scheduler_source = DataSource.query.filter_by(
+        scheduler_sources = DataSource.query.filter_by(
             type="scheduling script",
             **data_source_info,
-        ).one_or_none()  # this assumes full info, otherwise there can be more than one
-        if scheduler_source is None:
+        ).all()  # there can be more than one, e.g. different users
+        if len(scheduler_sources) == 0:
             s_info = ",".join([f"{k}={v}" for k, v in data_source_info.items()])
             return unknown_schedule(
                 error_message + f"no data is known from [{s_info}]."
@@ -570,7 +570,7 @@ class SensorAPI(FlaskView):
         power_values = sensor.search_beliefs(
             event_starts_after=schedule_start,
             event_ends_before=schedule_start + planning_horizon,
-            source=scheduler_source,
+            source=scheduler_sources[-1],
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )
