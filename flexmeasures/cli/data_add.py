@@ -458,13 +458,7 @@ def add_beliefs(
     if sensor is None:
         print(f"Failed to create beliefs: no sensor found with ID {sensor_id}.")
         return
-    if source.isdigit():
-        _source = get_source_or_none(int(source), source_type="CLI script")
-        if not _source:
-            print(f"Failed to find source {source}.")
-            return
-    else:
-        _source = get_or_create_source(source, source_type="CLI script")
+    _source = parse_source(source)
 
     # Set up optional parameters for read_csv
     if file.split(".")[-1].lower() == "csv":
@@ -1131,3 +1125,14 @@ def check_errors(errors: Dict[str, List[str]]):
             f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more."
         )
         raise click.Abort
+
+
+def parse_source(source):
+    if source.isdigit():
+        _source = get_source_or_none(int(source), source_type="CLI script")
+        if not _source:
+            print(f"Failed to find source {source}.")
+            return
+    else:
+        _source = get_or_create_source(source, source_type="CLI script")
+    return _source

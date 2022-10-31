@@ -208,14 +208,15 @@ def is_energy_price_unit(unit: str) -> bool:
     return False
 
 
-def convert_units(
+def convert_time_units(
     data: Union[tb.BeliefsSeries, pd.Series, List[Union[int, float]], int, float],
     from_unit: str,
     to_unit: str,
-    event_resolution: Optional[timedelta] = None,
-    capacity: Optional[str] = None,
-) -> Union[pd.Series, List[Union[int, float]], int, float]:
-    """Updates data values to reflect the given unit conversion."""
+):
+    """Convert data with datetime or timedelta dtypes to float values.
+
+    Use Unix epoch or the requested time unit, respectively.
+    """
     if from_unit == "datetime":
         return (
             pd.to_datetime(data, utc=True) - pd.Timestamp("1970-01-01", tz="utc")
@@ -224,6 +225,18 @@ def convert_units(
         if to_unit[0].isdigit():
             return data / pd.Timedelta(to_unit)
         return data / pd.Timedelta(1, to_unit)
+
+
+def convert_units(
+    data: Union[tb.BeliefsSeries, pd.Series, List[Union[int, float]], int, float],
+    from_unit: str,
+    to_unit: str,
+    event_resolution: Optional[timedelta] = None,
+    capacity: Optional[str] = None,
+) -> Union[pd.Series, List[Union[int, float]], int, float]:
+    """Updates data values to reflect the given unit conversion."""
+    if from_unit in ("datetime", "timedelta"):
+        return convert_time_units(data, from_unit, to_unit)
 
     if from_unit != to_unit:
         from_magnitudes = (
