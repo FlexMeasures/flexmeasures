@@ -5,6 +5,27 @@ from flexmeasures.data.models.assets import Asset, AssetType
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import User
 from flexmeasures.data.schemas.sensors import SensorSchemaMixin
+from flexmeasures.data.schemas.utils import MarshmallowClickMixin
+
+
+class LatitudeField(MarshmallowClickMixin, fields.Float):
+    """Field that deserializes to a latitude with 7 places."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(validate=validate.Range(min=-90, max=90))
+
+    def _deserialize(self, value, attr, obj, **kwargs) -> float:
+        return round(super()._deserialize(value, attr, obj, **kwargs), 7)
+
+
+class LongitudeField(MarshmallowClickMixin, fields.Float):
+    """Field that deserializes to a longitude with 7 places."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(validate=validate.Range(min=-180, max=180))
+
+    def _deserialize(self, value, attr, obj, **kwargs) -> float:
+        return round(super()._deserialize(value, attr, obj, **kwargs), 7)
 
 
 class AssetSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
@@ -63,8 +84,8 @@ class AssetSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     soc_in_mwh = ma.auto_field()
     soc_datetime = ma.auto_field()
     soc_udi_event_id = ma.auto_field()
-    latitude = fields.Float(required=True, validate=validate.Range(min=-90, max=90))
-    longitude = fields.Float(required=True, validate=validate.Range(min=-180, max=180))
+    latitude = LatitudeField()
+    longitude = LongitudeField()
     asset_type_name = ma.auto_field(required=True)
     owner_id = ma.auto_field(required=True)
     market_id = ma.auto_field(required=True)
