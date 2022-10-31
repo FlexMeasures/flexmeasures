@@ -14,6 +14,9 @@ from flexmeasures.data.models.planning.utils import (
     fallback_charging_policy,
 )
 
+__version__ = "1"
+__author__ = "Seita"
+
 
 def schedule_charging_station(
     sensor: Sensor,
