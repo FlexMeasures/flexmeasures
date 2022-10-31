@@ -4,6 +4,8 @@
 FlexMeasures CLI Changelog
 **********************
 
+* Add options to ``flexmeasures add beliefs`` to 1) read CSV data with timezone naive datetimes (use ``--timezone``to localize the data), 2) read CSV data with datetime/timedelta units (use ``--unit datetime`` or ``--unit timedelta`, 3) remove rows with NaN values, and 4) add filter read-in data by matching values in specific columns (use ``--filter-column`` and ``--filter-value`` together).
+
 since v0.11.0 | August 28, 2022
 ==============================
 
