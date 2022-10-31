@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.12.0 | November XX, 2022
+=================================
+
+* Add ``--to-file``, ``--resolution`` and ``--timezone`` options to ``flexmeasures show beliefs``, to save shown beliefs data to a CSV file in a custom resolution and/or timezone.
+
 since v0.11.0 | August 28, 2022
 ==============================
 
