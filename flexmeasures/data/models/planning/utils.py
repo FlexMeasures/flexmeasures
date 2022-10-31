@@ -46,7 +46,6 @@ def initialize_index(
     resolution: timedelta,
     inclusive: str = "left",
 ) -> pd.DatetimeIndex:
-    assert inclusive == "left" or inclusive == "right"
     i = pd.date_range(
         start=start,
         end=end,

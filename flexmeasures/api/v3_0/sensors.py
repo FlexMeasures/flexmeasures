@@ -279,7 +279,7 @@ class SensorAPI(FlaskView):
             - soc-max (defaults to max soc target)
             - soc-targets (defaults to NaN values)
             - roundtrip-efficiency (defaults to 100%)
-            - prefer-charging-sooner (defaults to True)
+            - prefer-charging-sooner (defaults to True, also signals a preference to discharge later)
 
         2) Heat pump sensors are work in progress.
 

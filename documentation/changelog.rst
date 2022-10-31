@@ -23,7 +23,7 @@ Infrastructure / Support
 
 * Reduce size of Docker image (from 2GB to 1.4GB) [see `PR #512 <http://www.github.com/FlexMeasures/flexmeasures/pull/512>`_]
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
-* Improve documentation and code w.r.t. storage flexibility mnodeling [see `PR #511 <http://www.github.com/FlexMeasures/flexmeasures/pull/511>`_]
+* Improve documentation and code w.r.t. storage flexibility modelling [see `PR #511 <http://www.github.com/FlexMeasures/flexmeasures/pull/511>`_]
 
 
 v0.11.2 | September 6, 2022
