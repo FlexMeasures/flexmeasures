@@ -66,9 +66,10 @@ def test_trigger_and_get_schedule(
     )
 
     # check results are in the database
-    resolution = timedelta(minutes=15)
+    job.refresh()  # catch meta info that was added on this very instance
+    data_source_info = job.meta.get("data_source_info")
     scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduling script"
+        type="scheduling script", **data_source_info
     ).one_or_none()
     assert (
         scheduler_source is not None
@@ -78,6 +79,7 @@ def test_trigger_and_get_schedule(
         .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
+    resolution = timedelta(minutes=15)
     consumption_schedule = pd.Series(
         [-v.event_value for v in power_values],
         index=pd.DatetimeIndex([v.event_start for v in power_values], freq=resolution),

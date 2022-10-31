@@ -99,6 +99,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
             if event_type not in ("soc", "soc-with-targets"):
                 return unrecognized_event_type(event_type)
             connection = current_app.queues["scheduling"].connection
+            job = None
             try:  # First try the scheduling queue
                 job = Job.fetch(event, connection=connection)
             except NoSuchJobError:  # Then try the most recent event_id (stored as a generic asset attribute)
@@ -144,14 +145,20 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     return unknown_schedule("Scheduling job has an unknown status.")
                 schedule_start = job.kwargs["start"]
 
-            schedule_data_source_name = "Seita"
-            scheduler_source = DataSource.query.filter_by(
-                name=schedule_data_source_name, type="scheduling script"
-            ).one_or_none()
+            data_source_info = None
+            if job:
+                data_source_info = job.meta.get("data_source_info")
+            if data_source_info is None:
+                data_source_info = dict(
+                    name="Seita"
+                )  # TODO: change to raise later - all scheduling jobs now get full info
+            scheduler_sources = DataSource.query.filter_by(
+                type="scheduling script",
+                **data_source_info,
+            ).all()  # Might be more than one, e.g. per user
             if scheduler_source is None:
-                return unknown_schedule(
-                    message + f'no data is known from "{schedule_data_source_name}".'
-                )
+                s_info = ",".join([f"{k}={v}" for k, v in data_source_info.items()])
+                return unknown_schedule(message + f"no data is known from [{s_info}].")
 
             power_values = sensor.search_beliefs(
                 event_starts_after=schedule_start,

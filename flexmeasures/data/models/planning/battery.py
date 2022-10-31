@@ -15,6 +15,10 @@ from flexmeasures.data.models.planning.utils import (
 )
 
 
+# __version__ = "1"
+# __author__ = "Seita"
+
+
 def schedule_battery(
     sensor: Sensor,
     start: datetime,

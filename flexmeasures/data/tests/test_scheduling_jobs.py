@@ -61,7 +61,6 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
 scheduler_specs = {
     "module": None,  # use make_module_descr, see below
     "function": "compute_a_schedule",
-    "source": "Test Source",
 }
 
 
@@ -79,8 +78,10 @@ def test_loading_custom_scheduler(is_path: bool):
     Simply check if loading a custom scheduler works.
     """
     scheduler_specs["module"] = make_module_descr(is_path)
-    custom_scheduler, data_source = load_custom_scheduler(scheduler_specs)
-    assert data_source == "Test Source"
+    custom_scheduler, data_source_info = load_custom_scheduler(scheduler_specs)
+    assert data_source_info["name"] == "Test Organization"
+    assert data_source_info["version"] == "v3"
+    assert data_source_info["model"] == "compute_a_schedule"
     assert custom_scheduler.__name__ == "compute_a_schedule"
     assert "Just a dummy scheduler" in custom_scheduler.__doc__
 
@@ -111,10 +112,11 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     # make sure we saved the data source for later lookup
     redis_connection = app.queues["scheduling"].connection
     finished_job = Job.fetch(job.id, connection=redis_connection)
-    assert finished_job.meta["data_source_name"] == scheduler_specs["source"]
+    assert finished_job.meta["data_source_info"]["model"] == scheduler_specs["function"]
 
     scheduler_source = DataSource.query.filter_by(
-        name=finished_job.meta["data_source_name"], type="scheduling script"
+        type="scheduling script",
+        **finished_job.meta["data_source_info"],
     ).one_or_none()
     assert (
         scheduler_source is not None

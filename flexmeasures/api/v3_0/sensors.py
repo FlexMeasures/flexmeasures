@@ -552,15 +552,19 @@ class SensorAPI(FlaskView):
             return unknown_schedule("Scheduling job has an unknown status.")
         schedule_start = job.kwargs["start"]
 
-        schedule_data_source_name = "Seita"
-        if "data_source_name" in job.meta:
-            schedule_data_source_name = job.meta["data_source_name"]
+        data_source_info = job.meta.get("data_source_info")
+        if data_source_info is None:
+            data_source_info = dict(
+                name="Seita"
+            )  # TODO: change to raise later - all scheduling jobs now get full info
         scheduler_source = DataSource.query.filter_by(
-            name=schedule_data_source_name, type="scheduling script"
-        ).one_or_none()
+            type="scheduling script",
+            **data_source_info,
+        ).one_or_none()  # this assumes full info, otherwise there can be more than one
         if scheduler_source is None:
+            s_info = ",".join([f"{k}={v}" for k, v in data_source_info.items()])
             return unknown_schedule(
-                error_message + f'no data is known from "{schedule_data_source_name}".'
+                error_message + f"no data is known from [{s_info}]."
             )
 
         power_values = sensor.search_beliefs(

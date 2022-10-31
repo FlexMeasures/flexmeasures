@@ -16,7 +16,7 @@ but in the background your custom scheduling algorithm is being used.
 Let's walk through an example!
 
 First, we need to write a function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
-The following minimal example gives you an idea of the inputs and outputs:
+The following minimal example gives you an idea of some meta information you can add for labeling your data, as well as the inputs and outputs of such a scheduling function:
 
 .. code-block:: python
 
@@ -24,6 +24,10 @@ The following minimal example gives you an idea of the inputs and outputs:
     import pandas as pd
     from pandas.tseries.frequencies import to_offset
     from flexmeasures.data.models.time_series import Sensor
+
+
+    __author__ = "My Company"
+    __version__ = "v2"
 
     def compute_a_schedule(
         sensor: Sensor,
@@ -44,7 +48,7 @@ The following minimal example gives you an idea of the inputs and outputs:
 
 
 .. note:: It's possible to add arguments that describe the asset flexibility and the EMS context in more detail. For example,
-          for storage assets we support various state-of-charge parameters. For now, the existing schedulers are the best documentation.
+          for storage assets we support various state-of-charge parameters. For now, the existing in-built schedulers are the best documentation.
 
 
 Finally, make your scheduler be the one that FlexMeasures will use for certain sensors:
@@ -57,7 +61,6 @@ Finally, make your scheduler be the one that FlexMeasures will use for certain s
     scheduler_specs = {
         "module": "flexmeasures.data.tests.dummy_scheduler",  # or a file path, see note below
         "function": "compute_a_schedule",
-        "source": "My Company"
     }
     
     my_sensor = Sensor.query.filter(Sensor.name == "My power sensor on a flexible asset").one_or_none()

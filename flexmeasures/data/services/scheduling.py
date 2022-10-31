@@ -115,7 +115,9 @@ def make_schedule(
     db.engine.dispose()
 
     sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
-    data_source_name = "Seita"
+    data_source_info = dict(
+        name="Seita", model="Unknown", version="1"
+    )  # will be overwritten by scheduler choice below
 
     rq_job = get_current_job()
     if rq_job:
@@ -127,23 +129,26 @@ def make_schedule(
     # Choose which algorithm to use
     if "custom-scheduler" in sensor.attributes:
         scheduler_specs = sensor.attributes.get("custom-scheduler")
-        scheduler, data_source_name = load_custom_scheduler(scheduler_specs)
-        if rq_job:
-            rq_job.meta["data_source_name"] = data_source_name
-            rq_job.save_meta()
+        scheduler, data_source_info = load_custom_scheduler(scheduler_specs)
     elif sensor.generic_asset.generic_asset_type.name == "battery":
         scheduler = schedule_battery
+        data_source_info["model"] = "schedule_battery"
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
         "two-way_evse",
     ):
         scheduler = schedule_charging_station
-
+        data_source_info["model"] = "schedule_charging_station"
     else:
         raise ValueError(
             "Scheduling is not (yet) supported for asset type %s."
             % sensor.generic_asset.generic_asset_type
         )
+
+    # saving info on the job, so the API for a job can look the data up
+    if rq_job:
+        rq_job.meta["data_source_info"] = data_source_info
+        rq_job.save_meta()
 
     consumption_schedule = scheduler(
         sensor,
@@ -156,13 +161,15 @@ def make_schedule(
         inflexible_device_sensors=inflexible_device_sensors,
         belief_time=belief_time,
     )
-
-    data_source = get_data_source(
-        data_source_name=data_source_name,
-        data_source_type="scheduling script",
-    )
     if rq_job:
         click.echo("Job %s made schedule." % rq_job.id)
+
+    data_source = get_data_source(
+        data_source_name=data_source_info["name"],
+        data_source_model=data_source_info["model"],
+        data_source_version=data_source_info["version"],
+        data_source_type="scheduling script",
+    )
 
     ts_value_schedule = [
         TimedBelief(
@@ -181,17 +188,16 @@ def make_schedule(
     return True
 
 
-def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, str]:
+def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, dict]:
     """
     Read in custom scheduling spec.
-    Attempt to load the Callable, also derive a data source name.
+    Attempt to load the Callable, also derive data source info.
 
     Example specs:
 
     {
         "module": "/path/to/module.py",  # or sthg importable, e.g. "package.module"
         "function": "name_of_function",
-        "source": "source name"
     }
 
     """
@@ -201,10 +207,8 @@ def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, str]:
     assert "module" in scheduler_specs, "scheduler specs have no 'module'."
     assert "function" in scheduler_specs, "scheduler specs have no 'function'"
 
-    source_name = scheduler_specs.get(
-        "source", f"custom scheduler - {scheduler_specs['function']}"
-    )
     scheduler_name = scheduler_specs["function"]
+    source_info = dict(model=scheduler_name, version="1", name="")  # default  # default
 
     # import module
     module_descr = scheduler_specs["module"]
@@ -233,7 +237,12 @@ def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, str]:
         module, scheduler_specs["function"]
     ), "Module at {module_descr} has no function {scheduler_specs['function']}"
 
-    return getattr(module, scheduler_specs["function"]), source_name
+    if hasattr(module, "__version__"):
+        source_info["version"] = str(module.__version__)
+    if hasattr(module, "__author__"):
+        source_info["name"] = str(module.__author__)
+
+    return getattr(module, scheduler_specs["function"]), source_info
 
 
 def handle_scheduling_exception(job, exc_type, exc_value, traceback):
