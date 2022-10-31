@@ -353,10 +353,6 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
 
 def _drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     """Only works on BeliefsDataFrames with a unique belief time and unique source."""
-    if len(bdf.lineage.belief_times) > 1:
-        raise NotImplementedError("Beliefs should share a unique belief time.")
-    if len(bdf.lineage.sources) > 1:
-        raise NotImplementedError("Beliefs should share a unique source.")
     previous_beliefs_in_db = bdf.sensor.search_beliefs(
         event_starts_after=bdf.event_starts[0],
         event_ends_before=bdf.event_ends[-1],
