@@ -78,12 +78,7 @@ def ensure_storage_specs(
     if specs is None:
         specs = {}
 
-    sensor: Optional[Sensor] = None
-
-    def ensure_sensor_is_set(sensor) -> Sensor:
-        if sensor is None:
-            sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
-        return sensor
+    sensor: Optional[Sensor] = Sensor.query.filter_by(id=sensor_id).one_or_none()
 
     # Check state of charge
     # Preferably, a starting soc is given.
@@ -91,7 +86,6 @@ def ensure_storage_specs(
     # Otherwise, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
     # and without soc targets and limits the starting soc doesn't matter).
     if "soc_at_start" not in specs or specs["soc_at_start"] is None:
-        sensor = ensure_sensor_is_set(sensor)
         if (
             start_of_schedule == sensor.get_attribute("soc_datetime")
             and sensor.get_attribute("soc_in_mwh") is not None
@@ -115,11 +109,9 @@ def ensure_storage_specs(
 
     # Check for min and max SOC, or get default from sensor
     if "soc_min" not in specs or specs["soc_min"] is None:
-        sensor = ensure_sensor_is_set(sensor)
         # Can't drain the storage by more than it contains
         specs["soc_min"] = sensor.get_attribute("min_soc_in_mwh", 0)
     if "soc_max" not in specs or specs["soc_max"] is None:
-        sensor = ensure_sensor_is_set(sensor)
         # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
         specs["soc_max"] = sensor.get_attribute(
             "max_soc_in_mwh", max(specs["soc_targets"].values)
@@ -127,7 +119,6 @@ def ensure_storage_specs(
 
     # Check for round-trip efficiency
     if "roundtrip_efficiency" not in specs or specs["roundtrip_efficiency"] is None:
-        sensor = ensure_sensor_is_set(sensor)
         # Get default from sensor, or use 100% otherwise
         specs["roundtrip_efficiency"] = sensor.get_attribute("roundtrip_efficiency", 1)
     if specs["roundtrip_efficiency"] <= 0 or specs["roundtrip_efficiency"] > 1:
