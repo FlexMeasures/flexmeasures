@@ -46,8 +46,8 @@ def device_scheduler(  # noqa C901
         derivative max: maximum flow (e.g. in MW or boxes/h)
         derivative min: minimum flow
         derivative equals: exact amount of flow (we do this by clamping derivative min and derivative max)
-        derivative down efficiency: ratio of downwards flows (flow into EMS : flow out of device)
-        derivative up efficiency: ratio of upwards flows (flow into device : flow out of EMS)
+        derivative down efficiency: conversion efficiency of flow out of a device (flow out : stock decrease)
+        derivative up efficiency: conversion efficiency of flow into a device (stock increase : flow in)
     EMS constraints are on an EMS level. Handled constraints (listed by column name):
         derivative max: maximum flow
         derivative min: minimum flow
@@ -228,10 +228,12 @@ def device_scheduler(  # noqa C901
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
     def device_bounds(m, d, j):
+        """Apply efficiencies to conversion from flow to stock change and vice versa."""
         return (
             m.device_min[d, j],
             sum(
-                m.device_power_down[d, k] + m.device_power_up[d, k]
+                m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
+                + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
                 for k in range(0, j + 1)
             ),
             m.device_max[d, j],
@@ -275,12 +277,10 @@ def device_scheduler(  # noqa C901
         )
 
     def device_derivative_equalities(m, d, j):
-        """Couple device flows to EMS flows per device, applying efficiencies."""
+        """Couple device flows to EMS flows per device."""
         return (
             0,
-            m.device_power_up[d, j] / m.device_derivative_up_efficiency[d, j]
-            + m.device_power_down[d, j] * m.device_derivative_down_efficiency[d, j]
-            - m.ems_power[d, j],
+            m.device_power_up[d, j] + m.device_power_down[d, j] - m.ems_power[d, j],
             0,
         )
 
@@ -321,10 +321,7 @@ def device_scheduler(  # noqa C901
     planned_costs = value(model.costs)
     planned_power_per_device = []
     for d in model.d:
-        planned_device_power = [
-            model.device_power_down[d, j].value + model.device_power_up[d, j].value
-            for j in model.j
-        ]
+        planned_device_power = [model.ems_power[d, j].value for j in model.j]
         planned_power_per_device.append(
             pd.Series(
                 index=pd.date_range(
