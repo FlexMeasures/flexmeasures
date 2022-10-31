@@ -352,7 +352,11 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
 
 
 def _drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
-    """Only works on BeliefsDataFrames with a unique belief time and unique source."""
+    """Drop beliefs that are already stored in the database with an earlier belief time.
+
+    Assumes a BeliefsDataFrame with a unique belief time and unique source,
+    and either all ex-ante beliefs or all ex-post beliefs.
+    """
     if bdf.belief_horizons[0] > timedelta(0):
         # Look up only ex-ante beliefs (horizon > 0)
         kwargs = dict(horizons_at_least=timedelta(0))
