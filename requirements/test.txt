@@ -70,10 +70,6 @@ pyparsing==3.0.9
     # via
     #   -c requirements/app.txt
     #   packaging
-pysocks==1.7.1
-    # via
-    #   -c requirements/app.txt
-    #   urllib3
 pytest==7.1.2
     # via
     #   -r requirements/test.in
@@ -103,16 +99,14 @@ six==1.16.0
     #   fakeredis
     #   requests-mock
 sortedcontainers==2.4.0
-    # via
-    #   -c requirements/app.txt
-    #   fakeredis
+    # via fakeredis
 termcolor==1.1.0
     # via pytest-sugar
 tomli==2.0.1
     # via
     #   coverage
     #   pytest
-urllib3[socks]==1.26.12
+urllib3==1.26.12
     # via
     #   -c requirements/app.txt
     #   requests
