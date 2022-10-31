@@ -318,7 +318,6 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     Also drop beliefs that are already in the data with an earlier belief time.
 
     Quite useful function to prevent cluttering up your database with beliefs that remain unchanged over time.
-    Only works on BeliefsDataFrames with a unique belief time and unique source.
     """
     if bdf.empty:
         return bdf
