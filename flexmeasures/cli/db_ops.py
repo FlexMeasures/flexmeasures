@@ -122,10 +122,7 @@ def restore(file: str):
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
     command_for_restoring = f"pg_restore -d {db_uri} {file}"
     try:
-        proc = subprocess.Popen(command_for_restoring, shell=True)  # , env={
-        # 'PGPASSWORD': DB_PASSWORD
-        # })
-        proc.wait()
+        subprocess.check_output(command_for_restoring, shell=True)
         click.echo("db restore successful")
 
     except Exception as e:
