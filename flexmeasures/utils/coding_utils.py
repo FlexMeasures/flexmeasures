@@ -119,6 +119,7 @@ def sort_dict(unsorted_dict: dict) -> dict:
 
 def timeit(func):
     """Decorator for printing the time it took to execute the decorated function."""
+
     @functools.wraps(func)
     def new_func(*args, **kwargs):
         start_time = time.time()
