@@ -37,7 +37,13 @@ from flexmeasures.data.models.validation_utils import (
     MissingAttributeException,
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.schemas import AwareDateTimeField, DurationField, LatitudeField, LongitudeField, SensorIdField
+from flexmeasures.data.schemas import (
+    AwareDateTimeField,
+    DurationField,
+    LatitudeField,
+    LongitudeField,
+    SensorIdField,
+)
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
