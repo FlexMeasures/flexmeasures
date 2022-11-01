@@ -1,4 +1,3 @@
-from typing import Optional
 import json
 
 from marshmallow import validates, validates_schema, ValidationError, fields

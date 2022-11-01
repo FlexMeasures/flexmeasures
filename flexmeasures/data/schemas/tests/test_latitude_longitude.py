@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 import pytest
 
 from flexmeasures.data.schemas.assets import LatitudeField, LongitudeField
