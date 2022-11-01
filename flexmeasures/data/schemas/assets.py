@@ -70,7 +70,7 @@ class LatitudeField(MarshmallowClickMixin, fields.Float):
     """Field that deserializes to a latitude float with max 7 decimal places."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         # Insert validation into self.validators so that multiple errors can be stored.
         self.validators.insert(0, LatitudeLongitudeValidator())
         self.validators.insert(
@@ -82,7 +82,7 @@ class LongitudeField(MarshmallowClickMixin, fields.Float):
     """Field that deserializes to a longitude float with max 7 decimal places."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         # Insert validation into self.validators so that multiple errors can be stored.
         self.validators.insert(0, LatitudeLongitudeValidator())
         self.validators.insert(
@@ -146,8 +146,8 @@ class AssetSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     soc_in_mwh = ma.auto_field()
     soc_datetime = ma.auto_field()
     soc_udi_event_id = ma.auto_field()
-    latitude = LatitudeField()
-    longitude = LongitudeField()
+    latitude = LatitudeField(allow_none=True)
+    longitude = LongitudeField(allow_none=True)
     asset_type_name = ma.auto_field(required=True)
     owner_id = ma.auto_field(required=True)
     market_id = ma.auto_field(required=True)
