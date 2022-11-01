@@ -7,7 +7,6 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 import numpy as np
 import timely_beliefs as tb
-from timely_beliefs.beliefs import utils as belief_utils
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
