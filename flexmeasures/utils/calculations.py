@@ -39,19 +39,19 @@ def drop_nan_rows(a, b):
 
 def integrate_time_series(
     series: pd.Series,
-    s0: float,
+    initial_stock: float,
     up_efficiency: float | pd.Series = 1,
     down_efficiency: float | pd.Series = 1,
     decimal_precision: int | None = None,
 ) -> pd.Series:
     """Integrate time series of length n and closed="left" (representing a flow)
     to a time series of length n+1 and closed="both" (representing a stock),
-    given a starting stock s0.
+    given an initial stock (i.e. the constant of integration).
     The unit of time is hours: i.e. the stock unit is flow unit times hours (e.g. a flow in kW becomes a stock in kWh).
     Optionally, set a decimal precision to round off the results (useful for tests failing over machine precision).
 
     >>> s = pd.Series([1, 2, 3, 4], index=pd.date_range(datetime(2001, 1, 1, 5), datetime(2001, 1, 1, 6), freq=timedelta(minutes=15), closed="left"))
-    >>> integrate_time_series(series, 10)
+    >>> integrate_time_series(s, 10)
         2001-01-01 05:00:00    10.00
         2001-01-01 05:15:00    10.25
         2001-01-01 05:30:00    10.75
@@ -60,7 +60,7 @@ def integrate_time_series(
         Freq: D, dtype: float64
 
     >>> s = pd.Series([1, 2, 3, 4], index=pd.date_range(datetime(2001, 1, 1, 5), datetime(2001, 1, 1, 7), freq=timedelta(minutes=30), closed="left"))
-    >>> integrate_time_series(series, 10)
+    >>> integrate_time_series(s, 10)
         2001-01-01 05:00:00    10.0
         2001-01-01 05:30:00    10.5
         2001-01-01 06:00:00    11.5
@@ -82,10 +82,10 @@ def integrate_time_series(
     )
     int_s = pd.concat(
         [
-            pd.Series(s0, index=pd.date_range(series.index[0], periods=1)),
+            pd.Series(initial_stock, index=pd.date_range(series.index[0], periods=1)),
             stock_change.shift(1, freq=resolution).cumsum()
             * (resolution / timedelta(hours=1))
-            + s0,
+            + initial_stock,
         ]
     )
     if decimal_precision is not None:
