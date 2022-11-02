@@ -2,13 +2,14 @@
 FlexMeasures Changelog
 **********************
 
-v0.11.3 | November XX, 2022
+v0.11.3 | November 2, 2022
 ============================
 
 Bugfixes
 -----------
 * Fix scheduling with imperfect efficiencies, which resulted in exceeding the device's lower SoC limit. [see `PR #520 <http://www.github.com/FlexMeasures/flexmeasures/pull/520>`_]
 * Fix scheduler for Charge Points when taking into account inflexible devices [see `PR #517 <http://www.github.com/FlexMeasures/flexmeasures/pull/517>`_]
+* Prevent rounding asset lat/long positions to 4 decimal places when editing an asset in the UI [see `PR #522 <http://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 
 
 v0.11.2 | September 6, 2022
