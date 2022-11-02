@@ -9,10 +9,12 @@ from rq.job import Job
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v1_3.tests.utils import message_for_get_device_message
 from flexmeasures.api.v3_0.tests.utils import message_for_post_udi_event
-from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
-from flexmeasures.data.services.scheduling import handle_scheduling_exception
+from flexmeasures.data.services.scheduling import (
+    handle_scheduling_exception,
+    get_data_source_for_job,
+)
 from flexmeasures.utils.calculations import integrate_time_series
 
 
@@ -66,14 +68,13 @@ def test_trigger_and_get_schedule(
     )
 
     # check results are in the database
+
+    # First, make sure the scheduler data source is now there
     job.refresh()  # catch meta info that was added on this very instance
-    data_source_info = job.meta.get("data_source_info")
-    scheduler_source = DataSource.query.filter_by(
-        type="scheduling script", **data_source_info
-    ).one_or_none()
-    assert (
-        scheduler_source is not None
-    )  # Make sure the scheduler data source is now there
+    scheduler_source = get_data_source_for_job(job)
+    assert scheduler_source is not None
+
+    # Then, check if the data was created
     power_values = (
         TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id)
         .filter(TimedBelief.source_id == scheduler_source.id)

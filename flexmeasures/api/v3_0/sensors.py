@@ -34,7 +34,6 @@ from flexmeasures.api.common.schemas.sensor_data import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
@@ -42,7 +41,10 @@ from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.services.sensors import get_sensors
-from flexmeasures.data.services.scheduling import create_scheduling_job
+from flexmeasures.data.services.scheduling import (
+    create_scheduling_job,
+    get_data_source_for_job,
+)
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.unit_utils import ur
 
@@ -552,25 +554,15 @@ class SensorAPI(FlaskView):
             return unknown_schedule("Scheduling job has an unknown status.")
         schedule_start = job.kwargs["start"]
 
-        data_source_info = job.meta.get("data_source_info")
-        if data_source_info is None:
-            data_source_info = dict(
-                name="Seita"
-            )  # TODO: change to raise later - all scheduling jobs now get full info
-        scheduler_sources = DataSource.query.filter_by(
-            type="scheduling script",
-            **data_source_info,
-        ).all()  # there can be more than one, e.g. different users
-        if len(scheduler_sources) == 0:
-            s_info = ",".join([f"{k}={v}" for k, v in data_source_info.items()])
+        data_source = get_data_source_for_job(job, sensor=sensor)
+        if data_source is None:
             return unknown_schedule(
-                error_message + f"no data is known from [{s_info}]."
+                error_message + f"no data source could be found for {data_source}."
             )
-
         power_values = sensor.search_beliefs(
             event_starts_after=schedule_start,
             event_ends_before=schedule_start + planning_horizon,
-            source=scheduler_sources[-1],
+            source=data_source,
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )

@@ -39,11 +39,13 @@ from flexmeasures.api.common.utils.validators import (
     parse_isodate_str,
 )
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.services.resources import has_assets, can_access_asset
-from flexmeasures.data.services.scheduling import create_scheduling_job
+from flexmeasures.data.services.scheduling import (
+    create_scheduling_job,
+    get_data_source_for_job,
+)
 from flexmeasures.utils.time_utils import duration_isoformat
 
 
@@ -145,25 +147,15 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     return unknown_schedule("Scheduling job has an unknown status.")
                 schedule_start = job.kwargs["start"]
 
-            data_source_info = None
-            if job:
-                data_source_info = job.meta.get("data_source_info")
-            if data_source_info is None:
-                data_source_info = dict(
-                    name="Seita"
-                )  # TODO: change to raise later - all scheduling jobs now get full info
-            scheduler_sources = DataSource.query.filter_by(
-                type="scheduling script",
-                **data_source_info,
-            ).all()  # Might be more than one, e.g. per user
-            if len(scheduler_sources) == 0:
-                s_info = ",".join([f"{k}={v}" for k, v in data_source_info.items()])
-                return unknown_schedule(message + f"no data is known from [{s_info}].")
-
+            data_source = get_data_source_for_job(job, sensor=sensor)
+            if data_source is None:
+                return unknown_schedule(
+                    message + f"no data source could be found for job {job}."
+                )
             power_values = sensor.search_beliefs(
                 event_starts_after=schedule_start,
                 event_ends_before=schedule_start + planning_horizon,
-                source=scheduler_sources[-1],
+                source=data_source,
                 most_recent_beliefs_only=True,
                 one_deterministic_belief_per_event=True,
             )

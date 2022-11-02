@@ -4,11 +4,11 @@ import os
 import sys
 import importlib.util
 from importlib.abc import Loader
+from rq.job import Job
 
 from flask import current_app
 import click
 from rq import get_current_job
-from rq.job import Job
 import timely_beliefs as tb
 
 from flexmeasures.data import db
@@ -16,6 +16,7 @@ from flexmeasures.data.models.planning.battery import schedule_battery
 from flexmeasures.data.models.planning.charging_station import schedule_charging_station
 from flexmeasures.data.models.planning.utils import ensure_storage_specs
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.utils import get_data_source, save_to_db
 
 """
@@ -145,11 +146,6 @@ def make_schedule(
             % sensor.generic_asset.generic_asset_type
         )
 
-    # saving info on the job, so the API for a job can look the data up
-    if rq_job:
-        rq_job.meta["data_source_info"] = data_source_info
-        rq_job.save_meta()
-
     consumption_schedule = scheduler(
         sensor,
         start,
@@ -170,6 +166,12 @@ def make_schedule(
         data_source_version=data_source_info["version"],
         data_source_type="scheduling script",
     )
+
+    # saving info on the job, so the API for a job can look the data up
+    data_source_info["id"] = data_source.id
+    if rq_job:
+        rq_job.meta["data_source_info"] = data_source_info
+        rq_job.save_meta()
 
     ts_value_schedule = [
         TimedBelief(
@@ -252,3 +254,43 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     click.echo("HANDLING RQ WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value))
     job.meta["exception"] = exc_value
     job.save_meta()
+
+
+def get_data_source_for_job(
+    job: Optional[Job], sensor: Optional[Sensor] = None
+) -> Optional[DataSource]:
+    """
+    Try to find the data source linked by this scheduling job.
+
+    We expect that enough info on the source was placed in the meta dict.
+    For a transition period, we might have to guess a bit.
+    TODO: Afterwards, this can be lighter. We should also expect a job and no sensor is needed,
+          once API v1.3 is deprecated.
+    """
+    data_source_info = None
+    if job:
+        data_source_info = job.meta.get("data_source_info")
+        if data_source_info and "id" in data_source_info:
+            return DataSource.query.get(data_source_info["id"])
+    if data_source_info is None and sensor:
+        data_source_info = dict(
+            name="Seita",
+            model="schedule_battery"
+            if sensor.generic_asset.generic_asset_type.name == "battery"
+            else "schedule_charging_station",
+        )
+        # TODO: change to raise later (v0.13) - all scheduling jobs now get full info
+        current_app.logger.warning(
+            "Looking up scheduling data without knowing full data_source_info (version). This is deprecated soon. Please specify a job id as event or switch to API v3."
+        )
+    scheduler_sources = (
+        DataSource.query.filter_by(
+            type="scheduling script",
+            **data_source_info,
+        )
+        .order_by(DataSource.version.desc())
+        .all()
+    )  # Might still be more than one, e.g. per user
+    if len(scheduler_sources) == 0:
+        return None
+    return scheduler_sources[0]
