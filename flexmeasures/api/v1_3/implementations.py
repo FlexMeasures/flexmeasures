@@ -358,7 +358,7 @@ def post_udi_event_response(unit: str, prior: datetime):
             soc_targets.loc[target_datetime] = target_value
 
     create_scheduling_job(
-        sensor_id,
+        sensor,
         start_of_schedule,
         end_of_schedule,
         resolution=resolution,

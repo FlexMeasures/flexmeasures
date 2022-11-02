@@ -953,7 +953,7 @@ def create_schedule(
 
     if as_job:
         job = create_scheduling_job(
-            sensor_id=power_sensor.id,
+            sensor=power_sensor,
             start_of_schedule=start,
             end_of_schedule=end,
             belief_time=server_now(),

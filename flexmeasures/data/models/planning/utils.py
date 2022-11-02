@@ -58,7 +58,7 @@ def initialize_index(
 
 def ensure_storage_specs(
     specs: Optional[dict],
-    sensor_id: int,
+    sensor: Sensor,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     resolution: timedelta,
@@ -76,8 +76,6 @@ def ensure_storage_specs(
     """
     if specs is None:
         specs = {}
-
-    sensor: Optional[Sensor] = Sensor.query.filter_by(id=sensor_id).one_or_none()
 
     # Check state of charge
     # Preferably, a starting soc is given.

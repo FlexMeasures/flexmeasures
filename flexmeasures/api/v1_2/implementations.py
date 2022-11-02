@@ -103,7 +103,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 prefer_charging_sooner=False,
             )
             storage_specs = ensure_storage_specs(
-                storage_specs, sensor_id, start, end, resolution
+                storage_specs, sensor, start, end, resolution
             )
             try:
                 schedule = schedule_battery(

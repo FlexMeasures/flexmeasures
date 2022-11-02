@@ -439,7 +439,7 @@ class SensorAPI(FlaskView):
             soc_targets.loc[target_datetime] = target_value
 
         job = create_scheduling_job(
-            sensor.id,
+            sensor,
             start_of_schedule,
             end_of_schedule,
             resolution=resolution,

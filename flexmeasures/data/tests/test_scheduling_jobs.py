@@ -35,7 +35,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     )  # Make sure the scheduler data source isn't there
 
     job = create_scheduling_job(
-        battery.id, start, end, belief_time=start, resolution=resolution
+        battery, start, end, belief_time=start, resolution=resolution
     )
 
     print("Job: %s" % job.id)
@@ -103,7 +103,7 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     resolution = timedelta(minutes=15)
 
     job = create_scheduling_job(
-        battery.id, start, end, belief_time=start, resolution=resolution
+        battery, start, end, belief_time=start, resolution=resolution
     )
     print("Job: %s" % job.id)
 

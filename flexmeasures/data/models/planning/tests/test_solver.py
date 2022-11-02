@@ -28,7 +28,7 @@ def test_battery_solver_day_1(
     resolution = timedelta(minutes=15)
     soc_at_start = battery.get_attribute("soc_in_mwh")
     storage_specs = ensure_storage_specs(
-        dict(soc_at_start=soc_at_start), battery.id, start, end, resolution
+        dict(soc_at_start=soc_at_start), battery, start, end, resolution
     )
     schedule = schedule_battery(
         battery,
@@ -91,7 +91,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
             soc_max=soc_max,
             roundtrip_efficiency=roundtrip_efficiency,
         ),
-        battery.id,
+        battery,
         start,
         end,
         resolution,
@@ -172,7 +172,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     soc_targets.loc[target_soc_datetime] = target_soc
     storage_specs = ensure_storage_specs(
         dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
-        charging_station.id,
+        charging_station,
         start,
         end,
         resolution,
@@ -236,7 +236,7 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     soc_targets.loc[target_soc_datetime] = target_soc
     storage_specs = ensure_storage_specs(
         dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
-        charging_station.id,
+        charging_station,
         start,
         end,
         resolution,
@@ -300,7 +300,7 @@ def test_building_solver_day_2(
             soc_min=soc_min,
             soc_max=soc_max,
         ),
-        battery.id,
+        battery,
         start,
         end,
         resolution,

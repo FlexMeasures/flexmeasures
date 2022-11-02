@@ -29,7 +29,7 @@ The life cycle of a scheduling job:
 
 
 def create_scheduling_job(
-    sensor_id: int,
+    sensor: Sensor,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     belief_time: datetime,
@@ -44,7 +44,7 @@ def create_scheduling_job(
     """
     Create a new Job, which is queued for later execution.
 
-    Before enqueing, we perform some checks on sensor type and specs, for errors we want to bubble up early.
+    Before enqueuing, we perform some checks on sensor type and specs, for errors we want to bubble up early.
 
     To support quick retrieval of the scheduling job, the job id is the unique entity address of the UDI event.
     That means one event leads to one job (i.e. actions are event driven).
@@ -59,13 +59,13 @@ def create_scheduling_job(
         Freq: 15T, dtype: float64
     """
     storage_specs = ensure_storage_specs(
-        storage_specs, sensor_id, start_of_schedule, end_of_schedule, resolution
+        storage_specs, sensor, start_of_schedule, end_of_schedule, resolution
     )
 
     job = Job.create(
         make_schedule,
         kwargs=dict(
-            sensor_id=sensor_id,
+            sensor_id=sensor.id,
             start=start_of_schedule,
             end=end_of_schedule,
             belief_time=belief_time,
