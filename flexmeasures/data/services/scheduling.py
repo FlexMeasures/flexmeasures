@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Tuple, Optional, Callable
+from typing import List, Tuple, Optional
 import os
 import sys
 import importlib.util
@@ -12,11 +12,12 @@ from rq import get_current_job
 import timely_beliefs as tb
 
 from flexmeasures.data import db
-from flexmeasures.data.models.planning.battery import schedule_battery
-from flexmeasures.data.models.planning.charging_station import schedule_charging_station
+from flexmeasures.data.models.planning.battery import BatteryScheduler
+from flexmeasures.data.models.planning.charging_station import ChargingStationScheduler
 from flexmeasures.data.models.planning.utils import ensure_storage_specs
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.utils import get_data_source, save_to_db
 
 """
@@ -116,9 +117,6 @@ def make_schedule(
     db.engine.dispose()
 
     sensor = Sensor.query.filter_by(id=sensor_id).one_or_none()
-    data_source_info = dict(
-        name="Seita", model="Unknown", version="1"
-    )  # will be overwritten by scheduler choice below
 
     rq_job = get_current_job()
     if rq_job:
@@ -127,26 +125,31 @@ def make_schedule(
             % (rq_job.id, sensor, start, end)
         )
 
-    # Choose which algorithm to use
+    data_source_info = {}
+    # Choose which algorithm to use  TODO: unify loading this into a func store concept
     if "custom-scheduler" in sensor.attributes:
         scheduler_specs = sensor.attributes.get("custom-scheduler")
         scheduler, data_source_info = load_custom_scheduler(scheduler_specs)
     elif sensor.generic_asset.generic_asset_type.name == "battery":
-        scheduler = schedule_battery
+        scheduler = BatteryScheduler
         data_source_info["model"] = "schedule_battery"
+        data_source_info["name"] = scheduler.__author__
+        data_source_info["version"] = scheduler.__version__
     elif sensor.generic_asset.generic_asset_type.name in (
         "one-way_evse",
         "two-way_evse",
     ):
-        scheduler = schedule_charging_station
+        scheduler = ChargingStationScheduler
         data_source_info["model"] = "schedule_charging_station"
+        data_source_info["name"] = scheduler.__author__
+        data_source_info["version"] = scheduler.__version__
     else:
         raise ValueError(
             "Scheduling is not (yet) supported for asset type %s."
             % sensor.generic_asset.generic_asset_type
         )
 
-    consumption_schedule = scheduler(
+    consumption_schedule = scheduler().schedule(
         sensor,
         start,
         end,
@@ -190,16 +193,19 @@ def make_schedule(
     return True
 
 
-def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, dict]:
+def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Scheduler, dict]:
     """
     Read in custom scheduling spec.
     Attempt to load the Callable, also derive data source info.
+
+    The scheduler class should be derived from flexmeasures.data.models.planning.Scheduler.
+    The Callable is assumed to be named "schedule".
 
     Example specs:
 
     {
         "module": "/path/to/module.py",  # or sthg importable, e.g. "package.module"
-        "function": "name_of_function",
+        "class": "NameOfSchedulerClass",
     }
 
     """
@@ -207,10 +213,12 @@ def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, dict]:
         scheduler_specs, dict
     ), f"Scheduler specs is {type(scheduler_specs)}, should be a dict"
     assert "module" in scheduler_specs, "scheduler specs have no 'module'."
-    assert "function" in scheduler_specs, "scheduler specs have no 'function'"
+    assert "class" in scheduler_specs, "scheduler specs have no 'class'"
 
-    scheduler_name = scheduler_specs["function"]
-    source_info = dict(model=scheduler_name, version="1", name="")  # default  # default
+    scheduler_name = scheduler_specs["class"]
+    source_info = dict(
+        model=scheduler_name, version="1", name="Unknown author"
+    )  # default
 
     # import module
     module_descr = scheduler_specs["module"]
@@ -236,15 +244,30 @@ def load_custom_scheduler(scheduler_specs: dict) -> Tuple[Callable, dict]:
 
     # get scheduling function
     assert hasattr(
-        module, scheduler_specs["function"]
-    ), "Module at {module_descr} has no function {scheduler_specs['function']}"
+        module, scheduler_specs["class"]
+    ), "Module at {module_descr} has no class {scheduler_specs['class']}"
 
-    if hasattr(module, "__version__"):
-        source_info["version"] = str(module.__version__)
-    if hasattr(module, "__author__"):
-        source_info["name"] = str(module.__author__)
+    scheduler_class = getattr(module, scheduler_specs["class"])
 
-    return getattr(module, scheduler_specs["function"]), source_info
+    if hasattr(scheduler_class, "__version__"):
+        source_info["version"] = str(scheduler_class.__version__)
+    else:
+        current_app.logger.warning(
+            f"Scheduler {scheduler_class.__name__} loaded, but has no __version__ attribute."
+        )
+    if hasattr(scheduler_class, "__author__"):
+        source_info["name"] = str(scheduler_class.__author__)
+    else:
+        current_app.logger.warning(
+            f"Scheduler {scheduler_class.__name__} loaded, but has no __author__ attribute."
+        )
+
+    schedule_function_name = "schedule"
+    if not hasattr(scheduler_class, schedule_function_name):
+        raise NotImplementedError(
+            f"No function {schedule_function_name} in {scheduler_class}. Cannot load custom scheduler."
+        )
+    return scheduler_class, source_info
 
 
 def handle_scheduling_exception(job, exc_type, exc_value, traceback):

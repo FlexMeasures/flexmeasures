@@ -60,7 +60,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
 
 scheduler_specs = {
     "module": None,  # use make_module_descr, see below
-    "function": "compute_a_schedule",
+    "class": "DummyScheduler",
 }
 
 
@@ -81,9 +81,9 @@ def test_loading_custom_scheduler(is_path: bool):
     custom_scheduler, data_source_info = load_custom_scheduler(scheduler_specs)
     assert data_source_info["name"] == "Test Organization"
     assert data_source_info["version"] == "v3"
-    assert data_source_info["model"] == "compute_a_schedule"
-    assert custom_scheduler.__name__ == "compute_a_schedule"
-    assert "Just a dummy scheduler" in custom_scheduler.__doc__
+    assert data_source_info["model"] == "DummyScheduler"
+    assert custom_scheduler.__name__ == "DummyScheduler"
+    assert "Just a dummy scheduler" in custom_scheduler.schedule.__doc__
 
 
 @pytest.mark.parametrize("is_path", [False, True])
@@ -112,7 +112,7 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     # make sure we saved the data source for later lookup
     redis_connection = app.queues["scheduling"].connection
     finished_job = Job.fetch(job.id, connection=redis_connection)
-    assert finished_job.meta["data_source_info"]["model"] == scheduler_specs["function"]
+    assert finished_job.meta["data_source_info"]["model"] == scheduler_specs["class"]
 
     scheduler_source = DataSource.query.filter_by(
         type="scheduling script",

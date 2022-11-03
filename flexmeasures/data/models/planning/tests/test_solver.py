@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.planning.battery import schedule_battery
-from flexmeasures.data.models.planning.charging_station import schedule_charging_station
+from flexmeasures.data.models.planning.battery import BatteryScheduler
+from flexmeasures.data.models.planning.charging_station import ChargingStationScheduler
 from flexmeasures.data.models.planning.utils import ensure_storage_specs
 from flexmeasures.utils.calculations import integrate_time_series
 
@@ -30,7 +30,7 @@ def test_battery_solver_day_1(
     storage_specs = ensure_storage_specs(
         dict(soc_at_start=soc_at_start), battery, start, end, resolution
     )
-    schedule = schedule_battery(
+    schedule = BatteryScheduler().schedule(
         battery,
         start,
         end,
@@ -96,7 +96,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
         end,
         resolution,
     )
-    schedule = schedule_battery(
+    schedule = BatteryScheduler().schedule(
         battery,
         start,
         end,
@@ -177,7 +177,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
         end,
         resolution,
     )
-    consumption_schedule = schedule_charging_station(
+    consumption_schedule = ChargingStationScheduler().schedule(
         charging_station, start, end, resolution, storage_specs=storage_specs
     )
     soc_schedule = integrate_time_series(
@@ -241,7 +241,7 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
         end,
         resolution,
     )
-    consumption_schedule = schedule_charging_station(
+    consumption_schedule = ChargingStationScheduler().schedule(
         charging_station,
         start,
         end,
@@ -305,7 +305,7 @@ def test_building_solver_day_2(
         end,
         resolution,
     )
-    schedule = schedule_battery(
+    schedule = BatteryScheduler().schedule(
         battery,
         start,
         end,
@@ -324,7 +324,7 @@ def test_building_solver_day_2(
         columns=["inflexible"],
     ).tail(
         -4 * 24
-    )  # remove first 96 quarterhours (the schedule is about the 2nd day)
+    )  # remove first 96 quarter-hours (the schedule is about the 2nd day)
     capacity["max"] = building.get_attribute("capacity_in_mw")
     capacity["min"] = -building.get_attribute("capacity_in_mw")
     capacity["production headroom"] = capacity["max"] - capacity["inflexible"]

@@ -32,7 +32,7 @@ from flexmeasures.api.common.utils.validators import (
     parse_isodate_str,
 )
 from flexmeasures.data import db
-from flexmeasures.data.models.planning.battery import schedule_battery
+from flexmeasures.data.models.planning.battery import BatteryScheduler
 from flexmeasures.data.models.planning.exceptions import (
     UnknownMarketException,
     UnknownPricesException,
@@ -106,7 +106,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 storage_specs, sensor, start, end, resolution
             )
             try:
-                schedule = schedule_battery(
+                schedule = BatteryScheduler().schedule(
                     sensor, start, end, resolution, storage_specs=storage_specs
                 )
             except UnknownPricesException:
