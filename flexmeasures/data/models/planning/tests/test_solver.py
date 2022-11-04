@@ -103,7 +103,13 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
         resolution,
         storage_specs=storage_specs,
     )
-    soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
+    soc_schedule = integrate_time_series(
+        schedule,
+        soc_at_start,
+        up_efficiency=roundtrip_efficiency**0.5,
+        down_efficiency=roundtrip_efficiency**0.5,
+        decimal_precision=6,
+    )
 
     with pd.option_context("display.max_rows", None, "display.max_columns", 3):
         print(soc_schedule)

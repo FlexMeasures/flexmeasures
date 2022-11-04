@@ -104,9 +104,10 @@ class ChargingStationScheduler(Scheduler):
         ]
         if inflexible_device_sensors is None:
             inflexible_device_sensors = []
-        device_constraints = [initialize_df(columns, start, end, resolution)] * (
-            1 + len(inflexible_device_sensors)
-        )
+        device_constraints = [
+            initialize_df(columns, start, end, resolution)
+            for i in range(1 + len(inflexible_device_sensors))
+        ]
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
             device_constraints[i + 1]["derivative equals"] = get_power_values(
                 query_window=(start, end),

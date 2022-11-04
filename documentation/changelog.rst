@@ -17,6 +17,7 @@ New features
 Bugfixes
 -----------
 * The CLI command ``flexmeasures show beliefs`` now supports plotting time series data that includes NaN values, and provides better support for plotting multiple sensors that do not share the same unit [see `PR #516 <http://www.github.com/FlexMeasures/flexmeasures/pull/516>`_]
+* Consistent CLI/UI support for asset lat/lng positions up to 7 decimal places (previously the UI rounded to 4 decimal places, whereas the CLI allowed more than 4) [see `PR #522 <http://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 
 Infrastructure / Support
 ----------------------
@@ -24,6 +25,16 @@ Infrastructure / Support
 * Reduce size of Docker image (from 2GB to 1.4GB) [see `PR #512 <http://www.github.com/FlexMeasures/flexmeasures/pull/512>`_]
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
 * Improve documentation and code w.r.t. storage flexibility modelling [see `PR #511 <http://www.github.com/FlexMeasures/flexmeasures/pull/511>`_]
+
+
+v0.11.3 | November 2, 2022
+============================
+
+Bugfixes
+-----------
+* Fix scheduling with imperfect efficiencies, which resulted in exceeding the device's lower SoC limit. [see `PR #520 <http://www.github.com/FlexMeasures/flexmeasures/pull/520>`_]
+* Fix scheduler for Charge Points when taking into account inflexible devices [see `PR #517 <http://www.github.com/FlexMeasures/flexmeasures/pull/517>`_]
+* Prevent rounding asset lat/long positions to 4 decimal places when editing an asset in the UI [see `PR #522 <http://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 
 
 v0.11.2 | September 6, 2022
