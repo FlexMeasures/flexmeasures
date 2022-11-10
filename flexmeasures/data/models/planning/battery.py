@@ -134,10 +134,18 @@ class BatteryScheduler(Scheduler):
         device_constraints[0]["max"] = (soc_max - soc_at_start) * (
             timedelta(hours=1) / resolution
         )
-        device_constraints[0]["derivative min"] = (
-            sensor.get_attribute("capacity_in_mw") * -1
-        )
-        device_constraints[0]["derivative max"] = sensor.get_attribute("capacity_in_mw")
+        if sensor.get_attribute("is_strictly_non_positive"):
+            device_constraints[0]["derivative min"] = 0
+        else:
+            device_constraints[0]["derivative min"] = (
+                sensor.get_attribute("capacity_in_mw") * -1
+            )
+        if sensor.get_attribute("is_strictly_non_negative"):
+            device_constraints[0]["derivative max"] = 0
+        else:
+            device_constraints[0]["derivative max"] = sensor.get_attribute(
+                "capacity_in_mw"
+            )
 
         # Apply round-trip efficiency evenly to charging and discharging
         device_constraints[0]["derivative down efficiency"] = (
