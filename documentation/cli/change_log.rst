@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.12.0 | November xx, 2022
+=================================
+
+* Fix ``flexmeasures db-ops dump`` and ``flexmeasures db-ops restore`` incorrectly reporting a success when `pg_dump` and `pg_restore` are not installed.
+
 since v0.11.0 | August 28, 2022
 ==============================
 
