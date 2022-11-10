@@ -344,18 +344,23 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
         .set_index(index_names)
     )
 
+    # Remove unchanged beliefs with respect to what is already stored in the database
     return (
         bdf.convert_index_from_belief_horizon_to_time()
         .groupby(level=["belief_time", "source"], as_index=False)
-        .apply(_drop_unchanged_beliefs)
+        .apply(_drop_unchanged_beliefs_compared_to_db)
     )
 
 
-def _drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
+def _drop_unchanged_beliefs_compared_to_db(
+    bdf: tb.BeliefsDataFrame,
+) -> tb.BeliefsDataFrame:
     """Drop beliefs that are already stored in the database with an earlier belief time.
 
     Assumes a BeliefsDataFrame with a unique belief time and unique source,
     and either all ex-ante beliefs or all ex-post beliefs.
+
+    It is preferable to call the public function drop_unchanged_beliefs instead.
     """
     if bdf.belief_horizons[0] > timedelta(0):
         # Look up only ex-ante beliefs (horizon > 0)
