@@ -1,6 +1,7 @@
 """ Calculations """
+from __future__ import annotations
+
 from datetime import timedelta
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -37,11 +38,15 @@ def drop_nan_rows(a, b):
 
 
 def integrate_time_series(
-    s: pd.Series, s0: float, decimal_precision: Optional[int] = None
+    series: pd.Series,
+    initial_stock: float,
+    up_efficiency: float | pd.Series = 1,
+    down_efficiency: float | pd.Series = 1,
+    decimal_precision: int | None = None,
 ) -> pd.Series:
     """Integrate time series of length n and closed="left" (representing a flow)
     to a time series of length n+1 and closed="both" (representing a stock),
-    given a starting stock s0.
+    given an initial stock (i.e. the constant of integration).
     The unit of time is hours: i.e. the stock unit is flow unit times hours (e.g. a flow in kW becomes a stock in kWh).
     Optionally, set a decimal precision to round off the results (useful for tests failing over machine precision).
 
@@ -63,12 +68,24 @@ def integrate_time_series(
         2001-01-01 07:00:00    15.0
         dtype: float64
     """
-    resolution = pd.to_timedelta(s.index.freq)
+    resolution = pd.to_timedelta(series.index.freq)
+    stock_change = pd.Series(data=np.NaN, index=series.index)
+    stock_change.loc[series > 0] = series[series > 0] * (
+        up_efficiency[series > 0]
+        if isinstance(up_efficiency, pd.Series)
+        else up_efficiency
+    )
+    stock_change.loc[series <= 0] = series[series <= 0] / (
+        down_efficiency[series <= 0]
+        if isinstance(down_efficiency, pd.Series)
+        else down_efficiency
+    )
     int_s = pd.concat(
         [
-            pd.Series(s0, index=pd.date_range(s.index[0], periods=1)),
-            s.shift(1, freq=resolution).cumsum() * (resolution / timedelta(hours=1))
-            + s0,
+            pd.Series(initial_stock, index=pd.date_range(series.index[0], periods=1)),
+            stock_change.shift(1, freq=resolution).cumsum()
+            * (resolution / timedelta(hours=1))
+            + initial_stock,
         ]
     )
     if decimal_precision is not None:
