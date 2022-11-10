@@ -93,8 +93,8 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
     soc_schedule = integrate_time_series(
         schedule,
         soc_at_start,
-        up_efficiency=roundtrip_efficiency ** 0.5,
-        down_efficiency=roundtrip_efficiency ** 0.5,
+        up_efficiency=roundtrip_efficiency**0.5,
+        down_efficiency=roundtrip_efficiency**0.5,
         decimal_precision=6,
     )
 

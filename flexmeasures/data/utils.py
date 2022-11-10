@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import List, Optional, Union
-
 from flask import current_app
 from timely_beliefs import BeliefsDataFrame, BeliefsSeries
 
