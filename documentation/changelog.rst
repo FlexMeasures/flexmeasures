@@ -24,6 +24,7 @@ Infrastructure / Support
 ----------------------
 
 * Reduce size of Docker image (from 2GB to 1.4GB) [see `PR #512 <http://www.github.com/FlexMeasures/flexmeasures/pull/512>`_]
+* Allow extra requirements to be freshly installed when running ``docker-compose up`` [see `PR #528 <http://www.github.com/FlexMeasures/flexmeasures/pull/528>`_]
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
 * Fix ``flexmeasures db-ops dump`` and ``flexmeasures db-ops restore`` incorrectly reporting a success when `pg_dump` and `pg_restore` are not installed [see `PR #526 <http://www.github.com/FlexMeasures/flexmeasures/pull/526>`_]
 * Plugins can save BeliefsSeries, too, instead of just BeliefsDataFrames [see `PR #523 <http://www.github.com/FlexMeasures/flexmeasures/pull/523>`_]
