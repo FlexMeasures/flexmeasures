@@ -10,7 +10,6 @@ import isodate
 from marshmallow import validate, fields, Schema
 from marshmallow.validate import OneOf
 import numpy as np
-import pandas as pd
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
