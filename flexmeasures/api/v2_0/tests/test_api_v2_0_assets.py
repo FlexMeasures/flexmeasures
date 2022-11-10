@@ -248,7 +248,7 @@ def test_post_an_asset_with_invalid_data(client, db):
         in post_asset_response.json["message"]["json"]["capacity_in_mw"][0]
     )
     assert (
-        "greater than or equal to -180 and less than or equal to 180"
+        "Longitude 300.9 exceeds the maximum longitude of 180 degrees."
         in post_asset_response.json["message"]["json"]["longitude"][0]
     )
     assert "required field" in post_asset_response.json["message"]["json"]["unit"][0]
