@@ -101,6 +101,8 @@ class ChargingStationScheduler(Scheduler):
             "derivative equals",
             "derivative max",
             "derivative min",
+            "derivative down efficiency",
+            "derivative up efficiency",
         ]
         if inflexible_device_sensors is None:
             inflexible_device_sensors = []
