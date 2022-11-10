@@ -4,7 +4,12 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.12.0 | November XX, 2022
+=================================
+
+* Add ``--resolution``, ``--timezone`` and ``--to-file`` options to ``flexmeasures show beliefs``, to show beliefs data in a custom resolution and/or timezone, and also to save shown beliefs data to a CSV file.
 * Add options to ``flexmeasures add beliefs`` to 1) read CSV data with timezone naive datetimes (use ``--timezone``to localize the data), 2) read CSV data with datetime/timedelta units (use ``--unit datetime`` or ``--unit timedelta`, 3) remove rows with NaN values, and 4) add filter read-in data by matching values in specific columns (use ``--filter-column`` and ``--filter-value`` together).
+* Fix ``flexmeasures db-ops dump`` and ``flexmeasures db-ops restore`` incorrectly reporting a success when `pg_dump` and `pg_restore` are not installed.
 
 since v0.11.0 | August 28, 2022
 ==============================
