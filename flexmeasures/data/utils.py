@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from typing import List, Optional, Union
 
 from flask import current_app
-from timely_beliefs import BeliefsDataFrame
+from timely_beliefs import BeliefsDataFrame, BeliefsSeries
 
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
@@ -9,7 +11,7 @@ from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
 
 
-def save_to_session(objects: List[db.Model], overwrite: bool = False):
+def save_to_session(objects: list[db.Model], overwrite: bool = False):
     """Utility function to save to database, either efficiently with a bulk save, or inefficiently with a merge save."""
     if not overwrite:
         db.session.bulk_save_objects(objects)
@@ -20,8 +22,8 @@ def save_to_session(objects: List[db.Model], overwrite: bool = False):
 
 def get_data_source(
     data_source_name: str,
-    data_source_model: Optional[str] = None,
-    data_source_version: Optional[str] = None,
+    data_source_model: str | None = None,
+    data_source_version: str | None = None,
     data_source_type: str = "script",
 ) -> DataSource:
     """Make sure we have a data source. Create one if it doesn't exist, and add to session.
@@ -50,7 +52,7 @@ def get_data_source(
 
 
 def save_to_db(
-    data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
+    data: BeliefsDataFrame | BeliefsSeries | list[BeliefsDataFrame | BeliefsSeries],
     bulk_save_objects: bool = False,
     save_changed_beliefs_only: bool = True,
 ) -> str:
@@ -100,6 +102,10 @@ def save_to_db(
         if timed_values.empty:
             # Nothing to save
             continue
+
+        # Convert series to frame if needed
+        if isinstance(timed_values, BeliefsSeries):
+            timed_values = timed_values.rename("event_value").to_frame()
 
         len_before = len(timed_values)
         if save_changed_beliefs_only:

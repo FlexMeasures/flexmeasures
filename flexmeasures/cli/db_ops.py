@@ -95,10 +95,7 @@ def dump():
     dump_filename = f"pgbackup_{db_name}_{time_of_saving}.dump"
     command_for_dumping = f"pg_dump --no-privileges --no-owner --data-only --format=c --file={dump_filename} {db_uri}"
     try:
-        proc = subprocess.Popen(command_for_dumping, shell=True)  # , env={
-        # 'PGPASSWORD': DB_PASSWORD
-        # })
-        proc.wait()
+        subprocess.check_output(command_for_dumping, shell=True)
         click.echo(f"db dump successful: saved to {dump_filename}")
 
     except Exception as e:
@@ -125,10 +122,7 @@ def restore(file: str):
     click.echo(f"Restoring {db_host_and_db_name} database from file {file}")
     command_for_restoring = f"pg_restore -d {db_uri} {file}"
     try:
-        proc = subprocess.Popen(command_for_restoring, shell=True)  # , env={
-        # 'PGPASSWORD': DB_PASSWORD
-        # })
-        proc.wait()
+        subprocess.check_output(command_for_restoring, shell=True)
         click.echo("db restore successful")
 
     except Exception as e:

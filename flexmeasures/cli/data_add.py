@@ -38,7 +38,13 @@ from flexmeasures.data.models.validation_utils import (
     MissingAttributeException,
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SensorIdField
+from flexmeasures.data.schemas import (
+    AwareDateTimeField,
+    DurationField,
+    LatitudeField,
+    LongitudeField,
+    SensorIdField,
+)
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -242,12 +248,12 @@ def add_asset_type(**args):
 @click.option("--name", required=True)
 @click.option(
     "--latitude",
-    type=float,
+    type=LatitudeField(),
     help="Latitude of the asset's location",
 )
 @click.option(
     "--longitude",
-    type=float,
+    type=LongitudeField(),
     help="Longitude of the asset's location",
 )
 @click.option("--account-id", type=int, required=True)

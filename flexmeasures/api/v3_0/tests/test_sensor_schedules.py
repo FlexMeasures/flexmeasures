@@ -90,7 +90,9 @@ def test_trigger_and_get_schedule(
     # check targets, if applicable
     if "targets" in message:
         start_soc = message["soc-at-start"] / 1000  # in MWh
-        soc_schedule = integrate_time_series(consumption_schedule, start_soc, 6)
+        soc_schedule = integrate_time_series(
+            consumption_schedule, start_soc, decimal_precision=6,
+        )
         print(consumption_schedule)
         print(soc_schedule)
         for target in message["targets"]:
