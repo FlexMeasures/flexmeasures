@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import List, Optional
 
@@ -15,7 +17,7 @@ def query_asset_annotations(
     annotations_after: Optional[datetime] = None,
     annotations_before: Optional[datetime] = None,
     sources: Optional[List[DataSource]] = None,
-    annotation_type: str = None,
+    annotation_type: str | None = None,
 ) -> Query:
     """Match annotations assigned to the given asset."""
     query = Annotation.query.join(GenericAssetAnnotationRelationship).filter(
