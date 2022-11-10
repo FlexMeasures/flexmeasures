@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.planning.battery import BatteryScheduler
+from flexmeasures.data.models.planning.battery import StorageScheduler
 from flexmeasures.data.models.planning.charging_station import ChargingStationScheduler
 from flexmeasures.data.models.planning.utils import (
     ensure_storage_specs,
@@ -33,7 +33,7 @@ def test_battery_solver_day_1(
     storage_specs = ensure_storage_specs(
         dict(soc_at_start=soc_at_start), battery, start, end, resolution
     )
-    schedule = BatteryScheduler().schedule(
+    schedule = StorageScheduler().schedule(
         battery,
         start,
         end,
@@ -99,7 +99,7 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
         end,
         resolution,
     )
-    schedule = BatteryScheduler().schedule(
+    schedule = StorageScheduler().schedule(
         battery,
         start,
         end,
@@ -310,7 +310,7 @@ def test_building_solver_day_2(
         end,
         resolution,
     )
-    schedule = BatteryScheduler().schedule(
+    schedule = StorageScheduler().schedule(
         battery,
         start,
         end,

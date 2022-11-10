@@ -16,7 +16,7 @@ from flexmeasures.data.models.planning.utils import (
 )
 
 
-class BatteryScheduler(Scheduler):
+class StorageScheduler(Scheduler):
 
     __version__ = "1"
     __author__ = "Seita"
