@@ -1,4 +1,5 @@
 """CLI Tasks for populating the database - most useful in development"""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -426,7 +427,7 @@ def add_beliefs(
     resample: bool = True,
     allow_overwrite: bool = False,
     skiprows: int = 1,
-    na_values: List[str] = None,
+    na_values: list[str] | None = None,
     keep_default_na: bool = False,
     nrows: Optional[int] = None,
     datecol: int = 0,
