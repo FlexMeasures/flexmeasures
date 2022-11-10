@@ -50,8 +50,6 @@ class BatteryScheduler(Scheduler):
         sensor.check_required_attributes(
             [
                 ("capacity_in_mw", (float, int)),
-                ("max_soc_in_mwh", (float, int)),
-                ("min_soc_in_mwh", (float, int)),
             ],
         )
 
