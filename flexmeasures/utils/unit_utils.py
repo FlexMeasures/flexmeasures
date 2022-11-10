@@ -218,9 +218,14 @@ def convert_time_units(
     Use Unix epoch or the requested time unit, respectively.
     """
     if from_unit == "datetime":
-        return (
-            pd.to_datetime(data, utc=True) - pd.Timestamp("1970-01-01", tz="utc")
-        ) // pd.Timedelta("1s")
+        if to_unit[0].isdigit():
+            return (
+                pd.to_datetime(data, utc=True) - pd.Timestamp("1970-01-01", tz="utc")
+            ) // pd.Timedelta(to_unit)
+        else:
+            return (
+                pd.to_datetime(data, utc=True) - pd.Timestamp("1970-01-01", tz="utc")
+            ) // pd.Timedelta(1, to_unit)
     if from_unit == "timedelta":
         if to_unit[0].isdigit():
             return data / pd.Timedelta(to_unit)
