@@ -156,7 +156,9 @@ def collect_connection_and_value_groups(
     start: datetime_type,
     duration: timedelta,
     connection_groups: List[List[str]],
-    user_source_ids: int | list[int] | None = None,  # None is interpreted as all sources
+    user_source_ids: int
+    | list[int]
+    | None = None,  # None is interpreted as all sources
     source_types: list[str] | None = None,
 ) -> Tuple[dict, int]:
     """

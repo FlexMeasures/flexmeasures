@@ -230,7 +230,7 @@ def optional_duration_accepted(default_duration: timedelta):
 
 
 def optional_user_sources_accepted(
-    default_source: int | str | list[int | str] | None = None
+    default_source: int | str | list[int | str] | None = None,
 ):
     """Decorator which specifies that a GET or POST request accepts an optional source or list of data sources.
     It parses relevant form data and sets the "user_source_ids" keyword parameter.
