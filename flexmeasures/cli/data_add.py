@@ -383,7 +383,7 @@ def add_initial_structure():
     "--filter-value",
     "filter_values",
     multiple=True,
-    help="Set a column value to filter data. Use together with --filter-column.",
+    help="Set a column value to filter data. Only rows with this value will be added. Use together with --filter-column.",
 )
 @click.option(
     "--delimiter",
