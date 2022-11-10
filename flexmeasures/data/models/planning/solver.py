@@ -321,10 +321,7 @@ def device_scheduler(  # noqa C901
     planned_costs = value(model.costs)
     planned_power_per_device = []
     for d in model.d:
-        planned_device_power = [
-            model.device_power_down[d, j].value + model.device_power_up[d, j].value
-            for j in model.j
-        ]
+        planned_device_power = [model.ems_power[d, j].value for j in model.j]
         planned_power_per_device.append(
             pd.Series(
                 index=pd.date_range(

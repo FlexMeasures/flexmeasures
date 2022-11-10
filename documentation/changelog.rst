@@ -38,6 +38,7 @@ Bugfixes
 * Fix scheduler for Charge Points when taking into account inflexible devices [see `PR #517 <http://www.github.com/FlexMeasures/flexmeasures/pull/517>`_]
 * Prevent rounding asset lat/long positions to 4 decimal places when editing an asset in the UI [see `PR #522 <http://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 
+
 v0.11.2 | September 6, 2022
 ============================
 
