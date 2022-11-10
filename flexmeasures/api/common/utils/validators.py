@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import List, Tuple, Union, Optional
@@ -228,7 +230,7 @@ def optional_duration_accepted(default_duration: timedelta):
 
 
 def optional_user_sources_accepted(
-    default_source: Union[int, str, List[Union[int, str]]] = None
+    default_source: int | str | list[int | str] | None = None,
 ):
     """Decorator which specifies that a GET or POST request accepts an optional source or list of data sources.
     It parses relevant form data and sets the "user_source_ids" keyword parameter.
@@ -539,7 +541,7 @@ def period_required(fn):
 
 
 def assets_required(
-    generic_asset_type_name: str, plural_name: str = None, groups_name="groups"
+    generic_asset_type_name: str, plural_name: str | None = None, groups_name="groups"
 ):
     """Decorator which specifies that a GET or POST request must specify one or more assets.
     It parses relevant form data and sets the "generic_asset_name_groups" keyword param.

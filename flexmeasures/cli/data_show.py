@@ -258,20 +258,45 @@ def list_data_sources():
     type=DataSourceIdField(),
     help="Source of the beliefs (an existing source id).",
 )
+@click.option(
+    "--resolution",
+    "resolution",
+    type=DurationField(),
+    required=False,
+    help="Resolution of the data. If not set, defaults to the minimum resolution of the sensor data.",
+)
+@click.option(
+    "--timezone",
+    "timezone",
+    type=str,
+    required=False,
+    help="Timezone of the data. If not set, defaults to the timezone of the first non-empty sensor.",
+)
+@click.option(
+    "--to-file",
+    "filepath",
+    required=False,
+    type=str,
+    help="Set a filepath to store the beliefs as a CSV file.",
+)
 def plot_beliefs(
     sensors: List[Sensor],
     start: datetime,
     duration: timedelta,
+    resolution: Optional[timedelta],
+    timezone: Optional[str],
     belief_time_before: Optional[datetime],
     source: Optional[DataSource],
+    filepath: Optional[str],
 ):
     """
-    Show a simple plot of belief data directly in the terminal.
+    Show a simple plot of belief data directly in the terminal, and optionally, save the data to a CSV file.
     """
     sensors = list(sensors)
-    minimum_resampling_resolution = determine_minimum_resampling_resolution(
-        [sensor.event_resolution for sensor in sensors]
-    )
+    if resolution is None:
+        resolution = determine_minimum_resampling_resolution(
+            [sensor.event_resolution for sensor in sensors]
+        )
 
     # query data
     beliefs_by_sensor = TimedBelief.search(
@@ -281,7 +306,7 @@ def plot_beliefs(
         beliefs_before=belief_time_before,
         source=source,
         one_deterministic_belief_per_event=True,
-        resolution=minimum_resampling_resolution,
+        resolution=resolution,
         sum_multiple=False,
     )
     # only keep non-empty
@@ -303,6 +328,11 @@ def plot_beliefs(
     df = pd.concat([simplify_index(df) for df in beliefs_by_sensor.values()], axis=1)
     df.columns = beliefs_by_sensor.keys()
 
+    # Convert to the requested or default timezone
+    if timezone is not None:
+        timezone = sensors[0].timezone
+    df.index = df.index.tz_convert(timezone)
+
     # Build title
     if len(sensors) == 1:
         title = f"Beliefs for Sensor '{sensors[0].name}' (Id {sensors[0].id}).\n"
@@ -313,7 +343,7 @@ def plot_beliefs(
         title += f"\nOnly beliefs made before: {belief_time_before}."
     if source:
         title += f"\nSource: {source.description}"
-    title += f"\nThe time resolution (x-axis) is {naturaldelta(minimum_resampling_resolution)}."
+    title += f"\nThe time resolution (x-axis) is {naturaldelta(resolution)}."
 
     uniplot.plot(
         [df[col] for col in df.columns],
@@ -325,6 +355,12 @@ def plot_beliefs(
         if shared_unit
         else [s.name + f" (in {s.unit})" for s in sensors],
     )
+    if filepath is not None:
+        df.columns = pd.MultiIndex.from_arrays(
+            [df.columns, [df.sensor.unit for df in beliefs_by_sensor.values()]]
+        )
+        df.to_csv(filepath)
+        click.echo("Data saved to file.")
 
 
 app.cli.add_command(fm_show_data)
