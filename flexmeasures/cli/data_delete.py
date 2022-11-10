@@ -12,6 +12,7 @@ from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts, U
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
+from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.services.users import find_user_by_email, delete_user
 
 
@@ -123,7 +124,7 @@ def delete_asset_and_data(asset: GenericAsset, force: bool):
     Delete an asset & also its sensors and data.
     """
     if not force:
-        prompt = f"Delete {asset}, including all its sensors and data?"
+        prompt = f"Delete {asset.__repr__()}, including all its sensors and data?"
         click.confirm(prompt, abort=True)
     db.session.delete(asset)
     db.session.commit()
@@ -295,21 +296,18 @@ def delete_nan_beliefs(sensor_id: Optional[int] = None):
 @with_appcontext
 @click.option(
     "--id",
-    "sensor_id",
-    type=int,
+    "sensor",
+    type=SensorIdField(),
     required=True,
     help="Delete a single sensor and its (time series) data. Follow up with the sensor's ID.",
 )
 def delete_sensor(
-    sensor_id: int,
+    sensor: Sensor,
 ):
     """Delete a sensor and all beliefs about it."""
-    sensor = Sensor.query.get(sensor_id)
-    n = TimedBelief.query.filter(TimedBelief.sensor_id == sensor_id).delete()
+    n = TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
     db.session.delete(sensor)
-    click.confirm(
-        f"Really delete sensor {sensor_id}, along with {n} beliefs?", abort=True
-    )
+    click.confirm(f"Delete {sensor.__repr__()}, along with {n} beliefs?", abort=True)
     db.session.commit()
 
 

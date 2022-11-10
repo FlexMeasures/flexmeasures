@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from typing import List, Sequence, Tuple, Union
 import copy
@@ -54,8 +56,8 @@ def contains_empty_items(groups: List[List[str]]):
 
 
 def parse_as_list(
-    connection: Union[Sequence[Union[str, float]], str, float], of_type: type = None
-) -> Sequence[Union[str, float, None]]:
+    connection: str | float | Sequence[str | float], of_type: type | None = None
+) -> Sequence[str | float | None]:
     """
     Return a list of connections (or values), even if it's just one connection (or value)
     """
@@ -141,7 +143,7 @@ def groups_to_dict(
     connection_groups: List[str],
     value_groups: List[List[str]],
     generic_asset_type_name: str,
-    plural_name: str = None,
+    plural_name: str | None = None,
     groups_name="groups",
 ) -> dict:
     """Put the connections and values in a dictionary and simplify if groups have identical values and/or if there is
@@ -343,7 +345,7 @@ def get_sensor_by_generic_asset_type_and_location(
 
 
 def enqueue_forecasting_jobs(
-    forecasting_jobs: List[Job] = None,
+    forecasting_jobs: list[Job] | None = None,
 ):
     """Enqueue forecasting jobs.
 
@@ -355,7 +357,7 @@ def enqueue_forecasting_jobs(
 
 def save_and_enqueue(
     data: Union[BeliefsDataFrame, List[BeliefsDataFrame]],
-    forecasting_jobs: List[Job] = None,
+    forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
 

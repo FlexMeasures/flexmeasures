@@ -1,4 +1,3 @@
-from typing import Optional
 import json
 
 from marshmallow import validates, validates_schema, ValidationError, fields
@@ -7,6 +6,7 @@ from flask_security import current_user
 from flexmeasures.data import ma
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.schemas import LatitudeField, LongitudeField
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
@@ -35,8 +35,8 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     id = ma.auto_field(dump_only=True)
     name = fields.Str(required=True)
     account_id = ma.auto_field()
-    latitude = ma.auto_field()
-    longitude = ma.auto_field()
+    latitude = LatitudeField(allow_none=True)
+    longitude = LongitudeField(allow_none=True)
     generic_asset_type_id = fields.Integer(required=True)
     attributes = JSON(required=False)
 
@@ -75,34 +75,6 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         ):
             raise ValidationError(
                 "User is not allowed to create assets for this account."
-            )
-
-    @validates("latitude")
-    def validate_latitude(self, latitude: Optional[float]):
-        """Validate optional latitude."""
-        if latitude is None:
-            return
-        if latitude < -90:
-            raise ValidationError(
-                f"Latitude {latitude} exceeds the minimum latitude of -90 degrees."
-            )
-        if latitude > 90:
-            raise ValidationError(
-                f"Latitude {latitude} exceeds the maximum latitude of 90 degrees."
-            )
-
-    @validates("longitude")
-    def validate_longitude(self, longitude: Optional[float]):
-        """Validate optional longitude."""
-        if longitude is None:
-            return
-        if longitude < -180:
-            raise ValidationError(
-                f"Longitude {longitude} exceeds the minimum longitude of -180 degrees."
-            )
-        if longitude > 180:
-            raise ValidationError(
-                f"Longitude {longitude} exceeds the maximum longitude of 180 degrees."
             )
 
 

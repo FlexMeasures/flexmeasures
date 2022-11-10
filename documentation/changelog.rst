@@ -13,17 +13,31 @@ New features
 * Visually distinguish forecasts/schedules (dashed lines) from measurements (solid lines), and expand the tooltip with timing info regarding the forecast/schedule horizon or measurement lag [see `PR #503 <http://www.github.com/FlexMeasures/flexmeasures/pull/503>`_]
 * The asset page also allows to show sensor data from other assets that belong to the same account [see `PR #500 <http://www.github.com/FlexMeasures/flexmeasures/pull/500>`_]
 * Improved import of time series data from CSV file: 1) drop duplicate records with warning, and 2) allow configuring which column contains explicit recording times for each data point (use case: import forecasts) [see `PR #501 <http://www.github.com/FlexMeasures/flexmeasures/pull/501>`_]
+* The CLI command ``flexmeasures show beliefs`` supports showing beliefs data in a custom resolution and/or timezone, and also saving the shown beliefs data to a CSV file [see `PR #519 <http://www.github.com/FlexMeasures/flexmeasures/pull/519>`_]
 
 Bugfixes
 -----------
 * The CLI command ``flexmeasures show beliefs`` now supports plotting time series data that includes NaN values, and provides better support for plotting multiple sensors that do not share the same unit [see `PR #516 <http://www.github.com/FlexMeasures/flexmeasures/pull/516>`_]
+* Consistent CLI/UI support for asset lat/lng positions up to 7 decimal places (previously the UI rounded to 4 decimal places, whereas the CLI allowed more than 4) [see `PR #522 <http://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 
 Infrastructure / Support
 ----------------------
 
 * Reduce size of Docker image (from 2GB to 1.4GB) [see `PR #512 <http://www.github.com/FlexMeasures/flexmeasures/pull/512>`_]
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
+* Fix ``flexmeasures db-ops dump`` and ``flexmeasures db-ops restore`` incorrectly reporting a success when `pg_dump` and `pg_restore` are not installed [see `PR #526 <http://www.github.com/FlexMeasures/flexmeasures/pull/526>`_]
+* Plugins can save BeliefsSeries, too, instead of just BeliefsDataFrames [see `PR #523 <http://www.github.com/FlexMeasures/flexmeasures/pull/523>`_]
 * Revised strategy for removing unchanged beliefs when saving data: retain the oldest measurement (ex-post belief), too [see `PR #518 <http://www.github.com/FlexMeasures/flexmeasures/pull/518>`_]
+
+
+v0.11.3 | November 2, 2022
+============================
+
+Bugfixes
+-----------
+* Fix scheduling with imperfect efficiencies, which resulted in exceeding the device's lower SoC limit. [see `PR #520 <http://www.github.com/FlexMeasures/flexmeasures/pull/520>`_]
+* Fix scheduler for Charge Points when taking into account inflexible devices [see `PR #517 <http://www.github.com/FlexMeasures/flexmeasures/pull/517>`_]
+* Prevent rounding asset lat/long positions to 4 decimal places when editing an asset in the UI [see `PR #522 <http://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 
 
 v0.11.2 | September 6, 2022

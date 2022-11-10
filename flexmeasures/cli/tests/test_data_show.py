@@ -1,4 +1,5 @@
 import pytest
+from click.formatting import wrap_text
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.cli.tests.utils import get_click_commands
@@ -121,5 +122,8 @@ def test_cli_help(app):
     for cmd in get_click_commands(data_show):
         result = runner.invoke(cmd, ["--help"])
         assert "Usage" in result.output
-        assert cmd.__doc__.strip() in result.output
+        assert (
+            wrap_text(cmd.__doc__.strip(), initial_indent="  ", subsequent_indent="  ")
+            in result.output
+        )
         assert result.exit_code == 0
