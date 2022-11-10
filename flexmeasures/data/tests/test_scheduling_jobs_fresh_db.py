@@ -42,13 +42,12 @@ def test_scheduling_a_charging_station(
     )  # Make sure the scheduler data source isn't there
 
     job = create_scheduling_job(
-        charging_station.id,
+        charging_station,
         start,
         end,
         belief_time=start,
         resolution=resolution,
-        soc_at_start=soc_at_start,
-        soc_targets=soc_targets,
+        storage_specs=dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
     )
 
     print("Job: %s" % job.id)

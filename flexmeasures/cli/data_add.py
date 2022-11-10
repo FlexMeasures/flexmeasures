@@ -37,7 +37,13 @@ from flexmeasures.data.models.validation_utils import (
     MissingAttributeException,
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SensorIdField
+from flexmeasures.data.schemas import (
+    AwareDateTimeField,
+    DurationField,
+    LatitudeField,
+    LongitudeField,
+    SensorIdField,
+)
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -241,12 +247,12 @@ def add_asset_type(**args):
 @click.option("--name", required=True)
 @click.option(
     "--latitude",
-    type=float,
+    type=LatitudeField(),
     help="Latitude of the asset's location",
 )
 @click.option(
     "--longitude",
-    type=float,
+    type=LongitudeField(),
     help="Longitude of the asset's location",
 )
 @click.option("--account-id", type=int, required=True)
@@ -953,16 +959,18 @@ def create_schedule(
 
     if as_job:
         job = create_scheduling_job(
-            sensor_id=power_sensor.id,
+            sensor=power_sensor,
             start_of_schedule=start,
             end_of_schedule=end,
             belief_time=server_now(),
             resolution=power_sensor.event_resolution,
-            soc_at_start=soc_at_start,
-            soc_targets=soc_targets,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
+            storage_specs=dict(
+                soc_at_start=soc_at_start,
+                soc_targets=soc_targets,
+                soc_min=soc_min,
+                soc_max=soc_max,
+                roundtrip_efficiency=roundtrip_efficiency,
+            ),
             consumption_price_sensor=consumption_price_sensor,
             production_price_sensor=production_price_sensor,
         )

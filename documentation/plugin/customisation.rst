@@ -15,8 +15,8 @@ but in the background your custom scheduling algorithm is being used.
 
 Let's walk through an example!
 
-First, we need to write a function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
-The following minimal example gives you an idea of the inputs and outputs:
+First, we need to write a a class (inhering from the Base Scheduler) with a `schedule` function which accepts arguments just like the in-built schedulers (their code is `here <https://github.com/FlexMeasures/flexmeasures/tree/main/flexmeasures/data/models/planning>`_).
+The following minimal example gives you an idea of some meta information you can add for labelling your data, as well as the inputs and outputs of such a scheduling function:
 
 .. code-block:: python
 
@@ -24,23 +24,36 @@ The following minimal example gives you an idea of the inputs and outputs:
     import pandas as pd
     from pandas.tseries.frequencies import to_offset
     from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.models.planning import Scheduler
 
-    def compute_a_schedule(
-        sensor: Sensor,
-        start: datetime,
-        end: datetime,
-        resolution: timedelta,
-        *args,
-        **kwargs
-    ):
-        """Just a dummy scheduler, advising to do nothing"""
-        return pd.Series(
-            0, index=pd.date_range(start, end, freq=resolution, closed="left")
-        )
+
+    class DummyScheduler(Scheduler):
+
+        __author__ = "My Company"
+        __version__ = "v2"
+
+        def schedule(
+            self,
+            sensor: Sensor,
+            start: datetime,
+            end: datetime,
+            resolution: timedelta,
+            *args,
+            **kwargs
+        ):
+            """
+            Just a dummy scheduler that always plans to consume at maximum capacity.
+            (Schedulers return positive values for consumption, and negative values for production)
+            """
+            return pd.Series(
+                sensor.get_attribute("capacity_in_mw"),
+                index=pd.date_range(start, end, freq=resolution, closed="left"),
+            )
 
 
 .. note:: It's possible to add arguments that describe the asset flexibility and the EMS context in more detail. For example,
-          for storage assets we support various state-of-charge parameters. For now, the existing schedulers are the best documentation.
+          for storage assets we support various state-of-charge parameters. For now, the existing in-built schedulers are the best documentation.
+          We are working on documenting this better, so the learning curve becomes easier.
 
 
 Finally, make your scheduler be the one that FlexMeasures will use for certain sensors:
@@ -52,8 +65,7 @@ Finally, make your scheduler be the one that FlexMeasures will use for certain s
 
     scheduler_specs = {
         "module": "flexmeasures.data.tests.dummy_scheduler",  # or a file path, see note below
-        "function": "compute_a_schedule",
-        "source": "My Company"
+        "class": "DummyScheduler",
     }
     
     my_sensor = Sensor.query.filter(Sensor.name == "My power sensor on a flexible asset").one_or_none()

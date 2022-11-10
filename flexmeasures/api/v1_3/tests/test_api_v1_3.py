@@ -88,9 +88,10 @@ def test_post_udi_event_and_get_device_message(
     )
 
     # check results are in the database
-    resolution = timedelta(minutes=15)
+    job.refresh()  # catch meta info that was added on this very instance
+    data_source_info = job.meta.get("data_source_info")
     scheduler_source = DataSource.query.filter_by(
-        name="Seita", type="scheduling script"
+        type="scheduling script", **data_source_info
     ).one_or_none()
     assert (
         scheduler_source is not None
@@ -100,6 +101,7 @@ def test_post_udi_event_and_get_device_message(
         .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
+    resolution = timedelta(minutes=15)
     consumption_schedule = pd.Series(
         [-v.event_value for v in power_values],
         index=pd.DatetimeIndex([v.event_start for v in power_values], freq=resolution),
@@ -112,7 +114,9 @@ def test_post_udi_event_and_get_device_message(
     # check targets, if applicable
     if "targets" in message:
         start_soc = message["value"] / 1000  # in MWh
-        soc_schedule = integrate_time_series(consumption_schedule, start_soc, 6)
+        soc_schedule = integrate_time_series(
+            consumption_schedule, start_soc, decimal_precision=6
+        )
         print(consumption_schedule)
         print(soc_schedule)
         for target in message["targets"]:

@@ -39,12 +39,12 @@ class AssetForm(FlaskForm):
     name = StringField("Name")
     latitude = DecimalField(
         "Latitude",
-        places=4,
+        places=None,
         render_kw={"placeholder": "--Click the map or enter a latitude--"},
     )
     longitude = DecimalField(
         "Longitude",
-        places=4,
+        places=None,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
     attributes = StringField("Other attributes (JSON)", default="{}")
@@ -81,7 +81,13 @@ class AssetForm(FlaskForm):
                 continue
             for field in list(self._fields.keys()):
                 if field in list(api_response[error_header].keys()):
-                    self._fields[field].errors.append(api_response[error_header][field])
+                    field_errors = api_response[error_header][field]
+                    if isinstance(field_errors, list):
+                        self._fields[field].errors += api_response[error_header][field]
+                    else:
+                        self._fields[field].errors.append(
+                            api_response[error_header][field]
+                        )
 
 
 class NewAssetForm(AssetForm):
