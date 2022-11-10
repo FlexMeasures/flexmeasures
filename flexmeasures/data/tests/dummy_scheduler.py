@@ -8,7 +8,7 @@ from flexmeasures.data.models.planning.utils import initialize_series
 class DummyScheduler(Scheduler):
 
     __author__ = "Test Organization"
-    __version__ = "v3"
+    __version__ = "3"
 
     def schedule(
         self,

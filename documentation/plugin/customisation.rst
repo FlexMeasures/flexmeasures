@@ -30,7 +30,7 @@ The following minimal example gives you an idea of some meta information you can
     class DummyScheduler(Scheduler):
 
         __author__ = "My Company"
-        __version__ = "v2"
+        __version__ = "2"
 
         def schedule(
             self,

@@ -80,7 +80,7 @@ def test_loading_custom_scheduler(is_path: bool):
     scheduler_specs["module"] = make_module_descr(is_path)
     custom_scheduler, data_source_info = load_custom_scheduler(scheduler_specs)
     assert data_source_info["name"] == "Test Organization"
-    assert data_source_info["version"] == "v3"
+    assert data_source_info["version"] == "3"
     assert data_source_info["model"] == "DummyScheduler"
     assert custom_scheduler.__name__ == "DummyScheduler"
     assert "Just a dummy scheduler" in custom_scheduler.schedule.__doc__
