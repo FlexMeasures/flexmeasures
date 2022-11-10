@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.planning.battery import StorageScheduler
+from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import (
     ensure_storage_specs,
     initialize_series,

@@ -32,7 +32,7 @@ from flexmeasures.api.common.utils.validators import (
     parse_isodate_str,
 )
 from flexmeasures.data import db
-from flexmeasures.data.models.planning.battery import StorageScheduler
+from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.exceptions import (
     UnknownMarketException,
     UnknownPricesException,

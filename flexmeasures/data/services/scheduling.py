@@ -12,7 +12,7 @@ from rq import get_current_job
 import timely_beliefs as tb
 
 from flexmeasures.data import db
-from flexmeasures.data.models.planning.battery import StorageScheduler
+from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import ensure_storage_specs
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource

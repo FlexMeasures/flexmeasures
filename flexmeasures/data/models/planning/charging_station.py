@@ -1,4 +1,4 @@
-from flexmeasures.data.models.planning.battery import StorageScheduler
+from flexmeasures.data.models.planning.storage import StorageScheduler
 
 
 def schedule_charging_station(*args, **kwargs):
