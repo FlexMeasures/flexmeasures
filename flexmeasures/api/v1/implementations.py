@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import isodate
 from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime as datetime_type, timedelta
@@ -154,8 +156,8 @@ def collect_connection_and_value_groups(
     start: datetime_type,
     duration: timedelta,
     connection_groups: List[List[str]],
-    user_source_ids: Union[int, List[int]] = None,  # None is interpreted as all sources
-    source_types: List[str] = None,
+    user_source_ids: int | list[int] | None = None,  # None is interpreted as all sources
+    source_types: list[str] | None = None,
 ) -> Tuple[dict, int]:
     """
     Code for GETting power values from the API.
