@@ -34,8 +34,7 @@ class StorageScheduler(Scheduler):
         belief_time: Optional[datetime] = None,
         round_to_decimals: Optional[int] = 6,
     ) -> Union[pd.Series, None]:
-        """Schedule a battery asset based directly on the latest beliefs regarding market prices within the specified time
-        window.
+        """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
         """
 
