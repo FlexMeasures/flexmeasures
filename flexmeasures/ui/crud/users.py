@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Optional, Union
 from datetime import datetime
 
@@ -36,7 +38,7 @@ class UserForm(FlaskForm):
     active = BooleanField("Activation Status", validators=[DataRequired()])
 
 
-def render_user(user: Optional[User], asset_count: int = 0, msg: str = None):
+def render_user(user: User | None, asset_count: int = 0, msg: str | None = None):
     user_form = UserForm()
     user_form.process(obj=user)
     return render_flexmeasures_template(
