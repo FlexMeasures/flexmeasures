@@ -1,4 +1,5 @@
 """CLI Tasks for populating the database - most useful in development"""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -37,7 +38,13 @@ from flexmeasures.data.models.validation_utils import (
     MissingAttributeException,
 )
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
-from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SensorIdField
+from flexmeasures.data.schemas import (
+    AwareDateTimeField,
+    DurationField,
+    LatitudeField,
+    LongitudeField,
+    SensorIdField,
+)
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.generic_assets import (
@@ -241,12 +248,12 @@ def add_asset_type(**args):
 @click.option("--name", required=True)
 @click.option(
     "--latitude",
-    type=float,
+    type=LatitudeField(),
     help="Latitude of the asset's location",
 )
 @click.option(
     "--longitude",
-    type=float,
+    type=LongitudeField(),
     help="Longitude of the asset's location",
 )
 @click.option("--account-id", type=int, required=True)
@@ -397,7 +404,7 @@ def add_beliefs(
     resample: bool = True,
     allow_overwrite: bool = False,
     skiprows: int = 1,
-    na_values: List[str] = None,
+    na_values: list[str] | None = None,
     nrows: Optional[int] = None,
     datecol: int = 0,
     valuecol: int = 1,
