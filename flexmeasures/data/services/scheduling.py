@@ -291,12 +291,7 @@ def get_data_source_for_job(
         if data_source_info and "id" in data_source_info:
             return DataSource.query.get(data_source_info["id"])
     if data_source_info is None and sensor:
-        data_source_info = dict(
-            name="Seita",
-            model="schedule_battery"
-            if sensor.generic_asset.generic_asset_type.name == "battery"
-            else "schedule_charging_station",
-        )
+        data_source_info = dict(name="Seita", model="StorageScheduler")
         # TODO: change to raise later (v0.13) - all scheduling jobs now get full info
         current_app.logger.warning(
             "Looking up scheduling data without knowing full data_source_info (version). This is deprecated soon. Please specify a job id as event or switch to API v3."
