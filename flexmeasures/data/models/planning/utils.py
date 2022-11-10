@@ -203,9 +203,22 @@ def get_prices(
             )
             query_window = (first_event_start, last_event_end)
         else:
-            raise UnknownPricesException(
-                f"Prices partially unknown for planning window (sensor {price_sensor.id})."
+            index = initialize_index(
+                start=query_window[0],
+                end=query_window[1],
+                resolution=resolution,
             )
+            price_df = price_df.reindex(index)
+            # or to also forward fill intermediate NaN values, use: price_df = price_df.ffill().bfill()
+            price_df[: price_df.first_valid_index()] = price_df[
+                price_df.index == price_df.first_valid_index()
+            ].values[0]
+            price_df[price_df.last_valid_index() :] = price_df[
+                price_df.index == price_df.last_valid_index()
+            ].values[0]
+            # raise UnknownPricesException(
+            #     f"Prices partially unknown for planning window (sensor {price_sensor.id})."
+            # )
     return price_df, query_window
 
 
