@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
@@ -31,9 +32,7 @@ def test_scheduling_a_charging_station(
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     target_soc_datetime = start + duration_until_target
-    soc_targets = pd.Series(
-        np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
-    )
+    soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
 
     assert (

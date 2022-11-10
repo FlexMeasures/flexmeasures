@@ -14,6 +14,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
+from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import duration_isoformat, server_now
@@ -179,9 +180,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         )
 
         # Convert to desired time range
-        index = pd.date_range(
-            start=start, end=end, freq=df.event_resolution, closed="left"
-        )
+        index = initialize_index(start=start, end=end, resolution=df.event_resolution)
         df = df.reindex(index)
 
         # Convert to desired unit

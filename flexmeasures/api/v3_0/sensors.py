@@ -10,7 +10,6 @@ import isodate
 from marshmallow import validate, fields, Schema
 from marshmallow.validate import OneOf
 import numpy as np
-import pandas as pd
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
@@ -34,6 +33,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
@@ -388,11 +388,12 @@ class SensorAPI(FlaskView):
             "FLEXMEASURES_PLANNING_HORIZON"
         )
         resolution = sensor.event_resolution
-        soc_targets = pd.Series(
+        soc_targets = initialize_series(
             np.nan,
-            index=pd.date_range(
-                start_of_schedule, end_of_schedule, freq=resolution, closed="right"
-            ),  # note that target values are indexed by their due date (i.e. closed="right")
+            start=start_of_schedule,
+            end=end_of_schedule,
+            resolution=resolution,
+            inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
         )
         # todo: move this deserialization of targets into newly-created ScheduleTargetSchema
         for target in kwargs.get("targets", []):

@@ -39,6 +39,7 @@ from flexmeasures.api.common.utils.validators import (
     parse_isodate_str,
 )
 from flexmeasures.data import db
+from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.services.resources import has_assets, can_access_asset
@@ -300,11 +301,12 @@ def post_udi_event_response(unit: str, prior: datetime):
     start_of_schedule = datetime
     end_of_schedule = datetime + current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
     resolution = sensor.event_resolution
-    soc_targets = pd.Series(
+    soc_targets = initialize_series(
         np.nan,
-        index=pd.date_range(
-            start_of_schedule, end_of_schedule, freq=resolution, closed="right"
-        ),  # note that target values are indexed by their due date (i.e. closed="right")
+        start=start_of_schedule,
+        end=end_of_schedule,
+        resolution=resolution,
+        inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
     )
 
     if event_type == "soc-with-targets":

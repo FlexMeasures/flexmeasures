@@ -1,3 +1,4 @@
+from packaging import version
 from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
 
@@ -41,19 +42,27 @@ def initialize_series(
 
 
 def initialize_index(
-    start: Union[date, datetime],
-    end: Union[date, datetime],
-    resolution: timedelta,
+    start: Union[date, datetime, str],
+    end: Union[date, datetime, str],
+    resolution: Union[timedelta, str],
     inclusive: str = "left",
 ) -> pd.DatetimeIndex:
-    i = pd.date_range(
-        start=start,
-        end=end,
-        freq=to_offset(resolution),
-        closed=inclusive,
-        name="datetime",
-    )
-    return i
+    if version.parse(pd.__version__) >= version.parse("1.4.0"):
+        return pd.date_range(
+            start=start,
+            end=end,
+            freq=to_offset(resolution),
+            inclusive=inclusive,
+            name="datetime",
+        )
+    else:
+        return pd.date_range(
+            start=start,
+            end=end,
+            freq=to_offset(resolution),
+            closed=inclusive,
+            name="datetime",
+        )
 
 
 def ensure_storage_specs(
@@ -93,11 +102,8 @@ def ensure_storage_specs(
 
     # init default targets
     if "soc_targets" not in specs or specs["soc_targets"] is None:
-        specs["soc_targets"] = pd.Series(
-            np.nan,
-            index=pd.date_range(
-                start_of_schedule, end_of_schedule, freq=resolution, closed="right"
-            ),
+        specs["soc_targets"] = initialize_series(
+            np.nan, start_of_schedule, end_of_schedule, resolution, inclusive="right"
         )
     # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
     specs["soc_targets"] = specs["soc_targets"][
