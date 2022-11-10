@@ -113,7 +113,9 @@ def test_post_udi_event_and_get_device_message(
     if "targets" in message:
         start_soc = message["value"] / 1000  # in MWh
         soc_schedule = integrate_time_series(
-            consumption_schedule, start_soc, decimal_precision=6
+            consumption_schedule,
+            start_soc,
+            decimal_precision=6,
         )
         print(consumption_schedule)
         print(soc_schedule)

@@ -286,8 +286,9 @@ def add_initial_structure():
 @click.argument("file", type=click.Path(exists=True))
 @click.option(
     "--sensor-id",
+    "sensor",
     required=True,
-    type=click.IntRange(min=1),
+    type=SensorIdField(),
     help="Sensor to which the beliefs pertain.",
 )
 @click.option(
@@ -301,6 +302,8 @@ def add_initial_structure():
     required=False,
     type=str,
     help="Unit of the data, for conversion to the sensor unit, if possible (a string unit such as 'kW' or 'm³/h').\n"
+    "Measurements of time itself that are formatted as a 'datetime' or 'timedelta' can be converted to a sensor unit representing time (such as 's' or 'h'),\n"
+    "where datetimes are represented as a duration with respect to the UNIX epoch."
     "Hint: to switch the sign of the data, prepend a minus sign.\n"
     "For example, when assigning kW consumption data to a kW production sensor, use '-kW'.",
 )
@@ -342,6 +345,12 @@ def add_initial_structure():
     help="Additional strings to recognize as NaN values. This argument can be given multiple times.",
 )
 @click.option(
+    "--keep-default-na",
+    default=False,
+    type=bool,
+    help="Whether or not to keep NaN values in the data.",
+)
+@click.option(
     "--nrows",
     required=False,
     type=int,
@@ -366,6 +375,24 @@ def add_initial_structure():
     required=False,
     type=int,
     help="Column number with datetimes",
+)
+@click.option(
+    "--timezone",
+    required=False,
+    default=None,
+    help="timezone as string, e.g. 'UTC' or 'Europe/Amsterdam'",
+)
+@click.option(
+    "--filter-column",
+    "filter_columns",
+    multiple=True,
+    help="Set a column number to filter data. Use together with --filter-value.",
+)
+@click.option(
+    "--filter-value",
+    "filter_values",
+    multiple=True,
+    help="Set a column value to filter data. Only rows with this value will be added. Use together with --filter-column.",
 )
 @click.option(
     "--delimiter",
@@ -396,8 +423,10 @@ def add_initial_structure():
 )
 def add_beliefs(
     file: str,
-    sensor_id: int,
+    sensor: Sensor,
     source: str,
+    filter_columns: List[int],
+    filter_values: List[int],
     unit: Optional[str] = None,
     horizon: Optional[int] = None,
     cp: Optional[float] = None,
@@ -405,10 +434,12 @@ def add_beliefs(
     allow_overwrite: bool = False,
     skiprows: int = 1,
     na_values: list[str] | None = None,
+    keep_default_na: bool = False,
     nrows: Optional[int] = None,
     datecol: int = 0,
     valuecol: int = 1,
     beliefcol: Optional[int] = None,
+    timezone: Optional[str] = None,
     delimiter: str = ",",
     decimal: str = ".",
     thousands: Optional[str] = None,
@@ -433,17 +464,7 @@ def add_beliefs(
     In case no --horizon is specified and no beliefcol is specified,
     the moment of executing this CLI command is taken as the time at which the beliefs were recorded.
     """
-    sensor = Sensor.query.filter(Sensor.id == sensor_id).one_or_none()
-    if sensor is None:
-        print(f"Failed to create beliefs: no sensor found with ID {sensor_id}.")
-        return
-    if source.isdigit():
-        _source = get_source_or_none(int(source), source_type="CLI script")
-        if not _source:
-            print(f"Failed to find source {source}.")
-            return
-    else:
-        _source = get_or_create_source(source, source_type="CLI script")
+    _source = parse_source(source)
 
     # Set up optional parameters for read_csv
     if file.split(".")[-1].lower() == "csv":
@@ -458,6 +479,14 @@ def add_beliefs(
     elif beliefcol is None:
         kwargs["belief_time"] = server_now().astimezone(pytz.timezone(sensor.timezone))
 
+    # Set up optional filters:
+    if len(filter_columns) != len(filter_values):
+        raise ValueError(
+            "The number of filter columns and filter values should be the same."
+        )
+    filter_by_column = (
+        dict(zip(filter_columns, filter_values)) if filter_columns else None
+    )
     bdf = tb.read_csv(
         file,
         sensor,
@@ -472,6 +501,9 @@ def add_beliefs(
         else [datecol, beliefcol, valuecol],
         parse_dates=True,
         na_values=na_values,
+        keep_default_na=keep_default_na,
+        timezone=timezone,
+        filter_by_column=filter_by_column,
         **kwargs,
     )
     duplicate_rows = bdf.index.duplicated(keep="first")
@@ -1099,3 +1131,14 @@ def check_errors(errors: Dict[str, List[str]]):
             f"Please correct the following errors:\n{errors}.\n Use the --help flag to learn more."
         )
         raise click.Abort
+
+
+def parse_source(source):
+    if source.isdigit():
+        _source = get_source_or_none(int(source))
+        if not _source:
+            print(f"Failed to find source {source}.")
+            return
+    else:
+        _source = get_or_create_source(source, source_type="CLI script")
+    return _source
