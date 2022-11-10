@@ -8,7 +8,10 @@ import pandas as pd
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.battery import BatteryScheduler
 from flexmeasures.data.models.planning.charging_station import ChargingStationScheduler
-from flexmeasures.data.models.planning.utils import ensure_storage_specs
+from flexmeasures.data.models.planning.utils import (
+    ensure_storage_specs,
+    initialize_series,
+)
 from flexmeasures.utils.calculations import integrate_time_series
 
 
@@ -172,9 +175,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     target_soc_datetime = start + duration_until_target
-    soc_targets = pd.Series(
-        np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
-    )
+    soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
     storage_specs = ensure_storage_specs(
         dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
@@ -236,9 +237,7 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
     target_soc_datetime = start + duration_until_target
-    soc_targets = pd.Series(
-        np.nan, index=pd.date_range(start, end, freq=resolution, closed="right")
-    )
+    soc_targets = initialize_series(np.nan, start, end, resolution, inclusive="right")
     soc_targets.loc[target_soc_datetime] = target_soc
     storage_specs = ensure_storage_specs(
         dict(soc_at_start=soc_at_start, soc_targets=soc_targets),

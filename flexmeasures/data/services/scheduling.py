@@ -51,7 +51,7 @@ def create_scheduling_job(
     That means one event leads to one job (i.e. actions are event driven).
 
     Target SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
-    >>> df = pd.Series(data=[1, 2, 2.5, 3], index=pd.date_range(datetime(2010,1,1,5), datetime(2010,1,1,6), freq=timedelta(minutes=15), closed="right"))
+    >>> df = pd.Series(data=[1, 2, 2.5, 3], index=pd.date_range(datetime(2010,1,1,5), datetime(2010,1,1,6), freq=timedelta(minutes=15), inclusive="right"))
     >>> print(df)
         2010-01-01 05:15:00    1.0
         2010-01-01 05:30:00    2.0

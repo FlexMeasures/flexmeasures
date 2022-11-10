@@ -27,6 +27,7 @@ from flexmeasures.data.scripts.data_gen import (
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
     Sensor,
@@ -923,14 +924,12 @@ def create_schedule(
         except MissingAttributeException:
             click.echo(f"{power_sensor} has no {attribute} attribute.")
             raise click.Abort()
-    soc_targets = pd.Series(
+    soc_targets = initialize_series(
         np.nan,
-        index=pd.date_range(
-            pd.Timestamp(start).tz_convert(power_sensor.timezone),
-            pd.Timestamp(end).tz_convert(power_sensor.timezone),
-            freq=power_sensor.event_resolution,
-            closed="right",
-        ),  # note that target values are indexed by their due date (i.e. closed="right")
+        start=pd.Timestamp(start).tz_convert(power_sensor.timezone),
+        end=pd.Timestamp(end).tz_convert(power_sensor.timezone),
+        resolution=power_sensor.event_resolution,
+        inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
     )
 
     # Convert round-trip efficiency to dimensionless
