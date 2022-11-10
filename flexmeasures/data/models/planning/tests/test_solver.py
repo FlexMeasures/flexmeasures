@@ -7,7 +7,6 @@ import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.battery import StorageScheduler
-from flexmeasures.data.models.planning.charging_station import ChargingStationScheduler
 from flexmeasures.data.models.planning.utils import (
     ensure_storage_specs,
     initialize_series,
@@ -184,7 +183,7 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
         end,
         resolution,
     )
-    consumption_schedule = ChargingStationScheduler().schedule(
+    consumption_schedule = StorageScheduler().schedule(
         charging_station, start, end, resolution, storage_specs=storage_specs
     )
     soc_schedule = integrate_time_series(
@@ -246,7 +245,7 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
         end,
         resolution,
     )
-    consumption_schedule = ChargingStationScheduler().schedule(
+    consumption_schedule = StorageScheduler().schedule(
         charging_station,
         start,
         end,

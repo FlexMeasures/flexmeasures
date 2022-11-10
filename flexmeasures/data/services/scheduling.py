@@ -13,7 +13,6 @@ import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.models.planning.battery import StorageScheduler
-from flexmeasures.data.models.planning.charging_station import ChargingStationScheduler
 from flexmeasures.data.models.planning.utils import ensure_storage_specs
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
@@ -130,17 +129,13 @@ def make_schedule(
     if "custom-scheduler" in sensor.attributes:
         scheduler_specs = sensor.attributes.get("custom-scheduler")
         scheduler, data_source_info = load_custom_scheduler(scheduler_specs)
-    elif sensor.generic_asset.generic_asset_type.name == "battery":
-        scheduler = StorageScheduler
-        data_source_info["model"] = "schedule_battery"
-        data_source_info["name"] = scheduler.__author__
-        data_source_info["version"] = scheduler.__version__
     elif sensor.generic_asset.generic_asset_type.name in (
+        "battery",
         "one-way_evse",
         "two-way_evse",
     ):
-        scheduler = ChargingStationScheduler
-        data_source_info["model"] = "schedule_charging_station"
+        scheduler = StorageScheduler
+        data_source_info["model"] = scheduler.__name__
         data_source_info["name"] = scheduler.__author__
         data_source_info["version"] = scheduler.__version__
     else:
