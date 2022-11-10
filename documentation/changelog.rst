@@ -13,6 +13,7 @@ New features
 * Visually distinguish forecasts/schedules (dashed lines) from measurements (solid lines), and expand the tooltip with timing info regarding the forecast/schedule horizon or measurement lag [see `PR #503 <http://www.github.com/FlexMeasures/flexmeasures/pull/503>`_]
 * The asset page also allows to show sensor data from other assets that belong to the same account [see `PR #500 <http://www.github.com/FlexMeasures/flexmeasures/pull/500>`_]
 * Improved import of time series data from CSV file: 1) drop duplicate records with warning, and 2) allow configuring which column contains explicit recording times for each data point (use case: import forecasts) [see `PR #501 <http://www.github.com/FlexMeasures/flexmeasures/pull/501>`_]
+* The CLI command ``flexmeasures show beliefs`` supports showing beliefs data in a custom resolution and/or timezone, and also saving the shown beliefs data to a CSV file [see `PR #519 <http://www.github.com/FlexMeasures/flexmeasures/pull/519>`_]
 
 Bugfixes
 -----------
@@ -24,6 +25,8 @@ Infrastructure / Support
 
 * Reduce size of Docker image (from 2GB to 1.4GB) [see `PR #512 <http://www.github.com/FlexMeasures/flexmeasures/pull/512>`_]
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
+* Fix ``flexmeasures db-ops dump`` and ``flexmeasures db-ops restore`` not working in docker containers [see `PR #530 <http://www.github.com/FlexMeasures/flexmeasures/pull/530>`_] and incorrectly reporting a success when `pg_dump` and `pg_restore` are not installed [see `PR #526 <http://www.github.com/FlexMeasures/flexmeasures/pull/526>`_]
+* Plugins can save BeliefsSeries, too, instead of just BeliefsDataFrames [see `PR #523 <http://www.github.com/FlexMeasures/flexmeasures/pull/523>`_]
 * Improve documentation and code w.r.t. storage flexibility modelling [see `PR #511 <http://www.github.com/FlexMeasures/flexmeasures/pull/511>`_]
 
 
