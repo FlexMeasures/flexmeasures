@@ -652,17 +652,17 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             # Workaround (1st half) for https://github.com/FlexMeasures/flexmeasures/issues/484
             if event_starts_after is not None:
                 _event_starts_after = (
-                        event_starts_after
-                        - sensor.event_resolution
-                        + timedelta(milliseconds=1)
+                    event_starts_after
+                    - sensor.event_resolution
+                    + timedelta(milliseconds=1)
                 )
             else:
                 _event_starts_after = event_starts_after
             if event_ends_before is not None:
                 _event_ends_before = (
-                        event_ends_before
-                        + sensor.event_resolution
-                        - timedelta(milliseconds=1)
+                    event_ends_before
+                    + sensor.event_resolution
+                    - timedelta(milliseconds=1)
                 )
             else:
                 _event_ends_before = event_ends_before
