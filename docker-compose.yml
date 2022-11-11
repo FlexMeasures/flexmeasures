@@ -53,10 +53,13 @@ services:
       # a place for config and plugin code - the mount point is for running the FlexMeasures CLI, the 2nd for gunicorn
       - ./flexmeasures-instance/:/usr/var/flexmeasures-instance/:ro
       - ./flexmeasures-instance/:/app/instance/:ro
-    command: >
-      bash -c "flexmeasures db upgrade
-      && flexmeasures add toy-account --name 'Docker Toy Account'
-      && gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+    - |
+      pip install -r instance/requirements.txt
+      flexmeasures db upgrade
+      flexmeasures add toy-account --name 'Docker Toy Account'
+      gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application
   worker:
     build:
       context: .
