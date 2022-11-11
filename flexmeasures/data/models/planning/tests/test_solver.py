@@ -339,6 +339,8 @@ def test_building_solver_day_2(
         end,
         resolution,
         storage_specs=storage_specs,
+        consumption_price_sensor=consumption_price_sensor,
+        production_price_sensor=production_price_sensor,
         inflexible_device_sensors=inflexible_devices.values(),
     )
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)

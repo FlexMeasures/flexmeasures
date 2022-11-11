@@ -20,7 +20,7 @@ def setup_planning_test_data(db, add_market_prices, add_charging_station_assets)
 
 
 @pytest.fixture(scope="module")
-def create_test_tariffs(db, setup_accounts, setup_sources) -> Dict[str, Sensor]:
+def create_test_tariffs(db, setup_accounts, setup_sources) -> dict[str, Sensor]:
     """Create a fixed consumption tariff and a fixed feed-in tariff that is lower."""
 
     market_type = GenericAssetType(
