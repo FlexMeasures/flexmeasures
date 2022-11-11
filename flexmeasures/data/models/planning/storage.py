@@ -114,7 +114,7 @@ class StorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 sensor=inflexible_sensor,
             )
-        if soc_targets is not None:
+        if soc_targets is not None and not soc_targets.empty:
             soc_targets = soc_targets.tz_convert("UTC")
             device_constraints[0]["equals"] = soc_targets.shift(
                 -1, freq=resolution
