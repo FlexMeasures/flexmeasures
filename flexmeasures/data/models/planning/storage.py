@@ -5,7 +5,7 @@ import pandas as pd
 
 from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Scheduler
-from flexmeasures.data.models.planning.solver import device_scheduler
+from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     get_prices,
     add_tiny_price_slope,
