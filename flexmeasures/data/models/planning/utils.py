@@ -182,11 +182,6 @@ def get_prices(
         most_recent_beliefs_only=True,
         one_deterministic_belief_per_event=True,
     )
-    with pd.option_context(
-            "display.max_rows", None, "display.max_columns", None, "display.width", 2000
-    ):
-        print(price_bdf)
-        print(price_bdf.sensor)
     price_df = simplify_index(price_bdf)
     nan_prices = price_df.isnull().values
     if nan_prices.all() or price_df.empty:
@@ -241,11 +236,6 @@ def get_power_values(
         most_recent_beliefs_only=True,
         one_deterministic_belief_per_event=True,
     )  # consumption is negative, production is positive
-    with pd.option_context(
-            "display.max_rows", None, "display.max_columns", None, "display.width", 2000
-    ):
-        print(bdf)
-        print(bdf.sensor)
     df = simplify_index(bdf)
     df = df.reindex(initialize_index(query_window[0], query_window[1], resolution))
     nan_values = df.isnull().values
