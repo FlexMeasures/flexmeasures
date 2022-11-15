@@ -315,4 +315,57 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
 Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realised (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
 
-.. note:: The ``flexmeasures add schedule`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule --help``. 
+.. note:: The ``flexmeasures add schedule`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule --help``.
+
+
+Take into account solar production
+---------------------------------------
+
+First, we'll create a new csv file with solar forecast (MW, see the setup for sensor 4 above) for tomorrow.
+
+.. code-block:: console
+
+    $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
+    $ echo "Hour,Price
+    $ ${TOMORROW}T00:00:00,0.0
+    $ ${TOMORROW}T01:00:00,0.0
+    $ ${TOMORROW}T02:00:00,0.0
+    $ ${TOMORROW}T03:00:00,0.0
+    $ ${TOMORROW}T04:00:00,0.01
+    $ ${TOMORROW}T05:00:00,0.03
+    $ ${TOMORROW}T06:00:00,0.06
+    $ ${TOMORROW}T07:00:00,0.1
+    $ ${TOMORROW}T08:00:00,0.14
+    $ ${TOMORROW}T09:00:00,0.17
+    $ ${TOMORROW}T10:00:00,0.19
+    $ ${TOMORROW}T11:00:00,0.21
+    $ ${TOMORROW}T12:00:00,0.22
+    $ ${TOMORROW}T13:00:00,0.21
+    $ ${TOMORROW}T14:00:00,0.19
+    $ ${TOMORROW}T15:00:00,0.17
+    $ ${TOMORROW}T16:00:00,0.14
+    $ ${TOMORROW}T17:00:00,0.1
+    $ ${TOMORROW}T18:00:00,0.06
+    $ ${TOMORROW}T19:00:00,0.03
+    $ ${TOMORROW}T20:00:00,0.01
+    $ ${TOMORROW}T21:00:00,0.0
+    $ ${TOMORROW}T22:00:00,0.0
+    $ ${TOMORROW}T23:00:00,0.0" > solar-tomorrow.csv
+
+Then, we read in the created CSV file as beliefs data:
+
+.. code-block:: console
+
+    $ flexmeasures add beliefs --sensor-id 4 --source toy-user solar-tomorrow.csv --timezone Europe/Amsterdam
+    Successfully created beliefs
+
+Now, we'll reschedule the battery while taking into account the solar production. This will have an effect on the available headroom for the battery.
+
+.. code-block:: console
+
+    $ flexmeasures add schedule --sensor-id 2 --consumption-price-sensor 3 \
+        --inflexible-device-sensor 4 \
+        --start ${TOMORROW}T07:00+01:00 --duration PT12H \
+        --soc-at-start 50% --roundtrip-efficiency 90%
+    New schedule is stored.
+
