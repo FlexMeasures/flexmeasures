@@ -108,7 +108,7 @@ FlexMeasures offers a command to create a toy account with a battery:
     $ flexmeasures add toy-account --kind battery
 
     Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
-    The sensor for battery charging is <Sensor 2: charging, unit: MW res.: 0:15:00>.
+    The sensor for battery (dis)charging is <Sensor 2: discharging, unit: MW res.: 0:15:00>.
     The sensor for Day ahead prices is <Sensor 3: Day ahead prices, unit: EUR/MWh res.: 1:00:00>.
 
 And with that, we're done with the structural data for this tutorial! 
@@ -278,7 +278,7 @@ Great. Let's see what we made:
 .. code-block:: console
 
     $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
-    Beliefs for Sensor 'charging' (Id 2).
+    Beliefs for Sensor 'discharging' (Id 2).
     Data spans 12 hours and starts at 2022-03-04 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
@@ -301,7 +301,7 @@ Great. Let's see what we made:
     │                    ▙▄▄▌                ▐▄▄▞                │ 
     └────────────────────────────────────────────────────────────┘
             10           20           30          40
-                            ██ charging
+                            ██ discharging
 
 
 Here, negative values denote output from the grid, so that's when the battery gets charged. 
