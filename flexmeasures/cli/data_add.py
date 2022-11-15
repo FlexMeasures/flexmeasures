@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Type
 import json
 
 from marshmallow import validate
@@ -1046,7 +1046,6 @@ def add_toy_account(kind: str, name: str):
         account = Account.query.filter(Account.name == name).one_or_none()
         if account:
             click.echo(f"Account already exists: {account}")
-            return
         # make an account user (account-admin?)
         email = "toy-user@flexmeasures.io"
         user = User.query.filter_by(email=email).one_or_none()
@@ -1064,27 +1063,37 @@ def add_toy_account(kind: str, name: str):
             )
         # make assets
         for asset_type in ("solar", "building", "battery"):
-            asset = GenericAsset(
+            asset = get_or_create_model(
+                GenericAsset,
                 name=f"toy-{asset_type}",
                 generic_asset_type=asset_types[asset_type],
                 owner=user.account,
                 latitude=location[0],
                 longitude=location[1],
             )
-            db.session.add(asset)
+            power_sensor_specs = dict(
+                generic_asset=asset,
+                unit="MW",
+                timezone="Europe/Amsterdam",
+                event_resolution=timedelta(minutes=15),
+            )
             if asset_type == "battery":
                 asset.attributes = dict(
                     capacity_in_mw=0.5, min_soc_in_mwh=0.05, max_soc_in_mwh=0.45
                 )
                 # add charging sensor to battery
-                charging_sensor = Sensor(
+                charging_sensor = get_or_create_model(
+                    Sensor,
                     name="discharging",
-                    generic_asset=asset,
-                    unit="MW",
-                    timezone="Europe/Amsterdam",
-                    event_resolution=timedelta(minutes=15),
+                    **power_sensor_specs,
                 )
-                db.session.add(charging_sensor)
+            elif asset_type == "solar":
+                # add production sensor to solar asset
+                production_sensor = get_or_create_model(
+                    Sensor,
+                    name="production",
+                    **power_sensor_specs,
+                )
 
         # add public day-ahead market (as sensor of transmission zone asset)
         nl_zone = add_transmission_zone_asset("NL", db=db)
@@ -1142,3 +1151,23 @@ def parse_source(source):
     else:
         _source = get_or_create_source(source, source_type="CLI script")
     return _source
+
+
+def get_or_create_model(
+    model_class: Type[GenericAsset | GenericAssetType | Sensor], **kwargs
+) -> GenericAsset | GenericAssetType | Sensor:
+    """Get a model from the database or add it if it's missing.
+
+    For example:
+    >>> weather_station_type = get_or_create_model(
+    >>>     GenericAssetType,
+    >>>     name="weather station",
+    >>>     description="A weather station with various sensors.",
+    >>> )
+    """
+    model = model_class.query.filter_by(**kwargs).one_or_none()
+    if model is None:
+        model = model_class(**kwargs)
+        click.echo(f"Created {model}")
+        db.session.add(model)
+    return model
