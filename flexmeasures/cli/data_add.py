@@ -854,6 +854,14 @@ def create_forecasts(
     help="To be deprecated. Use consumption-price-sensor instead.",
 )
 @click.option(
+    "--inflexible-device-sensor",
+    "inflexible_device_sensors",
+    type=SensorIdField(),
+    multiple=True,
+    help="Take into account the power flow of inflexible devices. Follow up with the sensor's ID."
+    " This argument can be given multiple times."
+)
+@click.option(
     "--start",
     "start",
     type=AwareDateTimeField(format="iso"),
@@ -919,6 +927,7 @@ def create_schedule(
     consumption_price_sensor: Sensor,
     production_price_sensor: Sensor,
     optimization_context_sensor: Sensor,
+    inflexible_device_sensors: list[Sensor],
     start: datetime,
     duration: timedelta,
     soc_at_start: ur.Quantity,
@@ -1005,6 +1014,7 @@ def create_schedule(
             roundtrip_efficiency=roundtrip_efficiency,
             consumption_price_sensor=consumption_price_sensor,
             production_price_sensor=production_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
         )
         if job:
             print(f"New scheduling job {job.id} has been added to the queue.")
@@ -1022,6 +1032,7 @@ def create_schedule(
             roundtrip_efficiency=roundtrip_efficiency,
             consumption_price_sensor=consumption_price_sensor,
             production_price_sensor=production_price_sensor,
+            inflexible_device_sensors=inflexible_device_sensors,
         )
         if success:
             print("New schedule is stored.")
