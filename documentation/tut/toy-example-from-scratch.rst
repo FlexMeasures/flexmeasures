@@ -108,8 +108,8 @@ FlexMeasures offers a command to create a toy account with a battery:
     $ flexmeasures add toy-account --kind battery
 
     Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
-    The sensor for battery (dis)charging is <Sensor 2: discharging, unit: MW res.: 0:15:00>.
-    The sensor for Day ahead prices is <Sensor 3: Day ahead prices, unit: EUR/MWh res.: 1:00:00>.
+    The sensor recording battery power is <Sensor 2: discharging, unit: MW res.: 0:15:00>.
+    The sensor recording day-ahead prices is <Sensor 3: day-ahead prices, unit: EUR/MWh res.: 1:00:00>.
 
 And with that, we're done with the structural data for this tutorial! 
 
@@ -223,7 +223,7 @@ Let's look at the price data we just loaded:
 .. code-block:: console
 
     $ flexmeasures show beliefs --sensor-id 3 --start ${TOMORROW}T01:00:00+01:00 --duration PT24H
-    Beliefs for Sensor 'Day ahead prices' (Id 3).
+    Beliefs for Sensor 'day-ahead prices' (Id 3).
     Data spans a day and starts at 2022-03-03 01:00:00+01:00.
     The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
@@ -246,7 +246,7 @@ Let's look at the price data we just loaded:
     │                                  ▝▚▄▄▄▄▘                   │ 
     └────────────────────────────────────────────────────────────┘
             5           10           15           20
-                        ██ Day ahead prices
+                        ██ day-ahead prices
 
 
 

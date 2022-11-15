@@ -1089,11 +1089,11 @@ def add_toy_account(kind: str, name: str):
         # add public day-ahead market (as sensor of transmission zone asset)
         nl_zone = add_transmission_zone_asset("NL", db=db)
         day_ahead_sensor = Sensor.query.filter(
-            Sensor.generic_asset == nl_zone, Sensor.name == "Day ahead prices"
+            Sensor.generic_asset == nl_zone, Sensor.name == "day-ahead prices"
         ).one_or_none()
         if not day_ahead_sensor:
             day_ahead_sensor = Sensor(
-                name="Day ahead prices",
+                name="day-ahead prices",
                 generic_asset=nl_zone,
                 unit="EUR/MWh",
                 timezone="Europe/Amsterdam",
@@ -1110,8 +1110,8 @@ def add_toy_account(kind: str, name: str):
     click.echo(
         f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
     )
-    click.echo(f"The sensor for battery discharging is {charging_sensor}.")
-    click.echo(f"The sensor for Day ahead prices is {day_ahead_sensor}.")
+    click.echo(f"The sensor recording battery discharging is {charging_sensor}.")
+    click.echo(f"The sensor recording day-ahead prices is {day_ahead_sensor}.")
 
 
 app.cli.add_command(fm_add_data)
