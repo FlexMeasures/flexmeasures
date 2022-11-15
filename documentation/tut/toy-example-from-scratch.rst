@@ -211,42 +211,42 @@ This is time series data, in FlexMeasures we call "beliefs". Beliefs can also be
 
 .. code-block:: console
 
-    $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv
+    $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
 In FlexMeasures, all beliefs have a data source. Here, we use the username of the user we created earlier. We could also pass a user ID, or the name of a new data source we want to use for CLI scripts.
 
-.. note:: Attention: We created and imported prices where the times have no time zone component! That happens a lot. FlexMeasures will then interpret them as UTC time. So if you are in Amsterdam time, the start time for the first price, when expressed in your time zone, is actually `2022-03-03 01:00:00+01:00`.
+.. note:: Attention: We created and imported prices where the times have no time zone component! That happens a lot. FlexMeasures can localize them for you to a given timezone. Here, we localized the data to the timezone of the price sensor - ``Europe/Amsterdam`` - so the start time for the first price is `2022-03-03 00:00:00+01:00` (midnight in Amsterdam).
 
 Let's look at the price data we just loaded:
 
 .. code-block:: console
 
-    $ flexmeasures show beliefs --sensor-id 3 --start ${TOMORROW}T01:00:00+01:00 --duration PT24H
+    $ flexmeasures show beliefs --sensor-id 3 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
     Beliefs for Sensor 'day-ahead prices' (Id 3).
-    Data spans a day and starts at 2022-03-03 01:00:00+01:00.
+    Data spans a day and starts at 2022-03-03 00:00:00+01:00.
     The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
     │         ▗▀▚▖                                               │ 18EUR/MWh
-    │         ▞  ▝▌                                              │ 
-    │        ▐    ▚                                              │ 
-    │       ▗▘    ▐                                              │ 
-    │       ▌      ▌                                     ▖       │ 
-    │      ▞       ▚                                  ▗▄▀▝▄      │ 
+    │         ▞  ▝▌                                              │
+    │        ▐    ▚                                              │
+    │       ▗▘    ▐                                              │
+    │       ▌      ▌                                     ▖       │
+    │      ▞       ▚                                  ▗▄▀▝▄      │
     │     ▗▘       ▐                                ▗▞▀    ▚     │ 13EUR/MWh
-    │   ▗▄▘         ▌                              ▐▘       ▚    │ 
-    │ ▗▞▘           ▚                              ▌         ▚   │ 
-    │▞▘             ▝▄           ▗                ▐          ▝▖  │ 
-    │                 ▚▄▄▀▚▄▄   ▞▘▚               ▌           ▝▖ │ 
-    │                        ▀▀▛   ▚             ▐             ▚ │ 
+    │   ▗▄▘         ▌                              ▐▘       ▚    │
+    │ ▗▞▘           ▚                              ▌         ▚   │
+    │▞▘             ▝▄           ▗                ▐          ▝▖  │
+    │                 ▚▄▄▀▚▄▄   ▞▘▚               ▌           ▝▖ │
+    │                        ▀▀▛   ▚             ▐             ▚ │
     │                               ▚           ▗▘              ▚│ 8EUR/MWh
-    │                                ▌         ▗▘               ▝│ 
-    │                                ▝▖        ▞                 │ 
-    │                                 ▐▖     ▗▀                  │ 
-    │                                  ▝▚▄▄▄▄▘                   │ 
+    │                                ▌         ▗▘               ▝│
+    │                                ▝▖        ▞                 │
+    │                                 ▐▖     ▗▀                  │
+    │                                  ▝▚▄▄▄▄▘                   │
     └────────────────────────────────────────────────────────────┘
-            5           10           15           20
-                        ██ day-ahead prices
+               5           10           15           20
+                         ██ day-ahead prices
 
 
 
@@ -282,26 +282,26 @@ Great. Let's see what we made:
     Data spans 12 hours and starts at 2022-03-04 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
-    │   ▐                      ▐▀▀▌                           ▛▀▀│ 
-    │   ▞▌                     ▞  ▐                           ▌  │ 0.4MW
-    │   ▌▌                     ▌  ▐                          ▐   │ 
-    │  ▗▘▌                     ▌  ▐                          ▐   │ 
-    │  ▐ ▐                    ▗▘  ▝▖                         ▐   │ 
-    │  ▞ ▐                    ▐    ▌                         ▌   │ 0.2MW
-    │ ▗▘ ▐                    ▐    ▌                         ▌   │ 
-    │ ▐  ▝▖                   ▌    ▚                        ▞    │ 
-    │▀▘───▀▀▀▀▀▀▀▀▀▀▀▀▀▀▌────▐─────▝▀▀▀▀▀▀▀▀▜─────▐▀▀▀▀▀▀▀▀▀─────│ 0MW
-    │                   ▌    ▞              ▐    ▗▘              │ 
-    │                   ▚    ▌              ▐    ▐               │ 
-    │                   ▐   ▗▘              ▝▖   ▌               │ -0.2MW
-    │                   ▐   ▐                ▌   ▌               │ 
-    │                   ▐   ▐                ▌  ▗▘               │ 
-    │                    ▌  ▞                ▌  ▐                │ 
-    │                    ▌  ▌                ▐  ▐                │ -0.4MW
-    │                    ▙▄▄▌                ▐▄▄▞                │ 
+    │        ▐▌           ▐▀▀▌                                ▛▀▀│
+    │        ▐▌           ▞  ▚                                ▌  │ 0.4MW
+    │        ▌▌           ▌  ▐                               ▗▘  │
+    │        ▌▚           ▌  ▐                               ▐   │
+    │       ▗▘▐          ▗▘  ▐                               ▐   │
+    │       ▐ ▐          ▐    ▌                              ▞   │ 0.2MW
+    │       ▌ ▐          ▐    ▌                              ▌   │
+    │      ▗▘  ▌         ▐    ▌                              ▌   │
+    │▀▀▀▀▀▀▀───▀▀▀▀▌─────▌────▝▀▀▀▀▀▀▀▀▌─────▐▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▘───│ 0MW
+    │              ▌    ▗▘             ▐     ▞                   │
+    │              ▌    ▐              ▐    ▗▘                   │
+    │              ▚    ▌              ▐    ▐                    │ -0.2MW
+    │              ▐   ▗▘               ▌   ▌                    │
+    │              ▐   ▐                ▌   ▌                    │
+    │              ▝▖  ▞                ▌  ▐                     │
+    │               ▌  ▌                ▚  ▐                     │ -0.4MW
+    │               ▙▄▄▘                ▐▄▄▌                     │
     └────────────────────────────────────────────────────────────┘
-            10           20           30          40
-                            ██ discharging
+               10           20           30          40
+                             ██ discharging
 
 
 Here, negative values denote output from the grid, so that's when the battery gets charged. 
@@ -311,7 +311,7 @@ We can also look at the charging schedule in the `FlexMeasures UI <http://localh
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
 
-Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 5am) and it also had to end *before* the second price peak fully realised (at 9pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (around 3pm) and sells it off when prices start rising again (around 6pm).
+Recall that we only asked for a 12 hour schedule here. We started our schedule *after* the high price peak (at 4am) and it also had to end *before* the second price peak fully realised (at 8pm). Our scheduler didn't have many opportunities to optimize, but it found some. For instance, it does buy at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
 
 .. note:: The ``flexmeasures add schedule`` command also accepts state-of-charge targets, so the schedule can be more sophisticated. But that is not the point of this tutorial. See ``flexmeasures add schedule --help``. 
