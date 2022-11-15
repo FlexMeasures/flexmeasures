@@ -13,6 +13,7 @@ from flask import current_app as app
 from flask.cli import with_appcontext
 import click
 import getpass
+from sqlalchemy import cast, literal, JSON, String
 from sqlalchemy.exc import IntegrityError
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
@@ -1165,9 +1166,39 @@ def get_or_create_model(
     >>>     description="A weather station with various sensors.",
     >>> )
     """
-    model = model_class.query.filter_by(**kwargs).one_or_none()
+
+    # unpack custom initialization parameters that map to multiple database columns
+    init_kwargs = kwargs.copy()
+    lookup_kwargs = kwargs.copy()
+    if "knowledge_horizon" in kwargs:
+        (
+            lookup_kwargs["knowledge_horizon_fnc"],
+            lookup_kwargs["knowledge_horizon_par"],
+        ) = lookup_kwargs.pop("knowledge_horizon")
+
+    # Find out which attributes are dictionaries mapped to JSON database columns,
+    # or callables mapped to string database columns (by their name)
+    filter_json_kwargs = {}
+    filter_by_kwargs = lookup_kwargs.copy()
+    for kw, arg in lookup_kwargs.items():
+        model_attribute = getattr(model_class, kw)
+        print(f"argument {arg} is {callable(arg)} callable")
+        if hasattr(model_attribute, "type") and isinstance(model_attribute.type, JSON):
+            filter_json_kwargs[kw] = filter_by_kwargs.pop(kw)
+        elif callable(arg) and isinstance(model_attribute.type, String):
+            filter_by_kwargs[kw] = filter_by_kwargs[kw].__name__
+
+    # See if the model already exists as a db row
+    model_query = model_class.query.filter_by(**filter_by_kwargs)
+    for kw, arg in filter_json_kwargs.items():
+        model_query = model_query.filter(
+            cast(getattr(model_class, kw), String) == cast(literal(arg, JSON()), String)
+        )
+    model = model_query.one_or_none()
+
+    # Create the model and add it to the database if it didn't already exist
     if model is None:
-        model = model_class(**kwargs)
+        model = model_class(**init_kwargs)
         click.echo(f"Created {model}")
         db.session.add(model)
     return model
