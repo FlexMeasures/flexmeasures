@@ -1098,22 +1098,18 @@ def add_toy_account(kind: str, name: str):
 
         # add public day-ahead market (as sensor of transmission zone asset)
         nl_zone = add_transmission_zone_asset("NL", db=db)
-        day_ahead_sensor = Sensor.query.filter(
-            Sensor.generic_asset == nl_zone, Sensor.name == "day-ahead prices"
-        ).one_or_none()
-        if not day_ahead_sensor:
-            day_ahead_sensor = Sensor(
-                name="day-ahead prices",
-                generic_asset=nl_zone,
-                unit="EUR/MWh",
-                timezone="Europe/Amsterdam",
-                event_resolution=timedelta(minutes=60),
-                knowledge_horizon=(
-                    x_days_ago_at_y_oclock,
-                    {"x": 1, "y": 12, "z": "Europe/Paris"},
-                ),
-            )
-        db.session.add(day_ahead_sensor)
+        day_ahead_sensor = get_or_create_model(
+            Sensor,
+            name="day-ahead prices",
+            generic_asset=nl_zone,
+            unit="EUR/MWh",
+            timezone="Europe/Amsterdam",
+            event_resolution=timedelta(minutes=60),
+            knowledge_horizon=(
+                x_days_ago_at_y_oclock,
+                {"x": 1, "y": 12, "z": "Europe/Paris"},
+            ),
+        )
 
     db.session.commit()
 
