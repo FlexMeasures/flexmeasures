@@ -1110,7 +1110,7 @@ def add_toy_account(kind: str, name: str):
     click.echo(
         f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
     )
-    click.echo(f"The sensor for battery charging is {charging_sensor}.")
+    click.echo(f"The sensor for battery discharging is {charging_sensor}.")
     click.echo(f"The sensor for Day ahead prices is {day_ahead_sensor}.")
 
 
