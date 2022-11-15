@@ -356,6 +356,21 @@
      */
     document.onreadystatechange = () => {
         if (document.readyState === 'complete') {
+            {% if event_starts_after and event_ends_before %}
+                // Initialize picker to the date selection specified in the session
+                var sessionStart = new Date('{{ event_starts_after }}');
+                var sessionEnd = new Date('{{ event_ends_before }}');
+                sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+                sessionStart.setHours(0,0,0,0); // get start of first day
+                sessionEnd.setHours(0,0,0,0); // get start of last day
+                picker.setDateRange(
+                    sessionStart,
+                    sessionEnd,
+                );
+                var timerangeNotSetYet = false
+            {% else %}
+                var timerangeNotSetYet = true
+            {% endif %}
             fetch(dataDevPath, {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
@@ -380,18 +395,7 @@
                     start.setHours(0,0,0,0); // get start of first day
                     end.setHours(0,0,0,0); // get start of last day
 
-                    {% if event_starts_after and event_ends_before %}
-                        // Initialize picker to the date selection specified in the session
-                        var sessionStart = new Date('{{ event_starts_after }}');
-                        var sessionEnd = new Date('{{ event_ends_before }}');
-                        sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-                        sessionStart.setHours(0,0,0,0); // get start of first day
-                        sessionEnd.setHours(0,0,0,0); // get start of last day
-                        picker.setDateRange(
-                            sessionStart,
-                            sessionEnd,
-                        );
-                    {% else %}
+                    if (timerangeNotSetYet) {
                         // Initialize picker to the last 2 days of sensor data
                         var nearEnd = new Date(end)//.setDate(end.getDate() - 1);
                         nearEnd.setDate(nearEnd.getDate() - 1);
@@ -399,7 +403,7 @@
                             nearEnd,
                             end,
                         );
-                    {% endif %}
+                    }
 
                     // No use looking for data in years outside timerange of sensor data
                     picker.setOptions({
