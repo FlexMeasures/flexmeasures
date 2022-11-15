@@ -366,7 +366,7 @@
     /** If the page is done loading, get data (for the time range stored in the session, or the default range),
      * check for time zone differences, and then trigger the time range picker to display the correct range.
      */
-    document.onreadystatechange = () => {
+    document.onreadystatechange = async () => {
         if (document.readyState === 'complete') {
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
@@ -376,14 +376,13 @@
                 sessionStart.setHours(0,0,0,0); // get start of first day
                 sessionEnd.setHours(0,0,0,0); // get start of last day
                 $("#spinner").show();
-                Promise.all([
+                let fetchedInitialData = await Promise.all([
                     initialData,
                     embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
-                ]).then(function(result) {
-                    $("#spinner").hide();
-                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
-                    previousResult = result[0];
-                }).catch(console.error);
+                ]).then(function (result) {return result[0]}).catch(console.error);
+                $("#spinner").hide();
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+                previousResult = fetchedInitialData;
                 picker.setDateRange(
                     sessionStart,
                     sessionEnd,
