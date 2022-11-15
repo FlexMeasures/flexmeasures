@@ -110,6 +110,7 @@ FlexMeasures offers a command to create a toy account with a battery:
     Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
     The sensor recording battery power is <Sensor 2: discharging, unit: MW res.: 0:15:00>.
     The sensor recording day-ahead prices is <Sensor 3: day-ahead prices, unit: EUR/MWh res.: 1:00:00>.
+    The sensor recording solar forecasts is <Sensor 4: production, unit: MW res.: 0:15:00>.
 
 And with that, we're done with the structural data for this tutorial! 
 

@@ -1062,8 +1062,8 @@ def add_toy_account(kind: str, name: str):
                 user_roles=["account-admin"],
                 account_name=name,
             )
-        # make assets
-        for asset_type in ("solar", "building", "battery"):
+
+        def create_power_asset(asset_type: str, sensor_name: str, **attributes):
             asset = get_or_create_model(
                 GenericAsset,
                 name=f"toy-{asset_type}",
@@ -1072,29 +1072,28 @@ def add_toy_account(kind: str, name: str):
                 latitude=location[0],
                 longitude=location[1],
             )
+            asset.attributes = attributes
             power_sensor_specs = dict(
                 generic_asset=asset,
                 unit="MW",
                 timezone="Europe/Amsterdam",
                 event_resolution=timedelta(minutes=15),
             )
-            if asset_type == "battery":
-                asset.attributes = dict(
-                    capacity_in_mw=0.5, min_soc_in_mwh=0.05, max_soc_in_mwh=0.45
-                )
-                # add charging sensor to battery
-                charging_sensor = get_or_create_model(
-                    Sensor,
-                    name="discharging",
-                    **power_sensor_specs,
-                )
-            elif asset_type == "solar":
-                # add production sensor to solar asset
-                production_sensor = get_or_create_model(
-                    Sensor,
-                    name="production",
-                    **power_sensor_specs,
-                )
+            power_sensor = get_or_create_model(
+                Sensor,
+                name=sensor_name,
+                **power_sensor_specs,
+            )
+            return power_sensor
+
+        # create battery
+        discharging_sensor = create_power_asset(
+            "battery",
+            "discharging",
+            capacity_in_mw=0.5,
+            min_soc_in_mwh=0.05,
+            max_soc_in_mwh=0.45,
+        )
 
         # add public day-ahead market (as sensor of transmission zone asset)
         nl_zone = add_transmission_zone_asset("NL", db=db)
@@ -1111,13 +1110,20 @@ def add_toy_account(kind: str, name: str):
             ),
         )
 
+        # create solar
+        production_sensor = create_power_asset(
+            "solar",
+            "production",
+        )
+
     db.session.commit()
 
     click.echo(
         f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`"
     )
-    click.echo(f"The sensor recording battery discharging is {charging_sensor}.")
+    click.echo(f"The sensor recording battery discharging is {discharging_sensor}.")
     click.echo(f"The sensor recording day-ahead prices is {day_ahead_sensor}.")
+    click.echo(f"The sensor recording solar forecasts is {production_sensor}.")
 
 
 app.cli.add_command(fm_add_data)
