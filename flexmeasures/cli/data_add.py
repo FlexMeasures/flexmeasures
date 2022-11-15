@@ -859,7 +859,7 @@ def create_forecasts(
     type=SensorIdField(),
     multiple=True,
     help="Take into account the power flow of inflexible devices. Follow up with the sensor's ID."
-    " This argument can be given multiple times."
+    " This argument can be given multiple times.",
 )
 @click.option(
     "--start",
