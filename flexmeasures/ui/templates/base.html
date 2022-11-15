@@ -239,7 +239,6 @@
     let queryEndDate;
     let storeStartDate;
     let storeEndDate;
-    let firstLoadDone = false
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
@@ -275,6 +274,18 @@
     })
     .then(function(response) { return response.json(); });
 
+    // Set session start and end
+    {% if event_starts_after and event_ends_before %}
+        var sessionStart = new Date('{{ event_starts_after }}');
+        var sessionEnd = new Date('{{ event_ends_before }}');
+        sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
+        sessionStart.setHours(0,0,0,0); // get start of first day
+        sessionEnd.setHours(0,0,0,0); // get start of last day
+    {% else %}
+        var sessionStart = null
+        var sessionEnd = null
+    {% endif %}
+
     // Set up abort controller to cancel requests
     var controller = new AbortController();
     var signal = controller.signal;
@@ -300,6 +311,8 @@
         inlineMode: true,
         switchingMonths: 1,
         singleMode: false,
+        startDate: sessionStart,
+        endDate: sessionEnd,
         dropdowns: {
             years: true,
             months: true,
@@ -307,60 +320,55 @@
         format: 'YYYY-MM-DD\\T00:00:00',
     });
     picker.on('selected', (startDate, endDate) => {
-        if (firstLoadDone) {
-            // Stop replay
-            let toggle = document.querySelector('#replay');
-            toggle.classList.remove('playing');
-            toggle.classList.remove('paused');
-            toggle.classList.add('stopped');
+        // Stop replay
+        let toggle = document.querySelector('#replay');
+        toggle.classList.remove('playing');
+        toggle.classList.remove('paused');
+        toggle.classList.add('stopped');
 
-            startDate = startDate.toJSDate();
-            endDate = endDate.toJSDate();
-            endDate.setDate(endDate.getDate() + 1);
-            storeStartDate = startDate;
-            storeEndDate = endDate;
-            var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
-            var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
+        startDate = startDate.toJSDate();
+        endDate = endDate.toJSDate();
+        endDate.setDate(endDate.getDate() + 1);
+        storeStartDate = startDate;
+        storeEndDate = endDate;
+        var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
+        var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
-            // Abort previous request and create abort controller for new request
-            controller.abort();
-            controller = new AbortController();
-            signal = controller.signal;
+        // Abort previous request and create abort controller for new request
+        controller.abort();
+        controller = new AbortController();
+        signal = controller.signal;
 
-            $("#spinner").show();
-            Promise.all([
-                // Fetch time series data
-                fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-                    method: "GET",
-                    headers: {"Content-Type": "application/json"},
-                    signal: signal,
-                })
-                .then(function(response) { return response.json(); }),
+        $("#spinner").show();
+        Promise.all([
+            // Fetch time series data
+            fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                method: "GET",
+                headers: {"Content-Type": "application/json"},
+                signal: signal,
+            })
+            .then(function(response) { return response.json(); }),
 
-                /**
-                // Fetch annotations
-                fetch(dataPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
-                    method: "GET",
-                    headers: {"Content-Type": "application/json"},
-                      signal: signal,
-                })
-                .then(function(response) { return response.json(); }),
-                */
+            /**
+            // Fetch annotations
+            fetch(dataPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
+                method: "GET",
+                headers: {"Content-Type": "application/json"},
+                  signal: signal,
+            })
+            .then(function(response) { return response.json(); }),
+            */
 
-                // Embed chart
-                embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
-            ]).then(function(result) {
-                $("#spinner").hide();
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
-                previousResult = result[0];
-                /**
-                vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
-                */
-            }).catch(console.error);
-        }
-        else {
-            firstLoadDone = true
-        }
+            // Embed chart
+            embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
+        ]).then(function(result) {
+            $("#spinner").hide();
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+            previousResult = result[0];
+            /**
+            vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
+            */
+        }).catch(console.error);
     });
 
     /** If the page is done loading, get data (for the time range stored in the session, or the default range),
@@ -370,11 +378,6 @@
         if (document.readyState === 'complete') {
             {% if event_starts_after and event_ends_before %}
                 // Initialize picker to the date selection specified in the session
-                var sessionStart = new Date('{{ event_starts_after }}');
-                var sessionEnd = new Date('{{ event_ends_before }}');
-                sessionEnd.setSeconds(sessionEnd.getSeconds() - 1); // -1 second in case most recent event ends at midnight
-                sessionStart.setHours(0,0,0,0); // get start of first day
-                sessionEnd.setHours(0,0,0,0); // get start of last day
                 $("#spinner").show();
                 let fetchedInitialData = await Promise.all([
                     initialData,
@@ -383,10 +386,6 @@
                 $("#spinner").hide();
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
                 previousResult = fetchedInitialData;
-                picker.setDateRange(
-                    sessionStart,
-                    sessionEnd,
-                );
                 var timerangeNotSetYet = false
             {% else %}
                 var timerangeNotSetYet = true
