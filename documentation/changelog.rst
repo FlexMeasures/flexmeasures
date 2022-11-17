@@ -5,6 +5,8 @@ FlexMeasures Changelog
 v0.12.0 | October XX, 2022
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 
@@ -83,7 +85,7 @@ Bugfixes
 * The docker-based tutorial now works with UI on all platforms (port 5000 did not expose on MacOS) [see `PR #465 <http://www.github.com/FlexMeasures/flexmeasures/pull/465>`_]
 * Fix interpretation of scheduling results in toy tutorial [see `PR #466 <http://www.github.com/FlexMeasures/flexmeasures/pull/466>`_ and `PR #475 <http://www.github.com/FlexMeasures/flexmeasures/pull/475>`_]
 * Avoid formatting datetime.timedelta durations as nominal ISO durations [see `PR #459 <http://www.github.com/FlexMeasures/flexmeasures/pull/459>`_]
-* Account admins cannot add assets to other accounts anymore; and they are shown a button for asset creation in UI [see `PR #488 <http://www.github.com/FlexMeasures/flexmeasures/pull/488>`_]
+* Account admins cannot add assets to other accounts any more; and they are shown a button for asset creation in UI [see `PR #488 <http://www.github.com/FlexMeasures/flexmeasures/pull/488>`_]
 
 Infrastructure / Support
 ----------------------
