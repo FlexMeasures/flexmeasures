@@ -302,12 +302,13 @@ def test_building_solver_day_2(
     """
     battery = flexible_devices["battery power sensor"]
     building = battery.generic_asset
+    default_consumption_price_sensor = Sensor.query.filter(
+        Sensor.name == "epex_da"
+    ).one_or_none()
+    assert battery.get_attribute("market_id") == default_consumption_price_sensor.id
     if market_scenario == "dynamic contract":
-        consumption_price_sensor = Sensor.query.filter(
-            Sensor.name == "epex_da"
-        ).one_or_none()
+        consumption_price_sensor = default_consumption_price_sensor
         production_price_sensor = consumption_price_sensor
-        assert battery.get_attribute("market_id") == consumption_price_sensor.id
     elif market_scenario == "fixed contract":
         consumption_price_sensor = create_test_tariffs["consumption_price_sensor"]
         production_price_sensor = create_test_tariffs["production_price_sensor"]
