@@ -53,10 +53,6 @@ pyparsing==3.0.9
     # via
     #   -c requirements/app.txt
     #   packaging
-pysocks==1.7.1
-    # via
-    #   -c requirements/app.txt
-    #   urllib3
 pytz==2022.2.1
     # via
     #   -c requirements/app.txt
@@ -101,7 +97,7 @@ sphinxcontrib-qthelp==1.0.3
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
-urllib3[socks]==1.26.12
+urllib3==1.26.12
     # via
     #   -c requirements/app.txt
     #   requests
