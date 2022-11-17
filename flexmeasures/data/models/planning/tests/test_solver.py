@@ -295,6 +295,8 @@ def test_building_solver_day_2(
     In the test data:
     - Hours with net production coincide with low dynamic market prices.
     - Hours with net consumption coincide with high dynamic market prices.
+    So when the prices are low (in scenario 1), we have net production, and when they are high, net consumption.
+    That means we have first net consumption, then net production, and then net consumption again.
     In either scenario, we expect the scheduler to:
     - completely discharge within the first 8 hours (either due to 1) high prices, or 2) net consumption)
     - completely charge within the next 8 hours (either due to 1) low prices, or 2) net production)
@@ -380,7 +382,8 @@ def test_building_solver_day_2(
         assert soc >= max(soc_min, battery.get_attribute("min_soc_in_mwh"))
         assert soc <= battery.get_attribute("max_soc_in_mwh")
 
-    # Check whether the resulting soc schedule follows our expectations for:
+    # Check whether the resulting soc schedule follows our expectations for.
+    # To recap, in scenario 1 and 2, the schedule should mainly be influenced by:
     # 1) 8 expensive, 8 cheap and 8 expensive hours
     # 2) 8 net-consumption, 8 net-production and 8 net-consumption hours
 
