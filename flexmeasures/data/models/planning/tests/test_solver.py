@@ -291,7 +291,7 @@ def test_building_solver_day_2(
 ):
     """Check battery scheduling results within the context of a building with PV, for day 2, against the following market scenarios:
     1) a dynamic tariff with equal consumption and feed-in tariffs, that is set up with 8 expensive, then 8 cheap, then again 8 expensive hours.
-    2) a fixed consumption tariff and a fixed feed-in tariff that is lower.
+    2) a fixed consumption tariff and a fixed feed-in tariff that is lower, which incentives to maximize self-consumption of PV power into the battery.
     In the test data:
     - Hours with net production coincide with low dynamic market prices.
     - Hours with net consumption coincide with high dynamic market prices.
@@ -387,20 +387,23 @@ def test_building_solver_day_2(
     # 1) 8 expensive, 8 cheap and 8 expensive hours
     # 2) 8 net-consumption, 8 net-production and 8 net-consumption hours
 
-    # 1) The battery sold out at the end of its planning horizon
-    # 2) The battery discharged as far as it could during the last 8 net-consumption hours
-    assert soc_schedule.iloc[-1] == max(
-        soc_min, battery.get_attribute("min_soc_in_mwh")
-    )
-
+    # Result after 8 hours
     # 1) Sell what you begin with
     # 2) The battery discharged as far as it could during the first 8 net-consumption hours
     assert soc_schedule.loc[start + timedelta(hours=8)] == max(
         soc_min, battery.get_attribute("min_soc_in_mwh")
     )
 
-    # 1) Buy what you can to sell later
+    # Result after second 8 hour-interval
+    # 1) Buy what you can to sell later, when prices will be high again
     # 2) The battery charged with PV power as far as it could during the middle 8 net-production hours
     assert soc_schedule.loc[start + timedelta(hours=16)] == min(
         soc_max, battery.get_attribute("max_soc_in_mwh")
+    )
+
+    # Result at end of day
+    # 1) The battery sold out at the end of its planning horizon
+    # 2) The battery discharged as far as it could during the last 8 net-consumption hours
+    assert soc_schedule.iloc[-1] == max(
+        soc_min, battery.get_attribute("min_soc_in_mwh")
     )
