@@ -23,5 +23,5 @@ def upgrade():
 
 def downgrade():
     op.execute(
-        "Update data_source set version=null, model=null where name = 'Seita' and type='scheduling script';"
+        "Update data_source set version=null, model=null where name = 'Seita' and type='scheduling script' and version='1' and model='StorageScheduler';"
     )
