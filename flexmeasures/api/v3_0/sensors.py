@@ -10,7 +10,6 @@ import isodate
 from marshmallow import validate, fields, Schema
 from marshmallow.validate import OneOf
 import numpy as np
-import pandas as pd
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
 from webargs.flaskparser import use_args, use_kwargs
@@ -34,7 +33,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
@@ -42,7 +41,10 @@ from flexmeasures.data.schemas.sensors import SensorSchema, SensorIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.services.sensors import get_sensors
-from flexmeasures.data.services.scheduling import create_scheduling_job
+from flexmeasures.data.services.scheduling import (
+    create_scheduling_job,
+    get_data_source_for_job,
+)
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.unit_utils import ur
 
@@ -204,7 +206,7 @@ class SensorAPI(FlaskView):
                 validate=validate.Range(min=0, max=1),
                 data_key="roundtrip-efficiency",
             ),
-            "value": fields.Float(data_key="soc-at-start"),
+            "start_value": fields.Float(data_key="soc-at-start"),
             "soc_min": fields.Float(data_key="soc-min"),
             "soc_max": fields.Float(data_key="soc-max"),
             "start_of_schedule": AwareDateTimeField(
@@ -220,6 +222,9 @@ class SensorAPI(FlaskView):
                 ),
             ),  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
             "targets": fields.List(fields.Nested(TargetSchema), data_key="soc-targets"),
+            "prefer_charging_sooner": fields.Bool(
+                data_key="prefer-charging-sooner", required=False
+            ),
             # todo: add a duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
             "consumption_price_sensor": SensorIdField(
                 data_key="consumption-price-sensor", required=False
@@ -241,6 +246,7 @@ class SensorAPI(FlaskView):
         unit: str,
         prior: datetime,
         roundtrip_efficiency: Optional[ur.Quantity] = None,
+        prefer_charging_sooner: Optional[bool] = True,
         consumption_price_sensor: Optional[Sensor] = None,
         production_price_sensor: Optional[Sensor] = None,
         inflexible_device_sensors: Optional[List[Sensor]] = None,
@@ -251,11 +257,37 @@ class SensorAPI(FlaskView):
 
         .. :quickref: Schedule; Trigger scheduling job
 
-        The message should contain a flexibility model.
+        Trigger FlexMeasures to create a schedule for this sensor.
+        The assumption is that this sensor is the power sensor on a flexible asset.
+
+        In this request, you can describe:
+
+        - the schedule (start, unit, prior)
+        - the flexibility model for the sensor (see below, only storage models are supported at the moment)
+        - the EMS the sensor operates in (inflexible device sensors, and sensors that put a price on consumption and/or production)
+
+        Note: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
+              See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
+              (considering already scheduled sensors as inflexible).
+
+        Flexibility models apply to the sensor's asset type:
+
+        1) For storage sensors (e.g. battery, charge points), the schedule deals with the state of charge (SOC).
+           The possible flexibility parameters are:
+
+            - soc-at-start (defaults to 0)
+            - soc-unit (kWh or MWh)
+            - soc-min (defaults to 0)
+            - soc-max (defaults to max soc target)
+            - soc-targets (defaults to NaN values)
+            - roundtrip-efficiency (defaults to 100%)
+            - prefer-charging-sooner (defaults to True, also signals a preference to discharge later)
+
+        2) Heat pump sensors are work in progress.
 
         **Example request A**
 
-        This message triggers a schedule starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
+        This message triggers a schedule for a storage asset, starting at 10.00am, at which the state of charge (soc) is 12.1 kWh.
 
         .. code-block:: json
 
@@ -324,19 +356,19 @@ class SensorAPI(FlaskView):
         # todo: if a soc-sensor entity address is passed, persist those values to the corresponding sensor
         #       (also update the note in posting_data.rst about flexibility states not being persisted).
 
-        # get value
-        if "value" not in kwargs:
+        # get starting value
+        if "start_value" not in kwargs:
             return ptus_incomplete()
         try:
-            value = float(kwargs.get("value"))  # type: ignore
+            start_value = float(kwargs.get("start_value"))  # type: ignore
         except ValueError:
             extra_info = "Request includes empty or ill-formatted value(s)."
             current_app.logger.warning(extra_info)
             return ptus_incomplete(extra_info)
         if unit == "kWh":
-            value = value / 1000.0
+            start_value = start_value / 1000.0
 
-        # Convert round-trip efficiency to dimensionless
+        # Convert round-trip efficiency to dimensionless (to the (0,1] range)
         if roundtrip_efficiency is not None:
             roundtrip_efficiency = roundtrip_efficiency.to(
                 ur.Quantity("dimensionless")
@@ -345,6 +377,7 @@ class SensorAPI(FlaskView):
         # get optional min and max SOC
         soc_min = kwargs.get("soc_min", None)
         soc_max = kwargs.get("soc_max", None)
+        # TODO: review when we moved away from capacity having to be described in MWh
         if soc_min is not None and unit == "kWh":
             soc_min = soc_min / 1000.0
         if soc_max is not None and unit == "kWh":
@@ -355,13 +388,14 @@ class SensorAPI(FlaskView):
             "FLEXMEASURES_PLANNING_HORIZON"
         )
         resolution = sensor.event_resolution
-        soc_targets = pd.Series(
+        soc_targets = initialize_series(
             np.nan,
-            index=pd.date_range(
-                start_of_schedule, end_of_schedule, freq=resolution, closed="right"
-            ),  # note that target values are indexed by their due date (i.e. closed="right")
+            start=start_of_schedule,
+            end=end_of_schedule,
+            resolution=resolution,
+            inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
         )
-        # todo: move deserialization of targets into TargetSchema
+        # todo: move this deserialization of targets into newly-created ScheduleTargetSchema
         for target in kwargs.get("targets", []):
 
             # get target value
@@ -406,16 +440,19 @@ class SensorAPI(FlaskView):
             soc_targets.loc[target_datetime] = target_value
 
         job = create_scheduling_job(
-            sensor.id,
+            sensor,
             start_of_schedule,
             end_of_schedule,
             resolution=resolution,
             belief_time=prior,  # server time if no prior time was sent
-            soc_at_start=value,
-            soc_targets=soc_targets,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
+            storage_specs=dict(
+                soc_at_start=start_value,
+                soc_targets=soc_targets,
+                soc_min=soc_min,
+                soc_max=soc_max,
+                roundtrip_efficiency=roundtrip_efficiency,
+                prefer_charging_sooner=prefer_charging_sooner,
+            ),
             consumption_price_sensor=consumption_price_sensor,
             production_price_sensor=production_price_sensor,
             inflexible_device_sensors=inflexible_device_sensors,
@@ -518,21 +555,15 @@ class SensorAPI(FlaskView):
             return unknown_schedule("Scheduling job has an unknown status.")
         schedule_start = job.kwargs["start"]
 
-        schedule_data_source_name = "Seita"
-        if "data_source_name" in job.meta:
-            schedule_data_source_name = job.meta["data_source_name"]
-        scheduler_source = DataSource.query.filter_by(
-            name=schedule_data_source_name, type="scheduling script"
-        ).one_or_none()
-        if scheduler_source is None:
+        data_source = get_data_source_for_job(job, sensor=sensor)
+        if data_source is None:
             return unknown_schedule(
-                error_message + f'no data is known from "{schedule_data_source_name}".'
+                error_message + f"no data source could be found for {data_source}."
             )
-
         power_values = sensor.search_beliefs(
             event_starts_after=schedule_start,
             event_ends_before=schedule_start + planning_horizon,
-            source=scheduler_source,
+            source=data_source,
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
         )

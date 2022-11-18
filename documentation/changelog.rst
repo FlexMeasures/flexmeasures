@@ -5,10 +5,12 @@ FlexMeasures Changelog
 v0.12.0 | October XX, 2022
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 
-* Hit the replay button to replay what happened, available on the sensor and asset pages [see `PR #463 <http://www.github.com/FlexMeasures/flexmeasures/pull/463>`_]
+* Hit the replay button to visually replay what happened, available on the sensor and asset pages [see `PR #463 <http://www.github.com/FlexMeasures/flexmeasures/pull/463>`_]
 * Ability to provide your own custom scheduling function [see `PR #505 <http://www.github.com/FlexMeasures/flexmeasures/pull/505>`_]
 * Visually distinguish forecasts/schedules (dashed lines) from measurements (solid lines), and expand the tooltip with timing info regarding the forecast/schedule horizon or measurement lag [see `PR #503 <http://www.github.com/FlexMeasures/flexmeasures/pull/503>`_]
 * The asset page also allows to show sensor data from other assets that belong to the same account [see `PR #500 <http://www.github.com/FlexMeasures/flexmeasures/pull/500>`_]
@@ -28,6 +30,7 @@ Infrastructure / Support
 * Remove bokeh dependency and obsolete UI views [see `PR #476 <http://www.github.com/FlexMeasures/flexmeasures/pull/476>`_]
 * Fix ``flexmeasures db-ops dump`` and ``flexmeasures db-ops restore`` not working in docker containers [see `PR #530 <http://www.github.com/FlexMeasures/flexmeasures/pull/530>`_] and incorrectly reporting a success when `pg_dump` and `pg_restore` are not installed [see `PR #526 <http://www.github.com/FlexMeasures/flexmeasures/pull/526>`_]
 * Plugins can save BeliefsSeries, too, instead of just BeliefsDataFrames [see `PR #523 <http://www.github.com/FlexMeasures/flexmeasures/pull/523>`_]
+* Improve documentation and code w.r.t. storage flexibility modelling ― prepare for handling other schedulers & merge battery and car charging schedulers [see `PR #511 <http://www.github.com/FlexMeasures/flexmeasures/pull/511>`_]
 * Revised strategy for removing unchanged beliefs when saving data: retain the oldest measurement (ex-post belief), too [see `PR #518 <http://www.github.com/FlexMeasures/flexmeasures/pull/518>`_]
 
 
@@ -84,7 +87,7 @@ Bugfixes
 * The docker-based tutorial now works with UI on all platforms (port 5000 did not expose on MacOS) [see `PR #465 <http://www.github.com/FlexMeasures/flexmeasures/pull/465>`_]
 * Fix interpretation of scheduling results in toy tutorial [see `PR #466 <http://www.github.com/FlexMeasures/flexmeasures/pull/466>`_ and `PR #475 <http://www.github.com/FlexMeasures/flexmeasures/pull/475>`_]
 * Avoid formatting datetime.timedelta durations as nominal ISO durations [see `PR #459 <http://www.github.com/FlexMeasures/flexmeasures/pull/459>`_]
-* Account admins cannot add assets to other accounts anymore; and they are shown a button for asset creation in UI [see `PR #488 <http://www.github.com/FlexMeasures/flexmeasures/pull/488>`_]
+* Account admins cannot add assets to other accounts any more; and they are shown a button for asset creation in UI [see `PR #488 <http://www.github.com/FlexMeasures/flexmeasures/pull/488>`_]
 
 Infrastructure / Support
 ----------------------

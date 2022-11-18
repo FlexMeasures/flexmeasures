@@ -7,6 +7,7 @@ import pytz
 import timely_beliefs as tb
 
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import (
     multiply_dataframe_with_deterministic_beliefs,
@@ -108,16 +109,12 @@ def test_collect_power_resampled(
 def test_multiplication():
     df1 = pd.DataFrame(
         [[30.0, timedelta(hours=3)]],
-        index=pd.date_range(
-            "2000-01-01 10:00", "2000-01-01 15:00", freq="1h", closed="left"
-        ),
+        index=initialize_index("2000-01-01 10:00", "2000-01-01 15:00", resolution="1h"),
         columns=["event_value", "belief_horizon"],
     )
     df2 = pd.DataFrame(
         [[10.0, timedelta(hours=1)]],
-        index=pd.date_range(
-            "2000-01-01 13:00", "2000-01-01 18:00", freq="1h", closed="left"
-        ),
+        index=initialize_index("2000-01-01 13:00", "2000-01-01 18:00", resolution="1h"),
         columns=["event_value", "belief_horizon"],
     )
     df = multiply_dataframe_with_deterministic_beliefs(df1, df2)
@@ -125,22 +122,22 @@ def test_multiplication():
         [
             pd.DataFrame(
                 [[np.nan, timedelta(hours=3)]],
-                index=pd.date_range(
-                    "2000-01-01 10:00", "2000-01-01 13:00", freq="1h", closed="left"
+                index=initialize_index(
+                    "2000-01-01 10:00", "2000-01-01 13:00", resolution="1h"
                 ),
                 columns=["event_value", "belief_horizon"],
             ),
             pd.DataFrame(
                 [[300.0, timedelta(hours=1)]],
-                index=pd.date_range(
-                    "2000-01-01 13:00", "2000-01-01 15:00", freq="1h", closed="left"
+                index=initialize_index(
+                    "2000-01-01 13:00", "2000-01-01 15:00", resolution="1h"
                 ),
                 columns=["event_value", "belief_horizon"],
             ),
             pd.DataFrame(
                 [[np.nan, timedelta(hours=1)]],
-                index=pd.date_range(
-                    "2000-01-01 15:00", "2000-01-01 18:00", freq="1h", closed="left"
+                index=initialize_index(
+                    "2000-01-01 15:00", "2000-01-01 18:00", resolution="1h"
                 ),
                 columns=["event_value", "belief_horizon"],
             ),
@@ -161,17 +158,13 @@ def test_multiplication_with_one_empty_dataframe():
 
     df2 = pd.DataFrame(
         [[10.0, timedelta(hours=1)]],
-        index=pd.date_range(
-            "2000-01-01 13:00", "2000-01-01 18:00", freq="1h", closed="left"
-        ),
+        index=initialize_index("2000-01-01 13:00", "2000-01-01 18:00", resolution="1h"),
         columns=["event_value", "belief_horizon"],
     )
 
     df_compare = pd.DataFrame(
         [[np.nan, timedelta(hours=1)]],
-        index=pd.date_range(
-            "2000-01-01 13:00", "2000-01-01 18:00", freq="1h", closed="left"
-        ),
+        index=initialize_index("2000-01-01 13:00", "2000-01-01 18:00", resolution="1h"),
         columns=["event_value", "belief_horizon"],
     )
     # set correct types

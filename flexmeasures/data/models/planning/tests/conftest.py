@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 import pytest
 
 import pandas as pd
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
@@ -98,12 +99,10 @@ def add_inflexible_device_forecasts(
     Set up inflexible devices and forecasts.
     """
     # 2 days of test data
-    time_slots = pd.date_range(
-        datetime(2015, 1, 1),
-        datetime(2015, 1, 3),
-        freq="15T",
-        closed="left",
-        tz="Europe/Amsterdam",
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
+        resolution="15T",
     )
 
     # PV (8 hours at zero capacity, 8 hours at 90% capacity, and again 8 hours at zero capacity)
