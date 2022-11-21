@@ -649,28 +649,12 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
         bdf_dict = {}
         for sensor in sensors:
-            # Workaround (1st half) for https://github.com/FlexMeasures/flexmeasures/issues/484
-            if event_starts_after is not None:
-                _event_starts_after = (
-                    event_starts_after
-                    - sensor.event_resolution
-                    + timedelta(milliseconds=1)
-                )
-            else:
-                _event_starts_after = event_starts_after
-            if event_ends_before is not None:
-                _event_ends_before = (
-                    event_ends_before
-                    + sensor.event_resolution
-                    - timedelta(milliseconds=1)
-                )
-            else:
-                _event_ends_before = event_ends_before
             bdf = cls.search_session(
                 session=db.session,
                 sensor=sensor,
-                event_starts_after=_event_starts_after,
-                event_ends_before=_event_ends_before,
+                # Workaround (1st half) for https://github.com/FlexMeasures/flexmeasures/issues/484
+                event_ends_after=event_starts_after,
+                event_starts_before=event_ends_before,
                 beliefs_after=beliefs_after,
                 beliefs_before=beliefs_before,
                 horizons_at_least=horizons_at_least,
