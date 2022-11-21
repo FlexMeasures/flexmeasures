@@ -109,11 +109,7 @@ def save_to_db(
         if save_changed_beliefs_only:
 
             # Drop beliefs that haven't changed
-            timed_values = (
-                timed_values.convert_index_from_belief_horizon_to_time()
-                .groupby(level=["belief_time", "source"], as_index=False)
-                .apply(drop_unchanged_beliefs)
-            )
+            timed_values = drop_unchanged_beliefs(timed_values)
             len_after = len(timed_values)
             if len_after < len_before:
                 status = "success_with_unchanged_beliefs_skipped"

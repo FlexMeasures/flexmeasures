@@ -65,6 +65,8 @@ Configuration
 
 You can pass in your own configuration (e.g. for MapBox access token, or db URI, see below) like we described in :ref:`docker_configuration` ― put a file ``flexmeasures.cfg`` into a local folder called ``flexmeasures-instance`` (the volume should be already mapped).
 
+In case your configuration loads FlexMeasures plugins that have additional dependencies, you can add a requirements.txt file to the same local folder. The dependencies listed in that file will be freshly installed each time you run ``docker-compose up``.
+
 
 Data
 -------

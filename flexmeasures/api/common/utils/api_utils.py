@@ -411,11 +411,7 @@ def save_to_db(
 
         if save_changed_beliefs_only:
             # Drop beliefs that haven't changed
-            timed_values = (
-                timed_values.convert_index_from_belief_horizon_to_time()
-                .groupby(level=["belief_time", "source"], as_index=False)
-                .apply(drop_unchanged_beliefs)
-            )
+            timed_values = drop_unchanged_beliefs(timed_values)
 
             # Work around bug in which groupby still introduces an index level, even though we asked it not to
             if None in timed_values.index.names:

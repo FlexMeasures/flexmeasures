@@ -8,6 +8,7 @@ The preferred compact form for combinations of units can be derived automaticall
 Time series with fixed resolution can be converted from units of flow to units of stock (such as 'kW' to 'kWh'), and vice versa.
 Percentages can be converted to units of some physical capacity if a capacity is known (such as '%' to 'kWh').
 """
+from __future__ import annotations
 
 from datetime import timedelta
 from typing import List, Optional, Union
@@ -207,6 +208,26 @@ def is_energy_price_unit(unit: str) -> bool:
     return False
 
 
+def _convert_time_units(
+    data: Union[tb.BeliefsSeries, pd.Series, List[Union[int, float]], int, float],
+    from_unit: str,
+    to_unit: str,
+):
+    """Convert data with datetime or timedelta dtypes to float values.
+
+    Use Unix epoch or the requested time unit, respectively.
+    """
+    if not to_unit[0].isdigit():
+        # unit abbreviations passed to pd.Timedelta need a number (so, for example, h becomes 1h)
+        to_unit = f"1{to_unit}"
+    if from_unit == "datetime":
+        return (
+            pd.to_datetime(data, utc=True) - pd.Timestamp("1970-01-01", tz="utc")
+        ) // pd.Timedelta(to_unit)
+    else:
+        return data / pd.Timedelta(to_unit)
+
+
 def convert_units(
     data: Union[tb.BeliefsSeries, pd.Series, List[Union[int, float]], int, float],
     from_unit: str,
@@ -215,6 +236,8 @@ def convert_units(
     capacity: Optional[str] = None,
 ) -> Union[pd.Series, List[Union[int, float]], int, float]:
     """Updates data values to reflect the given unit conversion."""
+    if from_unit in ("datetime", "timedelta"):
+        return _convert_time_units(data, from_unit, to_unit)
 
     if from_unit != to_unit:
         from_magnitudes = (
