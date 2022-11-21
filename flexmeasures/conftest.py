@@ -26,6 +26,7 @@ from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.assets import AssetType, Asset
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.markets import Market, MarketType
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.user import User, Account, AccountRole
@@ -494,12 +495,10 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
     """Add two days of market prices for the EPEX day-ahead market."""
 
     # one day of test data (one complete sine curve)
-    time_slots = pd.date_range(
-        datetime(2015, 1, 1),
-        datetime(2015, 1, 2),
-        freq="1H",
-        closed="left",
-        tz="Europe/Amsterdam",
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-01").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
     )
     values = [
         random() * (1 + np.sin(x * 2 * np.pi / 24)) for x in range(len(time_slots))
@@ -517,12 +516,10 @@ def add_market_prices(db: SQLAlchemy, setup_assets, setup_markets, setup_sources
     db.session.add_all(day1_beliefs)
 
     # another day of test data (8 expensive hours, 8 cheap hours, and again 8 expensive hours)
-    time_slots = pd.date_range(
-        datetime(2015, 1, 2),
-        datetime(2015, 1, 3),
-        freq="1H",
-        closed="left",
-        tz="Europe/Amsterdam",
+    time_slots = initialize_index(
+        start=pd.Timestamp("2015-01-02").tz_localize("Europe/Amsterdam"),
+        end=pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam"),
+        resolution="1H",
     )
     values = [100] * 8 + [90] * 8 + [100] * 8
     day2_beliefs = [

@@ -29,6 +29,7 @@ from flexmeasures.data.scripts.data_gen import (
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
+from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
     Sensor,
@@ -966,14 +967,12 @@ def create_schedule(
         except MissingAttributeException:
             click.echo(f"{power_sensor} has no {attribute} attribute.")
             raise click.Abort()
-    soc_targets = pd.Series(
+    soc_targets = initialize_series(
         np.nan,
-        index=pd.date_range(
-            pd.Timestamp(start).tz_convert(power_sensor.timezone),
-            pd.Timestamp(end).tz_convert(power_sensor.timezone),
-            freq=power_sensor.event_resolution,
-            closed="right",
-        ),  # note that target values are indexed by their due date (i.e. closed="right")
+        start=pd.Timestamp(start).tz_convert(power_sensor.timezone),
+        end=pd.Timestamp(end).tz_convert(power_sensor.timezone),
+        resolution=power_sensor.event_resolution,
+        inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
     )
 
     # Convert round-trip efficiency to dimensionless
@@ -1002,16 +1001,18 @@ def create_schedule(
 
     if as_job:
         job = create_scheduling_job(
-            sensor_id=power_sensor.id,
+            sensor=power_sensor,
             start_of_schedule=start,
             end_of_schedule=end,
             belief_time=server_now(),
             resolution=power_sensor.event_resolution,
-            soc_at_start=soc_at_start,
-            soc_targets=soc_targets,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
+            storage_specs=dict(
+                soc_at_start=soc_at_start,
+                soc_targets=soc_targets,
+                soc_min=soc_min,
+                soc_max=soc_max,
+                roundtrip_efficiency=roundtrip_efficiency,
+            ),
             consumption_price_sensor=consumption_price_sensor,
             production_price_sensor=production_price_sensor,
             inflexible_device_sensors=inflexible_device_sensors,

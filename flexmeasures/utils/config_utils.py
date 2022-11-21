@@ -8,6 +8,7 @@ from pathlib import Path
 
 from flask import Flask
 from inflection import camelize
+import pandas as pd
 
 from flexmeasures.utils.config_defaults import (
     Config as DefaultConfig,
@@ -45,6 +46,7 @@ flexmeasures_logging_config = {
 
 def configure_logging():
     """Configure and register logging"""
+    pd.options.display.expand_frame_repr = False  # Don't wrap DataFrame representations
     loggingDictConfig(flexmeasures_logging_config)
 
 

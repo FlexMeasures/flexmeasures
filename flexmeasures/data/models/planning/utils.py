@@ -1,3 +1,4 @@
+from packaging import version
 from typing import List, Optional, Tuple, Union
 from datetime import date, datetime, timedelta
 
@@ -9,7 +10,6 @@ import timely_beliefs as tb
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.exceptions import (
-    UnknownForecastException,
     UnknownMarketException,
     UnknownPricesException,
 )
@@ -17,9 +17,15 @@ from flexmeasures.data.queries.utils import simplify_index
 
 
 def initialize_df(
-    columns: List[str], start: datetime, end: datetime, resolution: timedelta
+    columns: List[str],
+    start: datetime,
+    end: datetime,
+    resolution: timedelta,
+    inclusive: str = "left",
 ) -> pd.DataFrame:
-    df = pd.DataFrame(index=initialize_index(start, end, resolution), columns=columns)
+    df = pd.DataFrame(
+        index=initialize_index(start, end, resolution, inclusive), columns=columns
+    )
     return df
 
 
@@ -28,18 +34,99 @@ def initialize_series(
     start: datetime,
     end: datetime,
     resolution: timedelta,
+    inclusive: str = "left",
 ) -> pd.Series:
-    s = pd.Series(index=initialize_index(start, end, resolution), data=data)
+    s = pd.Series(index=initialize_index(start, end, resolution, inclusive), data=data)
     return s
 
 
 def initialize_index(
-    start: Union[date, datetime], end: Union[date, datetime], resolution: timedelta
+    start: Union[date, datetime, str],
+    end: Union[date, datetime, str],
+    resolution: Union[timedelta, str],
+    inclusive: str = "left",
 ) -> pd.DatetimeIndex:
-    i = pd.date_range(
-        start=start, end=end, freq=to_offset(resolution), closed="left", name="datetime"
-    )
-    return i
+    if version.parse(pd.__version__) >= version.parse("1.4.0"):
+        return pd.date_range(
+            start=start,
+            end=end,
+            freq=to_offset(resolution),
+            inclusive=inclusive,
+            name="datetime",
+        )
+    else:
+        return pd.date_range(
+            start=start,
+            end=end,
+            freq=to_offset(resolution),
+            closed=inclusive,
+            name="datetime",
+        )
+
+
+def ensure_storage_specs(
+    specs: Optional[dict],
+    sensor: Sensor,
+    start_of_schedule: datetime,
+    end_of_schedule: datetime,
+    resolution: timedelta,
+) -> dict:
+    """
+    Check storage specs and fill in values from context, if possible.
+
+    Storage specs are:
+    - soc_at_start
+    - soc_min
+    - soc_max
+    - soc_targets
+    - roundtrip_efficiency
+    - prefer_charging_sooner
+    """
+    if specs is None:
+        specs = {}
+
+    # Check state of charge
+    # Preferably, a starting soc is given.
+    # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
+    # Otherwise, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
+    # and without soc targets and limits the starting soc doesn't matter).
+    if "soc_at_start" not in specs or specs["soc_at_start"] is None:
+        if (
+            start_of_schedule == sensor.get_attribute("soc_datetime")
+            and sensor.get_attribute("soc_in_mwh") is not None
+        ):
+            specs["soc_at_start"] = sensor.get_attribute("soc_in_mwh")
+        else:
+            specs["soc_at_start"] = 0
+
+    # init default targets
+    if "soc_targets" not in specs or specs["soc_targets"] is None:
+        specs["soc_targets"] = initialize_series(
+            np.nan, start_of_schedule, end_of_schedule, resolution, inclusive="right"
+        )
+    # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
+    specs["soc_targets"] = specs["soc_targets"][
+        start_of_schedule + resolution : end_of_schedule
+    ]
+
+    # Check for min and max SOC, or get default from sensor
+    if "soc_min" not in specs or specs["soc_min"] is None:
+        # Can't drain the storage by more than it contains
+        specs["soc_min"] = sensor.get_attribute("min_soc_in_mwh", 0)
+    if "soc_max" not in specs or specs["soc_max"] is None:
+        # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
+        specs["soc_max"] = sensor.get_attribute(
+            "max_soc_in_mwh", max(specs["soc_targets"].values)
+        )
+
+    # Check for round-trip efficiency
+    if "roundtrip_efficiency" not in specs or specs["roundtrip_efficiency"] is None:
+        # Get default from sensor, or use 100% otherwise
+        specs["roundtrip_efficiency"] = sensor.get_attribute("roundtrip_efficiency", 1)
+    if specs["roundtrip_efficiency"] <= 0 or specs["roundtrip_efficiency"] > 1:
+        raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
+
+    return specs
 
 
 def add_tiny_price_slope(
@@ -150,11 +237,17 @@ def get_power_values(
         one_deterministic_belief_per_event=True,
     )  # consumption is negative, production is positive
     df = simplify_index(bdf)
+    df = df.reindex(initialize_index(query_window[0], query_window[1], resolution))
     nan_values = df.isnull().values
     if nan_values.any() or df.empty:
-        raise UnknownForecastException(
-            f"Forecasts unknown for planning window. (sensor {sensor.id})"
+        current_app.logger.warning(
+            f"Assuming zero power values for (partially) unknown power values for planning window. (sensor {sensor.id})"
         )
+        df = df.fillna(0)
+    if sensor.get_attribute(
+        "consumption_is_positive", False
+    ):  # FlexMeasures default is to store consumption as negative power values
+        return df.values
     return -df.values
 
 

@@ -35,7 +35,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
     )  # Make sure the scheduler data source isn't there
 
     job = create_scheduling_job(
-        battery.id, start, end, belief_time=start, resolution=resolution
+        battery, start, end, belief_time=start, resolution=resolution
     )
 
     print("Job: %s" % job.id)
@@ -60,8 +60,7 @@ def test_scheduling_a_battery(db, app, add_battery_assets, setup_test_data):
 
 scheduler_specs = {
     "module": None,  # use make_module_descr, see below
-    "function": "compute_a_schedule",
-    "source": "Test Source",
+    "class": "DummyScheduler",
 }
 
 
@@ -79,10 +78,12 @@ def test_loading_custom_scheduler(is_path: bool):
     Simply check if loading a custom scheduler works.
     """
     scheduler_specs["module"] = make_module_descr(is_path)
-    custom_scheduler, data_source = load_custom_scheduler(scheduler_specs)
-    assert data_source == "Test Source"
-    assert custom_scheduler.__name__ == "compute_a_schedule"
-    assert custom_scheduler.__doc__ == "Just a dummy scheduler."
+    custom_scheduler, data_source_info = load_custom_scheduler(scheduler_specs)
+    assert data_source_info["name"] == "Test Organization"
+    assert data_source_info["version"] == "3"
+    assert data_source_info["model"] == "DummyScheduler"
+    assert custom_scheduler.__name__ == "DummyScheduler"
+    assert "Just a dummy scheduler" in custom_scheduler.schedule.__doc__
 
 
 @pytest.mark.parametrize("is_path", [False, True])
@@ -102,7 +103,7 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     resolution = timedelta(minutes=15)
 
     job = create_scheduling_job(
-        battery.id, start, end, belief_time=start, resolution=resolution
+        battery, start, end, belief_time=start, resolution=resolution
     )
     print("Job: %s" % job.id)
 
@@ -111,10 +112,11 @@ def test_assigning_custom_scheduler(db, app, add_battery_assets, is_path: bool):
     # make sure we saved the data source for later lookup
     redis_connection = app.queues["scheduling"].connection
     finished_job = Job.fetch(job.id, connection=redis_connection)
-    assert finished_job.meta["data_source_name"] == scheduler_specs["source"]
+    assert finished_job.meta["data_source_info"]["model"] == scheduler_specs["class"]
 
     scheduler_source = DataSource.query.filter_by(
-        name=finished_job.meta["data_source_name"], type="scheduling script"
+        type="scheduling script",
+        **finished_job.meta["data_source_info"],
     ).one_or_none()
     assert (
         scheduler_source is not None

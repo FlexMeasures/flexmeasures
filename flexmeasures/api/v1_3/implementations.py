@@ -39,11 +39,14 @@ from flexmeasures.api.common.utils.validators import (
     parse_isodate_str,
 )
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.data.services.resources import has_assets, can_access_asset
-from flexmeasures.data.services.scheduling import create_scheduling_job
+from flexmeasures.data.services.scheduling import (
+    create_scheduling_job,
+    get_data_source_for_job,
+)
 from flexmeasures.utils.time_utils import duration_isoformat
 
 
@@ -99,6 +102,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
             if event_type not in ("soc", "soc-with-targets"):
                 return unrecognized_event_type(event_type)
             connection = current_app.queues["scheduling"].connection
+            job = None
             try:  # First try the scheduling queue
                 job = Job.fetch(event, connection=connection)
             except NoSuchJobError:  # Then try the most recent event_id (stored as a generic asset attribute)
@@ -144,19 +148,15 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     return unknown_schedule("Scheduling job has an unknown status.")
                 schedule_start = job.kwargs["start"]
 
-            schedule_data_source_name = "Seita"
-            scheduler_source = DataSource.query.filter_by(
-                name=schedule_data_source_name, type="scheduling script"
-            ).one_or_none()
-            if scheduler_source is None:
+            data_source = get_data_source_for_job(job, sensor=sensor)
+            if data_source is None:
                 return unknown_schedule(
-                    message + f'no data is known from "{schedule_data_source_name}".'
+                    message + f"no data source could be found for job {job}."
                 )
-
             power_values = sensor.search_beliefs(
                 event_starts_after=schedule_start,
                 event_ends_before=schedule_start + planning_horizon,
-                source=scheduler_source,
+                source=data_source,
                 most_recent_beliefs_only=True,
                 one_deterministic_belief_per_event=True,
             )
@@ -301,11 +301,12 @@ def post_udi_event_response(unit: str, prior: datetime):
     start_of_schedule = datetime
     end_of_schedule = datetime + current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
     resolution = sensor.event_resolution
-    soc_targets = pd.Series(
+    soc_targets = initialize_series(
         np.nan,
-        index=pd.date_range(
-            start_of_schedule, end_of_schedule, freq=resolution, closed="right"
-        ),  # note that target values are indexed by their due date (i.e. closed="right")
+        start=start_of_schedule,
+        end=end_of_schedule,
+        resolution=resolution,
+        inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
     )
 
     if event_type == "soc-with-targets":
@@ -359,16 +360,18 @@ def post_udi_event_response(unit: str, prior: datetime):
             soc_targets.loc[target_datetime] = target_value
 
     create_scheduling_job(
-        sensor_id,
+        sensor,
         start_of_schedule,
         end_of_schedule,
         resolution=resolution,
         belief_time=prior,  # server time if no prior time was sent
-        soc_at_start=value,
-        soc_targets=soc_targets,
-        soc_min=soc_min,
-        soc_max=soc_max,
-        roundtrip_efficiency=roundtrip_efficiency,
+        storage_specs=dict(
+            soc_at_start=value,
+            soc_targets=soc_targets,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            roundtrip_efficiency=roundtrip_efficiency,
+        ),
         job_id=form.get("event"),
         enqueue=True,
     )
