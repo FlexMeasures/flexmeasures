@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 import pytest
 
+from timely_beliefs.sensors.func_store.knowledge_horizons import at_date
 import pandas as pd
 
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -16,6 +17,61 @@ def setup_planning_test_data(db, add_market_prices, add_charging_station_assets)
     Set up data for all planning tests.
     """
     print("Setting up data for planning tests on %s" % db.engine)
+
+
+@pytest.fixture(scope="module")
+def create_test_tariffs(db, setup_accounts, setup_sources) -> dict[str, Sensor]:
+    """Create a fixed consumption tariff and a fixed feed-in tariff that is lower."""
+
+    market_type = GenericAssetType(
+        name="tariff market",
+    )
+    db.session.add(market_type)
+    contract = GenericAsset(
+        name="supply contract",
+        generic_asset_type=market_type,
+        owner=setup_accounts["Supplier"],
+    )
+    db.session.add(contract)
+    consumption_price_sensor = Sensor(
+        name="fixed consumption tariff",
+        generic_asset=contract,
+        event_resolution=timedelta(hours=24 * 365),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(consumption_price_sensor)
+    production_price_sensor = Sensor(
+        name="fixed feed-in tariff",
+        generic_asset=contract,
+        event_resolution=timedelta(hours=24 * 365),
+        unit="EUR/MWh",
+        knowledge_horizon=(at_date, {"knowledge_time": "2014-11-01T00:00+01:00"}),
+    )
+    db.session.add(production_price_sensor)
+
+    # Add prices
+    consumption_price = TimedBelief(
+        event_start="2015-01-01T00:00+01:00",
+        belief_time="2014-11-01T00:00+01:00",  # publication date
+        event_value=300 * 1.21,
+        source=setup_sources["Seita"],
+        sensor=consumption_price_sensor,
+    )
+    db.session.add(consumption_price)
+    production_price = TimedBelief(
+        event_start="2015-01-01T00:00+01:00",
+        belief_time="2014-11-01T00:00+01:00",  # publication date
+        event_value=300,
+        source=setup_sources["Seita"],
+        sensor=production_price_sensor,
+    )
+    db.session.add(production_price)
+    db.session.flush()  # make sure that prices are assigned to price sensors
+    return {
+        "consumption_price_sensor": consumption_price_sensor,
+        "production_price_sensor": production_price_sensor,
+    }
 
 
 @pytest.fixture(scope="module")

@@ -282,25 +282,52 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
     )
 
 
+@pytest.mark.parametrize(
+    "market_scenario",
+    [
+        "dynamic contract",
+        "fixed contract",
+    ],
+)
 def test_building_solver_day_2(
     db,
     add_battery_assets,
     add_market_prices,
+    create_test_tariffs,
     add_inflexible_device_forecasts,
     inflexible_devices,
     flexible_devices,
+    market_scenario: str,
 ):
-    """Check battery scheduling results within the context of a building with PV, for day 2,
-    which is set up with 8 expensive, then 8 cheap, then again 8 expensive hours.
-    We expect the scheduler to:
-    - completely discharge within the first 8 hours
-    - completely charge within the next 8 hours
-    - completely discharge within the last 8 hours
+    """Check battery scheduling results within the context of a building with PV, for day 2, against the following market scenarios:
+    1) a dynamic tariff with equal consumption and feed-in tariffs, that is set up with 8 expensive, then 8 cheap, then again 8 expensive hours.
+    2) a fixed consumption tariff and a fixed feed-in tariff that is lower, which incentives to maximize self-consumption of PV power into the battery.
+    In the test data:
+    - Hours with net production coincide with low dynamic market prices.
+    - Hours with net consumption coincide with high dynamic market prices.
+    So when the prices are low (in scenario 1), we have net production, and when they are high, net consumption.
+    That means we have first net consumption, then net production, and then net consumption again.
+    In either scenario, we expect the scheduler to:
+    - completely discharge within the first 8 hours (either due to 1) high prices, or 2) net consumption)
+    - completely charge within the next 8 hours (either due to 1) low prices, or 2) net production)
+    - completely discharge within the last 8 hours (either due to 1) high prices, or 2) net consumption)
     """
-    epex_da = Sensor.query.filter(Sensor.name == "epex_da").one_or_none()
     battery = flexible_devices["battery power sensor"]
     building = battery.generic_asset
-    assert battery.get_attribute("market_id") == epex_da.id
+    default_consumption_price_sensor = Sensor.query.filter(
+        Sensor.name == "epex_da"
+    ).one_or_none()
+    assert battery.get_attribute("market_id") == default_consumption_price_sensor.id
+    if market_scenario == "dynamic contract":
+        consumption_price_sensor = default_consumption_price_sensor
+        production_price_sensor = consumption_price_sensor
+    elif market_scenario == "fixed contract":
+        consumption_price_sensor = create_test_tariffs["consumption_price_sensor"]
+        production_price_sensor = create_test_tariffs["production_price_sensor"]
+    else:
+        raise NotImplementedError(
+            f"Missing test case for market conditions '{market_scenario}'"
+        )
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
@@ -359,14 +386,28 @@ def test_building_solver_day_2(
         assert soc >= max(soc_min, battery.get_attribute("min_soc_in_mwh"))
         assert soc <= battery.get_attribute("max_soc_in_mwh")
 
-    # Check whether the resulting soc schedule follows our expectations for 8 expensive, 8 cheap and 8 expensive hours
-    assert soc_schedule.iloc[-1] == max(
-        soc_min, battery.get_attribute("min_soc_in_mwh")
-    )  # Battery sold out at the end of its planning horizon
+    # Check whether the resulting soc schedule follows our expectations for.
+    # To recap, in scenario 1 and 2, the schedule should mainly be influenced by:
+    # 1) 8 expensive, 8 cheap and 8 expensive hours
+    # 2) 8 net-consumption, 8 net-production and 8 net-consumption hours
 
+    # Result after 8 hours
+    # 1) Sell what you begin with
+    # 2) The battery discharged as far as it could during the first 8 net-consumption hours
     assert soc_schedule.loc[start + timedelta(hours=8)] == max(
         soc_min, battery.get_attribute("min_soc_in_mwh")
-    )  # Sell what you begin with
+    )
+
+    # Result after second 8 hour-interval
+    # 1) Buy what you can to sell later, when prices will be high again
+    # 2) The battery charged with PV power as far as it could during the middle 8 net-production hours
     assert soc_schedule.loc[start + timedelta(hours=16)] == min(
         soc_max, battery.get_attribute("max_soc_in_mwh")
-    )  # Buy what you can to sell later
+    )
+
+    # Result at end of day
+    # 1) The battery sold out at the end of its planning horizon
+    # 2) The battery discharged as far as it could during the last 8 net-consumption hours
+    assert soc_schedule.iloc[-1] == max(
+        soc_min, battery.get_attribute("min_soc_in_mwh")
+    )
