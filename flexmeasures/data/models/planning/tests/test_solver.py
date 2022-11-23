@@ -346,7 +346,11 @@ def test_building_solver_day_2(
             soc_max=soc_max,
             roundtrip_efficiency=battery.get_attribute("roundtrip_efficiency", 1),
         ),
-        flex_context=dict(inflexible_device_sensors=inflexible_devices.values()),
+        flex_context=dict(
+            inflexible_device_sensors=inflexible_devices.values(),
+            production_price_sensor=production_price_sensor,
+            consumption_price_sensor=consumption_price_sensor,
+        ),
     )
     scheduler.config_inspected = True  # inflexible device sensors are already objects
     schedule = scheduler.compute_schedule()
