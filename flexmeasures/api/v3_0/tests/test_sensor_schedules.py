@@ -1,6 +1,5 @@
 from flask import url_for
 import pytest
-from datetime import timedelta
 from isodate import parse_datetime
 
 import pandas as pd
@@ -8,7 +7,7 @@ from rq.job import Job
 
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v1_3.tests.utils import message_for_get_device_message
-from flexmeasures.api.v3_0.tests.utils import message_for_post_udi_event
+from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.tests.utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
@@ -21,8 +20,15 @@ from flexmeasures.utils.calculations import integrate_time_series
 @pytest.mark.parametrize(
     "message, asset_name",
     [
-        (message_for_post_udi_event(), "Test battery"),
-        (message_for_post_udi_event(targets=True), "Test charging station"),
+        (message_for_trigger_schedule(deprecated_format_pre012=True), "Test battery"),
+        (message_for_trigger_schedule(), "Test battery"),
+        (
+            message_for_trigger_schedule(
+                with_targets=True, deprecated_format_pre012=True
+            ),
+            "Test charging station",
+        ),
+        (message_for_trigger_schedule(with_targets=True), "Test charging station"),
     ],
 )
 def test_trigger_and_get_schedule(
@@ -38,8 +44,13 @@ def test_trigger_and_get_schedule(
     message["roundtrip-efficiency"] = 0.98
     message["soc-min"] = 0
     message["soc-max"] = 25
+    assert len(app.queues["scheduling"]) == 0
+
+    sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
+    # This makes sure we have fresh data. A hack we can remove after the deprecation cases are removed.
+    TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
+
     with app.test_client() as client:
-        sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()
         message["soc-sensor"] = f"ea1.2018-06.localhost:fm1.{battery_soc_sensor.id}"
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
@@ -49,6 +60,9 @@ def test_trigger_and_get_schedule(
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 200
+        assert (
+            "soc-min" in trigger_schedule_response.json["message"]
+        )  # deprecation warning
         job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue
@@ -80,7 +94,7 @@ def test_trigger_and_get_schedule(
         .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
-    resolution = timedelta(minutes=15)
+    resolution = sensor.event_resolution
     consumption_schedule = pd.Series(
         [-v.event_value for v in power_values],
         index=pd.DatetimeIndex([v.event_start for v in power_values], freq=resolution),

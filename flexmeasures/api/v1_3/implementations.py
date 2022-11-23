@@ -274,41 +274,41 @@ def post_udi_event_response(unit: str, prior: datetime):
                     event_id, sensor.generic_asset.get_attribute("soc_udi_event_id")
                 )
 
+    flex_model = {}
+
     # get value
     if "value" not in form:
         return ptus_incomplete()
     try:
-        value = float(form.get("value"))
+        flex_model["soc_at_start"] = float(form.get("value"))
     except ValueError:
         extra_info = "Request includes empty or ill-formatted value(s)."
         current_app.logger.warning(extra_info)
         return ptus_incomplete(extra_info)
     if unit == "kWh":
-        value = value / 1000.0
+        flex_model["soc_unit"] = "kWh"
 
     # get optional efficiency
     roundtrip_efficiency = form.get("roundtrip_efficiency", None)
+    if roundtrip_efficiency:
+        flex_model["roundtrip_efficiency"] = roundtrip_efficiency
 
     # get optional min and max SOC
     soc_min = form.get("soc_min", None)
     soc_max = form.get("soc_max", None)
-    if soc_min is not None and unit == "kWh":
-        soc_min = soc_min / 1000.0
-    if soc_max is not None and unit == "kWh":
-        soc_max = soc_max / 1000.0
+    if soc_min:
+        flex_model["soc_min"] = soc_min
+    if soc_max:
+        flex_model["soc_max"] = soc_max
 
-    # set soc targets
+    # set soc targets - TODO: is this equal to our scheduler implementation? delete.
     start_of_schedule = datetime
     end_of_schedule = datetime + current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
     resolution = sensor.event_resolution
-    soc_targets = initialize_series(
-        np.nan,
-        start=start_of_schedule,
-        end=end_of_schedule,
-        resolution=resolution,
-        inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
-    )
 
+    # SOC targets
+    targets = form.get("targets", [])
+    # parse eventual values and generate responses
     if event_type == "soc-with-targets":
         if "targets" not in form:
             return incomplete_event(
@@ -316,19 +316,17 @@ def post_udi_event_response(unit: str, prior: datetime):
                 event_type,
                 "Cannot process event %s with missing targets." % form.get("event"),
             )
-        for target in form.get("targets"):
+        for target in targets:
 
             # get target value
             if "value" not in target:
                 return ptus_incomplete("Target missing value parameter.")
             try:
-                target_value = float(target["value"])
+                float(target["value"])
             except ValueError:
                 extra_info = "Request includes empty or ill-formatted target value(s)."
                 current_app.logger.warning(extra_info)
                 return ptus_incomplete(extra_info)
-            if unit == "kWh":
-                target_value = target_value / 1000.0
 
             # get target datetime
             if "datetime" not in target:
@@ -352,26 +350,16 @@ def post_udi_event_response(unit: str, prior: datetime):
                     return invalid_datetime(
                         f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")}.'
                     )
-                target_datetime = target_datetime.astimezone(
-                    soc_targets.index.tzinfo
-                )  # otherwise DST would be problematic
 
-            # set target
-            soc_targets.loc[target_datetime] = target_value
+    flex_model["soc_targets"] = targets
 
     create_scheduling_job(
-        sensor,
-        start_of_schedule,
-        end_of_schedule,
-        resolution=resolution,
+        sensor_id=sensor.id,
+        start=start_of_schedule,
+        end=end_of_schedule,
+        resolution=sensor.event_resolution,
         belief_time=prior,  # server time if no prior time was sent
-        storage_specs=dict(
-            soc_at_start=value,
-            soc_targets=soc_targets,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
-        ),
+        flex_model=flex_model,
         job_id=form.get("event"),
         enqueue=True,
     )
@@ -379,7 +367,12 @@ def post_udi_event_response(unit: str, prior: datetime):
     # Store new soc info as GenericAsset attributes
     sensor.generic_asset.set_attribute("soc_datetime", datetime.isoformat())
     sensor.generic_asset.set_attribute("soc_udi_event_id", event_id)
-    sensor.generic_asset.set_attribute("soc_in_mwh", value)
+    if unit == "kWh":
+        sensor.generic_asset.set_attribute(
+            "soc_in_mwh", flex_model["soc_at_start"] / 1000
+        )
+    else:
+        sensor.generic_asset.set_attribute("soc_in_mwh", flex_model["soc_at_start"])
 
     db.session.commit()
     return request_processed()

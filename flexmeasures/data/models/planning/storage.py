@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 
 import pandas as pd
+import numpy as np
+from flask import current_app
 
-from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -14,6 +15,8 @@ from flexmeasures.data.models.planning.utils import (
     get_power_values,
     fallback_charging_policy,
 )
+from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
+from flexmeasures.data.schemas.scheduling import FlexContextSchema
 
 
 class StorageScheduler(Scheduler):
@@ -21,48 +24,48 @@ class StorageScheduler(Scheduler):
     __version__ = "1"
     __author__ = "Seita"
 
-    def schedule(
+    flex_model_schema = StorageFlexModelSchema
+
+    def compute_schedule(
         self,
-        sensor: Sensor,
-        start: datetime,
-        end: datetime,
-        resolution: timedelta,
-        storage_specs: dict,
-        consumption_price_sensor: Optional[Sensor] = None,
-        production_price_sensor: Optional[Sensor] = None,
-        inflexible_device_sensors: Optional[List[Sensor]] = None,
-        belief_time: Optional[datetime] = None,
-        round_to_decimals: Optional[int] = 6,
     ) -> Union[pd.Series, None]:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
         """
+        if not self.config_inspected:
+            self.inspect_config()
 
-        soc_at_start = storage_specs.get("soc_at_start")
-        soc_targets = storage_specs.get("soc_targets")
-        soc_min = storage_specs.get("soc_min")
-        soc_max = storage_specs.get("soc_max")
-        roundtrip_efficiency = storage_specs.get("roundtrip_efficiency")
-        prefer_charging_sooner = storage_specs.get("prefer_charging_sooner", True)
+        soc_at_start = self.flex_model.get("soc_at_start")
+        soc_targets = self.flex_model.get("soc_targets")
+        soc_min = self.flex_model.get("soc_min")
+        soc_max = self.flex_model.get("soc_max")
+        roundtrip_efficiency = self.flex_model.get("roundtrip_efficiency")
+        prefer_charging_sooner = self.flex_model.get("prefer_charging_sooner", True)
+
+        consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
+        production_price_sensor = self.flex_context.get("production_price_sensor")
+        inflexible_device_sensors = self.flex_context.get(
+            "inflexible_device_sensors", []
+        )
 
         # Check for required Sensor attributes
-        sensor.check_required_attributes([("capacity_in_mw", (float, int))])
+        self.sensor.check_required_attributes([("capacity_in_mw", (float, int))])
 
         # Check for known prices or price forecasts, trimming planning window accordingly
         up_deviation_prices, (start, end) = get_prices(
-            (start, end),
-            resolution,
-            beliefs_before=belief_time,
+            (self.start, self.end),
+            self.resolution,
+            beliefs_before=self.belief_time,
             price_sensor=consumption_price_sensor,
-            sensor=sensor,
+            sensor=self.sensor,
             allow_trimmed_query_window=True,
         )
         down_deviation_prices, (start, end) = get_prices(
             (start, end),
-            resolution,
-            beliefs_before=belief_time,
+            self.resolution,
+            beliefs_before=self.belief_time,
             price_sensor=production_price_sensor,
-            sensor=sensor,
+            sensor=self.sensor,
             allow_trimmed_query_window=True,
         )
 
@@ -80,14 +83,14 @@ class StorageScheduler(Scheduler):
             )
 
         # Set up commitments to optimise for
-        commitment_quantities = [initialize_series(0, start, end, resolution)]
+        commitment_quantities = [initialize_series(0, start, end, self.resolution)]
 
         # Todo: convert to EUR/(deviation of commitment, which is in MW)
         commitment_upwards_deviation_price = [
-            up_deviation_prices.loc[start : end - resolution]["event_value"]
+            up_deviation_prices.loc[start : end - self.resolution]["event_value"]
         ]
         commitment_downwards_deviation_price = [
-            down_deviation_prices.loc[start : end - resolution]["event_value"]
+            down_deviation_prices.loc[start : end - self.resolution]["event_value"]
         ]
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
@@ -101,44 +104,42 @@ class StorageScheduler(Scheduler):
             "derivative down efficiency",
             "derivative up efficiency",
         ]
-        if inflexible_device_sensors is None:
-            inflexible_device_sensors = []
         device_constraints = [
-            initialize_df(columns, start, end, resolution)
+            initialize_df(columns, start, end, self.resolution)
             for i in range(1 + len(inflexible_device_sensors))
         ]
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
             device_constraints[i + 1]["derivative equals"] = get_power_values(
                 query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
+                resolution=self.resolution,
+                beliefs_before=self.belief_time,
                 sensor=inflexible_sensor,
             )
         if soc_targets is not None and not soc_targets.empty:
             soc_targets = soc_targets.tz_convert("UTC")
             device_constraints[0]["equals"] = soc_targets.shift(
-                -1, freq=resolution
-            ).values * (timedelta(hours=1) / resolution) - soc_at_start * (
-                timedelta(hours=1) / resolution
+                -1, freq=self.resolution
+            ).values * (timedelta(hours=1) / self.resolution) - soc_at_start * (
+                timedelta(hours=1) / self.resolution
             )  # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
             # while the "equals" constraint defines what the total stock should be at the end of a time slot,
             # where the time slot is indexed by its starting time)
         device_constraints[0]["min"] = (soc_min - soc_at_start) * (
-            timedelta(hours=1) / resolution
+            timedelta(hours=1) / self.resolution
         )
         device_constraints[0]["max"] = (soc_max - soc_at_start) * (
-            timedelta(hours=1) / resolution
+            timedelta(hours=1) / self.resolution
         )
-        if sensor.get_attribute("is_strictly_non_positive"):
+        if self.sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
             device_constraints[0]["derivative min"] = (
-                sensor.get_attribute("capacity_in_mw") * -1
+                self.sensor.get_attribute("capacity_in_mw") * -1
             )
-        if sensor.get_attribute("is_strictly_non_negative"):
+        if self.sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0]["derivative max"] = sensor.get_attribute(
+            device_constraints[0]["derivative max"] = self.sensor.get_attribute(
                 "capacity_in_mw"
             )
 
@@ -150,8 +151,8 @@ class StorageScheduler(Scheduler):
 
         # Set up EMS constraints
         columns = ["derivative max", "derivative min"]
-        ems_constraints = initialize_df(columns, start, end, resolution)
-        ems_capacity = sensor.generic_asset.get_attribute("capacity_in_mw")
+        ems_constraints = initialize_df(columns, start, end, self.resolution)
+        ems_capacity = self.sensor.generic_asset.get_attribute("capacity_in_mw")
         if ems_capacity is not None:
             ems_constraints["derivative min"] = ems_capacity * -1
             ems_constraints["derivative max"] = ems_capacity
@@ -166,13 +167,120 @@ class StorageScheduler(Scheduler):
         if scheduler_results.solver.termination_condition == "infeasible":
             # Fallback policy if the problem was unsolvable
             battery_schedule = fallback_charging_policy(
-                sensor, device_constraints[0], start, end, resolution
+                self.sensor, device_constraints[0], start, end, self.resolution
             )
         else:
             battery_schedule = ems_schedule[0]
 
         # Round schedule
-        if round_to_decimals:
-            battery_schedule = battery_schedule.round(round_to_decimals)
+        if self.round_to_decimals:
+            battery_schedule = battery_schedule.round(self.round_to_decimals)
 
         return battery_schedule
+
+    def inspect_flex_config(self):
+        """
+        Check storage flex model and fill in values from wider context, if possible.
+        Mostly, we allow several fields to come from sensor attributes.
+        """
+        if self.flex_model is None:
+            self.flex_model = {}
+
+        # Check state of charge
+        # Preferably, a starting soc is given.
+        # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
+        # Otherwise, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
+        # and without soc targets and limits the starting soc doesn't matter).
+        if (
+            "soc_at_start" not in self.flex_model
+            or self.flex_model["soc_at_start"] is None
+        ):
+            if (
+                self.start == self.sensor.get_attribute("soc_datetime")
+                and self.sensor.get_attribute("soc_in_mwh") is not None
+            ):
+                self.flex_model["soc_at_start"] = self.sensor.get_attribute(
+                    "soc_in_mwh"
+                )
+            else:
+                self.flex_model["soc_at_start"] = 0
+
+        # Check for round-trip efficiency
+        if (
+            "roundtrip_efficiency" not in self.flex_model
+            or self.flex_model["roundtrip_efficiency"] is None
+        ):
+            # Get default from sensor, or use 100% otherwise
+            self.flex_model["roundtrip_efficiency"] = self.sensor.get_attribute(
+                "roundtrip_efficiency", 1
+            )
+        if (
+            self.flex_model["roundtrip_efficiency"] <= 0
+            or self.flex_model["roundtrip_efficiency"] > 1
+        ):
+            raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
+
+        # Now it's time to check is our flex configs hold up to basic expectations
+        self.flex_model = self.flex_model_schema().load(self.flex_model)
+        self.flex_context = FlexContextSchema().load(self.flex_context)
+
+        # Make SOC targets into a series for easier use
+        self.flex_model["soc_targets"] = build_soc_targets(
+            self.flex_model.get("soc_targets", []),
+            self.start,
+            self.end,
+            self.sensor.event_resolution,
+            self.flex_model.get("soc_unit"),
+        )
+
+        # Check for min and max SOC, if not given then get default from sensor or targets
+        if "soc_min" not in self.flex_model or self.flex_model["soc_min"] is None:
+            # Can't drain the storage by more than it contains
+            self.flex_model["soc_min"] = self.sensor.get_attribute("min_soc_in_mwh", 0)
+        if "soc_max" not in self.flex_model or self.flex_model["soc_max"] is None:
+            # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
+            self.flex_model["soc_max"] = self.sensor.get_attribute(
+                "max_soc_in_mwh", max(self.flex_model["soc_targets"].values)
+            )
+
+        return self.flex_model
+
+
+def build_soc_targets(
+    targets: List[Dict[datetime, float]],
+    start_of_schedule: datetime,
+    end_of_schedule: datetime,
+    resolution: timedelta,
+    unit: Optional[str] = None,
+) -> pd.Series:
+    """
+    Utility function to make sure soc targets are a convenient series fitting our time frame.
+    """
+    soc_targets = initialize_series(
+        np.nan,
+        start=start_of_schedule,
+        end=end_of_schedule,
+        resolution=resolution,
+        inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
+    )
+
+    for target in targets:
+        target_value = target["value"]
+        if unit == "kWh":
+            target_value = target_value / 1000.0
+
+        target_datetime = target["datetime"]
+        target_datetime = target_datetime.astimezone(
+            soc_targets.index.tzinfo
+        )  # otherwise DST would be problematic
+        if target_datetime > end_of_schedule:
+            raise ValueError(
+                f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")}.'
+            )
+
+        soc_targets.loc[target_datetime] = target_value
+
+    # soc targets are at the end of each time slot, while prices are indexed by the start of each time slot
+    soc_targets = soc_targets[start_of_schedule + resolution : end_of_schedule]
+
+    return soc_targets

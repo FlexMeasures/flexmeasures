@@ -34,21 +34,32 @@ def get_asset_post_data(account_id: int = 1, asset_type_id: int = 1) -> dict:
     return post_data
 
 
-def message_for_post_udi_event(
+def message_for_trigger_schedule(
     unknown_prices: bool = False,
-    targets: bool = False,
+    with_targets: bool = False,
+    deprecated_format_pre012: bool = False,
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
-        "soc-at-start": 12.1,
-        "soc-unit": "kWh",
+        "prior": "2015-01-04T00:00:00+01:00",
     }
-    if targets:
-        message["soc-targets"] = [
-            {"value": 25, "datetime": "2015-01-02T23:00:00+01:00"}
-        ]
     if unknown_prices:
         message[
             "start"
         ] = "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
+        message["prior"] = "2040-01-04T00:00:00+01:00"
+
+    if deprecated_format_pre012:
+        message["soc-at-start"] = 12.1
+        message["soc-unit"] = "kWh"
+    else:
+        message["flex_model"] = {}
+        message["flex_model"]["soc_at_start"] = 12.1
+        message["flex_model"]["soc_unit"] = "kWh"
+    if with_targets:
+        targets = [{"value": 25, "datetime": "2015-01-02T23:00:00+01:00"}]
+        if deprecated_format_pre012:
+            message["soc-targets"] = targets
+        else:
+            message["flex_model"]["soc_targets"] = targets
     return message

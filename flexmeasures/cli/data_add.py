@@ -934,6 +934,10 @@ def create_schedule(
 
     - only supports battery assets and Charge Points
     - only supports datetimes on the hour or a multiple of the sensor resolution thereafter
+
+    TODO: - Use scheduler (and schema), check if the checks we do here on arguments are covered there.
+          - Arguments are hard-coded for storage here, move to flex_model and flex_context, pass them through.
+          - Link to the flex_config documentation page!
     """
 
     # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
@@ -989,14 +993,15 @@ def create_schedule(
     if soc_max is not None:
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
 
+    # TODO: collect schedule_kwargs one time.
     if as_job:
         job = create_scheduling_job(
             sensor=power_sensor,
-            start_of_schedule=start,
-            end_of_schedule=end,
+            start=start,
+            end=end,
             belief_time=server_now(),
             resolution=power_sensor.event_resolution,
-            storage_specs=dict(
+            flex_model=dict(
                 soc_at_start=soc_at_start,
                 soc_targets=soc_targets,
                 soc_min=soc_min,
