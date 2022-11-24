@@ -310,11 +310,14 @@ def plot_beliefs(
         sum_multiple=False,
     )
     # only keep non-empty
+    empty_sensors = []
     for s in sensors:
         if beliefs_by_sensor[s.name].empty:
             click.echo(f"No data found for sensor '{s.name}' (Id: {s.id})")
             beliefs_by_sensor.pop(s.name)
-            sensors.remove(s)
+            empty_sensors.append(s)
+    for s in empty_sensors:
+        sensors.remove(s)
     if len(beliefs_by_sensor.keys()) == 0:
         click.echo("No data found!")
         raise click.Abort()
