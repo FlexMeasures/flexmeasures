@@ -199,10 +199,16 @@ def get_prices(
             first_event_start = price_df.first_valid_index()
             last_event_end = price_df.last_valid_index() + resolution
             current_app.logger.warning(
-                f"Prices partially unknown for planning window (sensor {price_sensor.id}). Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
+                f"Prices partially unknown for planning window (sensor {price_sensor.id}). "
+                f"Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
             )
             query_window = (first_event_start, last_event_end)
         else:
+            current_app.logger.warning(
+                f"Prices partially unknown for planning window (sensor {price_sensor.id}). "
+                f"Assuming the first price is valid from the start of the planning window ({query_window[0]}), "
+                f"and the last price is valid until the end of the planning window ({query_window[-1]})."
+            )
             index = initialize_index(
                 start=query_window[0],
                 end=query_window[1],
@@ -216,9 +222,6 @@ def get_prices(
             price_df[price_df.last_valid_index() :] = price_df[
                 price_df.index == price_df.last_valid_index()
             ].values[0]
-            # raise UnknownPricesException(
-            #     f"Prices partially unknown for planning window (sensor {price_sensor.id})."
-            # )
     return price_df, query_window
 
 
