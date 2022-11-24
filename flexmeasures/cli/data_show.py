@@ -89,9 +89,9 @@ def show_account(account):
     """
     Show information about an account, including users and assets.
     """
-    click.echo(f"========{len(account.name) * '='}==========")
-    click.echo(f"Account {account.name} (ID:{account.id}):")
-    click.echo(f"========{len(account.name) * '='}==========\n")
+    click.echo(f"========{len(account.name) * '='}========")
+    click.echo(f"Account {account.name} (ID: {account.id})")
+    click.echo(f"========{len(account.name) * '='}========\n")
 
     if account.account_roles:
         click.echo(
@@ -162,15 +162,15 @@ def show_generic_asset(asset):
     """
     Show asset info and list sensors
     """
-    click.echo(f"======{len(asset.name) * '='}==========")
-    click.echo(f"Asset {asset.name} (ID:{asset.id}):")
-    click.echo(f"======{len(asset.name) * '='}==========\n")
+    click.echo(f"======{len(asset.name) * '='}=========")
+    click.echo(f"Asset {asset.name} (ID: {asset.id})")
+    click.echo(f"======{len(asset.name) * '='}=========\n")
 
     asset_data = [
         (
             asset.generic_asset_type.name,
             asset.location,
-            "".join([f"{k}:{v}\n" for k, v in asset.attributes.items()]),
+            "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
         )
     ]
     click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
@@ -190,7 +190,7 @@ def show_generic_asset(asset):
             sensor.unit,
             naturaldelta(sensor.event_resolution),
             sensor.timezone,
-            ",".join([f"{k}:{v}\n" for k, v in sensor.attributes.items()]),
+            "".join([f"{k}: {v}\n" for k, v in sensor.attributes.items()]),
         )
         for sensor in sensors
     ]
