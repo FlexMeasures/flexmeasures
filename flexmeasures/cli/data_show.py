@@ -48,7 +48,7 @@ def list_accounts():
         )
         for account in accounts
     ]
-    click.echo(tabulate(account_data, headers=["Id", "Name", "Assets"]))
+    click.echo(tabulate(account_data, headers=["ID", "Name", "Assets"]))
 
 
 @fm_show_data.command("roles")
@@ -65,7 +65,7 @@ def list_roles():
     click.echo(
         tabulate(
             [(r.id, r.name, r.description) for r in account_roles],
-            headers=["Id", "Name", "Description"],
+            headers=["ID", "Name", "Description"],
         )
     )
     click.echo()
@@ -77,7 +77,7 @@ def list_roles():
     click.echo(
         tabulate(
             [(r.id, r.name, r.description) for r in user_roles],
-            headers=["Id", "Name", "Description"],
+            headers=["ID", "Name", "Description"],
         )
     )
 
@@ -89,9 +89,9 @@ def show_account(account):
     """
     Show information about an account, including users and assets.
     """
-    click.echo(f"========{len(account.name) * '='}==========")
-    click.echo(f"Account {account.name} (ID:{account.id}):")
-    click.echo(f"========{len(account.name) * '='}==========\n")
+    click.echo(f"========{len(account.name) * '='}========")
+    click.echo(f"Account {account.name} (ID: {account.id})")
+    click.echo(f"========{len(account.name) * '='}========\n")
 
     if account.account_roles:
         click.echo(
@@ -117,7 +117,7 @@ def show_account(account):
             for user in users
         ]
         click.echo(
-            tabulate(user_data, headers=["Id", "Name", "Email", "Last Login", "Roles"])
+            tabulate(user_data, headers=["ID", "Name", "Email", "Last Login", "Roles"])
         )
 
     click.echo()
@@ -134,7 +134,7 @@ def show_account(account):
             (asset.id, asset.name, asset.generic_asset_type.name, asset.location)
             for asset in assets
         ]
-        click.echo(tabulate(asset_data, headers=["Id", "Name", "Type", "Location"]))
+        click.echo(tabulate(asset_data, headers=["ID", "Name", "Type", "Location"]))
 
 
 @fm_show_data.command("asset-types")
@@ -150,7 +150,7 @@ def list_asset_types():
     click.echo(
         tabulate(
             [(t.id, t.name, t.description) for t in asset_types],
-            headers=["Id", "Name", "Description"],
+            headers=["ID", "Name", "Description"],
         )
     )
 
@@ -162,15 +162,15 @@ def show_generic_asset(asset):
     """
     Show asset info and list sensors
     """
-    click.echo(f"======{len(asset.name) * '='}==========")
-    click.echo(f"Asset {asset.name} (ID:{asset.id}):")
-    click.echo(f"======{len(asset.name) * '='}==========\n")
+    click.echo(f"======{len(asset.name) * '='}=========")
+    click.echo(f"Asset {asset.name} (ID: {asset.id})")
+    click.echo(f"======{len(asset.name) * '='}=========\n")
 
     asset_data = [
         (
             asset.generic_asset_type.name,
             asset.location,
-            "".join([f"{k}:{v}\n" for k, v in asset.attributes.items()]),
+            "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
         )
     ]
     click.echo(tabulate(asset_data, headers=["Type", "Location", "Attributes"]))
@@ -190,14 +190,14 @@ def show_generic_asset(asset):
             sensor.unit,
             naturaldelta(sensor.event_resolution),
             sensor.timezone,
-            ",".join([f"{k}:{v}\n" for k, v in sensor.attributes.items()]),
+            "".join([f"{k}: {v}\n" for k, v in sensor.attributes.items()]),
         )
         for sensor in sensors
     ]
     click.echo(
         tabulate(
             sensor_data,
-            headers=["Id", "Name", "Unit", "Resolution", "Timezone", "Attributes"],
+            headers=["ID", "Name", "Unit", "Resolution", "Timezone", "Attributes"],
         )
     )
 
@@ -215,7 +215,7 @@ def list_data_sources():
     click.echo(
         tabulate(
             [(s.id, s.name, s.type, s.user_id, s.model, s.version) for s in sources],
-            headers=["Id", "Name", "Type", "User Id", "Model", "Version"],
+            headers=["ID", "Name", "Type", "User ID", "Model", "Version"],
         )
     )
 
@@ -313,7 +313,7 @@ def plot_beliefs(
     empty_sensors = []
     for s in sensors:
         if beliefs_by_sensor[s.name].empty:
-            click.echo(f"No data found for sensor '{s.name}' (Id: {s.id})")
+            click.echo(f"No data found for sensor '{s.name}' (ID: {s.id})")
             beliefs_by_sensor.pop(s.name)
             empty_sensors.append(s)
     for s in empty_sensors:
