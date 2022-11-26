@@ -54,7 +54,31 @@ def send_monitoring_alert(
     app.logger.error(f"{msg} {latest_run_txt} NOTE: {custom_msg}")
 
 
-@fm_monitor.command("tasks")  # TODO: a better name would be "latest-run"
+@fm_monitor.command("tasks")  # TODO: deprecate, this is the old name
+@click.option(
+    "--task",
+    type=(str, int),
+    multiple=True,
+    required=True,
+    help="The name of the task and the maximal allowed minutes between successful runs. Use multiple times if needed.",
+)
+@click.option(
+    "--custom-message",
+    type=str,
+    default="",
+    help="Add this message to the monitoring alert (if one is sent).",
+)
+@click.pass_context
+def monitor_task(ctx, task, custom_message):
+    """
+    DEPRECATED, use `latest-run`.
+    Check if the given task's last successful execution happened less than the allowed time ago.
+    If not, alert someone, via email or sentry.
+    """
+    ctx.forward(monitor_latest_run)
+
+
+@fm_monitor.command("latest-run")
 @with_appcontext
 @click.option(
     "--task",
@@ -69,7 +93,7 @@ def send_monitoring_alert(
     default="",
     help="Add this message to the monitoring alert (if one is sent).",
 )
-def monitor_tasks(task, custom_message):
+def monitor_latest_run(task, custom_message):
     """
     Check if the given task's last successful execution happened less than the allowed time ago.
     If not, alert someone, via email or sentry.
