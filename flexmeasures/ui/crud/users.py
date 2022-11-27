@@ -61,10 +61,9 @@ def process_internal_api_response(
         role_ids = tuple(user_data.get("flexmeasures_roles", []))
         user_data["flexmeasures_roles"] = Role.query.filter(Role.id.in_(role_ids)).all()
         user_data.pop("status", None)  # might have come from requests.response
-        if "last_login_at" in user_data and user_data["last_login_at"] is not None:
-            user_data["last_login_at"] = datetime.fromisoformat(
-                user_data["last_login_at"]
-            )
+        for date_field in ("last_login_at", "last_seen_at"):
+            if date_field in user_data and user_data[date_field] is not None:
+                user_data[date_field] = datetime.fromisoformat(user_data[date_field])
         if user_id:
             user_data["id"] = user_id
         if make_obj:
