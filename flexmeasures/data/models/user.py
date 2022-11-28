@@ -188,8 +188,11 @@ class User(db.Model, UserMixin, AuthModelMixin):
     email = Column(String(255), unique=True)
     username = Column(String(255), unique=True)
     password = Column(String(255))
+    # Last time the user logged in (provided credentials to get access)
     last_login_at = Column(DateTime())
-    last_seen_at = db.Column(DateTime())
+    # Last time the user made a request (authorized by session or auth token)
+    last_seen_at = Column(DateTime())
+    # How often have they logged in?
     login_count = Column(Integer)
     active = Column(Boolean())
     # Faster token checking
