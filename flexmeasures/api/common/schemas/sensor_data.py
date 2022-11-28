@@ -15,7 +15,7 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.api.common.schemas.sensors import SensorField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
-from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
+from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
 from flexmeasures.data.services.time_series import simplify_index
 from flexmeasures.utils.time_utils import (
     decide_resolution,
@@ -103,6 +103,7 @@ class SensorDataDescriptionSchema(ma.Schema):
 class GetSensorDataSchema(SensorDataDescriptionSchema):
 
     resolution = DurationField(required=False)
+    source = SourceIdField(required=False)
 
     # Optional field that can be used for extra validation
     type = fields.Str(
@@ -156,6 +157,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         end = sensor_data_description["start"] + duration
         unit = sensor_data_description["unit"]
         resolution = sensor_data_description.get("resolution")
+        source = sensor_data_description.get("source")
 
         # Post-load configuration of event frequency
         if resolution is None:
@@ -184,6 +186,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
                 event_ends_before=end,
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
+                source=source,
                 beliefs_before=sensor_data_description.get("prior", None),
                 one_deterministic_belief_per_event=True,
                 resolution=resolution,
