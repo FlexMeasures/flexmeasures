@@ -157,9 +157,13 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         unit = sensor_data_description["unit"]
         resolution = sensor_data_description.get("resolution")
 
-        # Post-load default frequency for instantaneous sensors
-        if resolution is None and sensor.event_resolution == timedelta(hours=0):
-            resolution = decide_resolution(start, end)
+        # Post-load configuration of event frequency
+        if resolution is None:
+            if sensor.event_resolution != timedelta(hours=0):
+                resolution = sensor.event_resolution
+            else:
+                # For instantaneous sensors, choose a default resolution given the requested time window
+                resolution = decide_resolution(start, end)
 
         # Post-load configuration of belief timing against message type
         horizons_at_least = sensor_data_description.get("horizon", None)
