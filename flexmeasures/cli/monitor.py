@@ -202,17 +202,17 @@ def send_lastseen_monitoring_alert(
     "--alert-users",
     type=bool,
     default=False,
-    help="If True, also send an email to the user account'S email address.",
+    help="If True, also send an email to the user. Defaults to False, as these users are often bots.",
 )
 @click.option(
     "--account-role",
     type=str,
-    help="The name of the account role to filter for.",
+    help="The name of an account role to filter for.",
 )
 @click.option(
     "--user-role",
     type=str,
-    help="The name of the account role to filter for.",
+    help="The name of an account role to filter for.",
 )
 def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
@@ -224,7 +224,10 @@ def monitor_last_seen(
     Check if given users last contact (via a request) happened less than the allowed time ago.
 
     Helpful for user accounts that are expected to contact FlexMeasures regularly (in an automated fashion).
-    If not, the user account is alerted, as well as monitoring mail recipient, via email or sentry.
+    If the last contact was too long ago, we send alerts via Sentry, as well as emails to monitoring mail recipients.
+    The user can be informed, as well.
+
+    The set of users can be narrowed down by roles.
     """
     last_seen_delta = timedelta(minutes=maximum_minutes_since_last_seen)
 
