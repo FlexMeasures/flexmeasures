@@ -288,6 +288,8 @@ If these can't be matched (through upsampling), an error will occur.
 GET requests (such as */sensors/data*) return data with a frequency either equal to the resolution that the sensor is configured for (for non-instantaneous sensors), or a default frequency befitting (in our opinion) the requested time interval.
 A "resolution" may be specified explicitly to obtain the data in downsampled form, which can be very beneficial for download speed.
 For non-instantaneous sensors, the specified resolution needs to be a multiple of the sensor's resolution, e.g. hourly or daily values if the sensor's resolution is 15 minutes.
+For instantaneous sensors, the specified resolution is interpreted as a request for data in a specific frequency.
+The resolution of the underlying data will remain zero (and the returned message will say so).
 
 
 .. _sources:
