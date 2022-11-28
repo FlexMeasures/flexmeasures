@@ -92,17 +92,9 @@ It uses the fact that all FlexMeasures sensors have unique IDs.
     ea1.2021-01.io.flexmeasures:fm1.42
     ea1.2021-01.io.flexmeasures:fm1.<sensor_id>
 
-.. todo:: UDI events are not yet modelled in the fm1 scheme
-
 The ``fm0`` scheme is the original scheme.
 It identified different types of sensors (such as grid connections, weather sensors and markets) in different ways.
-The ``fm0`` scheme has been deprecated for the most part and is no longer supported officially.
-Only UDI events still need to be sent using the fm0 scheme.
-
-.. code-block::
-
-    ea1.2021-01.io.flexmeasures:fm0.40:30:302:soc
-    ea1.2021-01.io.flexmeasures:fm0.<owner_id>:<sensor_id>:<event_id>:<event_type>
+The ``fm0`` scheme has been deprecated and is no longer supported officially.
 
 
 Timeseries
