@@ -207,6 +207,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
             start=datetime_isoformat(start),
             duration=duration_isoformat(duration),
             unit=unit,
+            resolution=duration_isoformat(df.event_resolution),
         )
 
         return response
