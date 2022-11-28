@@ -100,7 +100,8 @@ The ``fm0`` scheme has been deprecated and is no longer supported officially.
 Timeseries
 ^^^^^^^^^^
 
-Timestamps and durations are consistent with the ISO 8601 standard. The resolution of the data is implicit (from duration and number of values), see :ref:`resolutions`.
+Timestamps and durations are consistent with the ISO 8601 standard.
+The frequency of the data is implicit (from duration and number of values), while the resolution of the data is explicit, see :ref:`frequency_and_resolution`.
 
 All timestamps in requests to the API must be timezone-aware. For instance, in the below example, the timezone indication "Z" indicates a zero offset from UTC.
 
@@ -259,19 +260,34 @@ For example, the following message implies that all prognosed values were made 1
 Note that, for a horizon indicating a belief 10 minutes after the *start* of each 15-minute interval, the "horizon" would have been "PT5M".
 This denotes that the prognosed interval has 5 minutes left to be concluded.
 
-.. _resolutions:
+.. _frequency_and_resolution:
 
-Resolutions
-^^^^^^^^^^^
+Frequency and resolution
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-Specifying a resolution is redundant for POST requests that contain both "values" and a "duration" ― FlexMeasures computes the resolution by dividing the duration by the number of values.
+FlexMeasures handles two types of time series, which can be distinguished by defining the following timing properties for events recorded by sensors:
 
-When POSTing data, FlexMeasures checks this computed resolution against the required resolution of the sensors which are posted to. If these can't be matched (through upsampling), an error will occur.
+- Frequency: how far apart events occur (a constant duration between event starts)
+- Resolution: how long an event lasts (a constant duration between the start and end of an event)
 
-GET requests (such as *getMeterData*) return data in the resolution which the sensor is configured for.
-A "resolution" may be specified explicitly to obtain the data in downsampled form, 
-which can be very beneficial for download speed. The specified resolution needs to be a multiple
-of the sensor's resolution, e.g. hourly or daily values if the sensor's resolution is 15 minutes.
+.. note:: FlexMeasures runs on Pandas, and follows Pandas terminology accordingly.
+          The term frequency as used by Pandas is the reciprocal of the `SI quantity for frequency <https://en.wikipedia.org/wiki/SI_derived_unit>`_.
+
+1. The first type of time series describes non-instantaneous events such as average hourly wind speed.
+   For this case, it is commonly assumed that ``frequency == resolution``.
+   That is, events follow each other sequentially and without delay.
+
+2. The second type of time series describes instantaneous events (zero resolution) such as temperature at a given time.
+   For this case, we have ``frequency != resolution``.
+
+Specifying a frequency and resolution is redundant for POST requests that contain both "values" and a "duration" ― FlexMeasures computes the frequency by dividing the duration by the number of values, and, for sensors that record non-instantaneous events, assumes the resolution of the data is equal to the frequency.
+
+When POSTing data, FlexMeasures checks this inferred resolution against the required resolution of the sensors that are posted to.
+If these can't be matched (through upsampling), an error will occur.
+
+GET requests (such as *getMeterData*) return data with a frequency either equal to the resolution that the sensor is configured for (for non-instantaneous sensors), or a default frequency fitting (in our opinion) the requested time interval.
+A "resolution" may be specified explicitly to obtain the data in downsampled form, which can be very beneficial for download speed.
+For non-instantaneous sensors, the specified resolution needs to be a multiple of the sensor's resolution, e.g. hourly or daily values if the sensor's resolution is 15 minutes.
 
 
 .. _sources:
