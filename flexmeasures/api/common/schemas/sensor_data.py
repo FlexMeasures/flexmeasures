@@ -266,12 +266,21 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             )
 
     @validates_schema
-    def check_resolution_compatibility_of_values(self, data, **kwargs):
-        inferred_resolution = data["duration"] / len(data["values"])
+    def check_resolution_compatibility_of_sensor_data(self, data, **kwargs):
+        """Ensure event frequency is compatible with the sensor's event resolution.
+
+        For a sensor recording instantaneous values, any event frequency is compatible.
+        For a sensor recording non-instantaneous values, the event frequency must fit the sensor's event resolution.
+        Currently, only upsampling is supported (e.g. converting hourly events to 15-minute events).
+        """
         required_resolution = data["sensor"].event_resolution
-        # TODO: we don't yet have a good policy w.r.t. zero-resolution (direct measurement)
         if required_resolution == timedelta(hours=0):
+            # For instantaneous sensors, any event frequency is compatible
             return
+
+        # The event frequency is inferred by assuming sequential, equidistant values within a time interval.
+        # The event resolution is assumed to be equal to the event frequency.
+        inferred_resolution = data["duration"] / len(data["values"])
         if inferred_resolution % required_resolution != timedelta(hours=0):
             raise ValidationError(
                 f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
@@ -315,12 +324,14 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         Upsample the data if needed, to fit to the sensor's resolution.
         Marshmallow runs this after validation.
         """
-        inferred_resolution = data["duration"] / len(data["values"])
         required_resolution = data["sensor"].event_resolution
-
-        # TODO: we don't yet have a good policy w.r.t. zero-resolution (direct measurement)
         if required_resolution == timedelta(hours=0):
+            # For instantaneous sensors, no need to upsample
             return data
+
+        # The event frequency is inferred by assuming sequential, equidistant values within a time interval.
+        # The event resolution is assumed to be equal to the event frequency.
+        inferred_resolution = data["duration"] / len(data["values"])
 
         # we already know resolutions are compatible (see validation)
         if inferred_resolution != required_resolution:
