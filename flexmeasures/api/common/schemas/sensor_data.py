@@ -17,7 +17,11 @@ from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
-from flexmeasures.utils.time_utils import duration_isoformat, server_now
+from flexmeasures.utils.time_utils import (
+    decide_resolution,
+    duration_isoformat,
+    server_now,
+)
 from flexmeasures.utils.unit_utils import (
     convert_units,
     units_are_convertible,
@@ -153,6 +157,10 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         unit = sensor_data_description["unit"]
         resolution = sensor_data_description.get("resolution")
 
+        # Post-load default frequency for instantaneous sensors
+        if resolution is None and sensor.event_resolution == timedelta(hours=0):
+            resolution = decide_resolution(start, end)
+
         # Post-load configuration of belief timing against message type
         horizons_at_least = sensor_data_description.get("horizon", None)
         horizons_at_most = None
@@ -180,7 +188,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         )
 
         # Convert to desired time range
-        index = initialize_index(start=start, end=end, resolution=df.event_resolution)
+        index = initialize_index(start=start, end=end, resolution=resolution)
         df = df.reindex(index)
 
         # Convert to desired unit
