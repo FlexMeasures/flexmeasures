@@ -19,7 +19,9 @@ def setup_api_test_data(
     print("Setting up data for API v3.0 tests on %s" % db.engine)
     sensors = add_incineration_line(db, setup_roles_users["Test Supplier User"])
     add_gas_measurements(
-        db, setup_roles_users["Test Supplier User"].data_source[0], sensors["some gas sensor"]
+        db,
+        setup_roles_users["Test Supplier User"].data_source[0],
+        sensors["some gas sensor"],
     )
     return sensors
 
@@ -62,6 +64,7 @@ def setup_api_fresh_temperature_measurements(
         setup_roles_users_fresh_db["Test Supplier User"].data_source[0],
         setup_api_fresh_test_data["some temperature sensor"],
     )
+
 
 @pytest.fixture(scope="module")
 def setup_inactive_user(db, setup_accounts, setup_roles_users):
