@@ -5,6 +5,11 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
+v3.0-4 | 2022-11-29
+"""""""""""""""""""
+
+- Introduced the ``source`` field to `/sensors/data` (GET) to obtain data for a given source (ID).
+
 v3.0-3 | 2022-08-28
 """""""""""""""""""
 
