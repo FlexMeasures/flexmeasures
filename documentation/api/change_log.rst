@@ -10,7 +10,6 @@ v3.0-3 | 2022-08-28
 
 - Introduced ``consumption_price_sensor``, ``production_price_sensor`` and ``inflexible_device_sensors`` fields to `/sensors/<id>/schedules/trigger` (POST)
 
-
 v3.0-2 | 2022-07-08
 """""""""""""""""""
 
@@ -77,8 +76,6 @@ v2.0-3 | 2021-06-07
 - Updated all entity addresses in documentation according to the fm0 scheme, preserving backwards compatibility.
 - Introduced the fm1 scheme for entity addresses for connections, markets, weather sensors and sensors.
 
-
-
 v2.0-2 | 2021-04-02
 """""""""""""""""""
 
@@ -102,7 +99,6 @@ v2.0-0 | 2020-11-14
 """""""""""""""""""
 
 - Added REST endpoints for managing assets: `/assets/` (GET, POST) and `/asset/<id>` (GET, PATCH, DELETE).
-
 
 v1.3-11 | 2022-01-05
 """"""""""""""""""""
@@ -177,7 +173,6 @@ v1.3-2 | 2020-03-11
 """""""""""""""""""
 
 - Fixed example entity addresses in simulation section
-
 
 v1.3-1 | 2020-02-08
 """""""""""""""""""
@@ -298,7 +293,6 @@ v1.0-1 | 2018-07-10
     - Each API service is now documented in the docstring of its respective endpoint
     - Added sections listing all endpoints per version
     - Documentation includes specifications of **all** supported API versions (supported versions have a registered Flask blueprint)
-
 
 v1.0-0 | 2018-07-10
 """""""""""""""""""
