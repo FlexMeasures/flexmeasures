@@ -34,7 +34,22 @@ def setup_api_fresh_test_data(
     print("Setting up fresh data for API 3.0 tests on %s" % fresh_db.engine)
     for sensor in Sensor.query.all():
         fresh_db.delete(sensor)
-    add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test Supplier User"])
+    gas_sensor = add_gas_sensor(
+        fresh_db, setup_roles_users_fresh_db["Test Supplier User"]
+    )
+    return {gas_sensor.name: gas_sensor}
+
+
+@pytest.fixture(scope="function")
+def setup_api_fresh_gas_measurements(
+    fresh_db, setup_api_fresh_test_data, setup_roles_users_fresh_db
+):
+    """Set up some measurements for the gas sensor."""
+    add_gas_measurements(
+        fresh_db,
+        setup_roles_users_fresh_db["Test Supplier User"].data_source[0],
+        setup_api_fresh_test_data["some gas sensor"],
+    )
 
 
 @pytest.fixture(scope="module")
