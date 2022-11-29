@@ -115,6 +115,7 @@ def test_get_sensor_data(client, setup_api_test_data, setup_roles_users):
         "horizon": "PT0H",
         "unit": "m³/h",
         "source": source.id,
+        "resolution": "PT20M",
     }
     auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     response = client.get(
@@ -125,5 +126,5 @@ def test_get_sensor_data(client, setup_api_test_data, setup_roles_users):
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
-    # We expect one data point (from conftest) followed by 5 null values (which are converted to None by .json)
-    assert all(a == b for a, b in zip(values, [91.3, None, None, None, None, None]))
+    # We expect one data point (from conftest) followed by 2 null values (which are converted to None by .json)
+    assert all(a == b for a, b in zip(values, [91.3, None, None]))
