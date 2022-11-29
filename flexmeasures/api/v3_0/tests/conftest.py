@@ -85,11 +85,10 @@ def add_incineration_line(db, test_supplier_user) -> dict[str, Sensor]:
         name="waste incinerator",
     )
     db.session.add(incineration_type)
-    db.session.flush()
     incineration_asset = GenericAsset(
         name="incineration line",
         generic_asset_type=incineration_type,
-        account_id=test_supplier_user.account_id,
+        owner=test_supplier_user.account,
     )
     db.session.add(incineration_asset)
     gas_sensor = Sensor(
