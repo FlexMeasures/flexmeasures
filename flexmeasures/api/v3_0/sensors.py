@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import json
 from typing import List, Optional
 
 from flask import current_app

@@ -6,8 +6,7 @@ from flask_security import SQLAlchemySessionUserDatastore, hash_password
 
 from flexmeasures import Sensor, Source
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.utils import get_data_source
+from flexmeasures.data.models.time_series import TimedBelief
 
 
 @pytest.fixture(scope="module")

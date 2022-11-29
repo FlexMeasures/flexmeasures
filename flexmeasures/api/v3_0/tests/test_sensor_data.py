@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import timedelta
-import json
 
 from flask import url_for
 import pytest
@@ -103,10 +104,12 @@ def test_post_sensor_data_twice(client, setup_api_test_data):
     assert "data represents a replacement" in response.json["message"]
 
 
-def test_get_sensor_data(client, setup_api_test_data, setup_roles_users):
+def test_get_sensor_data(
+    client, setup_api_test_data: dict[str, Sensor], setup_roles_users: dict[str, User]
+):
     """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
     sensor = setup_api_test_data["some gas sensor"]
-    source = setup_roles_users["Test Supplier User"].data_source[0]
+    source: Source = setup_roles_users["Test Supplier User"].data_source[0]
     assert sensor.event_resolution == timedelta(minutes=10)
     message = {
         "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
