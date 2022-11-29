@@ -1,19 +1,27 @@
 from datetime import timedelta
 
+import pandas as pd
 import pytest
 from flask_security import SQLAlchemySessionUserDatastore, hash_password
 
+from flexmeasures import Sensor, Source
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import TimedBelief
 
 
 @pytest.fixture(scope="module")
-def setup_api_test_data(db, setup_roles_users, setup_generic_assets):
+def setup_api_test_data(
+    db, setup_roles_users, setup_generic_assets
+) -> dict[str, Sensor]:
     """
     Set up data for API v3.0 tests.
     """
     print("Setting up data for API v3.0 tests on %s" % db.engine)
-    add_gas_sensor(db, setup_roles_users["Test Supplier User"])
+    gas_sensor = add_gas_sensor(db, setup_roles_users["Test Supplier User"])
+    add_gas_measurements(
+        db, setup_roles_users["Test Supplier User"].data_source[0], gas_sensor
+    )
+    return {gas_sensor.name: gas_sensor}
 
 
 @pytest.fixture(scope="function")
@@ -26,7 +34,22 @@ def setup_api_fresh_test_data(
     print("Setting up fresh data for API 3.0 tests on %s" % fresh_db.engine)
     for sensor in Sensor.query.all():
         fresh_db.delete(sensor)
-    add_gas_sensor(fresh_db, setup_roles_users_fresh_db["Test Supplier User"])
+    gas_sensor = add_gas_sensor(
+        fresh_db, setup_roles_users_fresh_db["Test Supplier User"]
+    )
+    return {gas_sensor.name: gas_sensor}
+
+
+@pytest.fixture(scope="function")
+def setup_api_fresh_gas_measurements(
+    fresh_db, setup_api_fresh_test_data, setup_roles_users_fresh_db
+):
+    """Set up some measurements for the gas sensor."""
+    add_gas_measurements(
+        fresh_db,
+        setup_roles_users_fresh_db["Test Supplier User"].data_source[0],
+        setup_api_fresh_test_data["some gas sensor"],
+    )
 
 
 @pytest.fixture(scope="module")
@@ -46,7 +69,7 @@ def setup_inactive_user(db, setup_accounts, setup_roles_users):
     )
 
 
-def add_gas_sensor(db, test_supplier_user):
+def add_gas_sensor(db, test_supplier_user) -> Sensor:
     incineration_type = GenericAssetType(
         name="waste incinerator",
     )
@@ -58,7 +81,6 @@ def add_gas_sensor(db, test_supplier_user):
         account_id=test_supplier_user.account_id,
     )
     db.session.add(incineration_asset)
-    db.session.flush()
     gas_sensor = Sensor(
         name="some gas sensor",
         unit="m³/h",
@@ -67,3 +89,24 @@ def add_gas_sensor(db, test_supplier_user):
     )
     db.session.add(gas_sensor)
     gas_sensor.owner = test_supplier_user.account
+    db.session.flush()  # assign sensor id
+    return gas_sensor
+
+
+def add_gas_measurements(db, source: Source, gas_sensor: Sensor):
+    event_starts = [
+        pd.Timestamp("2021-08-02T00:00:00+02:00") + timedelta(minutes=minutes)
+        for minutes in range(0, 30, 10)
+    ]
+    event_values = [91.3, 91.7, 92.1]
+    beliefs = [
+        TimedBelief(
+            sensor=gas_sensor,
+            source=source,
+            event_start=event_start,
+            belief_horizon=timedelta(0),
+            event_value=event_value,
+        )
+        for event_start, event_value in zip(event_starts, event_values)
+    ]
+    db.session.add_all(beliefs)

@@ -51,6 +51,11 @@ FIELD_DEFINITIONS = {
         type="nominal",
         title="Time and date",
     ),
+    "source_name_and_id": dict(
+        field="source_name_and_id",
+        type="nominal",
+        title="Source",
+    ),
 }
 SHADE_LAYER = {
     "mark": {

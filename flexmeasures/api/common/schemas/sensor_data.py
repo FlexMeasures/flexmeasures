@@ -205,8 +205,8 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
             to_unit=unit,
         )
 
-        # Convert NaN to null
-        values = values.where(pd.notnull(values), None)
+        # Convert NaN to None, which JSON dumps as null values
+        values = values.astype(object).where(pd.notnull(values), None)
 
         # Form the response
         response = dict(
