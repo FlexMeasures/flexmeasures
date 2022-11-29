@@ -9,6 +9,7 @@ v3.0-4 | 2022-11-29
 """""""""""""""""""
 
 - Introduced the ``source`` field to `/sensors/data` (GET) to obtain data for a given source (ID).
+- Fixed the JSON wrapping of the return message for `/sensors/data` (GET).
 
 v3.0-3 | 2022-08-28
 """""""""""""""""""
