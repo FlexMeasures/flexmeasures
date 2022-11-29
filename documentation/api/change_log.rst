@@ -10,6 +10,9 @@ v3.0-4 | 2022-11-29
 
 - Introduced the ``source`` field to `/sensors/data` (GET) to obtain data for a given source (ID).
 - Fixed the JSON wrapping of the return message for `/sensors/data` (GET).
+- Changed the Notation section:
+
+    - Rewrote the section on filtering by source (ID) with a deprecation notice on filtering by account role and user ID.
 
 v3.0-3 | 2022-08-28
 """""""""""""""""""
