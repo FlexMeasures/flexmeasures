@@ -13,7 +13,7 @@ v3.0-4 | 2022-11-29
 v3.0-3 | 2022-08-28
 """""""""""""""""""
 
-- Introduced ``consumption_price_sensor``, ``production_price_sensor`` and ``inflexible_device_sensors`` fields to `/sensors/<id>/schedules/trigger` (POST)
+- Introduced ``consumption_price_sensor``, ``production_price_sensor`` and ``inflexible_device_sensors`` fields to `/sensors/<id>/schedules/trigger` (POST).
 
 v3.0-2 | 2022-07-08
 """""""""""""""""""
