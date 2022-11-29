@@ -4,7 +4,7 @@ import json
 from flask import url_for
 import pytest
 
-from flexmeasures import Sensor
+from flexmeasures import Sensor, Source, User
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 
@@ -103,9 +103,10 @@ def test_post_sensor_data_twice(client, setup_api_test_data):
     assert "data represents a replacement" in response.json["message"]
 
 
-def test_get_sensor_data(client, setup_api_test_data):
+def test_get_sensor_data(client, setup_api_test_data, setup_roles_users):
     """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
-    sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
+    sensor = setup_api_test_data["some gas sensor"]
+    source = setup_roles_users["Test Supplier User"].data_source[0]
     assert sensor.event_resolution == timedelta(minutes=10)
     message = {
         "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
@@ -113,6 +114,7 @@ def test_get_sensor_data(client, setup_api_test_data):
         "duration": "PT1H",
         "horizon": "PT0H",
         "unit": "m³/h",
+        "source": source.id,
     }
     auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
     response = client.get(

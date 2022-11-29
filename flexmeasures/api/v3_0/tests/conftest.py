@@ -4,14 +4,16 @@ import pandas as pd
 import pytest
 from flask_security import SQLAlchemySessionUserDatastore, hash_password
 
-from flexmeasures import Source
+from flexmeasures import Sensor, Source
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.utils import get_data_source
 
 
 @pytest.fixture(scope="module")
-def setup_api_test_data(db, setup_roles_users, setup_generic_assets):
+def setup_api_test_data(
+    db, setup_roles_users, setup_generic_assets
+) -> dict[str, Sensor]:
     """
     Set up data for API v3.0 tests.
     """
@@ -20,6 +22,7 @@ def setup_api_test_data(db, setup_roles_users, setup_generic_assets):
     add_gas_measurements(
         db, setup_roles_users["Test Supplier User"].data_source[0], gas_sensor
     )
+    return {gas_sensor.name: gas_sensor}
 
 
 @pytest.fixture(scope="function")
@@ -64,7 +67,6 @@ def add_gas_sensor(db, test_supplier_user) -> Sensor:
         account_id=test_supplier_user.account_id,
     )
     db.session.add(incineration_asset)
-    db.session.flush()
     gas_sensor = Sensor(
         name="some gas sensor",
         unit="m³/h",
@@ -73,6 +75,7 @@ def add_gas_sensor(db, test_supplier_user) -> Sensor:
     )
     db.session.add(gas_sensor)
     gas_sensor.owner = test_supplier_user.account
+    db.session.flush()  # assign sensor id
     return gas_sensor
 
 
