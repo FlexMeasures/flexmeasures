@@ -19,7 +19,7 @@ New features
 
 Bugfixes
 -----------
-* The CLI command ``flexmeasures show beliefs`` now supports plotting time series data that includes NaN values, and provides better support for plotting multiple sensors that do not share the same unit [see `PR #516 <http://www.github.com/FlexMeasures/flexmeasures/pull/516>`_]
+* The CLI command ``flexmeasures show beliefs`` now supports plotting time series data that includes NaN values, and provides better support for plotting multiple sensors that do not share the same unit [see `PR #516 <http://www.github.com/FlexMeasures/flexmeasures/pull/516>`_ and `PR #539 <http://www.github.com/FlexMeasures/flexmeasures/pull/539>`_]
 * Consistent CLI/UI support for asset lat/lng positions up to 7 decimal places (previously the UI rounded to 4 decimal places, whereas the CLI allowed more than 4) [see `PR #522 <http://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 
 Infrastructure / Support
@@ -32,6 +32,8 @@ Infrastructure / Support
 * Plugins can save BeliefsSeries, too, instead of just BeliefsDataFrames [see `PR #523 <http://www.github.com/FlexMeasures/flexmeasures/pull/523>`_]
 * Improve documentation and code w.r.t. storage flexibility modelling ― prepare for handling other schedulers & merge battery and car charging schedulers [see `PR #511 <http://www.github.com/FlexMeasures/flexmeasures/pull/511>`_]
 * Revised strategy for removing unchanged beliefs when saving data: retain the oldest measurement (ex-post belief), too [see `PR #518 <http://www.github.com/FlexMeasures/flexmeasures/pull/518>`_]
+* Scheduling test for maximizing self-consumption, and improved time series db queries for fixed tariffs (and other long-term constants) [see `PR #532 <http://www.github.com/FlexMeasures/flexmeasures/pull/532>`_]
+* Clean up table formatting for ``flexmeasures show`` CLI commands [see `PR #540 <http://www.github.com/FlexMeasures/flexmeasures/pull/540>`_]
 
 
 v0.11.3 | November 2, 2022
