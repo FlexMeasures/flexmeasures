@@ -86,5 +86,38 @@ def test_get_sensor_data(
     assert response.status_code == 200
     values = response.json["values"]
     # We expect two data point (from conftest) followed by 2 null values (which are converted to None by .json)
-    # The first data point averages 91.3 and 91.7, and the second data point averages 92.1 and None.
+    # The first data point averages [91.3, 91.7], and the second data point averages [92.1, None].
     assert all(a == b for a, b in zip(values, [91.5, 92.1, None, None]))
+
+
+def test_get_instantaneous_sensor_data(
+    client,
+    setup_api_fresh_test_data: dict[str, Sensor],
+    setup_api_fresh_temperature_measurements,
+    setup_roles_users_fresh_db: dict[str, User],
+):
+    """Check the /sensors/data endpoint for fetching 1 hour of data of an instantaneous sensor."""
+    sensor = setup_api_fresh_test_data["some temperature sensor"]
+    source: Source = setup_roles_users_fresh_db["Test Supplier User"].data_source[0]
+    assert sensor.event_resolution == timedelta(minutes=0)
+    message = {
+        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
+        "start": "2021-08-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "°C",
+        "source": source.id,
+        "resolution": "PT20M",
+    }
+    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
+    response = client.get(
+        url_for("SensorAPI:get_data"),
+        query_string=message,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    values = response.json["values"]
+    # We expect two data point (from conftest) followed by 2 null values (which are converted to None by .json)
+    # The first data point is 815 is the first of [815, 817], and the second data point is the first of [818, None].
+    assert all(a == b for a, b in zip(values, [815, 818, None, None]))
