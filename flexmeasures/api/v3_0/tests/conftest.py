@@ -80,11 +80,19 @@ def add_gas_sensor(db, test_supplier_user) -> Sensor:
 
 
 def add_gas_measurements(db, source: Source, gas_sensor: Sensor):
-    belief = TimedBelief(
-        sensor=gas_sensor,
-        source=source,
-        event_start=pd.Timestamp("2021-08-02T00:00:00+02:00"),
-        belief_horizon=timedelta(0),
-        event_value=91.3,
-    )
-    db.session.add(belief)
+    event_starts = [
+        pd.Timestamp("2021-08-02T00:00:00+02:00") + timedelta(minutes=minutes)
+        for minutes in range(0, 30, 10)
+    ]
+    event_values = [91.3, 91.7, 92.1]
+    beliefs = [
+        TimedBelief(
+            sensor=gas_sensor,
+            source=source,
+            event_start=event_start,
+            belief_horizon=timedelta(0),
+            event_value=event_value,
+        )
+        for event_start, event_value in zip(event_starts, event_values)
+    ]
+    db.session.add_all(beliefs)

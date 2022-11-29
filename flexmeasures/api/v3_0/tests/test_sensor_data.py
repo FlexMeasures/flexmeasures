@@ -111,7 +111,7 @@ def test_get_sensor_data(client, setup_api_test_data, setup_roles_users):
     message = {
         "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "start": "2021-08-02T00:00:00+02:00",
-        "duration": "PT1H",
+        "duration": "PT1H20M",
         "horizon": "PT0H",
         "unit": "m³/h",
         "source": source.id,
@@ -126,5 +126,6 @@ def test_get_sensor_data(client, setup_api_test_data, setup_roles_users):
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
-    # We expect one data point (from conftest) followed by 2 null values (which are converted to None by .json)
-    assert all(a == b for a, b in zip(values, [91.3, None, None]))
+    # We expect two data point (from conftest) followed by 2 null values (which are converted to None by .json)
+    # The first data point averages 91.3 and 91.7, and the second data point averages 92.1 and None.
+    assert all(a == b for a, b in zip(values, [91.5, 92.1, None, None]))
