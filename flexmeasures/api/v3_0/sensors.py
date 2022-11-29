@@ -181,6 +181,13 @@ class SensorAPI(FlaskView):
 
         The unit has to be convertible from the sensor's unit.
 
+        **Optional fields**
+
+        - "resolution" (see :ref:`resolutions`)
+        - "horizon" (see :ref:`beliefs`)
+        - "prior" (see :ref:`beliefs`)
+        - "source" (see :ref:`sources`)
+
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
         :resheader Content-Type: application/json
