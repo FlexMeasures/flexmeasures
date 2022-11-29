@@ -99,7 +99,6 @@ def add_incineration_line(db, test_supplier_user) -> dict[str, Sensor]:
         generic_asset=incineration_asset,
     )
     db.session.add(gas_sensor)
-    gas_sensor.owner = test_supplier_user.account
     temperature_sensor = Sensor(
         name="some temperature sensor",
         unit="°C",
