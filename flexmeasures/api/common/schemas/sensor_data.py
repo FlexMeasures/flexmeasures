@@ -187,18 +187,18 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         df = df.reindex(index)
 
         # Convert to desired unit
-        values: pd.Series = convert_units(  # type: ignore
+        event_values: pd.Series = convert_units(  # type: ignore
             df["event_value"],
             from_unit=sensor.unit,
             to_unit=unit,
         )
 
-        # Convert NaN to null
-        values = values.where(pd.notnull(values), None)
+        # Convert NaN (in Series) to None (in list), which JSON dumps as null values
+        values = [v if not pd.isnull(v) else None for v in event_values.tolist()]
 
         # Form the response
         response = dict(
-            values=values.tolist(),
+            values=values,
             start=datetime_isoformat(start),
             duration=duration_isoformat(duration),
             unit=unit,

@@ -191,7 +191,8 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        return json.dumps(response)
+        d, s = request_processed()
+        return dict(**response, **d), s
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @use_kwargs(

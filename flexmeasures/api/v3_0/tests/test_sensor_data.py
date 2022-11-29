@@ -1,6 +1,10 @@
+from datetime import timedelta
+import json
+
 from flask import url_for
 import pytest
 
+from flexmeasures import Sensor
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 
@@ -97,3 +101,27 @@ def test_post_sensor_data_twice(client, setup_api_test_data):
     print(response.json)
     assert response.status_code == 403
     assert "data represents a replacement" in response.json["message"]
+
+
+def test_get_sensor_data(client, setup_api_test_data):
+    """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
+    sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
+    assert sensor.event_resolution == timedelta(minutes=10)
+    message = {
+        "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
+        "start": "2021-08-02T00:00:00+02:00",
+        "duration": "PT1H",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+    }
+    auth_token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
+    response = client.get(
+        url_for("SensorAPI:get_data"),
+        query_string=message,
+        headers={"content-type": "application/json", "Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    values = response.json["values"]
+    # We expect one data point (from conftest) followed by 5 null values (which are converted to None by .json)
+    assert all(a == b for a, b in zip(values, [91.3, None, None, None, None, None]))

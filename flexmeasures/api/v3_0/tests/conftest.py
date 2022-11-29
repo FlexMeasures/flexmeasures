@@ -1,10 +1,13 @@
 from datetime import timedelta
 
+import pandas as pd
 import pytest
 from flask_security import SQLAlchemySessionUserDatastore, hash_password
 
+from flexmeasures import Source
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.utils import get_data_source
 
 
 @pytest.fixture(scope="module")
@@ -13,7 +16,10 @@ def setup_api_test_data(db, setup_roles_users, setup_generic_assets):
     Set up data for API v3.0 tests.
     """
     print("Setting up data for API v3.0 tests on %s" % db.engine)
-    add_gas_sensor(db, setup_roles_users["Test Supplier User"])
+    gas_sensor = add_gas_sensor(db, setup_roles_users["Test Supplier User"])
+    add_gas_measurements(
+        db, setup_roles_users["Test Supplier User"].data_source[0], gas_sensor
+    )
 
 
 @pytest.fixture(scope="function")
@@ -46,7 +52,7 @@ def setup_inactive_user(db, setup_accounts, setup_roles_users):
     )
 
 
-def add_gas_sensor(db, test_supplier_user):
+def add_gas_sensor(db, test_supplier_user) -> Sensor:
     incineration_type = GenericAssetType(
         name="waste incinerator",
     )
@@ -67,3 +73,15 @@ def add_gas_sensor(db, test_supplier_user):
     )
     db.session.add(gas_sensor)
     gas_sensor.owner = test_supplier_user.account
+    return gas_sensor
+
+
+def add_gas_measurements(db, source: Source, gas_sensor: Sensor):
+    belief = TimedBelief(
+        sensor=gas_sensor,
+        source=source,
+        event_start=pd.Timestamp("2021-08-02T00:00:00+02:00"),
+        belief_horizon=timedelta(0),
+        event_value=91.3,
+    )
+    db.session.add(belief)
