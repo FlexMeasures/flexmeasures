@@ -1196,7 +1196,6 @@ def get_or_create_model(
     filter_by_kwargs = lookup_kwargs.copy()
     for kw, arg in lookup_kwargs.items():
         model_attribute = getattr(model_class, kw)
-        print(f"argument {arg} is {callable(arg)} callable")
         if hasattr(model_attribute, "type") and isinstance(model_attribute.type, JSON):
             filter_json_kwargs[kw] = filter_by_kwargs.pop(kw)
         elif callable(arg) and isinstance(model_attribute.type, String):
