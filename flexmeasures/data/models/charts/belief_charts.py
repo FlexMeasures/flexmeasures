@@ -279,7 +279,7 @@ def create_line_layer(
                     "title": "Source",
                 },
             },
-            "detail": [FIELD_DEFINITIONS["source"], FIELD_DEFINITIONS["sensor"]],
+            "detail": [FIELD_DEFINITIONS["source"]],
         },
     }
     return line_layer
@@ -329,7 +329,6 @@ def create_circle_layer(
             "x": event_start_field_definition,
             "y": event_value_field_definition,
             "color": FIELD_DEFINITIONS["sensor_description"],
-            # "detail": [FIELD_DEFINITIONS["source"], FIELD_DEFINITIONS["sensor"]],  # todo: may be redundant for circle markers
             "size": {
                 "condition": {"value": "200", "test": {"or": or_conditions}},
                 "value": "0",
@@ -363,7 +362,6 @@ def create_rect_layer(
                 },
                 "value": 0,
             },
-            # "detail": FIELD_DEFINITIONS["source"],  # todo: may be redundant for rect markers
             "tooltip": shared_tooltip,
         },
         "transform": [
