@@ -352,11 +352,13 @@ First, we'll create a new csv file with solar forecasts (MW, see the setup for s
     $ ${TOMORROW}T22:00:00,0.0
     $ ${TOMORROW}T23:00:00,0.0" > solar-tomorrow.csv
 
-Then, we read in the created CSV file as beliefs data:
+Then, we register a new forecaster and read in the created CSV file as beliefs data:
 
 .. code-block:: console
 
-    $ flexmeasures add beliefs --sensor-id 4 --source toy-user solar-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add source --name "toy-forecaster" --type forecaster
+    Added source <Data source 2 (toy-forecaster)>
+    $ flexmeasures add beliefs --sensor-id 4 --source 2 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
 The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production.
