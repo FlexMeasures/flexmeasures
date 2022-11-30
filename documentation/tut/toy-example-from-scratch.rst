@@ -19,7 +19,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     # setup an account with a user, a battery (Id 2) and a market (Id 3)
     $ flexmeasures add toy-account --kind battery
     # load prices to optimise the schedule against
-    $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv
+    $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
     # make the schedule
     $ flexmeasures add schedule --sensor-id 2 --consumption-price-sensor 3 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
