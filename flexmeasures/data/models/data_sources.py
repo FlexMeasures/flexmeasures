@@ -90,7 +90,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     def to_dict(self) -> dict:
         model_incl_version = self.model if self.model else ""
         if self.model and self.version:
-            model_incl_version += f" ({self.version}"
+            model_incl_version += f" (v{self.version})"
         return dict(
             id=self.id,
             name=self.name,
