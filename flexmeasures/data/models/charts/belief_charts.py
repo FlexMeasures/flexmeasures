@@ -107,9 +107,9 @@ def chart_for_multiple_sensors(
     for s in sensors_to_show:
         # List the sensors that go into one row
         if isinstance(s, list):
-            row_sensors: list["Sensor"] = s
+            row_sensors: list["Sensor"] = s  # noqa F821
         else:
-            row_sensors: list["Sensor"] = [s]
+            row_sensors: list["Sensor"] = [s]  # noqa F821
 
         # Derive the unit that should be shown
         unit = determine_shared_unit(row_sensors)

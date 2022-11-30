@@ -120,8 +120,9 @@ def sort_dict(unsorted_dict: dict) -> dict:
 
 
 def flatten_unique(
-    nested_list_of_objects: list[int | list[int]] | list["Sensor" | list["Sensor"]],
-) -> list[int] | list["Sensor"]:
+    nested_list_of_objects: list[int | list[int]]
+    | list["Sensor" | list["Sensor"]],  # noqa F821
+) -> list[int] | list["Sensor"]:  # noqa F821
     """Returns unique objects in a possibly nested (one level) list of objects.
 
     For example:
