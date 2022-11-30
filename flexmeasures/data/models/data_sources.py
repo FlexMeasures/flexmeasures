@@ -95,10 +95,6 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             id=self.id,
             name=self.name,
             model=model_incl_version,
-            type="forecaster"
-            if self.type == "forecasting script"
-            else "scheduler"
-            if self.type == "scheduling script"
-            else "other",
+            type=self.type if self.type in ("forecaster", "scheduler") else "other",
             description=self.description,
         )
