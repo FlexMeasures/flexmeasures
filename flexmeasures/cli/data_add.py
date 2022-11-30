@@ -283,6 +283,44 @@ def add_initial_structure():
     populate_initial_structure(db)
 
 
+@fm_add_data.command("source")
+@with_appcontext
+@click.option(
+    "--name",
+    required=True,
+    type=str,
+    help="Name of the source (usually an organisation)",
+)
+@click.option(
+    "--model",
+    required=False,
+    type=str,
+    help="Optionally, specify a model (for example, a class name, function name or url).",
+)
+@click.option(
+    "--version",
+    required=False,
+    type=str,
+    help="Optionally, specify a version (for example, '1.0'.",
+)
+@click.option(
+    "--type",
+    "source_type",
+    required=True,
+    type=str,
+    help="Type of source (for example, 'forecaster' or 'scheduler').",
+)
+def add_source(name: str, model: str, version: str, source_type: str):
+    source = get_or_create_source(
+        source=name,
+        model=model,
+        version=version,
+        source_type=source_type,
+    )
+    db.session.commit()
+    print(f"Added source {source.__repr__()}")
+
+
 @fm_add_data.command("beliefs")
 @with_appcontext
 @click.argument("file", type=click.Path(exists=True))
