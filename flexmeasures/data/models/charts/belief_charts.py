@@ -8,6 +8,11 @@ from flexmeasures.utils.flexmeasures_inflection import (
     join_words_into_a_list,
 )
 from flexmeasures.utils.coding_utils import flatten_unique
+from flexmeasures.utils.unit_utils import (
+    is_power_unit,
+    is_energy_unit,
+    is_energy_price_unit,
+)
 
 
 def bar_chart(
@@ -224,8 +229,20 @@ def determine_shared_unit(sensors: list["Sensor"]) -> str:  # noqa F821
 
 def determine_shared_sensor_type(sensors: list["Sensor"]) -> str:  # noqa F821
     sensor_types = list(set([sensor.sensor_type for sensor in sensors]))
-    shared_sensor_type = sensor_types[0] if len(sensor_types) == 1 else "value"
-    return shared_sensor_type
+
+    # Return the sole sensor type
+    if len(sensor_types) == 1:
+        return sensor_types[0]
+
+    # Check the units for common cases
+    shared_unit = determine_shared_unit(sensors)
+    if is_power_unit(shared_unit):
+        return "power"
+    elif is_energy_unit(shared_unit):
+        return "energy"
+    elif is_energy_price_unit(shared_unit):
+        return "energy price"
+    return "value"
 
 
 def create_line_layer(
