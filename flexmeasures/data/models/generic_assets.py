@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple, List, Union
 import json
@@ -20,6 +22,7 @@ from flexmeasures.data.models.user import User
 from flexmeasures.data.queries.annotations import query_asset_annotations
 from flexmeasures.auth.policy import AuthModelMixin, EVERY_LOGGED_IN_USER
 from flexmeasures.utils import geo_utils
+from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.time_utils import (
     determine_minimum_resampling_resolution,
     server_now,
@@ -296,7 +299,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         :returns: JSON string defining vega-lite chart specs
         """
-        sensors = self.sensors_to_show
+        sensors_to_show = self.sensors_to_show
+        sensors = flatten_unique(sensors_to_show)
         for sensor in sensors:
             sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
 
@@ -309,7 +313,7 @@ class GenericAsset(db.Model, AuthModelMixin):
             kwargs["event_ends_before"] = event_ends_before
         chart_specs = chart_type_to_chart_specs(
             chart_type,
-            sensors=sensors,
+            sensors_to_show=sensors_to_show,
             dataset_name=dataset_name,
             **kwargs,
         )
@@ -427,34 +431,51 @@ class GenericAsset(db.Model, AuthModelMixin):
         return bdf_dict
 
     @property
-    def sensors_to_show(self) -> List["Sensor"]:  # noqa F821
+    def sensors_to_show(self) -> list["Sensor" | list["Sensor"]]:  # noqa F821
         """Sensors to show, as defined by the sensors_to_show attribute.
 
         Sensors to show are defined as a list of sensor ids, which
         is set by the "sensors_to_show" field of the asset's "attributes" column.
         Valid sensors either belong to the asset itself, to other assets in the same account,
         or to public assets.
+        In case the field is missing, defaults to two of the asset's sensors.
 
+        Sensor ids can be nested to denote that sensors should be 'shown together',
+        for example, layered rather than vertically concatenated.
+        How to interpret 'shown together' is technically left up to the function returning chart specs,
+        as are any restrictions regarding what sensors can be shown together, such as:
+        - whether they should share the same unit
+        - whether they should share the same name
+        - whether they should belong to different assets
 
-        Defaults to two of the asset's sensors.
+        For example, this denotes showing sensors 42 and 44 together:
+
+            sensors_to_show = [40, 35, 41, [42, 44], 43, 45]
+
         """
         if not self.has_attribute("sensors_to_show"):
             return self.sensors[:2]
 
         from flexmeasures.data.services.sensors import get_sensors
 
-        sensor_ids = self.get_attribute("sensors_to_show")
+        sensor_ids_to_show = self.get_attribute("sensors_to_show")
         sensor_map = {
             sensor.id: sensor
             for sensor in get_sensors(
                 account=self.owner,
                 include_public_assets=True,
-                sensor_id_allowlist=sensor_ids,
+                sensor_id_allowlist=flatten_unique(sensor_ids_to_show),
             )
         }
 
-        # Return sensors in the order given by the sensors_to_show attribute
-        return [sensor_map[sensor_id] for sensor_id in sensor_ids]
+        # Return sensors in the order given by the sensors_to_show attribute, and with the same nesting
+        sensors_to_show = []
+        for s in sensor_ids_to_show:
+            if isinstance(s, list):
+                sensors_to_show.append([sensor_map[sensor_id] for sensor_id in s])
+            else:
+                sensors_to_show.append(sensor_map[s])
+        return sensors_to_show
 
     @property
     def timezone(
@@ -507,7 +528,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         from flexmeasures.data.models.time_series import TimedBelief
 
-        sensor_ids = [sensor.id for sensor in sensors]
+        sensor_ids = [s.id for s in flatten_unique(sensors)]
         least_recent_query = (
             TimedBelief.query.filter(TimedBelief.sensor_id.in_(sensor_ids))
             .order_by(TimedBelief.event_start.asc())

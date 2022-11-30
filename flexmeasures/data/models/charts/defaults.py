@@ -31,10 +31,26 @@ FIELD_DEFINITIONS = {
         field="event_value",
         type="quantitative",
     ),
+    "sensor": dict(
+        field="sensor.id",
+        type="nominal",
+        title=None,
+        legend=None,
+    ),
+    "sensor_name": dict(
+        field="sensor.name",
+        type="nominal",
+        title="Sensor",
+    ),
     "source": dict(
         field="source.id",
         type="nominal",
         title=None,
+    ),
+    "source_type": dict(
+        field="source.type",
+        type="nominal",
+        title="Type",
     ),
     "source_name": dict(
         field="source.name",
