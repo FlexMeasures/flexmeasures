@@ -489,6 +489,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin):
         return dict(
             id=self.id,
             name=self.name,
+            description=f"{self.name} ({self.generic_asset.name})",
         )
 
     @classmethod

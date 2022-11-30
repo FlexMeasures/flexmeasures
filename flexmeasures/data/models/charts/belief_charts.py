@@ -249,7 +249,7 @@ def create_line_layer(
         "encoding": {
             "x": event_start_field_definition,
             "y": event_value_field_definition,
-            "color": FIELD_DEFINITIONS["sensor_name"],
+            "color": FIELD_DEFINITIONS["sensor_description"],
             "strokeDash": {
                 "scale": {
                     # Distinguish forecasters and schedulers by line stroke
@@ -311,7 +311,7 @@ def create_circle_layer(
         "encoding": {
             "x": event_start_field_definition,
             "y": event_value_field_definition,
-            "color": FIELD_DEFINITIONS["sensor_name"],
+            "color": FIELD_DEFINITIONS["sensor_description"],
             # "detail": [FIELD_DEFINITIONS["source"], FIELD_DEFINITIONS["sensor"]],  # todo: may be redundant for circle markers
             "size": {
                 "condition": {"value": "200", "test": {"or": or_conditions}},

@@ -42,6 +42,11 @@ FIELD_DEFINITIONS = {
         type="nominal",
         title="Sensor",
     ),
+    "sensor_description": dict(
+        field="sensor.description",
+        type="nominal",
+        title="Sensor",
+    ),
     "source": dict(
         field="source.id",
         type="nominal",
