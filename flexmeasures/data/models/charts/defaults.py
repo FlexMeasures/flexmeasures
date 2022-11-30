@@ -35,7 +35,6 @@ FIELD_DEFINITIONS = {
         field="sensor.id",
         type="nominal",
         title=None,
-        legend=None,
     ),
     "sensor_name": dict(
         field="sensor.name",
