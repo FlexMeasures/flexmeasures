@@ -321,7 +321,7 @@ Recall that we only asked for a 12 hour schedule here. We started our schedule *
 Take into account solar production
 ---------------------------------------
 
-First, we'll create a new csv file with solar forecast (MW, see the setup for sensor 4 above) for tomorrow.
+First, we'll create a new csv file with solar forecasts (MW, see the setup for sensor 4 above) for tomorrow.
 
 .. code-block:: console
 
@@ -359,7 +359,7 @@ Then, we read in the created CSV file as beliefs data:
     $ flexmeasures add beliefs --sensor-id 4 --source toy-user solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
-Notice that, by default, the one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production.
+The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production.
 
 .. note:: The ``flexmeasures add beliefs`` command has many options to make sure the read-in data is correctly interpreted (unit, timezone, delimiter, etc). But that is not the point of this tutorial. See ``flexmeasures add beliefs --help``.
 
