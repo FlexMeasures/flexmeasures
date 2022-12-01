@@ -87,7 +87,6 @@ def add_gas_sensor(db, test_supplier_user) -> Sensor:
         generic_asset=incineration_asset,
     )
     db.session.add(gas_sensor)
-    gas_sensor.owner = test_supplier_user.account
     db.session.flush()  # assign sensor id
     return gas_sensor
 
