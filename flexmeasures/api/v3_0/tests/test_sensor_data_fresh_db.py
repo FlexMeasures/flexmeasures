@@ -85,6 +85,6 @@ def test_get_sensor_data(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
-    # We expect two data point (from conftest) followed by 2 null values (which are converted to None by .json)
+    # We expect two data points (from conftest) followed by 2 null values (which are converted to None by .json)
     # The first data point averages 91.3 and 91.7, and the second data point averages 92.1 and None.
     assert all(a == b for a, b in zip(values, [91.5, 92.1, None, None]))
