@@ -18,9 +18,6 @@ def setup_api_test_data(
     """
     print("Setting up data for API v3.0 tests on %s" % db.engine)
     gas_sensor = add_gas_sensor(db, setup_roles_users["Test Supplier User"])
-    add_gas_measurements(
-        db, setup_roles_users["Test Supplier User"].data_source[0], gas_sensor
-    )
     return {gas_sensor.name: gas_sensor}
 
 
