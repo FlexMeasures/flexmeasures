@@ -163,7 +163,13 @@ def get_prices(
     sensor: Optional[Sensor] = None,
     allow_trimmed_query_window: bool = True,
 ) -> Tuple[pd.DataFrame, Tuple[datetime, datetime]]:
-    """Check for known prices or price forecasts, trimming query window accordingly if allowed."""
+    """Check for known prices or price forecasts.
+
+    If so allowed, the query window is trimmed according to the available data.
+    If not allowed, prices are extended to the edges of the query window:
+    - The first available price serves as a naive backcast.
+    - The last available price serves as a naive forecast.
+    """
 
     # Look for the applicable price sensor
     if price_sensor is None:
