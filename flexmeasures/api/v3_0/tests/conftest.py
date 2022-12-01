@@ -74,7 +74,6 @@ def add_gas_sensor(db, test_supplier_user) -> Sensor:
         name="waste incinerator",
     )
     db.session.add(incineration_type)
-    db.session.flush()
     incineration_asset = GenericAsset(
         name="incineration line",
         generic_asset_type=incineration_type,
