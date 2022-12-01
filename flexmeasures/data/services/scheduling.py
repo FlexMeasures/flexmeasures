@@ -144,6 +144,8 @@ def make_schedule(
             % sensor.generic_asset.generic_asset_type
         )
 
+    storage_specs = ensure_storage_specs(storage_specs, sensor, start, end, resolution)
+
     consumption_schedule = scheduler().schedule(
         sensor,
         start,
