@@ -59,6 +59,7 @@ def test_post_sensor_data(
 
 def test_get_sensor_data(
     client,
+    db,
     setup_api_fresh_test_data: dict[str, Sensor],
     setup_api_fresh_gas_measurements,
     setup_roles_users_fresh_db: dict[str, User],
@@ -67,6 +68,7 @@ def test_get_sensor_data(
     sensor = setup_api_fresh_test_data["some gas sensor"]
     source: Source = setup_roles_users_fresh_db["Test Supplier User"].data_source[0]
     assert sensor.event_resolution == timedelta(minutes=10)
+    db.session.flush()  # assign sensor id
     message = {
         "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
         "start": "2021-08-02T00:00:00+02:00",
