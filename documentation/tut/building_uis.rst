@@ -259,14 +259,13 @@ Now let's call this function when the HTML page is opened, to embed our chart:
                 var authToken = response.auth_token;
 
                 var params = new URLSearchParams();
-                params.append("event_starts_after", '2023-01-01T00:00+01');
-                params.append("event_ends_before", '2024-01-01T00:00+01');
+                params.append("event_starts_after", '2022-01-01T00:00+01');
                 embedChart(params, authToken, 3, '#sensor-chart');
             })
         }
     }
 
-The parameters we pass in describe what we want to see: 1 year of data for sensor 3.
+The parameters we pass in describe what we want to see: all data for sensor 3 since 2022.
 If you followed our toy tutorial on a fresh FlexMeasures installation, sensor 3 contains market prices.
 
            
