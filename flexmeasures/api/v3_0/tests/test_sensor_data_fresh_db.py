@@ -38,7 +38,11 @@ def test_post_sensor_data(
         num_values=num_values, unit=unit
     )
     sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
-    beliefs_before = TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).all()
+    filters = (
+        TimedBelief.sensor_id == sensor.id,
+        TimedBelief.event_start >= post_data["start"],
+    )
+    beliefs_before = TimedBelief.query.filter(*filters).all()
     print(f"BELIEFS BEFORE: {beliefs_before}")
     assert len(beliefs_before) == 0
 
@@ -50,7 +54,7 @@ def test_post_sensor_data(
     )
     print(response.json)
     assert response.status_code == 200
-    beliefs = TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).all()
+    beliefs = TimedBelief.query.filter(*filters).all()
     print(f"BELIEFS AFTER: {beliefs}")
     assert len(beliefs) == expected_num_values
     # check that values are scaled to the sensor unit correctly
@@ -60,7 +64,6 @@ def test_post_sensor_data(
 def test_get_sensor_data(
     client,
     setup_api_fresh_test_data: dict[str, Sensor],
-    setup_api_fresh_gas_measurements,
     setup_roles_users_fresh_db: dict[str, User],
 ):
     """Check the /sensors/data endpoint for fetching 1 hour of data of a 10-minute resolution sensor."""
@@ -69,7 +72,7 @@ def test_get_sensor_data(
     assert sensor.event_resolution == timedelta(minutes=10)
     message = {
         "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
-        "start": "2021-08-02T00:00:00+02:00",
+        "start": "2021-05-02T00:00:00+02:00",
         "duration": "PT1H20M",
         "horizon": "PT0H",
         "unit": "m³/h",
@@ -93,7 +96,6 @@ def test_get_sensor_data(
 def test_get_instantaneous_sensor_data(
     client,
     setup_api_fresh_test_data: dict[str, Sensor],
-    setup_api_fresh_temperature_measurements,
     setup_roles_users_fresh_db: dict[str, User],
 ):
     """Check the /sensors/data endpoint for fetching 1 hour of data of an instantaneous sensor."""
@@ -102,7 +104,7 @@ def test_get_instantaneous_sensor_data(
     assert sensor.event_resolution == timedelta(minutes=0)
     message = {
         "sensor": f"ea1.2021-01.io.flexmeasures:fm1.{sensor.id}",
-        "start": "2021-08-02T00:00:00+02:00",
+        "start": "2021-05-02T00:00:00+02:00",
         "duration": "PT1H20M",
         "horizon": "PT0H",
         "unit": "°C",

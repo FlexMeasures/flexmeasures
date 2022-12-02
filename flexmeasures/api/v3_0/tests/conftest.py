@@ -37,30 +37,6 @@ def setup_api_fresh_test_data(
     return sensors
 
 
-@pytest.fixture(scope="function")
-def setup_api_fresh_gas_measurements(
-        fresh_db, setup_api_fresh_test_data, setup_roles_users_fresh_db
-):
-    """Set up some measurements for the gas sensor."""
-    add_gas_measurements(
-        fresh_db,
-        setup_roles_users_fresh_db["Test Supplier User"].data_source[0],
-        setup_api_fresh_test_data["some gas sensor"],
-    )
-
-
-@pytest.fixture(scope="function")
-def setup_api_fresh_temperature_measurements(
-        fresh_db, setup_api_fresh_test_data, setup_roles_users_fresh_db
-):
-    """Set up some measurements for the temperature sensor."""
-    add_temperature_measurements(
-        fresh_db,
-        setup_roles_users_fresh_db["Test Supplier User"].data_source[0],
-        setup_api_fresh_test_data["some temperature sensor"],
-    )
-
-
 @pytest.fixture(scope="module")
 def setup_inactive_user(db, setup_accounts, setup_roles_users):
     """
@@ -96,6 +72,7 @@ def add_incineration_line(db, test_supplier_user) -> dict[str, Sensor]:
         generic_asset=incineration_asset,
     )
     db.session.add(gas_sensor)
+    add_gas_measurements(db, test_supplier_user.data_source[0], gas_sensor)
     temperature_sensor = Sensor(
         name="some temperature sensor",
         unit="°C",
@@ -103,13 +80,17 @@ def add_incineration_line(db, test_supplier_user) -> dict[str, Sensor]:
         generic_asset=incineration_asset,
     )
     db.session.add(temperature_sensor)
+    add_temperature_measurements(
+        db, test_supplier_user.data_source[0], temperature_sensor
+    )
+
     db.session.flush()  # assign sensor ids
     return {gas_sensor.name: gas_sensor, temperature_sensor.name: temperature_sensor}
 
 
 def add_gas_measurements(db, source: Source, sensor: Sensor):
     event_starts = [
-        pd.Timestamp("2021-08-02T00:00:00+02:00") + timedelta(minutes=minutes)
+        pd.Timestamp("2021-05-02T00:00:00+02:00") + timedelta(minutes=minutes)
         for minutes in range(0, 30, 10)
     ]
     event_values = [91.3, 91.7, 92.1]
@@ -128,7 +109,7 @@ def add_gas_measurements(db, source: Source, sensor: Sensor):
 
 def add_temperature_measurements(db, source: Source, sensor: Sensor):
     event_starts = [
-        pd.Timestamp("2021-08-02T00:00:00+02:00") + timedelta(minutes=minutes)
+        pd.Timestamp("2021-05-02T00:00:00+02:00") + timedelta(minutes=minutes)
         for minutes in range(0, 30, 10)
     ]
     event_values = [815, 817, 818]
