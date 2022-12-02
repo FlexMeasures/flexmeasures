@@ -136,7 +136,7 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
     function loadAssets(userId, authToken) {
         var params = new URLSearchParams();
         params.append("owner_id", userId);
-        fetch(flexmeasures_domain + '/api/v2_0/assets?' + params.toString(),
+        fetch(flexmeasures_domain + '/api/v3_0/assets?' + params.toString(),
             {
                 method: "GET",
                 mode: "cors",
@@ -178,8 +178,12 @@ The result looks like this in your browser:
 
 
  
-From FlexMeasures, we are using the `[GET] /assets <../api/v2_0.html#get--api-v2_0-assets>`_ endpoint, which loads a list of assets. Note how, unlike the user endpoint above, we are passing a query parameter here (``owner_id``). We are only displaying a subset of the information which is available about assets. Browse the endpoint documentation to learn other information you could get.
+From FlexMeasures, we are using the `[GET] /assets <../api/v3_0.html#get--api-v3_0-assets>`_ endpoint, which loads a list of assets.
+Note how, unlike the user endpoint above, we are passing a query parameter here (``owner_id``).
+We are only displaying a subset of the information which is available about assets.
+Browse the endpoint documentation to learn other information you could get.
 
+For a listing of public assets, replace `/api/v3_0/assets` with `/api/v3_0/assets/public`.
 
 Embedding plots
 ------------------------
