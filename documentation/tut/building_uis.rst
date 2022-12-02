@@ -276,5 +276,5 @@ The result looks like this in your browser:
 ..    :scale: 40%
 
 
-From FlexMeasures, we are using the `[GET] /sensors/<id>/chart <../api/v3_0.html#get--api-v3_0-sensors-(id)-chart->`_ endpoint.
+From FlexMeasures, we are using the `GET /api/dev/sensor/(id)/chart/ <../api/dev.html#get--api-dev-sensor-(id)-chart->`_ endpoint.
 Browse the endpoint documentation to learn more about it.
