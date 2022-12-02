@@ -16,10 +16,12 @@ New features
 * The asset page also allows to show sensor data from other assets that belong to the same account [see `PR #500 <http://www.github.com/FlexMeasures/flexmeasures/pull/500>`_]
 * The CLI command ``flexmeasures show beliefs`` supports showing beliefs data in a custom resolution and/or timezone, and also saving the shown beliefs data to a CSV file [see `PR #519 <http://www.github.com/FlexMeasures/flexmeasures/pull/519>`_]
 * Improved import of time series data from CSV file: 1) drop duplicate records with warning, 2) allow configuring which column contains explicit recording times for each data point (use case: import forecasts) [see `PR #501 <http://www.github.com/FlexMeasures/flexmeasures/pull/501>`_], 3) localize timezone naive data, 4) support reading in datetime and timedelta values, 5) remove rows with NaN values, and 6) filter by values in specific columns [see `PR #521 <http://www.github.com/FlexMeasures/flexmeasures/pull/521>`_]
+* Filter data by source in the API endpoint `/sensors/data` (GET) [see `PR #543 <http://www.github.com/FlexMeasures/flexmeasures/pull/543>`_]
 
 Bugfixes
 -----------
 * The CLI command ``flexmeasures show beliefs`` now supports plotting time series data that includes NaN values, and provides better support for plotting multiple sensors that do not share the same unit [see `PR #516 <http://www.github.com/FlexMeasures/flexmeasures/pull/516>`_ and `PR #539 <http://www.github.com/FlexMeasures/flexmeasures/pull/539>`_]
+* Fixed JSON wrapping of return message for `/sensors/data` (GET) [see `PR #543 <http://www.github.com/FlexMeasures/flexmeasures/pull/543>`_]
 * Consistent CLI/UI support for asset lat/lng positions up to 7 decimal places (previously the UI rounded to 4 decimal places, whereas the CLI allowed more than 4) [see `PR #522 <http://www.github.com/FlexMeasures/flexmeasures/pull/522>`_]
 * Stop trimming the planning window in response to price availability, which is a problem when SoC targets occur outside of the available price window, by making a simplistic assumption about future prices [see `PR #538 <http://www.github.com/FlexMeasures/flexmeasures/pull/538>`_]
 * Faster loading of initial charts and calendar date selection [see `PR #533 <http://www.github.com/FlexMeasures/flexmeasures/pull/533>`_]

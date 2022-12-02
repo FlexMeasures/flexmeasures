@@ -1,14 +1,17 @@
-from flask.cli import with_appcontext
 from marshmallow import fields
 
 from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
+from flexmeasures.data.schemas.utils import (
+    with_appcontext_if_needed,
+    FMValidationError,
+    MarshmallowClickMixin,
+)
 
 
 class DataSourceIdField(fields.Int, MarshmallowClickMixin):
-    """Field that deserializes to a Sensor and serializes back to an integer."""
+    """Field that deserializes to a DataSource and serializes back to an integer."""
 
-    @with_appcontext
+    @with_appcontext_if_needed()
     def _deserialize(self, value, attr, obj, **kwargs) -> DataSource:
         """Turn a source id into a DataSource."""
         source = DataSource.query.get(value)
