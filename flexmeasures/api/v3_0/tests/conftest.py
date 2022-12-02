@@ -18,11 +18,6 @@ def setup_api_test_data(
     """
     print("Setting up data for API v3.0 tests on %s" % db.engine)
     sensors = add_incineration_line(db, setup_roles_users["Test Supplier User"])
-    add_gas_measurements(
-        db,
-        setup_roles_users["Test Supplier User"].data_source[0],
-        sensors["some gas sensor"],
-    )
     return sensors
 
 
@@ -44,7 +39,7 @@ def setup_api_fresh_test_data(
 
 @pytest.fixture(scope="function")
 def setup_api_fresh_gas_measurements(
-    fresh_db, setup_api_fresh_test_data, setup_roles_users_fresh_db
+        fresh_db, setup_api_fresh_test_data, setup_roles_users_fresh_db
 ):
     """Set up some measurements for the gas sensor."""
     add_gas_measurements(
@@ -56,9 +51,9 @@ def setup_api_fresh_gas_measurements(
 
 @pytest.fixture(scope="function")
 def setup_api_fresh_temperature_measurements(
-    fresh_db, setup_api_fresh_test_data, setup_roles_users_fresh_db
+        fresh_db, setup_api_fresh_test_data, setup_roles_users_fresh_db
 ):
-    """Set up some measurements for the gas sensor."""
+    """Set up some measurements for the temperature sensor."""
     add_temperature_measurements(
         fresh_db,
         setup_roles_users_fresh_db["Test Supplier User"].data_source[0],
