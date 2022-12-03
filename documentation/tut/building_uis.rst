@@ -278,3 +278,5 @@ The result looks like this in your browser (but then just the chart):
 
 From FlexMeasures, we are using the `GET /api/dev/sensor/(id)/chart/ <../api/dev.html#get--api-dev-sensor-(id)-chart->`_ endpoint.
 Browse the endpoint documentation to learn more about it.
+
+.. note:: Endpoints in the developer API are still under development and are subject to change in new releases.
