@@ -266,7 +266,7 @@ Now let's call this function when the HTML page is opened, to embed our chart:
     }
 
 The parameters we pass in describe what we want to see: all data for sensor 3 since 2022.
-If you followed our toy tutorial on a fresh FlexMeasures installation, sensor 3 contains market prices.
+If you followed our toy tutorial on a fresh FlexMeasures installation, sensor 3 contains market prices (authenticate with the toy-user to gain access).
 
            
 The result looks like this in your browser (but then just the chart):
