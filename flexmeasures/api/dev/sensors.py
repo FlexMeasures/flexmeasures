@@ -92,6 +92,15 @@ class SensorAPI(FlaskView):
         .. :quickref: Chart; Download time series for use in charts
 
         Data for use in charts (in case you have the chart specs already).
+
+        **Optional fields**
+
+        - "event_starts_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "event_ends_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "beliefs_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "resolution" (see :ref:`resolutions`)
+        - "most_recent_beliefs_only" (if true, returns the most recent belief for each event; if false, returns each belief for each event; defaults to true)
         """
         return sensor.search_beliefs(as_json=True, **kwargs)
 
