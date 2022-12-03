@@ -189,9 +189,9 @@ For a listing of public assets, replace `/api/v3_0/assets` with `/api/v3_0/asset
 Embedding charts
 ------------------------
 
-Creating charts from data can consume lots of development time. FlexMeasures can help here by delivering ready-made charts.
-
-In this tutorial, let's display two charts: one with power measurements and forecasts (a solar panel installation) and one with schedules of several EV chargers on the same location, next to each other for easy comparison.
+Creating charts from data can consume lots of development time.
+FlexMeasures can help here by delivering ready-made charts.
+In this tutorial, we'll embed a chart with electricity prices.
 
 First, we define a div tag for the chart and a basic layout (full width). We also load the visualization libraries we need (more about that below), and set up a custom formatter we use in FlexMeasures charts.
 
