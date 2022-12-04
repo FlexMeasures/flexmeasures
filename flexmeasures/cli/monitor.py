@@ -214,11 +214,18 @@ def send_lastseen_monitoring_alert(
     type=str,
     help="The name of an account role to filter for.",
 )
+@click.option(
+    "--custom-user-message",
+    type=str,
+    default="",
+    help="Add this message to the monitoring alert email to users (if one is sent).",
+)
 def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
     alert_users: bool = False,
     account_role: Optional[str] = None,
     user_role: Optional[str] = None,
+    custom_user_message: Optional[str] = None,
 ):
     """
     Check if given users last contact (via a request) happened less than the allowed time ago.
@@ -254,9 +261,14 @@ def monitor_last_seen(
             msg = (
                 f"We noticed that user {user.username} has not been in contact with this FlexMeasures server"
                 f" for at least {maximum_minutes_since_last_seen} minutes (last contact was {user.last_seen_at})."
-                f"\nBy our own accounting, that gives reason for concern."
-                "\n\nPlease check if everything is working okay."
             )
+            if custom_user_message:
+                msg += f"\n\n{custom_user_message}"
+            else:
+                msg += (
+                    "\nBy our own accounting, that gives reason for concern."
+                    "\n\nPlease check if everything is working okay."
+                )
             email = Message(
                 subject=f"Last contact by user {user.username} too long ago",
                 recipients=[user.email],
