@@ -7,8 +7,6 @@ v0.12.0 | October XX, 2022
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
-.. warning:: The CLI command ``flexmeasures monitor tasks`` has been renamed to ``flexmeasures monitor last-run``. The old name will stop working in version 0.13.
-
 
 New features
 -------------
@@ -38,6 +36,9 @@ Infrastructure / Support
 * Revised strategy for removing unchanged beliefs when saving data: retain the oldest measurement (ex-post belief), too [see `PR #518 <http://www.github.com/FlexMeasures/flexmeasures/pull/518>`_]
 * Scheduling test for maximizing self-consumption, and improved time series db queries for fixed tariffs (and other long-term constants) [see `PR #532 <http://www.github.com/FlexMeasures/flexmeasures/pull/532>`_]
 * Clean up table formatting for ``flexmeasures show`` CLI commands [see `PR #540 <http://www.github.com/FlexMeasures/flexmeasures/pull/540>`_]
+
+
+.. warning:: The CLI command ``flexmeasures monitor tasks`` has been renamed to ``flexmeasures monitor last-run``. The old name will stop working in version 0.13.
 
 
 v0.11.3 | November 2, 2022
