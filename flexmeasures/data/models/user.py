@@ -17,7 +17,6 @@ from flexmeasures.data.models.annotations import (
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.auth.policy import AuthModelMixin
-from flexmeasures.utils.time_utils import server_now
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
@@ -263,7 +262,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
 
 def remember_login(the_app, user):
     """We do not use the tracking feature of flask_security, but this basic meta data are quite handy to know"""
-    user.last_login_at = server_now()
+    user.last_login_at = datetime.utcnow()
     if user.login_count is None:
         user.login_count = 0
     user.login_count = user.login_count + 1
@@ -272,7 +271,7 @@ def remember_login(the_app, user):
 def remember_last_seen(user):
     """Update the last_seen field"""
     if user is not None and user.is_authenticated:
-        user.last_seen_at = server_now()
+        user.last_seen_at = datetime.utcnow()
         db.session.add(user)
         db.session.commit()
 

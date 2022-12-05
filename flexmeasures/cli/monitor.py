@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Optional, List
 
 import click
@@ -196,7 +196,7 @@ def send_lastseen_monitoring_alert(
     "--maximum-minutes-since-last-seen",
     type=int,
     required=True,
-    help="Maximal minutes since last request.",
+    help="Maximal number of minutes since last request.",
 )
 @click.option(
     "--alert-users",
@@ -212,7 +212,7 @@ def send_lastseen_monitoring_alert(
 @click.option(
     "--user-role",
     type=str,
-    help="The name of an account role to filter for.",
+    help="The name of a user role to filter for.",
 )
 @click.option(
     "--custom-user-message",
@@ -240,7 +240,7 @@ def monitor_last_seen(
 
     # find users we haven't seen in the given time window
     users: List[User] = User.query.filter(
-        User.last_seen_at < server_now() - last_seen_delta
+        User.last_seen_at < datetime.utcnow() - last_seen_delta
     ).all()
 
     # role filters
@@ -266,8 +266,8 @@ def monitor_last_seen(
                 msg += f"\n\n{custom_user_message}"
             else:
                 msg += (
-                    "\nBy our own accounting, that gives reason for concern."
-                    "\n\nPlease check if everything is working okay."
+                    "\nBy our own accounting, this should usually not happen."
+                    "\n\nMaybe you want to check if your local code is still working well."
                 )
             email = Message(
                 subject=f"Last contact by user {user.username} too long ago",
