@@ -6,9 +6,34 @@ Error monitoring
 When you run a FlexMeasures server, you want to stay on top of things going wrong. We added two ways of doing that:
 
 - You can connect to Sentry, so that all errors will be sent to your Sentry account. Add the token you got from Sentry in the config setting :ref:`sentry_access_token` and you're up and running! 
-- Another source of crucial errors are things that did not even happen! For instance, a task to import prices from a day-ahead market, which you depend on later for scheduling. We added a new CLI task called ``flexmeasures monitor latest-run``, so you can be alerted when tasks have not successfully run at least so-and-so many minutes ago. The alerts will also come in via Sentry, but you can also send them to email addresses with the config setting :ref:`monitoring_mail_recipients`.
+- Another source of crucial errors are things that did not even happen! For instance, a (bot) user who is supposed to send data regularly, fails to connect with FlexMeasures. Or, a task to import prices from a day-ahead market, which you depend on later for scheduling, fails silently.
 
-For illustration of the latter monitoring, here is one example of how we monitor the latest run times of tasks on a server ― the below is run in a cron script every hour and checks if every listed task ran 60, 6 or 1440 minutes ago, respectively:
+
+Let's look at the two ways how monitor for things not happening in more detail:
+
+
+Monitoring the time users were last seen
+-----------------------------------------
+
+The CLI task ``flexmeasures monitor last-seen`` lets you be alerted if a user has contacted your FlexMeasures instance longer ago than you expect. This is most useful for bot users (a.k.a. scripts).
+
+Here is an example for illustration:
+
+.. code-block:: console
+
+    flexmeasures monitor last-seen --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100
+
+As you see, users are filtered by roles. You might need to add roles before this works as you want.
+
+.. warning:: Adding roles and assigning them to users and/or accounts is not supported by the CLI or UI yet (besides ``flexmeasures add account-role``). This is work in progress. Right now, it requires you to add roles on the database level. 
+
+
+Monitoring task runs
+---------------------
+
+The CLI task ``flexmeasures monitor latest-run`` lets you be alerted when tasks have not successfully run at least so-and-so many minutes ago. The alerts will also come in via Sentry, but you can also send them to email addresses with the config setting :ref:`monitoring_mail_recipients`.
+
+For illustration, here is one example of how we monitor the latest run times of tasks on a server ― the below is run in a cron script every hour and checks if every listed task ran 60, 6 or 1440 minutes ago, respectively:
 
 .. code-block:: console
 
