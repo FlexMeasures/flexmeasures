@@ -9,7 +9,7 @@ When you run a FlexMeasures server, you want to stay on top of things going wron
 - Another source of crucial errors are things that did not even happen! For instance, a (bot) user who is supposed to send data regularly, fails to connect with FlexMeasures. Or, a task to import prices from a day-ahead market, which you depend on later for scheduling, fails silently.
 
 
-Let's look at the two ways how monitor for things not happening in more detail:
+Let's look at how to monitor for things not happening in more detail:
 
 
 Monitoring the time users were last seen
@@ -25,13 +25,14 @@ Here is an example for illustration:
 
 As you see, users are filtered by roles. You might need to add roles before this works as you want.
 
-.. warning:: Adding roles and assigning them to users and/or accounts is not supported by the CLI or UI yet (besides ``flexmeasures add account-role``). This is work in progress. Right now, it requires you to add roles on the database level. 
+.. todo:: Adding roles and assigning them to users and/or accounts is not supported by the CLI or UI yet (besides ``flexmeasures add account-role``). This is `work in progress <https://github.com/FlexMeasures/flexmeasures/projects/18>`_. Right now, it requires you to add roles on the database level. 
 
 
 Monitoring task runs
 ---------------------
 
-The CLI task ``flexmeasures monitor latest-run`` lets you be alerted when tasks have not successfully run at least so-and-so many minutes ago. The alerts will also come in via Sentry, but you can also send them to email addresses with the config setting :ref:`monitoring_mail_recipients`.
+The CLI task ``flexmeasures monitor latest-run`` lets you be alerted when tasks have not successfully run at least so-and-so many minutes ago.
+The alerts will come in via Sentry, but you can also send them to email addresses with the config setting :ref:`monitoring_mail_recipients`.
 
 For illustration, here is one example of how we monitor the latest run times of tasks on a server ― the below is run in a cron script every hour and checks if every listed task ran 60, 6 or 1440 minutes ago, respectively:
 
