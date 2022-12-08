@@ -356,4 +356,4 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             source=source,
             sensor=sensor_data["sensor"],
             **belief_timing,
-        )
+        ).dropna()
