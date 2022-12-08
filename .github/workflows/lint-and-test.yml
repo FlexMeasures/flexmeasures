@@ -15,6 +15,7 @@ jobs:
 
   test:
     needs: check
+    # fixed for now due to problems with 22.04 (see #551), try -latest sometime
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
