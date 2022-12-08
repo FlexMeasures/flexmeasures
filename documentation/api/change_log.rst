@@ -5,9 +5,10 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
-v3.0-4 | 2022-11-29
+v3.0-4 | 2022-12-08
 """""""""""""""""""
 
+- Allow posting ``null`` values to `/sensors/data` (POST) to correctly space time series that include missing values (the missing values are not stored).
 - Introduced the ``source`` field to `/sensors/data` (GET) to obtain data for a given source (ID).
 - Fixed the JSON wrapping of the return message for `/sensors/data` (GET).
 - Changed the Notation section:
