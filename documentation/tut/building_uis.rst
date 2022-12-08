@@ -232,7 +232,12 @@ Now we define a JavaScript function to ask the FlexMeasures API for a chart and 
 
 This function allows us to request a chart (actually, a JSON specification of a chart that can be interpreted by vega-lite), and then embed it within a ``div`` tag of our choice.
 
-Here are some common parameter choices:
+From FlexMeasures, we are using the `GET /api/dev/sensor/(id)/chart/ <../api/dev.html#get--api-dev-sensor-(id)-chart->`_ endpoint.
+Browse the endpoint documentation to learn more about it.
+
+.. note:: Endpoints in the developer API are still under development and are subject to change in new releases.
+
+Here are some common parameter choices for our JavaScript function:
 
 .. code-block:: JavaScript
 
@@ -274,9 +279,3 @@ The result looks like this in your browser (but then just the chart):
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
 ..    :scale: 40%
-
-
-From FlexMeasures, we are using the `GET /api/dev/sensor/(id)/chart/ <../api/dev.html#get--api-dev-sensor-(id)-chart->`_ endpoint.
-Browse the endpoint documentation to learn more about it.
-
-.. note:: Endpoints in the developer API are still under development and are subject to change in new releases.
