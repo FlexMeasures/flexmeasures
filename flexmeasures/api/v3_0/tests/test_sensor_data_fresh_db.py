@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-import numpy as np
 import pytest
 from flask import url_for
 from timely_beliefs.tests.utils import equal_lists
