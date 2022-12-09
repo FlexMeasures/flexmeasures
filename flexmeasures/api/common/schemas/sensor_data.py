@@ -59,7 +59,7 @@ def select_schema_to_ensure_list_of_floats(
     This ensures that we are not requiring the same flexibility from users who are retrieving data.
     """
     if isinstance(values, list):
-        return fields.List(fields.Float)
+        return fields.List(fields.Float(allow_none=True))
     else:
         return SingleValueField()
 
@@ -356,4 +356,4 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             source=source,
             sensor=sensor_data["sensor"],
             **belief_timing,
-        )
+        ).dropna()

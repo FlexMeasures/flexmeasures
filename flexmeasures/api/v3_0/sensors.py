@@ -138,12 +138,13 @@ class SensorAPI(FlaskView):
             }
 
         The above request posts four values for a duration of one hour, where the first
-        event start is at the given start time, and subsequent values start in 15 minute intervals throughout the one hour duration.
+        event start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.
 
         The sensor is the one with ID=1.
         The unit has to be convertible to the sensor's unit.
         The resolution of the data has to match the sensor's required resolution, but
         FlexMeasures will attempt to upsample lower resolutions.
+        The list of values may include null values.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
