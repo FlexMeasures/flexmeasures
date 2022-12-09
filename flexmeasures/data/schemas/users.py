@@ -27,3 +27,4 @@ class UserSchema(ma.SQLAlchemySchema):
     timezone = ma.auto_field()
     flexmeasures_roles = ma.auto_field()
     last_login_at = AwareDateTimeField()
+    last_seen_at = AwareDateTimeField()

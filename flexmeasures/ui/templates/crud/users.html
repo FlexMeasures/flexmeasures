@@ -29,6 +29,7 @@
                                 <th>Account</th>
                                 <th>Timezone</th>
                                 <th>Last Login</th>
+                                <th>Last Seen</th>
                                 <th>Active</th>
                             </tr>
                         </thead>
@@ -51,8 +52,11 @@
                                     <td>
                                         {{ user.timezone }}
                                     </td>
-                                    <td>
+                                    <td title="{{  user.last_login_at | localized_datetime }}">
                                         {{ user.last_login_at | naturalized_datetime}}
+                                    </td>
+                                    <td title="{{  user.last_seen_at | localized_datetime }}">
+                                        {{ user.last_seen_at | naturalized_datetime}}
                                     </td>
                                     <td>
                                         {{ user.active }}
