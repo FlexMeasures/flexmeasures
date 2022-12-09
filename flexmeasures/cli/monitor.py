@@ -174,10 +174,10 @@ def send_lastseen_monitoring_alert(
     if user_role:
         msg += f"\nThis alert concerns users who have the role '{user_role}'."
     if alerted_users:
-        msg += "\n\nThe user(s) has/have been notified as well."
+        msg += "\n\nThe user(s) has/have been notified by email, as well."
     else:
         msg += (
-            "\n\nThe user(s) has/have not been notified (--alert-users was turned off)."
+            "\n\nThe user(s) has/have not been notified (--alert-users was not used)."
         )
     email_recipients = app.config.get("FLEXMEASURES_MONITORING_MAIL_RECIPIENTS", [])
     if len(email_recipients) > 0:
@@ -199,7 +199,7 @@ def send_lastseen_monitoring_alert(
     help="Maximal number of minutes since last request.",
 )
 @click.option(
-    "--alert-users",
+    "--alert-users/--do-not-alert-users",
     type=bool,
     default=False,
     help="If True, also send an email to the user. Defaults to False, as these users are often bots.",
@@ -250,7 +250,7 @@ def monitor_last_seen(
         users = [user for user in users if user.has_role(user_role)]
 
     if not users:
-        print(
+        click.echo(
             f"All good ― no users were found with relevant criteria and last_seen_at longer than {maximum_minutes_since_last_seen} minutes ago."
         )
         return
@@ -270,7 +270,7 @@ def monitor_last_seen(
                     "\n\nMaybe you want to check if your local code is still working well."
                 )
             email = Message(
-                subject=f"Last contact by user {user.username} too long ago",
+                subject=f"Last contact by user {user.username} has been too long ago",
                 recipients=[user.email],
             )
             email.body = msg
