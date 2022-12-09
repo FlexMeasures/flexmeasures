@@ -274,8 +274,8 @@ The parameters we pass in describe what we want to see: all data for sensor 3 si
 If you followed our :ref:`toy tutorial<tut_toy_schedule>` on a fresh FlexMeasures installation, sensor 3 contains market prices (authenticate with the toy-user to gain access).
 
            
-The result looks like this in your browser (but then just the chart):
+The result looks like this in your browser:
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/plotting-prices.png
     :align: center
 ..    :scale: 40%
