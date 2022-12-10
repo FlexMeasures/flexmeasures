@@ -214,6 +214,11 @@ How to group asset types together, e.g. in a dashboard.
 
 Default: ``{"renewables": ["solar", "wind"], "EVSE": ["one-way_evse", "two-way_evse"]}``
 
+FLEXMEASURES_JS_VERSIONS
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Default: ``{"vega": "5.22.1", "vegaembed": "6.20.8", "vegalite": "5.2.0"}``
+
 
 Timing
 ------
