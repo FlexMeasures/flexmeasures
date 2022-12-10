@@ -55,6 +55,16 @@ class SensorAPI(FlaskView):
         """GET from /sensor/<id>/chart
 
         .. :quickref: Chart; Download a chart with time series
+
+        **Optional fields**
+
+        - "event_starts_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "event_ends_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "beliefs_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "include_data" (if true, chart specs include the data; if false, use the `GET /api/dev/sensor/(id)/chart_data/ <../api/dev.html#get--api-dev-sensor-(id)-chart_data->`_ endpoint to fetch data)
+        - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
+        - "height" (an integer number of pixels; without it, FlexMeasures sets a default, currently 300)
         """
         set_time_range_for_session()
         return json.dumps(sensor.chart(**kwargs))
@@ -71,7 +81,7 @@ class SensorAPI(FlaskView):
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "resolution": DurationField(required=False),
-            "most_recent_beliefs_only": fields.Boolean(required=False),
+            "most_recent_beliefs_only": fields.Boolean(required=False, default=True),
         },
         location="query",
     )
@@ -82,6 +92,15 @@ class SensorAPI(FlaskView):
         .. :quickref: Chart; Download time series for use in charts
 
         Data for use in charts (in case you have the chart specs already).
+
+        **Optional fields**
+
+        - "event_starts_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "event_ends_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "beliefs_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "resolution" (see :ref:`resolutions`)
+        - "most_recent_beliefs_only" (if true, returns the most recent belief for each event; if false, returns each belief for each event; defaults to true)
         """
         return sensor.search_beliefs(as_json=True, **kwargs)
 

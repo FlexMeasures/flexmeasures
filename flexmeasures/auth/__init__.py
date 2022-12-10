@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_security import Security, SQLAlchemySessionUserDatastore
-from flask_login import user_logged_in
+from flask_login import user_logged_in, current_user
 from werkzeug.exceptions import Forbidden, Unauthorized
 
 from flexmeasures.data import db
@@ -21,7 +21,12 @@ def register_at(app: Flask):
         unauthorized_handler,
         unauthorized_handler_e,
     )  # noqa: F401
-    from flexmeasures.data.models.user import User, Role, remember_login  # noqa: F401
+    from flexmeasures.data.models.user import (
+        User,
+        Role,
+        remember_login,
+        remember_last_seen,
+    )  # noqa: F401
 
     # Setup Flask-Security-Too for user authentication & authorization
     user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
@@ -39,3 +44,8 @@ def register_at(app: Flask):
 
     # add our custom handler for a user login event
     user_logged_in.connect(remember_login)
+
+    # also store when the last contact was
+    @app.before_request
+    def record_last_seen():
+        remember_last_seen(current_user)

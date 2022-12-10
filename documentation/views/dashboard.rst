@@ -36,3 +36,11 @@ Summary of asset types
 The summary below the map lists all asset types that the user has hooked up to the platform and how many of each there are.
 Clicking on the asset type name leads to the :ref:`analytics` page, where data is shown aggregated for that asset type. 
 
+
+Grouping by accounts
+=====================
+
+.. note:: This is a feature for user with role ``admin`` or ``admin-reader``.
+
+By default, the map is layered by asset type. However, on the bottom right admins can also switch to grouping by accounts.
+Then, map layers will contain the assets owned by accounts, and you can easily see who you're serving with what.

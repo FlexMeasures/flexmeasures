@@ -98,7 +98,13 @@ def get_prices(
     sensor: Optional[Sensor] = None,
     allow_trimmed_query_window: bool = True,
 ) -> Tuple[pd.DataFrame, Tuple[datetime, datetime]]:
-    """Check for known prices or price forecasts, trimming query window accordingly if allowed."""
+    """Check for known prices or price forecasts.
+
+    If so allowed, the query window is trimmed according to the available data.
+    If not allowed, prices are extended to the edges of the query window:
+    - The first available price serves as a naive backcast.
+    - The last available price serves as a naive forecast.
+    """
 
     # Look for the applicable price sensor
     if price_sensor is None:
@@ -134,13 +140,29 @@ def get_prices(
             first_event_start = price_df.first_valid_index()
             last_event_end = price_df.last_valid_index() + resolution
             current_app.logger.warning(
-                f"Prices partially unknown for planning window (sensor {price_sensor.id}). Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
+                f"Prices partially unknown for planning window (sensor {price_sensor.id}). "
+                f"Trimming planning window (from {query_window[0]} until {query_window[-1]}) to {first_event_start} until {last_event_end}."
             )
             query_window = (first_event_start, last_event_end)
         else:
-            raise UnknownPricesException(
-                f"Prices partially unknown for planning window (sensor {price_sensor.id})."
+            current_app.logger.warning(
+                f"Prices partially unknown for planning window (sensor {price_sensor.id}). "
+                f"Assuming the first price is valid from the start of the planning window ({query_window[0]}), "
+                f"and the last price is valid until the end of the planning window ({query_window[-1]})."
             )
+            index = initialize_index(
+                start=query_window[0],
+                end=query_window[1],
+                resolution=resolution,
+            )
+            price_df = price_df.reindex(index)
+            # or to also forward fill intermediate NaN values, use: price_df = price_df.ffill().bfill()
+            price_df[: price_df.first_valid_index()] = price_df[
+                price_df.index == price_df.first_valid_index()
+            ].values[0]
+            price_df[price_df.last_valid_index() :] = price_df[
+                price_df.index == price_df.last_valid_index()
+            ].values[0]
     return price_df, query_window
 
 

@@ -49,7 +49,7 @@ def bar_chart(
                     **event_value_field_definition,
                     **dict(title=f"{capitalize(sensor.sensor_type)}"),
                 },
-                FIELD_DEFINITIONS["source_name"],
+                FIELD_DEFINITIONS["source_name_and_id"],
                 FIELD_DEFINITIONS["source_model"],
             ],
         },
@@ -57,6 +57,10 @@ def bar_chart(
             {
                 "calculate": f"datum.event_start + {resolution_in_ms}",
                 "as": "event_end",
+            },
+            {
+                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                "as": "source_name_and_id",
             },
         ],
     }
@@ -110,7 +114,7 @@ def chart_for_multiple_sensors(
                 **event_value_field_definition,
                 **dict(title=f"{capitalize(sensor.sensor_type)}"),
             },
-            FIELD_DEFINITIONS["source_name"],
+            FIELD_DEFINITIONS["source_name_and_id"],
             FIELD_DEFINITIONS["source_model"],
         ]
         line_layer = {
@@ -226,6 +230,12 @@ def chart_for_multiple_sensors(
     chart_specs = dict(
         description="A vertically concatenated chart showing sensor data.",
         vconcat=[*sensors_specs],
+        transform=[
+            {
+                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                "as": "source_name_and_id",
+            },
+        ],
         spacing=100,
         bounds="flush",
     )
