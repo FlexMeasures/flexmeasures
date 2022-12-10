@@ -58,7 +58,7 @@ class StorageScheduler(Scheduler):
             beliefs_before=self.belief_time,
             price_sensor=consumption_price_sensor,
             sensor=self.sensor,
-            allow_trimmed_query_window=True,
+            allow_trimmed_query_window=False,
         )
         down_deviation_prices, (start, end) = get_prices(
             (start, end),
@@ -66,7 +66,7 @@ class StorageScheduler(Scheduler):
             beliefs_before=self.belief_time,
             price_sensor=production_price_sensor,
             sensor=self.sensor,
-            allow_trimmed_query_window=True,
+            allow_trimmed_query_window=False,
         )
 
         start = pd.Timestamp(start).tz_convert("UTC")

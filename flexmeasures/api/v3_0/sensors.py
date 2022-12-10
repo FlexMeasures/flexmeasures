@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import json
 from typing import List, Optional
 
 from flask import current_app
@@ -131,12 +130,13 @@ class SensorAPI(FlaskView):
             }
 
         The above request posts four values for a duration of one hour, where the first
-        event start is at the given start time, and subsequent values start in 15 minute intervals throughout the one hour duration.
+        event start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.
 
         The sensor is the one with ID=1.
         The unit has to be convertible to the sensor's unit.
         The resolution of the data has to match the sensor's required resolution, but
         FlexMeasures will attempt to upsample lower resolutions.
+        The list of values may include null values.
 
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
@@ -174,6 +174,13 @@ class SensorAPI(FlaskView):
 
         The unit has to be convertible from the sensor's unit.
 
+        **Optional fields**
+
+        - "resolution" (see :ref:`resolutions`)
+        - "horizon" (see :ref:`beliefs`)
+        - "prior" (see :ref:`beliefs`)
+        - "source" (see :ref:`sources`)
+
         :reqheader Authorization: The authentication token
         :reqheader Content-Type: application/json
         :resheader Content-Type: application/json
@@ -183,7 +190,8 @@ class SensorAPI(FlaskView):
         :status 403: INVALID_SENDER
         :status 422: UNPROCESSABLE_ENTITY
         """
-        return json.dumps(response)
+        d, s = request_processed()
+        return dict(**response, **d), s
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @use_kwargs(
