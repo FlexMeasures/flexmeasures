@@ -220,7 +220,7 @@ class StorageScheduler(Scheduler):
         ):
             raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
 
-        # Now it's time to check is our flex configs hold up to basic expectations
+        # Now it's time to check if our flex configurations hold up to basic expectations
         self.flex_model = self.flex_model_schema().load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 

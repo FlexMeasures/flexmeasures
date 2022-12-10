@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import json
-from typing import List, Optional
+from typing import List, Dict, Optional
 
 from flask import current_app
 from flask_classful import FlaskView, route
@@ -274,20 +274,22 @@ class SensorAPI(FlaskView):
         The length of schedules is set by the config setting FLEXMEASURES_PLANNING_HORIZON, defaulting to 12 hours.
         TODO: add a schedule duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
 
-        Flexibility models apply to the sensor's asset type:
+        The Flexibility model which is relevant in your request usually relates to the sensor's asset type.
+        It's also possible to use custom schedulers and custom models, see :ref:`plugin_customization`.
+        Here are the three storage models you can expect to be built-in:
 
         1) For storage sensors (e.g. battery, charge points), the schedule deals with the state of charge (SOC).
            The possible flexibility parameters are:
 
-            - soc-at-start (defaults to 0)
-            - soc-unit (kWh or MWh)
-            - soc-min (defaults to 0)
-            - soc-max (defaults to max soc target)
-            - soc-targets (defaults to NaN values)
-            - roundtrip-efficiency (defaults to 100%)
-            - prefer-charging-sooner (defaults to True, also signals a preference to discharge later)
+            - soc_at_start (defaults to 0)
+            - soc_unit (kWh or MWh)
+            - soc_min (defaults to 0)
+            - soc_max (defaults to max soc target)
+            - soc_targets (defaults to NaN values)
+            - roundtrip_efficiency (defaults to 100%)
+            - prefer_charging_sooner (defaults to True, also signals a preference to discharge later)
 
-        2) Shiftable process TODO: simple algorithm exists, needs integration and asset type clarified.
+        2) Shiftable process TODO: simple algorithm exists, needs integration into FlexMeasures and asset type clarified.
 
         3) Heat pumps TODO: Also work in progress, needs model for heat loss compensation.
 
@@ -302,9 +304,9 @@ class SensorAPI(FlaskView):
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
-                "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh"
+                "flex_model": {
+                    "soc_at_start": 12.1,
+                    "soc_unit": "kWh"
                 }
             }
 
@@ -324,23 +326,23 @@ class SensorAPI(FlaskView):
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
-                "flex-model": {
-                    "soc-at-start": 12.1,
-                    "soc-unit": "kWh",
-                    "soc-targets": [
+                "flex_model": {
+                    "soc_at_start": 12.1,
+                    "soc_unit": "kWh",
+                    "soc_targets": [
                         {
                             "value": 25,
                             "datetime": "2015-06-02T16:00:00+00:00"
                         }
                     ],
-                    "soc-min": 10,
-                    "soc-max": 25,
-                    "roundtrip-efficiency": 0.98,
+                    "soc_min": 10,
+                    "soc_max": 25,
+                    "roundtrip_efficiency": 0.98,
                 },
-                "flex-context": {
-                    "consumption-price-sensor": 9,
-                    "production-price-sensor": 10,
-                    "inflexible-device-sensors": [13, 14, 15]
+                "flex_context": {
+                    "consumption_price_sensor": 9,
+                    "production_price_sensor": 10,
+                    "inflexible_device_sensors": [13, 14, 15]
                 }
             }
 
@@ -369,11 +371,10 @@ class SensorAPI(FlaskView):
         :status 405: INVALID_METHOD
         :status 422: UNPROCESSABLE_ENTITY
         """
-        # TODO: make flex model and portfolio context work in deprecated ways, as well
-
-        # -- begin deprecation logic
-        found_fields = []
+        # -- begin deprecation logic, can be removed after 0.13
+        found_fields: Dict[str, List[str]] = dict(model=[], context=[])
         deprecation_message = ""
+        # flex-model
         for param, param_name, new_model_name in [
             (start_value, "soc-at-start", "soc_at_start"),
             (soc_min, "soc-min", "soc_min"),
@@ -393,12 +394,39 @@ class SensorAPI(FlaskView):
                     if param_name == "roundtrip-efficiency" and type(param) != float:
                         param = param.to(ur.Quantity("dimensionless")).magnitude  # type: ignore
                     flex_model[new_model_name] = param
-                found_fields.append(param_name)
-        if found_fields:
+                found_fields["model"].append(param_name)
+        # flex-context
+        for param, param_name, new_model_name in [
+            (
+                consumption_price_sensor,
+                "consumption-price-sensor",
+                "consumption_price_sensor",
+            ),
+            (
+                production_price_sensor,
+                "production-price-sensor",
+                "production_price_sensor",
+            ),
+            (
+                inflexible_device_sensors,
+                "inflexible-device-sensors",
+                "inflexible_device_sensors",
+            ),
+        ]:
+            if flex_context is None:
+                flex_context = {}
+            if param is not None:
+                if new_model_name not in flex_context:
+                    flex_context[new_model_name] = param
+                found_fields["context"].append(param_name)
+        if found_fields["model"] or found_fields["context"]:
             deprecation_message = (
-                "The following fields you sent will be deprecated in the next version: "
-                f"{', '.join(found_fields)}. Please pass as part of flex_model."
+                "The following fields you sent will be deprecated in the next version:"
             )
+            if found_fields["model"]:
+                deprecation_message += f" {', '.join(found_fields['model'])} (please pass as part of flex_model)."
+            if found_fields["model"]:
+                deprecation_message += f" {', '.join(found_fields['context'])} (please pass as part of flex_context)."
         # -- end deprecation logic
 
         end_of_schedule = start_of_schedule + current_app.config.get(  # type: ignore
