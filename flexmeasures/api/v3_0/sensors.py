@@ -7,7 +7,7 @@ from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
 import isodate
-from marshmallow import fields, validate
+from marshmallow import fields, validate, ValidationError
 from marshmallow.validate import OneOf
 from rq.job import Job, NoSuchJobError
 from timely_beliefs import BeliefsDataFrame
@@ -17,6 +17,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_event,
     unknown_schedule,
+    invalid_flex_config,
 )
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
@@ -441,9 +442,13 @@ class SensorAPI(FlaskView):
             flex_model=flex_model,
             flex_context=flex_context,
         )
-        # We create a scheduler, to make sure it's checked
-        # TODO: catch schema errors here - are they handled the right way already?
-        find_scheduler_class(sensor)(**scheduler_kwargs).inspect_config()
+
+        try:
+            # We create a scheduler, so the flex config is also checked and results are returned
+            find_scheduler_class(sensor)(**scheduler_kwargs).inspect_config()
+        except ValidationError as err:
+            return invalid_flex_config(err.messages)
+
         # From here on, we handle IDs again, not objects
         scheduler_kwargs.update(sensor_id=scheduler_kwargs.pop("sensor").id)
 

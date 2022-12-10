@@ -18,6 +18,38 @@ from flexmeasures.utils.calculations import integrate_time_series
 
 
 @pytest.mark.parametrize(
+    "message, field, sent_value, err_msg",
+    [
+        (message_for_trigger_schedule(), "soc_minn", 3, "Unknown field"),
+        (
+            message_for_trigger_schedule(),
+            "soc_min",
+            "not-a-float",
+            "Not a valid number",
+        ),
+        (message_for_trigger_schedule(), "soc_unit", "MWH", "Must be one of"),
+    ],
+)
+def test_trigger_schedule_with_invalid_flexmodel(
+    app, add_battery_assets, message, field, sent_value, err_msg
+):
+    sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
+    with app.test_client() as client:
+        message["flex_model"][field] = sent_value
+        # message[field] = wrong_value
+        auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+            headers={"Authorization": auth_token},
+        )
+        print("Server responded with:\n%s" % trigger_schedule_response.json)
+        assert trigger_schedule_response.status_code == 422
+        assert field in trigger_schedule_response.json["message"]["json"]
+        assert err_msg in trigger_schedule_response.json["message"]["json"][field][0]
+
+
+@pytest.mark.parametrize(
     "message, asset_name",
     [
         (message_for_trigger_schedule(deprecated_format_pre012=True), "Test battery"),
