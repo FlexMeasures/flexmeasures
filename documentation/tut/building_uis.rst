@@ -43,7 +43,7 @@ Here is a JavaScript function to call it:
             .then(console.log("Got auth token from FlexMeasures server ..."));
     }
 
-It only expects you to set ``email`` and ``password`` somewhere (you could also pass them in). In addition, we expect here that ``flexmeasures_domain`` is set to the FlexMeasures server you interact with, for example "https://company.flexmeasures.io". 
+It only expects you to set ``email`` and ``password`` somewhere (you could also pass them to the function, your call). In addition, we expect here that ``flexmeasures_domain`` is set to the FlexMeasures server you interact with, for example "https://company.flexmeasures.io". 
 
 We'll see how to make use of the ``getAuthToken`` function right away, keep on reading.
 
@@ -55,7 +55,7 @@ Load user information
 
 Let's say we are interested in a particular user's meta data. For instance, which email address do they have and which timezone are they operating in? 
 
-Here is some code to find out and display that information in a simple HTML table:
+Given we have set a variable called ``userId``, here is some code to find out and display that information in a simple HTML table:
 
 
 .. code-block:: html
@@ -114,8 +114,20 @@ Browse its documentation to learn about other information you could get.
 Load asset information
 -----------------------
 
-Similarly, we can load asset information. Say we have a user ID and we want to show which assets FlexMeasures administrates for that user.
+Similarly, we can load asset information. Say we have a variable ``accountId`` and we want to show which assets FlexMeasures administrates for that account.
 
+For the example below, we've used the Id of the account from our toy tutorial, see :ref:`toy tutorial<tut_toy_schedule>`.
+
+
+.. code-block:: html
+
+    <style>
+        #assetTable th, #assetTable td {
+            border-right: 1px solid gray;
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+    </style>
 
 .. code-block:: html
 
@@ -123,8 +135,9 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
         <thead>
           <tr>
             <th>Asset name</th>
-            <th>Type</th>
-            <th>Capacity</th>
+            <th>Id</th>
+            <th>Latitude</th>
+            <th>Longitude</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -133,9 +146,9 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
 
 .. code-block:: JavaScript
     
-    function loadAssets(userId, authToken) {
+    function loadAssets(accountId, authToken) {
         var params = new URLSearchParams();
-        params.append("account_id", userId);
+        params.append("account_id", accountId);
         fetch(flexmeasures_domain + '/api/v3_0/assets?' + params.toString(),
             {
                 method: "GET",
@@ -153,7 +166,7 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
             rows.forEach(row => {
             const tbody = document.querySelector('#assetTable tbody');
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${row.display_name}</td><td>${row.asset_type_name}</td><td>${row.capacity_in_mw} MW</td>`;
+            tr.innerHTML = `<td>${row.name}</td><td>${row.id}</td><td>${row.latitude}</td><td>${row.longitude}</td>`;
             tbody.appendChild(tr);
             });
         })            
@@ -164,7 +177,7 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
             getAuthToken()
             .then(function(response) {
                 var authToken = response.auth_token;
-                loadAssets(userId, authToken);
+                loadAssets(accountId, authToken);
             })
         }
     }
@@ -179,7 +192,7 @@ The result looks like this in your browser:
 
  
 From FlexMeasures, we are using the `[GET] /assets <../api/v3_0.html#get--api-v3_0-assets>`_ endpoint, which loads a list of assets.
-Note how, unlike the user endpoint above, we are passing a query parameter here (``account_id``).
+Note how, unlike the user endpoint above, we are passing a query parameter to the API (``account_id``).
 We are only displaying a subset of the information which is available about assets.
 Browse the endpoint documentation to learn other information you could get.
 
