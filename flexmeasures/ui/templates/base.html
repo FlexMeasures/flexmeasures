@@ -267,6 +267,10 @@
     var elementId = 'sensorchart';
     var chartSpecsPath = dataPath + '/chart?';
 
+    // Set up abort controller to cancel requests
+    var controller = new AbortController();
+    var signal = controller.signal;
+
     const initialData = fetch(dataPath + '/chart_data/?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
         method: "GET",
         headers: {"Content-Type": "application/json"},
@@ -286,9 +290,6 @@
         var sessionEnd = null
     {% endif %}
 
-    // Set up abort controller to cancel requests
-    var controller = new AbortController();
-    var signal = controller.signal;
 
     // Create date range picker and the logic for a new date range selection (mostly, fetching data and displaying the chart for it)
     const date = Date();
