@@ -45,7 +45,7 @@ Infrastructure / Support
 
 .. warning:: The CLI command ``flexmeasures monitor tasks`` has been renamed to ``flexmeasures monitor last-run``. The old name will stop working in version 0.13.
 
-.. warning:: The API endpoint (`[POST] /sensors/(id)/schedule/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_) and CLI command (``flexmeasures add schedule``) to make new schedules will (in v0.13) deprecate the storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
+.. warning:: The API endpoint (`[POST] /sensors/(id)/schedule/trigger <api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_) and CLI command (``flexmeasures add schedule``) to make new schedules will (in v0.13) deprecate the storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
 
 
 v0.11.3 | November 2, 2022
