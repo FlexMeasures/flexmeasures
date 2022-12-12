@@ -239,6 +239,10 @@
     let queryEndDate;
     let storeStartDate;
     let storeEndDate;
+    {% if event_starts_after and event_ends_before %}
+        storeStartDate = new Date('{{ event_starts_after }}');
+        storeEndDate = new Date('{{ event_ends_before }}');
+    {% endif %}
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
