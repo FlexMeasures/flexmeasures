@@ -121,5 +121,5 @@ def test_get_instantaneous_sensor_data(
     assert response.status_code == 200
     values = response.json["values"]
     # We expect two data point (from conftest) followed by 2 null values (which are converted to None by .json)
-    # The first data point is 815 is the first of [815, 817], and the second data point is the first of [818, None].
+    # The first data point is the first of [815, 817], and the second data point is the first of [818, None].
     assert all(a == b for a, b in zip(values, [815, 818, None, None]))
