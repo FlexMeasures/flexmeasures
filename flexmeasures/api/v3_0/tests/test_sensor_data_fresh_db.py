@@ -4,6 +4,7 @@ from datetime import timedelta
 
 import pytest
 from flask import url_for
+from timely_beliefs.tests.utils import equal_lists
 
 from flexmeasures import Sensor, Source, User
 from flexmeasures.api.tests.utils import get_auth_token
@@ -12,18 +13,20 @@ from flexmeasures.data.models.time_series import TimedBelief
 
 
 @pytest.mark.parametrize(
-    "num_values, expected_num_values, unit, expected_value",
+    "num_values, expected_num_values, unit, include_a_null, expected_value",
     [
-        (6, 6, "m³/h", -11.28),
-        (6, 6, "m³", 6 * -11.28),  # 6 * 10-min intervals per hour
-        (6, 6, "l/h", -11.28 / 1000),  # 1 m³ = 1000 l
-        (3, 6, "m³/h", -11.28),  # upsample to 20-min intervals
+        (6, 6, "m³/h", False, -11.28),
+        (6, 5, "m³/h", True, -11.28),  # NaN value does not enter database
+        (6, 6, "m³", False, 6 * -11.28),  # 6 * 10-min intervals per hour
+        (6, 6, "l/h", False, -11.28 / 1000),  # 1 m³ = 1000 l
+        (3, 6, "m³/h", False, -11.28),  # upsample from 20-min intervals
         (
             1,
             6,
             "m³/h",
+            False,
             -11.28,
-        ),  # upsample to single value for 1-hour interval, sent as float rather than list of floats
+        ),  # upsample from single value for 1-hour interval, sent as float rather than list of floats
     ],
 )
 def test_post_sensor_data(
@@ -32,10 +35,11 @@ def test_post_sensor_data(
     num_values,
     expected_num_values,
     unit,
+    include_a_null,
     expected_value,
 ):
     post_data = make_sensor_data_request_for_gas_sensor(
-        num_values=num_values, unit=unit
+        num_values=num_values, unit=unit, include_a_null=include_a_null
     )
     sensor = Sensor.query.filter(Sensor.name == "some gas sensor").one_or_none()
     filters = (
@@ -58,7 +62,9 @@ def test_post_sensor_data(
     print(f"BELIEFS AFTER: {beliefs}")
     assert len(beliefs) == expected_num_values
     # check that values are scaled to the sensor unit correctly
-    assert pytest.approx(beliefs[0].event_value - expected_value) == 0
+    assert equal_lists(
+        [b.event_value for b in beliefs], [expected_value] * expected_num_values
+    )
 
 
 def test_get_sensor_data(

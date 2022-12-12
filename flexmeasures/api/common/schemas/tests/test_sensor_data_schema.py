@@ -57,6 +57,14 @@ def test_resolution_field_deserialization(
             [2.7],
             [2.7],
         ),
+        (
+            [1, None, 3],  # sending a None/null value as part of a list is allowed
+            [1, None, 3],
+        ),
+        (
+            [None],  # sending a None/null value as part of a list is allowed
+            [None],
+        ),
     ],
 )
 def test_value_field_deserialization(
@@ -102,6 +110,10 @@ def test_value_field_serialization(
         (
             "3, 4",
             "Not a valid number",
+        ),
+        (
+            None,
+            "may not be null",  # sending a single None/null value is not allowed
         ),
     ],
 )

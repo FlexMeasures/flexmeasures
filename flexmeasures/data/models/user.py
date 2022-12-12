@@ -187,7 +187,11 @@ class User(db.Model, UserMixin, AuthModelMixin):
     email = Column(String(255), unique=True)
     username = Column(String(255), unique=True)
     password = Column(String(255))
+    # Last time the user logged in (provided credentials to get access)
     last_login_at = Column(DateTime())
+    # Last time the user made a request (authorized by session or auth token)
+    last_seen_at = Column(DateTime())
+    # How often have they logged in?
     login_count = Column(Integer)
     active = Column(Boolean())
     # Faster token checking
@@ -262,6 +266,14 @@ def remember_login(the_app, user):
     if user.login_count is None:
         user.login_count = 0
     user.login_count = user.login_count + 1
+
+
+def remember_last_seen(user):
+    """Update the last_seen field"""
+    if user is not None and user.is_authenticated:
+        user.last_seen_at = datetime.utcnow()
+        db.session.add(user)
+        db.session.commit()
 
 
 def is_user(o) -> bool:

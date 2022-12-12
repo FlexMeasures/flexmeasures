@@ -14,8 +14,8 @@ from dateutil import tz
 
 
 def server_now() -> datetime:
-    """The current time of the FlexMeasures platform. UTC time, localized to the FlexMeasures timezone."""
-    return as_server_time(datetime.utcnow())
+    """The current time (timezone aware), converted to the timezone of the FlexMeasures platform."""
+    return get_timezone().fromutc(datetime.utcnow())
 
 
 def ensure_local_timezone(

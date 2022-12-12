@@ -62,10 +62,18 @@
                             </tr>
                             <tr>
                                 <td>
-                                    Last login was
+                                    Last login
                                 </td>
+                                <td title="{{  logged_in_user.last_login_at | localized_datetime }}">
+                                    {{ logged_in_user.last_login_at | naturalized_datetime }}
+                                </td>
+                            </tr>
+                            <tr>
                                 <td>
-                                    {{ logged_in_user.last_login_at | localized_datetime }}
+                                    Last seen
+                                </td>
+                                <td title="{{  logged_in_user.last_seen_at | localized_datetime }}">
+                                    {{ logged_in_user.last_seen_at | naturalized_datetime }}
                                 </td>
                             </tr>
                             <tr>
