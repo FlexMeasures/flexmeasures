@@ -43,7 +43,7 @@ Here is a JavaScript function to call it:
             .then(console.log("Got auth token from FlexMeasures server ..."));
     }
 
-It only expects you to set ``email`` and ``password`` somewhere (you could also pass them in). In addition, we expect here that ``flexmeasures_domain`` is set to the FlexMeasures server you interact with, for example "https://company.flexmeasures.io". 
+It only expects you to set ``email`` and ``password`` somewhere (you could also pass them to the function, your call). In addition, we expect here that ``flexmeasures_domain`` is set to the FlexMeasures server you interact with, for example "https://company.flexmeasures.io". 
 
 We'll see how to make use of the ``getAuthToken`` function right away, keep on reading.
 
@@ -55,7 +55,7 @@ Load user information
 
 Let's say we are interested in a particular user's meta data. For instance, which email address do they have and which timezone are they operating in? 
 
-Here is some code to find out and display that information in a simple HTML table:
+Given we have set a variable called ``userId``, here is some code to find out and display that information in a simple HTML table:
 
 
 .. code-block:: html
@@ -114,8 +114,20 @@ Browse its documentation to learn about other information you could get.
 Load asset information
 -----------------------
 
-Similarly, we can load asset information. Say we have a user ID and we want to show which assets FlexMeasures administrates for that user.
+Similarly, we can load asset information. Say we have a variable ``accountId`` and we want to show which assets FlexMeasures administrates for that account.
 
+For the example below, we've used the Id of the account from our toy tutorial, see :ref:`toy tutorial<tut_toy_schedule>`.
+
+
+.. code-block:: html
+
+    <style>
+        #assetTable th, #assetTable td {
+            border-right: 1px solid gray;
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+    </style>
 
 .. code-block:: html
 
@@ -123,8 +135,9 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
         <thead>
           <tr>
             <th>Asset name</th>
-            <th>Type</th>
-            <th>Capacity</th>
+            <th>Id</th>
+            <th>Latitude</th>
+            <th>Longitude</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -133,10 +146,10 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
 
 .. code-block:: JavaScript
     
-    function loadAssets(userId, authToken) {
+    function loadAssets(accountId, authToken) {
         var params = new URLSearchParams();
-        params.append("owner_id", userId);
-        fetch(flexmeasures_domain + '/api/v2_0/assets?' + params.toString(),
+        params.append("account_id", accountId);
+        fetch(flexmeasures_domain + '/api/v3_0/assets?' + params.toString(),
             {
                 method: "GET",
                 mode: "cors",
@@ -153,7 +166,7 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
             rows.forEach(row => {
             const tbody = document.querySelector('#assetTable tbody');
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${row.display_name}</td><td>${row.asset_type_name}</td><td>${row.capacity_in_mw} MW</td>`;
+            tr.innerHTML = `<td>${row.name}</td><td>${row.id}</td><td>${row.latitude}</td><td>${row.longitude}</td>`;
             tbody.appendChild(tr);
             });
         })            
@@ -164,7 +177,7 @@ Similarly, we can load asset information. Say we have a user ID and we want to s
             getAuthToken()
             .then(function(response) {
                 var authToken = response.auth_token;
-                loadAssets(userId, authToken);
+                loadAssets(accountId, authToken);
             })
         }
     }
@@ -178,49 +191,44 @@ The result looks like this in your browser:
 
 
  
-From FlexMeasures, we are using the `[GET] /assets <../api/v2_0.html#get--api-v2_0-assets>`_ endpoint, which loads a list of assets. Note how, unlike the user endpoint above, we are passing a query parameter here (``owner_id``). We are only displaying a subset of the information which is available about assets. Browse the endpoint documentation to learn other information you could get.
+From FlexMeasures, we are using the `[GET] /assets <../api/v3_0.html#get--api-v3_0-assets>`_ endpoint, which loads a list of assets.
+Note how, unlike the user endpoint above, we are passing a query parameter to the API (``account_id``).
+We are only displaying a subset of the information which is available about assets.
+Browse the endpoint documentation to learn other information you could get.
+
+For a listing of public assets, replace `/api/v3_0/assets` with `/api/v3_0/assets/public`.
 
 
-Embedding plots
+Embedding charts
 ------------------------
 
-Creating plots from data can consume lots of development time. FlexMeasures can help here by delivering ready-made plots.
+Creating charts from data can consume lots of development time.
+FlexMeasures can help here by delivering ready-made charts.
+In this tutorial, we'll embed a chart with electricity prices.
 
-In this tutorial, let's display two plots: one with power measurements and forecasts (a solar panel installation) and one with schedules of several EV chargers on the same location, next to each other for easy comparison.
-
-First, we define two div tags for the two plots and a basic layout for them. We also load the Bokeh library, more about that below.
-
-.. code-block:: html
-
-    <style>
-        #flexbox {
-            display: flex;
-        }
-        #plot-div1, #plot-div2 {
-            height: 450px;
-            width: 450px;
-            border: 1px solid grey;
-        }
-        /* a fix we have to do if we position absolutely-positioned Bokeh plots in a flexbox design */
-        .bk-plot-layout, .bk-plot-wrapper {
-            position: relative !important;
-        }
-    </style>
+First, we define a div tag for the chart and a basic layout (full width). We also load the visualization libraries we need (more about that below), and set up a custom formatter we use in FlexMeasures charts.
 
 .. code-block:: html
-    
-    <script src="https://cdn.pydata.org/bokeh/release/bokeh-1.0.4.min.js"></script>
-    <div id="flexbox">
-        <div id="plot-div1"></div>
-        <div id="plot-div2"></div>
-    </div>
 
-Now we define a JavaScript function to ask the FlexMeasures API for a plot:
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega@5.22.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.20.8"></script>
+    <script>
+        vega.expressionFunction('quantityWithUnitFormat', function(datum, params) {
+            return d3.format(params[0])(datum) + " " + params[1];
+        });
+    </script>
+
+    <div id="sensor-chart" style="width: 100%;"></div>
+
+Now we define a JavaScript function to ask the FlexMeasures API for a chart and then embed it:
 
 .. code-block:: JavaScript
 
-    function renderPlot(params, authToken, divId){
-        fetch(flexmeasures_domain + '/api/v2_0/charts/power?' + params.toString(),
+    function embedChart(params, authToken, sensorId, divId){
+        fetch(
+            flexmeasures_domain + '/api/dev/sensor/' + sensorId + '/chart?include_data=true&' + params.toString(),
             {
                 method: "GET",
                 mode: "cors",
@@ -228,21 +236,37 @@ Now we define a JavaScript function to ask the FlexMeasures API for a plot:
                     {
                     "Content-Type": "application/json",
                     "Authorization": authToken
-                    },
+                    }
             }
         )
-        .then(function(response) { return response.json(); })
-        .then(function(item) { Bokeh.embed.embed_item(item, divId); })
-        .then(console.log("Got plot specifications from server and rendered it ..."))
+        .then(function(response) {return response.json();})
+        .then(function(data) {vegaEmbed(divId, data)})
     }
 
-This function allows us to request a plot (actually, HTML and JavaScript code to render a plot), and then render the plot within a ``div`` tag of our choice.
+This function allows us to request a chart (actually, a JSON specification of a chart that can be interpreted by vega-lite), and then embed it within a ``div`` tag of our choice.
 
-As FlexMeasures uses `the Bokeh Visualization Library <https://bokeh.org/>`_ internally, we also need to import the Bokeh client library to render the plots (see the ``script`` tag above). It's crucial to note that FlexMeasures is not transferring images across HTTP here, just information needed to render them.
+From FlexMeasures, we are using the `GET /api/dev/sensor/(id)/chart/ <../api/dev.html#get--api-dev-sensor-(id)-chart->`_ endpoint.
+Browse the endpoint documentation to learn more about it.
 
-.. note:: The Bokeh library version you use in your frontend needs to match the version which FlexMeasures uses internally, check ``requirements/app.txt`` when in doubt.
+.. note:: Endpoints in the developer API are still under development and are subject to change in new releases.
 
-Now let's call this function when the HTML page is opened, to load our two plots:
+Here are some common parameter choices for our JavaScript function:
+
+.. code-block:: JavaScript
+
+    var params = new URLSearchParams();
+    params.append("width", 400); // an integer number of pixels; without it, the chart will be scaled to the full width of the container (note that we set the div width to 100%)
+    params.append("height", 400); // an integer number of pixels; without it, a FlexMeasures default is used
+    params.append("event_starts_after", '2022-10-01T00:00+01'); // only fetch events from midnight October 1st
+    params.append("event_ends_before", '2022-10-08T00:00+01'); // only fetch events until midnight October 8th
+    params.append("beliefs_before", '2022-10-03T00:00+01'); // only fetch beliefs prior to October 3rd (time travel)
+
+
+As FlexMeasures uses `the Vega-Lite Grammar of Interactive Graphics <https://vega.github.io/vega-lite/>`_ internally, we also need to import this library to render the chart (see the ``script`` tags above). It's crucial to note that FlexMeasures is not transferring images across HTTP here, just information needed to render them.
+
+.. note:: It's best to match the visualization library versions you use in your frontend to those used by FlexMeasures. These are set by the FLEXMEASURES_JS_VERSIONS config (see :ref:`configuration`) with defaults kept in ``flexmeasures/utils/config_defaults``.
+
+Now let's call this function when the HTML page is opened, to embed our chart:
 
 .. code-block:: JavaScript
 
@@ -252,36 +276,19 @@ Now let's call this function when the HTML page is opened, to load our two plots
             .then(function(response) {
                 var authToken = response.auth_token;
 
-                var urlData1 = new URLSearchParams();
-                urlData1.append("resource", "ss_pv");
-                urlData1.append("start_time", "2015-06-01T10:00:00");
-                urlData1.append("end_time", "2015-06-03T10:00:00");
-                urlData1.append("resolution", "PT15M");
-                urlData1.append("forecast_horizon", "PT6H");
-                urlData1.append("show_individual_traces_for", "none");
-                renderPlot(urlData1, authToken, "plot-div1");
-                
-                var urlData2 = new URLSearchParams();
-                urlData2.append("resource", "Test station (Charge Point)");
-                urlData2.append("start_time", "2015-01-01T00:00:00");
-                urlData2.append("end_time", "2015-01-01T03:00:00");
-                urlData2.append("resolution", "PT15M");
-                urlData2.append("show_individual_traces_for", "schedules");
-                renderPlot(urlData2, authToken, "plot-div2");
+                var params = new URLSearchParams();
+                params.append("event_starts_after", '2022-01-01T00:00+01');
+                embedChart(params, authToken, 3, '#sensor-chart');
             })
         }
     }
 
-For each of the two plots we request, we pass in several query parameters to describe what we want to see. We define which asset and what time range, which resolution and forecasting horizon.
-Note the ``show_individual_traces_for`` setting - it allows us to split data from individual assets (usually measurements, forecasts and schedules are visually aggregated in FlexMeasure's power plots, see :ref:`analytics` for example).
+The parameters we pass in describe what we want to see: all data for sensor 3 since 2022.
+If you followed our :ref:`toy tutorial<tut_toy_schedule>` on a fresh FlexMeasures installation, sensor 3 contains market prices (authenticate with the toy-user to gain access).
 
            
 The result looks like this in your browser:
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/plots.png
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/plotting-prices.png
     :align: center
 ..    :scale: 40%
-
-
-From FlexMeasures, we are using the `[GET] /charts/power <../api/v2_0.html#get--api-v2_0-charts-power>`_ endpoint, which loads HTML and JavaScript.
-Browse the endpoint documentation to learn more about it.
