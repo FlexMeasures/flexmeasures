@@ -24,6 +24,9 @@ class Scheduler:
 
     """
 
+    __version__ = None
+    __author__ = None
+
     sensor: Sensor
     start: datetime
     end: datetime

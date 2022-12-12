@@ -162,6 +162,67 @@ For version 1, 2 and 3 of the API, only equidistant timeseries data is expected 
 - "duration" should also be a multiple of the sensor resolution.
 
 
+.. _describing_flexibility:
+
+Describing flexibility
+^^^^^^^^^^^^^^^^^^^^^^^
+
+To compute a schedule, FlexMeasures needs to know state and context information which goes beyond
+the usual time series of the asset.
+
+We've grouped these two sources of information in two:
+
+Flex model
+""""""""""""
+
+The flexibility model describes to the scheduler what the flexible asset's state is,
+and what constraints or preferences should be taken into account.
+
+Which specific flexibility model is relevant in your scheduler usually relates to the sensor's asset type.
+Usually, not the whole flexibility model is needed (e.g. to be sent through the endpoint).
+For instance, FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
+
+Here are the three flexibility models you can expect to be built-in:
+
+1) For storage sensors (e.g. battery, charge points), the schedule deals with the state of charge (SOC).
+    The possible flexibility parameters are:
+
+    - soc_at_start (defaults to 0)
+    - soc_unit (kWh or MWh)
+    - soc_min (defaults to 0)
+    - soc_max (defaults to max soc target)
+    - soc_targets (defaults to NaN values)
+    - roundtrip_efficiency (defaults to 100%)
+    - prefer_charging_sooner (defaults to True, also signals a preference to discharge later)
+
+  For some examples, see the `[POST] /sensors/(id)/schedule/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
+
+2) Shiftable process
+   .. todo:: A simple algorithm exists, needs integration into FlexMeasures and asset type clarified.
+
+3) Heat pumps TODO:
+   .. todo:: Also work in progress, needs model for heat loss compensation.
+
+In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
+That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and to validate it. 
+
+.. note:: We also aim to model situations with more than one flexible asset, which can also have differing flexibility types.
+     This is ongoing architecture design work, and therefore happens in development settings, until we are happy 
+     with the outcomes. Thoughts welcome :) 
+
+
+Flex context
+"""""""""""""
+
+With the flexibility context, we aim to describe the EMS in which the sensor operates:
+
+- inflexible_device_sensors ― sensors which are relevant, but not flexible, e.g. solar
+- consumption_price_sensor ― the sensor which defines costs/revenues of consuming energy
+- production_price_sensor ― the sensor which defines cost/revenues of producing energy
+
+These should be independent on the asset type and consequently also do not depend on which scheduling algorithm is being used.
+
+
 .. _beliefs:
 
 Tracking the recording time of beliefs

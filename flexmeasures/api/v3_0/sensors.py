@@ -272,38 +272,25 @@ class SensorAPI(FlaskView):
 
         In this request, you can describe:
 
-        - timing for the schedule (start, unit, prior)
-        - the sensor's flexibility model (see below, only storage models are supported at the moment)
-        - other sensors which are relevant: the flex context (inflexible device sensors, and sensors that put a price on consumption and/or production)
+        - the schedule's main  (start, unit, prior)
+        - the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
+        - the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)
 
-        Note: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
-              See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
-              (considering already scheduled sensors as inflexible).
+        For details on flexibility model and context, see :ref:`describing_flexibility`.
+        Below, we'll also list some examples.
 
-        The length of schedules is set by the config setting FLEXMEASURES_PLANNING_HORIZON, defaulting to 12 hours.
-        TODO: add a schedule duration parameter, instead of falling back to FLEXMEASURES_PLANNING_HORIZON
+        .. note:: This endpoint does not support to schedule an EMS with multiple flexible sensors at once. This will happen in another endpoint.
+                  See https://github.com/FlexMeasures/flexmeasures/issues/485. Until then, it is possible to call this endpoint for one flexible endpoint at a time
+                  (considering already scheduled sensors as inflexible).
 
-        The Flexibility model which is relevant in your request usually relates to the sensor's asset type.
-        It's also possible to use custom schedulers and custom models, see :ref:`plugin_customization`.
-        Here are the three storage models you can expect to be built-in:
+        The length of schedules is set by the config setting :ref:`planning_horizon_config`, defaulting to 12 hours.
 
-        1) For storage sensors (e.g. battery, charge points), the schedule deals with the state of charge (SOC).
-           The possible flexibility parameters are:
+        .. todo:: add a schedule duration parameter, instead of always falling back to FLEXMEASURES_PLANNING_HORIZON
 
-            - soc_at_start (defaults to 0)
-            - soc_unit (kWh or MWh)
-            - soc_min (defaults to 0)
-            - soc_max (defaults to max soc target)
-            - soc_targets (defaults to NaN values)
-            - roundtrip_efficiency (defaults to 100%)
-            - prefer_charging_sooner (defaults to True, also signals a preference to discharge later)
+        The appropriate algorithm is chosen by FlexMeasures (based on asset type).
+        It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
 
-        2) Shiftable process TODO: simple algorithm exists, needs integration into FlexMeasures and asset type clarified.
-
-        3) Heat pumps TODO: Also work in progress, needs model for heat loss compensation.
-
-        Other schedulers can be added in a plugin, to be used with specific sensors (see docs). If you have ideas for algorithms which should
-        be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
+        If you have ideas for algorithms which should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
 
         **Example request A**
 

@@ -7,9 +7,7 @@ class DummyScheduler(Scheduler):
     __author__ = "Test Organization"
     __version__ = "3"
 
-    def compute_schedule(
-        self,
-    ):
+    def compute_schedule(self):
         """
         Just a dummy scheduler that always plans to consume at maximum capacity.
         (Schedulers return positive values for consumption, and negative values for production)
@@ -20,3 +18,7 @@ class DummyScheduler(Scheduler):
             end=self.end,
             resolution=self.resolution,
         )
+
+    def inspect_config(self):
+        """Do not care about any config sent in."""
+        self.config_inspected = True

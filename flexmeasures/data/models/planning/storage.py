@@ -189,7 +189,7 @@ class StorageScheduler(Scheduler):
         # Check state of charge
         # Preferably, a starting soc is given.
         # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
-        # Otherwise, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
+        # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
         # and without soc targets and limits the starting soc doesn't matter).
         if (
             "soc_at_start" not in self.flex_model

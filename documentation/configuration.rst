@@ -247,6 +247,9 @@ Time to live for UDI event ids of successful scheduling jobs. Set a negative tim
 
 Default: ``timedelta(days=7)``
 
+
+.. _planning_horizon_config:
+
 FLEXMEASURES_PLANNING_HORIZON
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
