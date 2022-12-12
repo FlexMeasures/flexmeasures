@@ -2,7 +2,10 @@ from flask_security import auth_token_required
 
 from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.api.common.utils.api_utils import list_access, append_doc_of
-from flexmeasures.api.common.utils.decorators import as_response_type
+from flexmeasures.api.common.utils.decorators import (
+    as_response_type,
+    deprecated_endpoint,
+)
 from flexmeasures.api.v1 import (
     routes as v1_routes,
     implementations as v1_implementations,
@@ -59,6 +62,7 @@ v1_1_service_listing = {
 @as_response_type("GetConnectionResponse")
 @auth_token_required
 @account_roles_accepted(*list_access(v1_1_service_listing, "getConnection"))
+@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def get_connection():
     """API endpoint to get the user's connections as entity addresses ordered from newest to oldest.
 
@@ -112,6 +116,7 @@ def get_connection():
 @as_response_type("PostPriceDataResponse")
 @auth_token_required
 @account_roles_accepted(*list_access(v1_1_service_listing, "postPriceData"))
+@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def post_price_data():
     """API endpoint to post price data.
 
@@ -194,6 +199,7 @@ def post_price_data():
 @as_response_type("PostWeatherDataResponse")
 @auth_token_required
 @account_roles_accepted(*list_access(v1_1_service_listing, "postWeatherData"))
+@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def post_weather_data():
     """API endpoint to post weather data, such as:
 
@@ -268,6 +274,7 @@ def post_weather_data():
 @as_response_type("GetPrognosisResponse")
 @auth_token_required
 @account_roles_accepted(*list_access(v1_1_service_listing, "getPrognosis"))
+@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def get_prognosis():
     """API endpoint to get prognosis.
 
@@ -336,6 +343,7 @@ def get_prognosis():
 @as_response_type("PostPrognosisResponse")
 @auth_token_required
 @account_roles_accepted(*list_access(v1_1_service_listing, "postPrognosis"))
+@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def post_prognosis():
     """API endpoint to post prognoses about meter data.
 
@@ -420,6 +428,7 @@ def post_prognosis():
 @auth_token_required
 @account_roles_accepted(*list_access(v1_1_service_listing, "getMeterData"))
 @append_doc_of(v1_routes.get_meter_data)
+@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def get_meter_data():
     return v1_implementations.get_meter_data_response()
 
@@ -429,6 +438,7 @@ def get_meter_data():
 @auth_token_required
 @account_roles_accepted(*list_access(v1_1_service_listing, "postMeterData"))
 @append_doc_of(v1_routes.post_meter_data)
+@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def post_meter_data():
     return v1_implementations.post_meter_data_response()
 
@@ -436,5 +446,6 @@ def post_meter_data():
 @flexmeasures_api_v1_1.route("/getService", methods=["GET"])
 @as_response_type("GetServiceResponse")
 @append_doc_of(v1_routes.get_service)
+@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def get_service():
     return v1_implementations.get_service_response(v1_1_service_listing)

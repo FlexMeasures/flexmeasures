@@ -35,6 +35,7 @@ def test_get_service(client, query):
     assert get_service_response.status_code == 200
     assert get_service_response.json["type"] == "GetServiceResponse"
     assert get_service_response.json["status"] == request_processed()[0]["status"]
+    assert "Deprecation warning" in get_service_response.json["message"]
     if "access" in query:
         for service in get_service_response.json["services"]:
             assert "Prosumer" in service["access"]
@@ -242,6 +243,7 @@ def test_get_meter_data(db, app, client, message):
     print("Server responded with:\n%s" % get_meter_data_response.json)
     assert get_meter_data_response.status_code == 200
     assert get_meter_data_response.json["values"] == [(100.0 + i) for i in range(6)]
+    assert "Deprecation warning" in get_meter_data_response.json["message"]
 
 
 def test_post_meter_data_to_different_resolutions(app, client):
@@ -266,3 +268,4 @@ def test_post_meter_data_to_different_resolutions(app, client):
     assert "CS 2" in post_meter_data_response.json["message"]
     assert "CS 4" in post_meter_data_response.json["message"]
     assert post_meter_data_response.json["status"] == "INVALID_RESOLUTION"
+    assert "Deprecation warning" in post_meter_data_response.json["message"]

@@ -38,6 +38,7 @@ def test_get_service(client, query):
     assert get_service_response.status_code == 200
     assert get_service_response.json["type"] == "GetServiceResponse"
     assert get_service_response.json["status"] == request_processed()[0]["status"]
+    assert "Deprecation warning" in get_service_response.json["message"]
     if "access" in query:
         for service in get_service_response.json["services"]:
             assert "Prosumer" in service["access"]
@@ -121,6 +122,7 @@ def test_get_prognosis(setup_api_test_data, client, message):
         ]
     else:
         assert get_prognosis_response.json["values"] == [300, 301, 302, 303, 304, 305]
+    assert "Deprecation warning" in get_prognosis_response.json["message"]
 
 
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
@@ -143,6 +145,7 @@ def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message
         assert post_price_data_response.json["type"] == "PostPriceDataResponse"
 
     verify_prices_in_db(post_message, post_message["values"], db)
+    assert "Deprecation warning" in post_price_data_response.json["message"]
 
     # look for Forecasting jobs in queue
     assert (
@@ -179,8 +182,8 @@ def test_post_price_data_invalid_unit(setup_api_test_data, client, post_message)
     market_name = ea["market_name"]
     sensor = Sensor.query.filter_by(name=market_name).one_or_none()
     assert (
-        post_price_data_response.json["message"]
-        == invalid_unit("%s prices" % sensor.name, ["EUR/MWh"])[0]["message"]
+        invalid_unit("%s prices" % sensor.name, ["EUR/MWh"])[0]["message"]
+        in post_price_data_response.json["message"]
     )
 
 
@@ -210,6 +213,7 @@ def test_post_weather_forecasts(
 
     num_jobs_after = len(get_forecasting_jobs())
     assert num_jobs_after == num_jobs_before
+    assert "Deprecation warning" in post_weather_data_response.json["message"]
 
 
 @pytest.mark.parametrize(
@@ -231,10 +235,11 @@ def test_post_weather_forecasts_invalid_unit(setup_api_test_data, client, post_m
     print("Server responded with:\n%s" % post_weather_data_response.json)
     assert post_weather_data_response.status_code == 400
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
+    # also checks that any underscore in the physical or economic quantity should be replaced with a space
     assert (
-        post_weather_data_response.json["message"]
-        == invalid_unit("wind speed", ["m/s"])[0]["message"]
-    )  # also checks that any underscore in the physical or economic quantity should be replaced with a space
+        invalid_unit("wind speed", ["m/s"])[0]["message"]
+        in post_weather_data_response.json["message"]
+    )
 
 
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
