@@ -359,4 +359,4 @@ def to_http_time(dt: pd.Timestamp | datetime) -> str:
     ----------
     IMF-fixdate: https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1
     """
-    return dt.strftime('%a, %d %b %Y %H:%M:%S GMT')
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
