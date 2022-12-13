@@ -68,6 +68,10 @@ class Scheduler:
         """
         return None
 
+    def persist_flex_model(self):
+        """If useful, (parts of) the flex model can be persisted (e.g on the sensor) here."""
+        pass
+
     def inspect_config(self):
         self.inspect_timing_config()
         self.inspect_flex_config()

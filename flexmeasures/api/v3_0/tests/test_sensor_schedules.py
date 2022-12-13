@@ -83,7 +83,6 @@ def test_trigger_and_get_schedule(
     TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id).delete()
 
     with app.test_client() as client:
-        message["soc-sensor"] = f"ea1.2018-06.localhost:fm1.{battery_soc_sensor.id}"
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),

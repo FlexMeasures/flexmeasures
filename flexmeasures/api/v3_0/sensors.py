@@ -28,6 +28,7 @@ from flexmeasures.api.common.schemas.sensor_data import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import save_and_enqueue
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.queries.utils import simplify_index
@@ -258,6 +259,7 @@ class SensorAPI(FlaskView):
         consumption_price_sensor: Optional[Sensor] = None,
         production_price_sensor: Optional[Sensor] = None,
         inflexible_device_sensors: Optional[List[Sensor]] = None,
+        soc_sensor_id: Optional[int] = None,
         flex_model: Optional[dict] = None,
         flex_context: Optional[dict] = None,
         **kwargs,
@@ -421,8 +423,11 @@ class SensorAPI(FlaskView):
             )
             if found_fields["model"]:
                 deprecation_message += f" {', '.join(found_fields['model'])} (please pass as part of flex_model)."
-            if found_fields["model"]:
+            if found_fields["context"]:
                 deprecation_message += f" {', '.join(found_fields['context'])} (please pass as part of flex_context)."
+
+        if soc_sensor_id is not None:
+            deprecation_message += "The field soc-sensor-id will be deprecated and fall out of use in v0.13."
         # -- end deprecation logic
 
         end_of_schedule = start_of_schedule + current_app.config.get(  # type: ignore
@@ -440,7 +445,8 @@ class SensorAPI(FlaskView):
 
         try:
             # We create a scheduler, so the flex config is also checked and results are returned
-            find_scheduler_class(sensor)(**scheduler_kwargs).inspect_config()
+            scheduler = find_scheduler_class(sensor)(**scheduler_kwargs)
+            scheduler.inspect_config()
         except ValidationError as err:
             return invalid_flex_config(err.messages)
 
@@ -452,8 +458,10 @@ class SensorAPI(FlaskView):
             enqueue=True,
         )
 
-        response = dict(schedule=job.id)
+        scheduler.persist_flex_model()
+        db.session.commit()
 
+        response = dict(schedule=job.id)
         d, s = request_processed(deprecation_message)
         return dict(**response, **d), s
 

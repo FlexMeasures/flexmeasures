@@ -68,8 +68,4 @@ class StorageFlexModelSchema(Schema):
                 data["roundtrip_efficiency"].to(ur.Quantity("dimensionless")).magnitude
             )
 
-        # TODO: Can this TODO go after we deprecated API versions <=2? I saw it happening in v1.3
-        # TODO: if a soc-sensor entity address is passed, persist those values to the corresponding sensor
-        #       (also update the note in posting_data.rst about flexibility states not being persisted).
-
         return data
