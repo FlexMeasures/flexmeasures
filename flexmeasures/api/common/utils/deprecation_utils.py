@@ -7,15 +7,11 @@ from __future__ import annotations
 from __future__ import division
 from __future__ import print_function
 
-import logging
-
-from flask import Blueprint, Response
+from flask import current_app, request, Blueprint, Response
+from flask_security.core import current_user
 import pandas as pd
 
 from flexmeasures.utils.time_utils import to_http_time
-
-_LOG = logging.getLogger(__name__)
-_BLUEPRINT_PREFIXES = {}
 
 
 def deprecate_blueprint(
@@ -77,7 +73,6 @@ def _add_headers(
     deprecation_link: str | None,
     sunset: str | None,
     sunset_link: str | None,
-    log_level=logging.WARNING,
 ) -> Response:
     response.headers["Deprecation"] = deprecation
     if sunset:
@@ -86,7 +81,9 @@ def _add_headers(
         response = _add_link(response, deprecation_link, "deprecation")
     if sunset_link:
         response = _add_link(response, sunset_link, "sunset")
-    _LOG.log(log_level, deprecation)
+    current_app.logger.warning(
+        f"Deprecated endpoint {request.endpoint} called by {current_user}"
+    )
     return response
 
 
