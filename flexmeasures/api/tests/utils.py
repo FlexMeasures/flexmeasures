@@ -108,11 +108,6 @@ def check_deprecation(response: Response):
     print(response.headers)
     assert "Tue, 13 Dec 2022 23:59:59 GMT" in response.headers["Deprecation"]
     assert "Tue, 31 Jan 2023 23:59:59 GMT" in response.headers["Sunset"]
-    assert (
-        "https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#deprecation-and-sunset"
-        in response.headers["Link"]
-    )
-    assert (
-        "https://flexmeasures.readthedocs.io/en/latest/api/v1.html"
-        in response.headers["Link"]
-    )
+    # Make sure we link to some url for both deprecation and sunset
+    assert 'rel="deprecation"' in response.headers["Link"]
+    assert 'rel="sunset"' in response.headers["Link"]
