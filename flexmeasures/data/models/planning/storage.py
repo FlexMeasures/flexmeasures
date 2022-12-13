@@ -232,6 +232,25 @@ class StorageScheduler(Scheduler):
         ):
             raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
 
+        # Check for min and max SOC, if not given then get default from sensor or targets
+        if "soc_min" not in self.flex_model or self.flex_model["soc_min"] is None:
+            # Can't drain the storage by more than it contains
+            self.flex_model["soc_min"] = self.sensor.get_attribute("min_soc_in_mwh", 0)
+        if "soc_max" not in self.flex_model or self.flex_model["soc_max"] is None:
+            # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
+            self.flex_model["soc_max"] = self.sensor.get_attribute(
+                "max_soc_in_mwh", None
+            )
+            if self.flex_model["soc_max"] is None:
+                if self.flex_model["soc_targets"]:
+                    self.flex_model["soc_max"] = max(
+                        [target["value"] for target in self.flex_model["soc_targets"]]
+                    )
+                else:
+                    raise ValueError(
+                        "Need maximal permitted state of charge, please specify soc_max."
+                    )
+
         # Now it's time to check if our flex configurations hold up to basic expectations
         self.flex_model = self.flex_model_schema().load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
@@ -244,16 +263,6 @@ class StorageScheduler(Scheduler):
             self.sensor.event_resolution,
             self.flex_model.get("soc_unit"),
         )
-
-        # Check for min and max SOC, if not given then get default from sensor or targets
-        if "soc_min" not in self.flex_model or self.flex_model["soc_min"] is None:
-            # Can't drain the storage by more than it contains
-            self.flex_model["soc_min"] = self.sensor.get_attribute("min_soc_in_mwh", 0)
-        if "soc_max" not in self.flex_model or self.flex_model["soc_max"] is None:
-            # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-            self.flex_model["soc_max"] = self.sensor.get_attribute(
-                "max_soc_in_mwh", max(self.flex_model["soc_targets"].values)
-            )
 
         return self.flex_model
 
