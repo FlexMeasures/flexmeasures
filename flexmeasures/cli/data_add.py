@@ -821,7 +821,9 @@ def create_forecasts(
         )
 
 
+# TODO: deprecate in v0.13
 @fm_add_data.command("schedule")
+@click.pass_context
 @with_appcontext
 @click.option(
     "--sensor-id",
@@ -912,7 +914,109 @@ def create_forecasts(
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
-def create_schedule(
+def create_schedule(ctx, **kwargs):
+    """[deprecated] Create a new schedule for a given power sensor.
+
+    THIS COMMAND HAS BEEN RENAMED, please use `flexmeasures add storage-schedule`
+    """
+    click.echo(
+        "THIS COMMAND HAS BEEN RENAMED TO flexmeasures add schedule-for-storage. IT WILL BE DEPRECATED IN v0.13."
+    )
+    ctx.invoke(add_schedule_for_storage, **kwargs)
+
+
+@fm_add_data.command("schedule-for-storage")
+@with_appcontext
+@click.option(
+    "--sensor-id",
+    "power_sensor",
+    type=SensorIdField(),
+    required=True,
+    help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--consumption-price-sensor",
+    "consumption_price_sensor",
+    type=SensorIdField(),
+    required=False,
+    help="Optimize consumption against this sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
+)
+@click.option(
+    "--production-price-sensor",
+    "production_price_sensor",
+    type=SensorIdField(),
+    required=False,
+    help="Optimize production against this sensor. Defaults to the consumption price sensor. The sensor typically records an electricity price (e.g. in EUR/kWh), but this field can also be used to optimize against some emission intensity factor (e.g. in kg CO₂ eq./kWh). Follow up with the sensor's ID.",
+)
+@click.option(
+    "--optimization-context-id",
+    "optimization_context_sensor",
+    type=SensorIdField(),
+    required=False,
+    help="To be deprecated. Use consumption-price-sensor instead.",
+)
+@click.option(
+    "--start",
+    "start",
+    type=AwareDateTimeField(format="iso"),
+    required=True,
+    help="Schedule starts at this datetime. Follow up with a timezone-aware datetime in ISO 6801 format.",
+)
+@click.option(
+    "--duration",
+    "duration",
+    type=DurationField(),
+    required=True,
+    help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--soc-at-start",
+    "soc_at_start",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=True,
+    help="State of charge (e.g 32.8%, or 0.328) at the start of the schedule.",
+)
+@click.option(
+    "--soc-target",
+    "soc_target_strings",
+    type=click.Tuple(
+        types=[QuantityField("%", validate=validate.Range(min=0, max=1)), str]
+    ),
+    multiple=True,
+    required=False,
+    help="Target state of charge (e.g 100%, or 1) at some datetime. Follow up with a float value and a timezone-aware datetime in ISO 6081 format."
+    " This argument can be given multiple times."
+    " For example: --soc-target 100% 2022-02-23T13:40:52+00:00",
+)
+@click.option(
+    "--soc-min",
+    "soc_min",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=False,
+    help="Minimum state of charge (e.g 20%, or 0.2) for the schedule.",
+)
+@click.option(
+    "--soc-max",
+    "soc_max",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=False,
+    help="Maximum state of charge (e.g 80%, or 0.8) for the schedule.",
+)
+@click.option(
+    "--roundtrip-efficiency",
+    "roundtrip_efficiency",
+    type=QuantityField("%", validate=validate.Range(min=0, max=1)),
+    required=False,
+    default=1,
+    help="Round-trip efficiency (e.g. 85% or 0.85) to use for the schedule. Defaults to 100% (no losses).",
+)
+@click.option(
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a scheduling job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
+)
+def add_schedule_for_storage(
     power_sensor: Sensor,
     consumption_price_sensor: Sensor,
     production_price_sensor: Sensor,
@@ -926,12 +1030,12 @@ def create_schedule(
     roundtrip_efficiency: Optional[ur.Quantity] = None,
     as_job: bool = False,
 ):
-    """Create a new schedule for a given power sensor.
+    """Create a new schedule for a storage asset.
 
     Current limitations:
 
-    - only supports battery assets and Charge Points
-    - only supports datetimes on the hour or a multiple of the sensor resolution thereafter
+    - Limited to power sensors (probably possible to generalize to non-electric assets)
+    - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
 
     # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)

@@ -12,6 +12,7 @@ since v0.12.0 | November XX, 2022
 * Fix ``flexmeasures db-ops dump`` and ``flexmeasures db-ops restore`` incorrectly reporting a success when `pg_dump` and `pg_restore` are not installed.
 * Add ``flexmeasures monitor last-seen``. 
 * Rename ``flexmeasures monitor tasks`` to ``flexmeasures monitor last-run``. 
+* Rename ``flexmeasures add schedule`` to ``flexmeasures add schedule-for-storage`` (in expectation of more scheduling commands, based on in-built flex models). 
 
 since v0.11.0 | August 28, 2022
 ==============================

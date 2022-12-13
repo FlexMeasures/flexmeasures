@@ -41,7 +41,7 @@ A tiny, but complete example: Let's install FlexMeasures from scratch. Then, usi
     $ flexmeasures db upgrade  # create tables
     $ flexmeasures add toy-account --kind battery  # setup account & a user, a battery (Id 2) and a market (Id 3)
     $ flexmeasures add beliefs --sensor-id 3 --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
-    $ flexmeasures add schedule --sensor-id 2 --consumption-price-sensor 3 \
+    $ flexmeasures add schedule-for-storage --sensor-id 2 --consumption-price-sensor 3 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H \
         --soc-at-start 50% --roundtrip-efficiency 90%  # this is also possible per API
     $ flexmeasures show beliefs --sensor-id 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
