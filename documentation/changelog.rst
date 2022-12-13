@@ -5,6 +5,9 @@ FlexMeasures Changelog
 v0.12.0 | October XX, 2022
 ============================
 
+.. warning:: After upgrading to ``flexmeasures==0.12``, users of API versions 1.0, 1.1, 1.2, 1.3 and 2.0 will receive ``"Deprecation"`` and ``"Sunset"`` response headers, and warnings are logged for FlexMeasures hosts whenever users call API endpoints in these deprecated API versions.
+             The relevant endpoints are planned to become unresponsive in ``flexmeasures==0.13``.
+
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
