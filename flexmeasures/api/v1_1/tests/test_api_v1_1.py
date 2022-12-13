@@ -10,7 +10,7 @@ from flexmeasures.api.common.responses import (
     invalid_horizon,
     invalid_unit,
 )
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.common.utils.api_utils import (
     message_replace_name_with_ea,
 )
@@ -35,10 +35,10 @@ def test_get_service(client, query):
         headers={"content-type": "application/json"},
     )
     print("Server responded with:\n%s" % get_service_response.json)
+    check_deprecation(get_service_response)
     assert get_service_response.status_code == 200
     assert get_service_response.json["type"] == "GetServiceResponse"
     assert get_service_response.json["status"] == request_processed()[0]["status"]
-    assert "Deprecation warning" in get_service_response.json["message"]
     if "access" in query:
         for service in get_service_response.json["services"]:
             assert "Prosumer" in service["access"]
@@ -110,6 +110,7 @@ def test_get_prognosis(setup_api_test_data, client, message):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_prognosis_response.json)
+    check_deprecation(get_prognosis_response)
     assert get_prognosis_response.status_code == 200
     if "groups" in get_prognosis_response.json:
         assert get_prognosis_response.json["groups"][0]["values"] == [
@@ -122,7 +123,6 @@ def test_get_prognosis(setup_api_test_data, client, message):
         ]
     else:
         assert get_prognosis_response.json["values"] == [300, 301, 302, 303, 304, 305]
-    assert "Deprecation warning" in get_prognosis_response.json["message"]
 
 
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
@@ -141,11 +141,11 @@ def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_price_data_response.json)
+        check_deprecation(post_price_data_response)
         assert post_price_data_response.status_code == 200
         assert post_price_data_response.json["type"] == "PostPriceDataResponse"
 
     verify_prices_in_db(post_message, post_message["values"], db)
-    assert "Deprecation warning" in post_price_data_response.json["message"]
 
     # look for Forecasting jobs in queue
     assert (
@@ -208,12 +208,12 @@ def test_post_weather_forecasts(
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_weather_data_response.json)
+    check_deprecation(post_weather_data_response)
     assert post_weather_data_response.status_code == 200
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
 
     num_jobs_after = len(get_forecasting_jobs())
     assert num_jobs_after == num_jobs_before
-    assert "Deprecation warning" in post_weather_data_response.json["message"]
 
 
 @pytest.mark.parametrize(

@@ -2,10 +2,7 @@ from flask_security import auth_token_required
 
 from flexmeasures.auth.decorators import account_roles_accepted
 from flexmeasures.api.common.utils.api_utils import list_access
-from flexmeasures.api.common.utils.decorators import (
-    as_response_type,
-    deprecated_endpoint,
-)
+from flexmeasures.api.common.utils.decorators import as_response_type
 from flexmeasures.api.v1 import (
     flexmeasures_api as flexmeasures_api_v1,
     implementations as v1_implementations,
@@ -34,7 +31,6 @@ v1_service_listing = {
 @as_response_type("GetMeterDataResponse")
 @auth_token_required
 @account_roles_accepted(*list_access(v1_service_listing, "getMeterData"))
-@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def get_meter_data():
     """API endpoint to get meter data.
 
@@ -100,7 +96,6 @@ def get_meter_data():
 @as_response_type("PostMeterDataResponse")
 @auth_token_required
 @account_roles_accepted(*list_access(v1_service_listing, "postMeterData"))
-@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def post_meter_data():
     """API endpoint to post meter data.
 
@@ -181,7 +176,6 @@ def post_meter_data():
 
 @flexmeasures_api_v1.route("/getService", methods=["GET"])
 @as_response_type("GetServiceResponse")
-@deprecated_endpoint("this endpoint will be removed in version 0.13")
 def get_service():
     """API endpoint to get a service listing for this version.
 

@@ -63,46 +63,8 @@ def as_response_type(response_type):
     return wrapper
 
 
-def deprecated_endpoint(warning_message: str):
-    """Decorator which prepends a deprecation warning to the "message" parameter in the data of the flask response.
-    Example:
-
-        @app.route('/postMeterData')
-        @deprecated_endpoint("this endpoint will be removed in version 0.13")
-        @as_json
-        def post_meter_data() -> dict:
-            return {"message": "Meter data posted"}
-
-    The response.json will be:
-
-    {
-        "message": "Deprecation warning: This endpoint will be removed in version 0.13. Meter data posted"}
-    }
-
-    :param warning_message: The warning message attached to the prepended deprecation warning.
-    """
-
-    def wrapper(fn):
-        @wraps(fn)
-        @as_json
-        def decorated_service(*args, **kwargs):
-            current_app.logger.warning(f"Deprecated endpoint {fn} called")
-            response = fn(*args, **kwargs)  # expects flask response object
-            data, status_code, headers = split_response(response)
-            if "message" in data:
-                data["message"] = (
-                    "Deprecation warning: " + warning_message + ". " + data["message"]
-                )
-            else:
-                data["message"] = "Deprecation warning: " + warning_message + "."
-            return data, status_code, headers
-
-        return decorated_service
-
-    return wrapper
-
-
 def split_response(response: Response) -> tuple[dict, int, dict]:
+    """Split Flask Response object into json data, status code and headers."""
     data = response.json
     headers = dict(
         zip(Headers.keys(response.headers), Headers.values(response.headers))

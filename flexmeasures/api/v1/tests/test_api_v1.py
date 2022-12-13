@@ -12,7 +12,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_connection_group,
 )
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.common.utils.api_utils import message_replace_name_with_ea
 from flexmeasures.api.common.utils.validators import validate_user_sources
 from flexmeasures.api.v1.tests.utils import (
@@ -32,10 +32,10 @@ def test_get_service(client, query):
         headers={"content-type": "application/json"},
     )
     print("Server responded with:\n%s" % get_service_response.json)
+    check_deprecation(get_service_response)
     assert get_service_response.status_code == 200
     assert get_service_response.json["type"] == "GetServiceResponse"
     assert get_service_response.json["status"] == request_processed()[0]["status"]
-    assert "Deprecation warning" in get_service_response.json["message"]
     if "access" in query:
         for service in get_service_response.json["services"]:
             assert "Prosumer" in service["access"]
@@ -241,9 +241,9 @@ def test_get_meter_data(db, app, client, message):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_meter_data_response.json)
+    check_deprecation(get_meter_data_response)
     assert get_meter_data_response.status_code == 200
     assert get_meter_data_response.json["values"] == [(100.0 + i) for i in range(6)]
-    assert "Deprecation warning" in get_meter_data_response.json["message"]
 
 
 def test_post_meter_data_to_different_resolutions(app, client):
@@ -259,6 +259,7 @@ def test_post_meter_data_to_different_resolutions(app, client):
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_meter_data_response.json)
+    check_deprecation(post_meter_data_response)
     assert post_meter_data_response.json["type"] == "PostMeterDataResponse"
     assert post_meter_data_response.status_code == 400
     assert (
@@ -268,4 +269,3 @@ def test_post_meter_data_to_different_resolutions(app, client):
     assert "CS 2" in post_meter_data_response.json["message"]
     assert "CS 4" in post_meter_data_response.json["message"]
     assert post_meter_data_response.json["status"] == "INVALID_RESOLUTION"
-    assert "Deprecation warning" in post_meter_data_response.json["message"]

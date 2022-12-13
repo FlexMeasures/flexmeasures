@@ -101,3 +101,21 @@ which gives a response like this if the credentials are correct:
     }
 
 .. note:: Each access token has a limited lifetime, see :ref:`auth`.
+
+.. _api_deprecation:
+
+Deprecation and sunset
+----------------------
+
+Professional API users should monitor API responses for the ``"Deprecation"`` and ``"Sunset"`` response headers [see `draft-ietf-httpapi-deprecation-header-02 <https://datatracker.ietf.org/doc/draft-ietf-httpapi-deprecation-header/>`_ and `RFC 8594 <https://www.rfc-editor.org/rfc/rfc8594>`_, respectively], so system administrators can be warned when using API endpoints that are flagged for deprecation and/or are likely to become unresponsive in the future.
+
+The deprecation header field shows an `IMF-fixdate <https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1>`_ indicating when the API endpoint was deprecated.
+The sunset header field shows an `IMF-fixdate <https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1>`_ indicating when the API endpoint is likely to become unresponsive.
+
+More information about a deprecation, sunset, and possibly recommended replacements, can be found under the ``"Link"`` response header. Relevant relations are:
+
+- ``"deprecation"``
+- ``"successor-version"``
+- ``"latest-version"``
+- ``"alternate"``
+- ``"sunset"``
