@@ -5,7 +5,7 @@ import pandas as pd
 
 from flexmeasures.data.models.assets import Asset
 from flexmeasures.data.services.users import find_user_by_email
-from flexmeasures.api.tests.utils import get_auth_token, UserContext
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token, UserContext
 from flexmeasures.api.v2_0.tests.utils import get_asset_post_data
 
 
@@ -54,6 +54,7 @@ def test_get_asset_nonadmin_access(client):
         headers=headers,
         follow_redirects=True,
     )
+    check_deprecation(asset_response)
     assert asset_response.status_code == 200
     # not okay to see assets owned by others
     asset_response = client.get(
@@ -91,6 +92,7 @@ def test_get_assets(client, add_charging_station_assets, use_owner_id, num_asset
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_assets_response.json)
+    check_deprecation(get_assets_response)
     assert get_assets_response.status_code == 200
     assert len(get_assets_response.json) == num_assets
 
@@ -209,6 +211,7 @@ def test_post_an_asset(client):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_assets_response.json)
+    check_deprecation(post_assets_response)
     assert post_assets_response.status_code == 201
     assert post_assets_response.json["latitude"] == 30.1
 
@@ -271,6 +274,7 @@ def test_edit_an_asset(client, db):
         json=post_data,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
+    check_deprecation(edit_asset_response)
     assert edit_asset_response.status_code == 200
     updated_asset = Asset.query.filter_by(id=existing_asset.id).one_or_none()
     assert updated_asset.latitude == 10  # changed value
@@ -288,6 +292,7 @@ def test_delete_an_asset(client, db):
         url_for("flexmeasures_api_v2_0.delete_asset", id=existing_asset_id),
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
+    check_deprecation(delete_asset_response)
     assert delete_asset_response.status_code == 204
     deleted_asset = Asset.query.filter_by(id=existing_asset_id).one_or_none()
     assert deleted_asset is None
