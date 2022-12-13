@@ -44,6 +44,7 @@ Infrastructure / Support
 * Revised strategy for removing unchanged beliefs when saving data: retain the oldest measurement (ex-post belief), too [see `PR #518 <http://www.github.com/FlexMeasures/flexmeasures/pull/518>`_]
 * Scheduling test for maximizing self-consumption, and improved time series db queries for fixed tariffs (and other long-term constants) [see `PR #532 <http://www.github.com/FlexMeasures/flexmeasures/pull/532>`_]
 * Clean up table formatting for ``flexmeasures show`` CLI commands [see `PR #540 <http://www.github.com/FlexMeasures/flexmeasures/pull/540>`_]
+* Add  ``"Deprecation"`` and ``"Sunset"`` response headers for API users of deprecated API versions, and log warnings for FlexMeasures hosts when users still use them [see `PR #554 <http://www.github.com/FlexMeasures/flexmeasures/pull/554>`_]
 
 .. warning:: The CLI command ``flexmeasures monitor tasks`` has been renamed to ``flexmeasures monitor last-run``. The old name will stop working in version 0.13.
 
