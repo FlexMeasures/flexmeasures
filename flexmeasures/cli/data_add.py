@@ -6,7 +6,6 @@ from typing import Dict, List, Optional, Tuple
 import json
 
 from marshmallow import validate
-import numpy as np
 import pandas as pd
 import pytz
 from flask import current_app as app
@@ -28,7 +27,6 @@ from flexmeasures.data.scripts.data_gen import (
 from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
-from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
 from flexmeasures.data.models.time_series import (
     Sensor,
@@ -934,10 +932,6 @@ def create_schedule(
 
     - only supports battery assets and Charge Points
     - only supports datetimes on the hour or a multiple of the sensor resolution thereafter
-
-    TODO: - Use scheduler (and schema), check if the checks we do here on arguments are covered there.
-          - Arguments are hard-coded for storage here, move to flex_model and flex_context, pass them through.
-          - Link to the flex_config documentation page!
     """
 
     # todo: deprecate the 'optimization-context-id' argument in favor of 'consumption-price-sensor' (announced v0.11.0)
@@ -961,21 +955,9 @@ def create_schedule(
         except MissingAttributeException:
             click.echo(f"{power_sensor} has no {attribute} attribute.")
             raise click.Abort()
-    soc_targets = initialize_series(
-        np.nan,
-        start=pd.Timestamp(start).tz_convert(power_sensor.timezone),
-        end=pd.Timestamp(end).tz_convert(power_sensor.timezone),
-        resolution=power_sensor.event_resolution,
-        inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
-    )
 
-    # Convert round-trip efficiency to dimensionless
-    if roundtrip_efficiency is not None:
-        roundtrip_efficiency = roundtrip_efficiency.to(
-            ur.Quantity("dimensionless")
-        ).magnitude
-
-    # Convert SoC units to MWh, given the storage capacity
+    # Convert SoC units (we ask for % in this CLI) to MWh, given the storage capacity
+    soc_targets = []
     capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
     soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
     for soc_target_tuple in soc_target_strings:
@@ -987,49 +969,36 @@ def create_schedule(
             capacity=capacity_str,
         )
         soc_target_datetime = pd.Timestamp(soc_target_dt_str)
-        soc_targets.loc[soc_target_datetime] = soc_target_value
+        soc_targets.append(dict(value=soc_target_value, datetime=soc_target_datetime))
     if soc_min is not None:
         soc_min = convert_units(soc_min.magnitude, str(soc_min.units), "MWh", capacity=capacity_str)  # type: ignore
     if soc_max is not None:
         soc_max = convert_units(soc_max.magnitude, str(soc_max.units), "MWh", capacity=capacity_str)  # type: ignore
 
-    # TODO: collect schedule_kwargs one time.
+    scheduling_kwargs = dict(
+        sensor_id=power_sensor.id,
+        start=start,
+        end=end,
+        belief_time=server_now(),
+        resolution=power_sensor.event_resolution,
+        flex_model=dict(
+            soc_at_start=soc_at_start,
+            soc_targets=soc_targets,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            roundtrip_efficiency=roundtrip_efficiency,
+        ),
+        flex_context=dict(
+            consumption_price_sensor=consumption_price_sensor.id,
+            production_price_sensor=production_price_sensor.id,
+        ),
+    )
     if as_job:
-        job = create_scheduling_job(
-            sensor=power_sensor,
-            start=start,
-            end=end,
-            belief_time=server_now(),
-            resolution=power_sensor.event_resolution,
-            flex_model=dict(
-                soc_at_start=soc_at_start,
-                soc_targets=soc_targets,
-                soc_min=soc_min,
-                soc_max=soc_max,
-                roundtrip_efficiency=roundtrip_efficiency,
-            ),
-            consumption_price_sensor=consumption_price_sensor,
-            production_price_sensor=production_price_sensor,
-        )
+        job = create_scheduling_job(**scheduling_kwargs)
         if job:
             print(f"New scheduling job {job.id} has been added to the queue.")
     else:
-        success = make_schedule(
-            sensor_id=power_sensor.id,
-            start=start,
-            end=end,
-            belief_time=server_now(),
-            resolution=power_sensor.event_resolution,
-            storage_specs=dict(
-                soc_at_start=soc_at_start,
-                soc_targets=soc_targets,
-                soc_min=soc_min,
-                soc_max=soc_max,
-                roundtrip_efficiency=roundtrip_efficiency,
-            ),
-            consumption_price_sensor=consumption_price_sensor,
-            production_price_sensor=production_price_sensor,
-        )
+        success = make_schedule(**scheduling_kwargs)
         if success:
             print("New schedule is stored.")
 
