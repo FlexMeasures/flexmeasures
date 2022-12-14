@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import Optional, List, Union, Dict
+from typing import List, Union, Dict
 
 import pandas as pd
 import numpy as np
@@ -232,28 +234,13 @@ class StorageScheduler(Scheduler):
         ):
             raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
 
-        # Check for min and max SOC, if not given then get default from sensor or targets
-        if "soc_min" not in self.flex_model or self.flex_model["soc_min"] is None:
-            # Can't drain the storage by more than it contains
-            self.flex_model["soc_min"] = self.sensor.get_attribute("min_soc_in_mwh", 0)
-        if "soc_max" not in self.flex_model or self.flex_model["soc_max"] is None:
-            # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-            self.flex_model["soc_max"] = self.sensor.get_attribute(
-                "max_soc_in_mwh", None
-            )
-            if self.flex_model["soc_max"] is None:
-                if self.flex_model["soc_targets"]:
-                    self.flex_model["soc_max"] = max(
-                        [target["value"] for target in self.flex_model["soc_targets"]]
-                    )
-                else:
-                    raise ValueError(
-                        "Need maximal permitted state of charge, please specify soc_max."
-                    )
+        self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configurations hold up to basic expectations
         self.flex_model = self.flex_model_schema().load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
+
+        self.check_soc_min_max_and_targets()
 
         # Make SOC targets into a series for easier use
         self.flex_model["soc_targets"] = build_soc_targets(
@@ -261,10 +248,96 @@ class StorageScheduler(Scheduler):
             self.start,
             self.end,
             self.sensor.event_resolution,
-            self.flex_model.get("soc_unit"),
         )
 
         return self.flex_model
+
+    def get_min_max_targets(self) -> tuple(float | None):
+        min_target = None
+        max_target = None
+        if "soc_targets" in self.flex_model and len(self.flex_model["soc_targets"]) > 0:
+            min_target = min(
+                [target["value"] for target in self.flex_model["soc_targets"]]
+            )
+            max_target = max(
+                [target["value"] for target in self.flex_model["soc_targets"]]
+            )
+        return min_target, max_target
+
+    def get_min_max_soc_on_sensor(
+        self, adjust_unit: bool = False
+    ) -> tuple(float | None):
+        soc_min_sensor = self.sensor.get_attribute("min_soc_in_mwh", None)
+        soc_max_sensor = self.sensor.get_attribute("max_soc_in_mwh", None)
+        if adjust_unit:
+            if soc_min_sensor and self.flex_model.get("soc_unit") == "kWh":
+                soc_min_sensor *= 1000  # later steps assume soc data is kWh
+            if soc_max_sensor and self.flex_model.get("soc_unit") == "kWh":
+                soc_max_sensor *= 1000
+        return soc_min_sensor, soc_max_sensor
+
+    def check_soc_min_max_and_targets(self):
+        """
+        Check if targets or min and max values are out of any existing known bounds
+        """
+        min_target, max_target = self.get_min_max_targets()
+        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor()
+
+        if min_target and min_target < 0:
+            raise ValueError(f"Lowest SOC target {min_target} MWh lies below 0.")
+        if (
+            min_target is not None
+            and soc_min_sensor is not None
+            and min_target < soc_min_sensor
+        ):
+            raise ValueError(
+                f"Target value {min_target} MWh is below sensor {self.sensor.id}'s min_soc_in_mwh attribute of {soc_min_sensor}."
+            )
+        if (
+            self.flex_model.get("soc_min") is not None
+            and self.flex_model.get("soc_min") < soc_min_sensor
+        ):
+            raise ValueError(
+                f"Value {self.flex_model.get('soc_min')} MWh for soc_min is below sensor {self.sensor.id}'s min_soc_in_mwh attribute of {soc_min_sensor}."
+            )
+        if (
+            max_target is not None
+            and soc_max_sensor is not None
+            and max_target > soc_max_sensor
+        ):
+            raise ValueError(
+                f"Target value {max_target} MWh is above sensor {self.sensor.id}'s max_soc_in_mwh attribute of {soc_max_sensor}."
+            )
+        if (
+            self.flex_model.get("soc_max") is not None
+            and self.flex_model.get("soc_max") > soc_max_sensor
+        ):
+            raise ValueError(
+                f"Value {self.flex_model.get('soc_max')} MWh for soc_max is above sensor {self.sensor.id}'s max_soc_in_mwh attribute of {soc_max_sensor}."
+            )
+
+    def ensure_soc_min_max(self):
+        """
+        Make sure we have min and max SOC.
+        If not passed directly, then get default from sensor or targets.
+        """
+        _, max_target = self.get_min_max_targets()
+        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor(
+            adjust_unit=True
+        )
+        if "soc_min" not in self.flex_model or self.flex_model["soc_min"] is None:
+            # Default is 0 - can't drain the storage by more than it contains
+            self.flex_model["soc_min"] = soc_min_sensor if soc_min_sensor else 0
+        if "soc_max" not in self.flex_model or self.flex_model["soc_max"] is None:
+            self.flex_model["soc_max"] = soc_max_sensor
+            # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
+            if self.flex_model["soc_max"] is None:
+                if max_target:
+                    self.flex_model["soc_max"] = max_target
+                else:
+                    raise ValueError(
+                        "Need maximal permitted state of charge, please specify soc_max or some soc_targets."
+                    )
 
 
 def build_soc_targets(
@@ -272,7 +345,6 @@ def build_soc_targets(
     start_of_schedule: datetime,
     end_of_schedule: datetime,
     resolution: timedelta,
-    unit: Optional[str] = None,
 ) -> pd.Series:
     """
     Utility function to make sure soc targets are a convenient series fitting our time frame.
@@ -287,8 +359,6 @@ def build_soc_targets(
 
     for target in targets:
         target_value = target["value"]
-        if unit == "kWh":
-            target_value = target_value / 1000.0
 
         target_datetime = target["datetime"]
         target_datetime = target_datetime.astimezone(

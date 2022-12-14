@@ -73,6 +73,10 @@ class Scheduler:
         pass
 
     def inspect_config(self):
+        """
+        Check all configurations we have, throwing either ValidationErrors or ValueErrors.
+        Other code can decide if/how to handle those.
+        """
         self.inspect_timing_config()
         self.inspect_flex_config()
         self.config_inspected = True
@@ -80,6 +84,7 @@ class Scheduler:
     def inspect_timing_config(self):
         """
         Check if the timing of the schedule is valid.
+        Raises ValueErrors.
         """
         if self.start > self.end:
             raise ValueError(f"Start {self.start} cannot be after end {self.end}.")
@@ -95,6 +100,6 @@ class Scheduler:
         - Check for inconsistencies between settings (can also happen in Marshmallow
         - fill in missing values from the scheduler's knowledge (e.g. sensor attributes)
 
-        Raise ValidationErrors or ValueErrors. Other code can decide if/how to handle those.
+        Raises ValidationErrors or ValueErrors.
         """
         pass

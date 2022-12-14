@@ -33,7 +33,7 @@ class StorageFlexModelSchema(Schema):
     """
 
     soc_at_start = fields.Float(required=True)
-    soc_min = fields.Float()
+    soc_min = fields.Float(validate=validate.Range(min=0))
     soc_max = fields.Float()
     soc_unit = fields.Str(
         validate=OneOf(
@@ -56,11 +56,14 @@ class StorageFlexModelSchema(Schema):
         # currently we only handle MWh internally
         # TODO: review when we moved away from capacity having to be described in MWh
         if data.get("soc_unit") == "kWh":
-            data["soc_at_start"] = data["soc_at_start"] / 1000.0
+            data["soc_at_start"] /= 1000.0
             if data.get("soc_min") is not None:
-                data["soc_min"] = data["soc_min"] / 1000.0
+                data["soc_min"] /= 1000.0
             if data.get("soc_max") is not None:
-                data["soc_max"] = data["soc_max"] / 1000.0
+                data["soc_max"] /= 1000.0
+            if data.get("soc_targets"):
+                for target in data["soc_targets"]:
+                    target["value"] /= 1000.0
 
         # Convert round-trip efficiency to dimensionless (to the (0,1] range)
         if data.get("roundtrip_efficiency") is not None:

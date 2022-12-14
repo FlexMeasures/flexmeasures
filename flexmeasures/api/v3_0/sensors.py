@@ -449,6 +449,8 @@ class SensorAPI(FlaskView):
             scheduler.inspect_config()
         except ValidationError as err:
             return invalid_flex_config(err.messages)
+        except ValueError as err:
+            return invalid_flex_config(str(err))
 
         # From here on, we handle IDs again, not objects
         scheduler_kwargs.update(sensor_id=scheduler_kwargs.pop("sensor").id)

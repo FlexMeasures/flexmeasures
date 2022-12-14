@@ -28,6 +28,18 @@ from flexmeasures.utils.calculations import integrate_time_series
             "Not a valid number",
         ),
         (message_for_trigger_schedule(), "soc_unit", "MWH", "Must be one of"),
+        (
+            message_for_trigger_schedule(),
+            "soc_max",
+            6000,
+            "Value 6.0 MWh for soc_max is above",
+        ),
+        (
+            message_for_trigger_schedule(with_targets=True, realistic_targets=False),
+            "Target",
+            None,
+            "Target value 25.0 MWh is above",
+        ),
     ],
 )
 def test_trigger_schedule_with_invalid_flexmodel(
@@ -35,8 +47,9 @@ def test_trigger_schedule_with_invalid_flexmodel(
 ):
     sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     with app.test_client() as client:
-        message["flex_model"][field] = sent_value
-        # message[field] = wrong_value
+        if sent_value:  # if None, field is a term we expect in the response, not more
+            message["flex_model"][field] = sent_value
+
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
@@ -46,7 +59,14 @@ def test_trigger_schedule_with_invalid_flexmodel(
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 422
         assert field in trigger_schedule_response.json["message"]["json"]
-        assert err_msg in trigger_schedule_response.json["message"]["json"][field][0]
+        if isinstance(trigger_schedule_response.json["message"]["json"], str):
+            # ValueError
+            assert err_msg in trigger_schedule_response.json["message"]["json"]
+        else:
+            # ValidationError (marshmallow)
+            assert (
+                err_msg in trigger_schedule_response.json["message"]["json"][field][0]
+            )
 
 
 @pytest.mark.parametrize(
@@ -75,7 +95,7 @@ def test_trigger_and_get_schedule(
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
     message["roundtrip-efficiency"] = 0.98
     message["soc-min"] = 0
-    message["soc-max"] = 25
+    message["soc-max"] = 4
     assert len(app.queues["scheduling"]) == 0
 
     sensor = Sensor.query.filter(Sensor.name == asset_name).one_or_none()

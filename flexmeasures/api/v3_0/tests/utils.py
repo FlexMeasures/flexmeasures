@@ -43,6 +43,7 @@ def get_asset_post_data(account_id: int = 1, asset_type_id: int = 1) -> dict:
 def message_for_trigger_schedule(
     unknown_prices: bool = False,
     with_targets: bool = False,
+    realistic_targets: bool = True,
     deprecated_format_pre012: bool = False,
 ) -> dict:
     message = {
@@ -63,7 +64,11 @@ def message_for_trigger_schedule(
         message["flex_model"]["soc_at_start"] = 12.1
         message["flex_model"]["soc_unit"] = "kWh"
     if with_targets:
-        targets = [{"value": 25, "datetime": "2015-01-02T23:00:00+01:00"}]
+        if realistic_targets:
+            targets = [{"value": 3500, "datetime": "2015-01-02T23:00:00+01:00"}]
+        else:
+            # this target is actually higher than soc_max_in_mwh on the battery's sensor attributes
+            targets = [{"value": 25000, "datetime": "2015-01-02T23:00:00+01:00"}]
         if deprecated_format_pre012:
             message["soc-targets"] = targets
         else:
