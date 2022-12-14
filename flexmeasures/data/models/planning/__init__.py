@@ -64,7 +64,7 @@ class Scheduler:
 
     def compute_schedule(self) -> Optional[pd.Series]:
         """
-        Overwrite for the actual computation of your schedule.
+        Overwrite with the actual computation of your schedule.
         """
         return None
 

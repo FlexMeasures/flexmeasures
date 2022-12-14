@@ -46,7 +46,7 @@ def create_scheduling_job(
         make_schedule,
         kwargs=dict(
             sensor_id=sensor_id, **scheduler_kwargs
-        ),  # TODO: we're passing sensor objects in flex_context. Passing IDs would be cleaner.
+        ),  # TODO: we're passing sensor objects in flex_context. Passing IDs would be cleaner to avoid potential db sessions confusion.
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(

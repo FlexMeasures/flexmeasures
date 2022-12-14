@@ -167,10 +167,14 @@ For version 1, 2 and 3 of the API, only equidistant timeseries data is expected 
 Describing flexibility
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-To compute a schedule, FlexMeasures needs to know state and context information which goes beyond
-the usual time series of the asset.
+FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce electricity.
+We model a device as an asset with a power sensor, and compute schedules only for flexible devices, while taking into account inflexible devices.
 
-We've grouped these two sources of information in two:
+To compute a schedule, FlexMeasures first needs to assess the flexibility available to the system.
+For this it needs information about the state and possible actions of each device, as well as context information about the system as a whole, in order to assess the value of activating flexibility.
+This information goes beyond the usual time series recorded by an asset's sensors.
+
+We distinguish the information with two groups:
 
 Flex model
 """"""""""""
@@ -178,11 +182,13 @@ Flex model
 The flexibility model describes to the scheduler what the flexible asset's state is,
 and what constraints or preferences should be taken into account.
 
-Which specific flexibility model is relevant in your scheduler usually relates to the sensor's asset type.
 Usually, not the whole flexibility model is needed (e.g. to be sent through the endpoint).
+This means that API and CLI users don't have to send the whole flex model every time.
 For instance, FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
-Here are the three flexibility models you can expect to be built-in:
+Which type of flexibility model is relevant to a scheduler usually relates to the sensor's asset type.
+
+Here are the three types of flexibility models you can expect to be built-in:
 
 1) For storage sensors (e.g. battery, charge points), the schedule deals with the state of charge (SOC).
     The possible flexibility parameters are:
@@ -206,7 +212,7 @@ Here are the three flexibility models you can expect to be built-in:
 In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
 That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and to validate it. 
 
-.. note:: We also aim to model situations with more than one flexible asset, which can also have differing flexibility types.
+.. note:: We also aim to model situations with more than one flexible asset, with different types of flexibility.
      This is ongoing architecture design work, and therefore happens in development settings, until we are happy 
      with the outcomes. Thoughts welcome :) 
 
@@ -214,9 +220,9 @@ That's no problem, FlexMeasures will let the scheduler decide which flexibility 
 Flex context
 """""""""""""
 
-With the flexibility context, we aim to describe the EMS in which the sensor operates:
+With the flexibility context, we aim to describe the EMS in which the flexible assets operate:
 
-- inflexible_device_sensors ― sensors which are relevant, but not flexible, e.g. solar
+- inflexible_device_sensors ― power sensors that are relevant, but not flexible, such as a sensor recording rooftop solar power connected behind the main meter, whose production falls under the same contract as the flexible device(s) being scheduled
 - consumption_price_sensor ― the sensor which defines costs/revenues of consuming energy
 - production_price_sensor ― the sensor which defines cost/revenues of producing energy
 
