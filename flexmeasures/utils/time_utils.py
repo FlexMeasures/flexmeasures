@@ -347,3 +347,16 @@ def determine_minimum_resampling_resolution(
         if event_resolution > timedelta(0)
     )
     return min(condition) if any(condition) else timedelta(0)
+
+
+def to_http_time(dt: pd.Timestamp | datetime) -> str:
+    """Formats datetime using the Internet Message Format fixdate.
+
+    >>> to_http_time(pd.Timestamp("2022-12-13 14:06:23Z"))
+    Tue, 13 Dec 2022 14:06:23 GMT
+
+    References
+    ----------
+    IMF-fixdate: https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1
+    """
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
