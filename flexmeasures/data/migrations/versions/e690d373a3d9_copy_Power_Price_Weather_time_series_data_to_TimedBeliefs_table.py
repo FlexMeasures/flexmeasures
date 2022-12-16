@@ -1,4 +1,7 @@
-"""Copy Power/Price/Weather time series data to TimedBeliefs table
+"""Copy Power/Price/Weather time series data to TimedBeliefs table.
+
+If any duplicate error happens, we assume this step is not necessary.
+One reason for this might be that we downgraded, and this upgrade step has happened before.
 
 Revision ID: e690d373a3d9
 Revises: 830e72a8b218
@@ -60,17 +63,21 @@ def upgrade():
     # Use SQLAlchemy's connection and transaction to go through the data
     connection = op.get_bind()
 
-    copy_time_series_data(
+    encountered_duplicate = copy_time_series_data(
         connection,
         t_price,
         t_timed_belief,
     )
-    copy_time_series_data(
+    if encountered_duplicate:
+        return
+    encountered_duplicate = copy_time_series_data(
         connection,
         t_power,
         t_timed_belief,
     )
-    copy_time_series_data(
+    if encountered_duplicate:
+        return
+    encountered_duplicate = copy_time_series_data(
         connection,
         t_weather,
         t_timed_belief,
@@ -86,7 +93,7 @@ def copy_time_series_data(
     t_old_data_model,
     t_timed_belief,
     batch_size: int = 100000,
-):
+) -> bool:
     mapping = {
         "value": "event_value",
         "data_source_id": "source_id",
@@ -94,6 +101,8 @@ def copy_time_series_data(
         "horizon": "belief_horizon",
         "sensor_id": "sensor_id",
     }
+
+    transaction = connection.begin_nested()  # savepoint
 
     # Get data from old data model
     results = connection.execute(
@@ -115,7 +124,17 @@ def copy_time_series_data(
             d = {k: v for k, v in zip(mapping.values(), values)}
             d["cumulative_probability"] = 0.5
             insert_values.append(d)
-        op.bulk_insert(t_timed_belief, insert_values)
+        try:
+            op.bulk_insert(t_timed_belief, insert_values)
+            transaction.commit()
+        except sa.exc.IntegrityError:
+            print(
+                "  - Aborting, as duplicate(s) were detected. Apparently, copying took place earlier?"
+            )
+            transaction.rollback()  # rollback to savepoint
+            return True
 
     if len(results) > 0:
         print(f"  - finished copying {len(results)} rows...")
+
+    return False
