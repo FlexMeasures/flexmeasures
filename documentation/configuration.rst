@@ -122,7 +122,7 @@ FLEXMEASURES_MENU_LOGO_PATH
 A URL path to identify an image being used as logo in the upper left corner (replacing some generic text made from platform name and the page title).
 The path can be a complete URL or a relative from the app root. 
 
-Default: ""
+Default: ``""``
 
 
 .. _extra-css-config:
@@ -135,7 +135,7 @@ The path can be a complete URL or a relative from the app root.
 
 .. note:: You can also add extra styles for plugins with the usual Blueprint method. That is more elegant but only applies to the Blueprint's views.
 
-Default: ""
+Default: ``""``
 
 
 FLEXMEASURES_ROOT_VIEW
