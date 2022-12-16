@@ -612,7 +612,10 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
         *  If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
            Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
-        ** Note that timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
+        ** Note that:
+           - timely-beliefs converts string resolutions to datetime.timedelta objects (see https://github.com/SeitaBV/timely-beliefs/issues/13).
+           - for sensors recording non-instantaneous data: updates both the event frequency and the event resolution
+           - for sensors recording instantaneous data: updates only the event frequency (and event resolution remains 0)
         """
         # todo: deprecate the 'sensor' argument in favor of 'sensors' (announced v0.8.0)
         sensors = tb_utils.replace_deprecated_argument(
