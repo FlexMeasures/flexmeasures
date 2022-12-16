@@ -62,6 +62,7 @@ def test_get_asset_nonadmin_access(client):
         headers=headers,
         follow_redirects=True,
     )
+    check_deprecation(asset_response)
     assert asset_response.status_code == 403
     # proper 404 for non-existing asset
     asset_response = client.get(
@@ -69,6 +70,7 @@ def test_get_asset_nonadmin_access(client):
         headers=headers,
         follow_redirects=True,
     )
+    check_deprecation(asset_response)
     assert asset_response.status_code == 404
     assert "not found" in asset_response.json["message"]
 
@@ -121,6 +123,7 @@ def test_alter_an_asset_wrongauth(client):
         json={},
     )
     print(f"Response: {asset_creation_response.json}")
+    check_deprecation(asset_creation_response)
     assert asset_creation_response.status_code == 403
     # ... or edited ...
     asset_edit_response = client.patch(
@@ -128,6 +131,7 @@ def test_alter_an_asset_wrongauth(client):
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={},
     )
+    check_deprecation(asset_edit_response)
     assert asset_edit_response.status_code == 403
     # ... or deleted ...
     asset_delete_response = client.delete(
@@ -135,6 +139,7 @@ def test_alter_an_asset_wrongauth(client):
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={},
     )
+    check_deprecation(asset_delete_response)
     assert asset_delete_response.status_code == 403
     # ... which is impossible even if you're the owner
     asset_delete_response = client.delete(
@@ -142,6 +147,7 @@ def test_alter_an_asset_wrongauth(client):
         headers={"content-type": "application/json", "Authorization": auth_token},
         json={},
     )
+    check_deprecation(asset_delete_response)
     assert asset_delete_response.status_code == 403
 
 
@@ -160,6 +166,7 @@ def test_post_an_asset_with_existing_name(client):
         json=post_data,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
+    check_deprecation(asset_creation)
     assert asset_creation.status_code == 422
     assert "already exists" in asset_creation.json["message"]["json"]["name"][0]
 
@@ -175,6 +182,7 @@ def test_post_an_asset_with_nonexisting_field(client):
         json=post_data,
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
+    check_deprecation(asset_creation)
     assert asset_creation.status_code == 422
     assert asset_creation.json["message"]["json"]["nnname"][0] == "Unknown field."
 
@@ -192,6 +200,7 @@ def test_posting_multiple_assets(client):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print(f"Response: {asset_creation.json}")
+    check_deprecation(asset_creation)
     assert asset_creation.status_code == 422
     assert asset_creation.json["message"]["json"]["_schema"][0] == "Invalid input type."
 
@@ -244,6 +253,7 @@ def test_post_an_asset_with_invalid_data(client, db):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_asset_response.json)
+    check_deprecation(post_asset_response)
     assert post_asset_response.status_code == 422
 
     assert (

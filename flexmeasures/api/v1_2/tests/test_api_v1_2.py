@@ -65,6 +65,7 @@ def test_get_device_message_mistyped_duration(client):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_device_message_response.json)
+    check_deprecation(get_device_message_response)
     assert get_device_message_response.status_code == 422
     assert (
         "Cannot parse PTT6H as ISO8601 duration"
@@ -83,6 +84,7 @@ def test_get_device_message_wrong_event_id(client, message):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_device_message_response.json)
+    check_deprecation(get_device_message_response)
     assert get_device_message_response.status_code == 400
     assert get_device_message_response.json["type"] == "GetDeviceMessageResponse"
     assert (
@@ -146,6 +148,7 @@ def test_post_udi_event(app, message):
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_udi_event_response.json)
+        check_deprecation(post_udi_event_response)
         assert post_udi_event_response.status_code == 400
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
         assert post_udi_event_response.json["status"] == "OUTDATED_UDI_EVENT"
