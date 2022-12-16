@@ -840,12 +840,12 @@ def create_forecasts(
 def create_schedule(ctx):
     """(Deprecated) Create a new schedule for a given power sensor.
 
-    THIS COMMAND HAS BEEN RENAMED TO `flexmeasures add schedule storage`
+    THIS COMMAND HAS BEEN RENAMED TO `flexmeasures add schedule for-storage`
     """
     pass
 
 
-@create_schedule.command("storage")
+@create_schedule.command("for-storage")
 @with_appcontext
 @click.option(
     "--sensor-id",
