@@ -210,7 +210,7 @@ Here are the three types of flexibility models you can expect to be built-in:
    .. todo:: Also work in progress, needs model for heat loss compensation.
 
 In addition, folks who write their own custom scheduler (see :ref:`plugin_customization`) might also require their custom flexibility model.
-That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and to validate it. 
+That's no problem, FlexMeasures will let the scheduler decide which flexibility model is relevant and how it should be validated. 
 
 .. note:: We also aim to model situations with more than one flexible asset, with different types of flexibility.
      This is ongoing architecture design work, and therefore happens in development settings, until we are happy 
