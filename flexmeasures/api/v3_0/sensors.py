@@ -207,7 +207,7 @@ class SensorAPI(FlaskView):
                 data_key="start", format="iso", required=True
             ),
             "prior": AwareDateTimeField(format="iso"),
-            "flex_model": fields.Dict(),
+            "flex_model": fields.Dict(data_key="flex-model"),
             "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
             "roundtrip_efficiency": QuantityField(
                 "%",
@@ -232,7 +232,9 @@ class SensorAPI(FlaskView):
             "prefer_charging_sooner": fields.Bool(
                 data_key="prefer-charging-sooner", required=False
             ),
-            "flex_context": fields.Nested(FlexContextSchema, required=False),
+            "flex_context": fields.Nested(
+                FlexContextSchema, required=False, data_key="flex-context"
+            ),
             "consumption_price_sensor": SensorIdField(
                 data_key="consumption-price-sensor", required=False
             ),
@@ -302,7 +304,7 @@ class SensorAPI(FlaskView):
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
-                "flex_model": {
+                "flex-model": {
                     "soc_at_start": 12.1,
                     "soc_unit": "kWh"
                 }
@@ -324,7 +326,7 @@ class SensorAPI(FlaskView):
 
             {
                 "start": "2015-06-02T10:00:00+00:00",
-                "flex_model": {
+                "flex-model": {
                     "soc_at_start": 12.1,
                     "soc_unit": "kWh",
                     "soc_targets": [
@@ -337,7 +339,7 @@ class SensorAPI(FlaskView):
                     "soc_max": 25,
                     "roundtrip_efficiency": 0.98,
                 },
-                "flex_context": {
+                "flex-context": {
                     "consumption_price_sensor": 9,
                     "production_price_sensor": 10,
                     "inflexible_device_sensors": [13, 14, 15]

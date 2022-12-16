@@ -48,7 +48,7 @@ def test_trigger_schedule_with_invalid_flexmodel(
     sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     with app.test_client() as client:
         if sent_value:  # if None, field is a term we expect in the response, not more
-            message["flex_model"][field] = sent_value
+            message["flex-model"][field] = sent_value
 
         auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
         trigger_schedule_response = client.post(
