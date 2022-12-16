@@ -440,6 +440,9 @@ MAIL_DEFAULT_SENDER (*)
 
 Tuple of shown name of sender and their email address.
 
+.. note:: Some recipient mail servers will refuse emails for which the shown email address (set under ``MAIL_DEFAULT_SENDER``) differs from the sender's real email address (registered to ``MAIL_USERNAME``).
+         Match them to avoid ``SMTPRecipientsRefused`` errors.
+
 Default:
 
 .. code-block:: python
