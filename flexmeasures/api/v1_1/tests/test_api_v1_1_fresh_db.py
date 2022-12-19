@@ -7,7 +7,7 @@ from isodate import duration_isoformat
 
 from flexmeasures.utils.time_utils import forecast_horizons_for
 from flexmeasures.api.common.responses import unapplicable_resolution
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.v1_1.tests.utils import (
     message_for_post_price_data,
     message_for_post_weather_data,
@@ -44,6 +44,7 @@ def test_post_price_data_unexpected_resolution(
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_price_data_response.json)
+    check_deprecation(post_price_data_response)
     assert post_price_data_response.json["type"] == "PostPriceDataResponse"
     assert post_price_data_response.status_code == status
     assert msg in post_price_data_response.json["message"]
@@ -74,6 +75,7 @@ def test_post_weather_data(
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_weather_data_response.json)
+    check_deprecation(post_weather_data_response)
     assert post_weather_data_response.status_code == 200
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
 
