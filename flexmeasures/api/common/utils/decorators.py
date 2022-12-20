@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from functools import wraps
 
-from flask import current_app, request
+from flask import current_app, request, Response
 from flask_json import as_json
 from werkzeug.datastructures import Headers
 
@@ -45,11 +47,7 @@ def as_response_type(response_type):
                     "Response is not a Flask response object. I did not assign a response type."
                 )
                 return response
-            data = response.json
-            headers = dict(
-                zip(Headers.keys(response.headers), Headers.values(response.headers))
-            )
-            status_code = response.status_code
+            data, status_code, headers = split_response(response)
             if "type" in data:
                 current_app.logger.warning(
                     "Response already contains 'type' key. I did not assign a new response type."
@@ -63,3 +61,13 @@ def as_response_type(response_type):
         return decorated_service
 
     return wrapper
+
+
+def split_response(response: Response) -> tuple[dict, int, dict]:
+    """Split Flask Response object into json data, status code and headers."""
+    data = response.json
+    headers = dict(
+        zip(Headers.keys(response.headers), Headers.values(response.headers))
+    )
+    status_code = response.status_code
+    return data, status_code, headers

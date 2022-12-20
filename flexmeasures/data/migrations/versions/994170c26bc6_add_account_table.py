@@ -37,6 +37,7 @@ t_generic_assets = sa.Table(
     sa.MetaData(),
     sa.Column("id"),
     sa.Column("name"),
+    sa.Column("account_id"),
     sa.Column("generic_asset_type_id"),
 )
 
@@ -110,31 +111,48 @@ def upgrade_data():
             print(
                 f"Linking user {user_id} to account {account_name} (as from custom param) ..."
             )
-            account = session.query(Account).filter_by(name=account_name).one_or_none()
-            if account is None:
+            account_results = (
+                session.query(Account.id).filter_by(name=account_name).one_or_none()
+            )
+            if account_results is None:
                 print(f"need to create account {account_name} ...")
                 account = Account(name=account_name)
                 session.add(account)
                 session.flush()
-            user = session.query(User).filter_by(id=user_id).one_or_none()
-            if not user:
+                account_id = account.id
+            else:
+                account_id = account_results[0]
+            user_results = session.query(User.id).filter_by(id=user_id).one_or_none()
+            if not user_results:
                 raise ValueError(f"User with ID {user_id} does not exist!")
-            user.account_id = account.id
+            connection.execute(
+                f"UPDATE fm_user SET account_id = {account_id} WHERE id = {user_id}"
+            )
 
     # Make sure each existing user has an account
-    for user in session.query(User).all():
-        if user.account_id is None:
-            domain = user.email.split("@")[-1].rsplit(".", maxsplit=1)[0]
+    for user_results in session.query(User.id, User.email, User.account_id).all():
+        user_id = user_results[0]
+        user_email = user_results[1]
+        user_account_id = user_results[2]
+        if user_account_id is None:
+            domain = user_email.split("@")[-1].rsplit(".", maxsplit=1)[0]
             main_domain = domain.rsplit(".", maxsplit=1)[-1]
             account_name = inflection.titleize(main_domain)
-            print(f"Linking user {user.id} to account {account_name} ...")
-            account = session.query(Account).filter_by(name=account_name).one_or_none()
-            if account is None:
+            print(f"Linking user {user_id} to account {account_name} ...")
+            account_results = (
+                session.query(Account.id).filter_by(name=account_name).one_or_none()
+            )
+            if account_results is None:
                 print(f"need to create account {account_name} ...")
                 account = Account(name=account_name)
                 session.add(account)
                 session.flush()
-            user.account_id = account.id
+                account_id = account.id
+            else:
+                account_id = account_results[0]
+            connection.execute(
+                f"UPDATE fm_user SET account_id = {account_id} WHERE id = {user_id}"
+            )
 
     # For all generic assets, set the user's account
     # We query the db for old ownership directly, as the generic asset code already points to account
@@ -151,32 +169,44 @@ def upgrade_data():
     for ga_id, ga_name, ga_generic_asset_type_id in generic_asset_results:
         # 1. first look into GenericAsset ownership
         old_owner_id = _get_old_owner_id_from_db_result(asset_ownership_db, ga_id)
-        user = (
-            session.query(User).get(old_owner_id) if old_owner_id is not None else None
+        user_results = (
+            session.query(User.id, User.account_id)
+            .filter_by(id=old_owner_id)
+            .one_or_none()
+            if old_owner_id is not None
+            else None
         )
         # 2. Otherwise, then try the old-style Asset's ownership (via Sensor)
-        if user is None:
-            sensor = (
-                session.query(Sensor).filter_by(generic_asset_id=ga_id).one_or_none()
+        if user_results is None:
+            sensor_results = (
+                session.query(Sensor.id).filter_by(generic_asset_id=ga_id).first()
             )
-            if sensor is None:
-                raise ValueError(
-                    f"GenericAsset {ga_id} ({ga_name}) does not have an assorted sensor. Please investigate ..."
+            if sensor_results is None:
+                print(
+                    f"GenericAsset {ga_id} ({ga_name}) does not have an assorted sensor. You might want to investigate ..."
                 )
+                continue
             asset_results = connection.execute(
-                sa.select([t_assets.c.owner_id]).where(t_assets.c.id == sensor.id)
+                sa.select([t_assets.c.owner_id]).where(
+                    t_assets.c.id == sensor_results[0]
+                )
             ).one_or_none()
             if asset_results is None:
                 print(
                     f"Generic asset {ga_name} does not have an asset associated, probably because it's of type {ga_generic_asset_type_id}."
                 )
             else:
-                user = session.query(User).get(asset_results[0])
-        if user is not None:
+                user_results = (
+                    session.query(User.id, User.account_id)
+                    .filter_by(id=asset_results[0])
+                    .one_or_none()
+                )
+        if user_results is not None:
+            account_id = user_results[1]
             connection.execute(
                 sa.update(t_generic_assets)
                 .where(t_generic_assets.c.id == ga_id)
-                .values(account_id=user.account.id)
+                .values(account_id=account_id)
             )
     session.commit()
 

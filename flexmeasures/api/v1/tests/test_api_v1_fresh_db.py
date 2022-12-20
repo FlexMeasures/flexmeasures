@@ -6,7 +6,7 @@ from iso8601 import parse_date
 from numpy import repeat
 
 from flexmeasures.api.common.utils.api_utils import message_replace_name_with_ea
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.v1.tests.utils import (
     message_for_post_meter_data,
     message_for_get_meter_data,
@@ -49,6 +49,7 @@ def test_post_and_get_meter_data(
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_meter_data_response.json)
+    check_deprecation(post_meter_data_response)
     assert post_meter_data_response.status_code == 200
     assert post_meter_data_response.json["type"] == "PostMeterDataResponse"
 
