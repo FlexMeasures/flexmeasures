@@ -21,12 +21,6 @@ FIELD_DEFINITIONS = {
         title=None,
         axis={"labelExpr": FORMAT_24H, "labelOverlap": True, "labelSeparation": 1},
     ),
-    "event_end": dict(
-        field="event_end",
-        type="temporal",
-        title=None,
-        axis={"labelExpr": FORMAT_24H, "labelOverlap": True, "labelSeparation": 1},
-    ),
     "event_value": dict(
         field="event_value",
         type="quantitative",

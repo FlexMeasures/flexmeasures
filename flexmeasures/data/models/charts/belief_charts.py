@@ -30,6 +30,10 @@ def bar_chart(
         **FIELD_DEFINITIONS["event_value"],
     )
     event_start_field_definition = FIELD_DEFINITIONS["event_start"]
+    event_start_field_definition["timeUnit"] = {
+        "unit": "yearmonthdatehoursminutesseconds",
+        "step": sensor.event_resolution.total_seconds(),
+    }
     if event_starts_after and event_ends_before:
         event_start_field_definition["scale"] = {
             "domain": [
@@ -37,7 +41,6 @@ def bar_chart(
                 event_ends_before.timestamp() * 10**3,
             ]
         }
-    resolution_in_ms = sensor.event_resolution.total_seconds() * 1000
     chart_specs = {
         "description": "A simple bar chart showing sensor data.",
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
@@ -47,7 +50,6 @@ def bar_chart(
         },
         "encoding": {
             "x": event_start_field_definition,
-            "x2": FIELD_DEFINITIONS["event_end"],
             "y": event_value_field_definition,
             "color": FIELD_DEFINITIONS["source_name"],
             "detail": FIELD_DEFINITIONS["source"],
@@ -63,10 +65,6 @@ def bar_chart(
             ],
         },
         "transform": [
-            {
-                "calculate": f"datum.event_start + {resolution_in_ms}",
-                "as": "event_end",
-            },
             {
                 "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                 "as": "source_name_and_id",
@@ -93,12 +91,16 @@ def chart_for_multiple_sensors(
         for sensor in sensors
         if sensor.event_resolution > timedelta(0)
     )
-    minimum_non_zero_resolution_in_ms = (
-        min(condition).total_seconds() * 1000 if any(condition) else 0
+    minimum_non_zero_resolution = (
+        min(condition) if any(condition) else timedelta(0)
     )
 
     # Set up field definition for event starts
     event_start_field_definition = FIELD_DEFINITIONS["event_start"]
+    event_start_field_definition["timeUnit"] = {
+        "unit": "yearmonthdatehoursminutesseconds",
+        "step": minimum_non_zero_resolution.total_seconds(),
+    }
     if event_starts_after and event_ends_before:
         event_start_field_definition["scale"] = {
             "domain": [
@@ -171,7 +173,6 @@ def chart_for_multiple_sensors(
                 create_rect_layer(
                     event_start_field_definition,
                     event_value_field_definition,
-                    minimum_non_zero_resolution_in_ms,
                     shared_tooltip,
                 )
             )
@@ -357,7 +358,6 @@ def create_circle_layer(
 def create_rect_layer(
     event_start_field_definition: dict,
     event_value_field_definition: dict,
-    minimum_non_zero_resolution_in_ms: int,
     shared_tooltip: list,
 ):
     rect_layer = {
@@ -368,7 +368,6 @@ def create_rect_layer(
         },
         "encoding": {
             "x": event_start_field_definition,
-            "x2": FIELD_DEFINITIONS["event_end"],
             "y": {
                 "condition": {
                     "test": "isNaN(datum['event_value'])",
@@ -378,11 +377,5 @@ def create_rect_layer(
             },
             "tooltip": shared_tooltip,
         },
-        "transform": [
-            {
-                "calculate": f"datum.event_start + {minimum_non_zero_resolution_in_ms}",
-                "as": "event_end",
-            },
-        ],
     }
     return rect_layer
