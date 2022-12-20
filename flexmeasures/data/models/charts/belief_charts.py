@@ -223,6 +223,7 @@ def chart_for_multiple_sensors(
                         },
                     ],
                 },
+                replay_ruler(),
             ],
             "width": "container",
         }
@@ -247,3 +248,19 @@ def chart_for_multiple_sensors(
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
     return chart_specs
+
+
+def replay_ruler():
+    layer = {
+        "data": {"name": "replay"},
+        "mark": {
+            "type": "rule",
+        },
+        "encoding": {
+            "x": {
+                "field": "belief_time",
+                "type": "temporal",
+            },
+        },
+    }
+    return layer
