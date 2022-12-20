@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS
+from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
@@ -66,7 +66,7 @@ def bar_chart(
                     },
                 ],
             },
-            replay_ruler(),
+            REPLAY_RULER,
         ],
     }
     for k, v in override_chart_specs.items():
@@ -228,7 +228,7 @@ def chart_for_multiple_sensors(
                         },
                     ],
                 },
-                replay_ruler(),
+                REPLAY_RULER,
             ],
             "width": "container",
         }
@@ -253,19 +253,3 @@ def chart_for_multiple_sensors(
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
     return chart_specs
-
-
-def replay_ruler():
-    layer = {
-        "data": {"name": "replay"},
-        "mark": {
-            "type": "rule",
-        },
-        "encoding": {
-            "x": {
-                "field": "belief_time",
-                "type": "temporal",
-            },
-        },
-    }
-    return layer
