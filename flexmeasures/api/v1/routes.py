@@ -38,7 +38,7 @@ def get_meter_data():
 
     **Optional fields**
 
-    - "resolution" (see :ref:`resolutions`)
+    - "resolution" (see :ref:`frequency_and_resolution`)
     - "horizon" (see :ref:`beliefs`)
     - "prior" (see :ref:`beliefs`)
     - "source" (see :ref:`sources`)

@@ -1,7 +1,16 @@
 from flask import Flask, Blueprint
 
+from flexmeasures.api.common.utils.deprecation_utils import deprecate_blueprint
+
 # The api blueprint. It is registered with the Flask app (see app.py)
 flexmeasures_api = Blueprint("flexmeasures_api_v1_3", __name__)
+deprecate_blueprint(
+    flexmeasures_api,
+    deprecation_date="2022-12-14",
+    deprecation_link="https://flexmeasures.readthedocs.io/en/latest/api/v1_3.html",
+    sunset_date="2023-02-01",
+    sunset_link="https://flexmeasures.readthedocs.io/en/latest/api/v1_3.html",
+)
 
 
 def register_at(app: Flask):

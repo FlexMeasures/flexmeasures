@@ -5,7 +5,7 @@ from flask import url_for
 from iso8601 import parse_date
 
 from flexmeasures.api.common.schemas.sensors import SensorField
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.v2_0.tests.utils import (
     message_for_post_price_data,
     verify_sensor_data_in_db,
@@ -42,6 +42,7 @@ def test_post_price_data_2_0(
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_price_data_response.json)
+        check_deprecation(post_price_data_response)
         assert post_price_data_response.status_code == 200
         assert post_price_data_response.json["type"] == "PostPriceDataResponse"
 

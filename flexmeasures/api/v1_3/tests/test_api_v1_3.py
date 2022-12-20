@@ -7,7 +7,7 @@ import pandas as pd
 from rq.job import Job
 
 from flexmeasures.api.common.responses import unrecognized_event
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.v1_3.tests.utils import (
     message_for_get_device_message,
     message_for_post_udi_event,
@@ -30,6 +30,7 @@ def test_get_device_message_wrong_event_id(client, message):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_device_message_response.json)
+    check_deprecation(get_device_message_response)
     assert get_device_message_response.status_code == 400
     assert get_device_message_response.json["type"] == "GetDeviceMessageResponse"
     assert (
@@ -59,6 +60,7 @@ def test_post_udi_event_and_get_device_message(
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_udi_event_response.json)
+        check_deprecation(post_udi_event_response)
         assert post_udi_event_response.status_code == 200
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
 
@@ -134,6 +136,7 @@ def test_post_udi_event_and_get_device_message(
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_device_message_response.json)
+    check_deprecation(get_device_message_response)
     assert get_device_message_response.status_code == 200
     assert get_device_message_response.json["type"] == "GetDeviceMessageResponse"
     assert len(get_device_message_response.json["values"]) == 192
@@ -172,6 +175,7 @@ def test_post_udi_event_and_get_device_message(
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_udi_event_response.json)
+        check_deprecation(post_udi_event_response)
         assert post_udi_event_response.status_code == 400
         assert post_udi_event_response.json["type"] == "PostUdiEventResponse"
         assert post_udi_event_response.json["status"] == "OUTDATED_UDI_EVENT"

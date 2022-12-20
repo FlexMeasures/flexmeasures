@@ -104,7 +104,7 @@ def get_assets():
     If no owner is set, all accessible assets are returned.
     A non-admin user can only access their own assets.
 
-    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
 
     **Example response**
 
@@ -159,7 +159,7 @@ def post_assets():
     This endpoint creates a new asset.
     Only users with the admin role are allowed to create assets.
 
-    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
 
     **Example request**
 
@@ -232,7 +232,7 @@ def get_asset(id: int):
     This endpoint gets an asset.
     Only users who own the asset can use this endpoint.
 
-    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
 
     **Example response**
 
@@ -280,7 +280,7 @@ def patch_asset(id: int):
     Any subset of asset fields can be sent.
     Only users who own the asset are allowed to update its data.
 
-    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
 
     Several fields are not allowed to be updated, e.g. id. They are ignored.
 
@@ -344,7 +344,7 @@ def delete_asset(id: int):
     This endpoint deletes an existing asset, as well as all measurements recorded for it.
     Only users who own the asset are allowed to delete the asset.
 
-    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
+    .. warning:: This API will be replaced by the new-style asset and sensor APIs. The former is already working at ``/api/dev/generic_assets``. See also :ref:`note_on_datamodel_transition`.
 
     :reqheader Authorization: The authentication token
     :reqheader Content-Type: application/json

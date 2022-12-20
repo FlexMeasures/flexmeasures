@@ -5,8 +5,10 @@ FlexMeasures Changelog
 v0.12.0 | October XX, 2022
 ============================
 
-.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+.. warning:: After upgrading to ``flexmeasures==0.12``, users of API versions 1.0, 1.1, 1.2, 1.3 and 2.0 will receive ``"Deprecation"`` and ``"Sunset"`` response headers, and warnings are logged for FlexMeasures hosts whenever users call API endpoints in these deprecated API versions.
+             The relevant endpoints are planned to become unresponsive in ``flexmeasures==0.13``.
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
 -------------
@@ -20,6 +22,7 @@ New features
 * Improved import of time series data from CSV file: 1) drop duplicate records with warning, 2) allow configuring which column contains explicit recording times for each data point (use case: import forecasts) [see `PR #501 <http://www.github.com/FlexMeasures/flexmeasures/pull/501>`_], 3) localize timezone naive data, 4) support reading in datetime and timedelta values, 5) remove rows with NaN values, and 6) filter by values in specific columns [see `PR #521 <http://www.github.com/FlexMeasures/flexmeasures/pull/521>`_]
 * Filter data by source in the API endpoint `/sensors/data` (GET) [see `PR #543 <http://www.github.com/FlexMeasures/flexmeasures/pull/543>`_]
 * Allow posting ``null`` values to `/sensors/data` (POST) to correctly space time series that include missing values (the missing values are not stored) [see `PR #549 <http://www.github.com/FlexMeasures/flexmeasures/pull/549>`_]
+* New resampling functionality for instantaneous sensor data: 1) ``flexmeasures show beliefs`` can now handle showing (and saving) instantaneous sensor data and non-instantaneous sensor data together, and 2) the API endpoint `/sensors/data` (GET) now allows fetching instantaneous sensor data in a custom frequency, by using the "resolution" field [see `PR #542 <http://www.github.com/FlexMeasures/flexmeasures/pull/542>`_]
 
 Bugfixes
 -----------
@@ -41,7 +44,8 @@ Infrastructure / Support
 * Revised strategy for removing unchanged beliefs when saving data: retain the oldest measurement (ex-post belief), too [see `PR #518 <http://www.github.com/FlexMeasures/flexmeasures/pull/518>`_]
 * Scheduling test for maximizing self-consumption, and improved time series db queries for fixed tariffs (and other long-term constants) [see `PR #532 <http://www.github.com/FlexMeasures/flexmeasures/pull/532>`_]
 * Clean up table formatting for ``flexmeasures show`` CLI commands [see `PR #540 <http://www.github.com/FlexMeasures/flexmeasures/pull/540>`_]
-
+* Add  ``"Deprecation"`` and ``"Sunset"`` response headers for API users of deprecated API versions, and log warnings for FlexMeasures hosts when users still use them [see `PR #554 <http://www.github.com/FlexMeasures/flexmeasures/pull/554>`_]
+* Explain how to avoid potential ``SMTPRecipientsRefused`` errors when using FlexMeasures in combination with a mail server [see `PR #558 <http://www.github.com/FlexMeasures/flexmeasures/pull/558>`_]
 
 .. warning:: The CLI command ``flexmeasures monitor tasks`` has been renamed to ``flexmeasures monitor last-run``. The old name will stop working in version 0.13.
 
@@ -89,7 +93,6 @@ New features
 * Get data in a given resolution [see `PR #458 <http://www.github.com/FlexMeasures/flexmeasures/pull/458>`_]
 
 .. note:: Read more on these features on `the FlexMeasures blog <http://flexmeasures.io/011-better-data-views/>`__.
-
 
 Bugfixes
 -----------
@@ -198,7 +201,6 @@ New features
 * Support for percent (%) and permille (‰) sensor units [see `PR #359 <http://www.github.com/FlexMeasures/flexmeasures/pull/359>`_]
 
 .. note:: Read more on these features on `the FlexMeasures blog <http://flexmeasures.io/090-cli-developer-power/>`__.
-
 
 Bugfixes
 -----------
@@ -445,8 +447,6 @@ Infrastructure / Support
 * Ensured unique sensor ids for all sensors [see `PR #70 <https://github.com/FlexMeasures/flexmeasures/pull/70>`_ and (fix) `PR #77 <https://github.com/FlexMeasures/flexmeasures/pull/77>`_]
 
 
-
-
 v0.2.3 | February 27, 2021
 ===========================
 
@@ -463,7 +463,6 @@ Bugfixes
 * Fix maps on new asset page (update MapBox lib) [see `PR #27 <http://www.github.com/FlexMeasures/flexmeasures/pull/27>`_]
 * Some asset links were broken [see `PR #20 <http://www.github.com/FlexMeasures/flexmeasures/pull/20>`_]
 * Password reset link on account page was broken [see `PR #23 <http://www.github.com/FlexMeasures/flexmeasures/pull/23>`_]
- 
 
 Infrastructure / Support
 ----------------------
