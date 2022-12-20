@@ -511,11 +511,16 @@
                      * the view with removing only a few data points (representing obsolete beliefs) and inserting only
                      * a few data points (representing the most recent new beliefs) actually made it slower.
                      */
-                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData)).run().finalize();
+                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
+                    vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': beliefTime}));
+                    vegaView.run().finalize();
 
                     document.getElementById('replay-time').innerHTML = beliefTime;
                     await timer(25);
                 }
+                // Remove replay ruler
+                vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': null})).run().finalize();
+
                 // Stop replay when finished
                 toggle.classList.remove('playing');
                 toggle.classList.add('stopped');
