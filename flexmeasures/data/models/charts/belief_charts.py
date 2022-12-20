@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS
+from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
 from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
@@ -32,36 +32,41 @@ def bar_chart(
     chart_specs = {
         "description": "A simple bar chart showing sensor data.",
         "title": capitalize(sensor.name) if sensor.name != sensor.sensor_type else None,
-        "mark": {
-            "type": "bar",
-            "clip": True,
-        },
-        "encoding": {
-            "x": event_start_field_definition,
-            "x2": FIELD_DEFINITIONS["event_end"],
-            "y": event_value_field_definition,
-            "color": FIELD_DEFINITIONS["source_name"],
-            "detail": FIELD_DEFINITIONS["source"],
-            "opacity": {"value": 0.7},
-            "tooltip": [
-                FIELD_DEFINITIONS["full_date"],
-                {
-                    **event_value_field_definition,
-                    **dict(title=f"{capitalize(sensor.sensor_type)}"),
+        "layer": [
+            {
+                "mark": {
+                    "type": "bar",
+                    "clip": True,
                 },
-                FIELD_DEFINITIONS["source_name_and_id"],
-                FIELD_DEFINITIONS["source_model"],
-            ],
-        },
-        "transform": [
-            {
-                "calculate": f"datum.event_start + {resolution_in_ms}",
-                "as": "event_end",
+                "encoding": {
+                    "x": event_start_field_definition,
+                    "x2": FIELD_DEFINITIONS["event_end"],
+                    "y": event_value_field_definition,
+                    "color": FIELD_DEFINITIONS["source_name"],
+                    "detail": FIELD_DEFINITIONS["source"],
+                    "opacity": {"value": 0.7},
+                    "tooltip": [
+                        FIELD_DEFINITIONS["full_date"],
+                        {
+                            **event_value_field_definition,
+                            **dict(title=f"{capitalize(sensor.sensor_type)}"),
+                        },
+                        FIELD_DEFINITIONS["source_name_and_id"],
+                        FIELD_DEFINITIONS["source_model"],
+                    ],
+                },
+                "transform": [
+                    {
+                        "calculate": f"datum.event_start + {resolution_in_ms}",
+                        "as": "event_end",
+                    },
+                    {
+                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                        "as": "source_name_and_id",
+                    },
+                ],
             },
-            {
-                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
-                "as": "source_name_and_id",
-            },
+            REPLAY_RULER,
         ],
     }
     for k, v in override_chart_specs.items():
@@ -223,6 +228,7 @@ def chart_for_multiple_sensors(
                         },
                     ],
                 },
+                REPLAY_RULER,
             ],
             "width": "container",
         }
