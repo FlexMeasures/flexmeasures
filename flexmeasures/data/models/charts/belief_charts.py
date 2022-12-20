@@ -49,6 +49,7 @@ def bar_chart(
                 "mark": {
                     "type": "bar",
                     "clip": True,
+                    "width": {"band": 0.999},
                 },
                 "encoding": {
                     "x": event_start_field_definition,
