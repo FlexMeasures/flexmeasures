@@ -97,9 +97,7 @@ def chart_for_multiple_sensors(
         for sensor in sensors
         if sensor.event_resolution > timedelta(0)
     )
-    minimum_non_zero_resolution = (
-        min(condition) if any(condition) else timedelta(0)
-    )
+    minimum_non_zero_resolution = min(condition) if any(condition) else timedelta(0)
 
     # Set up field definition for event starts
     event_start_field_definition = FIELD_DEFINITIONS["event_start"]
