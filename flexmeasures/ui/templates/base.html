@@ -447,112 +447,133 @@
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
         if (toggle.classList.contains('playing')) {
-            // Pause replay
-            toggle.classList.remove('playing');
-            toggle.classList.add('paused');
+            pauseReplay();
         } else if (toggle.classList.contains('stopped')) {
-            // Start replay
-            toggle.classList.remove('stopped');
-            toggle.classList.add('playing');
-            var beliefTime = new Date(storeStartDate);
-            var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
-            queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
-            queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
-
-            $("#spinner").show();
-            Promise.all([
-                // Fetch time series data (all data, not only the most recent beliefs)
-                fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
-                    method: "GET",
-                    headers: {"Content-Type": "application/json"},
-                })
-                .then(function(response) { return response.json(); }),
-            ]).then(function(result) {
-                $("#spinner").hide();
-                replayBeliefsData(result[0]);
-            }).catch(console.error);
-
-            const timer = ms => new Promise(res => setTimeout(res, Math.max(ms, 0)));
-
-            /**
-             * Replays beliefs data.
-             *
-             * As we go forward in time in steps, replayedData is updated with newData that was known at beliefTime,
-             * by splitting off newData from remainingData.
-             * Then, replayedData is loaded into the chart.
-             *
-             * @param {Array} remainingData Array containing beliefs.
-             */
-            async function replayBeliefsData (remainingData) {
-                var replayedData = [];
-                for (var i = 0; i < numReplaySteps + 1; i++) {
-                    while (document.getElementById('replay').classList.contains('paused') ) {
-                        await timer(1000);
-                    }
-                    if (document.getElementById('replay').classList.contains('stopped') ) {
-                        break;
-                    }
-                    var s = performance.now();
-                    beliefTime = new Date(beliefTime.getTime() + beliefTimedelta);
-
-                    // Split off one replay step of new data from the remaining data
-                    var newData;
-                    [newData, remainingData] = partition(
-                        remainingData,
-                        (item) => item.belief_time <= beliefTime.getTime(),
-                    );
-
-                    // Update beliefs in the replayed data given the new data
-                    replayedData = updateBeliefs(replayedData, newData);
-
-                    /** When selecting a longer time periode (more than a week), the replay slows down a bit. This
-                     * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
-                     * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
-                     * graph. After trying different approaches, we fell back to the original approach of telling vega
-                     * to remove all previous data and to insert a completely new dataset at each iteration. Updating
-                     * the view with removing only a few data points (representing obsolete beliefs) and inserting only
-                     * a few data points (representing the most recent new beliefs) actually made it slower.
-                     */
-                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
-                    vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': beliefTime}));
-                    vegaView.run().finalize();
-
-                    document.getElementById('replay-time').innerHTML = beliefTime;
-
-                    // Approximate constant speed
-                    var e = performance.now();
-                    var throttle = e - s;
-                    await timer(replaySpeed - throttle);
-                }
-                // Remove replay ruler
-                vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': null})).run().finalize();
-
-                // Stop replay when finished
-                toggle.classList.remove('playing');
-                toggle.classList.add('stopped');
-                document.getElementById('replay-time').innerHTML = '';
-            }
+            startReplay();
         } else {
-            // Resume replay
-            toggle.classList.remove('paused');
-            toggle.classList.add('playing');
+            resumeReplay();
         }
     });
 
     window.addEventListener('keypress', function(e) {
         // Pause/resume replay with 'p'
         if (e.key==='p') {
-            if (toggle.classList.contains('playing')) {
-                // Pause replay
-                toggle.classList.remove('playing');
-                toggle.classList.add('paused');
-            } else if (toggle.classList.contains('paused')) {
-                // Resume replay
-                toggle.classList.remove('paused');
-                toggle.classList.add('playing');
+            if (toggle.classList.contains('stopped')) {
+                startReplay();
+            } else if (toggle.classList.contains('playing')) {
+                pauseReplay();
+            } else {
+                resumeReplay();
             }
          }
     }, false);
+
+    /**
+     * Pause replay
+     */
+    function pauseReplay() {
+        toggle.classList.remove('playing');
+        toggle.classList.add('paused');
+    }
+    /**
+     * Resume replay
+     */
+    function resumeReplay() {
+        toggle.classList.remove('paused');
+        toggle.classList.add('playing');
+    }
+    /**
+     * Stop replay
+     */
+    function stopReplay() {
+        toggle.classList.remove('playing');
+        toggle.classList.add('stopped');
+
+        // Remove replay ruler and replay time
+        vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': null})).run().finalize();
+        document.getElementById('replay-time').innerHTML = '';
+    }
+    /**
+     * Start replay
+     */
+    function startReplay() {
+        toggle.classList.remove('stopped');
+        toggle.classList.add('playing');
+        var beliefTime = new Date(storeStartDate);
+        var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
+        queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
+        queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
+
+        $("#spinner").show();
+        Promise.all([
+            // Fetch time series data (all data, not only the most recent beliefs)
+            fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
+                method: "GET",
+                headers: {"Content-Type": "application/json"},
+            })
+            .then(function(response) { return response.json(); }),
+        ]).then(function(result) {
+            $("#spinner").hide();
+            replayBeliefsData(result[0]);
+        }).catch(console.error);
+
+        const timer = ms => new Promise(res => setTimeout(res, Math.max(ms, 0)));
+
+        /**
+         * Replays beliefs data.
+         *
+         * As we go forward in time in steps, replayedData is updated with newData that was known at beliefTime,
+         * by splitting off newData from remainingData.
+         * Then, replayedData is loaded into the chart.
+         *
+         * @param {Array} remainingData Array containing beliefs.
+         */
+        async function replayBeliefsData (remainingData) {
+            var replayedData = [];
+            for (var i = 0; i < numReplaySteps + 1; i++) {
+                while (document.getElementById('replay').classList.contains('paused') ) {
+                    await timer(1000);
+                }
+                if (document.getElementById('replay').classList.contains('stopped') ) {
+                    break;
+                }
+                var s = performance.now();
+                beliefTime = new Date(beliefTime.getTime() + beliefTimedelta);
+
+                // Split off one replay step of new data from the remaining data
+                var newData;
+                [newData, remainingData] = partition(
+                    remainingData,
+                    (item) => item.belief_time <= beliefTime.getTime(),
+                );
+
+                // Update beliefs in the replayed data given the new data
+                replayedData = updateBeliefs(replayedData, newData);
+
+                /** When selecting a longer time periode (more than a week), the replay slows down a bit. This
+                 * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
+                 * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
+                 * graph. After trying different approaches, we fell back to the original approach of telling vega
+                 * to remove all previous data and to insert a completely new dataset at each iteration. Updating
+                 * the view with removing only a few data points (representing obsolete beliefs) and inserting only
+                 * a few data points (representing the most recent new beliefs) actually made it slower.
+                 */
+                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
+                vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': beliefTime}));
+                vegaView.run().finalize();
+
+                document.getElementById('replay-time').innerHTML = beliefTime;
+
+                // Approximate constant speed
+                var e = performance.now();
+                var throttle = e - s;
+                await timer(replaySpeed - throttle);
+            }
+
+            // Stop replay when finished
+            stopReplay()
+        }
+    }
     </script>
 
     {% endblock sensorChartSetup %}
