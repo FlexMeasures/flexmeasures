@@ -61,8 +61,8 @@ def message_for_trigger_schedule(
         message["soc-unit"] = "kWh"
     else:
         message["flex-model"] = {}
-        message["flex-model"]["soc_at_start"] = 12.1
-        message["flex-model"]["soc_unit"] = "kWh"
+        message["flex-model"]["soc-at-start"] = 12.1
+        message["flex-model"]["soc-unit"] = "kWh"
     if with_targets:
         if realistic_targets:
             targets = [{"value": 3500, "datetime": "2015-01-02T23:00:00+01:00"}]
@@ -72,5 +72,5 @@ def message_for_trigger_schedule(
         if deprecated_format_pre012:
             message["soc-targets"] = targets
         else:
-            message["flex-model"]["soc_targets"] = targets
+            message["flex-model"]["soc-targets"] = targets
     return message

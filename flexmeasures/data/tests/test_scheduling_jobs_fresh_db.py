@@ -43,7 +43,7 @@ def test_scheduling_a_charging_station(
         end=end,
         belief_time=start,
         resolution=resolution,
-        flex_model=dict(soc_at_start=soc_at_start, soc_targets=soc_targets),
+        flex_model={"soc-at-start": soc_at_start, "soc-targets": soc_targets},
     )
 
     print("Job: %s" % job.id)

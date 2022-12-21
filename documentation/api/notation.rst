@@ -193,13 +193,13 @@ Here are the three types of flexibility models you can expect to be built-in:
 1) For storage sensors (e.g. battery, charge points), the schedule deals with the state of charge (SOC).
     The possible flexibility parameters are:
 
-    - soc_at_start (defaults to 0)
-    - soc_unit (kWh or MWh)
-    - soc_min (defaults to 0)
-    - soc_max (defaults to max soc target)
-    - soc_targets (defaults to NaN values)
-    - roundtrip_efficiency (defaults to 100%)
-    - prefer_charging_sooner (defaults to True, also signals a preference to discharge later)
+    - soc-at-start (defaults to 0)
+    - soc-unit (kWh or MWh)
+    - soc-min (defaults to 0)
+    - soc-max (defaults to max soc target)
+    - soc-targets (defaults to NaN values)
+    - roundtrip-efficiency (defaults to 100%)
+    - prefer-charging-sooner (defaults to True, also signals a preference to discharge later)
 
   For some examples, see the `[POST] /sensors/(id)/schedule/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_ endpoint docs.
 

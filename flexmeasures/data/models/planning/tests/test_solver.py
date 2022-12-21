@@ -34,14 +34,14 @@ def test_battery_solver_day_1(
         start,
         end,
         resolution,
-        flex_model=dict(soc_at_start=soc_at_start),
-        flex_context=dict(
-            inflexible_device_sensors=[
+        flex_model={"soc-at-start": soc_at_start},
+        flex_context={
+            "inflexible-device-sensors": [
                 s.id for s in add_inflexible_device_forecasts.keys()
             ]
             if use_inflexible_device
             else []
-        ),
+        },
     )
     schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
@@ -93,12 +93,12 @@ def test_battery_solver_day_2(add_battery_assets, roundtrip_efficiency: float):
         start,
         end,
         resolution,
-        flex_model=dict(
-            soc_at_start=soc_at_start,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
-        ),
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "soc-min": soc_min,
+            "soc-max": soc_max,
+            "roundtrip-efficiency": roundtrip_efficiency,
+        },
     )
     schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(
@@ -177,19 +177,21 @@ def test_charging_station_solver_day_2(target_soc, charging_station_name):
         start,
         end,
         resolution,
-        flex_model=dict(
-            soc_at_start=soc_at_start,
-            soc_min=charging_station.get_attribute("min_soc_in_mwh", 0),
-            soc_max=charging_station.get_attribute(
+        flex_model={
+            "soc_at_start": soc_at_start,
+            "soc_min": charging_station.get_attribute("min_soc_in_mwh", 0),
+            "soc_max": charging_station.get_attribute(
                 "max_soc_in_mwh", max(soc_targets.values)
             ),
-            roundtrip_efficiency=charging_station.get_attribute(
+            "roundtrip_efficiency": charging_station.get_attribute(
                 "roundtrip_efficiency", 1
             ),
-            soc_targets=soc_targets,
-        ),
+            "soc_targets": soc_targets,
+        },
     )
-    scheduler.config_inspected = True  # soc targets are already a DataFrame
+    scheduler.config_inspected = (
+        True  # soc targets are already a DataFrame, names get underscore
+    )
     consumption_schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
@@ -248,19 +250,21 @@ def test_fallback_to_unsolvable_problem(target_soc, charging_station_name):
         start,
         end,
         resolution,
-        flex_model=dict(
-            soc_at_start=soc_at_start,
-            soc_min=charging_station.get_attribute("min_soc_in_mwh", 0),
-            soc_max=charging_station.get_attribute(
+        flex_model={
+            "soc_at_start": soc_at_start,
+            "soc_min": charging_station.get_attribute("min_soc_in_mwh", 0),
+            "soc_max": charging_station.get_attribute(
                 "max_soc_in_mwh", max(soc_targets.values)
             ),
-            roundtrip_efficiency=charging_station.get_attribute(
+            "roundtrip_efficiency": charging_station.get_attribute(
                 "roundtrip_efficiency", 1
             ),
-            soc_targets=soc_targets,
-        ),
+            "soc_targets": soc_targets,
+        },
     )
-    scheduler.config_inspected = True  # soc targets are already a DataFrame
+    scheduler.config_inspected = (
+        True  # soc targets are already a DataFrame, names get underscore
+    )
     consumption_schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(
         consumption_schedule, soc_at_start, decimal_precision=6
@@ -340,19 +344,21 @@ def test_building_solver_day_2(
         start,
         end,
         resolution,
-        flex_model=dict(
-            soc_at_start=soc_at_start,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=battery.get_attribute("roundtrip_efficiency", 1),
-        ),
-        flex_context=dict(
-            inflexible_device_sensors=inflexible_devices.values(),
-            production_price_sensor=production_price_sensor,
-            consumption_price_sensor=consumption_price_sensor,
-        ),
+        flex_model={
+            "soc_at_start": soc_at_start,
+            "soc_min": soc_min,
+            "soc_max": soc_max,
+            "roundtrip_efficiency": battery.get_attribute("roundtrip_efficiency", 1),
+        },
+        flex_context={
+            "inflexible_device_sensors": inflexible_devices.values(),
+            "production_price_sensor": production_price_sensor,
+            "consumption_price_sensor": consumption_price_sensor,
+        },
     )
-    scheduler.config_inspected = True  # inflexible device sensors are already objects
+    scheduler.config_inspected = (
+        True  # inflexible device sensors are already objects, names get underscore
+    )
     schedule = scheduler.compute_schedule()
     soc_schedule = integrate_time_series(schedule, soc_at_start, decimal_precision=6)
 

@@ -287,8 +287,8 @@ The endpoint also allows to limit the flexibility range and also to set target v
         {
             "start": "2015-06-02T10:00:00+00:00",
             "flex-model": {
-                "soc_at_start": 12.1,
-                "soc_unit": "kWh"
+                "soc-at-start": 12.1,
+                "soc-unit": "kWh"
             }
         }
 

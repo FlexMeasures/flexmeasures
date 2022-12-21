@@ -305,8 +305,8 @@ class SensorAPI(FlaskView):
             {
                 "start": "2015-06-02T10:00:00+00:00",
                 "flex-model": {
-                    "soc_at_start": 12.1,
-                    "soc_unit": "kWh"
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh"
                 }
             }
 
@@ -327,22 +327,22 @@ class SensorAPI(FlaskView):
             {
                 "start": "2015-06-02T10:00:00+00:00",
                 "flex-model": {
-                    "soc_at_start": 12.1,
-                    "soc_unit": "kWh",
-                    "soc_targets": [
+                    "soc-at-start": 12.1,
+                    "soc-unit": "kWh",
+                    "soc-targets": [
                         {
                             "value": 25,
                             "datetime": "2015-06-02T16:00:00+00:00"
                         }
                     ],
-                    "soc_min": 10,
-                    "soc_max": 25,
-                    "roundtrip_efficiency": 0.98,
+                    "soc-min": 10,
+                    "soc-max": 25,
+                    "roundtrip-efficiency": 0.98,
                 },
                 "flex-context": {
-                    "consumption_price_sensor": 9,
-                    "production_price_sensor": 10,
-                    "inflexible_device_sensors": [13, 14, 15]
+                    "consumption-price_sensor": 9,
+                    "production-price_sensor": 10,
+                    "inflexible-device_sensors": [13, 14, 15]
                 }
             }
 
@@ -375,49 +375,45 @@ class SensorAPI(FlaskView):
         found_fields: Dict[str, List[str]] = dict(model=[], context=[])
         deprecation_message = ""
         # flex-model
-        for param, param_name, new_model_name in [
-            (start_value, "soc-at-start", "soc_at_start"),
-            (soc_min, "soc-min", "soc_min"),
-            (soc_max, "soc-max", "soc_max"),
-            (unit, "soc-unit", "soc_unit"),
-            (roundtrip_efficiency, "roundtrip-efficiency", "roundtrip_efficiency"),
+        for param, param_name in [
+            (start_value, "soc-at-start"),
+            (soc_min, "soc-min"),
+            (soc_max, "soc-max"),
+            (unit, "soc-unit"),
+            (roundtrip_efficiency, "roundtrip-efficiency"),
             (
                 prefer_charging_sooner,
                 "prefer-charging-sooner",
-                "prefer_charging_sooner",
             ),
         ]:
             if flex_model is None:
                 flex_model = {}
             if param is not None:
-                if new_model_name not in flex_model:
+                if param_name not in flex_model:
                     if param_name == "roundtrip-efficiency" and type(param) != float:
                         param = param.to(ur.Quantity("dimensionless")).magnitude  # type: ignore
-                    flex_model[new_model_name] = param
+                    flex_model[param_name] = param
                 found_fields["model"].append(param_name)
         # flex-context
-        for param, param_name, new_model_name in [
+        for param, param_name in [
             (
                 consumption_price_sensor,
                 "consumption-price-sensor",
-                "consumption_price_sensor",
             ),
             (
                 production_price_sensor,
                 "production-price-sensor",
-                "production_price_sensor",
             ),
             (
                 inflexible_device_sensors,
                 "inflexible-device-sensors",
-                "inflexible_device_sensors",
             ),
         ]:
             if flex_context is None:
                 flex_context = {}
             if param is not None:
-                if new_model_name not in flex_context:
-                    flex_context[new_model_name] = param
+                if param_name not in flex_context:
+                    flex_context[param_name] = param
                 found_fields["context"].append(param_name)
         if found_fields["model"] or found_fields["context"]:
             deprecation_message = (

@@ -102,10 +102,10 @@ def get_device_message_response(generic_asset_name_groups, duration):
                 start=start,
                 end=end,
                 resolution=resolution,
-                flex_model=dict(
-                    soc_at_start=sensor.generic_asset.get_attribute("soc_in_mwh"),
-                    prefer_charging_sooner=False,
-                ),
+                flex_model={
+                    "soc-at-start": sensor.generic_asset.get_attribute("soc_in_mwh"),
+                    "prefer-charging-sooner": False,
+                },
             )
             try:
                 schedule = scheduler.compute_schedule()

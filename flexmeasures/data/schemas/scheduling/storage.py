@@ -32,9 +32,9 @@ class StorageFlexModelSchema(Schema):
     You can use StorageScheduler.ensure_flex_model to get that filled in.
     """
 
-    soc_at_start = fields.Float(required=True)
-    soc_min = fields.Float(validate=validate.Range(min=0))
-    soc_max = fields.Float()
+    soc_at_start = fields.Float(required=True, data_key="soc-at-start")
+    soc_min = fields.Float(validate=validate.Range(min=0), data_key="soc-min")
+    soc_max = fields.Float(data_key="soc-max")
     soc_unit = fields.Str(
         validate=OneOf(
             [
@@ -42,13 +42,13 @@ class StorageFlexModelSchema(Schema):
                 "MWh",
             ]
         ),
+        data_key="soc-unit",
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
-    soc_targets = fields.List(fields.Nested(SOCTargetSchema()))
+    soc_targets = fields.List(fields.Nested(SOCTargetSchema()), data_key="soc-targets")
     roundtrip_efficiency = QuantityField(
-        "%",
-        validate=validate.Range(min=0, max=1),
+        "%", validate=validate.Range(min=0, max=1), data_key="roundtrip-efficiency"
     )
-    prefer_charging_sooner = fields.Bool()
+    prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
     @post_load()
     def post_load_sequence(self, data: dict, **kwargs) -> dict:

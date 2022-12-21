@@ -26,8 +26,6 @@ class StorageScheduler(Scheduler):
     __version__ = "1"
     __author__ = "Seita"
 
-    flex_model_schema = StorageFlexModelSchema
-
     def compute_schedule(
         self,
     ) -> Union[pd.Series, None]:
@@ -194,50 +192,54 @@ class StorageScheduler(Scheduler):
 
     def inspect_flex_config(self):
         """
-        Check storage flex model and fill in values from wider context, if possible.
-        Mostly, we allow several fields to come from sensor attributes.
+        Check storage flex model and the flex context against schemas.
+        Before that , we fill in values from wider context, if possible. Mostly, we allow several fields to come from sensor attributes.
+
+        Note: Before we apply the flex model schema, we need to use the flex model identifiers with hyphens,
+              (this is how they are represented to outside, e.g. by the API), after deserialization
+              we use internal schema names (with underscores).
         """
         if self.flex_model is None:
             self.flex_model = {}
 
-        # Check state of charge
+        #  Check state of charge.
         # Preferably, a starting soc is given.
         # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
         # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
         # and without soc targets and limits the starting soc doesn't matter).
         if (
-            "soc_at_start" not in self.flex_model
-            or self.flex_model["soc_at_start"] is None
+            "soc-at-start" not in self.flex_model
+            or self.flex_model["soc-at-start"] is None
         ):
             if (
                 self.start == self.sensor.get_attribute("soc_datetime")
                 and self.sensor.get_attribute("soc_in_mwh") is not None
             ):
-                self.flex_model["soc_at_start"] = self.sensor.get_attribute(
+                self.flex_model["soc-at-start"] = self.sensor.get_attribute(
                     "soc_in_mwh"
                 )
             else:
-                self.flex_model["soc_at_start"] = 0
+                self.flex_model["soc-at-start"] = 0
 
         # Check for round-trip efficiency
         if (
-            "roundtrip_efficiency" not in self.flex_model
-            or self.flex_model["roundtrip_efficiency"] is None
+            "roundtrip-efficiency" not in self.flex_model
+            or self.flex_model["roundtrip-efficiency"] is None
         ):
             # Get default from sensor, or use 100% otherwise
-            self.flex_model["roundtrip_efficiency"] = self.sensor.get_attribute(
+            self.flex_model["roundtrip-efficiency"] = self.sensor.get_attribute(
                 "roundtrip_efficiency", 1
             )
         if (
-            self.flex_model["roundtrip_efficiency"] <= 0
-            or self.flex_model["roundtrip_efficiency"] > 1
+            self.flex_model["roundtrip-efficiency"] <= 0
+            or self.flex_model["roundtrip-efficiency"] > 1
         ):
-            raise ValueError("roundtrip_efficiency expected within the interval (0, 1]")
+            raise ValueError("roundtrip efficiency expected within the interval (0, 1]")
 
         self.ensure_soc_min_max()
 
         # Now it's time to check if our flex configurations hold up to basic expectations
-        self.flex_model = self.flex_model_schema().load(self.flex_model)
+        self.flex_model = StorageFlexModelSchema().load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
         self.check_soc_min_max_and_targets()
@@ -252,27 +254,34 @@ class StorageScheduler(Scheduler):
 
         return self.flex_model
 
-    def get_min_max_targets(self) -> tuple(float | None):
+    def get_min_max_targets(
+        self, deserialized_names: bool = True
+    ) -> tuple(float | None):
         min_target = None
         max_target = None
-        if "soc_targets" in self.flex_model and len(self.flex_model["soc_targets"]) > 0:
+        soc_targets_label = "soc_targets" if deserialized_names else "soc-targets"
+        if (
+            soc_targets_label in self.flex_model
+            and len(self.flex_model[soc_targets_label]) > 0
+        ):
             min_target = min(
-                [target["value"] for target in self.flex_model["soc_targets"]]
+                [target["value"] for target in self.flex_model[soc_targets_label]]
             )
             max_target = max(
-                [target["value"] for target in self.flex_model["soc_targets"]]
+                [target["value"] for target in self.flex_model[soc_targets_label]]
             )
         return min_target, max_target
 
     def get_min_max_soc_on_sensor(
-        self, adjust_unit: bool = False
+        self, adjust_unit: bool = False, deserialized_names: bool = True
     ) -> tuple(float | None):
         soc_min_sensor = self.sensor.get_attribute("min_soc_in_mwh", None)
         soc_max_sensor = self.sensor.get_attribute("max_soc_in_mwh", None)
+        soc_unit_label = "soc_unit" if deserialized_names else "soc-unit"
         if adjust_unit:
-            if soc_min_sensor and self.flex_model.get("soc_unit") == "kWh":
+            if soc_min_sensor and self.flex_model.get(soc_unit_label) == "kWh":
                 soc_min_sensor *= 1000  # later steps assume soc data is kWh
-            if soc_max_sensor and self.flex_model.get("soc_unit") == "kWh":
+            if soc_max_sensor and self.flex_model.get(soc_unit_label) == "kWh":
                 soc_max_sensor *= 1000
         return soc_min_sensor, soc_max_sensor
 
@@ -280,8 +289,15 @@ class StorageScheduler(Scheduler):
         """
         Check if targets or min and max values are out of any existing known bounds
         """
-        min_target, max_target = self.get_min_max_targets()
-        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor()
+        deserialized_names = True
+        min_target, max_target = self.get_min_max_targets(
+            deserialized_names=deserialized_names
+        )
+        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor(
+            deserialized_names=deserialized_names
+        )
+        soc_min_label = "soc_min" if deserialized_names else "soc-min"
+        soc_max_label = "soc_max" if deserialized_names else "soc-max"
 
         if min_target and min_target < 0:
             raise ValueError(f"Lowest SOC target {min_target} MWh lies below 0.")
@@ -298,7 +314,7 @@ class StorageScheduler(Scheduler):
             and self.flex_model.get("soc_min") < soc_min_sensor
         ):
             raise ValueError(
-                f"Value {self.flex_model.get('soc_min')} MWh for soc_min is below sensor {self.sensor.id}'s min_soc_in_mwh attribute of {soc_min_sensor}."
+                f"Value {self.flex_model.get(soc_min_label)} MWh for soc-min is below sensor {self.sensor.id}'s min_soc_in_mwh attribute of {soc_min_sensor}."
             )
         if (
             max_target is not None
@@ -313,7 +329,7 @@ class StorageScheduler(Scheduler):
             and self.flex_model.get("soc_max") > soc_max_sensor
         ):
             raise ValueError(
-                f"Value {self.flex_model.get('soc_max')} MWh for soc_max is above sensor {self.sensor.id}'s max_soc_in_mwh attribute of {soc_max_sensor}."
+                f"Value {self.flex_model.get(soc_max_label)} MWh for soc-max is above sensor {self.sensor.id}'s max_soc_in_mwh attribute of {soc_max_sensor}."
             )
 
     def ensure_soc_min_max(self):
@@ -321,22 +337,22 @@ class StorageScheduler(Scheduler):
         Make sure we have min and max SOC.
         If not passed directly, then get default from sensor or targets.
         """
-        _, max_target = self.get_min_max_targets()
+        _, max_target = self.get_min_max_targets(deserialized_names=False)
         soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor(
-            adjust_unit=True
+            adjust_unit=True, deserialized_names=False
         )
-        if "soc_min" not in self.flex_model or self.flex_model["soc_min"] is None:
+        if "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
             # Default is 0 - can't drain the storage by more than it contains
-            self.flex_model["soc_min"] = soc_min_sensor if soc_min_sensor else 0
-        if "soc_max" not in self.flex_model or self.flex_model["soc_max"] is None:
-            self.flex_model["soc_max"] = soc_max_sensor
+            self.flex_model["soc-min"] = soc_min_sensor if soc_min_sensor else 0
+        if "soc-max" not in self.flex_model or self.flex_model["soc-max"] is None:
+            self.flex_model["soc-max"] = soc_max_sensor
             # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-            if self.flex_model["soc_max"] is None:
+            if self.flex_model["soc-max"] is None:
                 if max_target:
-                    self.flex_model["soc_max"] = max_target
+                    self.flex_model["soc-max"] = max_target
                 else:
                     raise ValueError(
-                        "Need maximal permitted state of charge, please specify soc_max or some soc_targets."
+                        "Need maximal permitted state of charge, please specify soc-max or some soc-targets."
                     )
 
 

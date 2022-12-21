@@ -966,24 +966,23 @@ def add_schedule_for_storage(
         consumption_price_sensor,
     )
 
-    # Parse input
+    # Parse input and required sensor attributes
     if not power_sensor.measures_power:
         click.echo(f"Sensor with ID {power_sensor.id} is not a power sensor.")
         raise click.Abort()
     if production_price_sensor is None:
         production_price_sensor = consumption_price_sensor
     end = start + duration
-    for attribute in ("min_soc_in_mwh", "max_soc_in_mwh"):
-        try:
-            check_required_attributes(power_sensor, [(attribute, float)])
-        except MissingAttributeException:
-            click.echo(f"{power_sensor} has no {attribute} attribute.")
-            raise click.Abort()
 
     # Convert SoC units (we ask for % in this CLI) to MWh, given the storage capacity
-    soc_targets = []
+    try:
+        check_required_attributes(power_sensor, [("max_soc_in_mwh", float)])
+    except MissingAttributeException:
+        click.echo(f"Sensor {power_sensor} has no max_soc_in_mwh attribute.")
+        raise click.Abort()
     capacity_str = f"{power_sensor.get_attribute('max_soc_in_mwh')} MWh"
     soc_at_start = convert_units(soc_at_start.magnitude, soc_at_start.units, "MWh", capacity=capacity_str)  # type: ignore
+    soc_targets = []
     for soc_target_tuple in soc_target_strings:
         soc_target_value_str, soc_target_dt_str = soc_target_tuple
         soc_target_value = convert_units(
@@ -1005,17 +1004,17 @@ def add_schedule_for_storage(
         end=end,
         belief_time=server_now(),
         resolution=power_sensor.event_resolution,
-        flex_model=dict(
-            soc_at_start=soc_at_start,
-            soc_targets=soc_targets,
-            soc_min=soc_min,
-            soc_max=soc_max,
-            roundtrip_efficiency=roundtrip_efficiency,
-        ),
-        flex_context=dict(
-            consumption_price_sensor=consumption_price_sensor.id,
-            production_price_sensor=production_price_sensor.id,
-        ),
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "soc-targets": soc_targets,
+            "soc-min": soc_min,
+            "soc-max": soc_max,
+            "roundtrip-efficiency": roundtrip_efficiency,
+        },
+        flex_context={
+            "consumption-price-sensor": consumption_price_sensor.id,
+            "production-price-sensor": production_price_sensor.id,
+        },
     )
     if as_job:
         job = create_scheduling_job(**scheduling_kwargs)

@@ -20,19 +20,19 @@ from flexmeasures.utils.calculations import integrate_time_series
 @pytest.mark.parametrize(
     "message, field, sent_value, err_msg",
     [
-        (message_for_trigger_schedule(), "soc_minn", 3, "Unknown field"),
+        (message_for_trigger_schedule(), "soc-minn", 3, "Unknown field"),
         (
             message_for_trigger_schedule(),
-            "soc_min",
+            "soc-min",
             "not-a-float",
             "Not a valid number",
         ),
-        (message_for_trigger_schedule(), "soc_unit", "MWH", "Must be one of"),
+        (message_for_trigger_schedule(), "soc-unit", "MWH", "Must be one of"),
         (
             message_for_trigger_schedule(),
-            "soc_max",
+            "soc-max",
             6000,
-            "Value 6.0 MWh for soc_max is above",
+            "Value 6.0 MWh for soc-max is above",
         ),
         (
             message_for_trigger_schedule(with_targets=True, realistic_targets=False),

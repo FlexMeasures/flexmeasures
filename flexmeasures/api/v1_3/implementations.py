@@ -280,31 +280,30 @@ def post_udi_event_response(unit: str, prior: datetime):
     if "value" not in form:
         return ptus_incomplete()
     try:
-        flex_model["soc_at_start"] = float(form.get("value"))
+        flex_model["soc-at-start"] = float(form.get("value"))
     except ValueError:
         extra_info = "Request includes empty or ill-formatted value(s)."
         current_app.logger.warning(extra_info)
         return ptus_incomplete(extra_info)
     if unit == "kWh":
-        flex_model["soc_unit"] = "kWh"
+        flex_model["soc-unit"] = "kWh"
 
     # get optional efficiency
     roundtrip_efficiency = form.get("roundtrip_efficiency", None)
     if roundtrip_efficiency:
-        flex_model["roundtrip_efficiency"] = roundtrip_efficiency
+        flex_model["roundtrip-efficiency"] = roundtrip_efficiency
 
     # get optional min and max SOC
     soc_min = form.get("soc_min", None)
     soc_max = form.get("soc_max", None)
     if soc_min:
-        flex_model["soc_min"] = soc_min
+        flex_model["soc-min"] = soc_min
     if soc_max:
-        flex_model["soc_max"] = soc_max
+        flex_model["soc-max"] = soc_max
 
     # set soc targets - TODO: is this equal to our scheduler implementation? delete.
     start_of_schedule = datetime
     end_of_schedule = datetime + current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
-    resolution = sensor.event_resolution
 
     # SOC targets
     targets = form.get("targets", [])
@@ -351,7 +350,7 @@ def post_udi_event_response(unit: str, prior: datetime):
                         f'Target datetime exceeds {end_of_schedule}. Maximum scheduling horizon is {current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")}.'
                     )
 
-    flex_model["soc_targets"] = targets
+    flex_model["soc-targets"] = targets
 
     create_scheduling_job(
         sensor_id=sensor.id,
@@ -369,10 +368,10 @@ def post_udi_event_response(unit: str, prior: datetime):
     sensor.generic_asset.set_attribute("soc_udi_event_id", event_id)
     if unit == "kWh":
         sensor.generic_asset.set_attribute(
-            "soc_in_mwh", flex_model["soc_at_start"] / 1000
+            "soc_in_mwh", flex_model["soc-at-start"] / 1000
         )
     else:
-        sensor.generic_asset.set_attribute("soc_in_mwh", flex_model["soc_at_start"])
+        sensor.generic_asset.set_attribute("soc_in_mwh", flex_model["soc-at-start"])
 
     db.session.commit()
     return request_processed()
