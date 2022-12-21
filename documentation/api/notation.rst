@@ -182,9 +182,9 @@ Flex model
 The flexibility model describes to the scheduler what the flexible asset's state is,
 and what constraints or preferences should be taken into account.
 
-Usually, not the whole flexibility model is needed (e.g. to be sent through the endpoint).
+Usually, not the whole flexibility model is needed.
+FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 This means that API and CLI users don't have to send the whole flex model every time.
-For instance, FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
 
 Which type of flexibility model is relevant to a scheduler usually relates to the sensor's asset type.
 

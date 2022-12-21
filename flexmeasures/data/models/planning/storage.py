@@ -35,6 +35,11 @@ class StorageScheduler(Scheduler):
         if not self.config_inspected:
             self.inspect_config()
 
+        start = self.start
+        end = self.end
+        resolution = self.resolution
+        belief_time = self.belief_time
+        sensor = self.sensor
         soc_at_start = self.flex_model.get("soc_at_start")
         soc_targets = self.flex_model.get("soc_targets")
         soc_min = self.flex_model.get("soc_min")
@@ -53,19 +58,19 @@ class StorageScheduler(Scheduler):
 
         # Check for known prices or price forecasts, trimming planning window accordingly
         up_deviation_prices, (start, end) = get_prices(
-            (self.start, self.end),
-            self.resolution,
-            beliefs_before=self.belief_time,
+            (start, end),
+            resolution,
+            beliefs_before=belief_time,
             price_sensor=consumption_price_sensor,
-            sensor=self.sensor,
+            sensor=sensor,
             allow_trimmed_query_window=False,
         )
         down_deviation_prices, (start, end) = get_prices(
             (start, end),
-            self.resolution,
-            beliefs_before=self.belief_time,
+            resolution,
+            beliefs_before=belief_time,
             price_sensor=production_price_sensor,
-            sensor=self.sensor,
+            sensor=sensor,
             allow_trimmed_query_window=False,
         )
 
@@ -87,10 +92,10 @@ class StorageScheduler(Scheduler):
 
         # Todo: convert to EUR/(deviation of commitment, which is in MW)
         commitment_upwards_deviation_price = [
-            up_deviation_prices.loc[start : end - self.resolution]["event_value"]
+            up_deviation_prices.loc[start : end - resolution]["event_value"]
         ]
         commitment_downwards_deviation_price = [
-            down_deviation_prices.loc[start : end - self.resolution]["event_value"]
+            down_deviation_prices.loc[start : end - resolution]["event_value"]
         ]
 
         # Set up device constraints: only one scheduled flexible device for this EMS (at index 0), plus the forecasted inflexible devices (at indices 1 to n).
@@ -105,41 +110,41 @@ class StorageScheduler(Scheduler):
             "derivative up efficiency",
         ]
         device_constraints = [
-            initialize_df(columns, start, end, self.resolution)
+            initialize_df(columns, start, end, resolution)
             for i in range(1 + len(inflexible_device_sensors))
         ]
         for i, inflexible_sensor in enumerate(inflexible_device_sensors):
             device_constraints[i + 1]["derivative equals"] = get_power_values(
                 query_window=(start, end),
-                resolution=self.resolution,
-                beliefs_before=self.belief_time,
+                resolution=resolution,
+                beliefs_before=belief_time,
                 sensor=inflexible_sensor,
             )
         if soc_targets is not None and not soc_targets.empty:
             soc_targets = soc_targets.tz_convert("UTC")
             device_constraints[0]["equals"] = soc_targets.shift(
-                -1, freq=self.resolution
-            ).values * (timedelta(hours=1) / self.resolution) - soc_at_start * (
-                timedelta(hours=1) / self.resolution
+                -1, freq=resolution
+            ).values * (timedelta(hours=1) / resolution) - soc_at_start * (
+                timedelta(hours=1) / resolution
             )  # shift "equals" constraint for target SOC by one resolution (the target defines a state at a certain time,
             # while the "equals" constraint defines what the total stock should be at the end of a time slot,
             # where the time slot is indexed by its starting time)
         device_constraints[0]["min"] = (soc_min - soc_at_start) * (
-            timedelta(hours=1) / self.resolution
+            timedelta(hours=1) / resolution
         )
         device_constraints[0]["max"] = (soc_max - soc_at_start) * (
-            timedelta(hours=1) / self.resolution
+            timedelta(hours=1) / resolution
         )
-        if self.sensor.get_attribute("is_strictly_non_positive"):
+        if sensor.get_attribute("is_strictly_non_positive"):
             device_constraints[0]["derivative min"] = 0
         else:
             device_constraints[0]["derivative min"] = (
-                self.sensor.get_attribute("capacity_in_mw") * -1
+                sensor.get_attribute("capacity_in_mw") * -1
             )
-        if self.sensor.get_attribute("is_strictly_non_negative"):
+        if sensor.get_attribute("is_strictly_non_negative"):
             device_constraints[0]["derivative max"] = 0
         else:
-            device_constraints[0]["derivative max"] = self.sensor.get_attribute(
+            device_constraints[0]["derivative max"] = sensor.get_attribute(
                 "capacity_in_mw"
             )
 
@@ -151,8 +156,8 @@ class StorageScheduler(Scheduler):
 
         # Set up EMS constraints
         columns = ["derivative max", "derivative min"]
-        ems_constraints = initialize_df(columns, start, end, self.resolution)
-        ems_capacity = self.sensor.generic_asset.get_attribute("capacity_in_mw")
+        ems_constraints = initialize_df(columns, start, end, resolution)
+        ems_capacity = sensor.generic_asset.get_attribute("capacity_in_mw")
         if ems_capacity is not None:
             ems_constraints["derivative min"] = ems_capacity * -1
             ems_constraints["derivative max"] = ems_capacity
@@ -167,7 +172,7 @@ class StorageScheduler(Scheduler):
         if scheduler_results.solver.termination_condition == "infeasible":
             # Fallback policy if the problem was unsolvable
             battery_schedule = fallback_charging_policy(
-                self.sensor, device_constraints[0], start, end, self.resolution
+                sensor, device_constraints[0], start, end, resolution
             )
         else:
             battery_schedule = ems_schedule[0]
@@ -364,6 +369,18 @@ def build_soc_targets(
 ) -> pd.Series:
     """
     Utility function to make sure soc targets are a convenient series fitting our time frame.
+
+    Target SOC values should be indexed by their due date. For example, for quarter-hourly targets between 5 and 6 AM:
+    >>> df = pd.Series(data=[1, 2, 2.5, 3], index=pd.date_range(datetime(2010,1,1,5), datetime(2010,1,1,6), freq=timedelta(minutes=15), inclusive="right"))
+    >>> print(df)
+        2010-01-01 05:15:00    1.0
+        2010-01-01 05:30:00    2.0
+        2010-01-01 05:45:00    2.5
+        2010-01-01 06:00:00    3.0
+        Freq: 15T, dtype: float64
+
+    TODO: this function could become the deserialization method of a new SOCTargetsSchema (targets, plural), which wraps SOCTargetSchema.
+
     """
     soc_targets = initialize_series(
         np.nan,
@@ -375,9 +392,7 @@ def build_soc_targets(
 
     for target in targets:
         target_value = target["value"]
-
-        target_datetime = target["datetime"]
-        target_datetime = target_datetime.astimezone(
+        target_datetime = target["datetime"].astimezone(
             soc_targets.index.tzinfo
         )  # otherwise DST would be problematic
         if target_datetime > end_of_schedule:

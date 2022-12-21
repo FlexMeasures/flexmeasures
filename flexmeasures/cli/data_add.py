@@ -833,7 +833,7 @@ def create_forecasts(
     "schedule",
     cls=DeprecatedDefaultGroup,
     default="storage",
-    deprecation_message="The command 'flexmeasures add schedule' is deprecated. Please use `flexmeasures add schedule storage` instead.",
+    deprecation_message="The command 'flexmeasures add schedule' is deprecated. Please use `flexmeasures add schedule for-storage` instead.",
 )
 @click.pass_context
 @with_appcontext

@@ -206,7 +206,7 @@ class SensorAPI(FlaskView):
             "start_of_schedule": AwareDateTimeField(
                 data_key="start", format="iso", required=True
             ),
-            "prior": AwareDateTimeField(format="iso"),
+            "belief_time": AwareDateTimeField(format="iso", data_key="prior"),
             "flex_model": fields.Dict(data_key="flex-model"),
             "soc_sensor_id": fields.Str(data_key="soc-sensor", required=False),
             "roundtrip_efficiency": QuantityField(
@@ -251,7 +251,7 @@ class SensorAPI(FlaskView):
         self,
         sensor: Sensor,
         start_of_schedule: datetime,
-        prior: Optional[datetime] = None,
+        belief_time: Optional[datetime] = None,
         start_value: Optional[float] = None,
         soc_min: Optional[float] = None,
         soc_max: Optional[float] = None,
@@ -294,7 +294,7 @@ class SensorAPI(FlaskView):
         The appropriate algorithm is chosen by FlexMeasures (based on asset type).
         It's also possible to use custom schedulers and custom flexibility models, see :ref:`plugin_customization`.
 
-        If you have ideas for algorithms which should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
+        If you have ideas for algorithms that should be part of FlexMeasures, let us know: https://flexmeasures.io/get-in-touch/
 
         **Example request A**
 
@@ -340,9 +340,9 @@ class SensorAPI(FlaskView):
                     "roundtrip-efficiency": 0.98,
                 },
                 "flex-context": {
-                    "consumption-price_sensor": 9,
-                    "production-price_sensor": 10,
-                    "inflexible-device_sensors": [13, 14, 15]
+                    "consumption-price-sensor": 9,
+                    "production-price-sensor": 10,
+                    "inflexible-device-sensors": [13, 14, 15]
                 }
             }
 
@@ -416,16 +416,16 @@ class SensorAPI(FlaskView):
                     flex_context[param_name] = param
                 found_fields["context"].append(param_name)
         if found_fields["model"] or found_fields["context"]:
-            deprecation_message = (
-                "The following fields you sent will be deprecated in the next version:"
-            )
+            deprecation_message = "The following fields you sent are deprecated and will be sunset in the next version:"
             if found_fields["model"]:
                 deprecation_message += f" {', '.join(found_fields['model'])} (please pass as part of flex_model)."
             if found_fields["context"]:
                 deprecation_message += f" {', '.join(found_fields['context'])} (please pass as part of flex_context)."
 
         if soc_sensor_id is not None:
-            deprecation_message += "The field soc-sensor-id will be deprecated and fall out of use in v0.13."
+            deprecation_message += (
+                "The field soc-sensor-id is be deprecated and will be sunset in v0.13."
+            )
         # -- end deprecation logic
 
         end_of_schedule = start_of_schedule + current_app.config.get(  # type: ignore
@@ -436,7 +436,7 @@ class SensorAPI(FlaskView):
             start=start_of_schedule,
             end=end_of_schedule,
             resolution=sensor.event_resolution,
-            belief_time=prior,  # server time if no prior time was sent
+            belief_time=belief_time,  # server time if no prior time was sent
             flex_model=flex_model,
             flex_context=flex_context,
         )

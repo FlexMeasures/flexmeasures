@@ -269,7 +269,7 @@ Posting flexibility states
 
 There is one more crucial kind of data that FlexMeasures needs to know about: What are the current states of flexible devices?
 For example, a battery has a certain state of charge, which is relevant to describe the flexibility that the battery currently has.
-In our terminology, this is called the "flex model" and you can read more at `ref`:describing_flexibility:.
+In our terminology, this is called the "flex model" and you can read more at :ref:`describing_flexibility`.
 
 Owners of such devices can post the flex model along with triggering the creation of a new schedule, to `[POST] /schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-(id)-schedules-trigger>`_.
 The URL might look like this:

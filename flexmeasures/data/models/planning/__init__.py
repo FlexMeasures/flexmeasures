@@ -20,7 +20,7 @@ class Scheduler:
     Furthermore, the scheduler needs to have knowledge about the asset's flexibility model (under what constraints
     can the schedule be optimized?) and the system's flexibility context (which other sensors are relevant, e.g. prices).
     These two flexibility configurations are usually fed in from outside, so the scheduler should check them.
-    The check_flexibility_config function can be used for that.
+    The inspect_flex_config function can be used for that.
 
     """
 
@@ -69,7 +69,10 @@ class Scheduler:
         return None
 
     def persist_flex_model(self):
-        """If useful, (parts of) the flex model can be persisted (e.g on the sensor) here."""
+        """
+        If useful, (parts of) the flex model can be persisted (e.g on the sensor) here,
+        e.g. as asset attributes, sensor attributes or as sensor data (beliefs).
+        """
         pass
 
     def inspect_config(self):
@@ -97,7 +100,7 @@ class Scheduler:
 
         Ideas:
         - Apply a schema to check validity (see in-built flex model schemas)
-        - Check for inconsistencies between settings (can also happen in Marshmallow
+        - Check for inconsistencies between settings (can also happen in Marshmallow)
         - fill in missing values from the scheduler's knowledge (e.g. sensor attributes)
 
         Raises ValidationErrors or ValueErrors.

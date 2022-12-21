@@ -285,8 +285,7 @@ def post_udi_event_response(unit: str, prior: datetime):
         extra_info = "Request includes empty or ill-formatted value(s)."
         current_app.logger.warning(extra_info)
         return ptus_incomplete(extra_info)
-    if unit == "kWh":
-        flex_model["soc-unit"] = "kWh"
+    flex_model["soc-unit"] = unit
 
     # get optional efficiency
     roundtrip_efficiency = form.get("roundtrip_efficiency", None)
@@ -301,7 +300,7 @@ def post_udi_event_response(unit: str, prior: datetime):
     if soc_max:
         flex_model["soc-max"] = soc_max
 
-    # set soc targets - TODO: is this equal to our scheduler implementation? delete.
+    # set soc targets
     start_of_schedule = datetime
     end_of_schedule = datetime + current_app.config.get("FLEXMEASURES_PLANNING_HORIZON")
 
