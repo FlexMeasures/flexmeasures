@@ -326,12 +326,7 @@
         format: 'YYYY-MM-DD\\T00:00:00',
     });
     picker.on('selected', (startDate, endDate) => {
-        // Stop replay
-        let toggle = document.querySelector('#replay');
-        toggle.classList.remove('playing');
-        toggle.classList.remove('paused');
-        toggle.classList.add('stopped');
-
+        stopReplay()
         startDate = startDate.toJSDate();
         endDate = endDate.toJSDate();
         endDate.setDate(endDate.getDate() + 1);
@@ -475,6 +470,7 @@
     }
     function stopReplay() {
         toggle.classList.remove('playing');
+        toggle.classList.remove('paused');
         toggle.classList.add('stopped');
 
         // Remove replay ruler and replay time
