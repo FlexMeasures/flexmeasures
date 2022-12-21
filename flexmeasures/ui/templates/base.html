@@ -538,6 +538,21 @@
             toggle.classList.add('playing');
         }
     });
+
+    window.addEventListener('keypress', function(e) {
+        // Pause/resume replay with 'p'
+        if (e.key==='p') {
+            if (toggle.classList.contains('playing')) {
+                // Pause replay
+                toggle.classList.remove('playing');
+                toggle.classList.add('paused');
+            } else if (toggle.classList.contains('paused')) {
+                // Resume replay
+                toggle.classList.remove('paused');
+                toggle.classList.add('playing');
+            }
+         }
+    }, false);
     </script>
 
     {% endblock sensorChartSetup %}
