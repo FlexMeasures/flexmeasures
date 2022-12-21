@@ -446,45 +446,33 @@
     let toggle = document.querySelector('#replay');
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
-        if (toggle.classList.contains('playing')) {
-            pauseReplay();
-        } else if (toggle.classList.contains('stopped')) {
-            startReplay();
-        } else {
-            resumeReplay();
-        }
+        toggleReplay();
     });
 
     window.addEventListener('keypress', function(e) {
-        // Pause/resume replay with 'p'
+        // Start/pause/resume replay with 'p'
         if (e.key==='p') {
-            if (toggle.classList.contains('stopped')) {
-                startReplay();
-            } else if (toggle.classList.contains('playing')) {
-                pauseReplay();
-            } else {
-                resumeReplay();
-            }
-         }
+            toggleReplay();
+        }
     }, false);
 
-    /**
-     * Pause replay
-     */
+    function toggleReplay() {
+        if (toggle.classList.contains('stopped')) {
+            startReplay();
+        } else if (toggle.classList.contains('playing')) {
+            pauseReplay();
+        } else {
+            resumeReplay();
+        }
+    }
     function pauseReplay() {
         toggle.classList.remove('playing');
         toggle.classList.add('paused');
     }
-    /**
-     * Resume replay
-     */
     function resumeReplay() {
         toggle.classList.remove('paused');
         toggle.classList.add('playing');
     }
-    /**
-     * Stop replay
-     */
     function stopReplay() {
         toggle.classList.remove('playing');
         toggle.classList.add('stopped');
@@ -493,9 +481,6 @@
         vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': null})).run().finalize();
         document.getElementById('replay-time').innerHTML = '';
     }
-    /**
-     * Start replay
-     */
     function startReplay() {
         toggle.classList.remove('stopped');
         toggle.classList.add('playing');
