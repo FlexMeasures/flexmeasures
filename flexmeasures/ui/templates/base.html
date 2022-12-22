@@ -511,7 +511,7 @@
          */
         async function replayBeliefsData (remainingData) {
             var replayedData = [];
-            for (var i = 0; i < numReplaySteps + 1; i++) {
+            for (var beliefTime = new Date(storeStartDate); beliefTime <= storeEndDate; beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)) {
                 while (document.getElementById('replay').classList.contains('paused') ) {
                     await timer(1000);
                 }
@@ -519,7 +519,6 @@
                     break;
                 }
                 var s = performance.now();
-                beliefTime = new Date(beliefTime.getTime() + beliefTimedelta);
 
                 // Split off one replay step of new data from the remaining data
                 var newData;
