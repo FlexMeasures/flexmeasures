@@ -231,7 +231,7 @@
     <script type="module" type="text/javascript">
 
     import { subtract, thisMonth, lastNMonths, getOffsetBetweenTimezonesForDate } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}";
-    import { partition, updateBeliefs, beliefTimedelta} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
+    import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout} from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}";
 
     let vegaView;
     let previousResult;
@@ -336,11 +336,6 @@
 
         stopReplay()
 
-        // Abort previous request and create abort controller for new request
-        controller.abort();
-        controller = new AbortController();
-        signal = controller.signal;
-
         $("#spinner").show();
         Promise.all([
             // Fetch time series data
@@ -356,7 +351,7 @@
             fetch(dataPath + '/chart_annotations/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
-                  signal: signal,
+                signal: signal,
             })
             .then(function(response) { return response.json(); }),
             */
@@ -479,6 +474,11 @@
         toggle.classList.remove('paused');
         toggle.classList.add('stopped');
 
+        // Abort previous request and create abort controller for new request
+        controller.abort();
+        controller = new AbortController();
+        signal = controller.signal;
+
         // Remove replay ruler and replay time
         vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': null})).run().finalize();
         document.getElementById('replay-time').innerHTML = '';
@@ -502,6 +502,7 @@
             fetch(dataPath + '/chart_data/?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false', {
                 method: "GET",
                 headers: {"Content-Type": "application/json"},
+                signal: signal,
             })
             .then(function(response) { return response.json(); }),
         ]).then(function(result) {
@@ -509,7 +510,7 @@
             replayBeliefsData(result[0]);
         }).catch(console.error);
 
-        const timer = ms => new Promise(res => setTimeout(res, Math.max(ms, 0)));
+        const timer = ms => new Promise(res => setAbortableTimeout(res, Math.max(ms, 0), signal));
 
         /**
          * Replays beliefs data.
