@@ -36,7 +36,9 @@ class StorageFlexModelSchema(Schema):
     )  # todo: allow unit to be set per field, using QuantityField("%", validate=validate.Range(min=0, max=1))
     soc_targets = fields.List(fields.Nested(SOCTargetSchema()), data_key="soc-targets")
     roundtrip_efficiency = QuantityField(
-        "%", validate=validate.Range(min=0, max=1), data_key="roundtrip-efficiency"
+        "%",
+        validate=validate.Range(min=0, max=1, min_inclusive=False, max_inclusive=True),
+        data_key="roundtrip-efficiency",
     )
     prefer_charging_sooner = fields.Bool(data_key="prefer-charging-sooner")
 
