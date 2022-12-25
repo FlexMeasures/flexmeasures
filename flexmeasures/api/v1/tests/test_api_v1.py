@@ -12,7 +12,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
     unrecognized_connection_group,
 )
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.common.utils.api_utils import message_replace_name_with_ea
 from flexmeasures.api.common.utils.validators import validate_user_sources
 from flexmeasures.api.v1.tests.utils import (
@@ -32,6 +32,7 @@ def test_get_service(client, query):
         headers={"content-type": "application/json"},
     )
     print("Server responded with:\n%s" % get_service_response.json)
+    check_deprecation(get_service_response)
     assert get_service_response.status_code == 200
     assert get_service_response.json["type"] == "GetServiceResponse"
     assert get_service_response.json["status"] == request_processed()[0]["status"]
@@ -47,6 +48,7 @@ def test_unauthorized_request(client):
         headers={"content-type": "application/json"},
     )
     print("Server responded with:\n%s" % get_meter_data_response.json)
+    check_deprecation(get_meter_data_response)
     assert get_meter_data_response.status_code == 401
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     assert get_meter_data_response.json["status"] == UNAUTH_ERROR_STATUS
@@ -63,6 +65,7 @@ def test_no_connection_in_get_request(client):
         },
     )
     print("Server responded with:\n%s" % get_meter_data_response.json)
+    check_deprecation(get_meter_data_response)
     assert get_meter_data_response.status_code == 400
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     assert (
@@ -82,6 +85,7 @@ def test_invalid_connection_in_get_request(client):
         },
     )
     print("Server responded with:\n%s" % get_meter_data_response.json)
+    check_deprecation(get_meter_data_response)
     assert get_meter_data_response.status_code == 400
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     assert get_meter_data_response.json["status"] == invalid_domain()[0]["status"]
@@ -116,6 +120,7 @@ def test_invalid_or_no_unit(client, method, message):
                 )
             },
         )
+        check_deprecation(get_meter_data_response)
     else:
         get_meter_data_response = []
     assert get_meter_data_response.status_code == 400
@@ -148,6 +153,7 @@ def test_invalid_sender_and_logout(client, user_email, get_message):
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_meter_data_response.json)
+    check_deprecation(get_meter_data_response)
     assert get_meter_data_response.status_code == 403
     assert get_meter_data_response.json["status"] == invalid_sender()[0]["status"]
 
@@ -169,6 +175,7 @@ def test_invalid_resolution_str(client):
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_meter_data_response.json)
+    check_deprecation(get_meter_data_response)
     assert get_meter_data_response.status_code == 400
     assert get_meter_data_response.json["type"] == "GetMeterDataResponse"
     assert get_meter_data_response.json["status"] == "INVALID_RESOLUTION"
@@ -240,6 +247,7 @@ def test_get_meter_data(db, app, client, message):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_meter_data_response.json)
+    check_deprecation(get_meter_data_response)
     assert get_meter_data_response.status_code == 200
     assert get_meter_data_response.json["values"] == [(100.0 + i) for i in range(6)]
 
@@ -257,6 +265,7 @@ def test_post_meter_data_to_different_resolutions(app, client):
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_meter_data_response.json)
+    check_deprecation(post_meter_data_response)
     assert post_meter_data_response.json["type"] == "PostMeterDataResponse"
     assert post_meter_data_response.status_code == 400
     assert (

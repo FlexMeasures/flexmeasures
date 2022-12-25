@@ -57,6 +57,18 @@ FIELD_DEFINITIONS = {
         title="Source",
     ),
 }
+REPLAY_RULER = {
+    "data": {"name": "replay"},
+    "mark": {
+        "type": "rule",
+    },
+    "encoding": {
+        "x": {
+            "field": "belief_time",
+            "type": "temporal",
+        },
+    },
+}
 SHADE_LAYER = {
     "mark": {
         "type": "bar",
