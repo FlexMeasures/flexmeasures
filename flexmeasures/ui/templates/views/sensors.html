@@ -25,6 +25,23 @@
                   </div>
               </div>
               <div class="col-sm-2">
+                  <div>
+                      <form id="uploadForm" enctype="multipart/form-data" method="post">
+                          <label class="custom-uploader" for="file">Upload CSV</label>
+                          <input id="file" accept="text/csv" name="filesToUpload" type="file" multiple="multiple" />
+                          <input id="submitUpload" class="btn btn-success" name="submit" type="button" value="Upload files"/>
+                          <script>
+                              let upload = document.querySelector('#submitUpload');
+                              upload.addEventListener('click', function(e) {
+                                  var formData = new FormData(document.getElementById('uploadForm'))
+                                  fetch('/api/v3_0/sensors/data/upload', {
+                                      method: 'POST',
+                                      body: formData,
+                                  })
+                              });
+                          </script>
+                      </form>
+                  </div>
                   <div class="replay-container">
                     <div id="replay" class="stopped"></div>
                     <div id="replay-time"></div>

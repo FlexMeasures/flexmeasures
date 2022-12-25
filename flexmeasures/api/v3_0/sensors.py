@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from flask import current_app
+from flask import current_app, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
@@ -113,6 +113,14 @@ class SensorAPI(FlaskView):
         """
         sensors = get_sensors(account=account)
         return sensors_schema.dump(sensors), 200
+
+    @route("/data/upload", methods=["POST"])
+    def upload_data(self):
+        import pandas as pd
+        for f in list(request.files.listvalues())[0]:
+            df = pd.read_csv(f.stream)
+            print(df)
+        return {}, 200
 
     @route("/data", methods=["POST"])
     @use_args(
