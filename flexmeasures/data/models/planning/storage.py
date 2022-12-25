@@ -247,8 +247,6 @@ class StorageScheduler(Scheduler):
         self.flex_model = StorageFlexModelSchema().load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
-        self.check_soc_min_max_and_targets()
-
         # Make SOC targets into a series for easier use
         self.flex_model["soc_targets"] = build_soc_targets(
             self.flex_model.get("soc_targets", []),
@@ -289,53 +287,6 @@ class StorageScheduler(Scheduler):
             if soc_max_sensor and self.flex_model.get(soc_unit_label) == "kWh":
                 soc_max_sensor *= 1000
         return soc_min_sensor, soc_max_sensor
-
-    def check_soc_min_max_and_targets(self):
-        """
-        Check if targets or min and max values are out of any existing known bounds
-        """
-        deserialized_names = True
-        min_target, max_target = self.get_min_max_targets(
-            deserialized_names=deserialized_names
-        )
-        soc_min_sensor, soc_max_sensor = self.get_min_max_soc_on_sensor(
-            deserialized_names=deserialized_names
-        )
-        soc_min_label = "soc_min" if deserialized_names else "soc-min"
-        soc_max_label = "soc_max" if deserialized_names else "soc-max"
-
-        if min_target and min_target < 0:
-            raise ValueError(f"Lowest SOC target {min_target} MWh lies below 0.")
-        if (
-            min_target is not None
-            and soc_min_sensor is not None
-            and min_target < soc_min_sensor
-        ):
-            raise ValueError(
-                f"Target value {min_target} MWh is below sensor {self.sensor.id}'s min_soc_in_mwh attribute of {soc_min_sensor}."
-            )
-        if (
-            self.flex_model.get("soc_min") is not None
-            and self.flex_model.get("soc_min") < soc_min_sensor
-        ):
-            raise ValueError(
-                f"Value {self.flex_model.get(soc_min_label)} MWh for soc-min is below sensor {self.sensor.id}'s min_soc_in_mwh attribute of {soc_min_sensor}."
-            )
-        if (
-            max_target is not None
-            and soc_max_sensor is not None
-            and max_target > soc_max_sensor
-        ):
-            raise ValueError(
-                f"Target value {max_target} MWh is above sensor {self.sensor.id}'s max_soc_in_mwh attribute of {soc_max_sensor}."
-            )
-        if (
-            self.flex_model.get("soc_max") is not None
-            and self.flex_model.get("soc_max") > soc_max_sensor
-        ):
-            raise ValueError(
-                f"Value {self.flex_model.get(soc_max_label)} MWh for soc-max is above sensor {self.sensor.id}'s max_soc_in_mwh attribute of {soc_max_sensor}."
-            )
 
     def ensure_soc_min_max(self):
         """
