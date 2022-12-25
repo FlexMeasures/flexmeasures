@@ -148,7 +148,7 @@ def get_device_message_response(generic_asset_name_groups, duration):
                     return unknown_schedule("Scheduling job has an unknown status.")
                 schedule_start = job.kwargs["start"]
 
-            data_source = get_data_source_for_job(job, sensor=sensor)
+            data_source = get_data_source_for_job(job)
             if data_source is None:
                 return unknown_schedule(
                     message + f"no data source could be found for job {job}."

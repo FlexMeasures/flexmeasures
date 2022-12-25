@@ -556,7 +556,7 @@ class SensorAPI(FlaskView):
             return unknown_schedule("Scheduling job has an unknown status.")
         schedule_start = job.kwargs["start"]
 
-        data_source = get_data_source_for_job(job, sensor=sensor)
+        data_source = get_data_source_for_job(job)
         if data_source is None:
             return unknown_schedule(
                 error_message + f"no data source could be found for {data_source}."

@@ -236,23 +236,22 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
-def get_data_source_for_job(
-    job: Optional[Job], sensor: Optional[Sensor] = None
-) -> Optional[DataSource]:
+def get_data_source_for_job(job: Optional[Job]) -> Optional[DataSource]:
     """
     Try to find the data source linked by this scheduling job.
 
     We expect that enough info on the source was placed in the meta dict.
-    For a transition period, we might have to guess a bit, as not all jobs have saved their data source ID.
-    TODO: Afterwards, this can be lighter. We should also expect a job and no sensor is needed,
-          once API v1.3 is deprecated.
+    This only happened with v0.12. For a transition period, we might have to support older jobs who haven't got that info.
+    TODO: We should expect a job, once API v1.3 is deprecated.
     """
     data_source_info = None
     if job:
         data_source_info = job.meta.get("data_source_info")
-        if data_source_info and "id" in data_source_info:
+        if (
+            data_source_info and "id" in data_source_info
+        ):  # this is the expected outcome
             return DataSource.query.get(data_source_info["id"])
-    if data_source_info is None and sensor:
+    if data_source_info is None:
         data_source_info = dict(name="Seita", model="StorageScheduler")
         # TODO: change to raise later (v0.13) - all scheduling jobs now get full info
         current_app.logger.warning(
