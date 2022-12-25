@@ -28,18 +28,6 @@ from flexmeasures.utils.calculations import integrate_time_series
             "Not a valid number",
         ),
         (message_for_trigger_schedule(), "soc-unit", "MWH", "Must be one of"),
-        (
-            message_for_trigger_schedule(),
-            "soc-max",
-            6000,
-            "Value 6.0 MWh for soc-max is above",
-        ),
-        (
-            message_for_trigger_schedule(with_targets=True, realistic_targets=False),
-            "Target",
-            None,
-            "Target value 25.0 MWh is above",
-        ),
     ],
 )
 def test_trigger_schedule_with_invalid_flexmodel(
