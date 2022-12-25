@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import pandas as pd
+from flask import current_app
 
 from flexmeasures import Sensor
 
@@ -67,6 +68,30 @@ class Scheduler:
         Overwrite with the actual computation of your schedule.
         """
         return None
+
+    @classmethod
+    def get_data_source_info(cls: type) -> dict:
+        """
+        Create and return the data source info, from which a data source lookup/creation is possible.
+        See for instance get_data_source_for_job().
+        """
+        source_info = dict(
+            model=cls.__name__, version="1", name="Unknown author"
+        )  # default
+
+        if hasattr(cls, "__version__"):
+            source_info["version"] = str(cls.__version__)
+        else:
+            current_app.logger.warning(
+                f"Scheduler {cls.__name__} loaded, but has no __version__ attribute."
+            )
+        if hasattr(cls, "__author__"):
+            source_info["name"] = str(cls.__author__)
+        else:
+            current_app.logger.warning(
+                f"Scheduler {cls.__name__} has no __author__ attribute."
+            )
+        return source_info
 
     def persist_flex_model(self):
         """

@@ -12,7 +12,6 @@ from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     load_custom_scheduler,
-    get_data_source_info_by_scheduler_class,
 )
 
 
@@ -87,7 +86,7 @@ def test_loading_custom_scheduler(is_path: bool):
     assert custom_scheduler.__name__ == "DummyScheduler"
     assert "Just a dummy scheduler" in custom_scheduler.compute_schedule.__doc__
 
-    data_source_info = get_data_source_info_by_scheduler_class(custom_scheduler)
+    data_source_info = custom_scheduler.get_data_source_info()
     assert data_source_info["name"] == "Test Organization"
     assert data_source_info["version"] == "3"
     assert data_source_info["model"] == "DummyScheduler"

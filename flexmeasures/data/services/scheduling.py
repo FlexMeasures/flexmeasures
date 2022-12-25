@@ -96,7 +96,7 @@ def make_schedule(
         )
 
     scheduler_class = find_scheduler_class(sensor)
-    data_source_info = get_data_source_info_by_scheduler_class(scheduler_class)
+    data_source_info = scheduler_class.get_data_source_info()
 
     if belief_time is None:
         belief_time = server_now()
@@ -227,30 +227,6 @@ def load_custom_scheduler(scheduler_specs: dict) -> type:
     return scheduler_class
 
 
-def get_data_source_info_by_scheduler_class(scheduler_class: type) -> dict:
-    """
-    Create and return the data source info, from which a data source lookup/creation is possible.
-    See for instance get_data_source_for_job().
-    """
-    source_info = dict(
-        model=scheduler_class.__name__, version="1", name="Unknown author"
-    )  # default
-
-    if hasattr(scheduler_class, "__version__"):
-        source_info["version"] = str(scheduler_class.__version__)
-    else:
-        current_app.logger.warning(
-            f"Scheduler {scheduler_class.__name__} loaded, but has no __version__ attribute."
-        )
-    if hasattr(scheduler_class, "__author__"):
-        source_info["name"] = str(scheduler_class.__author__)
-    else:
-        current_app.logger.warning(
-            f"Scheduler {scheduler_class.__name__} loaded, but has no __author__ attribute."
-        )
-    return source_info
-
-
 def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     """
     Store exception as job meta data.
@@ -267,7 +243,7 @@ def get_data_source_for_job(
     Try to find the data source linked by this scheduling job.
 
     We expect that enough info on the source was placed in the meta dict.
-    For a transition period, we might have to guess a bit.
+    For a transition period, we might have to guess a bit, as not all jobs have saved their data source ID.
     TODO: Afterwards, this can be lighter. We should also expect a job and no sensor is needed,
           once API v1.3 is deprecated.
     """
