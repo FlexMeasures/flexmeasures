@@ -43,7 +43,13 @@ from flexmeasures.utils.calculations import integrate_time_series
     ],
 )
 def test_trigger_schedule_with_invalid_flexmodel(
-    app, add_battery_assets, message, field, sent_value, err_msg
+    app,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    message,
+    field,
+    sent_value,
+    err_msg,
 ):
     sensor = Sensor.query.filter(Sensor.name == "Test battery").one_or_none()
     with app.test_client() as client:
@@ -89,6 +95,7 @@ def test_trigger_and_get_schedule(
     add_battery_assets,
     battery_soc_sensor,
     add_charging_station_assets,
+    keep_scheduling_queue_empty,
     message,
     asset_name,
 ):

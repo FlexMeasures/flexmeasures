@@ -66,6 +66,13 @@ def setup_inactive_user(db, setup_accounts, setup_roles_users):
     )
 
 
+@pytest.fixture(scope="function")
+def keep_scheduling_queue_empty(app):
+    app.queues["scheduling"].empty()
+    yield
+    app.queues["scheduling"].empty()
+
+
 def add_gas_sensor(db, test_supplier_user) -> Sensor:
     incineration_type = GenericAssetType(
         name="waste incinerator",
