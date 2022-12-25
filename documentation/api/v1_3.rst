@@ -3,6 +3,8 @@
 Version 1.3
 ===========
 
+.. warning:: This API version is deprecated since December 14, 2022, and will likely be sunset in February 2023. Please update to :ref:`v3_0`. For more information about how FlexMeasures handles deprecation and sunsetting, see :ref:`api_deprecation`.
+
 Summary
 -------
 

@@ -10,7 +10,7 @@ from flexmeasures.api.common.responses import (
     invalid_horizon,
     invalid_unit,
 )
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.common.utils.api_utils import (
     message_replace_name_with_ea,
 )
@@ -35,6 +35,7 @@ def test_get_service(client, query):
         headers={"content-type": "application/json"},
     )
     print("Server responded with:\n%s" % get_service_response.json)
+    check_deprecation(get_service_response)
     assert get_service_response.status_code == 200
     assert get_service_response.json["type"] == "GetServiceResponse"
     assert get_service_response.json["status"] == request_processed()[0]["status"]
@@ -50,6 +51,7 @@ def test_unauthorized_prognosis_request(client):
         headers={"content-type": "application/json"},
     )
     print("Server responded with:\n%s" % get_prognosis_response.json)
+    check_deprecation(get_prognosis_response)
     assert get_prognosis_response.status_code == 401
     assert get_prognosis_response.json["type"] == "GetPrognosisResponse"
     assert get_prognosis_response.json["status"] == UNAUTH_ERROR_STATUS
@@ -69,6 +71,7 @@ def test_invalid_horizon(setup_api_test_data, client, message):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_prognosis_response.json)
+    check_deprecation(get_prognosis_response)
     assert get_prognosis_response.status_code == 400
     assert get_prognosis_response.json["type"] == "GetPrognosisResponse"
     assert get_prognosis_response.json["status"] == invalid_horizon()[0]["status"]
@@ -84,6 +87,7 @@ def test_no_data(setup_api_test_data, client):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_prognosis_response.json)
+    check_deprecation(get_prognosis_response)
     assert get_prognosis_response.status_code == 200
     assert get_prognosis_response.json["type"] == "GetPrognosisResponse"
     assert get_prognosis_response.json["values"] == []
@@ -109,6 +113,7 @@ def test_get_prognosis(setup_api_test_data, client, message):
         headers={"content-type": "application/json", "Authorization": auth_token},
     )
     print("Server responded with:\n%s" % get_prognosis_response.json)
+    check_deprecation(get_prognosis_response)
     assert get_prognosis_response.status_code == 200
     if "groups" in get_prognosis_response.json:
         assert get_prognosis_response.json["groups"][0]["values"] == [
@@ -139,6 +144,7 @@ def test_post_price_data(setup_api_test_data, db, app, clean_redis, post_message
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_price_data_response.json)
+        check_deprecation(post_price_data_response)
         assert post_price_data_response.status_code == 200
         assert post_price_data_response.json["type"] == "PostPriceDataResponse"
 
@@ -173,14 +179,15 @@ def test_post_price_data_invalid_unit(setup_api_test_data, client, post_message)
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_price_data_response.json)
+    check_deprecation(post_price_data_response)
     assert post_price_data_response.status_code == 400
     assert post_price_data_response.json["type"] == "PostPriceDataResponse"
     ea = parse_entity_address(post_message["market"], "market", fm_scheme="fm0")
     market_name = ea["market_name"]
     sensor = Sensor.query.filter_by(name=market_name).one_or_none()
     assert (
-        post_price_data_response.json["message"]
-        == invalid_unit("%s prices" % sensor.name, ["EUR/MWh"])[0]["message"]
+        invalid_unit("%s prices" % sensor.name, ["EUR/MWh"])[0]["message"]
+        in post_price_data_response.json["message"]
     )
 
 
@@ -205,6 +212,7 @@ def test_post_weather_forecasts(
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_weather_data_response.json)
+    check_deprecation(post_weather_data_response)
     assert post_weather_data_response.status_code == 200
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
 
@@ -229,12 +237,14 @@ def test_post_weather_forecasts_invalid_unit(setup_api_test_data, client, post_m
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_weather_data_response.json)
+    check_deprecation(post_weather_data_response)
     assert post_weather_data_response.status_code == 400
     assert post_weather_data_response.json["type"] == "PostWeatherDataResponse"
+    # also checks that any underscore in the physical or economic quantity should be replaced with a space
     assert (
-        post_weather_data_response.json["message"]
-        == invalid_unit("wind speed", ["m/s"])[0]["message"]
-    )  # also checks that any underscore in the physical or economic quantity should be replaced with a space
+        invalid_unit("wind speed", ["m/s"])[0]["message"]
+        in post_weather_data_response.json["message"]
+    )
 
 
 @pytest.mark.parametrize("post_message", [message_for_post_price_data()])
@@ -253,6 +263,7 @@ def test_auto_fix_missing_registration_of_user_as_data_source(
         headers={"Authorization": auth_token},
     )
     print("Server responded with:\n%s" % post_price_data_response.json)
+    check_deprecation(post_price_data_response)
     assert post_price_data_response.status_code == 200
 
     formerly_improper_user = User.query.filter(

@@ -239,6 +239,10 @@
     let queryEndDate;
     let storeStartDate;
     let storeEndDate;
+    {% if event_starts_after and event_ends_before %}
+        storeStartDate = new Date('{{ event_starts_after }}');
+        storeEndDate = new Date('{{ event_ends_before }}');
+    {% endif %}
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
 
@@ -267,6 +271,10 @@
     var elementId = 'sensorchart';
     var chartSpecsPath = dataPath + '/chart?';
 
+    // Set up abort controller to cancel requests
+    var controller = new AbortController();
+    var signal = controller.signal;
+
     const initialData = fetch(dataPath + '/chart_data/?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}', {
         method: "GET",
         headers: {"Content-Type": "application/json"},
@@ -286,9 +294,6 @@
         var sessionEnd = null
     {% endif %}
 
-    // Set up abort controller to cancel requests
-    var controller = new AbortController();
-    var signal = controller.signal;
 
     // Create date range picker and the logic for a new date range selection (mostly, fetching data and displaying the chart for it)
     const date = Date();
@@ -506,11 +511,16 @@
                      * the view with removing only a few data points (representing obsolete beliefs) and inserting only
                      * a few data points (representing the most recent new beliefs) actually made it slower.
                      */
-                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData)).run().finalize();
+                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
+                    vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': beliefTime}));
+                    vegaView.run().finalize();
 
                     document.getElementById('replay-time').innerHTML = beliefTime;
                     await timer(25);
                 }
+                // Remove replay ruler
+                vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({'belief_time': null})).run().finalize();
+
                 // Stop replay when finished
                 toggle.classList.remove('playing');
                 toggle.classList.add('stopped');

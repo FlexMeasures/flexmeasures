@@ -1,6 +1,6 @@
 import json
 
-from flask import url_for, current_app
+from flask import url_for, current_app, Response
 
 from flexmeasures.data import db
 from flexmeasures.data.services.users import find_user_by_email
@@ -102,3 +102,12 @@ def post_task_run(client, task_name: str, status: bool = True):
             "Authorization": get_auth_token(client, "task_runner@seita.nl", "testtest")
         },
     )
+
+
+def check_deprecation(response: Response):
+    print(response.headers)
+    assert "Tue, 13 Dec 2022 23:59:59 GMT" in response.headers["Deprecation"]
+    assert "Tue, 31 Jan 2023 23:59:59 GMT" in response.headers["Sunset"]
+    # Make sure we link to some url for both deprecation and sunset
+    assert 'rel="deprecation"' in response.headers["Link"]
+    assert 'rel="sunset"' in response.headers["Link"]

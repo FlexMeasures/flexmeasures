@@ -1,7 +1,7 @@
 from flask import url_for
 import pytest
 
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.v2_0.tests.utils import (
     message_for_post_prognosis,
     verify_sensor_data_in_db,
@@ -23,6 +23,7 @@ def test_post_prognosis_2_0(db, app, post_message, fm_scheme):
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % post_prognosis_response.json)
+        check_deprecation(post_prognosis_response)
         assert post_prognosis_response.status_code == 200
         assert post_prognosis_response.json["type"] == "PostPrognosisResponse"
 
