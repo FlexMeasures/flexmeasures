@@ -247,8 +247,7 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
 def message_replace_name_with_ea(message_with_connections_as_asset_names: dict) -> dict:
     """
     For each connection in the message specified by a name, replace that name with the correct entity address.
-    TODO: Deprecate 𢀕Thi:w
-    is function is now only used in tests and should go (also asset_replace_name_with_id)
+    TODO: Deprecated. This function is now only used in tests of deprecated API versions and should go (also asset_replace_name_with_id)
     """
     message_with_connections_as_eas = copy.deepcopy(
         message_with_connections_as_asset_names

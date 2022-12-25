@@ -198,7 +198,7 @@ class StorageScheduler(Scheduler):
     def inspect_flex_config(self):
         """
         Check storage flex model and the flex context against schemas.
-        Before that , we fill in values from wider context, if possible. Mostly, we allow several fields to come from sensor attributes.
+        Before that, we fill in values from wider context, if possible. Mostly, we allow several fields to come from sensor attributes.
 
         Note: Before we apply the flex model schema, we need to use the flex model identifiers with hyphens,
               (this is how they are represented to outside, e.g. by the API), after deserialization
@@ -207,7 +207,7 @@ class StorageScheduler(Scheduler):
         if self.flex_model is None:
             self.flex_model = {}
 
-        #  Check state of charge.
+        # Check state of charge.
         # Preferably, a starting soc is given.
         # Otherwise, we try to retrieve the current state of charge from the asset (if that is the valid one at the start).
         # If that doesn't work, we set the starting soc to 0 (some assets don't use the concept of a state of charge,
@@ -243,7 +243,7 @@ class StorageScheduler(Scheduler):
 
         self.ensure_soc_min_max()
 
-        # Now it's time to check if our flex configurations hold up to basic expectations
+        # Now it's time to check if our flex configurations holds up to schemas
         self.flex_model = StorageFlexModelSchema().load(self.flex_model)
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
@@ -259,7 +259,7 @@ class StorageScheduler(Scheduler):
 
     def get_min_max_targets(
         self, deserialized_names: bool = True
-    ) -> tuple(float | None):
+    ) -> tuple[float | None]:
         min_target = None
         max_target = None
         soc_targets_label = "soc_targets" if deserialized_names else "soc-targets"
@@ -277,7 +277,7 @@ class StorageScheduler(Scheduler):
 
     def get_min_max_soc_on_sensor(
         self, adjust_unit: bool = False, deserialized_names: bool = True
-    ) -> tuple(float | None):
+    ) -> tuple[float | None]:
         soc_min_sensor = self.sensor.get_attribute("min_soc_in_mwh", None)
         soc_max_sensor = self.sensor.get_attribute("max_soc_in_mwh", None)
         soc_unit_label = "soc_unit" if deserialized_names else "soc-unit"
