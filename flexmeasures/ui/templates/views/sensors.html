@@ -34,7 +34,7 @@
                               let upload = document.querySelector('#submitUpload');
                               upload.addEventListener('click', function(e) {
                                   var formData = new FormData(document.getElementById('uploadForm'))
-                                  fetch('/api/v3_0/sensors/data/upload', {
+                                  fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
                                       method: 'POST',
                                       body: formData,
                                   })

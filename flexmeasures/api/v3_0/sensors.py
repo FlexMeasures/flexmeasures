@@ -4,13 +4,14 @@ from typing import List, Optional
 from flask import current_app, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
-from flask_security import auth_required
+from flask_security import auth_required, current_user
 import isodate
 from marshmallow import validate, fields, Schema
 from marshmallow.validate import OneOf
 import numpy as np
+import pandas as pd
 from rq.job import Job, NoSuchJobError
-from timely_beliefs import BeliefsDataFrame
+import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 
 from flexmeasures.api.common.responses import (
@@ -114,11 +115,20 @@ class SensorAPI(FlaskView):
         sensors = get_sensors(account=account)
         return sensors_schema.dump(sensors), 200
 
-    @route("/data/upload", methods=["POST"])
-    def upload_data(self):
-        import pandas as pd
+    @route("<id>/data/upload", methods=["POST"])
+    @use_kwargs(
+        {"sensor": SensorIdField(data_key="id")},
+        location="path",
+    )
+    def upload_data(self, sensor, **kwargs):
         for f in list(request.files.listvalues())[0]:
-            df = pd.read_csv(f.stream)
+            df = tb.read_csv(
+                f,
+                sensor,
+                source=current_user.data_source[0],
+                belief_time=pd.Timestamp.utcnow(),
+                resample=True,
+            )
             print(df)
         return {}, 200
 
@@ -127,7 +137,7 @@ class SensorAPI(FlaskView):
         post_sensor_schema,
         location="json",
     )
-    def post_data(self, bdf: BeliefsDataFrame):
+    def post_data(self, bdf: tb.BeliefsDataFrame):
         """
         Post sensor data to FlexMeasures.
 

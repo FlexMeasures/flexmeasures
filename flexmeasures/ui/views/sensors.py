@@ -7,6 +7,7 @@ from flask_security import auth_required, login_required
 from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 
+from flexmeasures import Sensor
 from flexmeasures.data.schemas.times import AwareDateTimeField
 from flexmeasures.api.dev.sensors import SensorAPI
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
@@ -69,5 +70,6 @@ class SensorUI(FlaskView):
         return render_flexmeasures_template(
             "views/sensors.html",
             sensor_id=id,
+            sensor=Sensor.query.get(id),
             msg="",
         )
