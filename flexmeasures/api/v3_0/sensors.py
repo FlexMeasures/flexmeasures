@@ -121,6 +121,7 @@ class SensorAPI(FlaskView):
         location="path",
     )
     def upload_data(self, sensor, **kwargs):
+        dfs = []
         for f in list(request.files.listvalues())[0]:
             df = tb.read_csv(
                 f,
@@ -130,7 +131,9 @@ class SensorAPI(FlaskView):
                 resample=True,
             )
             print(df)
-        return {}, 200
+            dfs.append(df)
+        response, code = save_and_enqueue(dfs)
+        return response, code
 
     @route("/data", methods=["POST"])
     @use_args(
