@@ -532,6 +532,27 @@
             toggle.classList.add('playing');
         }
     });
+
+
+    /**
+     * Upload sensor data
+     */
+    {% if active_page == "sensors" %}
+        let upload = document.querySelector('#submitUpload');
+        upload.addEventListener('click', function(e) {
+            var formData = new FormData(document.getElementById('uploadForm'))
+            fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
+                method: 'POST',
+                body: formData,
+            }).then(function(result) {
+                picker.setDateRange(
+                    storeStartDate,
+                    subtract(storeEndDate, 1),
+                );
+                //startReplay();
+            });
+        });
+    {% endif %}
     </script>
 
     {% endblock sensorChartSetup %}

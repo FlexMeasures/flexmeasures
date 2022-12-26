@@ -25,16 +25,6 @@
                             <label class="custom-uploader" for="file">Upload CSV</label>
                             <input id="file" accept="text/csv" name="filesToUpload" type="file" multiple="multiple" />
                             <button id="submitUpload" class="btn btn-sm btn-responsive btn-success create-button" name="submit" type="button">Upload files</button>
-                            <script>
-                                let upload = document.querySelector('#submitUpload');
-                                upload.addEventListener('click', function(e) {
-                                    var formData = new FormData(document.getElementById('uploadForm'))
-                                    fetch('/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
-                                        method: 'POST',
-                                        body: formData,
-                                    })
-                                });
-                            </script>
                         </form>
                     </div>
                 </div>
