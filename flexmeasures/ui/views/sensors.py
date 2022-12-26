@@ -8,7 +8,7 @@ from marshmallow import fields
 from webargs.flaskparser import use_kwargs
 
 from flexmeasures import Sensor
-from flexmeasures.data.schemas.times import AwareDateTimeField
+from flexmeasures.data.schemas import AwareDateTimeField, SensorIdField
 from flexmeasures.api.dev.sensors import SensorAPI
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.utils.chart_defaults import chart_options
@@ -65,11 +65,15 @@ class SensorUI(FlaskView):
         ).replace('<div id="vis"></div>', '<div id="vis" style="width: 100%;"></div>')
 
     @login_required
-    def get(self, id: int):
+    @route("/<id>/", methods=["GET"])
+    @use_kwargs(
+        {"sensor": SensorIdField(data_key="id")},
+        location="path",
+    )
+    def get(self, sensor: Sensor, **kwargs):
         """GET from /sensors/<id>"""
         return render_flexmeasures_template(
             "views/sensors.html",
-            sensor_id=id,
-            sensor=Sensor.query.get(id),
+            sensor=sensor,
             msg="",
         )

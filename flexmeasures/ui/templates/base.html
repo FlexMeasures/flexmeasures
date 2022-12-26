@@ -264,9 +264,9 @@
         var dataDevPath = '/api/dev/asset/' + {{ asset.id }};
         var datasetName = 'asset_' + {{ asset.id }};
     {% elif active_page == "sensors" %}
-        var dataPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var dataDevPath = '/api/dev/sensor/' + {{ sensor_id }};
-        var datasetName = 'sensor_' + {{ sensor_id }};
+        var dataPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
+        var datasetName = 'sensor_' + {{ sensor.id }};
     {% endif %}
     var elementId = 'sensorchart';
     var chartSpecsPath = dataPath + '/chart?';
