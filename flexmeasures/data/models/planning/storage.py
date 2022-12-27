@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import List, Union, Dict
+from typing import List, Dict
 
 import pandas as pd
 import numpy as np
@@ -28,7 +28,7 @@ class StorageScheduler(Scheduler):
 
     def compute_schedule(
         self,
-    ) -> Union[pd.Series, None]:
+    ) -> pd.Series | None:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
         """
@@ -259,7 +259,7 @@ class StorageScheduler(Scheduler):
 
     def get_min_max_targets(
         self, deserialized_names: bool = True
-    ) -> tuple[float | None]:
+    ) -> tuple[float | None, float | None]:
         min_target = None
         max_target = None
         soc_targets_label = "soc_targets" if deserialized_names else "soc-targets"

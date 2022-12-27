@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import Optional
 import os
 import sys
 import importlib.util
@@ -29,8 +30,8 @@ The life cycle of a scheduling job:
 
 
 def create_scheduling_job(
-    sensor: [int | Sensor],
-    job_id: Optional[str] = None,
+    sensor: int | Sensor,
+    job_id: str | None = None,
     enqueue: bool = True,
     **scheduler_kwargs,
 ) -> Job:
@@ -72,9 +73,9 @@ def make_schedule(
     start: datetime,
     end: datetime,
     resolution: timedelta,
-    belief_time: Optional[datetime] = None,
-    flex_model: Optional[dict] = None,
-    flex_context: Optional[dict] = None,
+    belief_time: datetime | None = None,
+    flex_model: dict | None = None,
+    flex_context: dict | None = None,
 ) -> bool:
     """
     This function is meant to be queued as a job. It returns True if it ran successfully.
@@ -238,7 +239,7 @@ def handle_scheduling_exception(job, exc_type, exc_value, traceback):
     job.save_meta()
 
 
-def get_data_source_for_job(job: Optional[Job]) -> Optional[DataSource]:
+def get_data_source_for_job(job: Job | None) -> DataSource | None:
     """
     Try to find the data source linked by this scheduling job.
 
