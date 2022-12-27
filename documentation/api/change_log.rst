@@ -5,6 +5,24 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL, allowing developers to upgrade at their own pace.
 
+v3.0-5 | 2022-12-30
+"""""""""""""""""""
+
+- Introduced ``flex-model`` and ``flex-context`` fields to `/sensors/<id>/schedules/trigger` (POST). They are dictionaries and group pre-existing fields:
+
+    - ``soc-at-start`` -> send in ``flex-model`` instead
+    - ``soc-min`` -> send in ``flex-model`` instead
+    - ``soc-max`` -> send in ``flex-model`` instead
+    - ``soc-unit`` -> send in ``flex-model`` instead
+    - ``roundtrip-efficiency`` -> send in ``flex-model`` instead
+    - ``prefer-charging-sooner`` -> send in ``flex-model`` instead
+    - ``consumption-price-sensor`` -> send in ``flex-context`` instead
+    - ``production-price-sensor`` -> send in ``flex-context`` instead
+    - ``inflexible-device-sensors`` -> send in ``flex-context`` instead
+
+- The field ``doc-sensor-id`` in `/sensors/<id>/schedules/trigger` (POST) has been deprecated.
+
+
 v3.0-4 | 2022-12-08
 """""""""""""""""""
 
