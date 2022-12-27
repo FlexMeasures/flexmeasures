@@ -50,14 +50,7 @@ def deprecate_field(
     """
     if not isinstance(field, list):
         field = [field]
-    if deprecation_date:
-        deprecation = to_http_time(pd.Timestamp(deprecation_date) - pd.Timedelta("1s"))
-    else:
-        deprecation = "true"
-    if sunset_date:
-        sunset = to_http_time(pd.Timestamp(sunset_date) - pd.Timedelta("1s"))
-    else:
-        sunset = None
+    deprecation, sunset = _format_deprecation_and_sunset(deprecation_date, sunset_date)
 
     @after_this_request
     def _after_request_handler(response: Response) -> Response:
@@ -114,14 +107,7 @@ def deprecate_blueprint(
     - Deprecation header: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-deprecation-header
     - Sunset header: https://www.rfc-editor.org/rfc/rfc8594
     """
-    if deprecation_date:
-        deprecation = to_http_time(pd.Timestamp(deprecation_date) - pd.Timedelta("1s"))
-    else:
-        deprecation = "true"
-    if sunset_date:
-        sunset = to_http_time(pd.Timestamp(sunset_date) - pd.Timedelta("1s"))
-    else:
-        sunset = None
+    deprecation, sunset = _format_deprecation_and_sunset(deprecation_date, sunset_date)
 
     def _after_request_handler(response: Response) -> Response:
         current_app.logger.warning(
@@ -162,3 +148,15 @@ def _add_link(response: Response, link: str, rel: str) -> Response:
     else:
         response.headers["Link"] = link_text
     return response
+
+
+def _format_deprecation_and_sunset(deprecation_date, sunset_date):
+    if deprecation_date:
+        deprecation = to_http_time(pd.Timestamp(deprecation_date) - pd.Timedelta("1s"))
+    else:
+        deprecation = "true"
+    if sunset_date:
+        sunset = to_http_time(pd.Timestamp(sunset_date) - pd.Timedelta("1s"))
+    else:
+        sunset = None
+    return deprecation, sunset
