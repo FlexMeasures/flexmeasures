@@ -123,6 +123,8 @@ class SensorAPI(FlaskView):
     def upload_data(self, sensor, **kwargs):
         dfs = []
         for f in list(request.files.listvalues())[0]:
+            if not f.filename:
+                continue
             df = tb.read_csv(
                 f,
                 sensor,
