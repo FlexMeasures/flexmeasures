@@ -5,7 +5,7 @@ from isodate import parse_datetime
 import pandas as pd
 from rq.job import Job
 
-from flexmeasures.api.tests.utils import get_auth_token
+from flexmeasures.api.tests.utils import check_deprecation, get_auth_token
 from flexmeasures.api.v1_3.tests.utils import message_for_get_device_message
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -51,6 +51,7 @@ def test_trigger_schedule_with_invalid_flexmodel(
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
+        check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
         assert trigger_schedule_response.status_code == 422
         assert field in trigger_schedule_response.json["message"]["json"]
         if isinstance(trigger_schedule_response.json["message"]["json"], str):
@@ -105,6 +106,7 @@ def test_trigger_and_get_schedule(
             headers={"Authorization": auth_token},
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
+        check_deprecation(trigger_schedule_response)
         assert trigger_schedule_response.status_code == 200
         assert (
             "soc-min" in trigger_schedule_response.json["message"]
