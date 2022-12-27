@@ -7,8 +7,8 @@ import pandas as pd
 from flexmeasures.utils.time_utils import to_http_time
 
 
-def deprecate_field(
-    field: str | list[str],
+def deprecate_fields(
+    fields: str | list[str],
     deprecation_date: pd.Timestamp | str | None = None,
     deprecation_link: str | None = None,
     sunset_date: pd.Timestamp | str | None = None,
@@ -35,7 +35,7 @@ def deprecate_field(
                 sunset_link="https://flexmeasures.readthedocs.io/some-sunset-notice",
             )
 
-    :param field:            The field (or fields, as a list of strings) to be deprecated
+    :param fields:           The fields (as a list of strings) to be deprecated
     :param deprecation_date: date indicating when the field was deprecated, used for the "Deprecation" header
                              if no date is given, defaults to "true"
                              see https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-deprecation-header#section-2-1
@@ -48,13 +48,15 @@ def deprecate_field(
     - Deprecation header: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-deprecation-header
     - Sunset header: https://www.rfc-editor.org/rfc/rfc8594
     """
-    if not isinstance(field, list):
-        field = [field]
+    if not isinstance(fields, list):
+        fields = [fields]
     deprecation, sunset = _format_deprecation_and_sunset(deprecation_date, sunset_date)
 
     @after_this_request
     def _after_request_handler(response: Response) -> Response:
-        deprecated_fields_used = set(field) & set(request.json.keys())  # sets intersect
+        deprecated_fields_used = set(fields) & set(
+            request.json.keys()
+        )  # sets intersect
 
         # If any deprecated field is used, log a warning and add deprecation and sunset headers
         if deprecated_fields_used:

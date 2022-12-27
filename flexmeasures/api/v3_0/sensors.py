@@ -18,7 +18,7 @@ from flexmeasures.api.common.responses import (
     unknown_schedule,
     invalid_flex_config,
 )
-from flexmeasures.api.common.utils.deprecation_utils import deprecate_field
+from flexmeasures.api.common.utils.deprecation_utils import deprecate_fields
 from flexmeasures.api.common.utils.validators import (
     optional_duration_accepted,
 )
@@ -386,12 +386,12 @@ class SensorAPI(FlaskView):
         :status 422: UNPROCESSABLE_ENTITY
         """
         # -- begin deprecation logic, can be removed after 0.13
-        deprecate_field(
+        deprecate_fields(
             DEPRECATED_FLEX_CONFIGURATION_FIELDS,
             deprecation_date="2022-12-14",
-            deprecation_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-4-2022-12-08",
+            deprecation_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-5-2022-12-30",
             sunset_date="2023-02-01",
-            sunset_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-4-2022-12-08",
+            sunset_link="https://flexmeasures.readthedocs.io/en/latest/api/change_log.html#v3-0-5-2022-12-30",
         )
         found_fields: Dict[str, List[str]] = dict(model=[], context=[])
         deprecation_message = ""
