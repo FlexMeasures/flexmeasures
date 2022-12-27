@@ -20,8 +20,6 @@ v3.0-5 | 2022-12-30
     - ``production-price-sensor`` -> send in ``flex-context`` instead
     - ``inflexible-device-sensors`` -> send in ``flex-context`` instead
 
-- The field ``doc-sensor-id`` in `/sensors/<id>/schedules/trigger` (POST) has been deprecated.
-
 
 v3.0-4 | 2022-12-08
 """""""""""""""""""
