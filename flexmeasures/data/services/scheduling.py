@@ -29,7 +29,7 @@ The life cycle of a scheduling job:
 
 
 def create_scheduling_job(
-    sensor_id: int,
+    sensor: [int | Sensor],
     job_id: Optional[str] = None,
     enqueue: bool = True,
     **scheduler_kwargs,
@@ -42,11 +42,13 @@ def create_scheduling_job(
 
     As a rule of thumb, keep arguments to the job simple, and deserializable.
     """
+    # From here on, we handle IDs again, not objects
+    if isinstance(sensor, Sensor):
+        sensor = sensor.id
+
     job = Job.create(
         make_schedule,
-        kwargs=dict(
-            sensor_id=sensor_id, **scheduler_kwargs
-        ),  # TODO: we're passing sensor objects in flex_context. Passing IDs would be cleaner to avoid potential db sessions confusion.
+        kwargs=dict(sensor_id=sensor, **scheduler_kwargs),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
         ttl=int(

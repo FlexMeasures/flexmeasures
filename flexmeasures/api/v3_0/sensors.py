@@ -276,7 +276,7 @@ class SensorAPI(FlaskView):
 
         In this request, you can describe:
 
-        - the schedule's main  (start, unit, prior)
+        - the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)
         - the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)
         - the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)
 
@@ -449,9 +449,6 @@ class SensorAPI(FlaskView):
             return invalid_flex_config(err.messages)
         except ValueError as err:
             return invalid_flex_config(str(err))
-
-        # From here on, we handle IDs again, not objects
-        scheduler_kwargs.update(sensor_id=scheduler_kwargs.pop("sensor").id)
 
         job = create_scheduling_job(
             **scheduler_kwargs,
